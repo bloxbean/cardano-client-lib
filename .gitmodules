@@ -1,0 +1,3 @@
+[submodule "cardano-serialization-lib"]
+	path = cardano-serialization-lib
+	url = https://github.com/bloxbean/cardano-serialization-lib.git

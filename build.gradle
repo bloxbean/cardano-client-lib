@@ -1,0 +1,75 @@
+plugins {
+    id 'java'
+    id 'signing'
+    id "com.vanniktech.maven.publish" version "0.14.2"
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'net.java.dev.jna', name: 'jna', version: '5.8.0'
+    compile group: 'net.java.dev.jna', name: 'jna-platform', version: '5.8.0'
+    //implementation 'info.picocli:picocli:4.6.1'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDirs "src/main/resources", "native"
+        }
+    }
+}
+
+compileJava {
+    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
+}
+
+//create a single Jar with all dependencies
+task fatJar(type: Jar) {
+    manifest {
+        attributes 'Main-Class': 'com.bloxbean.cardano.client.Main'
+    }
+    baseName = project.name + '-all'
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
+test {
+    useJUnitPlatform()
+}
+
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+
+if (isReleaseVersion) {
+    signing {
+        sign configurations.archives
+    }
+}
+
+//publishing {
+//    repositories {
+//        maven {
+//            name = "OSSRH"
+//            url = "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
+//            credentials {
+//                username = System.getenv("MAVEN_USER")
+//                password = System.getenv("MAVEN_PASSWORD")
+//            }
+//        }
+////        maven {
+////            name = "GitHubPackages"
+////            url = "https://maven.pkg.github.com/bloxbean/cardano-client-lib"
+////            credentials {
+////                username = System.getenv("GITHUB_ACTOR")
+////                password = System.getenv("GITHUB_TOKEN")
+////            }
+////        }
+//    }
+//}
+
+

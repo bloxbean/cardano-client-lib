@@ -1,0 +1,20 @@
+[package]
+name = "cardano-jni-wrapper"
+version = "0.1.0"
+authors = ["Satya <satran004@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+cardano-serialization-lib = { path="../cardano-serialization-lib/rust" }
+ffi-support = "0.4.2"
+jni = "0.19.0"
+rand = "0.7.3"
+tiny-bip39 = "0.8.0"
+serde = { version = "1.0.64", features = ["derive"] }
+serde_json = "1.0.57"
+
