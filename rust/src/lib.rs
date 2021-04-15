@@ -66,9 +66,6 @@ pub struct Network {
 pub fn get_address_by_network(phrase: *const c_char, index: u32, network: &Network) -> *const c_char {
     let s =  to_string(phrase);
 
-    println!("{}", network.network_id);
-    println!("{}", network.protocol_magic);
-
     let netInfo = NetworkInfo::new(network.network_id,
                                     network.protocol_magic as u32);
     let add = get_baseaddress_from_mnemonic_by_networkInfo(s.as_str(), index, netInfo);
