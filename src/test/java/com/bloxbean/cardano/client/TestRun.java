@@ -9,6 +9,7 @@ public class TestRun {
         Account account = new Account(Networks.testnet());
         System.out.println(account.mnemonic());
         System.out.println(account.baseAddress(0));
+        System.out.println(account.enterpriseAddress(0));
 
 //        String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
 //        String baseAddress = CardanoJNA.INSTANCE.get_address_by_network(phrase24W, 0, Networks.mainnet());

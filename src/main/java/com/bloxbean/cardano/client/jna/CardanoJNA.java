@@ -10,7 +10,9 @@ public interface CardanoJNA extends Library {
             Native.load(LibraryUtil.getCardanoWrapperLib(),
                     CardanoJNA.class);
 
-    public String get_address(String phrase, int index, boolean isTestnet);
-    public String get_address_by_network(String phrase, int index, Network.ByReference network);
-    public String generate_mnemonic();
+    public String getBaseAddress(String phrase, int index, boolean isTestnet);
+    public String getBaseAddressByNetwork(String phrase, int index, Network.ByReference network);
+    public String getEnterpriseAddress(String phrase, int index, boolean isTestnet);
+    public String getEnterpriseAddressByNetwork(String phrase, int index, Network.ByReference network);
+    public String generateMnemonic();
 }

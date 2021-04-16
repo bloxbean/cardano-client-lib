@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.cli;
 
+import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.jna.CardanoJNA;
+import com.bloxbean.cardano.client.util.Networks;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -15,21 +17,30 @@ public class AccountGeneration implements Runnable {
     @CommandLine.Option(names = {"-t", "--total"}, description = "Total number of accounts to generate")
     private int total;
 
+    @CommandLine.Option(names = {"-ea", "--enterprise-address"}, description = "Generate enterprise address")
+    private boolean entAddress;
+
     @Override
     public void run() {
         if (network == null || network.trim().length() == 0)
             network = "mainnet";
 
-        String mnemonic = CardanoJNA.INSTANCE.generate_mnemonic();
+        Account account = null;
+
+        if("testnet".equals(network)) {
+            account = new Account(Networks.testnet());
+        } else {
+            account = new Account();
+        }
+
+        String mnemonic = account.mnemonic();
         System.out.println("Mnemonic  : " + mnemonic);
 
         for (int i = 0; i <= total; i++) {
-            if ("testnet".equals(network)) {
-                String baseAddress = CardanoJNA.INSTANCE.get_address(mnemonic, i, true);
-                System.out.println("Address-" + i + ": " + baseAddress);
-            } else {
-                String baseAddress = CardanoJNA.INSTANCE.get_address(mnemonic, i, false);
-                System.out.println("Address-" + i + ": " + baseAddress);
+            System.out.println(" ");
+            System.out.println("Base Address-" + i + ": " + account.baseAddress(i));
+            if(entAddress) {
+                System.out.println("Ent Address -" + i + ": " + account.enterpriseAddress(i));
             }
         }
     }

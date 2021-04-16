@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.util.Networks;
 public class Account {
     private String mnemonic;
     private String baseAddress;
+    private String enterpriseAddress;
     private Network network;
 
     /**
@@ -66,11 +67,24 @@ public class Account {
         refNetwork.network_id = network.network_id;
         refNetwork.protocol_magic = network.protocol_magic;
 
-        return CardanoJNA.INSTANCE.get_address_by_network(mnemonic, index, refNetwork);
+        return CardanoJNA.INSTANCE.getBaseAddressByNetwork(mnemonic, index, refNetwork);
+    }
+
+    /**
+     *
+     * @param index
+     * @return enterpriseAddress at index
+     */
+    public String enterpriseAddress(int index) {
+        Network.ByReference refNetwork = new Network.ByReference();
+        refNetwork.network_id = network.network_id;
+        refNetwork.protocol_magic = network.protocol_magic;
+
+        return CardanoJNA.INSTANCE.getEnterpriseAddressByNetwork(mnemonic, index, refNetwork);
     }
 
     private void generateNew() {
-        String mnemonic = CardanoJNA.INSTANCE.generate_mnemonic();
+        String mnemonic = CardanoJNA.INSTANCE.generateMnemonic();
         this.mnemonic = mnemonic;
     }
 }

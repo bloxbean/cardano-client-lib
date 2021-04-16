@@ -4,7 +4,7 @@ use std::os::raw::c_char;
 use std::str;
 
 use bip39::{Language, Mnemonic, MnemonicType};
-use cardano_serialization_lib::address::{BaseAddress, NetworkInfo, Pointer, PointerAddress, StakeCredential};
+use cardano_serialization_lib::address::{BaseAddress, NetworkInfo, Pointer, PointerAddress, StakeCredential, EnterpriseAddress};
 use cardano_serialization_lib::chain_core::property::FromStr;
 use cardano_serialization_lib::crypto::Bip32PrivateKey;
 use rand::prelude::*;
@@ -56,6 +56,36 @@ pub fn get_baseaddress_from_mnemonic(phrase: &str, index: u32, is_testnet: bool)
     get_baseaddress_from_mnemonic_by_networkInfo(phrase, index, network)
 }
 
+pub fn get_enterpriseaddress_from_mnemonic_by_networkInfo(phrase: &str, index: u32, network: NetworkInfo) -> String {
+    let result = Mnemonic::from_phrase(phrase, Language::English).unwrap();
+
+    let entropy = result.entropy();
+
+    let root_key = get_root_key(&entropy);
+    let spend = root_key
+        .derive(harden(1852))
+        .derive(harden(1815))
+        .derive(harden(0))
+        .derive(0)
+        .derive(index)
+        .to_public();
+
+    let spend_cred = StakeCredential::from_keyhash(&spend.to_raw_key().hash());
+    let addr_net_0 = EnterpriseAddress::new(network.network_id(), &spend_cred).to_address();
+
+    addr_net_0.to_bech32(None).unwrap()
+}
+
+pub fn get_enterpriseaddress_from_mnemonic(phrase: &str, index: u32, is_testnet: bool) -> String {
+    let network = if is_testnet {
+        NetworkInfo::testnet()
+    } else {
+        NetworkInfo::mainnet()
+    };
+
+    get_enterpriseaddress_from_mnemonic_by_networkInfo(phrase, index, network)
+}
+
 pub fn generate_mnemonic() -> String {
     let mnemonic = Mnemonic::new(MnemonicType::Words24, Language::English);
     let phrase = mnemonic.phrase();
@@ -65,18 +95,10 @@ pub fn generate_mnemonic() -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic};
-
-// #[test]
-    // fn it_works() {
-    //     let phrase = "test walk nut penalty hip pave soap entry language right filter choice";
-    //     // let entropy = [0xdf, 0x9e, 0xd2, 0x5e, 0xd1, 0x46, 0xbf, 0x43, 0x33, 0x6a, 0x5d, 0x7c, 0xf7, 0x39, 0x59, 0x94];
-    //     let str = get_baseaddress_from_mnemonic(phrase, 0);
-    //     println!(" Hello: {}", str);
-    // }
+    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic};
 
     #[test]
-    fn get_baseaddress_from_mnemonic_yoroi() {
+    fn get_baseaddress_from_mnemonic_15words() {
         //15 words
         let phrase = "stairs same wheel damage taste amused dutch fly end tiger benefit leopard purity work year";
         // let entropy = [0xdf, 0x9e, 0xd2, 0x5e, 0xd1, 0x46, 0xbf, 0x43, 0x33, 0x6a, 0x5d, 0x7c, 0xf7, 0x39, 0x59, 0x94];
@@ -120,6 +142,32 @@ mod tests {
         assert_eq!(add0, "addr_test1qzsaa6czesrzwp45rd5flg86n5hnwhz5setqfyt39natwvsl5mr3vkp82y2kcwxxtu4zjcxvm80ttmx2hyeyjka4v8psa5ns0z");
         assert_eq!(add1, "addr_test1qp3jwnn3hvgcuv02tqe08lpdkxxpmvapxgjxwewya47tqsgl5mr3vkp82y2kcwxxtu4zjcxvm80ttmx2hyeyjka4v8psk5kh2v");
         assert_eq!(add2, "addr_test1qrpr30ykyfa3pw6qkkun3dyyxsvftq3xukuyxdt58pxcpxgl5mr3vkp82y2kcwxxtu4zjcxvm80ttmx2hyeyjka4v8pskku650");
+    }
+
+    #[test]
+    fn get_enterpriseaddress_from_mnemonic_mainnet() {
+        //24 words
+        let phrase = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+        let add0 = get_enterpriseaddress_from_mnemonic(phrase, 0, false);
+        let add1 = get_enterpriseaddress_from_mnemonic(phrase, 1, false);
+        let add2 = get_enterpriseaddress_from_mnemonic(phrase, 2, false);
+
+        assert_eq!(add0, "addr1vxsaa6czesrzwp45rd5flg86n5hnwhz5setqfyt39natwvstf7k4n");
+        assert_eq!(add1, "addr1v93jwnn3hvgcuv02tqe08lpdkxxpmvapxgjxwewya47tqsg7davae");
+        assert_eq!(add2, "addr1v8pr30ykyfa3pw6qkkun3dyyxsvftq3xukuyxdt58pxcpxgvddj89");
+     }
+
+    #[test]
+    fn get_enterpriseaddress_from_mnemonic_testnet() {
+        //24 words
+        let phrase = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+        let add0 = get_enterpriseaddress_from_mnemonic(phrase, 0, true);
+        let add1 = get_enterpriseaddress_from_mnemonic(phrase, 1, true);
+        let add2 = get_enterpriseaddress_from_mnemonic(phrase, 2, true);
+
+        assert_eq!(add0, "addr_test1vzsaa6czesrzwp45rd5flg86n5hnwhz5setqfyt39natwvssp226k");
+        assert_eq!(add1, "addr_test1vp3jwnn3hvgcuv02tqe08lpdkxxpmvapxgjxwewya47tqsg99fsju");
+        assert_eq!(add2, "addr_test1vrpr30ykyfa3pw6qkkun3dyyxsvftq3xukuyxdt58pxcpxgh9ewgq");
     }
 
     #[test]

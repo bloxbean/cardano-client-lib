@@ -9,7 +9,7 @@ import java.io.File;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class AccountTest {
+public class AccountTest {
 
     static {
         String folderPrefix = Platform.getNativeLibraryResourcePrefix();
@@ -73,5 +73,18 @@ class AccountTest {
         assertNotNull(account.mnemonic());
         assertEquals(address0, account.baseAddress(0));
         assertEquals(phrase24W, account.mnemonic());
+    }
+
+    @Test
+    void getEntAddressFromMnemonic_byNetwork() {
+        String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+        String address0 = "addr_test1vzsaa6czesrzwp45rd5flg86n5hnwhz5setqfyt39natwvssp226k";
+        String address1 = "addr_test1vp3jwnn3hvgcuv02tqe08lpdkxxpmvapxgjxwewya47tqsg99fsju";
+
+        Account account = new Account(Networks.testnet(), phrase24W);
+
+        assertEquals(address0, account.enterpriseAddress(0));
+        assertEquals(address1, account.enterpriseAddress(1));
+        assertNotNull(account.mnemonic());
     }
 }
