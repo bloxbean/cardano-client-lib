@@ -36,7 +36,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build with Gradle
-        run: ./gradlew build --stacktrace
+        run: ./gradlew build -PskipSigning=true --stacktrace
 
   build-win-x86-64:
     runs-on: windows-latest
@@ -63,7 +63,7 @@ jobs:
           distribution: 'adopt'
 
       - name: Build with Gradle
-        run: ./gradlew build --stacktrace
+        run: ./gradlew build -PskipSigning=true --stacktrace
 
   build-mac-x86-64:
     runs-on: macos-latest
@@ -92,7 +92,7 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build with Gradle
-        run: ./gradlew build --stacktrace
+        run: ./gradlew build -PskipSigning=true --stacktrace
 
   build-mac-aarch64:
     runs-on: macos-latest
@@ -121,4 +121,4 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build with Gradle
-        run: ./gradlew build -x test --stacktrace
+        run: ./gradlew build -x test -PskipSigning=true --stacktrace
