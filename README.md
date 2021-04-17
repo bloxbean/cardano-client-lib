@@ -10,8 +10,8 @@ This project can be used as a library in another Java project or as a standalone
 The library has been tested on the following Operating Systems.
 
 - Apple MacOS (Intel and Apple Silicon)
-- Ubuntu 18.x or above (X86_64) or compatible
-- Windows 10 (x86_64)
+- Linux (x86_64) (Ubuntu 18.04 and above or compatible ...)
+- Windows 64bits (x86_64)
 
 For anyother platform, please create a request [here](https://github.com/bloxbean/cardano-client-lib/issues)
 
