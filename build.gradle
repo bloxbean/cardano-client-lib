@@ -1,7 +1,7 @@
 plugins {
     id 'java'
+    id 'maven'
     id 'signing'
-    id "com.vanniktech.maven.publish" version "0.14.2"
 }
 
 repositories {
@@ -29,6 +29,20 @@ compileJava {
     options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
 }
 
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
+
+task sourcesJar(type: Jar) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+artifacts {
+    archives javadocJar, sourcesJar
+}
+
 //create a single Jar with all dependencies
 task fatJar(type: Jar) {
     manifest {
@@ -50,3 +64,48 @@ if (isReleaseVersion && !project.hasProperty("skipSigning")) {
         sign configurations.archives
     }
 }
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            pom.project {
+                name 'Cardano Client Library'
+                packaging 'jar'
+                description 'Cardano Client Library for Java'
+                url 'https://github.com/bloxbean/cardano-client-lib'
+
+                scm {
+                    connection 'scm:git:git://github.com/bloxbean/cardano-client-lib.git'
+                    developerConnection 'scm:git:ssh://git@github.com/bloxbean/cardano-client-lib.git'
+                    url 'https://github.com/bloxbean/cardano-client-lib'
+                }
+
+                licenses {
+                    license {
+                        name 'The MIT License'
+                        url 'http://www.opensource.org/licenses/mit-license.php'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id 'satran004'
+                        name 'Satya'
+                        email 'satran004@gmail.com'
+                    }
+                }
+            }
+        }
+    }
+}
+

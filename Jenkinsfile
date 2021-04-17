@@ -14,8 +14,8 @@ pipeline {
     }
 
     environment {
-        ORG_GRADLE_PROJECT_SONATYPE_NEXUS_USERNAME = credentials("ossrh_user")
-        ORG_GRADLE_PROJECT_SONATYPE_NEXUS_PASSWORD = credentials("ossrh_password")
+        ossrhUsername = credentials("ossrh_user")
+        ossrhPassword = credentials("ossrh_password")
         SIGNING_PASSWORD = credentials("signing_password")
     }
 
