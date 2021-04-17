@@ -14,8 +14,8 @@ pipeline {
     }
 
     environment {
-        ossrhUsername = credentials("ossrh_user")
-        ossrhPassword = credentials("ossrh_password")
+        MAVEN_USER = credentials("ossrh_user")
+        MAVEN_PASSWORD = credentials("ossrh_password")
         SIGNING_PASSWORD = credentials("signing_password")
     }
 
