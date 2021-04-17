@@ -6,6 +6,16 @@ Currently, it provides only Account api. Using this api, you can generate a new 
 
 This project can be used as a library in another Java project or as a standalone utility.
 
+## Supported Operating Systems
+The library has been tested on the following Operating Systems.
+
+- Apple MacOS (Intel and Apple Silicon)
+- Ubuntu 18.x or above (X86_64) or compatible
+- Windows 10 (x86_64)
+
+For anyother platform, please create a request [here](https://github.com/bloxbean/cardano-client-lib/issues)
+
+
 ## Use as a library in a Java Project
 
 ### Add dependency
@@ -25,7 +35,7 @@ This project can be used as a library in another Java project or as a standalone
 compile 'com.bloxbean.cardano:cardano-client-lib:0.0.1'
 ```
 
-## Account API Usage
+### Account API Usage
 
 - Create a New Account
 
@@ -54,7 +64,7 @@ Account account = new Account(mnemonic);  //Create a Mainnet account from Mnemon
 Account account = new Account(Networks.testnet(), mnemonic); //Create a Testnet account from Mnemonic
 ```
 
-# Use as a standalone application
+## Use as a standalone application
 The library also provides some CLI utilities. Download `cardano-client-lib-all-<version>.jar` from release section.
 
 ```aidl
