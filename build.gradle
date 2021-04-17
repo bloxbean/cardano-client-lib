@@ -63,12 +63,12 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
-//            artifact(sourceJar) {
-//                classifier = 'sources'
-//            }
-//            artifact(javadocJar) {
-//                classifier = 'javadoc'
-//            }
+            artifact(sourceJar) {
+                classifier = 'sources'
+            }
+            artifact(javadocJar) {
+                classifier = 'javadoc'
+            }
             pom {
                 name = 'Cardano Client Library'
                 description = 'Cardano Client Library for Java'
@@ -115,8 +115,8 @@ ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
 if (isReleaseVersion && !project.hasProperty("skipSigning")) {
     signing {
-        sign publishing.publications.mavenJava
 //        sign configurations.archives
+        sign publishing.publications
     }
 }
 
