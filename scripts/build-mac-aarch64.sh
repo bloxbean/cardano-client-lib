@@ -8,6 +8,6 @@ cp target/aarch64-apple-darwin/release/$SRC_LIB_FILE target/aarch64-apple-darwin
 cd ..
 
 mkdir -p native/$NATIVE_FOLDER
-cp rust/target/release/$SRC_LIB_FILE native/$NATIVE_FOLDER
+cp rust/aarch64-apple-darwin/target/release/$SRC_LIB_FILE native/$NATIVE_FOLDER
 
 ls native/$NATIVE_FOLDER && pwd
