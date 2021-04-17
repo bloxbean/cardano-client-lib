@@ -33,7 +33,7 @@ pipeline {
             steps {
                 sh  "chmod +x scripts/download_libs.sh"
                 sh  "./scripts/download_libs.sh  ${TAG_NAME}"
-                sh  './gradlew publish -Psigning.password=${SIGNING_PASSWORD}  --no-daemon --no-parallel --stacktrace'
+                sh  './gradlew uploadArchives -Psigning.password=${SIGNING_PASSWORD}  --no-daemon --no-parallel --stacktrace'
             }
          }
 
