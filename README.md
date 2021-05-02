@@ -2,13 +2,25 @@
 
 A client library for Cardano in Java. It currently uses [cardano-serialization-lib](https://github.com/Emurgo/cardano-serialization-lib) rust library though JNI.
 
+Currently, it provides only Account api. Using this api, you can generate a new account and corresponding Base Address and Enterprise Address. Similarly, you can generate an account from a mnemonic.
+
 This project can be used as a library in another Java project or as a standalone utility.
 
-# Use as a library in a Java Project
+## Supported Operating Systems
+The library has been tested on the following Operating Systems.
 
-## Add dependency
+- Apple MacOS (Intel and Apple Silicon)
+- Linux (x86_64) (Ubuntu 18.04 and above or compatible ...)
+- Windows 64bits (x86_64)
 
-- For Maven, add following dependency to project's pom.xml
+For anyother platform, please create a request [here](https://github.com/bloxbean/cardano-client-lib/issues)
+
+
+## Use as a library in a Java Project
+
+### Add dependency
+
+- For Maven, add the following dependency to project's pom.xml
 ```
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
@@ -17,13 +29,13 @@ This project can be used as a library in another Java project or as a standalone
         </dependency>
 ```
 
-- For Gradle, add following dependency to build.gradle
+- For Gradle, add the following dependency to build.gradle
 
 ```
 compile 'com.bloxbean.cardano:cardano-client-lib:0.0.1'
 ```
 
-## Account API Usage
+### Account API Usage
 
 - Create a New Account
 
@@ -52,14 +64,14 @@ Account account = new Account(mnemonic);  //Create a Mainnet account from Mnemon
 Account account = new Account(Networks.testnet(), mnemonic); //Create a Testnet account from Mnemonic
 ```
 
-# Use as a standalone application
+## Use as a standalone application
 The library also provides some CLI utilities. Download `cardano-client-lib-all-<version>.jar` from release section.
 
 ```aidl
 $> java -jar cardano-client-lib-all-<version>.jar  account generate [-ea] [-n mainnet|testnet] [-t total_no_of_accounts]
 $> java -jar cardano-client-lib-all-<version>.jar  account from-mnemonic [-mn mnemonic] [-ea] [-n <mainnet|testnet>] [-t total_no_of_accounts]
    
-   -ea : Also generate Enterprise account
+   -ea : Also generate Enterprise address
 ```
 
 Examples:
@@ -68,8 +80,8 @@ Examples:
 - java -jar cardano-client-lib-all-<version>.jar account generate -n testnet  //Generate a new testnet account
 - java -jar cardano-client-lib-all-<version>.jar account generate -ea  //Generate a new account and both Base Address and Enterprise address
 - java -jar cardano-client-lib-all-<version>.jar account generate -ea -t 5  //Generate a new account and show first 5 Base Addresses and Ent Addresses
-- java -jar cardano-client-lib-all-<version>.jar  account from-mnemonic -mn "chimney proof dismiss ..." -t 5 //Generate first 5 mainnet addresses from the mnemonic
-- java -jar cardano-client-lib-all-<version>.jar  account from-mnemonic -mn "chimney proof dismiss ..." -t 5 -n testnet //Testnet accounts
+- java -jar cardano-client-lib-all-<version>.jar account from-mnemonic -mn "chimney proof dismiss ..." -t 5 //Generate first 5 mainnet addresses from the mnemonic
+- java -jar cardano-client-lib-all-<version>.jar account from-mnemonic -mn "chimney proof dismiss ..." -t 5 -n testnet //Testnet accounts
 ```
 - Generate a new Mainnet account
 
@@ -91,9 +103,6 @@ Base Address-0: addr_test1qqyc4rcuz0wwy...
 ```
 
 
-
-
-
 # Build
 
 ```
@@ -103,18 +112,4 @@ git submodule update --init --recursive
 . script/build-<os>-<arch>.sh
 
 ./gradlew build farJar
-```
-
-- Get base address from mnemonic :
-```
-java -jar build/libs/cardano-client-lib-all-<version>.jar from-mnemonic <24w mnemonic>  <no_of_addresses> [mainnet|testnet]
-
-java -jar build/libs/cardano-client-lib-all-1.0-SNAPSHOT.jar from-mnemonic "explain fuel jar lawn action transfer pottery best measure tortoise buyer off buffalo drift pupil enjoy armor bean replace utility when unknown scissors slush" 30 mainnet
-```
-
-- Generate new address
-```
-java -jar build/libs/cardano-client-lib-all-<version>.jar generate  <no_of_addresses> [mainnet|testnet]
-
-java -jar build/libs/cardano-client-lib-all-1.0-SNAPSHOT.jar generate 5 mainnet
 ```
