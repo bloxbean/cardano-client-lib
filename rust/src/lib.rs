@@ -14,7 +14,7 @@ use crate::address::{get_baseaddress_from_mnemonic, get_baseaddress_from_mnemoni
 
 use std::os::raw::c_char;
 use std::ffi::{CStr,CString};
-use std::mem;
+use std::{mem, panic};
 use cardano_serialization_lib::address::NetworkInfo;
 
 use serde::{Deserialize, Serialize};
@@ -33,53 +33,99 @@ pub struct Network {
 #[no_mangle]
 #[allow(non_snake_case)]
 pub fn getBaseAddress(phrase: *const c_char, index: u32, is_testnet: bool) -> *const c_char {
-    let s =  to_string(phrase);
+    let result = panic::catch_unwind(|| {
+        let s =  to_string(phrase);
+        let add = get_baseaddress_from_mnemonic(s.as_str(), index, is_testnet);
 
-    let add = get_baseaddress_from_mnemonic(s.as_str(), index, is_testnet);
+        to_ptr(add)
+    });
 
-    to_ptr(add)
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
 }
 
 #[no_mangle]
 #[allow(non_snake_case)]
 pub fn getBaseAddressByNetwork(phrase: *const c_char, index: u32, network: &Network) -> *const c_char {
-    let s =  to_string(phrase);
+    let result = panic::catch_unwind(|| {
+        let s =  to_string(phrase);
 
-    let netInfo = NetworkInfo::new(network.network_id,
-                                    network.protocol_magic as u32);
-    let add = get_baseaddress_from_mnemonic_by_networkInfo(s.as_str(), index, netInfo);
+        let netInfo = NetworkInfo::new(network.network_id,
+                                       network.protocol_magic as u32);
 
-    to_ptr(add)
+        let add = get_baseaddress_from_mnemonic_by_networkInfo(s.as_str(), index, netInfo);
+
+        to_ptr(add)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
 }
 
 #[no_mangle]
 #[allow(non_snake_case)]
 pub fn getEnterpriseAddress(phrase: *const c_char, index: u32, is_testnet: bool) -> *const c_char {
-    let s =  to_string(phrase);
 
-    let add = get_enterpriseaddress_from_mnemonic(s.as_str(), index, is_testnet);
+    let result = panic::catch_unwind(|| {
+        let s =  to_string(phrase);
+        let add = get_enterpriseaddress_from_mnemonic(s.as_str(), index, is_testnet);
 
-    to_ptr(add)
+        to_ptr(add)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
 }
 
 #[no_mangle]
 #[allow(non_snake_case)]
 pub fn getEnterpriseAddressByNetwork(phrase: *const c_char, index: u32, network: &Network) -> *const c_char {
-    let s =  to_string(phrase);
 
-    let netInfo = NetworkInfo::new(network.network_id,
-                                   network.protocol_magic as u32);
-    let add = get_enterpriseaddress_from_mnemonic_by_networkInfo(s.as_str(), index, netInfo);
+    let result = panic::catch_unwind(|| {
+        let s =  to_string(phrase);
 
-    to_ptr(add)
+        let netInfo = NetworkInfo::new(network.network_id,
+                                       network.protocol_magic as u32);
+        let add = get_enterpriseaddress_from_mnemonic_by_networkInfo(s.as_str(), index, netInfo);
+
+        to_ptr(add)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
 }
 
 #[no_mangle]
 #[allow(non_snake_case)]
 pub fn generateMnemonic() -> *const c_char {
-    let mnemonic = address::generate_mnemonic();
+    let result = panic::catch_unwind(|| {
+        let mnemonic = address::generate_mnemonic();
 
-    to_ptr(mnemonic)
+        to_ptr(mnemonic)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
 }
 
 /// Convert a native string to a Rust string

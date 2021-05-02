@@ -87,4 +87,20 @@ public class AccountTest {
         assertEquals(address1, account.enterpriseAddress(1));
         assertNotNull(account.mnemonic());
     }
+
+    @Test
+    void getAddressFromInvalidMnemonic() {
+        String phrase = "invalid pass goose lava verb buzz service consider execute goose abstract fresh endless cruise layer belt immense clay glimpse install garage elegant cricket make";
+
+        Account account = new Account(Networks.testnet(), phrase);
+        assertEquals("", account.baseAddress(0));
+    }
+
+    @Test
+    void getEntAddressFromInvalidMnemonic() {
+        String phrase = "invalid pass goose lava verb buzz service consider execute goose abstract fresh endless cruise layer belt immense clay glimpse install garage elegant cricket make";
+
+        Account account = new Account(Networks.testnet(), phrase);
+        assertEquals("", account.enterpriseAddress(0));
+    }
 }
