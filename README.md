@@ -25,14 +25,14 @@ For anyother platform, please create a request [here](https://github.com/bloxbea
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.0.1</version>
+            <version>0.0.2</version>
         </dependency>
 ```
 
 - For Gradle, add the following dependency to build.gradle
 
 ```
-compile 'com.bloxbean.cardano:cardano-client-lib:0.0.1'
+compile 'com.bloxbean.cardano:cardano-client-lib:0.0.2'
 ```
 
 ### Account API Usage
