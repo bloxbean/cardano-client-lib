@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Result;
 
 mod address;
+mod transaction;
 
 #[no_mangle]
 #[repr(C)]
