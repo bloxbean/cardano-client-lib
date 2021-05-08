@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.util;
+package com.bloxbean.cardano.client.common.model;
 
 public class Networks {
     public static Network.ByReference mainnet() {

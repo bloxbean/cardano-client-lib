@@ -1,8 +1,7 @@
 package com.bloxbean.cardano.client.cli;
 
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.jna.CardanoJNA;
-import com.bloxbean.cardano.client.util.Networks;
+import com.bloxbean.cardano.client.common.model.Networks;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -36,10 +35,17 @@ public class FromMnemonic implements Runnable {
         }
 
         for (int i = 0; i <= total; i++) {
+            account = null;
+
+            if("testnet".equals(network)) {
+                account = new Account(Networks.testnet(), mnemonic, i);
+            } else {
+                account = new Account(mnemonic, i);
+            }
             System.out.println(" ");
-            System.out.println("Base Address-" + i + ": " + account.baseAddress(i));
+            System.out.println("Base Address-" + i + ": " + account.baseAddress());
             if(entAddress) {
-                System.out.println("Ent Address -" + i +  ": " + account.enterpriseAddress(i));
+                System.out.println("Ent Address -" + i +  ": " + account.enterpriseAddress());
             }
         }
     }

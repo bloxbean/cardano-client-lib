@@ -1,7 +1,7 @@
-package com.bloxbean.cardano.client;
+package com.bloxbean.cardano.client.jna;
 
-import com.bloxbean.cardano.client.jna.CardanoJNA;
-import com.bloxbean.cardano.client.util.Networks;
+import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Platform;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
-public class CardanoJNATest {
+public class AddressJNATest {
 
     static {
         String folderPrefix = Platform.getNativeLibraryResourcePrefix();
@@ -118,4 +118,19 @@ public class CardanoJNATest {
         System.out.println(entAddress);
         Assertions.assertEquals(entAddress1, entAddress);
     }
+
+    @Test
+    public void testBech32AddressToBytes() {
+        String baseAddress = "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w";
+        String addressInHex = CardanoJNA.INSTANCE.bech32AddressToBytes(baseAddress);
+        Assertions.assertNotEquals(0, HexUtil.decodeHexString(addressInHex));
+    }
+
+    @Test
+    public void testGetPrivateKeyFromMnemonic() {
+        String pvtKey = CardanoJNA.INSTANCE.getPrivateKeyFromMnemonic(phrase24W, 0);
+        System.out.println(pvtKey);
+        Assertions.assertTrue(pvtKey.length() > 5);
+    }
+
 }

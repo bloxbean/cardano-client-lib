@@ -4,13 +4,22 @@ use std::os::raw::c_char;
 use std::str;
 
 use bip39::{Language, Mnemonic, MnemonicType};
-use cardano_serialization_lib::address::{BaseAddress, NetworkInfo, Pointer, PointerAddress, StakeCredential, EnterpriseAddress};
+use cardano_serialization_lib::address::{BaseAddress, NetworkInfo, Pointer, PointerAddress, StakeCredential, EnterpriseAddress, Address};
 use cardano_serialization_lib::chain_core::property::FromStr;
-use cardano_serialization_lib::crypto::Bip32PrivateKey;
+use cardano_serialization_lib::crypto::{Bip32PrivateKey, PrivateKey};
 use rand::prelude::*;
 
 pub fn get_root_key(entropy: &[u8]) -> Bip32PrivateKey {
     Bip32PrivateKey::from_bip39_entropy(&entropy, &[])
+}
+
+pub fn get_root_key_from_mnemonic(phrase: &str) -> Bip32PrivateKey {
+    let result = Mnemonic::from_phrase(phrase, Language::English).unwrap();
+
+    let entropy = result.entropy();
+    let root_key = get_root_key(&entropy);
+
+    root_key
 }
 
 pub fn harden(index: u32) -> u32 {
@@ -93,9 +102,31 @@ pub fn generate_mnemonic() -> String {
     phrase.to_string()
 }
 
+pub fn bech32_address_to_bytes(address: &str) -> Vec<u8> {
+    let address = Address::from_bech32(address).unwrap();
+    address.to_bytes()
+}
+
+pub fn get_private_key_from_mnemonic(phrase: &str, index: u32) -> String {
+    let result = Mnemonic::from_phrase(phrase, Language::English).unwrap();
+
+    let entropy = result.entropy();
+
+    let root_key = get_root_key(&entropy);
+    let spendKey = root_key
+        .derive(harden(1852))
+        .derive(harden(1815))
+        .derive(harden(0))
+        .derive(0)
+        .derive(index)
+        .to_bech32();
+
+    spendKey
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic};
+    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic, bech32_address_to_bytes};
 
     #[test]
     fn get_baseaddress_from_mnemonic_15words() {
@@ -174,5 +205,12 @@ mod tests {
     fn generate_mnemonic_daedalus() {
         let mnemonic = generate_mnemonic();
         println!("{}", mnemonic);
+    }
+
+    #[test]
+    fn test_bech32_address_to_bytes() {
+        let add = "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w";
+        let bytes = bech32_address_to_bytes(add);
+        assert_ne!(0, bytes.len())
     }
 }

@@ -1,22 +1,25 @@
-package com.bloxbean.cardano.client;
+package com.bloxbean.cardano.client.jna;
 
+import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.jna.CardanoJNA;
+import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.transaction.model.Transaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionBody;
 import com.bloxbean.cardano.client.transaction.model.TransactionInput;
 import com.bloxbean.cardano.client.transaction.model.TransactionOutput;
 import com.bloxbean.cardano.client.util.HexUtil;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CBORTest {
-    public static void main(String[] args) throws Exception {
+public class TransactionJNATest {
+
+    @Test
+    public void testSignPaymentTransaction() throws CborException, AddressExcepion {
         TransactionBody txnBody = new TransactionBody();
 
         TransactionInput txnInput = new TransactionInput();
@@ -59,11 +62,6 @@ public class CBORTest {
         String signTxnHex = CardanoJNA.INSTANCE.signPaymentTransaction(hexStr, signingAccount.getBech32PrivateKey());
         byte[] signedTxnBytes = HexUtil.decodeHexString(signTxnHex);
 
-        File outputFile = new File("/Users/satya/tx1.raw");
-        try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
-            outputStream.write(signedTxnBytes);
-        }
-
+        Assertions.assertTrue(signedTxnBytes.length > 0);
     }
-
 }

@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.util;
+package com.bloxbean.cardano.client.common.model;
 
 import com.sun.jna.Structure;
 

@@ -1,113 +1,49 @@
 use cardano_serialization_lib::fees::LinearFee;
-use cardano_serialization_lib::utils::{to_bignum, Value};
+use cardano_serialization_lib::utils::{to_bignum, Value, hash_transaction, make_vkey_witness};
 use cardano_serialization_lib::tx_builder::TransactionBuilder;
-use crate::address::harden;
+use crate::address::{harden, get_root_key_from_mnemonic, get_private_key_from_mnemonic};
 use cardano_serialization_lib::address::{StakeCredential, NetworkInfo, BaseAddress};
-use cardano_serialization_lib::{TransactionInput, TransactionOutput};
+use cardano_serialization_lib::{TransactionInput, TransactionOutput, TransactionBody, Transaction, TransactionWitnessSet};
+use cardano_serialization_lib::crypto::{TransactionHash, Vkeywitness, Vkeywitnesses, PrivateKey, Bip32PrivateKey};
+use cbor_event::{self as cbor};
+
+pub fn add_witness_and_sign(rawTxnInHex: &str, bech32PvtKey: &str) -> Vec<u8> {
+    let bytesTxn = hex::decode(rawTxnInHex).unwrap();
+
+    let prvKey = Bip32PrivateKey::from_bech32(bech32PvtKey).unwrap().to_raw_key();
+    let mut transaction = Transaction::from_bytes(bytesTxn).unwrap();
+
+    let txnBody = transaction.body();
+    let txnBodyHash = hash_transaction(&txnBody);
+
+    let vkey_witness = make_vkey_witness(&txnBodyHash, &prvKey);
+
+    let mut txnWithnewssSet = TransactionWitnessSet::new();
+    let mut vkey_witnesses = Vkeywitnesses::new();
+    vkey_witnesses.add(&vkey_witness);
+
+    txnWithnewssSet.set_vkeys(&vkey_witnesses);
+
+    let wns = transaction.witness_set().vkeys();
+
+    let finalTxn = Transaction::new(&txnBody, &txnWithnewssSet, None);
+
+    cbor::cbor!(&finalTxn).unwrap()
+}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    // use fees::*;
-    use cardano_serialization_lib::{TransactionBody, Transaction};
-    use cardano_serialization_lib::crypto::{TransactionHash, Bip32PrivateKey};
-    use serde_json::Serializer;
-    use cbor_event::Serialize;
-    use std::io::LineWriter;
-    use cbor_event::de::Deserializer;
-
-    fn genesis_id() -> TransactionHash {
-        TransactionHash::from([0u8; TransactionHash::BYTE_COUNT])
-    }
-
-    fn root_key_15() -> Bip32PrivateKey {
-        // art forum devote street sure rather head chuckle guard poverty release quote oak craft enemy
-        let entropy = [0x0c, 0xcb, 0x74, 0xf3, 0x6b, 0x7d, 0xa1, 0x64, 0x9a, 0x81, 0x44, 0x67, 0x55, 0x22, 0xd4, 0xd8, 0x09, 0x7c, 0x64, 0x12];
-        Bip32PrivateKey::from_bip39_entropy(&entropy, &[])
-    }
-
-    fn harden(index: u32) -> u32 {
-        index | 0x80_00_00_00
-    }
+    use crate::transaction::add_witness_and_sign;
 
     #[test]
-    fn build_tx_with_change() {
-        let linear_fee = LinearFee::new(&to_bignum(500), &to_bignum(2));
-        let mut tx_builder =
-            TransactionBuilder::new(&linear_fee, &to_bignum(1), &to_bignum(1), &to_bignum(1));
-        let spend = root_key_15()
-            .derive(harden(1852))
-            .derive(harden(1815))
-            .derive(harden(0))
-            .derive(0)
-            .derive(0)
-            .to_public();
-        let change_key = root_key_15()
-            .derive(harden(1852))
-            .derive(harden(1815))
-            .derive(harden(0))
-            .derive(1)
-            .derive(0)
-            .to_public();
-        let stake = root_key_15()
-            .derive(harden(1852))
-            .derive(harden(1815))
-            .derive(harden(0))
-            .derive(2)
-            .derive(0)
-            .to_public();
+    fn parse_and_sign_txn() {
+        let str = "83a40081825820dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d000182825839000916a5fed4589d910691b85addf608dceee4d9d60d4c9a4d2a925026c3229b212ba7ef8643cd8f7e38d6279336d61a40d228b036f40feed61a004c4b40825839008c5bf0f2af6f1ef08bb3f6ec702dd16e1c514b7e1d12f7549b47db9f4d943c7af0aaec774757d4745d1a2c8dd3220e6ec2c9df23f757a2f81a3af6f8c6021a00059d5d031a018fb29aa0f6";
 
-        let spend_cred = StakeCredential::from_keyhash(&spend.to_raw_key().hash());
-        let stake_cred = StakeCredential::from_keyhash(&stake.to_raw_key().hash());
-        let addr_net_0 = BaseAddress::new(NetworkInfo::testnet().network_id(), &spend_cred, &stake_cred).to_address();
-        tx_builder.add_key_input(
-            &spend.to_raw_key().hash(),
-            &TransactionInput::new(&genesis_id(), 0),
-            &Value::new(&to_bignum(1_000_000))
-        );
-        tx_builder.add_output(&TransactionOutput::new(
-            &addr_net_0,
-            &Value::new(&to_bignum(10))
-        )).unwrap();
-        tx_builder.set_ttl(1000);
+        let mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
 
-        let change_cred = StakeCredential::from_keyhash(&change_key.to_raw_key().hash());
-        let change_addr = BaseAddress::new(NetworkInfo::testnet().network_id(), &change_cred, &stake_cred).to_address();
-        let added_change = tx_builder.add_change_if_needed(
-            &change_addr
-        );
+        let pvtKeyHash = "xprv10zlue93vusfclwsqafhyd48v56hfg4aqtptxwzd499q64upxlefaah3l9hw7wa3gy8p0j4a2caacpg7rd04twkypejpuvqrftqr0rh24rn8ay6kadm00t0h878l2fwhcpw6c87v2q746d4u7x6uxsnn84ugncknq";
 
-        let final_tx = tx_builder.build();
-
-        let mut serializer = cbor_event::se::Serializer::new_vec();
-
-       // let enc = serializer.write_bytes(final_tx.unwrap().to_bytes());
-        let e = serializer.serialize(&final_tx.unwrap());
-
-
-        println!("{}", "hello");
-        // assert!(added_change.unwrap());
-        // assert_eq!(tx_builder.outputs.len(), 2);
-        // assert_eq!(
-        //     tx_builder.get_explicit_input().unwrap().checked_add(&tx_builder.get_implicit_input().unwrap()).unwrap(),
-        //     tx_builder.get_explicit_output().unwrap().checked_add(&Value::new(&tx_builder.get_fee_if_set().unwrap())).unwrap()
-        // );
-        // let _final_tx = tx_builder.build(); // just test that it doesn't throw
+        let transaction = add_witness_and_sign(&str, pvtKeyHash);
     }
 
-    #[test]
-    fn parse_b64() {
-        let str = "pQCBglggQSPXD2ZBTMkh9v/Cmomar8cTepmg/UU9ayAIY+9XAtYFAYGCWC8MARESDhMTERcMCBgcDA8KCwAZDwcfAQ0WBgYBGwwdAQYIEgYOGQ4EHRUeCwAQCBkH0AIZHngDGDwHWCBIZWxsSGVsbEhlbGxIZWxsSGVsbEhlbGxIZWxsSGVsbA==";
-        let bytes = base64::decode(str).unwrap();
-
-
-        let transaction = TransactionBody::from_bytes(bytes).unwrap();
-        let coin = transaction.fee();
-
-        // let txIdb64 = base64::encode(transaction.transaction_id().to_bytes());
-        // println!("{}", transaction.index());
-        //  println!("{}", txIdb64);
-        println!("{}", coin.to_str());
-        println!("{}", transaction.ttl().unwrap());
-    }
 }

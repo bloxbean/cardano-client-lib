@@ -10,7 +10,7 @@ use jni::objects::{JClass, JString};
 // lifetime checker won't let us.
 use jni::sys::jstring;
 
-use crate::address::{get_baseaddress_from_mnemonic, get_baseaddress_from_mnemonic_by_networkInfo, get_enterpriseaddress_from_mnemonic_by_networkInfo, get_enterpriseaddress_from_mnemonic};
+use crate::address::{get_baseaddress_from_mnemonic, get_baseaddress_from_mnemonic_by_networkInfo, get_enterpriseaddress_from_mnemonic_by_networkInfo, get_enterpriseaddress_from_mnemonic, get_private_key_from_mnemonic};
 
 use std::os::raw::c_char;
 use std::ffi::{CStr,CString};
@@ -119,6 +119,67 @@ pub fn generateMnemonic() -> *const c_char {
         let mnemonic = address::generate_mnemonic();
 
         to_ptr(mnemonic)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn getPrivateKeyFromMnemonic(phrase: *const c_char, index: u32) -> *const c_char {
+    let result = panic::catch_unwind(|| {
+        let s =  to_string(phrase);
+
+        let pvtKeyInBech32 = get_private_key_from_mnemonic(s.as_str(), index);
+
+        to_ptr(pvtKeyInBech32)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn bech32AddressToBytes(bech32Address: *const c_char)  -> *const c_char {
+    let result = panic::catch_unwind(|| {
+        let _address =  to_string(bech32Address);
+        let bytes = address::bech32_address_to_bytes(_address.as_str());
+
+        let hexStr = hex::encode(bytes.as_slice());
+
+        to_ptr(hexStr)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn signPaymentTransaction(rawTxnHex: *const c_char, privateKey: *const c_char) -> *const c_char {
+    let result = panic::catch_unwind(|| {
+        let rawTxnInHexStr =  to_string(rawTxnHex);
+        let pvtKeyStr = to_string(privateKey);
+
+        let signedTxnBytes = transaction::add_witness_and_sign(&rawTxnInHexStr, &pvtKeyStr);
+
+        let signTxnHex = hex::encode(signedTxnBytes);
+
+        to_ptr(signTxnHex)
     });
 
     match result {

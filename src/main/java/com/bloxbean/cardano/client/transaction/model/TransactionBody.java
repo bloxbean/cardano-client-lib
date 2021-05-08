@@ -70,7 +70,9 @@ public class TransactionBody {
         mapBuilder.put(2, fee.longValue()); //TODO BigInteger to long value
         mapBuilder.put(3, ttl);
 
-        mapBuilder.put(7, metadataHash);
+        if(metadataHash != null) {
+            mapBuilder.put(7, metadataHash);
+        }
 
         mapBuilder.end();
     }
