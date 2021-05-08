@@ -48,9 +48,9 @@ Account account = new Account(Networks.testnet());  //Create a Testnet account
 ```
 - Get base address, enterprise address, mnemonic
 ```aidl
-String baseAddress = account.baseAddress(0);  //Base address at index=0
+String baseAddress = account.baseAddress();  //Base address at index=0
 
-String enterpriseAddress = account.account.enterpriseAddress(2);  //Enterprise address at index = 2
+String enterpriseAddress = account.account.enterpriseAddress();  //Enterprise address at index = 0
 
 String mnemonic = account.mnemonic();  //Get Mnemonic
 ```
