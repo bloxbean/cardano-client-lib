@@ -149,7 +149,7 @@ public class Account {
         if(txnHex == null || txnHex.length() == 0)
             throw new TransactionSerializationException("Transaction could not be serialized");
 
-        return CardanoJNA.INSTANCE.signPaymentTransaction(txnHex, privateKey);
+        return CardanoJNA.INSTANCE.sign(txnHex, privateKey);
     }
 
     public static byte[] toBytes(String address) throws AddressExcepion {

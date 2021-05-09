@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.jna;
 
-import com.bloxbean.cardano.client.util.LibraryUtil;
 import com.bloxbean.cardano.client.common.model.Network;
+import com.bloxbean.cardano.client.util.LibraryUtil;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 
@@ -35,5 +35,5 @@ public interface CardanoJNA extends Library {
      * @param privateKey
      * @return
      */
-    public String signPaymentTransaction(String rawTxnInHex, String privateKey);
+    public String sign(String rawTxnInHex, String privateKey);
 }
