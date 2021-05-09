@@ -170,7 +170,7 @@ pub fn bech32AddressToBytes(bech32Address: *const c_char)  -> *const c_char {
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub fn signPaymentTransaction(rawTxnHex: *const c_char, privateKey: *const c_char) -> *const c_char {
+pub fn sign(rawTxnHex: *const c_char, privateKey: *const c_char) -> *const c_char {
     let result = panic::catch_unwind(|| {
         let rawTxnInHexStr =  to_string(rawTxnHex);
         let pvtKeyStr = to_string(privateKey);
