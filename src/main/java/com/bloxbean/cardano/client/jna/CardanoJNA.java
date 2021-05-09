@@ -4,17 +4,18 @@ import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.util.LibraryUtil;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
+import com.sun.jna.Pointer;
 
-public interface CardanoJNA extends Library {
+interface CardanoJNA extends Library {
     CardanoJNA INSTANCE = (CardanoJNA)
             Native.load(LibraryUtil.getCardanoWrapperLib(),
                     CardanoJNA.class);
 
-    public String getBaseAddress(String phrase, int index, boolean isTestnet);
-    public String getBaseAddressByNetwork(String phrase, int index, Network.ByReference network);
-    public String getEnterpriseAddress(String phrase, int index, boolean isTestnet);
-    public String getEnterpriseAddressByNetwork(String phrase, int index, Network.ByReference network);
-    public String generateMnemonic();
+    public Pointer getBaseAddress(String phrase, int index, boolean isTestnet);
+    public Pointer getBaseAddressByNetwork(String phrase, int index, Network.ByReference network);
+    public Pointer getEnterpriseAddress(String phrase, int index, boolean isTestnet);
+    public Pointer getEnterpriseAddressByNetwork(String phrase, int index, Network.ByReference network);
+    public Pointer generateMnemonic();
 
     /**
      * Return private key in bech32
@@ -22,12 +23,12 @@ public interface CardanoJNA extends Library {
      * @param index
      * @return
      */
-    public String getPrivateKeyFromMnemonic(String phrase, int index);
+    public Pointer getPrivateKeyFromMnemonic(String phrase, int index);
 
     /**
      * Returns hex encoded string
      */
-    public String bech32AddressToBytes(String bech32Address);
+    public Pointer bech32AddressToBytes(String bech32Address);
 
     /**
      * Return signed transaction bytes in base64 encoding
@@ -35,5 +36,9 @@ public interface CardanoJNA extends Library {
      * @param privateKey
      * @return
      */
-    public String sign(String rawTxnInHex, String privateKey);
+    public Pointer sign(String rawTxnInHex, String privateKey);
+
+    public void dropCharPointer(Pointer pointer);
+
+    public void printPointer(Pointer pointer);
 }

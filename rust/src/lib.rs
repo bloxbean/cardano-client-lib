@@ -206,6 +206,20 @@ fn to_ptr(string: String) -> *const c_char {
     ptr
 }
 
+#[no_mangle]
+#[allow(non_snake_case)]
+fn dropCharPointer(pointer: *const c_char) {
+    unsafe {
+        mem::drop(pointer);
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+fn printPointer(pointer: *const c_char) {
+    println!("Print pointer >>> {}", to_string(pointer));
+}
+
 #[cfg(test)]
 mod tests {
 

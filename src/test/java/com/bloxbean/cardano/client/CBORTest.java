@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.jna.CardanoJNA;
+import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.transaction.model.Transaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionBody;
 import com.bloxbean.cardano.client.transaction.model.TransactionInput;
@@ -80,7 +80,7 @@ public class CBORTest {
         Account signingAccount = new Account(Networks.testnet(), mnemonic);
         System.out.println(signingAccount.getBech32PrivateKey());
 
-        String signTxnHex = CardanoJNA.INSTANCE.sign(hexStr, signingAccount.getBech32PrivateKey());
+        String signTxnHex = CardanoJNAUtil.sign(hexStr, signingAccount.getBech32PrivateKey());
         byte[] signedTxnBytes = HexUtil.decodeHexString(signTxnHex);
 
         //Sign with account 2
@@ -88,7 +88,7 @@ public class CBORTest {
         Account signingAccount2 = new Account(Networks.testnet(), mnemonic2);
         System.out.println(signingAccount2.getBech32PrivateKey());
 
-        String signTxnHex2 = CardanoJNA.INSTANCE.sign(signTxnHex, signingAccount2.getBech32PrivateKey());
+        String signTxnHex2 = CardanoJNAUtil.sign(signTxnHex, signingAccount2.getBech32PrivateKey());
         byte[] signedTxnBytes2 = HexUtil.decodeHexString(signTxnHex2);
 
         File outputFile = new File("/Users/satya/tx1.raw");

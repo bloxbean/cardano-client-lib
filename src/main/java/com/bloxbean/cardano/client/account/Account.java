@@ -5,7 +5,7 @@ import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
-import com.bloxbean.cardano.client.jna.CardanoJNA;
+import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.transaction.model.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 
@@ -110,7 +110,7 @@ public class Account {
             refNetwork.network_id = network.network_id;
             refNetwork.protocol_magic = network.protocol_magic;
 
-            this.baseAddress = CardanoJNA.INSTANCE.getBaseAddressByNetwork(mnemonic, index, refNetwork);
+            this.baseAddress = CardanoJNAUtil.getBaseAddressByNetwork(mnemonic, index, refNetwork);
         }
 
         return this.baseAddress;
@@ -126,7 +126,7 @@ public class Account {
             refNetwork.network_id = network.network_id;
             refNetwork.protocol_magic = network.protocol_magic;
 
-            this.enterpriseAddress = CardanoJNA.INSTANCE.getEnterpriseAddressByNetwork(mnemonic, index, refNetwork);
+            this.enterpriseAddress = CardanoJNAUtil.getEnterpriseAddressByNetwork(mnemonic, index, refNetwork);
         }
 
         return this.enterpriseAddress;
@@ -149,11 +149,11 @@ public class Account {
         if(txnHex == null || txnHex.length() == 0)
             throw new TransactionSerializationException("Transaction could not be serialized");
 
-        return CardanoJNA.INSTANCE.sign(txnHex, privateKey);
+        return CardanoJNAUtil.sign(txnHex, privateKey);
     }
 
     public static byte[] toBytes(String address) throws AddressExcepion {
-        String hexStr = CardanoJNA.INSTANCE.bech32AddressToBytes(address);
+        String hexStr = CardanoJNAUtil.bech32AddressToBytes(address);
         if(hexStr == null || hexStr.length() == 0)
             throw new AddressExcepion("Address to bytes failed");
 
@@ -165,13 +165,13 @@ public class Account {
     }
 
     private void generateNew() {
-        String mnemonic = CardanoJNA.INSTANCE.generateMnemonic();
+        String mnemonic = CardanoJNAUtil.generateMnemonic();
         this.mnemonic = mnemonic;
         getPrivateKey();
     }
 
     private void getPrivateKey() {
-        this.privateKey = CardanoJNA.INSTANCE.getPrivateKeyFromMnemonic(mnemonic, index);
+        this.privateKey = CardanoJNAUtil.getPrivateKeyFromMnemonic(mnemonic, index);
     }
 
 }

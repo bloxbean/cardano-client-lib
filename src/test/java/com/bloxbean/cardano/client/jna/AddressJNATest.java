@@ -46,75 +46,75 @@ public class AddressJNATest {
 
     @Test
     public void testGetBaseAddressFromMnemonicIndex_0() {
-        String baseAddress = CardanoJNA.INSTANCE.getBaseAddress(phrase24W, 0, false);
+        String baseAddress = CardanoJNAUtil.getBaseAddress(phrase24W, 0, false);
         System.out.println(baseAddress);
         Assertions.assertEquals(baseAddress0, baseAddress);
     }
 
     @Test
     public void testGetBaseAddressFromMnemonicIndex_1() {
-        String baseAddress = CardanoJNA.INSTANCE.getBaseAddress(phrase24W, 1, false);
+        String baseAddress = CardanoJNAUtil.getBaseAddress(phrase24W, 1, false);
         System.out.println(baseAddress);
         Assertions.assertEquals(baseAddress1, baseAddress);
     }
 
     @Test
     public void testGetBaseAddressFromMnemonicIndex_2() {
-        String baseAddress = CardanoJNA.INSTANCE.getBaseAddress(phrase24W, 2, false);
+        String baseAddress = CardanoJNAUtil.getBaseAddress(phrase24W, 2, false);
         System.out.println(baseAddress);
         Assertions.assertEquals(baseAddress2, baseAddress);
     }
 
     @Test
     public void generateMnemonic24w() {
-        String mnemonic = CardanoJNA.INSTANCE.generateMnemonic();
+        String mnemonic = CardanoJNAUtil.generateMnemonic();
         System.out.println(mnemonic);
         Assertions.assertTrue(mnemonic.length() > 0);
     }
 
     @Test
     public void testGetBaseAddressFromMnemonicByNetworkInfoMainnet() {
-        String baseAddress = CardanoJNA.INSTANCE.getBaseAddressByNetwork(phrase24W, 2, Networks.mainnet());
+        String baseAddress = CardanoJNAUtil.getBaseAddressByNetwork(phrase24W, 2, Networks.mainnet());
         Assertions.assertEquals(baseAddress2, baseAddress);
     }
 
     @Test
     public void testGetBaseAddressFromMnemonicByNetworkInfoTestnet() {
-        String baseAddress = CardanoJNA.INSTANCE.getBaseAddressByNetwork(phrase24W, 1, Networks.testnet());
+        String baseAddress = CardanoJNAUtil.getBaseAddressByNetwork(phrase24W, 1, Networks.testnet());
         Assertions.assertEquals(testnetBaseAddress1, baseAddress);
     }
 
     @Test
     public void testGetEnterpriseAddressFromMnemonicIndex_0() {
-        String entAddress = CardanoJNA.INSTANCE.getEnterpriseAddress(phrase24W, 0, false);
+        String entAddress = CardanoJNAUtil.getEnterpriseAddress(phrase24W, 0, false);
         System.out.println(entAddress);
         Assertions.assertEquals(entAddress0, entAddress);
     }
 
     @Test
     public void testGetEnterpriseAddressFromMnemonicIndex_1() {
-        String entAddress = CardanoJNA.INSTANCE.getEnterpriseAddress(phrase24W, 1, false);
+        String entAddress = CardanoJNAUtil.getEnterpriseAddress(phrase24W, 1, false);
         System.out.println(entAddress);
         Assertions.assertEquals(entAddress1, entAddress);
     }
 
     @Test
     public void testGetEnterpriseAddressFromMnemonicIndex_2() {
-        String entAddress = CardanoJNA.INSTANCE.getEnterpriseAddress(phrase24W, 2, false);
+        String entAddress = CardanoJNAUtil.getEnterpriseAddress(phrase24W, 2, false);
         System.out.println(entAddress);
         Assertions.assertEquals(entAddress2, entAddress);
     }
 
     @Test
     public void testGetEnterpriseAddressFromMnemonicIndexByNetwork_0() {
-        String entAddress = CardanoJNA.INSTANCE.getEnterpriseAddressByNetwork(phrase24W, 0, Networks.mainnet());
+        String entAddress = CardanoJNAUtil.getEnterpriseAddressByNetwork(phrase24W, 0, Networks.mainnet());
         System.out.println(entAddress);
         Assertions.assertEquals(entAddress0, entAddress);
     }
 
     @Test
     public void testGetEnterpriseAddressFromMnemonicIndexByNetwork_1() {
-        String entAddress = CardanoJNA.INSTANCE.getEnterpriseAddressByNetwork(phrase24W, 1, Networks.mainnet());
+        String entAddress = CardanoJNAUtil.getEnterpriseAddressByNetwork(phrase24W, 1, Networks.mainnet());
         System.out.println(entAddress);
         Assertions.assertEquals(entAddress1, entAddress);
     }
@@ -122,13 +122,13 @@ public class AddressJNATest {
     @Test
     public void testBech32AddressToBytes() {
         String baseAddress = "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w";
-        String addressInHex = CardanoJNA.INSTANCE.bech32AddressToBytes(baseAddress);
+        String addressInHex = CardanoJNAUtil.bech32AddressToBytes(baseAddress);
         Assertions.assertNotEquals(0, HexUtil.decodeHexString(addressInHex));
     }
 
     @Test
     public void testGetPrivateKeyFromMnemonic() {
-        String pvtKey = CardanoJNA.INSTANCE.getPrivateKeyFromMnemonic(phrase24W, 0);
+        String pvtKey = CardanoJNAUtil.getPrivateKeyFromMnemonic(phrase24W, 0);
         System.out.println(pvtKey);
         Assertions.assertTrue(pvtKey.length() > 5);
     }

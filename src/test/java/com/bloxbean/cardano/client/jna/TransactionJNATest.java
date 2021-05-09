@@ -59,7 +59,7 @@ public class TransactionJNATest {
         Account signingAccount = new Account(Networks.testnet(), mnemonic);
         System.out.println(signingAccount.getBech32PrivateKey());
 
-        String signTxnHex = CardanoJNA.INSTANCE.sign(hexStr, signingAccount.getBech32PrivateKey());
+        String signTxnHex = CardanoJNAUtil.sign(hexStr, signingAccount.getBech32PrivateKey());
         byte[] signedTxnBytes = HexUtil.decodeHexString(signTxnHex);
 
         Assertions.assertTrue(signedTxnBytes.length > 100);
@@ -130,7 +130,7 @@ public class TransactionJNATest {
         Account signingAccount = new Account(Networks.testnet(), mnemonic);
         System.out.println(signingAccount.getBech32PrivateKey());
 
-        String signTxnHex = CardanoJNA.INSTANCE.sign(hexStr, signingAccount.getBech32PrivateKey());
+        String signTxnHex = CardanoJNAUtil.sign(hexStr, signingAccount.getBech32PrivateKey());
         byte[] signedTxnBytes = HexUtil.decodeHexString(signTxnHex);
 
         //Sign with account 2
@@ -138,7 +138,7 @@ public class TransactionJNATest {
         Account signingAccount2 = new Account(Networks.testnet(), mnemonic2);
         System.out.println(signingAccount2.getBech32PrivateKey());
 
-        String signTxnHex2 = CardanoJNA.INSTANCE.sign(signTxnHex, signingAccount2.getBech32PrivateKey());
+        String signTxnHex2 = CardanoJNAUtil.sign(signTxnHex, signingAccount2.getBech32PrivateKey());
         byte[] signedTxnBytes2 = HexUtil.decodeHexString(signTxnHex2);
 
         Assertions.assertTrue(signedTxnBytes.length > 200);
