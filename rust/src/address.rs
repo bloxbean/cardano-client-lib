@@ -126,7 +126,7 @@ pub fn get_private_key_from_mnemonic(phrase: &str, index: u32) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic, bech32_address_to_bytes};
+    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic, bech32_address_to_bytes, get_private_key_from_mnemonic};
 
     #[test]
     fn get_baseaddress_from_mnemonic_15words() {
@@ -212,5 +212,14 @@ mod tests {
         let add = "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w";
         let bytes = bech32_address_to_bytes(add);
         assert_ne!(0, bytes.len())
+    }
+
+    #[test]
+    fn test_get_private_key_from_mnemonic() {
+        let mnemonic = "moment antenna hover credit bracket excess deny trial inspire sketch foster unable sphere toilet embody kit answer banner float position citizen bitter orphan can";
+        let pvtKey = get_private_key_from_mnemonic(mnemonic, 0);
+
+        let expected = "xprv17qvknep0qlfzxzwm7nhdukkr2ez00yhhf5tztqml4hun8yume30yedlqzlfvcg48v8xqx0a5q5us90pc09ct50d4938echyj6lvp0gvx5yasjh9w02vgaplsh9t892hc2gwvhjz5qv0l4jwq4hjj7pdgeg25rhsq";
+        assert_eq!(expected, pvtKey);
     }
 }
