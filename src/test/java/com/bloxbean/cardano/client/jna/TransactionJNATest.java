@@ -4,10 +4,7 @@ import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.transaction.model.Transaction;
-import com.bloxbean.cardano.client.transaction.model.TransactionBody;
-import com.bloxbean.cardano.client.transaction.model.TransactionInput;
-import com.bloxbean.cardano.client.transaction.model.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.model.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -24,7 +21,7 @@ public class TransactionJNATest {
 
         TransactionInput txnInput = new TransactionInput();
 
-        txnInput.setTransactionId(HexUtil.decodeHexString("dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d"));
+        txnInput.setTransactionId("dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d");
         txnInput.setIndex(1);
 
         List<TransactionInput> inputList = new ArrayList<>();
@@ -33,12 +30,12 @@ public class TransactionJNATest {
 
         //Total : 994632035
         TransactionOutput txnOutput =  new TransactionOutput();
-        txnOutput.setAddress(Account.toBytes("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v"));
-        txnOutput.setValue(new BigInteger("5000000"));
+        txnOutput.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
+        txnOutput.setValue(new Value(new BigInteger("5000000"), null));
 
         TransactionOutput changeOutput =  new TransactionOutput();
-        changeOutput.setAddress(Account.toBytes("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y"));
-        changeOutput.setValue(new BigInteger("989264070"));
+        changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
+        changeOutput.setValue(new Value(new BigInteger("989264070"), null));
 
         List<TransactionOutput> outputs = new ArrayList<>();
         outputs.add(txnOutput);
@@ -73,12 +70,12 @@ public class TransactionJNATest {
         int ttl = 26194586;
 
         TransactionInput txnInput = new TransactionInput();
-        txnInput.setTransactionId(HexUtil.decodeHexString("73198b7ad003862b9798106b88fbccfca464b1a38afb34958275c4a7d7d8d002")); //989264070
+        txnInput.setTransactionId("73198b7ad003862b9798106b88fbccfca464b1a38afb34958275c4a7d7d8d002"); //989264070
         txnInput.setIndex(1);
         long balance1 = 989264070;
 
         TransactionInput txnInput2 = new TransactionInput();
-        txnInput2.setTransactionId(HexUtil.decodeHexString("8e03a93578dc0acd523a4dd861793068a06a68b8a6c7358d0c965d2864067b68")); //1000000000
+        txnInput2.setTransactionId("8e03a93578dc0acd523a4dd861793068a06a68b8a6c7358d0c965d2864067b68"); //1000000000
         txnInput2.setIndex(0);
         long balance2 = 1000000000;
 
@@ -91,23 +88,23 @@ public class TransactionJNATest {
         long amount1 = 5000000;
         long changeAmount1 = balance1 - amount1 - fee;
         TransactionOutput txnOutput =  new TransactionOutput();
-        txnOutput.setAddress(Account.toBytes("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v"));
-        txnOutput.setValue(new BigInteger(String.valueOf(amount1)));
+        txnOutput.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
+        txnOutput.setValue(new Value(new BigInteger(String.valueOf(amount1)), null));
 
         TransactionOutput changeOutput =  new TransactionOutput();
-        changeOutput.setAddress(Account.toBytes("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y"));
-        changeOutput.setValue(new BigInteger(String.valueOf(changeAmount1)));
+        changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
+        changeOutput.setValue(new Value(new BigInteger(String.valueOf(changeAmount1)), null));
 
         //Output2
         long amount2 = 8000000;
         long changeAmount2 = balance2 - amount2 - fee;
         TransactionOutput txnOutput2 =  new TransactionOutput();
-        txnOutput2.setAddress(Account.toBytes("addr_test1qrynkm9vzsl7vrufzn6y4zvl2v55x0xwc02nwg00x59qlkxtsu6q93e6mrernam0k4vmkn3melezkvgtq84d608zqhnsn48axp"));
-        txnOutput2.setValue(new BigInteger(String.valueOf(amount2)));
+        txnOutput2.setAddress("addr_test1qrynkm9vzsl7vrufzn6y4zvl2v55x0xwc02nwg00x59qlkxtsu6q93e6mrernam0k4vmkn3melezkvgtq84d608zqhnsn48axp");
+        txnOutput2.setValue(new Value(new BigInteger(String.valueOf(amount2)), null));
 
         TransactionOutput changeOutput2 =  new TransactionOutput();
-        changeOutput2.setAddress(Account.toBytes("addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82"));
-        changeOutput2.setValue(new BigInteger(String.valueOf(changeAmount2)));
+        changeOutput2.setAddress("addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82");
+        changeOutput2.setValue(new Value(new BigInteger(String.valueOf(changeAmount2)), null));
 
         List<TransactionOutput> outputs = new ArrayList<>();
         outputs.add(txnOutput);

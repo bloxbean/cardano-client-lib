@@ -90,6 +90,7 @@ public class Account {
         this.mnemonic = mnemonic;
         this.index = index;
         getPrivateKey();
+        baseAddress();
     }
 
     /**
@@ -143,7 +144,7 @@ public class Account {
      * @throws CborException
      * @throws TransactionSerializationException
      */
-    public String sign(Transaction transaction) throws CborException, TransactionSerializationException {
+    public String sign(Transaction transaction) throws CborException, TransactionSerializationException, AddressExcepion {
         String txnHex = transaction.serializeToHex();
 
         if(txnHex == null || txnHex.length() == 0)
@@ -168,6 +169,7 @@ public class Account {
         String mnemonic = CardanoJNAUtil.generateMnemonic();
         this.mnemonic = mnemonic;
         getPrivateKey();
+        baseAddress();
     }
 
     private void getPrivateKey() {

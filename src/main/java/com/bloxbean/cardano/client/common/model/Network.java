@@ -4,6 +4,7 @@ import com.sun.jna.Structure;
 
 import java.io.Closeable;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Arrays.asList;
 
@@ -27,5 +28,27 @@ public class Network extends Structure  implements Closeable {
         setAutoSynch(false);
         // Send the struct back to rust for the memory to be freed
         //Greetings.INSTANCE.dropGreeting(this);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        Network network = (Network) o;
+        return network_id == network.network_id && protocol_magic == network.protocol_magic;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), network_id, protocol_magic);
+    }
+
+    @Override
+    public String toString() {
+        return "Network{" +
+                "network_id=" + network_id +
+                ", protocol_magic=" + protocol_magic +
+                '}';
     }
 }

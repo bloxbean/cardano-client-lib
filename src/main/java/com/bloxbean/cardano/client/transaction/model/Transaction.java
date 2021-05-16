@@ -5,24 +5,33 @@ import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.builder.ArrayBuilder;
 import co.nstant.in.cbor.builder.MapBuilder;
+import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.util.HexUtil;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.ByteArrayOutputStream;
 
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class Transaction {
     private TransactionBody body;
    // private TransactionWitnessSet witnessSet;
    // private TransactionMetadata metadata; //Optional
+//
+//    public TransactionBody getBody() {
+//        return body;
+//    }
+//
+//    public void setBody(TransactionBody body) {
+//        this.body = body;
+//    }
 
-    public TransactionBody getBody() {
-        return body;
-    }
-
-    public void setBody(TransactionBody body) {
-        this.body = body;
-    }
-
-    public byte[] serialize() throws CborException {
+    public byte[] serialize() throws CborException, AddressExcepion {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         CborBuilder cborBuilder = new CborBuilder();
 
@@ -43,7 +52,7 @@ public class Transaction {
         return encodedBytes;
     }
 
-    public String serializeToHex() throws CborException {
+    public String serializeToHex() throws CborException, AddressExcepion {
         byte[] bytes = serialize();
         return HexUtil.encodeHexString(bytes);
     }

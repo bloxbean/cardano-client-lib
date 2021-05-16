@@ -9,13 +9,24 @@ repositories {
 }
 
 dependencies {
+    implementation 'org.testng:testng:7.1.0'
     compile group: 'net.java.dev.jna', name: 'jna', version: '5.8.0'
     compile group: 'net.java.dev.jna', name: 'jna-platform', version: '5.8.0'
     compile 'info.picocli:picocli:4.6.1'
     implementation group: 'co.nstant.in', name: 'cbor', version: '0.9'
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
+
+    implementation group: 'com.squareup.retrofit2', name: 'retrofit', version: '2.9.0'
+    implementation group: 'com.squareup.retrofit2', name: 'converter-jackson', version: '2.9.0'
+
+    compileOnly 'org.projectlombok:lombok:1.18.20'
+    annotationProcessor 'org.projectlombok:lombok:1.18.20'
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testImplementation 'org.hamcrest:hamcrest-library:2.2'
+    testImplementation 'org.mockito:mockito-inline:3.7.7'
+    testImplementation 'org.mockito:mockito-junit-jupiter:3.7.7'
 }
 
 sourceSets {
@@ -24,7 +35,22 @@ sourceSets {
             srcDirs "src/main/resources", "native"
         }
     }
+    integrationTest {
+        java {
+            compileClasspath += main.output + test.output + configurations.testCompile
+            runtimeClasspath += main.output + test.output + compileClasspath + configurations.testRuntime
+            srcDir file('src/integration-test/java')
+        }
+        resources.srcDir file('src/integration-test/resources')
+    }
 }
+
+configurations {
+    integrationTestCompile.extendsFrom testCompile
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntime.extendsFrom testRuntime
+}
+
 
 compileJava {
     options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
@@ -58,6 +84,11 @@ task fatJar(type: Jar) {
 
 test {
     useJUnitPlatform()
+}
+
+task integrationTest(type: Test) {
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
 }
 
 publishing {

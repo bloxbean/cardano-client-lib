@@ -4,10 +4,7 @@ import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
-import com.bloxbean.cardano.client.transaction.model.Transaction;
-import com.bloxbean.cardano.client.transaction.model.TransactionBody;
-import com.bloxbean.cardano.client.transaction.model.TransactionInput;
-import com.bloxbean.cardano.client.transaction.model.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.model.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Platform;
 import org.junit.jupiter.api.BeforeEach;
@@ -121,7 +118,7 @@ public class AccountTest {
 
         TransactionInput txnInput = new TransactionInput();
 
-        txnInput.setTransactionId(HexUtil.decodeHexString("dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d"));
+        txnInput.setTransactionId("dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d");
         txnInput.setIndex(1);
 
         List<TransactionInput> inputList = new ArrayList<>();
@@ -130,12 +127,12 @@ public class AccountTest {
 
         //Total : 994632035
         TransactionOutput txnOutput =  new TransactionOutput();
-        txnOutput.setAddress(Account.toBytes("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v"));
-        txnOutput.setValue(new BigInteger("5000000"));
+        txnOutput.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
+        txnOutput.setValue(new Value(new BigInteger("5000000"), null));
 
         TransactionOutput changeOutput =  new TransactionOutput();
-        changeOutput.setAddress(Account.toBytes("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y"));
-        changeOutput.setValue(new BigInteger("989264070"));
+        changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
+        changeOutput.setValue(new Value(new BigInteger("989264070"), null));
 
         List<TransactionOutput> outputs = new ArrayList<>();
         outputs.add(txnOutput);
