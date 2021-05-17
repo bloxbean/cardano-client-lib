@@ -1,9 +1,8 @@
-package com.bloxbean.cardano.client.it.backend.impl.blockfrost.service;
+package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
 
 import com.bloxbean.cardano.client.backend.api.AssetService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFAssetService;
 import com.bloxbean.cardano.client.backend.model.Asset;
 import com.bloxbean.cardano.client.backend.model.Result;
 import org.junit.jupiter.api.Test;

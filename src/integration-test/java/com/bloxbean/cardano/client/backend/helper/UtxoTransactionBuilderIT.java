@@ -1,17 +1,16 @@
-package com.bloxbean.cardano.client.it.backend.helper;
+package com.bloxbean.cardano.client.backend.helper;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.helper.UtxoTransactionBuilder;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFTransactionService;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFUtxoService;
 import com.bloxbean.cardano.client.backend.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.transaction.model.Transaction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +18,10 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 class UtxoTransactionBuilderIT extends BFBaseTest {
 
@@ -53,6 +56,8 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
                 = utxoTransactionBuilder.buildTransaction(paymentTransactionList, TransactionDetailsParams.builder().ttl(1000).build());
 
         System.out.println(transaction);
+
+        assertThat(transaction.getBody().getInputs().size(), greaterThan(0));
 
     }
 }

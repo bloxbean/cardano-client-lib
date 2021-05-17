@@ -1,12 +1,10 @@
-package com.bloxbean.cardano.client.it.backend.helper;
+package com.bloxbean.cardano.client.backend.helper;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFTransactionService;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFUtxoService;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -15,6 +13,7 @@ import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +42,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 PaymentTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .amount(BigInteger.valueOf(3500000))
+                        .amount(BigInteger.valueOf(3))
                         .fee(BigInteger.valueOf(230000))
                         .unit("lovelace")
                         .build();

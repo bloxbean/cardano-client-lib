@@ -1,9 +1,8 @@
-package com.bloxbean.cardano.client.it.backend.impl.blockfrost.service;
+package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
 
 import com.bloxbean.cardano.client.backend.api.NetworkInfoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFNetworkService;
 import com.bloxbean.cardano.client.backend.model.Genesis;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.fasterxml.jackson.core.JsonProcessingException;
