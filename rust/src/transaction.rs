@@ -111,9 +111,6 @@ mod tests {
 
         let finalTxn = Transaction::from_bytes(cborTxn).unwrap();
 
-        // assert_eq!(1, finalTxn.witness_set().vkeys().unwrap().len());
-        // assert_eq!("367965", finalTxn.body().fee().to_str());
-        // assert_eq!(26194586, finalTxn.body().ttl().unwrap());
         assert_eq!(1, finalTxn.body().inputs().len());
         assert_eq!(2, finalTxn.body().outputs().len());
 
@@ -131,6 +128,41 @@ mod tests {
         println!("Policy Id : {}", policyIdStr);
         println!("Asset Name: {}", assetNameInHex);
         println!("Asset value : {}", assetValue.to_str())
+    }
+
+    #[test]
+    fn parse_and_sign_mint_txn() {
+        let str = "83a5008182582073198b7ad003862b9798106b88fbccfca464b1a38afb34958275c4a7d7d8d002010182825839000916a5fed4589d910691b85addf608dceee4d9d60d4c9a4d2a925026c3229b212ba7ef8643cd8f7e38d6279336d61a40d228b036f40feed6199c40825839008c5bf0f2af6f1ef08bb3f6ec702dd16e1c514b7e1d12f7549b47db9f4d943c7af0aaec774757d4745d1a2c8dd3220e6ec2c9df23f757a2f8821a00053020a2581c329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96a147736174636f696e190fa0581c6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7a140192328021a00059d5d031a018fb29a09a2581c329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96a147736174636f696e190fa0581c6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7a140192328a0f6";
+
+        let mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+
+        let pvtKeyHash = "xprv10zlue93vusfclwsqafhyd48v56hfg4aqtptxwzd499q64upxlefaah3l9hw7wa3gy8p0j4a2caacpg7rd04twkypejpuvqrftqr0rh24rn8ay6kadm00t0h878l2fwhcpw6c87v2q746d4u7x6uxsnn84ugncknq";
+
+        let cborTxn = add_witness_and_sign(&str, pvtKeyHash);
+
+        let finalTxn = Transaction::from_bytes(cborTxn).unwrap();
+
+        assert_eq!(1, finalTxn.body().inputs().len());
+        assert_eq!(2, finalTxn.body().outputs().len());
+
+        let policyId = finalTxn.body().multiassets().unwrap().keys().get(0).to_bytes();
+        let policyIdStr = hex::encode(&policyId);
+        let policyIdObj = PolicyID::from_bytes(policyId);
+
+        let asset = finalTxn.body().multiassets().unwrap().get(&policyIdObj.unwrap());
+        let assetObj = asset.unwrap();
+        let assetName = assetObj.keys().get(0);
+        let assetValue = assetObj.get(&assetName).unwrap().as_positive().unwrap();
+        let assetNameInHex = hex::encode(assetName.to_bytes());
+
+        let policyId2 = finalTxn.body().multiassets().unwrap().keys().get(1).to_bytes();
+        let policyIdStr2 = hex::encode(&policyId2);
+
+        println!("Policy Id1 : {}", policyIdStr);
+        println!("Asset Name1 : {}", assetNameInHex);
+        println!("Asset Qty1 : {}", assetValue.to_str());
+
+        println!("Policy Id2 : {}", policyIdStr2);
     }
 
 }

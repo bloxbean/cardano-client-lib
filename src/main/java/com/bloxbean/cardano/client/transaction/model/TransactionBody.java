@@ -3,6 +3,8 @@ package com.bloxbean.cardano.client.transaction.model;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.builder.ArrayBuilder;
 import co.nstant.in.cbor.builder.MapBuilder;
+import co.nstant.in.cbor.model.Map;
+import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,6 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -21,47 +24,8 @@ public class TransactionBody {
     private List<TransactionOutput> outputs;
     private BigInteger fee;
     private Integer ttl; //Optional
+    private List<MultiAsset> mint = new ArrayList<>();
     private byte[] metadataHash;
-
-//    public List<TransactionInput> getInputs() {
-//        return inputs;
-//    }
-//
-//    public void setInputs(List<TransactionInput> inputs) {
-//        this.inputs = inputs;
-//    }
-//
-//    public List<TransactionOutput> getOutputs() {
-//        return outputs;
-//    }
-//
-//    public void setOutputs(List<TransactionOutput> outputs) {
-//        this.outputs = outputs;
-//    }
-//
-//    public BigInteger getFee() {
-//        return fee;
-//    }
-//
-//    public void setFee(BigInteger fee) {
-//        this.fee = fee;
-//    }
-//
-//    public Integer getTtl() {
-//        return ttl;
-//    }
-//
-//    public void setTtl(Integer ttl) {
-//        this.ttl = ttl;
-//    }
-//
-//    public byte[] getMetadataHash() {
-//        return metadataHash;
-//    }
-//
-//    public void setMetadataHash(byte[] metadataHash) {
-//        this.metadataHash = metadataHash;
-//    }
 
     public void serialize(MapBuilder mapBuilder) throws CborException, AddressExcepion {
         ArrayBuilder inputArrayBuilder = mapBuilder.putArray(0);
@@ -76,11 +40,19 @@ public class TransactionBody {
         }
         outputArrayBuilder.end();
 
-        mapBuilder.put(2, fee.longValue()); //TODO BigInteger to long value
+        mapBuilder.put(new UnsignedInteger(2), new UnsignedInteger(fee));
         mapBuilder.put(3, ttl);
 
         if(metadataHash != null) {
             mapBuilder.put(7, metadataHash);
+        }
+
+        if(mint != null && mint.size() > 0) {
+            Map map = new Map();
+            for(MultiAsset multiAsset: mint) {
+                multiAsset.serialize(map);
+                mapBuilder.put(new UnsignedInteger(9), map);
+            }
         }
 
         mapBuilder.end();

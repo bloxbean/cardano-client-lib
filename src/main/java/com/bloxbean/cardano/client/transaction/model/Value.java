@@ -28,10 +28,6 @@ public class Value {
 
         if(multiAssets != null) {
             for (MultiAsset multiAsset : multiAssets) {
-//
-//            CborBuilder cborBuilder = new CborBuilder();
-//            MapBuilder assetsMap = cborBuilder.addMap();
-
                 Map assetsMap = new Map();
                 for (Asset asset : multiAsset.getAssets()) {
                     ByteString assetNameBytes = new ByteString(asset.getName() == null? new byte[0] : HexUtil.decodeHexString(asset.getName()));
