@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -13,7 +14,7 @@ import java.util.List;
 @Builder
 public class MultiAsset {
     private String policyId;
-    private List<Asset> assets;
+    private List<Asset> assets = new ArrayList<>();
 
     @Override
     public String toString() {

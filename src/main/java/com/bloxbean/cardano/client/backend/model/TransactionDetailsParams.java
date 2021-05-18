@@ -7,10 +7,14 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 
+import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class TransactionDetailsParams {
     private Integer ttl;
+    private BigInteger minLovelaceForMultiAsset = ONE_ADA.multiply(BigInteger.valueOf(2));
+    private BigInteger minLovelaceInOuput = ONE_ADA;
 }

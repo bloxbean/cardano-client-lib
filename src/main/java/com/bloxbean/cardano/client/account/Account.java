@@ -153,6 +153,19 @@ public class Account {
         return CardanoJNAUtil.sign(txnHex, privateKey);
     }
 
+    /**
+     *
+     * @param txnHex
+     * @return
+     * @throws TransactionSerializationException
+     */
+    public String sign(String txnHex) throws TransactionSerializationException {
+        if(txnHex == null || txnHex.length() == 0)
+            throw new TransactionSerializationException("Invalid transaction hash");
+
+        return CardanoJNAUtil.sign(txnHex, privateKey);
+    }
+
     public static byte[] toBytes(String address) throws AddressExcepion {
         String hexStr = CardanoJNAUtil.bech32AddressToBytes(address);
         if(hexStr == null || hexStr.length() == 0)

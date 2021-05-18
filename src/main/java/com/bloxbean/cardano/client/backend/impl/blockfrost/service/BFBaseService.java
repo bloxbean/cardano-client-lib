@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
 
 import com.bloxbean.cardano.client.backend.model.Result;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.jackson.JacksonConverterFactory;
@@ -8,12 +10,18 @@ import retrofit2.converter.jackson.JacksonConverterFactory;
 import java.io.IOException;
 
 public class BFBaseService {
+    private final static Logger LOG = LoggerFactory.getLogger(BFBaseService.class);
+
     private String baseUrl;
     private String projectId;
 
     public BFBaseService(String baseUrl, String projectId) {
         this.baseUrl = baseUrl;
         this.projectId = projectId;
+
+        if(LOG.isDebugEnabled()) {
+            LOG.debug("Blockfrost URL : " + baseUrl);
+        }
     }
 
     protected Retrofit getRetrofit() {

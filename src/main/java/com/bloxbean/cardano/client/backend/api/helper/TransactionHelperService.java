@@ -1,23 +1,25 @@
-package com.bloxbean.cardano.client.backend.helper;
+package com.bloxbean.cardano.client.backend.api.helper;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
 import com.bloxbean.cardano.client.transaction.model.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.util.Arrays;
+import java.util.List;
 
 public class TransactionHelperService {
+    private Logger LOG = LoggerFactory.getLogger(TransactionHelperService.class);
 
     private UtxoService utxoService;
     private TransactionService transactionService;
@@ -28,7 +30,7 @@ public class TransactionHelperService {
     }
 
     /**
-     * Transfer fund
+     *
      * @param paymentTransaction
      * @param detailsParams
      * @return
@@ -39,23 +41,38 @@ public class TransactionHelperService {
      */
     public Result transfer(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams)
             throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
+        return transfer(Arrays.asList(paymentTransaction), detailsParams);
+    }
+
+    /**
+     * Transfer fund
+     * @param paymentTransactions
+     * @param detailsParams
+     * @return
+     * @throws ApiException
+     * @throws AddressExcepion
+     * @throws TransactionSerializationException
+     * @throws CborException
+     */
+    public Result transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams)
+            throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
         UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams);
+        if(LOG.isDebugEnabled())
+            LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(paymentTransactions));
 
-        System.out.println(JsonUtil.getPrettyJson(transaction));
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(paymentTransactions, detailsParams);
 
-        String signedTxn = paymentTransaction.getSender().sign(transaction);
-        byte[] signedTxnBytes = HexUtil.decodeHexString(signedTxn);
+        if(LOG.isDebugEnabled())
+            LOG.debug(JsonUtil.getPrettyJson(transaction));
 
-        try {
-            File outputFile = new File("/Users/satya/tx1.raw");
-            try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
-                outputStream.write(signedTxnBytes);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+        String txnHex = transaction.serializeToHex();
+        String signedTxn = txnHex;
+        for(PaymentTransaction txn: paymentTransactions) {
+            signedTxn = txn.getSender().sign(signedTxn);
         }
+
+        byte[] signedTxnBytes = HexUtil.decodeHexString(signedTxn);
 
         Result<String> result = transactionService.submitTransaction(signedTxnBytes);
 

@@ -1,7 +1,8 @@
 package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
 
 public class BFBaseTest {
-    public String projectId = System.getenv("BF_PROJECT_ID");
+
+    public String projectId;
 
     public BFBaseTest() {
         projectId = System.getProperty("BF_PROJECT_ID");

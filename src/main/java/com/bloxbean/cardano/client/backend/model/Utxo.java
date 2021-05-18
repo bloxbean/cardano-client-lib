@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Objects;
 
 @Data
 @Builder
@@ -21,6 +22,19 @@ public class Utxo {
 //    private int txIndex;
     private int outputIndex;
     private List<Amount> amount;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Utxo utxo = (Utxo) o;
+        return outputIndex == utxo.outputIndex && txHash.equals(utxo.txHash);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(txHash, outputIndex);
+    }
 }
 
 
