@@ -19,6 +19,8 @@ import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.transaction.model.Asset;
+import com.bloxbean.cardano.client.transaction.model.MultiAsset;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -153,6 +155,40 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         System.out.println(result);
         waitForTransaction(result);
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    //@Test
+    void mintToken() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId("228a60495759e0d8e244eca5b85b2467d142c8a755d6cd0592dfbbbb");
+        Asset asset = new Asset("696e746a", BigInteger.valueOf(200000));
+        multiAsset.getAssets().add(asset);
+
+        PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+//                        .amount(BigInteger.valueOf(0))
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+//                        .unit("lovelace")
+                        .build();
+
+        Result<String> result = transactionHelperService.mintToken(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
         assertThat(result.isSuccessful(), is(true));
     }
 

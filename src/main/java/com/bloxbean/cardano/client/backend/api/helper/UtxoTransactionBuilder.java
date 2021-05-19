@@ -109,6 +109,64 @@ public class UtxoTransactionBuilder {
         return getUtxos(address, unit, amount, Collections.EMPTY_SET);
     }
 
+    public Transaction mintToken(PaymentTransaction minTransaction, TransactionDetailsParams detailsParams) throws ApiException, AddressExcepion {
+        String sender = minTransaction.getSender().baseAddress();
+
+        //Get total no of multiasset and calculate min ada
+        int totalAssets = 0;
+        for(MultiAsset ma: minTransaction.getMintAssets()) {
+            totalAssets += ma.getAssets().size();
+        }
+
+        BigInteger amount = getMinimumLovelaceForMultiAsset(detailsParams).multiply(BigInteger.valueOf(totalAssets));
+
+        List<Utxo> utxos = getUtxos(sender, LOVELACE, amount);
+        if(utxos.size() == 0)
+            throw new InsufficientBalanceException("Not enough utxos found to cover balance : " + amount + " lovelace");
+
+        List<TransactionInput> inputs = new ArrayList<>();
+        List<TransactionOutput> outputs = new ArrayList<>();
+
+        for(Utxo utxo: utxos) {
+            //create input
+            TransactionInput transactionInput = new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex());
+            inputs.add(transactionInput);
+
+            //Create output
+            TransactionOutput transactionOutput = new TransactionOutput();
+            transactionOutput.setAddress(sender);
+            Value value = Value.builder()
+                    .coin(BigInteger.ZERO)
+                    .multiAssets(new ArrayList<>())
+                    .build();
+            transactionOutput.setValue(value);
+            copyUtxoValuesToChangeOutput(transactionOutput, utxo);
+            BigInteger lovelaceValue = transactionOutput.getValue().getCoin();
+            transactionOutput.getValue().setCoin(lovelaceValue.subtract(minTransaction.getFee())); //deduct fee and set
+
+            for(MultiAsset ma: minTransaction.getMintAssets()) {
+                transactionOutput.getValue().getMultiAssets().add(ma);
+            }
+
+            outputs.add(transactionOutput);
+        }
+
+        TransactionBody body = TransactionBody
+                .builder()
+                .inputs(inputs)
+                .outputs(outputs)
+                .fee(minTransaction.getFee())
+                .ttl(detailsParams.getTtl())
+                .mint(minTransaction.getMintAssets())
+                .build();
+
+        Transaction transaction = Transaction.builder()
+                .body(body)
+                .build();
+
+        return transaction;
+    }
+
     private List<Utxo> getUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException {
         BigInteger totalUtxoAmount = BigInteger.valueOf(0);
         List<Utxo> selectedUtxos = new ArrayList<>();
@@ -331,8 +389,9 @@ public class UtxoTransactionBuilder {
                 if(ma.getAssets() == null || ma.getAssets().size() == 0)
                     markedForRemoval.add(ma);
             });
+
+            multiAssets.removeAll(markedForRemoval);
         }
-        multiAssets.removeAll(markedForRemoval);
     }
 
     private Multimap<String, Amount> calculateRequiredBalancesForSenders(List<PaymentTransaction> transactions) {

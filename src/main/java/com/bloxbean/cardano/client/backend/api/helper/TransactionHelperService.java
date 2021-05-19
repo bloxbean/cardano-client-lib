@@ -78,4 +78,35 @@ public class TransactionHelperService {
 
         return result;
     }
+
+    /**
+     *
+     * @param mintTransaction
+     * @param detailsParams
+     * @return
+     * @throws AddressExcepion
+     * @throws ApiException
+     * @throws CborException
+     * @throws TransactionSerializationException
+     */
+    public Result mintToken(PaymentTransaction mintTransaction, TransactionDetailsParams detailsParams)
+            throws AddressExcepion, ApiException, CborException, TransactionSerializationException {
+        UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
+
+        if(LOG.isDebugEnabled())
+            LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(mintTransaction));
+
+        Transaction transaction = utxoTransactionBuilder.mintToken(mintTransaction, detailsParams);
+
+        if(LOG.isDebugEnabled())
+            LOG.debug(JsonUtil.getPrettyJson(transaction));
+
+        String signedTxn = mintTransaction.getSender().sign(transaction);
+
+        byte[] signedTxnBytes = HexUtil.decodeHexString(signedTxn);
+
+        Result<String> result = transactionService.submitTransaction(signedTxnBytes);
+
+        return result;
+    }
 }
