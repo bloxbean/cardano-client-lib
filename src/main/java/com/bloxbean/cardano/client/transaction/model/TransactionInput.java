@@ -18,22 +18,6 @@ public class TransactionInput {
     private String transactionId;
     private int index;
 
-//    public byte[] getTransactionId() {
-//        return transaction_id;
-//    }
-//
-//    public void setTransactionId(byte[] transactionId) {
-//        this.transaction_id = transactionId;
-//    }
-//
-//    public int getIndex() {
-//        return index;
-//    }
-//
-//    public void setIndex(int index) {
-//        this.index = index;
-//    }
-
     public void serialize(ArrayBuilder builder) throws CborException {
         byte[] transactionIdBytes = HexUtil.decodeHexString(transactionId);
         builder.add(transactionIdBytes)

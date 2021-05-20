@@ -190,6 +190,28 @@ pub fn sign(rawTxnHex: *const c_char, privateKey: *const c_char) -> *const c_cha
     }
 }
 
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn signWithSecretKey(rawTxnHex: *const c_char, privateKey: *const c_char) -> *const c_char {
+    let result = panic::catch_unwind(|| {
+        let rawTxnInHexStr =  to_string(rawTxnHex);
+        let pvtKeyStr = to_string(privateKey);
+
+        let signedTxnBytes = transaction::sign_txn_with_secretkey(&rawTxnInHexStr, &pvtKeyStr);
+
+        let signTxnHex = hex::encode(signedTxnBytes);
+
+        to_ptr(signTxnHex)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
 /// Convert a native string to a Rust string
 fn to_string(pointer: *const c_char) -> String {
     let c_str: &CStr = unsafe { CStr::from_ptr(pointer) };

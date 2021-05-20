@@ -68,13 +68,27 @@ public class CardanoJNAUtil {
     }
 
     /**
-     * Return signed transaction bytes in base64 encoding
+     * Return signed transaction bytes in hex
      * @param rawTxnInHex
      * @param privateKey
      * @return
      */
     public static String sign(String rawTxnInHex, String privateKey) {
         Pointer pointer = CardanoJNA.INSTANCE.sign(rawTxnInHex, privateKey);
+        String result = pointer.getString(0);
+
+        CardanoJNA.INSTANCE.dropCharPointer(pointer);
+        return result;
+    }
+
+    /**
+     * Return signed transaction bytes in hex
+     * @param rawTxnInHex
+     * @param privateKey
+     * @return
+     */
+    public static String signWithSecretKey(String rawTxnInHex, String privateKey) {
+        Pointer pointer = CardanoJNA.INSTANCE.signWithSecretKey(rawTxnInHex, privateKey);
         String result = pointer.getString(0);
 
         CardanoJNA.INSTANCE.dropCharPointer(pointer);

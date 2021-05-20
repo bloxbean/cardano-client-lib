@@ -20,16 +20,8 @@ import java.io.ByteArrayOutputStream;
 @Builder
 public class Transaction {
     private TransactionBody body;
-   // private TransactionWitnessSet witnessSet;
+    private TransactionWitnessSet witnessSet;
    // private TransactionMetadata metadata; //Optional
-//
-//    public TransactionBody getBody() {
-//        return body;
-//    }
-//
-//    public void setBody(TransactionBody body) {
-//        this.body = body;
-//    }
 
     public byte[] serialize() throws CborException, AddressExcepion {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -42,6 +34,8 @@ public class Transaction {
 
         //witness
         MapBuilder witnessMapBuilder = txnArrayBuilder.addMap();
+        if(witnessSet != null)
+            witnessSet.serialize(witnessMapBuilder);
         witnessMapBuilder.end();
 
         txnArrayBuilder.add((byte[]) null); //Null for meta

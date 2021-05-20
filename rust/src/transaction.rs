@@ -37,6 +37,39 @@ pub fn add_witness_and_sign(rawTxnInHex: &str, bech32PvtKey: &str) -> Vec<u8> {
     cbor::cbor!(&finalTxn).unwrap()
 }
 
+pub fn sign_txn_with_secretkey(rawTxnInHex: &str, secretKey: &str) -> Vec<u8> {
+    let bytesTxn = hex::decode(rawTxnInHex).unwrap();
+
+    let skeyBytes = hex::decode(secretKey).unwrap();
+
+    let prvKey = PrivateKey::from_normal_bytes(&skeyBytes).unwrap();
+
+    let mut transaction = Transaction::from_bytes(bytesTxn).unwrap();
+
+    let txnBody = transaction.body();
+    let txnBodyHash = hash_transaction(&txnBody);
+
+    let mut txnWithnewssSet = match transaction.witness_set() {
+        tws => tws,
+        _ => TransactionWitnessSet::new()
+    };
+
+    let mut vkey_witnesses = match txnWithnewssSet.vkeys() {
+        Some(vkws) => vkws,
+        None => Vkeywitnesses::new()
+    };
+
+    let vkey_witness = make_vkey_witness(&txnBodyHash, &prvKey);
+    vkey_witnesses.add(&vkey_witness);
+
+    txnWithnewssSet.set_vkeys(&vkey_witnesses);
+
+    let wns = transaction.witness_set().vkeys();
+    let finalTxn = Transaction::new(&txnBody, &txnWithnewssSet, None);
+
+    cbor::cbor!(&finalTxn).unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::transaction::add_witness_and_sign;

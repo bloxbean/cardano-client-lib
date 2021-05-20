@@ -17,15 +17,19 @@ import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.backend.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.*;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
 import com.bloxbean.cardano.client.transaction.model.Asset;
 import com.bloxbean.cardano.client.transaction.model.MultiAsset;
+import com.bloxbean.cardano.client.transaction.model.script.ScriptPubkey;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
@@ -158,29 +162,35 @@ class TransactionHelperServiceIT extends BFBaseTest {
         assertThat(result.isSuccessful(), is(true));
     }
 
-    //@Test
+    @Test
     void mintToken() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+
+        Keys keys = KeyGenUtil.generateKey();
+        VerificationKey vkey = keys.getVkey();
+        SecretKey skey = keys.getSkey();
+
+        ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
+        String policyId = scriptPubkey.getPolicyId();
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         MultiAsset multiAsset = new MultiAsset();
-        multiAsset.setPolicyId("228a60495759e0d8e244eca5b85b2467d142c8a755d6cd0592dfbbbb");
-        Asset asset = new Asset("696e746a", BigInteger.valueOf(200000));
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("testtoken".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(200000));
         multiAsset.getAssets().add(asset);
 
         PaymentTransaction paymentTransaction =
                 PaymentTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-//                        .amount(BigInteger.valueOf(0))
                         .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
-//                        .unit("lovelace")
                         .build();
 
-        Result<String> result = transactionHelperService.mintToken(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
+        Result<String> result = transactionHelperService.mintToken(paymentTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build(), scriptPubkey, skey);
 
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());

@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.transaction.model.script.ScriptPubkey;
 import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.transaction.model.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -54,8 +55,6 @@ public class CBORTest {
         multiAsset1.setAssets(Arrays.asList(new Asset(null, BigInteger.valueOf(9000))));
         changeOutput.setValue(new Value(new BigInteger(String.valueOf(changeAmount1)), Arrays.asList(multiAsset, multiAsset1)));
 
-
-
         //Output2
         long amount2 = 8000000;
         long changeAmount2 = balance2 - amount2 - fee;
@@ -89,8 +88,14 @@ public class CBORTest {
 
         Transaction transaction = new Transaction();
         transaction.setBody(txnBody);
+        TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
+        transactionWitnessSet.getNativeScripts().add(new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884"));
+        transaction.setWitnessSet(transactionWitnessSet);
+
         String hexStr = transaction.serializeToHex();
         System.out.println(hexStr);
+
+        System.out.println("\n*******************************");
 
         String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
 
