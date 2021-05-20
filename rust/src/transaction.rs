@@ -70,6 +70,13 @@ pub fn sign_txn_with_secretkey(rawTxnInHex: &str, secretKey: &str) -> Vec<u8> {
     cbor::cbor!(&finalTxn).unwrap()
 }
 
+pub fn validate_txn_cbor(rawTxnInHex: &str) -> bool {
+    let bytesTxn = hex::decode(rawTxnInHex).unwrap();
+    let finalTxn = Transaction::from_bytes(bytesTxn).unwrap();
+
+    return true;
+}
+
 #[cfg(test)]
 mod tests {
     use crate::transaction::add_witness_and_sign;

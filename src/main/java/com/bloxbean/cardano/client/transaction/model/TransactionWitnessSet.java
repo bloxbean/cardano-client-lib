@@ -1,8 +1,9 @@
 package com.bloxbean.cardano.client.transaction.model;
 
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.builder.ArrayBuilder;
-import co.nstant.in.cbor.builder.MapBuilder;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.Map;
+import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.transaction.model.script.NativeScript;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,18 +20,20 @@ import java.util.List;
 public class TransactionWitnessSet {
     private List<NativeScript> nativeScripts = new ArrayList<>();
 
-    public void serialize(MapBuilder mapBuilder) throws CborException {
+    public Map serialize() throws CborException {
         //Array
         //1. native script [ script_pubkey]
         //script_pubkey = (0, addr_keyhash)
+        Map witnessMap = new Map();
         if(nativeScripts != null && nativeScripts.size() > 0) {
-            ArrayBuilder nativeScriptArray = mapBuilder.startArray(1);
+            Array nativeScriptArray = new Array();
 
             for (NativeScript nativeScript : nativeScripts) {
                 nativeScriptArray.add(nativeScript.serializeAsDataItem());
             }
 
-            nativeScriptArray.end();
+            witnessMap.put(new UnsignedInteger(1), nativeScriptArray);
         }
+        return witnessMap;
     }
 }

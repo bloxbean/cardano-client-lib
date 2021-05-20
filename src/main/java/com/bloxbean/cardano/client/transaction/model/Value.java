@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.transaction.model;
 
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.builder.MapBuilder;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
@@ -24,8 +23,8 @@ public class Value {
     //Policy Id -> Asset
     private List<MultiAsset> multiAssets = new ArrayList<>();
 
-    public void serializeMultiAsset(MapBuilder mapBuilder) throws CborException {
-
+    public Map serialize() throws CborException {
+        Map map = new Map();
         if(multiAssets != null) {
             for (MultiAsset multiAsset : multiAssets) {
                 Map assetsMap = new Map();
@@ -36,10 +35,9 @@ public class Value {
                 }
 
                 ByteString policyIdByte = new ByteString(HexUtil.decodeHexString(multiAsset.getPolicyId()));
-                mapBuilder.put(policyIdByte, assetsMap);
+                map.put(policyIdByte, assetsMap);
             }
         }
-
-        mapBuilder.end();
+        return map;
     }
 }

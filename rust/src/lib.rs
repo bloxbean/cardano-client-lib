@@ -212,6 +212,22 @@ pub fn signWithSecretKey(rawTxnHex: *const c_char, privateKey: *const c_char) ->
     }
 }
 
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn validateTransactionCBOR(rawTxnHex: *const c_char) -> bool {
+    let result = panic::catch_unwind(|| {
+        let rawTxnInHexStr =  to_string(rawTxnHex);
+        transaction::validate_txn_cbor(&rawTxnInHexStr)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            false
+        }
+    }
+}
+
 /// Convert a native string to a Rust string
 fn to_string(pointer: *const c_char) -> String {
     let c_str: &CStr = unsafe { CStr::from_ptr(pointer) };

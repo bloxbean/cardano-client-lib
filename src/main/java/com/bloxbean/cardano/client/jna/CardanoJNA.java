@@ -46,6 +46,8 @@ interface CardanoJNA extends Library {
      */
     public Pointer signWithSecretKey(String rawTxnInHex, String secretKeyHex);
 
+    public boolean validateTransactionCBOR(String rawTxnInHex);
+
     public void dropCharPointer(Pointer pointer);
 
     public void printPointer(Pointer pointer);

@@ -1,14 +1,14 @@
 package com.bloxbean.cardano.client.transaction.model;
 
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.builder.ArrayBuilder;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.ByteString;
+import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.Arrays;
 
 @Data
 @AllArgsConstructor
@@ -18,11 +18,13 @@ public class TransactionInput {
     private String transactionId;
     private int index;
 
-    public void serialize(ArrayBuilder builder) throws CborException {
+    public Array serialize() throws CborException {
+        Array inputArray = new Array();
         byte[] transactionIdBytes = HexUtil.decodeHexString(transactionId);
-        builder.add(transactionIdBytes)
-                .add(index)
-                .end();
+        inputArray.add(new ByteString(transactionIdBytes));
+        inputArray.add(new UnsignedInteger(index));
+
+        return inputArray;
     }
 
     @Override

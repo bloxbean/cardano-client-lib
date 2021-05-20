@@ -95,4 +95,13 @@ public class CardanoJNAUtil {
         return result;
     }
 
+    /**
+     * Validate if CBOR is valid for the transaction. Used only in Tests
+     * @param rawTxnInHex
+     * @return
+     */
+    public static boolean validateTransactionCBOR(String rawTxnInHex) {
+        return CardanoJNA.INSTANCE.validateTransactionCBOR(rawTxnInHex);
+    }
+
 }

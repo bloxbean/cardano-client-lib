@@ -3,8 +3,9 @@ package com.bloxbean.cardano.client.transaction.model;
 import co.nstant.in.cbor.CborBuilder;
 import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.builder.ArrayBuilder;
-import co.nstant.in.cbor.builder.MapBuilder;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.ByteString;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
@@ -27,19 +28,22 @@ public class Transaction {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         CborBuilder cborBuilder = new CborBuilder();
 
-        ArrayBuilder txnArrayBuilder = cborBuilder.addArray();
-        //txn body
-        MapBuilder txnBodyMapBuilder = txnArrayBuilder.addMap();
-        body.serialize(txnBodyMapBuilder);
+        Array array = new Array();
+        Map bodyMap = body.serialize();
+        array.add(bodyMap);
 
         //witness
-        MapBuilder witnessMapBuilder = txnArrayBuilder.addMap();
-        if(witnessSet != null)
-            witnessSet.serialize(witnessMapBuilder);
-        witnessMapBuilder.end();
+        if(witnessSet != null) {
+            Map witnessMap = witnessSet.serialize();
+            array.add(witnessMap);
+        } else {
+            Map witnessMap = new Map();
+            array.add(witnessMap);
+        }
 
-        txnArrayBuilder.add((byte[]) null); //Null for meta
-        txnArrayBuilder.end();
+        array.add(new ByteString((byte[]) null)); //Null for meta
+
+        cborBuilder.add(array);
 
         new CborEncoder(baos).nonCanonical().encode(cborBuilder.build());
         byte[] encodedBytes = baos.toByteArray();

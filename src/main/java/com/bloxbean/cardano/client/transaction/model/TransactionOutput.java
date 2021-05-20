@@ -1,8 +1,10 @@
 package com.bloxbean.cardano.client.transaction.model;
 
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.builder.ArrayBuilder;
-import co.nstant.in.cbor.builder.MapBuilder;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.ByteString;
+import co.nstant.in.cbor.model.Map;
+import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import lombok.AllArgsConstructor;
@@ -18,22 +20,28 @@ public class TransactionOutput {
     private String address;
     private Value value;
 
-    public void serialize(ArrayBuilder builder) throws CborException, AddressExcepion {
+    //transaction_output = [address, amount : value]
+    public Array serialize() throws CborException, AddressExcepion {
+        Array array = new Array();
         byte[] addressByte = Account.toBytes(address);
-        builder.add(addressByte);
+        array.add(new ByteString(addressByte));
 
         if(value.getMultiAssets() != null && value.getMultiAssets().size() > 0) {
-            ArrayBuilder coinAssetArrayBuilder = builder.addArray();
-            if(value.getCoin() != null)
-                coinAssetArrayBuilder.add(value.getCoin().longValue());//TODO
+            Array coinAssetArray = new Array();
 
-            MapBuilder valueMapBuilder = coinAssetArrayBuilder.addMap();
-            value.serializeMultiAsset(valueMapBuilder);
+            if(value.getCoin() != null)
+                coinAssetArray.add(new UnsignedInteger(value.getCoin()));
+
+            Map valueMap = value.serialize();
+            coinAssetArray.add(valueMap);
+
+            array.add(coinAssetArray);
+
         } else {
-            builder.add(value.getCoin().longValue()); //TODO
+            array.add(new UnsignedInteger(value.getCoin()));
         }
 
-        builder.end();
+        return array;
     }
 
     @Override

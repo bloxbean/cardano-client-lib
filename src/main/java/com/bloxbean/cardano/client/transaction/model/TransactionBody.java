@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.client.transaction.model;
 
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.builder.ArrayBuilder;
-import co.nstant.in.cbor.builder.MapBuilder;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
@@ -27,34 +27,38 @@ public class TransactionBody {
     private List<MultiAsset> mint = new ArrayList<>();
     private byte[] metadataHash;
 
-    public void serialize(MapBuilder mapBuilder) throws CborException, AddressExcepion {
-        ArrayBuilder inputArrayBuilder = mapBuilder.putArray(0);
+    public Map serialize() throws CborException, AddressExcepion {
+        Map bodyMap = new Map();
+
+        Array inputsArray = new Array();
         for(TransactionInput ti: inputs) {
-            ti.serialize(inputArrayBuilder.addArray());
+            Array input = ti.serialize();
+            inputsArray.add(input);
         }
-        inputArrayBuilder.end();
+        bodyMap.put(new UnsignedInteger(0), inputsArray);
 
-        ArrayBuilder outputArrayBuilder = mapBuilder.putArray(1);
+        Array outputsArray = new Array();
         for(TransactionOutput to: outputs) {
-            to.serialize(outputArrayBuilder.addArray());
+            Array output = to.serialize();
+            outputsArray.add(output);
         }
-        outputArrayBuilder.end();
+        bodyMap.put(new UnsignedInteger(1), outputsArray);
 
-        mapBuilder.put(new UnsignedInteger(2), new UnsignedInteger(fee));
-        mapBuilder.put(3, ttl);
+       bodyMap.put(new UnsignedInteger(2), new UnsignedInteger(fee)); //fee
+       bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
 
         if(metadataHash != null) {
-            mapBuilder.put(7, metadataHash);
+            bodyMap.put(new UnsignedInteger(7), new ByteString(metadataHash));
         }
 
         if(mint != null && mint.size() > 0) {
-            Map map = new Map();
+            Map mintMap = new Map();
             for(MultiAsset multiAsset: mint) {
-                multiAsset.serialize(map);
-                mapBuilder.put(new UnsignedInteger(9), map);
+                multiAsset.serialize(mintMap);
+                bodyMap.put(new UnsignedInteger(9), mintMap);
             }
         }
 
-        mapBuilder.end();
+        return bodyMap;
     }
 }

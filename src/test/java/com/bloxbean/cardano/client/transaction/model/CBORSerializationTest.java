@@ -2,12 +2,15 @@ package com.bloxbean.cardano.client.transaction.model;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CBORSerializationTest {
 
@@ -55,6 +58,12 @@ public class CBORSerializationTest {
         Transaction transaction = new Transaction();
         transaction.setBody(txnBody);
         String hexStr = transaction.serializeToHex();
+        System.out.println("********************");
         System.out.println(hexStr);
+
+        boolean res = CardanoJNAUtil.validateTransactionCBOR(hexStr);
+        System.out.println(res);
+
+        assertTrue(res);
     }
 }
