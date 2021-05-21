@@ -14,15 +14,16 @@ import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFUtxoService
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
-import com.bloxbean.cardano.client.backend.model.TransactionDetailsParams;
-import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
+import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.model.MintTransaction;
+import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.*;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
-import com.bloxbean.cardano.client.transaction.model.Asset;
-import com.bloxbean.cardano.client.transaction.model.MultiAsset;
-import com.bloxbean.cardano.client.transaction.model.script.ScriptPubkey;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -178,20 +179,23 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("testtoken".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(200000));
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
-        PaymentTransaction paymentTransaction =
-                PaymentTransaction.builder()
+        MintTransaction paymentTransaction =
+                MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
                         .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptPubkey)
+                        .policyKey(skey)
                         .build();
 
         Result<String> result = transactionHelperService.mintToken(paymentTransaction,
-                TransactionDetailsParams.builder().ttl(getTtl()).build(), scriptPubkey, skey);
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
 
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(paymentTransaction));
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else

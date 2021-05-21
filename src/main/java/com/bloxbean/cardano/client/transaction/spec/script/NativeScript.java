@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.transaction.model.script;
+package com.bloxbean.cardano.client.transaction.spec.script;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.DataItem;

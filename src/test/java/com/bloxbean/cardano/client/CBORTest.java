@@ -2,9 +2,9 @@ package com.bloxbean.cardano.client;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.transaction.model.script.ScriptPubkey;
+import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
-import com.bloxbean.cardano.client.transaction.model.*;
+import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.io.File;

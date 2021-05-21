@@ -1,10 +1,10 @@
-package com.bloxbean.cardano.client.transaction.model;
+package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.transaction.model.script.NativeScript;
+import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

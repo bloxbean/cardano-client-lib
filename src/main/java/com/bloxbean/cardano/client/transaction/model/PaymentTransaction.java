@@ -1,7 +1,7 @@
-package com.bloxbean.cardano.client.backend.model.request;
+package com.bloxbean.cardano.client.transaction.model;
 
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.transaction.model.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,6 +14,9 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * For payment transaction both in ADA (Lovelace) or Native tokens
+ */
 public class PaymentTransaction {
     private Account sender;
     private String receiver;
@@ -21,4 +24,11 @@ public class PaymentTransaction {
     private BigInteger amount;
     private BigInteger fee;
     private List<MultiAsset> mintAssets;
+
+    public BigInteger getAmount() {
+        if(amount != null)
+            return amount;
+        else
+            return BigInteger.ZERO;
+    }
 }

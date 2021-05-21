@@ -7,13 +7,15 @@ import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
-import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
+import com.bloxbean.cardano.client.transaction.model.MintTransaction;
+import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.transaction.model.*;
+import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.AssetUtil;
+import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
@@ -109,16 +111,21 @@ public class UtxoTransactionBuilder {
         return getUtxos(address, unit, amount, Collections.EMPTY_SET);
     }
 
-    public Transaction mintToken(PaymentTransaction minTransaction, TransactionDetailsParams detailsParams) throws ApiException, AddressExcepion {
-        String sender = minTransaction.getSender().baseAddress();
+    public Transaction mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams) throws ApiException, AddressExcepion {
+        String sender = mintTransaction.getSender().baseAddress();
+
+        String receiver = mintTransaction.getReceiver();
+        if(receiver == null || receiver.isEmpty())
+            receiver = mintTransaction.getSender().baseAddress();
 
         //Get total no of multiasset and calculate min ada
         int totalAssets = 0;
-        for(MultiAsset ma: minTransaction.getMintAssets()) {
+        for(MultiAsset ma: mintTransaction.getMintAssets()) {
             totalAssets += ma.getAssets().size();
         }
 
-        BigInteger amount = getMinimumLovelaceForMultiAsset(detailsParams).multiply(BigInteger.valueOf(totalAssets));
+        BigInteger minAmount = getMinimumLovelaceForMultiAsset(detailsParams).multiply(BigInteger.valueOf(totalAssets));
+        BigInteger amount = minAmount.add(mintTransaction.getFee());
 
         List<Utxo> utxos = getUtxos(sender, LOVELACE, amount);
         if(utxos.size() == 0)
@@ -127,6 +134,7 @@ public class UtxoTransactionBuilder {
         List<TransactionInput> inputs = new ArrayList<>();
         List<TransactionOutput> outputs = new ArrayList<>();
 
+        boolean feeDeducted = false;
         for(Utxo utxo: utxos) {
             //create input
             TransactionInput transactionInput = new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex());
@@ -140,25 +148,55 @@ public class UtxoTransactionBuilder {
                     .multiAssets(new ArrayList<>())
                     .build();
             transactionOutput.setValue(value);
-            copyUtxoValuesToChangeOutput(transactionOutput, utxo);
-            BigInteger lovelaceValue = transactionOutput.getValue().getCoin();
-            transactionOutput.getValue().setCoin(lovelaceValue.subtract(minTransaction.getFee())); //deduct fee and set
 
-            for(MultiAsset ma: minTransaction.getMintAssets()) {
-                transactionOutput.getValue().getMultiAssets().add(ma);
+            copyUtxoValuesToChangeOutput(transactionOutput, utxo);
+
+            BigInteger lovelaceValue = transactionOutput.getValue().getCoin();
+            if(feeDeducted) { //fee + min amount required for new multiasset output
+                transactionOutput.getValue().setCoin(lovelaceValue);
+            } else {
+                BigInteger remainingAmount = lovelaceValue.subtract(amount);
+                if(remainingAmount.compareTo(BigInteger.ZERO) == 1) { //Positive value
+                    transactionOutput.getValue().setCoin(remainingAmount); //deduct requirement amt (fee + min amount)
+                    feeDeducted = true;
+                }
             }
+
+//            if(!mintedAssetAdded) {
+//                for (MultiAsset ma : mintTransaction.getMintAssets()) {
+//                    transactionOutput.getValue().getMultiAssets().add(ma);
+//                }
+//
+//                mintedAssetAdded = true; //Incase there are multiple utxos,
+//            }
 
             outputs.add(transactionOutput);
         }
+
+        //Create a separate output for minted assets
+        //Create output
+        TransactionOutput mintedTransactionOutput = new TransactionOutput();
+        mintedTransactionOutput.setAddress(receiver);
+        Value value = Value.builder()
+                .coin(minAmount)
+                .multiAssets(new ArrayList<>())
+                .build();
+        mintedTransactionOutput.setValue(value);
+        for (MultiAsset ma : mintTransaction.getMintAssets()) {
+             mintedTransactionOutput.getValue().getMultiAssets().add(ma);
+        }
+        outputs.add(mintedTransactionOutput);
 
         TransactionBody body = TransactionBody
                 .builder()
                 .inputs(inputs)
                 .outputs(outputs)
-                .fee(minTransaction.getFee())
+                .fee(mintTransaction.getFee())
                 .ttl(detailsParams.getTtl())
-                .mint(minTransaction.getMintAssets())
+                .mint(mintTransaction.getMintAssets())
                 .build();
+
+        System.out.println(JsonUtil.getPrettyJson(body));
 
         Transaction transaction = Transaction.builder()
                 .body(body)
@@ -168,6 +206,9 @@ public class UtxoTransactionBuilder {
     }
 
     private List<Utxo> getUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException {
+        if(amount == null)
+            amount = BigInteger.ZERO;
+
         BigInteger totalUtxoAmount = BigInteger.valueOf(0);
         List<Utxo> selectedUtxos = new ArrayList<>();
         boolean canContinue = true;

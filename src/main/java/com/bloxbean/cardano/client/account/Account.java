@@ -6,18 +6,21 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
 import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
-import com.bloxbean.cardano.client.transaction.model.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 /**
  * Create and manage secrets, and perform account-based work such as signing transactions.
  */
 public class Account {
+    @JsonIgnore
     private String mnemonic;
     private String baseAddress;
     private String enterpriseAddress;
     private Network network;
     private int index;
+    @JsonIgnore
     private String privateKey; //hex value
 
     /**
@@ -133,6 +136,7 @@ public class Account {
         return this.enterpriseAddress;
     }
 
+    @JsonIgnore
     public String getBech32PrivateKey() {
         return privateKey;
     }
@@ -189,4 +193,12 @@ public class Account {
         this.privateKey = CardanoJNAUtil.getPrivateKeyFromMnemonic(mnemonic, index);
     }
 
+    @Override
+    public String toString() {
+        try {
+            return baseAddress();
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }

@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.transaction.model;
+package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.Map;

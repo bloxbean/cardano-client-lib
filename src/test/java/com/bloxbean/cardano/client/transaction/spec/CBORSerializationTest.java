@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.transaction.model;
+package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.exception.AddressExcepion;

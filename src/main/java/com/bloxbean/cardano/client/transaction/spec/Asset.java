@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.transaction.model;
+package com.bloxbean.cardano.client.transaction.spec;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

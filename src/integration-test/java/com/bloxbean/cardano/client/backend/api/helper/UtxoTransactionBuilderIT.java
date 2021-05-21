@@ -7,11 +7,11 @@ import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFTransactionService;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFUtxoService;
-import com.bloxbean.cardano.client.backend.model.TransactionDetailsParams;
-import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
+import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.transaction.model.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

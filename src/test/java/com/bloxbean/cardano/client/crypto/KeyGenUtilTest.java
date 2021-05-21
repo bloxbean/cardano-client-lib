@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.crypto;
 
 import co.nstant.in.cbor.CborException;
-import com.bloxbean.cardano.client.transaction.model.script.ScriptPubkey;
+import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;

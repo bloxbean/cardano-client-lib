@@ -5,15 +5,14 @@ import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.TransactionDetailsParams;
-import com.bloxbean.cardano.client.backend.model.request.PaymentTransaction;
-import com.bloxbean.cardano.client.crypto.SecretKey;
+import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.model.MintTransaction;
+import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
 import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
-import com.bloxbean.cardano.client.transaction.model.script.NativeScript;
-import com.bloxbean.cardano.client.transaction.model.Transaction;
-import com.bloxbean.cardano.client.transaction.model.TransactionWitnessSet;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.slf4j.Logger;
@@ -52,13 +51,13 @@ public class TransactionHelperService {
      * Transfer fund
      * @param paymentTransactions
      * @param detailsParams
-     * @return
+     * @return Result object with transaction id
      * @throws ApiException
      * @throws AddressExcepion
      * @throws TransactionSerializationException
      * @throws CborException
      */
-    public Result transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams)
+    public Result<String> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams)
             throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
         UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
 
@@ -80,6 +79,10 @@ public class TransactionHelperService {
 
         Result<String> result = transactionService.submitTransaction(signedTxnBytes);
 
+        if(!result.isSuccessful()) {
+            LOG.error("Trasaction submission failed");
+        }
+
         return result;
     }
 
@@ -87,14 +90,13 @@ public class TransactionHelperService {
      *
      * @param mintTransaction
      * @param detailsParams
-     * @return
+     * @return Result object with transaction id
      * @throws AddressExcepion
      * @throws ApiException
      * @throws CborException
      * @throws TransactionSerializationException
      */
-    public Result mintToken(PaymentTransaction mintTransaction, TransactionDetailsParams detailsParams,
-                            NativeScript nativeScript, SecretKey skey)
+    public Result mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams)
             throws AddressExcepion, ApiException, CborException, TransactionSerializationException {
         UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
 
@@ -104,7 +106,7 @@ public class TransactionHelperService {
         Transaction transaction = utxoTransactionBuilder.mintToken(mintTransaction, detailsParams);
 
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
-        transactionWitnessSet.getNativeScripts().add(nativeScript);
+        transactionWitnessSet.getNativeScripts().add(mintTransaction.getPolicyScript());
         transaction.setWitnessSet(transactionWitnessSet);
 
         if(LOG.isDebugEnabled())
@@ -112,8 +114,7 @@ public class TransactionHelperService {
 
         String signedTxn = mintTransaction.getSender().sign(transaction);
 
-        System.out.println(HexUtil.encodeHexString(skey.getBytes()));
-        signedTxn = CardanoJNAUtil.signWithSecretKey(signedTxn, HexUtil.encodeHexString(skey.getBytes()));
+        signedTxn = CardanoJNAUtil.signWithSecretKey(signedTxn, HexUtil.encodeHexString(mintTransaction.getPolicyKey().getBytes()));
 
         if(LOG.isDebugEnabled()) {
             LOG.debug("Signed Txn : " + signedTxn);

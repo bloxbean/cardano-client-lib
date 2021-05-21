@@ -4,7 +4,7 @@ import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.transaction.model.*;
+import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
