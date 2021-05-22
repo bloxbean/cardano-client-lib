@@ -218,6 +218,56 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
+    void mintTokenWithMetadata() throws TransactionSerializationException,
+            CborException, AddressExcepion, ApiException {
+
+        Keys keys = KeyGenUtil.generateKey();
+        VerificationKey vkey = keys.getVkey();
+        SecretKey skey = keys.getSkey();
+
+        ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
+        String policyId = scriptPubkey.getPolicyId();
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("Testtoken123".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(150000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction paymentTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptPubkey)
+                        .policyKey(skey)
+                        .build();
+
+        Metadata metadata = new CBORMetadata()
+                .put(new BigInteger("1"), "SAT Token")
+                .put(new BigInteger("2"), "SAT")
+                .put(new BigInteger("3"), "This is a test token");
+
+
+        Result<String> result = transactionHelperService.mintToken(paymentTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(paymentTransaction));
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
     void transferWithCBORMetadata() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
