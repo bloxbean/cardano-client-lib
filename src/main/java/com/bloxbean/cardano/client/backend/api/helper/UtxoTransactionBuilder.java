@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
@@ -47,7 +48,7 @@ public class UtxoTransactionBuilder {
      * @throws ApiException
      * @throws AddressExcepion
      */
-    public Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams) throws ApiException,
+    public Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException,
             AddressExcepion {
 
         List<TransactionInput> transactionInputs = new ArrayList<>();
@@ -94,6 +95,7 @@ public class UtxoTransactionBuilder {
 
         Transaction transaction = Transaction.builder()
                 .body(transactionBody)
+                .metadata(metadata)
                 .build();
 
         return transaction;
@@ -111,7 +113,7 @@ public class UtxoTransactionBuilder {
         return getUtxos(address, unit, amount, Collections.EMPTY_SET);
     }
 
-    public Transaction mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams) throws ApiException, AddressExcepion {
+    public Transaction buildMintTokenTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException, AddressExcepion {
         String sender = mintTransaction.getSender().baseAddress();
 
         String receiver = mintTransaction.getReceiver();
@@ -200,6 +202,7 @@ public class UtxoTransactionBuilder {
 
         Transaction transaction = Transaction.builder()
                 .body(body)
+                .metadata(metadata)
                 .build();
 
         return transaction;

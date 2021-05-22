@@ -59,4 +59,12 @@ public class KeyGenUtil {
         return out;
     }
 
+    public static byte[] blake2bHash256(byte[] in) {
+        final Blake2bDigest hash = new Blake2bDigest(null, 32, null, null);
+        hash.update(in, 0, in.length);
+        final byte[] out = new byte[hash.getDigestSize()];
+        hash.doFinal(out, 0);
+        return out;
+    }
+
 }

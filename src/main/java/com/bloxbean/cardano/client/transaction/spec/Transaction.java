@@ -7,6 +7,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,9 +23,14 @@ import java.io.ByteArrayOutputStream;
 public class Transaction {
     private TransactionBody body;
     private TransactionWitnessSet witnessSet;
-   // private TransactionMetadata metadata; //Optional
+    private Metadata metadata;
 
     public byte[] serialize() throws CborException, AddressExcepion {
+        if(metadata != null && body.getMetadataHash() == null) {
+            byte[] metadataHash = metadata.getMetadataHash();
+            body.setMetadataHash(metadataHash);
+        }
+
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         CborBuilder cborBuilder = new CborBuilder();
 
@@ -41,7 +47,11 @@ public class Transaction {
             array.add(witnessMap);
         }
 
-        array.add(new ByteString((byte[]) null)); //Null for meta
+        //metadata
+        if(metadata != null) {
+            array.add(metadata.getData());
+        } else
+            array.add(new ByteString((byte[]) null)); //Null for meta
 
         cborBuilder.add(array);
 

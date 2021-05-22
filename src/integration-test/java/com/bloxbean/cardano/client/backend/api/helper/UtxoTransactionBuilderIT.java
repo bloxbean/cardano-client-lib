@@ -52,7 +52,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
         );
 
         Transaction transaction
-                = utxoTransactionBuilder.buildTransaction(paymentTransactionList, TransactionDetailsParams.builder().ttl(1000).build());
+                = utxoTransactionBuilder.buildTransaction(paymentTransactionList, TransactionDetailsParams.builder().ttl(1000).build(), null);
 
         System.out.println(transaction);
 

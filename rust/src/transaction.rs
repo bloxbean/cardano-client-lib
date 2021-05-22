@@ -16,6 +16,8 @@ pub fn add_witness_and_sign(rawTxnInHex: &str, bech32PvtKey: &str) -> Vec<u8> {
     let txnBody = transaction.body();
     let txnBodyHash = hash_transaction(&txnBody);
 
+    let metadata = transaction.metadata();
+
     let mut txnWithnewssSet = match transaction.witness_set() {
         tws => tws,
         _ => TransactionWitnessSet::new()
@@ -32,7 +34,7 @@ pub fn add_witness_and_sign(rawTxnInHex: &str, bech32PvtKey: &str) -> Vec<u8> {
     txnWithnewssSet.set_vkeys(&vkey_witnesses);
 
     let wns = transaction.witness_set().vkeys();
-    let finalTxn = Transaction::new(&txnBody, &txnWithnewssSet, None);
+    let finalTxn = Transaction::new(&txnBody, &txnWithnewssSet, metadata);
 
     cbor::cbor!(&finalTxn).unwrap()
 }
@@ -49,6 +51,8 @@ pub fn sign_txn_with_secretkey(rawTxnInHex: &str, secretKey: &str) -> Vec<u8> {
     let txnBody = transaction.body();
     let txnBodyHash = hash_transaction(&txnBody);
 
+    let metadata = transaction.metadata();
+
     let mut txnWithnewssSet = match transaction.witness_set() {
         tws => tws,
         _ => TransactionWitnessSet::new()
@@ -65,7 +69,7 @@ pub fn sign_txn_with_secretkey(rawTxnInHex: &str, secretKey: &str) -> Vec<u8> {
     txnWithnewssSet.set_vkeys(&vkey_witnesses);
 
     let wns = transaction.witness_set().vkeys();
-    let finalTxn = Transaction::new(&txnBody, &txnWithnewssSet, None);
+    let finalTxn = Transaction::new(&txnBody, &txnWithnewssSet, metadata);
 
     cbor::cbor!(&finalTxn).unwrap()
 }

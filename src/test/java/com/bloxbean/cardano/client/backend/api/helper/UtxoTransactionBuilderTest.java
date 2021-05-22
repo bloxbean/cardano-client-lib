@@ -124,7 +124,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
 
         assertThat(transaction.getBody().getInputs(), hasSize(2));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9"));
@@ -158,7 +158,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -198,7 +198,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -244,7 +244,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -299,7 +299,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -339,7 +339,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 

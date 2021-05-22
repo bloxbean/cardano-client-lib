@@ -14,6 +14,11 @@ import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFUtxoService
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
+import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
+import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
+import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
+import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConverter;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
@@ -26,9 +31,13 @@ import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -42,6 +51,8 @@ class TransactionHelperServiceIT extends BFBaseTest {
     TransactionService transactionService;
     TransactionHelperService transactionHelperService;
     BlockService blockService;
+
+    String dataFile = "json-metadata.json";
 
     @BeforeEach
     public void setup() {
@@ -206,6 +217,117 @@ class TransactionHelperServiceIT extends BFBaseTest {
         assertThat(result.isSuccessful(), is(true));
     }
 
+    @Test
+    void transferWithCBORMetadata() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        CBORMetadataMap mm = new CBORMetadataMap()
+                .put(new BigInteger("1978"), "201value")
+                .put(new BigInteger("197819"),new BigInteger("200001"))
+                .put("203", new byte[] { 11,11,10});
+
+        CBORMetadataList list = new CBORMetadataList()
+                .add("301value")
+                .add(new BigInteger("300001"))
+                .add(new byte[] { 11,11,10})
+                .add(new CBORMetadataMap()
+                        .put(new BigInteger("401"), "401str")
+                        .put("hello", "hellovalue"));
+        Metadata metadata = new CBORMetadata()
+                .put(new BigInteger("197819781978"), "John")
+                .put(new BigInteger("197819781979"), "CA")
+                .put(new BigInteger("1978197819710"), new byte[]{0,11})
+                .put(new BigInteger("1978197819711"), mm)
+                .put(new BigInteger("1978197819712"), list);
+
+        System.out.println(HexUtil.encodeHexString(metadata.serialize()));
+
+        PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(1500000))
+                        .fee(BigInteger.valueOf(230000))
+                        .unit("lovelace")
+                        .build();
+
+        Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
+    void transferWithJSONMetadata() throws TransactionSerializationException, CborException, AddressExcepion, ApiException, IOException {
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        JsonNode json = loadJsonMetadata("json-1");
+        Metadata metadata = JsonNoSchemaToMetadataConverter.jsonToCborMetadata(json.toString());
+
+        PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(1500000))
+                        .fee(BigInteger.valueOf(230000))
+                        .unit("lovelace")
+                        .build();
+
+        Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
+    void transferWithJSONMetadataComplex() throws TransactionSerializationException, CborException, AddressExcepion, ApiException, IOException {
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        JsonNode json = loadJsonMetadata("json-3");
+        Metadata metadata = JsonNoSchemaToMetadataConverter.jsonToCborMetadata(json.toString());
+
+        PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(1500000))
+                        .fee(BigInteger.valueOf(230000))
+                        .unit("lovelace")
+                        .build();
+
+        Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
+        assertThat(result.isSuccessful(), is(true));
+    }
+
     private Integer getTtl() throws ApiException {
         Block block = blockService.getLastestBlock().getValue();
         Integer slot = block.getSlot();
@@ -232,5 +354,13 @@ class TransactionHelperServiceIT extends BFBaseTest {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private JsonNode loadJsonMetadata(String key) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode rootNode = objectMapper.readTree(this.getClass().getClassLoader().getResourceAsStream(dataFile));
+        ObjectNode root = (ObjectNode)rootNode;
+
+        return root.get(key);
     }
 }

@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
@@ -44,9 +45,38 @@ public class TransactionHelperService {
      */
     public Result transfer(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams)
             throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
-        return transfer(Arrays.asList(paymentTransaction), detailsParams);
+        return transfer(Arrays.asList(paymentTransaction), detailsParams, null);
     }
 
+    /**
+     *
+     * @param paymentTransaction
+     * @param detailsParams
+     * @return
+     * @throws ApiException
+     * @throws AddressExcepion
+     * @throws TransactionSerializationException
+     * @throws CborException
+     */
+    public Result transfer(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
+            throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
+        return transfer(Arrays.asList(paymentTransaction), detailsParams, metadata);
+    }
+
+    /**
+     *
+     * @param paymentTransactions
+     * @param detailsParams
+     * @return
+     * @throws ApiException
+     * @throws AddressExcepion
+     * @throws TransactionSerializationException
+     * @throws CborException
+     */
+    public Result<String> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams)
+            throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
+        return transfer(paymentTransactions, detailsParams, null);
+    }
     /**
      * Transfer fund
      * @param paymentTransactions
@@ -57,14 +87,14 @@ public class TransactionHelperService {
      * @throws TransactionSerializationException
      * @throws CborException
      */
-    public Result<String> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams)
+    public Result<String> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
         UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
 
         if(LOG.isDebugEnabled())
             LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(paymentTransactions));
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(paymentTransactions, detailsParams);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(paymentTransactions, detailsParams, metadata);
 
         if(LOG.isDebugEnabled())
             LOG.debug(JsonUtil.getPrettyJson(transaction));
@@ -87,6 +117,21 @@ public class TransactionHelperService {
     }
 
     /**
+     * Mint tranaction
+     * @param mintTransaction
+     * @param detailsParams
+     * @return
+     * @throws AddressExcepion
+     * @throws ApiException
+     * @throws CborException
+     * @throws TransactionSerializationException
+     */
+    public Result mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams)
+            throws AddressExcepion, ApiException, CborException, TransactionSerializationException {
+        return mintToken(mintTransaction, detailsParams, null);
+    }
+
+    /**
      *
      * @param mintTransaction
      * @param detailsParams
@@ -96,18 +141,19 @@ public class TransactionHelperService {
      * @throws CborException
      * @throws TransactionSerializationException
      */
-    public Result mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams)
+    public Result mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
             throws AddressExcepion, ApiException, CborException, TransactionSerializationException {
         UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
 
         if(LOG.isDebugEnabled())
             LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(mintTransaction));
 
-        Transaction transaction = utxoTransactionBuilder.mintToken(mintTransaction, detailsParams);
+        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, metadata);
 
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
         transactionWitnessSet.getNativeScripts().add(mintTransaction.getPolicyScript());
         transaction.setWitnessSet(transactionWitnessSet);
+        transaction.setMetadata(metadata);
 
         if(LOG.isDebugEnabled())
             LOG.debug(JsonUtil.getPrettyJson(transaction));
