@@ -4,28 +4,28 @@ A client library for Cardano in Java.
 For some features like transaction signing and address generation, it currently uses [cardano-serialization-lib](https://github.com/Emurgo/cardano-serialization-lib) rust library though JNI. The library
 bundles the platform specific binaries of cardano-serialization-lib. You can check the currently supported operating systems below. This dependency will be removed in the future release.
 
-##**Features**
+**Features**
 
-###Address Generation
+#### Address Generation
 
 - Address Generation (Base Address, Enterprise Address)
 - Generate Address from Mnemonic phase
 
-###Transaction Serialization & Signing
+#### Transaction Serialization & Signing
 - API to build Payment transaction (ADA & Native Tokens) 
 - CBOR serialization of transaction
 - Transaction signing
 
-###Metadata Builder
+#### Metadata Builder
 - Helper to build Metadata
 - Converter to conver JSON (No Schema) to Metadata format
 
-###Token Minting
+#### Token Minting
 - Token Minting transaction builder
 - Native script (ScriptAll, ScriptAny, ScriptAtLeast, ScriptPubKey, RequireTimeAfter, RequireTimeBefore)
 - Policy Id generation
 
-###Backend Integration (Blockfrost)
+#### Backend Integration (Blockfrost)
 The plugin also provides integration with Cardano node through different backend services. 
 The library currently only supports integration with Blockfrost through the Backend api. But other backend like Cardano-wallet
 will be added in future release.
