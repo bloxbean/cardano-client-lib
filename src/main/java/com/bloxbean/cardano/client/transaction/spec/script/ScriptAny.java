@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This script class is for “RequireAny” expression
+ * This script class is for "RequireAny" expression
  */
 @Data
 public class ScriptAny implements NativeScript {

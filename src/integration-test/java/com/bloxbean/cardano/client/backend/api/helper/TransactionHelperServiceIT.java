@@ -46,6 +46,7 @@ import java.util.Arrays;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class TransactionHelperServiceIT extends BFBaseTest {
     UtxoService utxoService;
@@ -899,6 +900,32 @@ class TransactionHelperServiceIT extends BFBaseTest {
         assertThat(result.isSuccessful(), is(true));
     }
 
+    @Test
+    void testCreateSignedTransaction() throws TransactionSerializationException, CborException, AddressExcepion, ApiException, IOException {
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        JsonNode json = loadJsonMetadata("json-3");
+        Metadata metadata = JsonNoSchemaToMetadataConverter.jsonToCborMetadata(json.toString());
+
+        PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(1500000))
+                        .fee(BigInteger.valueOf(230000))
+                        .unit("lovelace")
+                        .build();
+
+        String result = transactionHelperService.createSignedTransaction(Arrays.asList(paymentTransaction),
+                TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+
+        System.out.println(result);
+        assertNotNull(result);
+    }
+
     private long getTtl() throws ApiException {
         Block block = blockService.getLastestBlock().getValue();
         long slot = block.getSlot();
@@ -909,7 +936,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         try {
             if (result.isSuccessful()) { //Wait for transaction to be mined
                 int count = 0;
-                while (count < 20) {
+                while (count < 60) {
                     Result<TransactionContent> txnResult = transactionService.getTransaction(result.getValue());
                     if (txnResult.isSuccessful()) {
                         System.out.println(JsonUtil.getPrettyJson(txnResult.getValue()));

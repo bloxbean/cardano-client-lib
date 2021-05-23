@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This script class is for “RequireAllOf” expression
+ * This script class is for "RequireAllOf" expression
  */
 @Data
 public class ScriptAll implements NativeScript {

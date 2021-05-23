@@ -78,6 +78,7 @@ public class TransactionHelperService {
             throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
         return transfer(paymentTransactions, detailsParams, null);
     }
+
     /**
      * Transfer fund
      * @param paymentTransactions
@@ -90,6 +91,31 @@ public class TransactionHelperService {
      */
     public Result<String> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, AddressExcepion, TransactionSerializationException, CborException {
+        String signedTxn = createSignedTransaction(paymentTransactions, detailsParams, metadata);
+
+        byte[] signedTxnBytes = HexUtil.decodeHexString(signedTxn);
+
+        Result<String> result = transactionService.submitTransaction(signedTxnBytes);
+
+        if(!result.isSuccessful()) {
+            LOG.error("Trasaction submission failed");
+        }
+
+        return result;
+    }
+
+    /**
+     * Get cbor serialized signed transaction in Hex
+     * @param paymentTransactions
+     * @param detailsParams
+     * @param metadata
+     * @return
+     * @throws ApiException
+     * @throws AddressExcepion
+     * @throws CborException
+     * @throws TransactionSerializationException
+     */
+    public String createSignedTransaction(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException, AddressExcepion, CborException, TransactionSerializationException {
         UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
 
         if(LOG.isDebugEnabled())
@@ -105,16 +131,7 @@ public class TransactionHelperService {
         for(PaymentTransaction txn: paymentTransactions) {
             signedTxn = txn.getSender().sign(signedTxn);
         }
-
-        byte[] signedTxnBytes = HexUtil.decodeHexString(signedTxn);
-
-        Result<String> result = transactionService.submitTransaction(signedTxnBytes);
-
-        if(!result.isSuccessful()) {
-            LOG.error("Trasaction submission failed");
-        }
-
-        return result;
+        return signedTxn;
     }
 
     /**

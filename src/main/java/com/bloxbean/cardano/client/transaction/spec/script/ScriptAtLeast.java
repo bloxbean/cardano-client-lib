@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This script class is for “RequireMOf” expression
+ * This script class is for "RequireMOf" expression
  */
 @Data
 public class ScriptAtLeast implements NativeScript {

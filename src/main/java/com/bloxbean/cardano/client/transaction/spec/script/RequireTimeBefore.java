@@ -7,7 +7,7 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import lombok.Data;
 
 /**
- * This script class is for “RequireTimeBefore” expression
+ * This script class is for "RequireTimeBefore" expression
  */
 @Data
 public class RequireTimeBefore implements NativeScript {
