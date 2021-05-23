@@ -1,10 +1,44 @@
 # cardano-client-lib 
 
-A client library for Cardano in Java. It currently uses [cardano-serialization-lib](https://github.com/Emurgo/cardano-serialization-lib) rust library though JNI.
+A client library for Cardano in Java. 
+For some features like transaction signing and address generation, it currently uses [cardano-serialization-lib](https://github.com/Emurgo/cardano-serialization-lib) rust library though JNI. The library
+bundles the platform specific binaries of cardano-serialization-lib. You can check the currently supported operating systems below. This dependency will be removed in the future release.
 
-Currently, it provides only Account api. Using this api, you can generate a new account and corresponding Base Address and Enterprise Address. Similarly, you can generate an account from a mnemonic.
+##**Features**
 
-This project can be used as a library in another Java project or as a standalone utility.
+###Address Generation
+
+- Address Generation (Base Address, Enterprise Address)
+- Generate Address from Mnemonic phase
+
+###Transaction Serialization & Signing
+- API to build Payment transaction (ADA & Native Tokens) 
+- CBOR serialization of transaction
+- Transaction signing
+
+###Metadata Builder
+- Helper to build Metadata
+- Converter to conver JSON (No Schema) to Metadata format
+
+###Token Minting
+- Token Minting transaction builder
+- Native script (ScriptAll, ScriptAny, ScriptAtLeast, ScriptPubKey, RequireTimeAfter, RequireTimeBefore)
+- Policy Id generation
+
+###Backend Integration (Blockfrost)
+The plugin also provides integration with Cardano node through different backend services. 
+The library currently only supports integration with Blockfrost through the Backend api. But other backend like Cardano-wallet
+will be added in future release.
+
+- Transaction Submission (Payment & Token Minting)
+
+**Following Backend apis are currently available**
+- TransactionService (Submit transaction, Get transaction)
+- AddressService (Get address details)
+- UtxoService (Get utxos for an address)
+- AssetService
+- BlockService
+- NetworkInfoService
 
 ## Supported Operating Systems
 The library has been tested on the following Operating Systems.
@@ -15,7 +49,6 @@ The library has been tested on the following Operating Systems.
 
 For anyother platform, please create a request [here](https://github.com/bloxbean/cardano-client-lib/issues)
 
-
 ## Use as a library in a Java Project
 
 ### Add dependency
@@ -25,14 +58,14 @@ For anyother platform, please create a request [here](https://github.com/bloxbea
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.0.2</version>
+            <version>0.0.3</version>
         </dependency>
 ```
 
 - For Gradle, add the following dependency to build.gradle
 
 ```
-compile 'com.bloxbean.cardano:cardano-client-lib:0.0.2'
+compile 'com.bloxbean.cardano:cardano-client-lib:0.0.3'
 ```
 
 ### Account API Usage
@@ -62,6 +95,107 @@ String mnemonic = "...";
 Account account = new Account(mnemonic);  //Create a Mainnet account from Mnemonic
 
 Account account = new Account(Networks.testnet(), mnemonic); //Create a Testnet account from Mnemonic
+```
+
+### Simple ADA Payment transaction
+```aidl
+  PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                                            .sender(sender)
+                                            .receiver(receiver)
+                                            .amount(BigInteger.valueOf(1500000))
+                                            .fee(BigInteger.valueOf(230000))
+                                            .unit("lovelace")
+                                            .build();
+                                            
+  TransactionDetailsParams detailsParam = TransactionDetailsParams.builder()
+                                            .ttl(getTtl()).build();                                          
+
+  Result<String> result = 
+                    transactionHelperService.transfer(paymentTransaction, detailsParam);
+
+  if(result.isSuccessful())
+      System.out.println("Transaction Id: " + result.getValue());
+```
+### Native Token transfer
+```aidl
+ PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(12))
+                        .fee(BigInteger.valueOf(210000))
+                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                        .build();
+
+ TransactionDetailsParams detailsParam = TransactionDetailsParams.builder()
+                                            .ttl(getTtl()).build();   
+                                            
+ Result<String> result = transactionHelperService.transfer(paymentTransaction, detailsParam);
+
+ if(result.isSuccessful())
+     System.out.println("Transaction Id: " + result.getValue());
+```
+
+### ScriptHash
+```aidl
+Example: 1
+
+ScriptPubkey scriptPubkey = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884")
+String policyId = scriptPubkey.getPolicyId();
+
+Example: 2
+
+ScriptPubkey scriptPubkey1 = ...;
+SecretKey sk1 = ...;
+
+ScriptPubkey scriptPubkey2 = ...;
+SecretKey sk2 = ...;
+
+ScriptPubkey scriptPubkey3 = ...;
+SecretKey sk3 = ...;
+
+ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
+                .addScript(scriptPubkey1)
+                .addScript(scriptPubkey2)
+                .addScript(scriptPubkey3);
+
+String policyId = scriptAtLeast.getPolicyId();
+
+```
+### Token Minting transaction
+```aidl
+MultiAsset multiAsset = new MultiAsset();
+multiAsset.setPolicyId(policyId);
+
+Asset asset = new Asset("testtoken"), BigInteger.valueOf(250000));
+multiAsset.getAssets().add(asset);
+
+MintTransaction mintTransaction = MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptAtLeast)
+                        .policyKeys(Arrays.asList(sk2, sk3))
+                        .build();
+
+Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+```
+
+### Blockfrost Integration
+```aidl
+1. Get Blockfrost Backend Service
+ 
+ BackendService backendService = 
+                BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+ 
+2. Get other services from Backend Service
+
+UtxoService utxoService = backendService.getUtxoService();
+TransactionService transactionService = backendService.getTransactionService();
+TransactionHelperService transactionHelperService = backendService.getTransactionHelperService();
+BlockService blockService = backendService.getBlockService();
 ```
 
 ## Use as a standalone application
