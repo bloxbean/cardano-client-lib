@@ -15,10 +15,10 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
 public class Block {
-    private Integer time;
-    private Integer height;
+    private long time;
+    private long height;
     private String hash;
-    private Integer slot;
+    private long slot;
     private Integer epoch;
     private Integer epochSlot;
     private String slotLeader;

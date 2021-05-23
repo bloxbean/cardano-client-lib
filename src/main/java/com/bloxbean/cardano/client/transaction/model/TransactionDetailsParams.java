@@ -14,7 +14,9 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 @NoArgsConstructor
 @AllArgsConstructor
 public class TransactionDetailsParams {
-    private Integer ttl;
+    private long ttl;
+    private long validityStartInterval;
+
     private BigInteger minLovelaceForMultiAsset = ONE_ADA.multiply(BigInteger.valueOf(2));
     private BigInteger minLovelaceInOuput = ONE_ADA;
 }

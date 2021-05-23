@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
@@ -160,7 +161,13 @@ public class TransactionHelperService {
 
         String signedTxn = mintTransaction.getSender().sign(transaction);
 
-        signedTxn = CardanoJNAUtil.signWithSecretKey(signedTxn, HexUtil.encodeHexString(mintTransaction.getPolicyKey().getBytes()));
+        if(mintTransaction.getPolicyKeys() == null || mintTransaction.getPolicyKeys().size() == 0){
+            throw new ApiException("No policy key (secret key) found to sign the mint transaction");
+        }
+
+        for(SecretKey key: mintTransaction.getPolicyKeys()) {
+            signedTxn = CardanoJNAUtil.signWithSecretKey(signedTxn, HexUtil.encodeHexString(key.getBytes()));
+        }
 
         if(LOG.isDebugEnabled()) {
             LOG.debug("Signed Txn : " + signedTxn);

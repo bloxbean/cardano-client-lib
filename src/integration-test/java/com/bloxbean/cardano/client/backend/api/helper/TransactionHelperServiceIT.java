@@ -28,9 +28,10 @@ import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.TransactionSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
-import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
+import com.bloxbean.cardano.client.transaction.spec.script.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -190,7 +191,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("mycoin", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction paymentTransaction =
@@ -200,7 +201,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptPubkey)
-                        .policyKey(skey)
+                        .policyKeys(Arrays.asList(skey))
                         .build();
 
         Result<String> result = transactionHelperService.mintToken(paymentTransaction,
@@ -215,6 +216,526 @@ class TransactionHelperServiceIT extends BFBaseTest {
         waitForTransaction(result);
 
         assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
+    void mintTokenWithScriptAtLeast() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+       Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
+       ScriptPubkey scriptPubkey1 = tuple1._1;
+       SecretKey sk1 = tuple1._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey2 = tuple2._1;
+        SecretKey sk2 = tuple2._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey3 = tuple3._1;
+        SecretKey sk3 = tuple3._2.getSkey();
+
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
+                .addScript(scriptPubkey1)
+                .addScript(scriptPubkey2)
+                .addScript(scriptPubkey3);
+
+        String policyId = scriptAtLeast.getPolicyId();
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction paymentTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptAtLeast)
+                        .policyKeys(Arrays.asList(sk2, sk3))
+                        .build();
+
+        Result<String> result = transactionHelperService.mintToken(paymentTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(paymentTransaction));
+        System.out.println(result);
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        assertThat(result.isSuccessful(), is(true));
+        waitForTransaction(result);
+    }
+
+    @Test
+    void mintTokenWithScriptAtLeastButNotSufficientKeys() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+        Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey1 = tuple1._1;
+        SecretKey sk1 = tuple1._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey2 = tuple2._1;
+        SecretKey sk2 = tuple2._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey3 = tuple3._1;
+        SecretKey sk3 = tuple3._2.getSkey();
+
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
+                .addScript(scriptPubkey1)
+                .addScript(scriptPubkey2)
+                .addScript(scriptPubkey3);
+
+        String policyId = scriptAtLeast.getPolicyId();
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptAtLeast)
+                        .policyKeys(Arrays.asList(sk2))
+                        .build();
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        assertThat(result.isSuccessful(), is(false));
+        waitForTransaction(result);
+    }
+
+    @Test
+    void mintTokenWithScriptAll() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+        Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey1 = tuple1._1;
+        SecretKey sk1 = tuple1._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey2 = tuple2._1;
+        SecretKey sk2 = tuple2._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey3 = tuple3._1;
+        SecretKey sk3 = tuple3._2.getSkey();
+
+        ScriptAll scriptAll = new ScriptAll()
+                .addScript(scriptPubkey1)
+                .addScript(scriptPubkey2)
+                .addScript(scriptPubkey3);
+
+        String policyId = scriptAll.getPolicyId();
+
+        System.out.println(">> Policy Id: " + policyId);
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptAll)
+                        .policyKeys(Arrays.asList(sk1, sk2, sk3))
+                        .build();
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
+        System.out.println(result);
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        assertThat(result.isSuccessful(), is(true));
+        waitForTransaction(result);
+    }
+
+    @Test
+    void mintTokenWithScriptAllButNotSufficientKeys() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+        Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey1 = tuple1._1;
+        SecretKey sk1 = tuple1._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey2 = tuple2._1;
+        SecretKey sk2 = tuple2._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey3 = tuple3._1;
+        SecretKey sk3 = tuple3._2.getSkey();
+
+        ScriptAll scriptAll = new ScriptAll()
+                .addScript(scriptPubkey1)
+                .addScript(scriptPubkey2)
+                .addScript(scriptPubkey3);
+
+        String policyId = scriptAll.getPolicyId();
+
+        System.out.println(">> Policy Id: " + policyId);
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptAll)
+                        .policyKeys(Arrays.asList(sk2, sk3))
+                        .build();
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        assertThat(result.isSuccessful(), is(false));
+        waitForTransaction(result);
+    }
+
+
+    @Test
+    void mintTokenWithScriptAtLeastBefore() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+        Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey1 = tuple1._1;
+        SecretKey sk1 = tuple1._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey2 = tuple2._1;
+        SecretKey sk2 = tuple2._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey3 = tuple3._1;
+        SecretKey sk3 = tuple3._2.getSkey();
+
+        long slot = getTtl();
+
+        RequireTimeBefore requireTimeBefore = new RequireTimeBefore((int)slot);
+
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
+                .addScript(requireTimeBefore)
+                .addScript(scriptPubkey1)
+                .addScript(scriptPubkey2)
+                .addScript(scriptPubkey3);
+
+        String policyId = scriptAtLeast.getPolicyId();
+
+        System.out.println(">> Policy Id: " + policyId);
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptAtLeast)
+                        .policyKeys(Arrays.asList(sk2, sk3))
+                        .build();
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        assertThat(result.isSuccessful(), is(true));
+        waitForTransaction(result);
+    }
+
+    @Test
+    void mintTokenWithScriptPubBeforeValidSlot() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+        Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey1 = tuple1._1;
+        SecretKey sk1 = tuple1._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey2 = tuple2._1;
+        SecretKey sk2 = tuple2._2.getSkey();
+
+        Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey3 = tuple3._1;
+        SecretKey sk3 = tuple3._2.getSkey();
+
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
+                .addScript(scriptPubkey1)
+                .addScript(scriptPubkey2)
+                .addScript(scriptPubkey3);
+
+        long slot = getTtl();
+        RequireTimeBefore requireTimeBefore = new RequireTimeBefore(slot);
+
+        ScriptAll scriptAll = new ScriptAll()
+                .addScript(requireTimeBefore)
+                .addScript(
+                        scriptAtLeast
+                );
+
+        System.out.println(JsonUtil.getPrettyJson(scriptAll));
+
+        String policyId = scriptAll.getPolicyId();
+
+        System.out.println(">> Policy Id: " + policyId);
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptAll)
+                        .policyKeys(Arrays.asList(sk1, sk2))
+                        .build();
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
+        System.out.println(result);
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        assertThat(result.isSuccessful(), is(true));
+        waitForTransaction(result);
+    }
+
+    @Test
+    void mintTokenWithScriptPubBeforeInValidSlot() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+        Tuple<ScriptPubkey, Keys> tuple = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey = tuple._1;
+        SecretKey sk = tuple._2.getSkey();
+
+        long slot = getTtl() - 5000;
+        RequireTimeBefore requireTimeBefore = new RequireTimeBefore(slot);
+        ScriptAll scriptAll = new ScriptAll()
+                .addScript(requireTimeBefore)
+                .addScript(scriptPubkey);
+
+        System.out.println(JsonUtil.getPrettyJson(scriptAll));
+        String policyId = scriptAll.getPolicyId();
+
+        System.out.println(">> Policy Id: " + policyId);
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(scriptAll)
+                        .policyKeys(Arrays.asList(sk))
+                        .build();
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
+        System.out.println(result);
+        if(result.isSuccessful())
+            System.out.println("Transaction Id:- " + result.getValue());
+        else
+            System.out.println("Transaction failed:- " + result);
+
+        assertThat(result.isSuccessful(), is(false));
+        waitForTransaction(result);
+    }
+
+    @Test
+    void mintTokenWithScriptPubAfterValidSlot() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+        Tuple<ScriptPubkey, Keys> tuple = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey = tuple._1;
+        SecretKey sk = tuple._2.getSkey();
+
+        long afterSlot = getTtl() - 4000; //As getTtl() is currentslot + 2000
+        RequireTimeAfter requireTimeAfter = new RequireTimeAfter(afterSlot);
+        ScriptAll policyScript = new ScriptAll()
+                .addScript(requireTimeAfter)
+                .addScript(scriptPubkey);
+
+        System.out.println(JsonUtil.getPrettyJson(policyScript));
+        String policyId = policyScript.getPolicyId();
+
+        System.out.println(">> Policy Id: " + policyId);
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset("selftoken100", BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(policyScript)
+                        .policyKeys(Arrays.asList(sk))
+                        .build();
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(getTtl())
+                .validityStartInterval(afterSlot + 100) //validity start should be after slot or later
+                .build();
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction, detailsParams);
+
+        System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
+        System.out.println(result);
+        if(result.isSuccessful())
+            System.out.println("Transaction Id:- " + result.getValue());
+        else
+            System.out.println("Transaction failed:- " + result);
+
+        assertThat(result.isSuccessful(), is(true));
+        waitForTransaction(result);
+    }
+
+    @Test
+    void mintTokenWithScriptPubAfterInValidSlot() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+        Tuple<ScriptPubkey, Keys> tuple = ScriptPubkey.createWithNewKey();
+        ScriptPubkey scriptPubkey = tuple._1;
+        SecretKey sk = tuple._2.getSkey();
+
+        long afterSlot = getTtl() + 4000; //As getTtl() is currentslot + 2000
+        RequireTimeAfter requireTimeAfter = new RequireTimeAfter(afterSlot);
+        ScriptAll policyScript = new ScriptAll()
+                .addScript(requireTimeAfter)
+                .addScript(scriptPubkey);
+
+        System.out.println(JsonUtil.getPrettyJson(policyScript));
+        String policyId = policyScript.getPolicyId();
+
+        System.out.println(">> Policy Id: " + policyId);
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+        Asset asset = new Asset("selftoken100", BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction =
+                MintTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .fee(BigInteger.valueOf(230000))
+                        .mintAssets(Arrays.asList(multiAsset))
+                        .policyScript(policyScript)
+                        .policyKeys(Arrays.asList(sk))
+                        .build();
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(getTtl())
+                .validityStartInterval(afterSlot + 100) //validity start should be after slot or later
+                .build();
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction, detailsParams);
+
+        System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
+        System.out.println(result);
+        if(result.isSuccessful())
+            System.out.println("Transaction Id:- " + result.getValue());
+        else
+            System.out.println("Transaction failed:- " + result);
+
+        assertThat(result.isSuccessful(), is(false));
+        waitForTransaction(result);
     }
 
     @Test
@@ -244,7 +765,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptPubkey)
-                        .policyKey(skey)
+                        .policyKeys(Arrays.asList(skey))
                         .build();
 
         Metadata metadata = new CBORMetadata()
@@ -378,9 +899,9 @@ class TransactionHelperServiceIT extends BFBaseTest {
         assertThat(result.isSuccessful(), is(true));
     }
 
-    private Integer getTtl() throws ApiException {
+    private long getTtl() throws ApiException {
         Block block = blockService.getLastestBlock().getValue();
-        Integer slot = block.getSlot();
+        long slot = block.getSlot();
         return slot + 2000;
     }
 

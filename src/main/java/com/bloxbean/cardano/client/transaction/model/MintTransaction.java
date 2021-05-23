@@ -29,5 +29,5 @@ public class MintTransaction {
     @JsonIgnore
     private NativeScript policyScript;
     @JsonIgnore
-    private SecretKey policyKey;
+    private List<SecretKey> policyKeys;
 }

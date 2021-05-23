@@ -23,7 +23,7 @@ public class MultiAsset {
     public void serialize(Map multiAssetMap) {
         Map assetsMap = new Map();
         for (Asset asset : assets) {
-            ByteString assetNameBytes = new ByteString(asset.getName() == null? new byte[0] : HexUtil.decodeHexString(asset.getName()));
+            ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
             UnsignedInteger value = new UnsignedInteger(asset.getValue());
             assetsMap.put(assetNameBytes, value);
         }

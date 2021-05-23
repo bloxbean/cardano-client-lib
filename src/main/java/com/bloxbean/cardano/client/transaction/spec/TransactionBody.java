@@ -23,9 +23,10 @@ public class TransactionBody {
     private List<TransactionInput> inputs;
     private List<TransactionOutput> outputs;
     private BigInteger fee;
-    private Integer ttl; //Optional
+    private long ttl; //Optional
     private List<MultiAsset> mint = new ArrayList<>();
     private byte[] metadataHash;
+    private long validityStartInterval;
 
     public Map serialize() throws CborException, AddressExcepion {
         Map bodyMap = new Map();
@@ -45,11 +46,18 @@ public class TransactionBody {
         bodyMap.put(new UnsignedInteger(1), outputsArray);
 
        bodyMap.put(new UnsignedInteger(2), new UnsignedInteger(fee)); //fee
-       bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
 
-        if(metadataHash != null) {
-            bodyMap.put(new UnsignedInteger(7), new ByteString(metadataHash));
-        }
+       if(ttl != 0) {
+           bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
+       }
+
+       if(metadataHash != null) {
+           bodyMap.put(new UnsignedInteger(7), new ByteString(metadataHash));
+       }
+
+       if(validityStartInterval != 0) {
+           bodyMap.put(new UnsignedInteger(8), new UnsignedInteger(validityStartInterval)); //validityStartInterval
+       }
 
         if(mint != null && mint.size() > 0) {
             Map mintMap = new Map();

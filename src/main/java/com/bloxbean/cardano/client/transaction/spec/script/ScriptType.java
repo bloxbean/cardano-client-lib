@@ -1,5 +1,5 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
 public enum ScriptType {
-    sig
+    sig, all, any, atLeast, after, before
 }

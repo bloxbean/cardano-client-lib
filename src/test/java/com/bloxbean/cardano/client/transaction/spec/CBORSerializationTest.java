@@ -23,7 +23,7 @@ public class CBORSerializationTest {
         TransactionBody txnBody = new TransactionBody();
 
         long fee = 367965;
-        int ttl = 26194586;
+        long ttl = 26194586;
 
         TransactionInput txnInput = new TransactionInput();
         txnInput.setTransactionId("73198b7ad003862b9798106b88fbccfca464b1a38afb34958275c4a7d7d8d002"); //989264070

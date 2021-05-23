@@ -91,6 +91,7 @@ public class UtxoTransactionBuilder {
                 .outputs(transactionOutputs)
                 .fee(totalFee)
                 .ttl(detailsParams.getTtl())
+                .validityStartInterval(detailsParams.getValidityStartInterval())
                 .build();
 
         Transaction transaction = Transaction.builder()
@@ -195,6 +196,7 @@ public class UtxoTransactionBuilder {
                 .outputs(outputs)
                 .fee(mintTransaction.getFee())
                 .ttl(detailsParams.getTtl())
+                .validityStartInterval(detailsParams.getValidityStartInterval())
                 .mint(mintTransaction.getMintAssets())
                 .build();
 

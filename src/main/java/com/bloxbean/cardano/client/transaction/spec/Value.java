@@ -29,7 +29,7 @@ public class Value {
             for (MultiAsset multiAsset : multiAssets) {
                 Map assetsMap = new Map();
                 for (Asset asset : multiAsset.getAssets()) {
-                    ByteString assetNameBytes = new ByteString(asset.getName() == null? new byte[0] : HexUtil.decodeHexString(asset.getName()));
+                    ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
                     UnsignedInteger value = new UnsignedInteger(asset.getValue());
                     assetsMap.put(assetNameBytes, value);
                 }
