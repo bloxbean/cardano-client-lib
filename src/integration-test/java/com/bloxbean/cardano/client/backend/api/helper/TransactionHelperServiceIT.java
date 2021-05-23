@@ -2,10 +2,12 @@ package com.bloxbean.cardano.client.backend.api.helper;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.BlockService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.factory.BackendFactory;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBlockService;
@@ -58,10 +60,11 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
     @BeforeEach
     public void setup() {
-        utxoService = new BFUtxoService(Constants.BLOCKFROST_TESTNET_URL, projectId);
-        transactionService = new BFTransactionService(Constants.BLOCKFROST_TESTNET_URL, projectId);
-        transactionHelperService = new TransactionHelperService(utxoService, transactionService);
-        blockService = new BFBlockService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        BackendService backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        utxoService = backendService.getUtxoService();
+        transactionService = backendService.getTransactionService();
+        transactionHelperService = backendService.getTransactionHelperService();
+        blockService = backendService.getBlockService();
     }
 
     @Test
