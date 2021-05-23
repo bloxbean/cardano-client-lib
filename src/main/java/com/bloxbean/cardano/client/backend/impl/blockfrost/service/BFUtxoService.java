@@ -20,13 +20,13 @@ public class BFUtxoService extends BFBaseService implements UtxoService {
         this.addressApi = getRetrofit().create(AddressesApi.class);
     }
 
-    public void setAddressApi(AddressesApi addressApi) {
-        this.addressApi = addressApi;
-    }
-
     @Override
     public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException {
-        Call<List<Utxo>> utxosCall = addressApi.getUtxos(getProjectId(), address, count, page);
+        return getUtxos(address, count, page, "asc");
+    }
+
+    public Result<List<Utxo>> getUtxos(String address, int count, int page, String order) throws ApiException {
+        Call<List<Utxo>> utxosCall = addressApi.getUtxos(getProjectId(), address, count, page, order);
 
         try {
             Response<List<Utxo>> response = utxosCall.execute();

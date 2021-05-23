@@ -32,4 +32,9 @@ public class BFBackendService extends BFBaseService implements BackendService {
     public UtxoService getUtxoService() {
         return new BFUtxoService(getBaseUrl(), getProjectId());
     }
+
+    @Override
+    public AddressService getAddressService() {
+        return new BFAddressService(getBaseUrl(), getProjectId());
+    }
 }

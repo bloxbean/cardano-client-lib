@@ -16,4 +16,15 @@ public interface UtxoService {
      * @throws ApiException
      */
     public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException;
+
+    /**
+     *
+     * @param address
+     * @param count
+     * @param page
+     * @param order  asc or desc. Default is "asc"
+     * @return
+     * @throws ApiException
+     */
+    public Result<List<Utxo>> getUtxos(String address, int count, int page, String order) throws ApiException;
 }

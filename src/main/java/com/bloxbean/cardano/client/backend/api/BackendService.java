@@ -15,6 +15,8 @@ public interface BackendService {
 
     public UtxoService getUtxoService();
 
+    public AddressService getAddressService();
+
     default public TransactionHelperService getTransactionHelperService() {
         TransactionHelperService transactionHelperService = new TransactionHelperService(getUtxoService(), getTransactionService());
         return transactionHelperService;
