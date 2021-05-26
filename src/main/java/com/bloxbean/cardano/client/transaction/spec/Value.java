@@ -1,9 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.Map;
-import co.nstant.in.cbor.model.UnsignedInteger;
+import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -40,4 +38,28 @@ public class Value {
         }
         return map;
     }
+
+    public static Value deserialize(Array valueArray) {
+        //There can be two elements
+        //First one coin
+
+        Value value = new Value();
+        List<DataItem> valueDataItems = valueArray.getDataItems();
+        if(valueDataItems != null && valueDataItems.size() == 2) {
+            UnsignedInteger coinUI = (UnsignedInteger)valueDataItems.get(0);
+            BigInteger coin = coinUI.getValue();
+            value.setCoin(coin);
+
+            Map multiAssetsMap = (Map)valueDataItems.get(1);
+            if(multiAssetsMap != null) {
+                for (DataItem key : multiAssetsMap.getKeys()) {
+                    MultiAsset multiAsset = MultiAsset.deserialize(multiAssetsMap, key);
+                    value.getMultiAssets().add(multiAsset);
+                }
+            }
+        }
+
+        return value;
+    }
+
 }

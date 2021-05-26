@@ -5,10 +5,16 @@ import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
+import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
+import java.util.Collection;
+
+import static co.nstant.in.cbor.model.MajorType.*;
+import static co.nstant.in.cbor.model.MajorType.ARRAY;
 
 public class CBORMetadata implements Metadata {
     private Map map;
@@ -67,6 +73,35 @@ public class CBORMetadata implements Metadata {
         } catch (Exception ex) {
             throw new MetadataSerializationException("CBOR serialization exception ", ex);
         }
+    }
+
+    public static CBORMetadata deserialize(Map metadataMap) throws MetadataDeSerializationException {
+        CBORMetadata cborMetadata = new CBORMetadata();
+        Collection<DataItem> keys = metadataMap.getKeys();
+        for(DataItem keyDI: keys){
+            DataItem valueDI = metadataMap.get(keyDI);
+            BigInteger key = ((UnsignedInteger)keyDI).getValue();
+
+            if(UNSIGNED_INTEGER.equals(valueDI.getMajorType())){
+                cborMetadata.put(key, ((UnsignedInteger)valueDI).getValue());
+            } else if(NEGATIVE_INTEGER.equals(valueDI.getMajorType())) {
+                cborMetadata.put(key, ((NegativeInteger)valueDI).getValue());
+            } else if(BYTE_STRING.equals(valueDI.getMajorType())) {
+                cborMetadata.put(key, ((ByteString)valueDI).getBytes());
+            } else if(UNICODE_STRING.equals(valueDI.getMajorType())) {
+                cborMetadata.put(key, ((UnicodeString)valueDI).getString());
+            } else if(MAP.equals(valueDI.getMajorType())){
+                CBORMetadataMap cborMetadataMap = new CBORMetadataMap((Map)valueDI);
+                cborMetadata.put(key, cborMetadataMap);
+            } else if(ARRAY.equals(valueDI.getMajorType())) {
+                CBORMetadataList cborMetadataList = new CBORMetadataList((Array)valueDI);
+                cborMetadata.put(key, cborMetadataList);
+            } else {
+                throw new MetadataDeSerializationException("Unsupported type : " + valueDI.getMajorType());
+            }
+        }
+
+        return cborMetadata;
     }
 
     public byte[] getMetadataHash() throws MetadataSerializationException {

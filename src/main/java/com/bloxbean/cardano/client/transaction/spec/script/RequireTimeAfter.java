@@ -4,6 +4,7 @@ import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
 import lombok.Data;
 
 /**
@@ -30,5 +31,10 @@ public class RequireTimeAfter implements NativeScript {
         array.add(new UnsignedInteger(4));
         array.add(new UnsignedInteger(slot));
         return array;
+    }
+
+    public static RequireTimeAfter deserialize(Array array) throws TransactionDeserializationException {
+        long slot = ((UnsignedInteger)array.getDataItems().get(1)).getValue().longValue();
+        return new RequireTimeAfter(slot);
     }
 }

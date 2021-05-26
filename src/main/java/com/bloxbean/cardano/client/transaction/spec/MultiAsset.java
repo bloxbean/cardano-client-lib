@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.ByteString;
+import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -30,6 +31,22 @@ public class MultiAsset {
 
         ByteString policyIdByte = new ByteString(HexUtil.decodeHexString(policyId));
         multiAssetMap.put(policyIdByte, assetsMap);
+    }
+
+    public static MultiAsset deserialize(Map multiAssetsMap, DataItem key) {
+        MultiAsset multiAsset = new MultiAsset();
+        ByteString keyBS = (ByteString) key;
+        multiAsset.setPolicyId(HexUtil.encodeHexString(keyBS.getBytes()));
+
+        Map assetsMap = (Map) multiAssetsMap.get(key);
+        for(DataItem assetKey: assetsMap.getKeys()) {
+            ByteString assetNameBS = (ByteString)assetKey;
+            UnsignedInteger assetValueUI = (UnsignedInteger)(assetsMap.get(assetKey));
+
+            String name = HexUtil.encodeHexString(assetNameBS.getBytes());
+            multiAsset.getAssets().add(new Asset(name, assetValueUI.getValue()));
+        }
+        return multiAsset;
     }
 
     @Override

@@ -25,6 +25,13 @@ public class PaymentTransaction {
     private BigInteger fee;
     private List<MultiAsset> mintAssets;
 
+    public BigInteger getFee() {
+        if(fee != null)
+            return fee;
+        else
+            return BigInteger.ZERO;
+    }
+
     public BigInteger getAmount() {
         if(amount != null)
             return amount;
