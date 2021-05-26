@@ -150,7 +150,7 @@ public class TransactionHelperService {
     }
 
     /**
-     *
+     * Create a token mint transaction, sign and submit to the network
      * @param mintTransaction
      * @param detailsParams
      * @return Result object with transaction id
@@ -161,6 +161,26 @@ public class TransactionHelperService {
      */
     public Result mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
             throws AddressExcepion, ApiException, CborException, TransactionSerializationException {
+        String signedTxn = createSignedMintTransaction(mintTransaction, detailsParams, metadata);
+
+        byte[] signedTxnBytes = HexUtil.decodeHexString(signedTxn);
+        Result<String> result = transactionService.submitTransaction(signedTxnBytes);
+
+        return result;
+    }
+
+    /**
+     * Create a mint transaction, sign and return cbor value as hex string
+     * @param mintTransaction
+     * @param detailsParams
+     * @param metadata
+     * @return
+     * @throws ApiException
+     * @throws AddressExcepion
+     * @throws CborException
+     * @throws TransactionSerializationException
+     */
+    public String createSignedMintTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException, AddressExcepion, CborException, TransactionSerializationException {
         UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
 
         if(LOG.isDebugEnabled())
@@ -189,10 +209,6 @@ public class TransactionHelperService {
         if(LOG.isDebugEnabled()) {
             LOG.debug("Signed Txn : " + signedTxn);
         }
-
-        byte[] signedTxnBytes = HexUtil.decodeHexString(signedTxn);
-        Result<String> result = transactionService.submitTransaction(signedTxnBytes);
-
-        return result;
+        return signedTxn;
     }
 }

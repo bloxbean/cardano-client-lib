@@ -10,24 +10,24 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBlockService;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFTransactionService;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFUtxoService;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
+import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Keys;
+import com.bloxbean.cardano.client.crypto.SecretKey;
+import com.bloxbean.cardano.client.crypto.VerificationKey;
+import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.TransactionSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConverter;
-import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
-import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.crypto.*;
-import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.script.*;
@@ -66,7 +66,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();
         blockService = backendService.getBlockService();
-        feeCalculationService = new FeeCalculationService(backendService.getUtxoTransactionBuilder(), backendService.getEpochService());
+        feeCalculationService = backendService.getFeeCalculationService();
     }
 
     @Test
@@ -81,7 +81,6 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(1500000))
-//                        .fee(BigInteger.valueOf(230000))
                         .unit("lovelace")
                         .build();
 
@@ -106,16 +105,20 @@ class TransactionHelperServiceIT extends BFBaseTest {
         //Sender address : addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        String receiver = "addr_test1qqukflcjxrph0ff8vpd3mpvdnk40srgfjkx0p2q9jcdwp7q70l3jd6rdppxmttlj272jr8l7pudacze588wt8m2kts3qkuqv9j";
 
         PaymentTransaction paymentTransaction =
                 PaymentTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(12))
-                        .fee(BigInteger.valueOf(210000))
                         .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        System.out.println(fee);
+
+        paymentTransaction.setFee(fee);
 
         Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
 
@@ -150,27 +153,30 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(14))
-                        .fee(BigInteger.valueOf(210000))
                         .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
                         .build();
+        BigInteger fee1 = feeCalculationService.calculateFee(paymentTransaction1, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        paymentTransaction1.setFee(fee1);
 
         PaymentTransaction paymentTransaction2 =
                 PaymentTransaction.builder()
                         .sender(sender)
                         .receiver(receiver2)
                         .amount(BigInteger.valueOf(33))
-                        .fee(BigInteger.valueOf(210000))
                         .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
                         .build();
+        BigInteger fee2 = feeCalculationService.calculateFee(paymentTransaction2, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        paymentTransaction2.setFee(fee2);
 
         PaymentTransaction paymentTransaction3 =
                 PaymentTransaction.builder()
                         .sender(sender2)
                         .receiver(receiver3)
                         .amount(BigInteger.valueOf(3110000))
-                        .fee(BigInteger.valueOf(210000))
                         .unit(LOVELACE)
                         .build();
+        BigInteger fee3 = feeCalculationService.calculateFee(paymentTransaction3, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        paymentTransaction3.setFee(fee3);
 
         Result<String> result = transactionHelperService.transfer(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3),
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
@@ -208,11 +214,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptPubkey)
                         .policyKeys(Arrays.asList(skey))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        paymentTransaction.setFee(fee);
+        System.out.println(fee);
 
         Result<String> result = transactionHelperService.mintToken(paymentTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
@@ -262,11 +271,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptAtLeast)
                         .policyKeys(Arrays.asList(sk2, sk3))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        paymentTransaction.setFee(fee);
+        System.out.println(fee);
 
         Result<String> result = transactionHelperService.mintToken(paymentTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
@@ -316,11 +328,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptAtLeast)
                         .policyKeys(Arrays.asList(sk2))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
@@ -373,11 +388,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptAll)
                         .policyKeys(Arrays.asList(sk1, sk2, sk3))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
@@ -431,11 +449,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptAll)
                         .policyKeys(Arrays.asList(sk2, sk3))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
@@ -494,11 +515,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptAtLeast)
                         .policyKeys(Arrays.asList(sk2, sk3))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
@@ -562,11 +586,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptAll)
                         .policyKeys(Arrays.asList(sk1, sk2))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
@@ -614,11 +641,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptAll)
                         .policyKeys(Arrays.asList(sk))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
@@ -666,18 +696,21 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(policyScript)
                         .policyKeys(Arrays.asList(sk))
                         .build();
 
-        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
-
         TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
                 .ttl(getTtl())
                 .validityStartInterval(afterSlot + 100) //validity start should be after slot or later
                 .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, detailsParams, null);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
+
+        System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
         Result<String> result = transactionHelperService.mintToken(mintTransaction, detailsParams);
 
@@ -722,11 +755,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(policyScript)
                         .policyKeys(Arrays.asList(sk))
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
@@ -768,11 +804,10 @@ class TransactionHelperServiceIT extends BFBaseTest {
         Asset asset = new Asset(HexUtil.encodeHexString("Testtoken123".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(150000));
         multiAsset.getAssets().add(asset);
 
-        MintTransaction paymentTransaction =
+        MintTransaction mintTransaction =
                 MintTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .fee(BigInteger.valueOf(230000))
                         .mintAssets(Arrays.asList(multiAsset))
                         .policyScript(scriptPubkey)
                         .policyKeys(Arrays.asList(skey))
@@ -783,11 +818,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 .put(new BigInteger("2"), "SAT")
                 .put(new BigInteger("3"), "This is a test token");
 
+        BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+        mintTransaction.setFee(fee);
+        System.out.println(fee);
 
-        Result<String> result = transactionHelperService.mintToken(paymentTransaction,
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
-        System.out.println("Request: \n" + JsonUtil.getPrettyJson(paymentTransaction));
+        System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
@@ -803,7 +841,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        String receiver = "addr_test1qpjhf07kzxedmr6kl8u543cpw33up020mzk5hnkst0y24rnufy0uyckakmut387jckln56w99mjrejt9rp5zcg0aj7ashhl9z9";
 
         CBORMetadataMap mm = new CBORMetadataMap()
                 .put(new BigInteger("1978"), "1978value")
@@ -831,9 +869,12 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(1500000))
-                        .fee(BigInteger.valueOf(230000))
                         .unit("lovelace")
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+        System.out.println(fee);
+        paymentTransaction.setFee(fee);
 
         Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
@@ -862,9 +903,12 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(1500000))
-                        .fee(BigInteger.valueOf(230000))
                         .unit("lovelace")
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+        paymentTransaction.setFee(fee);
+        System.out.println(fee);
 
         Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
@@ -893,9 +937,12 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(1500000))
-                        .fee(BigInteger.valueOf(230000))
                         .unit("lovelace")
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+        paymentTransaction.setFee(fee);
+        System.out.println(fee);
 
         Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
@@ -924,9 +971,12 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(1500000))
-                        .fee(BigInteger.valueOf(230000))
                         .unit("lovelace")
                         .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+        paymentTransaction.setFee(fee);
+        System.out.println(fee);
 
         String result = transactionHelperService.createSignedTransaction(Arrays.asList(paymentTransaction),
                 TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);

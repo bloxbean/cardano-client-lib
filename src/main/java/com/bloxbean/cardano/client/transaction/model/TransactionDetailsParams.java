@@ -17,6 +17,13 @@ public class TransactionDetailsParams {
     private long ttl;
     private long validityStartInterval;
 
-    private BigInteger minLovelaceForMultiAsset = ONE_ADA.multiply(BigInteger.valueOf(2));
-    private BigInteger minLovelaceInOuput = ONE_ADA;
+    //Protocol params
+    private BigInteger minUtxoValue;
+
+    public BigInteger getMinUtxoValue() {
+        if(minUtxoValue != null && !minUtxoValue.equals(BigInteger.ZERO))
+            return minUtxoValue;
+        else
+            return ONE_ADA;
+    }
 }

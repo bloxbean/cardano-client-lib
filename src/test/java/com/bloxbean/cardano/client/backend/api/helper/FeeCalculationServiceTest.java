@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.api.helper.impl.FeeCalculationServiceImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -13,6 +14,7 @@ import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.TransactionSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
@@ -53,26 +55,29 @@ class FeeCalculationServiceTest extends BaseTest {
     @InjectMocks
     UtxoTransactionBuilder utxoTransactionBuilder;
 
+    @InjectMocks
+    TransactionHelperService transactionHelperService;
+
     @Mock
     EpochService epochService;
 
     ObjectMapper objectMapper = new ObjectMapper();
     ProtocolParams protocolParams;
 
-    private FeeCalculationService feeCalculationService;
+    private FeeCalculationServiceImpl feeCalculationService;
 
     @BeforeEach
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
         utxoTransactionBuilder = new UtxoTransactionBuilder(utxoService, transactionService);
-        feeCalculationService = new FeeCalculationService(utxoTransactionBuilder, epochService);
+        feeCalculationService = new FeeCalculationServiceImpl(transactionHelperService, epochService);
         utxoJsonFile = "fee-test-utxos.json";
         protocolParamJsonFile = "protocol-params.json";
         protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
     }
 
     @Test
-    void testCalculateFeeSimplePaymentTransaction() throws ApiException, IOException, AddressExcepion, CborException {
+    void testCalculateFeeSimplePaymentTransaction() throws ApiException, IOException, AddressExcepion, CborException, TransactionSerializationException {
 
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
@@ -99,7 +104,7 @@ class FeeCalculationServiceTest extends BaseTest {
     }
 
     @Test
-    void testCalculateFeePaymentTransactionWithMetadata() throws ApiException, IOException, AddressExcepion, CborException {
+    void testCalculateFeePaymentTransactionWithMetadata() throws ApiException, IOException, AddressExcepion, CborException, TransactionSerializationException {
 
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 

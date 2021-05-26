@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.common.MinAdaCalculator;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
@@ -122,12 +123,14 @@ public class UtxoTransactionBuilder {
             receiver = mintTransaction.getSender().baseAddress();
 
         //Get total no of multiasset and calculate min ada
-        int totalAssets = 0;
-        for(MultiAsset ma: mintTransaction.getMintAssets()) {
-            totalAssets += ma.getAssets().size();
-        }
+//        int totalAssets = 0;
+//        for(MultiAsset ma: mintTransaction.getMintAssets()) {
+//            totalAssets += ma.getAssets().size();
+//        }
 
-        BigInteger minAmount = getMinimumLovelaceForMultiAsset(detailsParams).multiply(BigInteger.valueOf(totalAssets));
+        BigInteger minAmount = createDummyOutputAndCalculateMinAdaForTxnOutput(receiver,
+                mintTransaction.getMintAssets(), detailsParams.getMinUtxoValue());
+        //getMinimumLovelaceForMultiAsset(detailsParams).multiply(BigInteger.valueOf(totalAssets));
         BigInteger amount = minAmount.add(mintTransaction.getFee());
 
         List<Utxo> utxos = getUtxos(sender, LOVELACE, amount);
@@ -319,9 +322,16 @@ public class UtxoTransactionBuilder {
             Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
             MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
 
-            outputBuilder.value(new Value(getMinimumLovelaceForMultiAsset(detailsParams), Arrays.asList(multiAsset))); //Add min ADA value for multi asset
+            //Dummy value for min required ada calculation
+            outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
+            //Calculate required minAda
+            BigInteger minRequiredAda =
+                    new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(outputBuilder.build());
 
-            existingMiscCost = existingMiscCost.add(getMinimumLovelaceForMultiAsset(detailsParams));
+            //set minRequiredAdaToValue
+            outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
+
+            existingMiscCost = existingMiscCost.add(minRequiredAda);
         }
 
         existingMiscCost = existingMiscCost.add(transaction.getFee());
@@ -370,7 +380,7 @@ public class UtxoTransactionBuilder {
 
             //Check if minimum Ada is not met. Topup
             //Transaction will fail if minimun ada not there. So try to get some additiona utxos
-            BigInteger minRequiredLovelaceInOutput = getMinimumLovelaceInOutput(detailsParams);
+            BigInteger minRequiredLovelaceInOutput = new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(changeOutput);//getMinUtxoValue(detailsParams);
             if(changeOutput.getValue().getCoin() != null && minRequiredLovelaceInOutput.compareTo(changeOutput.getValue().getCoin()) == 1) {
                 //Get utxos
                 List<Utxo> additionalUtxos = getUtxos(changeOutput.getAddress(), LOVELACE, minRequiredLovelaceInOutput,  utxoSet);
@@ -469,18 +479,13 @@ public class UtxoTransactionBuilder {
         }
     }
 
-    private BigInteger getMinimumLovelaceForMultiAsset(TransactionDetailsParams transactionDetailsParams) {
-        if(transactionDetailsParams != null && transactionDetailsParams.getMinLovelaceForMultiAsset() != null)
-            return transactionDetailsParams.getMinLovelaceForMultiAsset();
-        else
-            return BigInteger.valueOf(2000000);
-    }
+    private BigInteger createDummyOutputAndCalculateMinAdaForTxnOutput(String address, List<MultiAsset> multiAssets, BigInteger minUtxoValue) {
+        TransactionOutput txnOutput = new TransactionOutput();
+        //Dummy address
+        txnOutput.setAddress(address);
+        txnOutput.setValue(new Value(BigInteger.ZERO, multiAssets));
 
-    private BigInteger getMinimumLovelaceInOutput(TransactionDetailsParams transactionDetailsParams) {
-        if(transactionDetailsParams != null && transactionDetailsParams.getMinLovelaceInOuput() != null)
-            return transactionDetailsParams.getMinLovelaceInOuput();
-        else
-            return ONE_ADA;
+        return new MinAdaCalculator(minUtxoValue).calculateMinAda(txnOutput);
     }
 
 }
