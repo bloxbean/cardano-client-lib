@@ -4,6 +4,7 @@ import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +33,7 @@ public class ScriptAny implements NativeScript {
         return  this;
     }
 
-    //script_all = (1, [ * native_script ])
+    //script_any = (2, [ * native_script ])
     @Override
     public DataItem serializeAsDataItem() throws CborException {
         Array array = new Array();
@@ -45,5 +46,18 @@ public class ScriptAny implements NativeScript {
 
         array.add(scriptsArray);
         return array;
+    }
+
+    public static ScriptAny deserialize(Array array) throws TransactionDeserializationException {
+        ScriptAny scriptAny = new ScriptAny();
+        Array scriptsDIArray = (Array) (array.getDataItems().get(1));
+        for(DataItem scriptDI: scriptsDIArray.getDataItems()) {
+            Array scriptArray = (Array)scriptDI;
+            NativeScript nativeScript = NativeScript.deserialize(scriptArray);
+            if(nativeScript != null)
+                scriptAny.addScript(nativeScript);
+        }
+
+        return scriptAny;
     }
 }

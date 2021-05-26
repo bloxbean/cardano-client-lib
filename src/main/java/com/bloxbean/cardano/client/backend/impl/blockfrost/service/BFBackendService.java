@@ -37,4 +37,14 @@ public class BFBackendService extends BFBaseService implements BackendService {
     public AddressService getAddressService() {
         return new BFAddressService(getBaseUrl(), getProjectId());
     }
+
+    @Override
+    public EpochService getEpochService() {
+        return new BFEpochService(getBaseUrl(), getProjectId());
+    }
+
+    @Override
+    public MetadataService getMetadataService() {
+        return new BFMetadataService(getBaseUrl(), getProjectId());
+    }
 }
