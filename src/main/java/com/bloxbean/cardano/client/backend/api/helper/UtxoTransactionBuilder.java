@@ -7,14 +7,14 @@ import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.common.MinAdaCalculator;
-import com.bloxbean.cardano.client.metadata.Metadata;
-import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.common.CardanoConstants;
+import com.bloxbean.cardano.client.common.MinAdaCalculator;
+import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
-import com.bloxbean.cardano.client.common.CardanoConstants;
-import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -28,17 +28,32 @@ import java.math.BigInteger;
 import java.util.*;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
-import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 
 public class UtxoTransactionBuilder {
     private Logger LOG = LoggerFactory.getLogger(UtxoTransactionBuilder.class);
 
     private final UtxoService utxoService;
     private final TransactionService transactionService;
+    private UtxoSelectionStrategy utxoSelectionStrategy;
 
     public UtxoTransactionBuilder(UtxoService utxoService, TransactionService transactionService) {
         this.utxoService = utxoService;
         this.transactionService = transactionService;
+
+        this.utxoSelectionStrategy = new UtxoSelectionStrategy() {
+            @Override
+            public List<Utxo> filter(List<Utxo> utxos) {
+                return utxos;
+            }
+        };
+    }
+
+    /**
+     * Set a custom UtxoSelectionStrategy
+     * @param utxoSelectionStrategy
+     */
+    public void setUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
+        this.utxoSelectionStrategy = utxoSelectionStrategy;
     }
 
     /**
@@ -224,9 +239,12 @@ public class UtxoTransactionBuilder {
 
         boolean isLovlace = CardanoConstants.LOVELACE.equals(unit)? true : false;
         while(canContinue) {
-            Result<List<Utxo>> result = utxoService.getUtxos(address, 40, i++);
+            Result<List<Utxo>> result = utxoService.getUtxos(address, utxoSelectionStrategy.getUtxoFetchSize(),
+                    i++, utxoSelectionStrategy.getUtxoFetchOrder());
             if(result.code() == 200) {
-                List<Utxo> data = result.getValue();
+                List<Utxo> fetchData = result.getValue();
+
+                List<Utxo> data = utxoSelectionStrategy.filter(fetchData);
                 if(data == null || data.isEmpty())
                     canContinue = false;
 

@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
 
 import com.bloxbean.cardano.client.backend.api.AddressService;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
@@ -48,7 +49,7 @@ public class BFAddressServiceIT extends BFBaseTest {
     @Test
     public void testGetTransactionsWithOrder() throws ApiException {
         String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
-        List<String> txns = addressService.getTransactions(address, 50, 1, "desc").getValue();
+        List<String> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc).getValue();
 
         System.out.println(txns);
         assertTrue(txns.size() > 2);

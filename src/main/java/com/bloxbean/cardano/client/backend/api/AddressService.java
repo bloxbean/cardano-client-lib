@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.api;
 
+import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -37,5 +38,5 @@ public interface AddressService {
      * @return
      * @throws ApiException
      */
-    public Result<List<String>> getTransactions(String address, int count, int page, String order) throws ApiException;
+    public Result<List<String>> getTransactions(String address, int count, int page, OrderEnum order) throws ApiException;
 }

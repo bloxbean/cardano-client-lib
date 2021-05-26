@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
 
 import com.bloxbean.cardano.client.backend.api.AddressService;
+import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.http.AddressesApi;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
@@ -35,12 +36,12 @@ public class BFAddressService extends BFBaseService implements AddressService {
 
     @Override
     public Result<List<String>> getTransactions(String address, int count, int page) throws ApiException {
-        return getTransactions(address, count, page, "asc");
+        return getTransactions(address, count, page, OrderEnum.asc);
     }
 
     @Override
-    public Result<List<String>> getTransactions(String address, int count, int page, String order) throws ApiException {
-        Call<List<String>> call = addressApi.getTransactions(getProjectId(), address, count, page, order);
+    public Result<List<String>> getTransactions(String address, int count, int page, OrderEnum order) throws ApiException {
+        Call<List<String>> call = addressApi.getTransactions(getProjectId(), address, count, page, order.toString());
 
         try {
             Response<List<String>> response = call.execute();

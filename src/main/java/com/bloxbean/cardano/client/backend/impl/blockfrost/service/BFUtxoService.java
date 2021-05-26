@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.http.AddressesApi;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -22,11 +23,11 @@ public class BFUtxoService extends BFBaseService implements UtxoService {
 
     @Override
     public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException {
-        return getUtxos(address, count, page, "asc");
+        return getUtxos(address, count, page, OrderEnum.asc);
     }
 
-    public Result<List<Utxo>> getUtxos(String address, int count, int page, String order) throws ApiException {
-        Call<List<Utxo>> utxosCall = addressApi.getUtxos(getProjectId(), address, count, page, order);
+    public Result<List<Utxo>> getUtxos(String address, int count, int page, OrderEnum order) throws ApiException {
+        Call<List<Utxo>> utxosCall = addressApi.getUtxos(getProjectId(), address, count, page, order.toString());
 
         try {
             Response<List<Utxo>> response = utxosCall.execute();
