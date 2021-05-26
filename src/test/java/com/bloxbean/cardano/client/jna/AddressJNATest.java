@@ -127,6 +127,16 @@ public class AddressJNATest {
     }
 
     @Test
+    public void testHexBytesAddressToBech32() {
+        String baseAddress = "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w";
+        String addressInHex = CardanoJNAUtil.bech32AddressToBytes(baseAddress);
+
+        String finalBech32Address = CardanoJNAUtil.hexBytesToBech32Address(addressInHex);
+
+        Assertions.assertEquals(baseAddress, finalBech32Address);
+    }
+
+    @Test
     public void testGetPrivateKeyFromMnemonic() {
         String pvtKey = CardanoJNAUtil.getPrivateKeyFromMnemonic(phrase24W, 0);
         System.out.println(pvtKey);

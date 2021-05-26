@@ -182,6 +182,14 @@ public class Account {
         }
     }
 
+    public static String bytesToBech32(byte[] bytes) throws AddressExcepion {
+        String bech32Address = CardanoJNAUtil.hexBytesToBech32Address(HexUtil.encodeHexString(bytes));
+        if(bech32Address == null || bech32Address.isEmpty())
+            throw new AddressExcepion("Bytes cannot be converted to bech32 address");
+
+        return bech32Address;
+    }
+
     private void generateNew() {
         String mnemonic = CardanoJNAUtil.generateMnemonic();
         this.mnemonic = mnemonic;

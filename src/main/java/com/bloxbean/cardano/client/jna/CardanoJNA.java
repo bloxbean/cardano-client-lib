@@ -31,6 +31,13 @@ interface CardanoJNA extends Library {
     public Pointer bech32AddressToBytes(String bech32Address);
 
     /**
+     * Return bech32 address
+     * @param addressBytesInHex
+     * @return
+     */
+    public Pointer hexBytesToBech32Address(String addressBytesInHex);
+
+    /**
      * Return signed transaction bytes in hex
      * @param rawTxnInHex
      * @param privateKey

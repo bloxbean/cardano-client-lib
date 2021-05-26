@@ -68,6 +68,19 @@ public class CardanoJNAUtil {
     }
 
     /**
+     * Return bech32 address
+     * @param addressBytesInHex
+     * @return
+     */
+    public static String hexBytesToBech32Address(String addressBytesInHex) {
+        Pointer pointer = CardanoJNA.INSTANCE.hexBytesToBech32Address(addressBytesInHex);
+        String result = pointer.getString(0);
+
+        CardanoJNA.INSTANCE.dropCharPointer(pointer);
+        return result;
+    }
+
+    /**
      * Return signed transaction bytes in hex
      * @param rawTxnInHex
      * @param privateKey
