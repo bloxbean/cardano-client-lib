@@ -11,10 +11,6 @@ public class CBORMetadataMap {
         map = new Map();
     }
 
-    public CBORMetadataMap(Map map) {
-        this.map = map;
-    }
-
     public CBORMetadataMap put(BigInteger key, BigInteger value) {
         map.put(new UnsignedInteger(key), new UnsignedInteger(value));
         return this;

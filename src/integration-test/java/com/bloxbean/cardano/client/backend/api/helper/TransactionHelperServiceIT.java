@@ -55,7 +55,6 @@ class TransactionHelperServiceIT extends BFBaseTest {
     TransactionService transactionService;
     TransactionHelperService transactionHelperService;
     BlockService blockService;
-    FeeCalculationService feeCalculationService;
 
     String dataFile = "json-metadata.json";
 
@@ -66,7 +65,6 @@ class TransactionHelperServiceIT extends BFBaseTest {
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();
         blockService = backendService.getBlockService();
-        feeCalculationService = new FeeCalculationService(backendService.getUtxoTransactionBuilder(), backendService.getEpochService());
     }
 
     @Test
@@ -81,13 +79,9 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(1500000))
-//                        .fee(BigInteger.valueOf(230000))
+                        .fee(BigInteger.valueOf(230000))
                         .unit("lovelace")
                         .build();
-
-        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
-
-        paymentTransaction.setFee(fee);
 
         Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
 
@@ -806,7 +800,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         CBORMetadataMap mm = new CBORMetadataMap()
-                .put(new BigInteger("1978"), "1978value")
+                .put(new BigInteger("1978"), "201value")
                 .put(new BigInteger("197819"),new BigInteger("200001"))
                 .put("203", new byte[] { 11,11,10});
 

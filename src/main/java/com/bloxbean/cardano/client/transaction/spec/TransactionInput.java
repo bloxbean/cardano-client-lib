@@ -3,17 +3,12 @@ package com.bloxbean.cardano.client.transaction.spec;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -30,26 +25,6 @@ public class TransactionInput {
         inputArray.add(new UnsignedInteger(index));
 
         return inputArray;
-    }
-
-    public static TransactionInput deserialize(Array inputItem) throws TransactionDeserializationException {
-        List<DataItem> items = inputItem.getDataItems();
-
-        if(items == null || items.size() != 2) {
-            throw new TransactionDeserializationException("TransactionInput deserialization failed. Invalid no of DataItems");
-        }
-
-        TransactionInput transactionInput = new TransactionInput();
-
-        ByteString txnIdBytes = (ByteString) items.get(0);
-        if(txnIdBytes != null)
-            transactionInput.setTransactionId(HexUtil.encodeHexString(txnIdBytes.getBytes()));
-
-        UnsignedInteger indexUI = (UnsignedInteger) items.get(1);
-        if(indexUI != null)
-            transactionInput.setIndex(indexUI.getValue().intValue());
-
-        return transactionInput;
     }
 
     @Override

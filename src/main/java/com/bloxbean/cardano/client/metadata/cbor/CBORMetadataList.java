@@ -11,10 +11,6 @@ public class CBORMetadataList {
         array = new Array();
     }
 
-    public CBORMetadataList(Array array) {
-        this.array = array;
-    }
-
     public CBORMetadataList add(BigInteger value) {
         array.add(new UnsignedInteger(value));
         return this;

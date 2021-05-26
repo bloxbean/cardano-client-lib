@@ -1,14 +1,13 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.CborBuilder;
-import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.ByteString;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
-import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,7 +15,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.ByteArrayOutputStream;
-import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -65,44 +63,5 @@ public class Transaction {
     public String serializeToHex() throws CborException, AddressExcepion {
         byte[] bytes = serialize();
         return HexUtil.encodeHexString(bytes);
-    }
-
-    public static Transaction deserialize(byte[] bytes) throws TransactionDeserializationException {
-        try {
-            List<DataItem> dataItemList = CborDecoder.decode(bytes);
-
-            Transaction transaction = new Transaction();
-            if (dataItemList.size() != 1)
-                throw new TransactionDeserializationException("Invalid no of dataitems");
-
-            Array array = (Array) dataItemList.get(0);
-
-            List<DataItem> txnItems = array.getDataItems();
-            if (txnItems.size() < 3)
-                throw new TransactionDeserializationException("Invalid no of items");
-
-            DataItem txnBody = txnItems.get(0);
-            DataItem witness = txnItems.get(1);
-            DataItem metadata = txnItems.get(2);
-
-            if (witness != null) {
-                TransactionWitnessSet witnessSet = TransactionWitnessSet.deserialize((Map) witness);
-                transaction.setWitnessSet(witnessSet);
-            }
-
-            //metadata
-            if (MajorType.MAP.equals(metadata.getMajorType())) { //Metadata available
-                Map metadataMap = (Map) metadata;
-                Metadata cborMetadata = CBORMetadata.deserialize(metadataMap);
-                transaction.setMetadata(cborMetadata);
-            }
-
-            TransactionBody body = TransactionBody.deserialize((Map) txnBody);
-            transaction.setBody(body);
-
-            return transaction;
-        } catch (Exception e) {
-            throw new TransactionDeserializationException("CBOR deserialization failed", e);
-        }
     }
 }
