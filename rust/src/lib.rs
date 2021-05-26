@@ -170,6 +170,26 @@ pub fn bech32AddressToBytes(bech32Address: *const c_char)  -> *const c_char {
 
 #[no_mangle]
 #[allow(non_snake_case)]
+pub fn hexBytesToBech32Address(hexAddress: *const c_char)  -> *const c_char {
+    let result = panic::catch_unwind(|| {
+        let _hexAddress =  to_string(hexAddress);
+        let byteAddress = hex::decode(_hexAddress).unwrap();
+
+        let bech32Address = address::bytes_to_bech32_address(byteAddress);
+
+        to_ptr(bech32Address)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
 pub fn sign(rawTxnHex: *const c_char, privateKey: *const c_char) -> *const c_char {
     let result = panic::catch_unwind(|| {
         let rawTxnInHexStr =  to_string(rawTxnHex);

@@ -107,6 +107,11 @@ pub fn bech32_address_to_bytes(address: &str) -> Vec<u8> {
     address.to_bytes()
 }
 
+pub fn bytes_to_bech32_address(bytes: Vec<u8>) -> String {
+    let address = Address::from_bytes(bytes);
+    address.unwrap().to_bech32(None).unwrap()
+}
+
 pub fn get_private_key_from_mnemonic(phrase: &str, index: u32) -> String {
     let result = Mnemonic::from_phrase(phrase, Language::English).unwrap();
 
