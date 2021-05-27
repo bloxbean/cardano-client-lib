@@ -1000,7 +1000,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         System.out.println(JsonUtil.getPrettyJson(txnResult.getValue()));
                         break;
                     } else {
-                        System.out.println("Waiting for training to be mined ....");
+                        System.out.println("Waiting for transaction to be mined ....");
                     }
 
                     count++;

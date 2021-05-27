@@ -218,7 +218,8 @@ public class UtxoTransactionBuilder {
                 .mint(mintTransaction.getMintAssets())
                 .build();
 
-        System.out.println(JsonUtil.getPrettyJson(body));
+        if(LOG.isDebugEnabled())
+            LOG.debug(JsonUtil.getPrettyJson(body));
 
         Transaction transaction = Transaction.builder()
                 .body(body)
@@ -405,7 +406,8 @@ public class UtxoTransactionBuilder {
                 if(additionalUtxos == null || additionalUtxos.size() == 0)
                     throw new InsufficientBalanceException("Not enough utxos found to cover minimum lovelace in an ouput");
 
-                System.out.println("additional Utoxs found: " + additionalUtxos);
+                if(LOG.isDebugEnabled())
+                    LOG.debug("Additional Utoxs found: " + additionalUtxos);
                 //Add to input
                 Utxo utxo = additionalUtxos.get(0);
                 TransactionInput transactionInput = TransactionInput.builder()

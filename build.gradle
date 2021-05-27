@@ -9,16 +9,18 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.testng:testng:7.1.0'
     compile group: 'net.java.dev.jna', name: 'jna', version: '5.8.0'
     compile group: 'net.java.dev.jna', name: 'jna-platform', version: '5.8.0'
     compile 'info.picocli:picocli:4.6.1'
     implementation group: 'org.bouncycastle', name: 'bcprov-jdk15to18', version: '1.68'
-    implementation group: 'co.nstant.in', name: 'cbor', version: '0.9'
-    implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
+    compile group: 'co.nstant.in', name: 'cbor', version: '0.9'
+    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
 
     implementation group: 'com.squareup.retrofit2', name: 'retrofit', version: '2.9.0'
-    implementation group: 'com.squareup.retrofit2', name: 'converter-jackson', version: '2.9.0'
+    implementation('com.squareup.retrofit2:converter-jackson:2.9.0') {
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    }
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.12.3'
     implementation group: 'com.google.guava', name: 'guava', version: '30.1.1-jre'
 
     compileOnly 'org.projectlombok:lombok:1.18.20'
