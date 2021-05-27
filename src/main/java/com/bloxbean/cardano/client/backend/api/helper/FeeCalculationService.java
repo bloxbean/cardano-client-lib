@@ -1,10 +1,9 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
@@ -21,12 +20,11 @@ public interface FeeCalculationService {
      * @param metadata
      * @return
      * @throws ApiException
-     * @throws TransactionSerializationException
-     * @throws CborException
+     * @throws CborSerializationException
      * @throws AddressExcepion
      */
     BigInteger calculateFee(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams,
-                            Metadata metadata) throws ApiException, TransactionSerializationException, CborException, AddressExcepion;
+                            Metadata metadata) throws ApiException, CborSerializationException, AddressExcepion;
 
     /**
      * Calculate estimated fee for a payment transaction
@@ -35,14 +33,13 @@ public interface FeeCalculationService {
      * @param metadata
      * @param protocolParams
      * @return
-     * @throws TransactionSerializationException
-     * @throws CborException
+     * @throws CborSerializationException
      * @throws AddressExcepion
      * @throws ApiException
      */
     BigInteger calculateFee(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams,
-                            Metadata metadata, ProtocolParams protocolParams) throws TransactionSerializationException, CborException,
-            AddressExcepion, ApiException;
+                            Metadata metadata, ProtocolParams protocolParams)
+            throws CborSerializationException, AddressExcepion, ApiException;
 
     /**
      * Calculate estimated fee for a token mint transaction
@@ -51,12 +48,11 @@ public interface FeeCalculationService {
      * @param metadata
      * @return
      * @throws ApiException
-     * @throws TransactionSerializationException
-     * @throws CborException
+     * @throws CborSerializationException
      * @throws AddressExcepion
      */
     BigInteger calculateFee(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
-            throws ApiException, TransactionSerializationException, CborException, AddressExcepion;
+            throws ApiException, CborSerializationException, AddressExcepion;
 
     /**
      * Calculate estimated fee for a token mint transaction
@@ -66,11 +62,10 @@ public interface FeeCalculationService {
      * @param protocolParams
      * @return
      * @throws ApiException
-     * @throws TransactionSerializationException
-     * @throws CborException
+     * @throws CborSerializationException
      * @throws AddressExcepion
      */
     BigInteger calculateFee(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata, ProtocolParams protocolParams)
-            throws ApiException, TransactionSerializationException, CborException, AddressExcepion;
+            throws ApiException, CborSerializationException, AddressExcepion;
 
 }

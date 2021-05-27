@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,10 +27,10 @@ public class VkeyWitness {
         return array;
     }
 
-    public static VkeyWitness deserialize(Array vkWitness) throws TransactionDeserializationException {
+    public static VkeyWitness deserialize(Array vkWitness) throws CborDeserializationException {
         List<DataItem> dataItemList = vkWitness.getDataItems();
         if(dataItemList == null || dataItemList.size() != 2)
-            throw new TransactionDeserializationException("VkeyWitness deserialization error. Invalid no of DataItem");
+            throw new CborDeserializationException("VkeyWitness deserialization error. Invalid no of DataItem");
 
         DataItem vkeyDI = dataItemList.get(0);
         DataItem sigDI = dataItemList.get(1);

@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
@@ -10,6 +9,7 @@ import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
@@ -138,7 +138,7 @@ public class UtxoTransactionBuilderTest {
     }
 
     @Test
-    public void testBuildTransactionWithMultiAssetWillReturnTrasaction() throws ApiException, IOException, AddressExcepion, CborException {
+    public void testBuildTransactionWithMultiAssetWillReturnTrasaction() throws ApiException, IOException, AddressExcepion, CborSerializationException {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String unit = "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e";
 
@@ -177,7 +177,7 @@ public class UtxoTransactionBuilderTest {
     }
 
     @Test
-    public void testBuildTransactionWithMultiAssetAndMultipleUtxosWillReturnTrasaction() throws ApiException, IOException, AddressExcepion, CborException {
+    public void testBuildTransactionWithMultiAssetAndMultipleUtxosWillReturnTrasaction() throws ApiException, IOException, AddressExcepion, CborSerializationException {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String unit = "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
@@ -223,7 +223,7 @@ public class UtxoTransactionBuilderTest {
 
     @Test
     public void testBuildTransactionWithMultiAssetAndNotSufficientLovelaceWillReturnTrasaction()
-            throws ApiException, IOException, AddressExcepion, CborException {
+            throws ApiException, IOException, AddressExcepion, CborSerializationException {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String unit = "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
@@ -267,7 +267,7 @@ public class UtxoTransactionBuilderTest {
     }
 
     @Test
-    public void testBuildTransactionWithMultiplePaymentsAndMultiAssetAndMultipleUtxosWillReturnTrasaction() throws ApiException, IOException, AddressExcepion, CborException {
+    public void testBuildTransactionWithMultiplePaymentsAndMultiAssetAndMultipleUtxosWillReturnTrasaction() throws ApiException, IOException, AddressExcepion, CborSerializationException {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String receiver2 = "addr1q9t3947esgd2qcgsc8x2vtfh2u7nnrtz5t6zc0g3wgp924fxlwffgz9jt59vpacm2424hygx8wgc3m3dahssn32w38yqwl6cl2";
         String unit = "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
@@ -310,7 +310,7 @@ public class UtxoTransactionBuilderTest {
 
     @Test
     public void testBuildTransactionWithMultiAssetAndNotSufficientLovelaceWillReturnTrasactionWithAdditionalUtxos()
-            throws ApiException, IOException, AddressExcepion, CborException {
+            throws ApiException, IOException, AddressExcepion, CborSerializationException {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 

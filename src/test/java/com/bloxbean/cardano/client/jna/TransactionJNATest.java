@@ -1,9 +1,9 @@
 package com.bloxbean.cardano.client.jna;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Assertions;
@@ -16,7 +16,7 @@ import java.util.List;
 public class TransactionJNATest {
 
     @Test
-    public void testSignPaymentTransaction() throws CborException, AddressExcepion {
+    public void testSignPaymentTransaction() throws AddressExcepion, CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         TransactionInput txnInput = new TransactionInput();

@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
-import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 
@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.is;
 class ScriptTest {
 
     @Test
-    public void testGetPolicyId() throws CborException {
+    public void testGetPolicyId() throws CborSerializationException {
         ScriptPubkey scriptPubkey = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         String policyId = scriptPubkey.getPolicyId();
 
@@ -20,7 +20,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testSciptAllPolicyId() throws CborException {
+    public void testSciptAllPolicyId() throws CborSerializationException {
         ScriptPubkey scriptPubkey1 = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         ScriptPubkey scriptPubkey2 = new ScriptPubkey("ee7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         ScriptPubkey scriptPubkey3 = new ScriptPubkey("ff7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
@@ -39,7 +39,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testSciptAnyPolicyId() throws CborException {
+    public void testSciptAnyPolicyId() throws CborSerializationException {
         ScriptPubkey scriptPubkey1 = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         ScriptPubkey scriptPubkey2 = new ScriptPubkey("ef7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         ScriptPubkey scriptPubkey3 = new ScriptPubkey("ff7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
@@ -58,7 +58,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testSciptAtLeastPolicyId() throws CborException {
+    public void testSciptAtLeastPolicyId() throws CborSerializationException {
         ScriptPubkey scriptPubkey1 = new ScriptPubkey("2f3d4cf10d0471a1db9f2d2907de867968c27bca6272f062cd1c2413");
         ScriptPubkey scriptPubkey2 = new ScriptPubkey("f856c0c5839bab22673747d53f1ae9eed84afafb085f086e8e988614");
         ScriptPubkey scriptPubkey3 = new ScriptPubkey("b275b08c999097247f7c17e77007c7010cd19f20cc086ad99d398538");
@@ -76,7 +76,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testRequiredAfterPolicyId() throws CborException {
+    public void testRequiredAfterPolicyId() throws CborSerializationException {
         RequireTimeAfter requiredAfter = new RequireTimeAfter(1000);
         ScriptPubkey scriptPubkey = new ScriptPubkey("966e394a544f242081e41d1965137b1bb412ac230d40ed5407821c37");
 
@@ -92,7 +92,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testRequiredBeforePolicyId() throws CborException {
+    public void testRequiredBeforePolicyId() throws CborSerializationException {
         RequireTimeBefore requireTimeBefore = new RequireTimeBefore(2000);
         ScriptPubkey scriptPubkey = new ScriptPubkey("966e394a544f242081e41d1965137b1bb412ac230d40ed5407821c37");
 
@@ -108,7 +108,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testScriptAnyScriptPubRequiredBeforePolicyId() throws CborException {
+    public void testScriptAnyScriptPubRequiredBeforePolicyId() throws CborSerializationException {
 
         ScriptAny scriptAny = new ScriptAny()
                 .addScript(new ScriptPubkey("b275b08c999097247f7c17e77007c7010cd19f20cc086ad99d398538"))

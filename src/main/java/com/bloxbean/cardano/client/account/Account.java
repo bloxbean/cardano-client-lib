@@ -1,10 +1,9 @@
 package com.bloxbean.cardano.client.account;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -145,14 +144,13 @@ public class Account {
      * Sign a raw transaction with this account's private key
      * @param transaction
      * @return
-     * @throws CborException
-     * @throws TransactionSerializationException
+     * @throws CborSerializationException
      */
-    public String sign(Transaction transaction) throws CborException, TransactionSerializationException, AddressExcepion {
+    public String sign(Transaction transaction) throws CborSerializationException {
         String txnHex = transaction.serializeToHex();
 
         if(txnHex == null || txnHex.length() == 0)
-            throw new TransactionSerializationException("Transaction could not be serialized");
+            throw new CborSerializationException("Transaction could not be serialized");
 
         return CardanoJNAUtil.sign(txnHex, privateKey);
     }
@@ -161,11 +159,11 @@ public class Account {
      *
      * @param txnHex
      * @return
-     * @throws TransactionSerializationException
+     * @throws CborSerializationException
      */
-    public String sign(String txnHex) throws TransactionSerializationException {
+    public String sign(String txnHex) throws CborSerializationException {
         if(txnHex == null || txnHex.length() == 0)
-            throw new TransactionSerializationException("Invalid transaction hash");
+            throw new CborSerializationException("Invalid transaction hash");
 
         return CardanoJNAUtil.sign(txnHex, privateKey);
     }

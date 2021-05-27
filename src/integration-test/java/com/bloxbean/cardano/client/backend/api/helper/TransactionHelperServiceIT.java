@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.BlockService;
@@ -19,7 +18,7 @@ import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
@@ -70,7 +69,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void transfer() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void transfer() throws CborSerializationException, AddressExcepion, ApiException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -101,7 +100,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void transferMultiAsset() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void transferMultiAsset() throws CborSerializationException, AddressExcepion, ApiException {
         //Sender address : addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -133,7 +132,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void transferMultiAssetMultiPayments() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void transferMultiAssetMultiPayments() throws CborSerializationException, AddressExcepion, ApiException {
         //Sender address : addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -192,7 +191,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintToken() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintToken() throws CborSerializationException, AddressExcepion, ApiException {
 
         Keys keys = KeyGenUtil.generateKey();
         VerificationKey vkey = keys.getVkey();
@@ -238,7 +237,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithScriptAtLeast() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptAtLeast() throws CborSerializationException, AddressExcepion, ApiException {
        Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
        ScriptPubkey scriptPubkey1 = tuple1._1;
        SecretKey sk1 = tuple1._2.getSkey();
@@ -295,7 +294,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithScriptAtLeastButNotSufficientKeys() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptAtLeastButNotSufficientKeys() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey1 = tuple1._1;
         SecretKey sk1 = tuple1._2.getSkey();
@@ -353,7 +352,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithScriptAll() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptAll() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey1 = tuple1._1;
         SecretKey sk1 = tuple1._2.getSkey();
@@ -414,7 +413,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithScriptAllButNotSufficientKeys() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptAllButNotSufficientKeys() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey1 = tuple1._1;
         SecretKey sk1 = tuple1._2.getSkey();
@@ -475,7 +474,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
 
     @Test
-    void mintTokenWithScriptAtLeastBefore() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptAtLeastBefore() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey1 = tuple1._1;
         SecretKey sk1 = tuple1._2.getSkey();
@@ -540,7 +539,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithScriptPubBeforeValidSlot() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptPubBeforeValidSlot() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey1 = tuple1._1;
         SecretKey sk1 = tuple1._2.getSkey();
@@ -612,7 +611,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithScriptPubBeforeInValidSlot() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptPubBeforeInValidSlot() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey = tuple._1;
         SecretKey sk = tuple._2.getSkey();
@@ -667,7 +666,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithScriptPubAfterValidSlot() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptPubAfterValidSlot() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey = tuple._1;
         SecretKey sk = tuple._2.getSkey();
@@ -726,7 +725,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithScriptPubAfterInValidSlot() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void mintTokenWithScriptPubAfterInValidSlot() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey = tuple._1;
         SecretKey sk = tuple._2.getSkey();
@@ -785,8 +784,8 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void mintTokenWithMetadata() throws TransactionSerializationException,
-            CborException, AddressExcepion, ApiException {
+    void mintTokenWithMetadata()
+            throws CborSerializationException, AddressExcepion, ApiException {
 
         Keys keys = KeyGenUtil.generateKey();
         VerificationKey vkey = keys.getVkey();
@@ -837,7 +836,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void transferWithCBORMetadata() throws TransactionSerializationException, CborException, AddressExcepion, ApiException {
+    void transferWithCBORMetadata() throws CborSerializationException, AddressExcepion, ApiException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -889,7 +888,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void transferWithJSONMetadata() throws TransactionSerializationException, CborException, AddressExcepion, ApiException, IOException {
+    void transferWithJSONMetadata() throws CborSerializationException, AddressExcepion, ApiException, IOException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -923,7 +922,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void transferWithJSONMetadataComplex() throws TransactionSerializationException, CborException, AddressExcepion, ApiException, IOException {
+    void transferWithJSONMetadataComplex() throws CborSerializationException, AddressExcepion, ApiException, IOException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -957,7 +956,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void testCreateSignedTransaction() throws TransactionSerializationException, CborException, AddressExcepion, ApiException, IOException {
+    void testCreateSignedTransaction() throws CborSerializationException, AddressExcepion, ApiException, IOException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);

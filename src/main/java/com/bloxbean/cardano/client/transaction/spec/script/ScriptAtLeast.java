@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +42,7 @@ public class ScriptAtLeast implements NativeScript {
 
     //script_n_of_k = (3, n: uint, [ * native_script ])
     @Override
-    public DataItem serializeAsDataItem() throws CborException {
+    public DataItem serializeAsDataItem() throws CborSerializationException {
         Array array = new Array();
         array.add(new UnsignedInteger(3));
         array.add(new UnsignedInteger(required));
@@ -56,7 +56,7 @@ public class ScriptAtLeast implements NativeScript {
         return array;
     }
 
-    public static ScriptAtLeast deserialize(Array array) throws TransactionDeserializationException {
+    public static ScriptAtLeast deserialize(Array array) throws CborDeserializationException {
         int required = ((UnsignedInteger)(array.getDataItems().get(1))).getValue().intValue();
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(required);
         Array scriptsDIArray = (Array) (array.getDataItems().get(2));

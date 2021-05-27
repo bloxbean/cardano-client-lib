@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.crypto;
 
-import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import org.slf4j.Logger;
@@ -31,7 +31,7 @@ public class VerificationKey {
         if(cborHex != null) {
             try {
                 return KeyGenCborUtil.cborToBytes(cborHex);
-            } catch (CborException e) {
+            } catch (Exception e) {
                 LOG.error("Cbor decode error", e);
                 return null;
             }
@@ -40,7 +40,7 @@ public class VerificationKey {
         return null;
     }
 
-    public static VerificationKey create(byte[] bytes) throws CborException {
+    public static VerificationKey create(byte[] bytes) throws CborSerializationException {
         String cbor = KeyGenCborUtil.bytesToCbor(bytes);
         return new VerificationKey(cbor);
     }

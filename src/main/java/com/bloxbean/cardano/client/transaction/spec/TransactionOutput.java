@@ -1,11 +1,10 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,13 +21,13 @@ public class TransactionOutput {
     private Value value;
 
     //transaction_output = [address, amount : value]
-    public Array serialize() throws CborException, AddressExcepion {
+    public Array serialize() throws CborSerializationException, AddressExcepion {
         Array array = new Array();
         byte[] addressByte = Account.toBytes(address);
         array.add(new ByteString(addressByte));
 
         if(value == null)
-            throw new CborException("Value cannot be null");
+            throw new CborSerializationException("Value cannot be null");
 
         if(value.getMultiAssets() != null && value.getMultiAssets().size() > 0) {
             Array coinAssetArray = new Array();
@@ -48,12 +47,12 @@ public class TransactionOutput {
         return array;
     }
 
-    public static TransactionOutput deserialize(Array ouptutItem) throws TransactionDeserializationException {
+    public static TransactionOutput deserialize(Array ouptutItem) throws CborDeserializationException {
         List<DataItem> items = ouptutItem.getDataItems();
         TransactionOutput output = new TransactionOutput();
 
         if(items == null || items.size() != 2) {
-            throw new TransactionDeserializationException("TransactionOutput deserialization failed. Invalid no of DataItems");
+            throw new CborDeserializationException("TransactionOutput deserialization failed. Invalid no of DataItems");
         }
 
         ByteString addrByteStr = (ByteString)items.get(0);
@@ -61,7 +60,7 @@ public class TransactionOutput {
             try {
                 output.setAddress(Account.bytesToBech32(addrByteStr.getBytes()));
             } catch (Exception e) {
-                throw new TransactionDeserializationException("Bytes cannot be converted to bech32 address", e);
+                throw new CborDeserializationException("Bytes cannot be converted to bech32 address", e);
             }
         }
 

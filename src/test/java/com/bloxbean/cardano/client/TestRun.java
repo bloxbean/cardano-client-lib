@@ -1,10 +1,8 @@
 package com.bloxbean.cardano.client;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 
@@ -12,7 +10,7 @@ import java.nio.ByteBuffer;
 
 public class TestRun {
 
-    public static void main(String[] args) throws  CborException, TransactionDeserializationException {
+    public static void main(String[] args) throws CborDeserializationException {
         Account account = new Account(Networks.testnet());
         System.out.println(account.mnemonic());
         System.out.println(account.baseAddress());

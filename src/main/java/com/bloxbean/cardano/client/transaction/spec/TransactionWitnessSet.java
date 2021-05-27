@@ -1,11 +1,11 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,7 +23,7 @@ public class TransactionWitnessSet {
     private List<VkeyWitness> vkeyWitnesses = new ArrayList<>();
     private List<NativeScript> nativeScripts = new ArrayList<>();
 
-    public Map serialize() throws CborException {
+    public Map serialize() throws CborSerializationException {
         //Array
         //1. native script [ script_pubkey]
         //script_pubkey = (0, addr_keyhash)
@@ -58,7 +58,7 @@ public class TransactionWitnessSet {
 //        ; , ? 4: [* foo_script ]
 //        ; , ? 5: [* plutus_script ]
 //    }
-    public static TransactionWitnessSet deserialize(Map witnessMap) throws TransactionDeserializationException {
+    public static TransactionWitnessSet deserialize(Map witnessMap) throws CborDeserializationException {
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
 
         DataItem vkWitnessesArray = witnessMap.get(new UnsignedInteger(0));

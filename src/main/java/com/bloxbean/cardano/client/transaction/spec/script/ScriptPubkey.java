@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
@@ -8,7 +7,8 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.Data;
@@ -44,14 +44,14 @@ public class ScriptPubkey implements NativeScript {
         return keyHashBytes;
     }
 
-    public DataItem serializeAsDataItem() throws CborException {
+    public DataItem serializeAsDataItem() {
         Array array = new Array();
         array.add(new UnsignedInteger(0));
         array.add(new ByteString(HexUtil.decodeHexString(keyHash)));
         return array;
     }
 
-    public static ScriptPubkey deserialize(Array array) throws TransactionDeserializationException {
+    public static ScriptPubkey deserialize(Array array) throws CborDeserializationException {
         ScriptPubkey scriptPubkey = new ScriptPubkey();
         ByteString keyHashBS = (ByteString)(array.getDataItems().get(1));
         scriptPubkey.setKeyHash(HexUtil.encodeHexString(keyHashBS.getBytes()));
@@ -62,7 +62,7 @@ public class ScriptPubkey implements NativeScript {
         return new ScriptPubkey(KeyGenUtil.getKeyHash(vkey));
     }
 
-    public static Tuple<ScriptPubkey, Keys> createWithNewKey() throws CborException {
+    public static Tuple<ScriptPubkey, Keys> createWithNewKey() throws CborSerializationException {
         Keys keys = KeyGenUtil.generateKey();
 
         ScriptPubkey scriptPubkey = ScriptPubkey.create(keys.getVkey());

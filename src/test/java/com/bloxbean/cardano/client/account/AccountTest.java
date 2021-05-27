@@ -1,9 +1,7 @@
 package com.bloxbean.cardano.client.account;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.Platform;
 import org.junit.jupiter.api.BeforeEach;
@@ -112,7 +110,7 @@ public class AccountTest {
     }
 
     @Test
-    void testSign() throws AddressExcepion, TransactionSerializationException, CborException {
+    void testSign() throws CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         TransactionInput txnInput = new TransactionInput();

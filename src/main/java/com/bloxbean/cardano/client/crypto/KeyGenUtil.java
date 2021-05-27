@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.crypto;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.crypto.exception.KeyException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.bouncycastle.crypto.digests.Blake2bDigest;
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
@@ -11,7 +11,7 @@ import java.security.SecureRandom;
 
 public class KeyGenUtil {
 
-    public static Keys generateKey() throws CborException {
+    public static Keys generateKey() throws CborSerializationException {
         SecureRandom random = new SecureRandom();
         Ed25519PrivateKeyParameters pvtKeyParameters = new Ed25519PrivateKeyParameters(random);
         byte[] prvKeyBytes = pvtKeyParameters.getEncoded();
@@ -23,7 +23,7 @@ public class KeyGenUtil {
         return new Keys(secretKey, verificationKey);
     }
 
-    public static VerificationKey getPublicKeyFromPrivateKey(SecretKey secretKey) throws CborException {
+    public static VerificationKey getPublicKeyFromPrivateKey(SecretKey secretKey) throws CborSerializationException {
         byte[] pvtKeyBytes = secretKey.getBytes();
         if(pvtKeyBytes == null || pvtKeyBytes.length == 0)
             throw new KeyException("Wrong private key length : " + pvtKeyBytes != null? pvtKeyBytes.length + "" : "");

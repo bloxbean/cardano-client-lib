@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import lombok.Data;
 
 /**
@@ -26,14 +26,14 @@ public class RequireTimeBefore implements NativeScript {
     }
 
     @Override
-    public DataItem serializeAsDataItem() throws CborException {
+    public DataItem serializeAsDataItem() {
         Array array = new Array();
         array.add(new UnsignedInteger(5));
         array.add(new UnsignedInteger(slot));
         return array;
     }
 
-    public static RequireTimeBefore deserialize(Array array) throws TransactionDeserializationException {
+    public static RequireTimeBefore deserialize(Array array) throws CborDeserializationException {
         long slot = ((UnsignedInteger)array.getDataItems().get(1)).getValue().longValue();
         return new RequireTimeBefore(slot);
     }

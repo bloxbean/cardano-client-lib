@@ -1,13 +1,12 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
@@ -29,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class CBORSerializationTest {
 
     @Test
-    public void testSerializeTransactionWithMint() throws CborException, AddressExcepion {
+    public void testSerializeTransactionWithMint() throws AddressExcepion, CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         long fee = 367965;
@@ -82,7 +81,7 @@ public class CBORSerializationTest {
     }
 
     @Test
-    public void testSerializeTransactionWithMetadata() throws CborException, AddressExcepion {
+    public void testSerializeTransactionWithMetadata() throws CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         long fee = 367965;
@@ -154,7 +153,7 @@ public class CBORSerializationTest {
     }
 
     @Test
-    public void testDeserialization() throws CborException, TransactionDeserializationException, AddressExcepion {
+    public void testDeserialization() throws CborDeserializationException, AddressExcepion, CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         long fee = 367965;
@@ -221,7 +220,8 @@ public class CBORSerializationTest {
     }
 
     @Test
-    public void testDeserializationWithWitness() throws CborException, TransactionDeserializationException, AddressExcepion, TransactionSerializationException {
+    public void testDeserializationWithWitness()
+            throws CborDeserializationException, AddressExcepion, CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         Account account1 = new Account(Networks.testnet());
@@ -354,7 +354,7 @@ public class CBORSerializationTest {
 
 
     @Test
-    public void testDeserializationWithScriptWitness() throws CborException, TransactionDeserializationException, AddressExcepion, TransactionSerializationException {
+    public void testDeserializationWithScriptWitness() throws CborDeserializationException, CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         Account account1 = new Account(Networks.testnet());

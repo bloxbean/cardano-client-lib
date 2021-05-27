@@ -2,10 +2,8 @@ package com.bloxbean.cardano.client.metadata.helper;
 
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.metadata.Metadata;
-import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,23 +46,14 @@ public class MetadataToJsonNoSchemaConverter {
         }
     }
 
-    private static Metadata cborBytesToMetadata(byte[] cborBytes) throws CborException {
-        List<DataItem> dataItemList = CborDecoder.decode(cborBytes);
-
-        if(dataItemList != null && dataItemList.size() > 0)
-            throw new MetadataDeSerializationException("Multiple DataItems found at top level. Should be zero : " + dataItemList.size());
-
-        DataItem dataItem = dataItemList.get(0);
-        if(dataItem instanceof Map) {
-            return new CBORMetadata();
-        } else {
-            throw new MetadataDeSerializationException("Top leve object should be a Map : " + dataItem.getMajorType().toString());
-        }
-    }
-
-    private static java.util.Map cborHexToJavaMap(String hex) throws CborException {
+    private static java.util.Map cborHexToJavaMap(String hex) throws CborDeserializationException {
         byte[] cborBytes = HexUtil.decodeHexString(hex);
-        List<DataItem> dataItemList = CborDecoder.decode(cborBytes);
+        List<DataItem> dataItemList = null;
+        try {
+            dataItemList = CborDecoder.decode(cborBytes);
+        } catch (CborException e) {
+            throw new CborDeserializationException("Cbor deserialization failed", e);
+        }
 
         if(dataItemList != null && dataItemList.size() > 1)
             throw new MetadataDeSerializationException("Multiple DataItems found at top level. Should be zero : " + dataItemList.size());

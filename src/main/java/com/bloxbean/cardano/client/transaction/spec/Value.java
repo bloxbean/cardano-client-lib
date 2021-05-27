@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,7 +21,7 @@ public class Value {
     //Policy Id -> Asset
     private List<MultiAsset> multiAssets = new ArrayList<>();
 
-    public Map serialize() throws CborException {
+    public Map serialize() throws CborSerializationException {
         Map map = new Map();
         if(multiAssets != null) {
             for (MultiAsset multiAsset : multiAssets) {

@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.BaseTest;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.EpochService;
@@ -14,7 +13,7 @@ import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionSerializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
@@ -77,7 +76,7 @@ class FeeCalculationServiceTest extends BaseTest {
     }
 
     @Test
-    void testCalculateFeeSimplePaymentTransaction() throws ApiException, IOException, AddressExcepion, CborException, TransactionSerializationException {
+    void testCalculateFeeSimplePaymentTransaction() throws ApiException, IOException, AddressExcepion, CborSerializationException {
 
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
@@ -104,7 +103,7 @@ class FeeCalculationServiceTest extends BaseTest {
     }
 
     @Test
-    void testCalculateFeePaymentTransactionWithMetadata() throws ApiException, IOException, AddressExcepion, CborException, TransactionSerializationException {
+    void testCalculateFeePaymentTransactionWithMetadata() throws ApiException, IOException, AddressExcepion, CborSerializationException {
 
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 

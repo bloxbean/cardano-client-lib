@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.metadata.helper;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -8,22 +7,22 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Test;
-import org.testng.Assert;
 
 import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class JsonNoSchemaToMetadataConverterTest {
 
     String dataFile = "json-metadata.json";
 
     @Test
-    void testParseJSONMetadata() throws IOException, CborException {
+    void testParseJSONMetadata() throws IOException {
         String json = loadJsonMetadata("json-1").toString();
         Metadata metadata = JsonNoSchemaToMetadataConverter.jsonToCborMetadata(json);
 
-        Assert.assertNotNull(metadata);
+        assertNotNull(metadata);
 
         byte[] serializedBytes = metadata.serialize();
         String hex = Hex.toHexString(serializedBytes);
@@ -40,7 +39,7 @@ class JsonNoSchemaToMetadataConverterTest {
         Metadata metadata = JsonNoSchemaToMetadataConverter.jsonToCborMetadata(json);
 
         System.out.println(HexUtil.encodeHexString(metadata.serialize()));
-        Assert.assertNotNull(metadata);
+        assertNotNull(metadata);
     }
 
     private JsonNode loadJsonMetadata(String key) throws IOException {

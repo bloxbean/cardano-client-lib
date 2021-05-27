@@ -1,9 +1,9 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
-import com.bloxbean.cardano.client.exception.TransactionDeserializationException;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 @Data
@@ -28,7 +27,7 @@ public class TransactionBody {
     private byte[] metadataHash;
     private long validityStartInterval;
 
-    public Map serialize() throws CborException, AddressExcepion {
+    public Map serialize() throws CborSerializationException, AddressExcepion {
         Map bodyMap = new Map();
 
         Array inputsArray = new Array();
@@ -70,7 +69,7 @@ public class TransactionBody {
         return bodyMap;
     }
 
-    public static TransactionBody deserialize(Map bodyMap) throws TransactionDeserializationException {
+    public static TransactionBody deserialize(Map bodyMap) throws CborDeserializationException {
         TransactionBody transactionBody = new TransactionBody();
 
        Array inputArray =  (Array)bodyMap.get(new UnsignedInteger(0));
