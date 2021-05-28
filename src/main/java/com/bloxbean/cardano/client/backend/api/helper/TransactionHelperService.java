@@ -27,10 +27,20 @@ public class TransactionHelperService {
 
     private UtxoService utxoService;
     private TransactionService transactionService;
+    private UtxoTransactionBuilder utxoTransactionBuilder;
 
     public TransactionHelperService(UtxoService utxoService, TransactionService transactionService) {
         this.utxoService = utxoService;
         this.transactionService = transactionService;
+        this.utxoTransactionBuilder = new UtxoTransactionBuilder(utxoService, transactionService);
+    }
+
+    /**
+     * Get UtxoTransactionBuilder set in this TransactionHelperService
+     * @return
+     */
+    public UtxoTransactionBuilder getUtxoTransactionBuilder() {
+        return this.utxoTransactionBuilder;
     }
 
     /**
@@ -111,8 +121,6 @@ public class TransactionHelperService {
      */
     public String createSignedTransaction(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, AddressExcepion, CborSerializationException {
-        UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
-
         if(LOG.isDebugEnabled())
             LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(paymentTransactions));
 
@@ -174,8 +182,6 @@ public class TransactionHelperService {
      */
     public String createSignedMintTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, AddressExcepion, CborSerializationException {
-        UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilder(this.utxoService, this.transactionService);
-
         if(LOG.isDebugEnabled())
             LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(mintTransaction));
 
