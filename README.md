@@ -314,5 +314,5 @@ git submodule update --init --recursive
 
 . script/build-<os>-<arch>.sh
 
-./gradlew build farJar
+./gradlew build fatJar
 ```
