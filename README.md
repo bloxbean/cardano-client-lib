@@ -53,6 +53,8 @@ will be added in future release.
 - AssetService
 - BlockService
 - NetworkInfoService
+- EpochService
+- MetadataService
 
 ## Use as a library in a Java Project
 
