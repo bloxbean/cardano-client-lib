@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.impl.FeeCalculationServiceImpl;
+import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -68,7 +69,8 @@ class FeeCalculationServiceTest extends BaseTest {
     @BeforeEach
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
-        utxoTransactionBuilder = new UtxoTransactionBuilder(utxoService, transactionService);
+        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService, transactionService);
+        transactionHelperService = new TransactionHelperService(utxoService, transactionService);
         feeCalculationService = new FeeCalculationServiceImpl(transactionHelperService, epochService);
         utxoJsonFile = "fee-test-utxos.json";
         protocolParamJsonFile = "protocol-params.json";

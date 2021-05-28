@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.crypto.SecretKey;
@@ -32,7 +33,7 @@ public class TransactionHelperService {
     public TransactionHelperService(UtxoService utxoService, TransactionService transactionService) {
         this.utxoService = utxoService;
         this.transactionService = transactionService;
-        this.utxoTransactionBuilder = new UtxoTransactionBuilder(utxoService, transactionService);
+        this.utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService, transactionService);
     }
 
     /**
@@ -41,6 +42,14 @@ public class TransactionHelperService {
      */
     public UtxoTransactionBuilder getUtxoTransactionBuilder() {
         return this.utxoTransactionBuilder;
+    }
+
+    /**
+     * Set a custom UtxoTransactionBuilder
+     * @param utxoTransactionBuilder
+     */
+    public void setUtxoTransactionBuilder(UtxoTransactionBuilder utxoTransactionBuilder) {
+        this.utxoTransactionBuilder = utxoTransactionBuilder;
     }
 
     /**

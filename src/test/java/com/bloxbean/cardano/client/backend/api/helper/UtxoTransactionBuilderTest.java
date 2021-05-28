@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.backend.api.helper;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
@@ -62,7 +63,7 @@ public class UtxoTransactionBuilderTest {
     @BeforeEach
     public void setup() {
         MockitoAnnotations.openMocks(this);
-        utxoTransactionBuilder = new UtxoTransactionBuilder(utxoService, transactionService);
+        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService, transactionService);
     }
 
     private List<Utxo> loadUtxos(String key) throws IOException {

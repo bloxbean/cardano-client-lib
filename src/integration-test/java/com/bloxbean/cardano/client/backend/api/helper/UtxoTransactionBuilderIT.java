@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
@@ -32,7 +33,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
     public void setup() {
         utxoService = new BFUtxoService(Constants.BLOCKFROST_TESTNET_URL, projectId);
         transactionService = new BFTransactionService(Constants.BLOCKFROST_TESTNET_URL, projectId);
-        utxoTransactionBuilder = new UtxoTransactionBuilder(utxoService, transactionService);
+        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService, transactionService);
     }
 
     @Test
