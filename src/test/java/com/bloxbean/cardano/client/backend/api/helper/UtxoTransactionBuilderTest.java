@@ -54,7 +54,7 @@ public class UtxoTransactionBuilderTest {
     TransactionService transactionService;
 
     @InjectMocks
-    UtxoTransactionBuilder utxoTransactionBuilder;
+    UtxoTransactionBuilderImpl utxoTransactionBuilder;
 
     ObjectMapper objectMapper = new ObjectMapper();
 

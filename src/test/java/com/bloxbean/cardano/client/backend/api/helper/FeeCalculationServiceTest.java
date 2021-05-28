@@ -53,7 +53,7 @@ class FeeCalculationServiceTest extends BaseTest {
     TransactionService transactionService;
 
     @InjectMocks
-    UtxoTransactionBuilder utxoTransactionBuilder;
+    UtxoTransactionBuilderImpl utxoTransactionBuilder;
 
     @InjectMocks
     TransactionHelperService transactionHelperService;
