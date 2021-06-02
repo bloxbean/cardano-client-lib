@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
@@ -65,11 +66,9 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
      * @param detailsParams
      * @return
      * @throws ApiException
-     * @throws AddressExcepion
      */
     @Override
-    public Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException,
-            AddressExcepion {
+    public Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException {
 
         List<TransactionInput> transactionInputs = new ArrayList<>();
         List<TransactionOutput> transactionOutputs = new ArrayList<>();
@@ -136,18 +135,12 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     }
 
     @Override
-    public Transaction buildMintTokenTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException, AddressExcepion {
+    public Transaction buildMintTokenTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException {
         String sender = mintTransaction.getSender().baseAddress();
 
         String receiver = mintTransaction.getReceiver();
         if(receiver == null || receiver.isEmpty())
             receiver = mintTransaction.getSender().baseAddress();
-
-        //Get total no of multiasset and calculate min ada
-//        int totalAssets = 0;
-//        for(MultiAsset ma: mintTransaction.getMintAssets()) {
-//            totalAssets += ma.getAssets().size();
-//        }
 
         BigInteger minAmount = createDummyOutputAndCalculateMinAdaForTxnOutput(receiver,
                 mintTransaction.getMintAssets(), detailsParams.getMinUtxoValue());
@@ -189,13 +182,9 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                 }
             }
 
-//            if(!mintedAssetAdded) {
-//                for (MultiAsset ma : mintTransaction.getMintAssets()) {
-//                    transactionOutput.getValue().getMultiAssets().add(ma);
-//                }
-//
-//                mintedAssetAdded = true; //Incase there are multiple utxos,
-//            }
+            //Check if minimum Ada is not met. Topup
+            //Transaction will fail if minimun ada not there. So try to get some additional utxos
+            verifyMinAdaInOutputAndUpdateIfRequired(inputs, transactionOutput, detailsParams, utxos);
 
             outputs.add(transactionOutput);
         }
@@ -235,6 +224,43 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         return transaction;
     }
 
+    private void verifyMinAdaInOutputAndUpdateIfRequired(List<TransactionInput> inputs, TransactionOutput transactionOutput,
+                                                         TransactionDetailsParams detailsParams, Collection<Utxo> excludeUtxos) throws ApiException {
+        BigInteger minRequiredLovelaceInOutput =
+                new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(transactionOutput);
+
+        //Create another copy of the list
+        List<Utxo> ignoreUtxoList =  excludeUtxos.stream().map(u -> u).collect(Collectors.toList());
+
+        while(transactionOutput.getValue().getCoin() != null
+                && minRequiredLovelaceInOutput.compareTo(transactionOutput.getValue().getCoin()) == 1) {
+            //Get utxos
+            List<Utxo> additionalUtxos = getUtxos(transactionOutput.getAddress(), LOVELACE, minRequiredLovelaceInOutput,
+                    new HashSet(ignoreUtxoList));
+
+            if(additionalUtxos == null || additionalUtxos.size() == 0)
+                throw new InsufficientBalanceException("Not enough utxos found to cover minimum lovelace in an ouput");
+
+            if(LOG.isDebugEnabled())
+                LOG.debug("Additional Utoxs found: " + additionalUtxos);
+            for(Utxo addUtxo: additionalUtxos) {
+                TransactionInput addTxnInput = TransactionInput.builder()
+                        .transactionId(addUtxo.getTxHash())
+                        .index(addUtxo.getOutputIndex())
+                        .build();
+                inputs.add(addTxnInput);
+
+                //Update change output
+                copyUtxoValuesToChangeOutput(transactionOutput, addUtxo);
+            }
+            ignoreUtxoList.addAll(additionalUtxos);
+
+            //Calculate final minReq balance in output, if still doesn't satisfy, continue again
+            minRequiredLovelaceInOutput =
+                    new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(transactionOutput);
+        }
+    }
+
     private List<Utxo> getUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException {
         if(amount == null)
             amount = BigInteger.ZERO;
@@ -244,7 +270,6 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         boolean canContinue = true;
         int i = 0;
 
-        boolean isLovlace = CardanoConstants.LOVELACE.equals(unit)? true : false;
         while(canContinue) {
             Result<List<Utxo>> result = utxoService.getUtxos(address, utxoSelectionStrategy.getUtxoFetchSize(),
                     i++, utxoSelectionStrategy.getUtxoFetchOrder());
@@ -279,14 +304,15 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                 }
             } else {
                 canContinue = false;
-                throw new ApiException(String.format("Unable to get Utxos for address : %s, reason: %s", address, result.getResponse()));
+                throw new ApiException(String.format("Unable to get enough Utxos for address : %s, reason: %s", address, result.getResponse()));
             }
         }
 
         return selectedUtxos;
     }
 
-    private void checkAndAddAdditionalUtxosIfMinCostIsNotMet(Map<String, Set<Utxo>> senderToUtxoMap, Map<String, BigInteger> senderMiscCostMap, String sender) throws ApiException {
+    private void checkAndAddAdditionalUtxosIfMinCostIsNotMet(Map<String, Set<Utxo>> senderToUtxoMap,
+                                                             Map<String, BigInteger> senderMiscCostMap, String sender) throws ApiException {
         BigInteger minCost = senderMiscCostMap.get(sender);
         Set<Utxo> utxos = senderToUtxoMap.getOrDefault(sender, new HashSet());
 
@@ -405,30 +431,36 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
             //Check if minimum Ada is not met. Topup
             //Transaction will fail if minimun ada not there. So try to get some additiona utxos
-            BigInteger minRequiredLovelaceInOutput = new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(changeOutput);//getMinUtxoValue(detailsParams);
-            if(changeOutput.getValue().getCoin() != null && minRequiredLovelaceInOutput.compareTo(changeOutput.getValue().getCoin()) == 1) {
-                //Get utxos
-                List<Utxo> additionalUtxos = getUtxos(changeOutput.getAddress(), LOVELACE, minRequiredLovelaceInOutput,  utxoSet);
-                if(additionalUtxos == null || additionalUtxos.size() == 0)
-                    throw new InsufficientBalanceException("Not enough utxos found to cover minimum lovelace in an ouput");
-
-                if(LOG.isDebugEnabled())
-                    LOG.debug("Additional Utoxs found: " + additionalUtxos);
-                //Add to input
-                Utxo utxo = additionalUtxos.get(0);
-                TransactionInput transactionInput = TransactionInput.builder()
-                        .transactionId(utxo.getTxHash())
-                        .index(utxo.getOutputIndex())
-                        .build();
-                transactionInputs.add(transactionInput);
-
-                //Update change output
-                copyUtxoValuesToChangeOutput(changeOutput, utxo);
-            }
+            verifyMinAdaInOutputAndUpdateIfRequired(transactionInputs, changeOutput, detailsParams, utxoSet);
 
             transactionOutputs.add(changeOutput);
         }
     }
+
+    //TODO remove later
+    /*
+    private void checkAdditionalUtxoIfRequired(Set<Utxo> utxoSet, List<TransactionInput> transactionInputs, TransactionDetailsParams detailsParams, TransactionOutput changeOutput) throws ApiException {
+        BigInteger minRequiredLovelaceInOutput = new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(changeOutput);//getMinUtxoValue(detailsParams);
+        if(changeOutput.getValue().getCoin() != null && minRequiredLovelaceInOutput.compareTo(changeOutput.getValue().getCoin()) == 1) {
+            //Get utxos
+            List<Utxo> additionalUtxos = getUtxos(changeOutput.getAddress(), LOVELACE, minRequiredLovelaceInOutput, utxoSet);
+            if(additionalUtxos == null || additionalUtxos.size() == 0)
+                throw new InsufficientBalanceException("Not enough utxos found to cover minimum lovelace in an ouput");
+
+            if(LOG.isDebugEnabled())
+                LOG.debug("Additional Utoxs found: " + additionalUtxos);
+            //Add to input
+            Utxo utxo = additionalUtxos.get(0);
+            TransactionInput transactionInput = TransactionInput.builder()
+                    .transactionId(utxo.getTxHash())
+                    .index(utxo.getOutputIndex())
+                    .build();
+            transactionInputs.add(transactionInput);
+
+            //Update change output
+            copyUtxoValuesToChangeOutput(changeOutput, utxo);
+        }
+    }*/
 
     private void copyUtxoValuesToChangeOutput(TransactionOutput changeOutput, Utxo utxo) {
         utxo.getAmount().forEach(utxoAmt -> { //For each amt in utxo
