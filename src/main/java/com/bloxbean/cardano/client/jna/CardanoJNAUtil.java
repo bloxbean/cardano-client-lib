@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.jna;
 
 import com.bloxbean.cardano.client.common.model.Network;
+import com.bloxbean.cardano.client.exception.AddressRuntimeException;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.sun.jna.Pointer;
 
 public class CardanoJNAUtil {
@@ -16,6 +18,8 @@ public class CardanoJNAUtil {
     public static String getBaseAddressByNetwork(String phrase, int index, Network.ByReference network) {
         Pointer pointer = CardanoJNA.INSTANCE.getBaseAddressByNetwork(phrase, index, network);
         String result = pointer.getString(0);
+
+        CardanoJNA.INSTANCE.dropCharPointer(pointer);
         return result;
     }
 
@@ -43,7 +47,7 @@ public class CardanoJNAUtil {
     }
 
     /**
-     * Return private key in bech32
+     * Returns private key in bech32
      * @param phrase
      * @param index
      * @return
@@ -52,8 +56,57 @@ public class CardanoJNAUtil {
         Pointer pointer = CardanoJNA.INSTANCE.getPrivateKeyFromMnemonic(phrase, index);
         String result = pointer.getString(0);
 
-        CardanoJNA.INSTANCE.dropCharPointer(pointer);
-        return result;
+        try {
+            if (result == null || result.isEmpty()) {
+                throw new AddressRuntimeException("Unable to get private key from mnemonic phrase");
+            } else {
+                return result;
+            }
+        } finally {
+            CardanoJNA.INSTANCE.dropCharPointer(pointer);
+        }
+    }
+
+    /**
+     * Returns private key raw bytes
+     * @param phrase
+     * @param index
+     * @return
+     */
+    public static byte[] getPrivateKeyBytesFromMnemonic(String phrase, int index) {
+        Pointer pointer = CardanoJNA.INSTANCE.getPrivateKeyBytesFromMnemonic(phrase, index);
+        try {
+            String result = pointer.getString(0);
+
+            if (result == null || result.isEmpty()) {
+                throw new AddressRuntimeException("Unable to get private key bytes from mnemonic phrase");
+            } else {
+                return HexUtil.decodeHexString(result);
+            }
+        }finally {
+            CardanoJNA.INSTANCE.dropCharPointer(pointer);
+        }
+    }
+
+    /**
+     * Returns public key raw bytes
+     * @param phrase
+     * @param index
+     * @return
+     */
+    public static byte[] getPublicKeyBytesFromMnemonic(String phrase, int index) {
+        Pointer pointer = CardanoJNA.INSTANCE.getPublicKeyBytesFromMnemonic(phrase, index);
+        try {
+            String result = pointer.getString(0);
+
+            if (result == null || result.isEmpty()) {
+                throw new AddressRuntimeException("Unable to get public key bytes from mnemonic phrase");
+            } else {
+                return HexUtil.decodeHexString(result);
+            }
+        }finally {
+            CardanoJNA.INSTANCE.dropCharPointer(pointer);
+        }
     }
 
     /**

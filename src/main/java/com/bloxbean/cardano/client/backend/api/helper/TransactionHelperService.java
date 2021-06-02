@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
+import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
@@ -142,6 +143,12 @@ public class TransactionHelperService {
         String signedTxn = txnHex;
         for(PaymentTransaction txn: paymentTransactions) {
             signedTxn = txn.getSender().sign(signedTxn);
+
+            if(txn.getAdditionalWitnessAccounts() != null) { //Add additional witnesses
+                for(Account additionalWitnessAcc: txn.getAdditionalWitnessAccounts()) {
+                    signedTxn = additionalWitnessAcc.sign(signedTxn);
+                }
+            }
         }
         return signedTxn;
     }
@@ -206,12 +213,20 @@ public class TransactionHelperService {
 
         String signedTxn = mintTransaction.getSender().sign(transaction);
 
-        if(mintTransaction.getPolicyKeys() == null || mintTransaction.getPolicyKeys().size() == 0){
-            throw new ApiException("No policy key (secret key) found to sign the mint transaction");
+//        if(mintTransaction.getPolicyKeys() == null || mintTransaction.getPolicyKeys().size() == 0){
+//            throw new ApiException("No policy key (secret key) found to sign the mint transaction");
+//        }
+
+        if(mintTransaction.getPolicyKeys() != null) {
+            for (SecretKey key : mintTransaction.getPolicyKeys()) {
+                signedTxn = CardanoJNAUtil.signWithSecretKey(signedTxn, HexUtil.encodeHexString(key.getBytes()));
+            }
         }
 
-        for(SecretKey key: mintTransaction.getPolicyKeys()) {
-            signedTxn = CardanoJNAUtil.signWithSecretKey(signedTxn, HexUtil.encodeHexString(key.getBytes()));
+        if(mintTransaction.getAdditionalWitnessAccounts() != null) {
+            for(Account addWitnessAcc: mintTransaction.getAdditionalWitnessAccounts()) {
+                signedTxn = addWitnessAcc.sign(signedTxn);
+            }
         }
 
         if(LOG.isDebugEnabled()) {

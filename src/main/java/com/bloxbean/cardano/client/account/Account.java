@@ -21,6 +21,10 @@ public class Account {
     private int index;
     @JsonIgnore
     private String privateKey; //hex value
+    @JsonIgnore
+    private byte[] privateKeyBytes;
+    @JsonIgnore
+    private byte[] publicKeyBytes;
 
     /**
      * Create a new random mainnet account.
@@ -140,6 +144,16 @@ public class Account {
         return privateKey;
     }
 
+    @JsonIgnore
+    public byte[] privateKeyBytes() {
+        return privateKeyBytes;
+    }
+
+    @JsonIgnore
+    public byte[] publicKeyBytes() {
+        return publicKeyBytes;
+    }
+
     /**
      * Sign a raw transaction with this account's private key
      * @param transaction
@@ -197,6 +211,8 @@ public class Account {
 
     private void getPrivateKey() {
         this.privateKey = CardanoJNAUtil.getPrivateKeyFromMnemonic(mnemonic, index);
+        this.privateKeyBytes = CardanoJNAUtil.getPrivateKeyBytesFromMnemonic(mnemonic, index);
+        this.publicKeyBytes = CardanoJNAUtil.getPublicKeyBytesFromMnemonic(mnemonic, index);
     }
 
     @Override

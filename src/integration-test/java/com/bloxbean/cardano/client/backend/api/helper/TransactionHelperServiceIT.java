@@ -18,6 +18,7 @@ import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
@@ -29,6 +30,7 @@ import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.script.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -46,6 +48,7 @@ import java.util.Arrays;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -88,6 +91,43 @@ class TransactionHelperServiceIT extends BFBaseTest {
         paymentTransaction.setFee(fee);
 
         Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
+    void transferWithAdditionalWitness() throws CborSerializationException, AddressExcepion, ApiException {
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        String additionalAccMnemonic = "plate swamp urge edit avoid discover sibling raven awkward tell science increase fame practice bike caught taxi never critic ski north slogan fuel kitten";
+        Account additioinalAccount = new Account(Networks.testnet(), additionalAccMnemonic);
+
+        PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(1500000))
+                        .unit("lovelace")
+                        .additionalWitnessAccounts(Arrays.asList(additioinalAccount)) //Unncessary for now, but may be used in future
+                        .build();
+
+        BigInteger fee =
+                feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+
+        paymentTransaction.setFee(fee);
+
+        Result<String> result =
+                transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
@@ -836,6 +876,118 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
+    void mintTokenWithNormalAccountKeyHash() throws CborSerializationException, ApiException, AddressExcepion {
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+
+        String scriptAccountMnemonic = "episode same use wreck force already grief spike kiss host magic spoon cry lecture tuition style old detect session creek champion cry service exchange";
+        Account scriptAccount = new Account(Networks.testnet(), scriptAccountMnemonic);
+
+        byte[] prvKeyBytes = scriptAccount.privateKeyBytes();
+        byte[] pubKeyBytes = scriptAccount.publicKeyBytes();
+
+        SecretKey sk = SecretKey.create(prvKeyBytes);
+        VerificationKey vkey = VerificationKey.create(pubKeyBytes);
+
+        ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
+        String policyId = scriptPubkey.getPolicyId();
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+
+        Asset asset = new Asset("token_12", BigInteger.valueOf(6000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction = MintTransaction.builder()
+                .sender(sender)
+//                .receiver(receiver)
+                .mintAssets(Arrays.asList(multiAsset))
+                .policyScript(scriptPubkey)
+                .policyKeys(Arrays.asList(sk))
+                .build();
+
+        TransactionDetailsParams detailsParams =
+                TransactionDetailsParams.builder()
+                        .ttl(getTtl())
+                        .build();
+
+        //Calculate fee
+        BigInteger fee
+                = feeCalculationService.calculateFee(mintTransaction, detailsParams, null);
+        mintTransaction.setFee(fee);
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println(result);
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
+    void mintTokenWithNormalAccountKeyHashAndSignWithA2ndNormalAccount() throws CborSerializationException, ApiException, AddressExcepion {
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+
+        String scriptAccountMnemonic = "episode same use wreck force already grief spike kiss host magic spoon cry lecture tuition style old detect session creek champion cry service exchange";
+        Account scriptAccount = new Account(Networks.testnet(), scriptAccountMnemonic);
+
+        byte[] prvKeyBytes = scriptAccount.privateKeyBytes();
+        byte[] pubKeyBytes = scriptAccount.publicKeyBytes();
+
+        SecretKey sk = SecretKey.create(prvKeyBytes);
+        VerificationKey vkey = VerificationKey.create(pubKeyBytes);
+
+        ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
+        String policyId = scriptPubkey.getPolicyId();
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId(policyId);
+
+        Asset asset = new Asset("token_12", BigInteger.valueOf(6000));
+        multiAsset.getAssets().add(asset);
+
+        MintTransaction mintTransaction = MintTransaction.builder()
+                .sender(sender)
+//                .receiver(receiver)
+                .mintAssets(Arrays.asList(multiAsset))
+                .policyScript(scriptPubkey)
+                .additionalWitnessAccounts(Arrays.asList(scriptAccount))
+                .build();
+
+        TransactionDetailsParams detailsParams =
+                TransactionDetailsParams.builder()
+                        .ttl(getTtl())
+                        .build();
+
+        //Calculate fee
+        BigInteger fee
+                = feeCalculationService.calculateFee(mintTransaction, detailsParams, null);
+        mintTransaction.setFee(fee);
+
+        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        System.out.println(result);
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
     void transferWithCBORMetadata() throws CborSerializationException, AddressExcepion, ApiException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
@@ -956,11 +1108,14 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void testCreateSignedTransaction() throws CborSerializationException, AddressExcepion, ApiException, IOException {
+    void testCreateSignedTransaction() throws CborSerializationException, AddressExcepion, ApiException, IOException, CborDeserializationException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        String additionalAccMnemonic = "plate swamp urge edit avoid discover sibling raven awkward tell science increase fame practice bike caught taxi never critic ski north slogan fuel kitten";
+        Account additionalAccount = new Account(Networks.testnet(), additionalAccMnemonic);
 
         JsonNode json = loadJsonMetadata("json-3");
         Metadata metadata = JsonNoSchemaToMetadataConverter.jsonToCborMetadata(json.toString());
@@ -971,6 +1126,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(1500000))
                         .unit("lovelace")
+                        .additionalWitnessAccounts(Arrays.asList(additionalAccount, sender))
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
@@ -980,8 +1136,12 @@ class TransactionHelperServiceIT extends BFBaseTest {
         String result = transactionHelperService.createSignedTransaction(Arrays.asList(paymentTransaction),
                 TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
+        Transaction txn = Transaction.deserialize(HexUtil.decodeHexString(result));
+
         System.out.println(result);
         assertNotNull(result);
+        assertNotNull(txn);
+        assertThat(txn.getWitnessSet().getVkeyWitnesses(), hasSize(3));
     }
 
     private long getTtl() throws ApiException {

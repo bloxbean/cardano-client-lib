@@ -44,7 +44,13 @@ pub fn sign_txn_with_secretkey(rawTxnInHex: &str, secretKey: &str) -> Vec<u8> {
 
     let skeyBytes = hex::decode(secretKey).unwrap();
 
-    let prvKey = PrivateKey::from_normal_bytes(&skeyBytes).unwrap();
+    let prvKey;
+    let result = PrivateKey::from_normal_bytes(&skeyBytes);
+    if(result.is_ok()) {
+        prvKey = result.unwrap();
+    } else {
+        prvKey = Bip32PrivateKey::from_bytes(&skeyBytes).unwrap().to_raw_key();
+    }
 
     let mut transaction = Transaction::from_bytes(bytesTxn).unwrap();
 

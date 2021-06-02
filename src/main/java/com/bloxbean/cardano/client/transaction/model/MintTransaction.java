@@ -30,4 +30,7 @@ public class MintTransaction {
     private NativeScript policyScript;
     @JsonIgnore
     private List<SecretKey> policyKeys;
+
+    //Optional parameter for now. Can be used in future to add multiple witnesses to a transaction
+    private List<Account> additionalWitnessAccounts;
 }

@@ -18,12 +18,28 @@ interface CardanoJNA extends Library {
     public Pointer generateMnemonic();
 
     /**
-     * Return private key in bech32
+     * Returns private key in bech32
      * @param phrase
      * @param index
      * @return
      */
     public Pointer getPrivateKeyFromMnemonic(String phrase, int index);
+
+    /**
+     * Returns private key bytes in hex
+     * @param phrase
+     * @param index
+     * @return
+     */
+    public Pointer getPrivateKeyBytesFromMnemonic(String phrase, int index);
+
+    /**
+     * Returns public key bytes in hex
+     * @param phrase
+     * @param index
+     * @return
+     */
+    public Pointer getPublicKeyBytesFromMnemonic(String phrase, int index);
 
     /**
      * Returns hex encoded string

@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.jna;
 
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Platform;
 import org.junit.jupiter.api.Assertions;
@@ -143,4 +144,29 @@ public class AddressJNATest {
         Assertions.assertTrue(pvtKey.length() > 5);
     }
 
+    @Test
+    public void testGetPrivateKeyBytesFromMnemonic() {
+        byte[] pvtKey = CardanoJNAUtil.getPrivateKeyBytesFromMnemonic(phrase24W, 0);
+        Assertions.assertEquals(96, pvtKey.length);
+    }
+
+    @Test
+    public void testGetPrivateKeyFromInvalidMnemonic() {
+        Assertions.assertThrows(AddressRuntimeException.class, () -> {
+            String pvtKey = CardanoJNAUtil.getPrivateKeyFromMnemonic(phrase24W.substring(3), 0);
+        });
+    }
+
+    @Test
+    public void testGetPublicKeyBytesFromMnemonic() {
+        byte[] pubKey = CardanoJNAUtil.getPublicKeyBytesFromMnemonic(phrase24W, 0);
+        Assertions.assertEquals(32, pubKey.length);
+    }
+
+    @Test
+    public void testGetPublicKeyBytesFromInvalidMnemonic() {
+        Assertions.assertThrows(AddressRuntimeException.class, () -> {
+            byte[] pubKey = CardanoJNAUtil.getPublicKeyBytesFromMnemonic(phrase24W.substring(3), 0);
+        });
+    }
 }

@@ -10,7 +10,7 @@ use jni::objects::{JClass, JString};
 // lifetime checker won't let us.
 use jni::sys::jstring;
 
-use crate::address::{get_baseaddress_from_mnemonic, get_baseaddress_from_mnemonic_by_networkInfo, get_enterpriseaddress_from_mnemonic_by_networkInfo, get_enterpriseaddress_from_mnemonic, get_private_key_from_mnemonic};
+use crate::address::{get_baseaddress_from_mnemonic, get_baseaddress_from_mnemonic_by_networkInfo, get_enterpriseaddress_from_mnemonic_by_networkInfo, get_enterpriseaddress_from_mnemonic, get_private_key_from_mnemonic, get_private_key_bytes_from_mnemonic, get_public_key_bytes_from_mnemonic};
 
 use std::os::raw::c_char;
 use std::ffi::{CStr,CString};
@@ -138,6 +138,46 @@ pub fn getPrivateKeyFromMnemonic(phrase: *const c_char, index: u32) -> *const c_
         let pvtKeyInBech32 = get_private_key_from_mnemonic(s.as_str(), index);
 
         to_ptr(pvtKeyInBech32)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn getPrivateKeyBytesFromMnemonic(phrase: *const c_char, index: u32) -> *const c_char {
+    let result = panic::catch_unwind(|| {
+        let s =  to_string(phrase);
+
+        let pvtKeyBytes = get_private_key_bytes_from_mnemonic(s.as_str(), index);
+
+        let hexStr = hex::encode(pvtKeyBytes);
+        to_ptr(hexStr)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn getPublicKeyBytesFromMnemonic(phrase: *const c_char, index: u32) -> *const c_char {
+    let result = panic::catch_unwind(|| {
+        let s =  to_string(phrase);
+
+        let pvtKeyBytes = get_public_key_bytes_from_mnemonic(s.as_str(), index);
+
+        let hexStr = hex::encode(pvtKeyBytes);
+        to_ptr(hexStr)
     });
 
     match result {

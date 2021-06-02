@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.Platform;
@@ -97,16 +98,34 @@ public class AccountTest {
     void getAddressFromInvalidMnemonic() {
         String phrase = "invalid pass goose lava verb buzz service consider execute goose abstract fresh endless cruise layer belt immense clay glimpse install garage elegant cricket make";
 
-        Account account = new Account(Networks.testnet(), phrase, 0);
-        assertEquals("", account.baseAddress());
+        assertThrows(AddressRuntimeException.class, () -> {
+            Account account = new Account(Networks.testnet(), phrase, 0);
+        });
     }
 
     @Test
     void getEntAddressFromInvalidMnemonic() {
         String phrase = "invalid pass goose lava verb buzz service consider execute goose abstract fresh endless cruise layer belt immense clay glimpse install garage elegant cricket make";
 
-        Account account = new Account(Networks.testnet(), phrase);
-        assertEquals("", account.enterpriseAddress());
+        assertThrows(AddressRuntimeException.class, () -> {
+            Account account = new Account(Networks.testnet(), phrase);
+        });
+    }
+
+    @Test
+    void testGetPrivateKeyBytes() {
+        String phrase = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+
+        Account account = new Account(Networks.testnet(), phrase, 0);
+        assertEquals(96, account.privateKeyBytes().length);
+    }
+
+    @Test
+    void testGetPublicKey() {
+        String phrase = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+
+        Account account = new Account(Networks.testnet(), phrase, 0);
+        assertTrue(account.publicKeyBytes().length == 32);
     }
 
     @Test

@@ -25,6 +25,9 @@ public class PaymentTransaction {
     private BigInteger fee;
     private List<MultiAsset> mintAssets;
 
+    //Optional parameter for now. Can be used in future to add multiple witness accounts to a transaction
+    private List<Account> additionalWitnessAccounts;
+
     public BigInteger getFee() {
         if(fee != null)
             return fee;

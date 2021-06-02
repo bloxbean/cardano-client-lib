@@ -129,9 +129,45 @@ pub fn get_private_key_from_mnemonic(phrase: &str, index: u32) -> String {
     spendKey
 }
 
+pub fn get_private_key_bytes_from_mnemonic(phrase: &str, index: u32) -> Vec<u8> {
+    let result = Mnemonic::from_phrase(phrase, Language::English).unwrap();
+
+    let entropy = result.entropy();
+
+    let root_key = get_root_key(&entropy);
+    let spendKey = root_key
+        .derive(harden(1852))
+        .derive(harden(1815))
+        .derive(harden(0))
+        .derive(0)
+        .derive(index)
+        .as_bytes();//to_raw_key(); //to_raw_key();
+
+    spendKey
+}
+
+pub fn get_public_key_bytes_from_mnemonic(phrase: &str, index: u32) -> Vec<u8> {
+    let result = Mnemonic::from_phrase(phrase, Language::English).unwrap();
+
+    let entropy = result.entropy();
+
+    let root_key = get_root_key(&entropy);
+    let pubKey = root_key
+        .derive(harden(1852))
+        .derive(harden(1815))
+        .derive(harden(0))
+        .derive(0)
+        .derive(index)
+        .to_public()
+        .to_raw_key()
+        .as_bytes();
+
+    pubKey
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic, bech32_address_to_bytes, get_private_key_from_mnemonic};
+    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic, bech32_address_to_bytes, get_private_key_from_mnemonic, get_private_key_bytes_from_mnemonic, get_public_key_bytes_from_mnemonic};
 
     #[test]
     fn get_baseaddress_from_mnemonic_15words() {
@@ -226,5 +262,25 @@ mod tests {
 
         let expected = "xprv17qvknep0qlfzxzwm7nhdukkr2ez00yhhf5tztqml4hun8yume30yedlqzlfvcg48v8xqx0a5q5us90pc09ct50d4938echyj6lvp0gvx5yasjh9w02vgaplsh9t892hc2gwvhjz5qv0l4jwq4hjj7pdgeg25rhsq";
         assert_eq!(expected, pvtKey);
+    }
+
+    #[test]
+    fn test_get_private_key_rawbytes_from_mnemonic() {
+        let mnemonic = "moment antenna hover credit bracket excess deny trial inspire sketch foster unable sphere toilet embody kit answer banner float position citizen bitter orphan can";
+        let pvtKey = get_private_key_bytes_from_mnemonic(mnemonic, 0);
+
+        // let expected = "xprv17qvknep0qlfzxzwm7nhdukkr2ez00yhhf5tztqml4hun8yume30yedlqzlfvcg48v8xqx0a5q5us90pc09ct50d4938echyj6lvp0gvx5yasjh9w02vgaplsh9t892hc2gwvhjz5qv0l4jwq4hjj7pdgeg25rhsq";
+        // assert_eq!(expected, pvtKey);
+        assert_eq!(true, pvtKey.len() > 10); //random number 10
+    }
+
+    #[test]
+    fn test_get_public_key_rawbytes_from_mnemonic() {
+        let mnemonic = "moment antenna hover credit bracket excess deny trial inspire sketch foster unable sphere toilet embody kit answer banner float position citizen bitter orphan can";
+        let pubKey = get_public_key_bytes_from_mnemonic(mnemonic, 0);
+
+        // let expected = "xprv17qvknep0qlfzxzwm7nhdukkr2ez00yhhf5tztqml4hun8yume30yedlqzlfvcg48v8xqx0a5q5us90pc09ct50d4938echyj6lvp0gvx5yasjh9w02vgaplsh9t892hc2gwvhjz5qv0l4jwq4hjj7pdgeg25rhsq";
+        // assert_eq!(expected, pvtKey);
+        assert_eq!(true, pubKey.len() > 10); //random number 10
     }
 }
