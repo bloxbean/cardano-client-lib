@@ -154,23 +154,25 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         List<TransactionInput> inputs = new ArrayList<>();
         List<TransactionOutput> outputs = new ArrayList<>();
 
+        //Create single TxnOutput for the sender
+        TransactionOutput transactionOutput = new TransactionOutput();
+        transactionOutput.setAddress(sender);
+        Value senderValue = Value.builder()
+                .coin(BigInteger.ZERO)
+                .multiAssets(new ArrayList<>())
+                .build();
+        transactionOutput.setValue(senderValue);
+
+        //Keep a flag to make sure fee is already deducted
         boolean feeDeducted = false;
         for(Utxo utxo: utxos) {
-            //create input
+            //create input for this utxo
             TransactionInput transactionInput = new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex());
             inputs.add(transactionInput);
 
-            //Create output
-            TransactionOutput transactionOutput = new TransactionOutput();
-            transactionOutput.setAddress(sender);
-            Value value = Value.builder()
-                    .coin(BigInteger.ZERO)
-                    .multiAssets(new ArrayList<>())
-                    .build();
-            transactionOutput.setValue(value);
-
             copyUtxoValuesToChangeOutput(transactionOutput, utxo);
 
+            //Deduct fee from sender's output if applicable
             BigInteger lovelaceValue = transactionOutput.getValue().getCoin();
             if(feeDeducted) { //fee + min amount required for new multiasset output
                 transactionOutput.getValue().setCoin(lovelaceValue);
@@ -185,9 +187,9 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             //Check if minimum Ada is not met. Topup
             //Transaction will fail if minimun ada not there. So try to get some additional utxos
             verifyMinAdaInOutputAndUpdateIfRequired(inputs, transactionOutput, detailsParams, utxos);
-
-            outputs.add(transactionOutput);
         }
+
+        outputs.add(transactionOutput);
 
         //Create a separate output for minted assets
         //Create output

@@ -32,6 +32,7 @@ import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.script.*;
+import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
@@ -877,7 +878,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
     @Test
     void mintTokenWithNormalAccountKeyHash() throws CborSerializationException, ApiException, AddressExcepion {
-        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
 
         String scriptAccountMnemonic = "episode same use wreck force already grief spike kiss host magic spoon cry lecture tuition style old detect session creek champion cry service exchange";
@@ -927,6 +928,9 @@ class TransactionHelperServiceIT extends BFBaseTest {
             System.out.println("Transaction failed: " + result);
 
         waitForTransaction(result);
+
+        String fingerPrint = AssetUtil.calculateFingerPrint(policyId, HexUtil.encodeHexString(asset.getNameAsBytes()));
+        System.out.println("Fingerprint: " + fingerPrint);
 
         assertThat(result.isSuccessful(), is(true));
     }
