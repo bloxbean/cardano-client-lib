@@ -472,7 +472,7 @@ public class UtxoTransactionBuilderTest {
         Account sender = new Account(Networks.testnet());
         MintTransaction mintTransaction = MintTransaction.builder()
                 .sender(sender)
-                .fee(BigInteger.valueOf(10750000)) //Add higher fee
+                .fee(BigInteger.valueOf(100750000)) //Add higher fee
                 .mintAssets(Arrays.asList(multiAsset))
                 .receiver(receiver)
                 .build();
@@ -483,6 +483,7 @@ public class UtxoTransactionBuilderTest {
 
         Assertions.assertThrows(ApiException.class, () -> {
             Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null);
+            System.out.println(transaction);
         });
     }
 
