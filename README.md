@@ -316,3 +316,14 @@ git submodule update --init --recursive
 
 ./gradlew build fatJar
 ```
+
+# Run Integration Tests
+```aidl
+export BF_PROJECT_ID=<Blockfrost Project Id>
+./gradlew integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID} 
+```
+
+---
+If this project help you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
+
+[BLOXB](https://www.bloxbean.com/cardano-staking/)
