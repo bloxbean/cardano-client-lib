@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.backend.api.helper.impl;
 
-import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.backend.api.helper.UtxoTransactionBuilder;
@@ -8,7 +7,6 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
-import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
@@ -34,20 +32,22 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     private Logger LOG = LoggerFactory.getLogger(UtxoTransactionBuilderImpl.class);
 
-    private final UtxoService utxoService;
-    private final TransactionService transactionService;
     private UtxoSelectionStrategy utxoSelectionStrategy;
 
-    public UtxoTransactionBuilderImpl(UtxoService utxoService, TransactionService transactionService) {
-        this.utxoService = utxoService;
-        this.transactionService = transactionService;
+    /**
+     * Create a {@link UtxoTransactionBuilder} with {@link DefaultUtxoSelectionStrategyImpl}
+     * @param utxoService
+     */
+    public UtxoTransactionBuilderImpl(UtxoService utxoService) {
+        this.utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+    }
 
-        this.utxoSelectionStrategy = new UtxoSelectionStrategy() {
-            @Override
-            public List<Utxo> filter(List<Utxo> utxos) {
-                return utxos;
-            }
-        };
+    /**
+     * Create a {@link UtxoTransactionBuilder} with custom {@link UtxoSelectionStrategy}
+     * @param utxoSelectionStrategy
+     */
+    public UtxoTransactionBuilderImpl(UtxoSelectionStrategy utxoSelectionStrategy) {
+        this.utxoSelectionStrategy = utxoSelectionStrategy;
     }
 
     /**
@@ -57,6 +57,14 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     @Override
     public void setUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
         this.utxoSelectionStrategy = utxoSelectionStrategy;
+    }
+
+    /**
+     * Get current {@link UtxoSelectionStrategy}
+     * @return
+     */
+    public UtxoSelectionStrategy getUtxoSelectionStrategy() {
+        return this.utxoSelectionStrategy;
     }
 
     /**
@@ -280,53 +288,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     }
 
     private List<Utxo> getUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException {
-        if(amount == null)
-            amount = BigInteger.ZERO;
-
-        BigInteger totalUtxoAmount = BigInteger.valueOf(0);
-        List<Utxo> selectedUtxos = new ArrayList<>();
-        boolean canContinue = true;
-        int i = 0;
-
-        while(canContinue) {
-            Result<List<Utxo>> result = utxoService.getUtxos(address, utxoSelectionStrategy.getUtxoFetchSize(),
-                    i++, utxoSelectionStrategy.getUtxoFetchOrder());
-            if(result.code() == 200) {
-                List<Utxo> fetchData = result.getValue();
-
-                List<Utxo> data = utxoSelectionStrategy.filter(fetchData);
-                if(data == null || data.isEmpty())
-                    canContinue = false;
-
-                for(Utxo utxo: data) {
-                    if(excludeUtxos.contains(utxo))
-                        continue;
-
-                    List<Amount> utxoAmounts = utxo.getAmount();
-
-                    boolean unitFound = false;
-                    for(Amount amt: utxoAmounts) {
-                        if(unit.equals(amt.getUnit())) {
-                            totalUtxoAmount = totalUtxoAmount.add(amt.getQuantity());
-                            unitFound = true;
-                        }
-                    }
-
-                    if(unitFound)
-                        selectedUtxos.add(utxo);
-
-                    if(totalUtxoAmount.compareTo(amount) == 1) {
-                        canContinue = false;
-                        break;
-                    }
-                }
-            } else {
-                canContinue = false;
-                throw new ApiException(String.format("Unable to get enough Utxos for address : %s, reason: %s", address, result.getResponse()));
-            }
-        }
-
-        return selectedUtxos;
+        return utxoSelectionStrategy.selectUtxos(address, unit, amount, excludeUtxos);
     }
 
     private void checkAndAddAdditionalUtxosIfMinCostIsNotMet(Map<String, Set<Utxo>> senderToUtxoMap,

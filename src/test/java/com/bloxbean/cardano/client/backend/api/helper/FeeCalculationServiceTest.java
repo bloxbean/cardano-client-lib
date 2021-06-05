@@ -69,8 +69,8 @@ class FeeCalculationServiceTest extends BaseTest {
     @BeforeEach
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
-        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService, transactionService);
-        transactionHelperService = new TransactionHelperService(utxoService, transactionService);
+        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
+        transactionHelperService = new TransactionHelperService(transactionService, utxoService);
         feeCalculationService = new FeeCalculationServiceImpl(transactionHelperService, epochService);
         utxoJsonFile = "fee-test-utxos.json";
         protocolParamJsonFile = "protocol-params.json";

@@ -14,6 +14,7 @@ import java.util.List;
 
 /**
  * Interface to build transaction from higher level transaction request apis.
+ * It uses {@link UtxoSelectionStrategy} to get appropriate Utxos
  */
 public interface UtxoTransactionBuilder {
     /**
@@ -42,6 +43,7 @@ public interface UtxoTransactionBuilder {
      * @return
      * @throws ApiException
      */
+    @Deprecated(forRemoval = true)
     List<Utxo> getUtxos(String address, String unit, BigInteger amount) throws ApiException;
 
     /**

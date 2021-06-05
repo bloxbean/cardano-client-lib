@@ -47,7 +47,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
     public void setup() {
         utxoService = new BFUtxoService(Constants.BLOCKFROST_TESTNET_URL, projectId);
         transactionService = new BFTransactionService(Constants.BLOCKFROST_TESTNET_URL, projectId);
-        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService, transactionService);
+        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
     }
 
     @Test

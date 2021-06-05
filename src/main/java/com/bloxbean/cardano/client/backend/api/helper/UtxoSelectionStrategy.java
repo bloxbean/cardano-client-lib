@@ -1,9 +1,12 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
+import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 
+import java.math.BigInteger;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Implement this interface to provide custom UtxoSelection Strategy
@@ -11,25 +14,13 @@ import java.util.List;
 public interface UtxoSelectionStrategy {
 
     /**
-     * Filter and return selected utxos from the list
-     * @param utxos
+     * Selected utxos based on a strategy
+     * @param address Address to select utxos for
+     * @param unit Unit
+     * @param amount Amount
+     * @param excludeUtxos Utxos to ignore
      * @return
      */
-    public List<Utxo> filter(List<Utxo> utxos);
+    public List<Utxo> selectUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException;
 
-    /**
-     * Utxo record fetch size from the server per page
-     * @return
-     */
-    default public int getUtxoFetchSize() {
-        return 40;
-    }
-
-    /**
-     * Utxo fetch order
-     * @return
-     */
-    default public OrderEnum getUtxoFetchOrder() {
-        return OrderEnum.asc;
-    }
 }

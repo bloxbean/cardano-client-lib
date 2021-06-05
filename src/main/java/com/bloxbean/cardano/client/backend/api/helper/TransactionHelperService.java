@@ -32,14 +32,39 @@ import java.util.List;
 public class TransactionHelperService {
     private Logger LOG = LoggerFactory.getLogger(TransactionHelperService.class);
 
-    private UtxoService utxoService;
     private TransactionService transactionService;
     private UtxoTransactionBuilder utxoTransactionBuilder;
 
-    public TransactionHelperService(UtxoService utxoService, TransactionService transactionService) {
-        this.utxoService = utxoService;
+    /**
+     * Create a {@link TransactionHelperService} from {@link TransactionService} and {@link UtxoService}
+     * @param transactionService
+     * @param utxoService
+     */
+    public TransactionHelperService(TransactionService transactionService, UtxoService utxoService) {
         this.transactionService = transactionService;
-        this.utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService, transactionService);
+        this.utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
+    }
+
+    /**
+     * Create a {@link TransactionHelperService} from {@link TransactionService} and custom {@link UtxoTransactionBuilder} implementation
+     * @param transactionService
+     * @param utxoTransactionBuilder
+     */
+    public TransactionHelperService(TransactionService transactionService, UtxoTransactionBuilder utxoTransactionBuilder) {
+        this.transactionService = transactionService;
+        this.utxoTransactionBuilder = utxoTransactionBuilder;
+    }
+
+
+    /**
+     * Create a {@link TransactionHelperService} from {@link TransactionService} and custom {@link UtxoSelectionStrategy}
+     * This uses the default implementation of {@link UtxoTransactionBuilder} and set the custom {@link UtxoSelectionStrategy}
+     * @param transactionService
+     * @param utxoSelectionStrategy
+     */
+    public TransactionHelperService(TransactionService transactionService, UtxoSelectionStrategy utxoSelectionStrategy) {
+        this.transactionService = transactionService;
+        this.utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoSelectionStrategy);
     }
 
     /**
@@ -218,10 +243,6 @@ public class TransactionHelperService {
             LOG.debug(JsonUtil.getPrettyJson(transaction));
 
         String signedTxn = mintTransaction.getSender().sign(transaction);
-
-//        if(mintTransaction.getPolicyKeys() == null || mintTransaction.getPolicyKeys().size() == 0){
-//            throw new ApiException("No policy key (secret key) found to sign the mint transaction");
-//        }
 
         if(mintTransaction.getPolicyKeys() != null) {
             for (SecretKey key : mintTransaction.getPolicyKeys()) {

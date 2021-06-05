@@ -61,7 +61,7 @@ public interface BackendService {
      * @return
      */
     default public TransactionHelperService getTransactionHelperService() {
-        TransactionHelperService transactionHelperService = new TransactionHelperService(getUtxoService(), getTransactionService());
+        TransactionHelperService transactionHelperService = new TransactionHelperService(getTransactionService(), getUtxoService());
         return transactionHelperService;
     }
 
@@ -70,7 +70,7 @@ public interface BackendService {
      * @return
      */
     default public UtxoTransactionBuilder getUtxoTransactionBuilder() {
-        UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilderImpl(getUtxoService(), getTransactionService());
+        UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilderImpl(getUtxoService());
         return utxoTransactionBuilder;
     }
 
