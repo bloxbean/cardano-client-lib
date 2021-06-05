@@ -324,6 +324,7 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 ```
 
 ---
-If this project help you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
+
+##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
 
 [BLOXB](https://www.bloxbean.com/cardano-staking/)
