@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction.model;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
@@ -14,23 +15,26 @@ import java.math.BigInteger;
 import java.util.List;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 /**
  * This class is used while minting a new native token
  */
-public class MintTransaction {
-    private Account sender;
-    private String receiver;
-    private BigInteger fee;
-    private List<MultiAsset> mintAssets;
+public class MintTransaction extends TransactionRequest {
 
+    private List<MultiAsset> mintAssets;
     @JsonIgnore
     private NativeScript policyScript;
     @JsonIgnore
     private List<SecretKey> policyKeys;
 
-    //Optional parameter for now. Can be used in future to add multiple witnesses to a transaction
-    private List<Account> additionalWitnessAccounts;
+    @Builder
+    public MintTransaction(Account sender, String receiver, BigInteger fee, List<Account> additionalWitnessAccounts,
+                           List<Utxo> utxosToInclude, List<MultiAsset> mintAssets, NativeScript policyScript, List<SecretKey> policyKeys) {
+        super(sender, receiver, fee, additionalWitnessAccounts, utxosToInclude);
+        this.mintAssets = mintAssets;
+        this.policyScript = policyScript;
+        this.policyKeys = policyKeys;
+    }
+
 }

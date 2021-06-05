@@ -12,7 +12,6 @@ import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
-import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
@@ -76,8 +75,15 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         //Get map for sender -> totalAmt, unit
         Multimap<String, Amount> senderAmountsMap = calculateRequiredBalancesForSenders(transactions);
 
+        //Populate sender/utxos map if  utxos are provided by the client application as part of PaymentTransaction
+        Map<String, Set<Utxo>> senderToUtxoMap = getSenderToUtxosMapFromTransactions(transactions);
+
         //Get sender -> utxos map based on the unit and total qty requirement
-        Map<String, Set<Utxo>> senderToUtxoMap = getSenderToUtxosMap(senderAmountsMap);
+        //Assumption: If Utxos are provided as part PaymentTransaction, then all PaymentTransactions will have Utxos list,
+        // so we dont need to find utxos
+        if(senderToUtxoMap == null || senderToUtxoMap.size() == 0) {
+            senderToUtxoMap = getSenderToUtxosMap(senderAmountsMap);
+        }
 
         BigInteger totalFee = BigInteger.valueOf(0);
         Map<String, BigInteger> senderMiscCostMap = new HashMap<>(); //Misc cost of sender, mini ada
@@ -145,11 +151,17 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         BigInteger minAmount = createDummyOutputAndCalculateMinAdaForTxnOutput(receiver,
                 mintTransaction.getMintAssets(), detailsParams.getMinUtxoValue());
         //getMinimumLovelaceForMultiAsset(detailsParams).multiply(BigInteger.valueOf(totalAssets));
-        BigInteger amount = minAmount.add(mintTransaction.getFee());
+        BigInteger totalCost = minAmount.add(mintTransaction.getFee());
 
-        List<Utxo> utxos = getUtxos(sender, LOVELACE, amount);
-        if(utxos.size() == 0)
-            throw new InsufficientBalanceException("Not enough utxos found to cover balance : " + amount + " lovelace");
+        //Get utxos from the transaction request if available
+        List<Utxo> utxos = mintTransaction.getUtxosToInclude();
+
+        //If no utxos found as part of request, then fetch from backend
+        if(utxos == null || utxos.size() == 0) {
+            utxos = getUtxos(sender, LOVELACE, totalCost);
+            if (utxos.size() == 0)
+                throw new InsufficientBalanceException("Not enough utxos found to cover balance : " + totalCost + " lovelace");
+        }
 
         List<TransactionInput> inputs = new ArrayList<>();
         List<TransactionOutput> outputs = new ArrayList<>();
@@ -172,7 +184,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
             copyUtxoValuesToChangeOutput(transactionOutput, utxo);
 
-            //Deduct fee from sender's output if applicable
+          /*  //Deduct fee from sender's output if applicable
             BigInteger lovelaceValue = transactionOutput.getValue().getCoin();
             if(feeDeducted) { //fee + min amount required for new multiasset output
                 transactionOutput.getValue().setCoin(lovelaceValue);
@@ -182,12 +194,16 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                     transactionOutput.getValue().setCoin(remainingAmount); //deduct requirement amt (fee + min amount)
                     feeDeducted = true;
                 }
-            }
-
-            //Check if minimum Ada is not met. Topup
-            //Transaction will fail if minimun ada not there. So try to get some additional utxos
-            verifyMinAdaInOutputAndUpdateIfRequired(inputs, transactionOutput, detailsParams, utxos);
+            }*/
         }
+
+        //Deduct fee + minCost in a MA output
+        BigInteger remainingAmount = transactionOutput.getValue().getCoin().subtract(totalCost);
+        transactionOutput.getValue().setCoin(remainingAmount); //deduct requirement amt (fee + min amount)
+
+        //Check if minimum Ada is not met. Topup
+        //Transaction will fail if minimun ada not there. So try to get some additional utxos
+        verifyMinAdaInOutputAndUpdateIfRequired(inputs, transactionOutput, detailsParams, utxos);
 
         outputs.add(transactionOutput);
 
@@ -336,6 +352,25 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
             utxos.addAll(additionalUtxos);
         }
+    }
+
+    private Map<String, Set<Utxo>> getSenderToUtxosMapFromTransactions(List<PaymentTransaction> transactions) {
+        Map<String, Set<Utxo>> senderToUtxoMap = new HashMap<>();
+        for(PaymentTransaction paymentTransaction: transactions) {
+            if(paymentTransaction.getUtxosToInclude() != null && paymentTransaction.getUtxosToInclude().size() > 0) {
+                String senderAddress = paymentTransaction.getSender().baseAddress();
+                Set<Utxo> utxos = senderToUtxoMap.get(senderAddress);
+                if(utxos == null) {
+                    utxos = new HashSet<>();
+                    utxos.addAll(paymentTransaction.getUtxosToInclude());
+                    senderToUtxoMap.put(senderAddress, utxos);
+                } else {
+                    utxos.addAll(paymentTransaction.getUtxosToInclude());
+                }
+            }
+        }
+
+        return senderToUtxoMap;
     }
 
     private Map<String, Set<Utxo>> getSenderToUtxosMap(Multimap<String, Amount> senderAmountsMap) throws ApiException {

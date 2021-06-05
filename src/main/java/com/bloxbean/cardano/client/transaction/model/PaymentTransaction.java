@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction.model;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,22 +12,22 @@ import java.math.BigInteger;
 import java.util.List;
 
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 /**
  * For payment transaction both in ADA (Lovelace) or Native tokens
  */
-public class PaymentTransaction {
-    private Account sender;
-    private String receiver;
+public class PaymentTransaction extends TransactionRequest {
     private String unit;
     private BigInteger amount;
-    private BigInteger fee;
-    private List<MultiAsset> mintAssets;
 
-    //Optional parameter for now. Can be used in future to add multiple witness accounts to a transaction
-    private List<Account> additionalWitnessAccounts;
+    @Builder
+    public PaymentTransaction(Account sender, String receiver, BigInteger fee, List<Account> additionalWitnessAccounts,
+                              List<Utxo> utxosToInclude, String unit, BigInteger amount) {
+        super(sender, receiver, fee, additionalWitnessAccounts, utxosToInclude);
+        this.unit = unit;
+        this.amount = amount;
+    }
 
     public BigInteger getFee() {
         if(fee != null)

@@ -43,8 +43,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class UtxoTransactionBuilderTest {
@@ -487,4 +486,154 @@ public class UtxoTransactionBuilderTest {
         });
     }
 
+    @Test
+    public void testBuildTransactionWithUtxosProvided() throws ApiException, IOException, AddressExcepion {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_2);
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .fee(BigInteger.valueOf(120000))
+                .unit(CardanoConstants.LOVELACE)
+                .amount(BigInteger.valueOf(500000000))
+                .receiver(receiver)
+                .utxosToInclude(Arrays.asList(utxos.get(1), utxos.get(4)))
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+
+        assertThat(transaction.getBody().getInputs(), hasSize(2));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("1d98fc1aad22af10eec3cfc924d9edb4dcea6181e1d33895588c4d3c60d2af8b"));
+        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("e755448d0d17651ff308c2a1d218fbbee5f290924482d85b2bb691576aee5105"));
+
+        assertThat(transaction.getBody().getOutputs().get(0).getAddress(), is(receiver));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(BigInteger.valueOf(500000000L)));
+
+        assertThat(transaction.getBody().getOutputs().get(1).getAddress(), is(sender.baseAddress()));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(1495467955)));
+
+        verify(utxoService, never()).getUtxos(any(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    public void testBuildTransactionWithUtxosProvidedButRequiredAdditionalUtxos() throws ApiException, IOException, AddressExcepion {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_2);
+        given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .fee(BigInteger.valueOf(120000))
+                .unit(CardanoConstants.LOVELACE)
+                .amount(BigInteger.valueOf(3000000000L))
+                .receiver(receiver)
+                .utxosToInclude(Arrays.asList(utxos.get(1), utxos.get(4)))
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+
+        assertThat(transaction.getBody().getInputs(), hasSize(5));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("1d98fc1aad22af10eec3cfc924d9edb4dcea6181e1d33895588c4d3c60d2af8b"));
+        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("e755448d0d17651ff308c2a1d218fbbee5f290924482d85b2bb691576aee5105"));
+
+        assertThat(transaction.getBody().getOutputs().get(0).getAddress(), is(receiver));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(BigInteger.valueOf(3000000000L)));
+
+        assertThat(transaction.getBody().getOutputs().get(1).getAddress(), is(sender.baseAddress()));
+        verify(utxoService, atLeastOnce()).getUtxos(any(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    public void testBuildTokenMintTransactionWithUtxosProvided()
+            throws ApiException, IOException, AddressExcepion, CborSerializationException {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_2);
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        Account sender = new Account(Networks.testnet());
+        MintTransaction mintTransaction = MintTransaction.builder()
+                .sender(sender)
+                .fee(BigInteger.valueOf(1750000))
+                .mintAssets(Arrays.asList(multiAsset))
+                .receiver(receiver)
+                .utxosToInclude(Arrays.asList(utxos.get(1), utxos.get(4)))
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null);
+
+        System.out.println(JsonUtil.getPrettyJson(transaction));
+
+        System.out.println(transaction.serializeToHex());
+
+        assertThat(transaction.getBody().getInputs(), hasSize(2));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("1d98fc1aad22af10eec3cfc924d9edb4dcea6181e1d33895588c4d3c60d2af8b"));
+        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("e755448d0d17651ff308c2a1d218fbbee5f290924482d85b2bb691576aee5105"));
+
+        assertThat(transaction.getBody().getOutputs(), hasSize(2));
+
+        verify(utxoService, never()).getUtxos(any(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    public void testBuildTokenMintTransactionWithUtxosProvidedButAdditionalUtxosRequired()
+            throws ApiException, IOException, CborSerializationException {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_2);
+        given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        multiAsset.getAssets().add(asset);
+
+        Account sender = new Account(Networks.testnet());
+        MintTransaction mintTransaction = MintTransaction.builder()
+                .sender(sender)
+                .fee(BigInteger.valueOf(1000000000)) //High fee to force include of other Utxos
+                .mintAssets(Arrays.asList(multiAsset))
+                .receiver(receiver)
+                .utxosToInclude(Arrays.asList(utxos.get(1)))
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null);
+
+        System.out.println(JsonUtil.getPrettyJson(transaction));
+
+        System.out.println(transaction.serializeToHex());
+
+        assertThat(transaction.getBody().getInputs(), hasSize(3));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("1d98fc1aad22af10eec3cfc924d9edb4dcea6181e1d33895588c4d3c60d2af8b"));
+        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9"));
+        assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
+
+        assertThat(transaction.getBody().getOutputs(), hasSize(2));
+
+        verify(utxoService, atLeast(2)).getUtxos(any(), anyInt(), anyInt(), any());
+    }
 }
