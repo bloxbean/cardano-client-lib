@@ -12,6 +12,9 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import java.math.BigInteger;
 import java.util.List;
 
+/**
+ * Interface to build transaction from higher level transaction request apis.
+ */
 public interface UtxoTransactionBuilder {
     /**
      * Set utxo selection strategy

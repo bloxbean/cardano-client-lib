@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
+import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.crypto.SecretKey;
@@ -24,6 +25,10 @@ import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Helper service to build transaction request from high level transaction request apis and submit to the network.
+ * To build the final transaction request, this class uses {@link UtxoTransactionBuilder}
+ */
 public class TransactionHelperService {
     private Logger LOG = LoggerFactory.getLogger(TransactionHelperService.class);
 
@@ -76,7 +81,7 @@ public class TransactionHelperService {
      * @throws AddressExcepion
      * @throws CborSerializationException
      */
-    public Result transfer(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
+    public Result<TransactionResult> transfer(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, AddressExcepion, CborSerializationException {
         return transfer(Arrays.asList(paymentTransaction), detailsParams, metadata);
     }
@@ -90,7 +95,7 @@ public class TransactionHelperService {
      * @throws AddressExcepion
      * @throws CborSerializationException
      */
-    public Result<String> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams)
+    public Result<TransactionResult> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams)
             throws ApiException, AddressExcepion, CborSerializationException {
         return transfer(paymentTransactions, detailsParams, null);
     }
@@ -104,7 +109,7 @@ public class TransactionHelperService {
      * @throws AddressExcepion
      * @throws CborSerializationException
      */
-    public Result<String> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams, Metadata metadata)
+    public Result<TransactionResult> transfer(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, AddressExcepion, CborSerializationException {
         String signedTxn = createSignedTransaction(paymentTransactions, detailsParams, metadata);
 
@@ -116,7 +121,8 @@ public class TransactionHelperService {
             LOG.error("Trasaction submission failed");
         }
 
-        return result;
+        //Let's build TransactionResult object
+        return processTransactionResult(signedTxnBytes, result);
     }
 
     /**
@@ -162,7 +168,7 @@ public class TransactionHelperService {
      * @throws ApiException
      * @throws CborSerializationException
      */
-    public Result mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams)
+    public Result<TransactionResult> mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams)
             throws AddressExcepion, ApiException, CborSerializationException {
         return mintToken(mintTransaction, detailsParams, null);
     }
@@ -176,14 +182,14 @@ public class TransactionHelperService {
      * @throws ApiException
      * @throws CborSerializationException
      */
-    public Result mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
+    public Result<TransactionResult> mintToken(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
             throws AddressExcepion, ApiException, CborSerializationException {
         String signedTxn = createSignedMintTransaction(mintTransaction, detailsParams, metadata);
 
         byte[] signedTxnBytes = HexUtil.decodeHexString(signedTxn);
         Result<String> result = transactionService.submitTransaction(signedTxnBytes);
 
-        return result;
+        return processTransactionResult(signedTxnBytes, result);
     }
 
     /**
@@ -233,5 +239,18 @@ public class TransactionHelperService {
             LOG.debug("Signed Txn : " + signedTxn);
         }
         return signedTxn;
+    }
+
+    private Result<TransactionResult> processTransactionResult(byte[] signedTxn, Result<String> result) {
+        TransactionResult transactionResult = new TransactionResult();
+        transactionResult.setSignedTxn(signedTxn);
+
+        if(result.isSuccessful()) {
+            transactionResult.setTransactionId(result.getValue());
+            return Result.success(result.getResponse()).withValue(transactionResult).code(result.code());
+        } else {
+            transactionResult.setTransactionId(null);
+            return Result.error(result.getResponse()).withValue(transactionResult).code(result.code());
+        }
     }
 }

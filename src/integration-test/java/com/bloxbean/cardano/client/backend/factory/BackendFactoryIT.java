@@ -2,15 +2,18 @@ package com.bloxbean.cardano.client.backend.factory;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +44,7 @@ public class BackendFactoryIT extends BFBaseTest {
     }
 
     @Test
-    public void testSendPaymentTransaction() throws ApiException, CborSerializationException, AddressExcepion {
+    public void testSendPaymentTransaction() throws ApiException, CborSerializationException, AddressExcepion, CborDeserializationException {
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
@@ -56,11 +59,12 @@ public class BackendFactoryIT extends BFBaseTest {
                         .build();
 
         Block block = backendService.getBlockService().getLastestBlock().getValue();
-        Result<String> result = backendService.getTransactionHelperService()
+        Result<TransactionResult> result = backendService.getTransactionHelperService()
                 .transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(block.getSlot() + 1000).build());
 
+        System.out.println(JsonUtil.getPrettyJson(Transaction.deserialize(result.getValue().getSignedTxn())));
         if(result.isSuccessful())
-            System.out.println("Transaction Id: " + result.getValue());
+            System.out.println("Transaction Id: " + result.getValue().getTransactionId());
         else
             System.out.println("Transaction failed: " + result);
 

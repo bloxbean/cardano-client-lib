@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.BlockService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
@@ -91,7 +92,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         paymentTransaction.setFee(fee);
 
-        Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
+        Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
@@ -127,7 +128,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         paymentTransaction.setFee(fee);
 
-        Result<String> result =
+        Result<TransactionResult> result =
                 transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         if(result.isSuccessful())
@@ -160,7 +161,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         paymentTransaction.setFee(fee);
 
-        Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
+        Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
@@ -218,7 +219,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         BigInteger fee3 = feeCalculationService.calculateFee(paymentTransaction3, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
         paymentTransaction3.setFee(fee3);
 
-        Result<String> result = transactionHelperService.transfer(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3),
+        Result<TransactionResult> result = transactionHelperService.transfer(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3),
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         if(result.isSuccessful())
@@ -263,7 +264,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         paymentTransaction.setFee(fee);
         System.out.println(fee);
 
-        Result<String> result = transactionHelperService.mintToken(paymentTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(paymentTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(paymentTransaction));
@@ -320,7 +321,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         paymentTransaction.setFee(fee);
         System.out.println(fee);
 
-        Result<String> result = transactionHelperService.mintToken(paymentTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(paymentTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(paymentTransaction));
@@ -379,7 +380,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
@@ -439,7 +440,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
@@ -500,7 +501,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
@@ -566,7 +567,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
@@ -637,7 +638,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
@@ -692,7 +693,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
@@ -752,7 +753,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(mintTransaction));
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction, detailsParams);
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction, detailsParams);
 
         System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
         System.out.println(result);
@@ -811,7 +812,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 .validityStartInterval(afterSlot + 100) //validity start should be after slot or later
                 .build();
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction, detailsParams);
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction, detailsParams);
 
         System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
         System.out.println(result);
@@ -862,7 +863,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         mintTransaction.setFee(fee);
         System.out.println(fee);
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
@@ -917,7 +918,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 = feeCalculationService.calculateFee(mintTransaction, detailsParams, null);
         mintTransaction.setFee(fee);
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println(result);
@@ -976,7 +977,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 = feeCalculationService.calculateFee(mintTransaction, detailsParams, null);
         mintTransaction.setFee(fee);
 
-        Result<String> result = transactionHelperService.mintToken(mintTransaction,
+        Result<TransactionResult> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println(result);
@@ -1031,7 +1032,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         System.out.println(fee);
         paymentTransaction.setFee(fee);
 
-        Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+        Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
@@ -1065,7 +1066,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         paymentTransaction.setFee(fee);
         System.out.println(fee);
 
-        Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+        Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
@@ -1099,7 +1100,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         paymentTransaction.setFee(fee);
         System.out.println(fee);
 
-        Result<String> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
+        Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
         if(result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
@@ -1154,12 +1155,12 @@ class TransactionHelperServiceIT extends BFBaseTest {
         return slot + 2000;
     }
 
-    private void waitForTransaction(Result<String> result) {
+    private void waitForTransaction(Result<TransactionResult> result) {
         try {
             if (result.isSuccessful()) { //Wait for transaction to be mined
                 int count = 0;
                 while (count < 60) {
-                    Result<TransactionContent> txnResult = transactionService.getTransaction(result.getValue());
+                    Result<TransactionContent> txnResult = transactionService.getTransaction(result.getValue().getTransactionId());
                     if (txnResult.isSuccessful()) {
                         System.out.println(JsonUtil.getPrettyJson(txnResult.getValue()));
                         break;
