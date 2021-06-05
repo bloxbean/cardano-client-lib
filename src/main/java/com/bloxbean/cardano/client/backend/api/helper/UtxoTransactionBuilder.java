@@ -36,14 +36,13 @@ public interface UtxoTransactionBuilder {
             AddressExcepion;
 
     /**
-     * Get required utxos by address, unit and amount
+     * Get required utxos by address, unit and amount by calling {@link UtxoSelectionStrategy}
      * @param address
      * @param unit
      * @param amount
      * @return
      * @throws ApiException
      */
-    @Deprecated(forRemoval = true)
     List<Utxo> getUtxos(String address, String unit, BigInteger amount) throws ApiException;
 
     /**
