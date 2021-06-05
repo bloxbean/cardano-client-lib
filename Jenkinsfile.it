@@ -1,0 +1,42 @@
+pipeline {
+    agent any
+
+    parameters {
+         string(
+              defaultValue: '',
+              name: 'TAG_NAME',
+              trim: true
+         )
+    }
+
+    tools {
+        jdk 'jdk-8'
+    }
+
+    environment {
+        SIGNING_PASSWORD = credentials("signing_password")
+        BF_PROJECT_ID = credentials("BF_PROJECT_ID")
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                 sh  "chmod +x scripts/download_libs.sh"
+                 sh  "./scripts/download_libs.sh  ${TAG_NAME}"
+                 sh  './gradlew build fatJar -Psigning.password=${SIGNING_PASSWORD} --stacktrace'
+            }
+        }
+
+        stage('integrationTest') {
+             steps {
+                sh  './gradlew integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID}'
+             }
+        }
+
+        stage('Results') {
+            steps {
+                archiveArtifacts 'build/libs/*.jar'
+            }
+        }
+    }
+}

@@ -88,6 +88,9 @@ task fatJar(type: Jar) {
 
 test {
     useJUnitPlatform()
+    testLogging {
+        showStandardStreams = true
+    }
 }
 
 task integrationTest(type: Test) {
@@ -97,6 +100,10 @@ task integrationTest(type: Test) {
     classpath = sourceSets.integrationTest.runtimeClasspath
     outputs.upToDateWhen { false }
    // mustRunAfter(tasks.named('test'))
+    systemProperty('BF_PROJECT_ID', findProperty("BF_PROJECT_ID"))
+    testLogging {
+        showStandardStreams = true
+    }
 }
 
 integrationTest {
