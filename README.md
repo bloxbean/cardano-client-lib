@@ -65,14 +65,14 @@ will be added in future release.
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.1.1</version>
+            <version>0.1.2</version>
         </dependency>
 ```
 
 - For Gradle, add the following dependency to build.gradle
 
 ```
-compile 'com.bloxbean.cardano:cardano-client-lib:0.1.1'
+compile 'com.bloxbean.cardano:cardano-client-lib:0.1.2'
 ```
 
 ### Account API Usage
