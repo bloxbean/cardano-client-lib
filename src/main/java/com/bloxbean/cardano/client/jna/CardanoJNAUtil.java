@@ -134,6 +134,32 @@ public class CardanoJNAUtil {
     }
 
     /**
+     * Return hex encoded string (bytes) for a base58 (byron) address
+     * @param base58Address
+     * @return
+     */
+    public static String base58AddressToBytes(String base58Address) {
+        Pointer pointer = CardanoJNA.INSTANCE.base58AddressToBytes(base58Address);
+        String result = pointer.getString(0);
+
+        CardanoJNA.INSTANCE.dropCharPointer(pointer);
+        return result;
+    }
+
+    /**
+     * Return base58(byron) address
+     * @param addressBytesInHex
+     * @return
+     */
+    public static String hexBytesToBase58Address(String addressBytesInHex) {
+        Pointer pointer = CardanoJNA.INSTANCE.hexBytesToBase58Address(addressBytesInHex);
+        String result = pointer.getString(0);
+
+        CardanoJNA.INSTANCE.dropCharPointer(pointer);
+        return result;
+    }
+
+    /**
      * Return signed transaction bytes in hex
      * @param rawTxnInHex
      * @param privateKey

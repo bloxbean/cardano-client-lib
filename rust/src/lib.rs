@@ -230,6 +230,47 @@ pub fn hexBytesToBech32Address(hexAddress: *const c_char)  -> *const c_char {
 
 #[no_mangle]
 #[allow(non_snake_case)]
+pub fn base58AddressToBytes(base58Address: *const c_char) -> *const c_char { //byron address
+    let result = panic::catch_unwind(|| {
+        let _address =  to_string(base58Address);
+        let bytes = address::base58_address_to_bytes(_address.as_str());
+
+        let hexStr = hex::encode(bytes.as_slice());
+
+        to_ptr(hexStr)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn hexBytesToBase58Address(hexAddress: *const c_char)  -> *const c_char { //byron address
+    let result = panic::catch_unwind(|| {
+        let _hexAddress =  to_string(hexAddress);
+        let byteAddress = hex::decode(_hexAddress).unwrap();
+
+        let base58Address = address::bytes_to_base58_address(byteAddress);
+
+        to_ptr(base58Address)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
+
+#[no_mangle]
+#[allow(non_snake_case)]
 pub fn sign(rawTxnHex: *const c_char, privateKey: *const c_char) -> *const c_char {
     let result = panic::catch_unwind(|| {
         let rawTxnInHexStr =  to_string(rawTxnHex);

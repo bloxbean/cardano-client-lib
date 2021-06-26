@@ -4,7 +4,7 @@ use std::os::raw::c_char;
 use std::str;
 
 use bip39::{Language, Mnemonic, MnemonicType};
-use cardano_serialization_lib::address::{BaseAddress, NetworkInfo, Pointer, PointerAddress, StakeCredential, EnterpriseAddress, Address};
+use cardano_serialization_lib::address::{BaseAddress, NetworkInfo, Pointer, PointerAddress, StakeCredential, EnterpriseAddress, Address, ByronAddress};
 use cardano_serialization_lib::chain_core::property::FromStr;
 use cardano_serialization_lib::crypto::{Bip32PrivateKey, PrivateKey};
 use rand::prelude::*;
@@ -165,9 +165,19 @@ pub fn get_public_key_bytes_from_mnemonic(phrase: &str, index: u32) -> Vec<u8> {
     pubKey
 }
 
+pub fn base58_address_to_bytes(address: &str) -> Vec<u8> {
+    let address = ByronAddress::from_base58(address).unwrap();
+    address.to_bytes()
+}
+
+pub fn bytes_to_base58_address(bytes: Vec<u8>) -> String {
+    let address = ByronAddress::from_bytes(bytes);
+    address.unwrap().to_base58()
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic, bech32_address_to_bytes, get_private_key_from_mnemonic, get_private_key_bytes_from_mnemonic, get_public_key_bytes_from_mnemonic};
+    use crate::address::{generate_mnemonic, get_baseaddress_from_mnemonic, get_enterpriseaddress_from_mnemonic, bech32_address_to_bytes, get_private_key_from_mnemonic, get_private_key_bytes_from_mnemonic, get_public_key_bytes_from_mnemonic, base58_address_to_bytes, bytes_to_base58_address};
 
     #[test]
     fn get_baseaddress_from_mnemonic_15words() {
@@ -283,4 +293,22 @@ mod tests {
         // assert_eq!(expected, pvtKey);
         assert_eq!(true, pubKey.len() > 10); //random number 10
     }
+
+    #[test]
+    fn test_base58_address_to_bytes() {
+        let byron_addr = "DdzFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREK";
+        let bytes = base58_address_to_bytes(byron_addr);
+        assert_ne!(0, bytes.len())
+    }
+
+    #[test]
+    fn test_bytes_to_base58_address() {
+        let byron_addr = "DdzFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREK";
+        let bytes = base58_address_to_bytes(byron_addr);
+
+        let new_addr = bytes_to_base58_address(bytes);
+        print!("{}", new_addr);
+        assert_eq!(byron_addr, new_addr);
+    }
+
 }

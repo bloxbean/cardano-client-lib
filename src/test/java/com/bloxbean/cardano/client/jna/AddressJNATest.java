@@ -45,6 +45,9 @@ public class AddressJNATest {
     String testnetEntAddress1 = "addr_test1vp3jwnn3hvgcuv02tqe08lpdkxxpmvapxgjxwewya47tqsg99fsju";
     String testnetEntAddress2 = "addr_test1vrpr30ykyfa3pw6qkkun3dyyxsvftq3xukuyxdt58pxcpxgh9ewg";
 
+    String testByronAddress0 = "DdzFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREK";
+    private String testByronAddress1 = "Ae2tdPwUPEZ3MHKkpT5Bpj549vrRH7nBqYjNXnCV8G2Bc2YxNcGHEa8ykDp";
+
     @Test
     public void testGetBaseAddressFromMnemonicIndex_0() {
         String baseAddress = CardanoJNAUtil.getBaseAddress(phrase24W, 0, false);
@@ -168,5 +171,33 @@ public class AddressJNATest {
         Assertions.assertThrows(AddressRuntimeException.class, () -> {
             byte[] pubKey = CardanoJNAUtil.getPublicKeyBytesFromMnemonic(phrase24W.substring(3), 0);
         });
+    }
+
+    @Test
+    public void testBase58AddressToBytes() {
+        String addressInHex = CardanoJNAUtil.base58AddressToBytes(testByronAddress0);
+        Assertions.assertNotEquals(0, HexUtil.decodeHexString(addressInHex));
+    }
+
+    @Test
+    public void testBase58AddressToBytes1() {
+        String addressInHex = CardanoJNAUtil.base58AddressToBytes(testByronAddress1);
+        Assertions.assertNotEquals(0, HexUtil.decodeHexString(addressInHex));
+    }
+
+    @Test
+    public void testHexBytesToBase58Address() {
+        String addressInHex = CardanoJNAUtil.base58AddressToBytes(testByronAddress0);
+
+        String byronAddress = CardanoJNAUtil.hexBytesToBase58Address(addressInHex);
+        Assertions.assertEquals(testByronAddress0, byronAddress);
+    }
+
+    @Test
+    public void testHexBytesToBase58Address1() {
+        String addressInHex = CardanoJNAUtil.base58AddressToBytes(testByronAddress1);
+
+        String byronAddress = CardanoJNAUtil.hexBytesToBase58Address(addressInHex);
+        Assertions.assertEquals(testByronAddress1, byronAddress);
     }
 }

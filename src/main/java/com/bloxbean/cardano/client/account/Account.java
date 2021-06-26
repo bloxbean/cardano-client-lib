@@ -183,7 +183,16 @@ public class Account {
     }
 
     public static byte[] toBytes(String address) throws AddressExcepion {
-        String hexStr = CardanoJNAUtil.bech32AddressToBytes(address);
+        if(address == null)
+            return null;
+
+        String hexStr = null;
+        if(address.startsWith("addr")) { //Shelley address
+            hexStr = CardanoJNAUtil.bech32AddressToBytes(address);
+        } else { //Try for byron address
+            hexStr = CardanoJNAUtil.base58AddressToBytes(address);
+        }
+
         if(hexStr == null || hexStr.length() == 0)
             throw new AddressExcepion("Address to bytes failed");
 
@@ -192,6 +201,15 @@ public class Account {
         } catch (Exception e) {
             throw new AddressExcepion("Address to bytes failed", e);
         }
+    }
+
+    public static String bytesToBase58Address(byte[] bytes) throws AddressExcepion { //byron address
+        String address = CardanoJNAUtil.hexBytesToBase58Address(HexUtil.encodeHexString(bytes));
+
+        if(address == null || address.isEmpty())
+            throw new AddressExcepion("Bytes cannot be converted to base58 address");
+
+        return address;
     }
 
     public static String bytesToBech32(byte[] bytes) throws AddressExcepion {

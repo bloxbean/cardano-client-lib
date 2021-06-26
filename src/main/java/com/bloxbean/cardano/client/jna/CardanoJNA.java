@@ -54,6 +54,20 @@ interface CardanoJNA extends Library {
     public Pointer hexBytesToBech32Address(String addressBytesInHex);
 
     /**
+     * Return hex encoded string (bytes) for a base58 (byron) address
+     * @param base58Address
+     * @return
+     */
+    public Pointer base58AddressToBytes(String base58Address);
+
+    /**
+     * Return base58(byron) address
+     * @param addressBytesInHex
+     * @return
+     */
+    public Pointer hexBytesToBase58Address(String addressBytesInHex);
+
+    /**
      * Return signed transaction bytes in hex
      * @param rawTxnInHex
      * @param privateKey

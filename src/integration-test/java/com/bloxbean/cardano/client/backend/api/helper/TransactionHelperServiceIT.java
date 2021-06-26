@@ -105,6 +105,37 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
+    void transferToByronAddress() throws CborSerializationException, AddressExcepion, ApiException {
+
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String receiver = "2cWKMJemoBaipzQe9BArYdo2iPUfJQdZAjm4iCzDA1AfNxJSTgm9FZQTmFCYhKkeYrede";
+
+        PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(1500000))
+                        .unit("lovelace")
+                        .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+
+        paymentTransaction.setFee(fee);
+
+        Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        waitForTransaction(result);
+
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
     void transferWithAdditionalWitness() throws CborSerializationException, AddressExcepion, ApiException {
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
