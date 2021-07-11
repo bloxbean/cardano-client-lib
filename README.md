@@ -39,12 +39,14 @@ For anyother platform, please create a request [here](https://github.com/bloxbea
 - Native script (ScriptAll, ScriptAny, ScriptAtLeast, ScriptPubKey, RequireTimeAfter, RequireTimeBefore)
 - Policy Id generation
 
-#### Backend Integration (Blockfrost)
+#### Backend Integration
 The plugin also provides integration with Cardano node through different backend services. 
-The library currently only supports integration with [Blockfrost](https://blockfrost.io) through the Backend api. But other backend like Cardano-wallet
-will be added in future release.
+Out of box, the library currently supports integration with [Blockfrost](https://blockfrost.io) through the Backend api. 
 
-- Transaction Submission (Payment & Token Minting)
+For cardano-graphql backend, check [cardano-client-backend-gql](https://github.com/bloxbean/cardano-client-backend-gql) extension.
+
+Other backend like Cardano-wallet will be added in future release.
+
 
 **Following Backend apis are currently available**
 - TransactionService (Submit transaction, Get transaction)
@@ -79,7 +81,7 @@ compile 'com.bloxbean.cardano:cardano-client-lib:0.1.2'
 
 - Create a New Account
 
-```aidl
+```
 Account account = new Account();   //Create a Mainnet account
 
 Account account = new Account(Networks.mainnet());   //Create a Mainnet account
@@ -87,7 +89,7 @@ Account account = new Account(Networks.mainnet());   //Create a Mainnet account
 Account account = new Account(Networks.testnet());  //Create a Testnet account
 ```
 - Get base address, enterprise address, mnemonic
-```aidl
+```
 String baseAddress = account.baseAddress();  //Base address at index=0
 
 String enterpriseAddress = account.account.enterpriseAddress();  //Enterprise address at index = 0
@@ -97,7 +99,7 @@ String mnemonic = account.mnemonic();  //Get Mnemonic
 
 - Get Account from Mnemonic
 
-```aidl
+```
 String mnemonic = "...";
 Account account = new Account(mnemonic);  //Create a Mainnet account from Mnemonic
 
@@ -121,7 +123,7 @@ AddressService addressService = backendService.getAddressService();
 ```
 
 ### Simple ADA Payment transaction
-```aidl
+```
   PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                                             .sender(sender)
                                             .receiver(receiver)
@@ -148,7 +150,7 @@ AddressService addressService = backendService.getAddressService();
       System.out.println("Transaction Id: " + result.getValue());
 ```
 ### Native Token transfer
-```aidl
+```
  PaymentTransaction paymentTransaction =
                 PaymentTransaction.builder()
                         .sender(sender)
@@ -176,7 +178,7 @@ AddressService addressService = backendService.getAddressService();
 ```
 
 ### ScriptHash
-```aidl
+```
 Example: 1
 
 ScriptPubkey scriptPubkey = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884")
@@ -202,7 +204,7 @@ String policyId = scriptAtLeast.getPolicyId();
 
 ```
 ### Token Minting transaction
-```aidl
+```
 MultiAsset multiAsset = new MultiAsset();
 multiAsset.setPolicyId(policyId);
 
@@ -270,7 +272,7 @@ Result<String> result
 ## Use as a standalone application
 The library also provides some CLI utilities. Download `cardano-client-lib-all-<version>.jar` from release section.
 
-```aidl
+```
 $> java -jar cardano-client-lib-all-<version>.jar  account generate [-ea] [-n mainnet|testnet] [-t total_no_of_accounts]
 $> java -jar cardano-client-lib-all-<version>.jar  account from-mnemonic [-mn mnemonic] [-ea] [-n <mainnet|testnet>] [-t total_no_of_accounts]
    
@@ -278,7 +280,7 @@ $> java -jar cardano-client-lib-all-<version>.jar  account from-mnemonic [-mn mn
 ```
 
 Examples:
-```aidl
+```
 - java -jar cardano-client-lib-all-<version>.jar account generate  //Generate a new mainnet account
 - java -jar cardano-client-lib-all-<version>.jar account generate -n testnet  //Generate a new testnet account
 - java -jar cardano-client-lib-all-<version>.jar account generate -ea  //Generate a new account and both Base Address and Enterprise address
@@ -288,7 +290,7 @@ Examples:
 ```
 - Generate a new Mainnet account
 
-```aidl
+```
 $> java -jar cardano-client-lib-all-0.0.1.jar account generate
 
 Output: 
@@ -296,7 +298,7 @@ Mnemonic  : stable fade square ...
 Base Address-0: addr1q9nj6uysd93x ...
 ```
 - Generate a new Testnet account
-```aidl
+```
 $> java -jar cardano-client-lib-all-0.0.1.jar account generate -n testnet
 
 Output:
@@ -318,7 +320,7 @@ git submodule update --init --recursive
 ```
 
 # Run Integration Tests
-```aidl
+```
 export BF_PROJECT_ID=<Blockfrost Project Id>
 ./gradlew integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID} 
 ```
