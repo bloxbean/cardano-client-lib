@@ -325,6 +325,10 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 ./gradlew integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID} 
 ```
 
+# Used by
+* [EASY1 Stake Pool Raffles](https://raffles.easystaking.online)
+* [Cardanotales](https://cardanotales.com)
+
 ---
 
 ##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
