@@ -27,8 +27,7 @@ public class AddressUtilTest {
         assertFalse(isValid);
     }
 
-    //@Test
-    //FIXME
+    @Test
     public void testValidByronAddr() {
         boolean isValid = AddressUtil.isValidAddress("DdzFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREK");
 
