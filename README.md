@@ -4,6 +4,9 @@ A client library for Cardano in Java.
 For some features like transaction signing and address generation, it currently uses [cardano-serialization-lib](https://github.com/Emurgo/cardano-serialization-lib) rust library though JNI. The library
 bundles the platform specific binaries of cardano-serialization-lib. You can check the currently supported operating systems below. This dependency will be removed in the future release.
 
+**Note (Alonzo Support) :** 
+The Alonzo related changes are currently **under development**. But the existing features like transfer transaction, token minting etc should work as long as you are using Utxos not specific to smart contract (or, data_hash field is null in Utxo). 
+
 ## Supported Operating Systems
 The library has been tested on the following Operating Systems. 
 
@@ -268,6 +271,17 @@ paymentTransaction.setFee(fee);
 Result<String> result
                 = transactionHelperService.transfer(paymentTransaction, detailsParams, metadata);
 ```
+
+## UtxoSelectionStrategy
+The utxo selection strategy can be changed by providing a custom implementation of "UtxoSelectionStrategy" interface. By default, the high level api like TransactionHelperService uses a default out-of-box implementation "DefaultUtxoSelectionStrategyImpl". The default strategy is too simple and finds all required utxos sequentially. But it may not be efficient for some usecases.
+
+You can create a custom implementation of UtxoSelectionStrategy to change the default utxo selection behaviour. The custom UtxoSelectionStrategy impl can then be set in the UtxoTransactionBuilder through TransactionHelperService.
+
+```
+UtxoSelectionStrategy customUtxoSelectionStrategy = new CustomUtxoSelectionStrategyImpl(utxoService); //Your custom impl
+transactionHelperService.getUtxoTransactionBuilder().setUtxoSelectionStrategy(customUtxoSelectionStrategy);
+```
+
 
 ## Use as a standalone application
 The library also provides some CLI utilities. Download `cardano-client-lib-all-<version>.jar` from release section.
