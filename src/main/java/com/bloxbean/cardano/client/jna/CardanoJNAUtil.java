@@ -1,9 +1,11 @@
 package com.bloxbean.cardano.client.jna;
 
+import com.bloxbean.cardano.client.common.Bech32;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.sun.jna.Pointer;
+import org.bouncycastle.util.encoders.Hex;
 
 public class CardanoJNAUtil {
 
@@ -38,6 +40,7 @@ public class CardanoJNAUtil {
         CardanoJNA.INSTANCE.dropCharPointer(pointer);
         return result;
     }
+
     public static String generateMnemonic() {
         Pointer pointer = CardanoJNA.INSTANCE.generateMnemonic();
         String result = pointer.getString(0);
@@ -48,6 +51,7 @@ public class CardanoJNAUtil {
 
     /**
      * Returns private key in bech32
+     *
      * @param phrase
      * @param index
      * @return
@@ -69,6 +73,7 @@ public class CardanoJNAUtil {
 
     /**
      * Returns private key raw bytes
+     *
      * @param phrase
      * @param index
      * @return
@@ -83,13 +88,14 @@ public class CardanoJNAUtil {
             } else {
                 return HexUtil.decodeHexString(result);
             }
-        }finally {
+        } finally {
             CardanoJNA.INSTANCE.dropCharPointer(pointer);
         }
     }
 
     /**
      * Returns public key raw bytes
+     *
      * @param phrase
      * @param index
      * @return
@@ -104,7 +110,7 @@ public class CardanoJNAUtil {
             } else {
                 return HexUtil.decodeHexString(result);
             }
-        }finally {
+        } finally {
             CardanoJNA.INSTANCE.dropCharPointer(pointer);
         }
     }
@@ -113,15 +119,13 @@ public class CardanoJNAUtil {
      * Returns hex encoded string
      */
     public static String bech32AddressToBytes(String bech32Address) {
-        Pointer pointer = CardanoJNA.INSTANCE.bech32AddressToBytes(bech32Address);
-        String result = pointer.getString(0);
-
-        CardanoJNA.INSTANCE.dropCharPointer(pointer);
-        return result;
+        Bech32.Bech32Data result = Bech32.decode(bech32Address);
+        return Hex.toHexString(result.data);
     }
 
     /**
      * Return bech32 address
+     *
      * @param addressBytesInHex
      * @return
      */
@@ -135,6 +139,7 @@ public class CardanoJNAUtil {
 
     /**
      * Return hex encoded string (bytes) for a base58 (byron) address
+     *
      * @param base58Address
      * @return
      */
@@ -148,6 +153,7 @@ public class CardanoJNAUtil {
 
     /**
      * Return base58(byron) address
+     *
      * @param addressBytesInHex
      * @return
      */
@@ -161,6 +167,7 @@ public class CardanoJNAUtil {
 
     /**
      * Return signed transaction bytes in hex
+     *
      * @param rawTxnInHex
      * @param privateKey
      * @return
@@ -175,6 +182,7 @@ public class CardanoJNAUtil {
 
     /**
      * Return signed transaction bytes in hex
+     *
      * @param rawTxnInHex
      * @param privateKey
      * @return
@@ -189,6 +197,7 @@ public class CardanoJNAUtil {
 
     /**
      * Validate if CBOR is valid for the transaction. Used only in Tests
+     *
      * @param rawTxnInHex
      * @return
      */

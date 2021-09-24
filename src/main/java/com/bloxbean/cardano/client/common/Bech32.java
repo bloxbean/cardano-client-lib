@@ -19,12 +19,12 @@ public class Bech32 {
     private static final String B32Chars = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
 
-    public static class Bech32DataV2 {
+    public static class Bech32Data {
         public final String hrp;
         public final byte[] data;
         public final byte ver;
 
-        private Bech32DataV2(final String hrp, final byte[] data, byte ver) {
+        private Bech32Data(final String hrp, final byte[] data, byte ver) {
             this.hrp = hrp;
             this.data = data;
             this.ver = ver;
@@ -173,7 +173,7 @@ public class Bech32 {
 
     }
 
-    public static Bech32DataV2 decode(String bech32EncodedString) {
+    public static Bech32Data decode(String bech32EncodedString) {
         Tuple<String, byte[]> bech32Data = bech32Decode(bech32EncodedString);
 
         String hrp = bech32Data._1;
@@ -194,7 +194,7 @@ public class Bech32 {
         }
 
         var witVer = b32Arr[0];
-        return new Bech32DataV2(hrp, b256Arr, witVer);
+        return new Bech32Data(hrp, b256Arr, witVer);
     }
 
     public static String encode(byte[] data, String hrp) {
