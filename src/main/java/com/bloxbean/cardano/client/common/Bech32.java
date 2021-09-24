@@ -36,7 +36,7 @@ public class Bech32 {
             return false;
         }
 
-        var data = bech32Decode(bech32EncodedString);
+        Tuple<String, byte[]> data = bech32Decode(bech32EncodedString);
         if (data._2.length < CheckSumSize) {
             return false;
         }
@@ -119,8 +119,8 @@ public class Bech32 {
         bech32EncodedString = bech32EncodedString.toLowerCase();
 
         int separatorIndex = bech32EncodedString.lastIndexOf(Separator);
-        var hrp = bech32EncodedString.substring(0, separatorIndex);
-        var data = bech32EncodedString.substring(separatorIndex + 1);
+        String hrp = bech32EncodedString.substring(0, separatorIndex);
+        String data = bech32EncodedString.substring(separatorIndex + 1);
 
         byte[] b32Arr = new byte[data.length()];
         for (int i = 0; i < data.length(); i++) {
@@ -143,7 +143,7 @@ public class Bech32 {
         List<Byte> result = new ArrayList<>();
         for (byte _b : data) {
             // Speed doesn't matter for this class but we can skip this check for 8 to 5 conversion.
-            var b = Byte.toUnsignedInt(_b);
+            int b = Byte.toUnsignedInt(_b);
             if ((b >> fromBits) > 0) {
                 System.out.println("a");
                 return null;
@@ -174,10 +174,10 @@ public class Bech32 {
     }
 
     public static Bech32DataV2 decode(String bech32EncodedString) {
-        var bech32Data = bech32Decode(bech32EncodedString);
+        Tuple<String, byte[]> bech32Data = bech32Decode(bech32EncodedString);
 
-        var hrp = bech32Data._1;
-        var b32Arr = bech32Data._2;
+        String hrp = bech32Data._1;
+        byte[] b32Arr = bech32Data._2;
 
         if (b32Arr.length < CheckSumSize) {
             throw new RuntimeException("Invalid data length.");
