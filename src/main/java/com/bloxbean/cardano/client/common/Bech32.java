@@ -1,55 +1,90 @@
 package com.bloxbean.cardano.client.common;
 
-/*
- * Copyright 2018 Coinomi Ltd
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-import java.util.*;
+import com.bloxbean.cardano.client.util.Tuple;
+import com.google.common.base.Strings;
+import org.bouncycastle.util.Arrays;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class Bech32 {
-    /**
-     * The Bech32 character set for encoding.
-     */
-    private static final String CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
-    /**
-     * The Bech32 character set for decoding.
-     */
-    private static final byte[] CHARSET_REV = {
-            -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-            -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-            -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
-            15, -1, 10, 17, 21, 20, 26, 30, 7, 5, -1, -1, -1, -1, -1, -1,
-            -1, 29, -1, 24, 13, 25, 9, 8, 23, -1, 18, 22, 31, 27, 19, -1,
-            1, 0, 3, 16, 11, 28, 12, 14, 6, 4, 2, -1, -1, -1, -1, -1,
-            -1, 29, -1, 24, 13, 25, 9, 8, 23, -1, 18, 22, 31, 27, 19, -1,
-            1, 0, 3, 16, 11, 28, 12, 14, 6, 4, 2, -1, -1, -1, -1, -1
-    };
+    private static final int TotalMaxLength = 108; //103 = mainnet length of a delegation address, 108 = testnet length
+    private static final int CheckSumSize = 6;
+    private static final int HrpMinLength = 1;
+    private static final int HrpMaxLength = 83;
+    private static final int HrpMinValue = 33;
+    private static final int HrpMaxValue = 126;
+    private static final char Separator = '1';
+    private static final String B32Chars = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
-    public static class Bech32Data {
+
+    public static class Bech32DataV2 {
         public final String hrp;
         public final byte[] data;
+        public final byte ver;
 
-        private Bech32Data(final String hrp, final byte[] data) {
+        private Bech32DataV2(final String hrp, final byte[] data, byte ver) {
             this.hrp = hrp;
             this.data = data;
+            this.ver = ver;
         }
     }
 
-    /**
-     * Find the polynomial with value coefficients mod the generator as 30-bit.
-     */
+    public static boolean isValid(String bech32EncodedString) {
+        if (!hasValidChars(bech32EncodedString)) {
+            return false;
+        }
+
+        var data = bech32Decode(bech32EncodedString);
+        if (data._2.length < CheckSumSize) {
+            return false;
+        }
+
+        return verifyChecksum(data._1, data._2);
+    }
+
+    public static boolean hasValidChars(String bech32EncodedString) {
+
+        if (Strings.isNullOrEmpty(bech32EncodedString) || bech32EncodedString.length() > TotalMaxLength) {
+            return false;
+        }
+
+        // Reject mixed upper and lower characters.
+        if (!bech32EncodedString.toLowerCase().equals(bech32EncodedString) && !bech32EncodedString.toUpperCase().equals(bech32EncodedString)) {
+            return false;
+        }
+
+        // Check if it has a separator
+        int sepIndex = bech32EncodedString.lastIndexOf(Separator);
+        if (sepIndex == -1) {
+            return false;
+        }
+
+        // Validate human readable part
+        String hrp = bech32EncodedString.substring(0, sepIndex);
+        if (!isValidHrp(hrp)) {
+            return false;
+        }
+
+        // Validate data part
+        String data = bech32EncodedString.substring(sepIndex + 1);
+        if (data.length() < CheckSumSize || data.chars().anyMatch(x -> B32Chars.indexOf(x) == -1)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static boolean isValidHrp(String hrp) {
+        return hrp != null &&
+                hrp.trim().length() > 0 &&
+                hrp.length() >= HrpMinLength &&
+                hrp.length() < HrpMaxLength &&
+                hrp.chars().allMatch(character -> character >= HrpMinValue && character <= HrpMaxValue);
+    }
+
+
     private static int polymod(final byte[] values) {
         int c = 1;
         for (byte v_i : values) {
@@ -64,129 +99,135 @@ public class Bech32 {
         return c;
     }
 
-    /**
-     * Expand a HRP for use in checksum computation.
-     */
-    private static byte[] expandHrp(final String hrp) {
-        int hrpLength = hrp.length();
-        byte ret[] = new byte[hrpLength * 2 + 1];
-        for (int i = 0; i < hrpLength; ++i) {
-            int c = hrp.charAt(i) & 0x7f; // Limit to standard 7-bit ASCII
-            ret[i] = (byte) ((c >>> 5) & 0x07);
-            ret[i + hrpLength + 1] = (byte) (c & 0x1f);
+    private static byte[] expandHrp(String hrp) {
+        byte[] result = new byte[(2 * hrp.length()) + 1];
+        for (int i = 0; i < hrp.length(); i++) {
+            result[i] = (byte) (((int) hrp.charAt(i)) >> 5);
+            result[i + hrp.length() + 1] = (byte) (((int) hrp.charAt(i)) & 0b0001_1111 /*=31*/);
         }
-        ret[hrpLength] = 0;
-        return ret;
+        return result;
     }
 
-    /**
-     * Verify a checksum.
-     */
-    private static boolean verifyChecksum(final String hrp, final byte[] values) {
-        byte[] hrpExpanded = expandHrp(hrp);
-        byte[] combined = new byte[hrpExpanded.length + values.length];
-        System.arraycopy(hrpExpanded, 0, combined, 0, hrpExpanded.length);
-        System.arraycopy(values, 0, combined, hrpExpanded.length, values.length);
-        return polymod(combined) == 1;
+    private static boolean verifyChecksum(String hrp, byte[] data) {
+        byte[] temp = Arrays.concatenate(expandHrp(hrp), data);
+        return polymod(temp) == 1;
     }
 
-    /**
-     * Create a checksum.
-     */
-    private static byte[] createChecksum(final String hrp, final byte[] values) {
-        byte[] hrpExpanded = expandHrp(hrp);
-        byte[] enc = new byte[hrpExpanded.length + values.length + 6];
-        System.arraycopy(hrpExpanded, 0, enc, 0, hrpExpanded.length);
-        System.arraycopy(values, 0, enc, hrpExpanded.length, values.length);
-        int mod = polymod(enc) ^ 1;
-        byte[] ret = new byte[6];
-        for (int i = 0; i < 6; ++i) {
-            ret[i] = (byte) ((mod >>> (5 * (5 - i))) & 31);
+
+    private static Tuple<String, byte[]> bech32Decode(String bech32EncodedString) {
+
+        bech32EncodedString = bech32EncodedString.toLowerCase();
+
+        int separatorIndex = bech32EncodedString.lastIndexOf(Separator);
+        var hrp = bech32EncodedString.substring(0, separatorIndex);
+        var data = bech32EncodedString.substring(separatorIndex + 1);
+
+        byte[] b32Arr = new byte[data.length()];
+        for (int i = 0; i < data.length(); i++) {
+            b32Arr[i] = (byte) B32Chars.indexOf(data.charAt(i));
         }
-        return ret;
+
+        return new Tuple(hrp, b32Arr);
     }
 
-    /**
-     * Encode a Bech32 string.
-     */
-    public static String encode(final Bech32Data bech32) {
-        return encode(bech32.hrp, bech32.data);
-    }
+    private static byte[] convertBits(byte[] data, int fromBits, int toBits, boolean pad) {
+        // TODO: Optimize Looping
+        // We can use a method similar to BIP39 here to avoid the nested loop, usage of List, increase the speed,
+        // and shorten this function to 3 lines.
+        // Or convert to ulong[], loop through it (3 times) take 5 bits at a time or 8 bits at a time...
+        int acc = 0;
+        int bits = 0;
+        int maxv = (1 << toBits) - 1;
+        int maxacc = (1 << (fromBits + toBits - 1)) - 1;
 
-    /**
-     * Encode a Bech32 string.
-     */
-    public static String encode(String hrp, final byte[] values) {
-        if(hrp.length() < 1){
-            throw new IllegalArgumentException("Human-readable part is too short");
-        }
-        if(hrp.length() > 84){
-            throw new IllegalArgumentException("Human-readable part is too long");
-        }
-        hrp = hrp.toLowerCase(Locale.ROOT);
-        byte[] checksum = createChecksum(hrp, values);
-        byte[] combined = new byte[values.length + checksum.length];
-        System.arraycopy(values, 0, combined, 0, values.length);
-        System.arraycopy(checksum, 0, combined, values.length, checksum.length);
-        StringBuilder sb = new StringBuilder(hrp.length() + 1 + combined.length);
-        sb.append(hrp);
-        sb.append('1');
-        for (byte b : combined) {
-            sb.append(CHARSET.charAt(b));
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Decode a Bech32 string.
-     */
-    public static Bech32Data decode(final String str) {
-        boolean lower = false, upper = false;
-        if (str.length() < 8) {
-            throw new IllegalArgumentException("Input too short. Length = " + str.length());
-        }
-        if (str.length() > 90) {
-            throw new IllegalArgumentException("Input too long. Length = " + str.length());
-        }
-        for (int i = 0; i < str.length(); ++i) {
-            char c = str.charAt(i);
-            if (c < 33 || c > 126) {
-                throw new IllegalArgumentException("Invalid character " + c + " at index " + i);
+        List<Byte> result = new ArrayList<>();
+        for (byte _b : data) {
+            // Speed doesn't matter for this class but we can skip this check for 8 to 5 conversion.
+            var b = Byte.toUnsignedInt(_b);
+            if ((b >> fromBits) > 0) {
+                System.out.println("a");
+                return null;
             }
-            if (c >= 'a' && c <= 'z') {
-                if (upper) {
-                    throw new IllegalArgumentException("Invalid character " + c + " at index " + i);
-                }
-                lower = true;
-            }
-            if (c >= 'A' && c <= 'Z') {
-                if (lower) {
-                    throw new IllegalArgumentException("Invalid character " + c + " at index " + i);
-                }
-                upper = true;
+            acc = ((acc << fromBits) | b) & maxacc;
+            bits += fromBits;
+            while (bits >= toBits) {
+                bits -= toBits;
+                result.add((byte) ((acc >> bits) & maxv));
             }
         }
-        final int pos = str.lastIndexOf('1');
-        if (pos < 1) {
-            throw new IllegalArgumentException("Missing human-readable part");
-        }
-        final int dataPartLength = str.length() - 1 - pos;
-        if (dataPartLength < 6) {
-            throw new IllegalArgumentException("Data part too short. Length = " + dataPartLength);
-        }
-        byte[] values = new byte[dataPartLength];
-        for (int i = 0; i < dataPartLength; ++i) {
-            char c = str.charAt(i + pos + 1);
-            if (CHARSET_REV[c] == -1) {
-                throw new IllegalArgumentException("Invalid character " + c + " at index " + (i + pos + 1));
+        if (pad) {
+            if (bits > 0) {
+                result.add((byte) ((acc << (toBits - bits)) & maxv));
             }
-            values[i] = CHARSET_REV[c];
+        } else if (bits >= fromBits || (byte) ((acc << (toBits - bits)) & maxv) != 0) {
+            System.out.println("b");
+            return null;
         }
-        String hrp = str.substring(0, pos).toLowerCase(Locale.ROOT);
-        if (!verifyChecksum(hrp, values)) {
-            throw new IllegalArgumentException("Invalid checksum");
+
+        byte[] res = new byte[result.size()];
+        for (int i = 0; i < result.size(); i++) {
+            res[i] = result.get(i);
         }
-        return new Bech32Data(hrp, Arrays.copyOfRange(values, 0, values.length - 6));
+
+        return res;
+
     }
+
+    public static Bech32DataV2 decode(String bech32EncodedString) {
+        var bech32Data = bech32Decode(bech32EncodedString);
+
+        var hrp = bech32Data._1;
+        var b32Arr = bech32Data._2;
+
+        if (b32Arr.length < CheckSumSize) {
+            throw new RuntimeException("Invalid data length.");
+        }
+        if (!verifyChecksum(hrp, b32Arr)) {
+            throw new RuntimeException("Invalid checksum.");
+        }
+
+
+        byte[] data = Arrays.copyOfRange(b32Arr, 0, b32Arr.length - CheckSumSize);
+        byte[] b256Arr = convertBits(data, 5, 8, false);
+        if (b256Arr == null) {
+            throw new RuntimeException("Invalid data format.");
+        }
+
+        var witVer = b32Arr[0];
+        return new Bech32DataV2(hrp, b256Arr, witVer);
+    }
+
+    public static String encode(byte[] data, String hrp) {
+        if (data == null || data.length == 0)
+            throw new RuntimeException("Data can not be null or empty.");
+        if (!isValidHrp(hrp))
+            throw new RuntimeException("Invalid HRP.");
+
+        byte[] b32Arr = convertBits(data, 8, 5, true);
+        byte[] checksum = calculateCheckSum(hrp, b32Arr);
+
+        b32Arr = Arrays.concatenate(b32Arr, checksum);
+        StringBuilder result = new StringBuilder(b32Arr.length + 1 + hrp.length());
+        result.append(hrp).append(Separator);
+        for (byte b : b32Arr) {
+            result.append(B32Chars.charAt(b));
+        }
+
+        return result.toString();
+    }
+
+    private static byte[] calculateCheckSum(String hrp, byte[] data) {
+        // expand hrp, append data to it, and then add 6 zero bytes at the end.
+        byte[] bytes = Arrays.concatenate(Arrays.concatenate(expandHrp(hrp), data), new byte[CheckSumSize]);
+
+        // get polymod of the whole data and then flip the least significant bit.
+        int pm = polymod(bytes) ^ 1; //
+
+        byte[] result = new byte[6];
+        for (int i = 0; i < 6; i++) {
+            result[i] = (byte) ((pm >> 5 * (5 - i)) & 0b0001_1111 /*=31*/);
+        }
+        return result;
+    }
+
 }
-

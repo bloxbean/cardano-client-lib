@@ -47,7 +47,7 @@ public class AssetUtil {
 
         String hrp = "asset";
 
-       return Bech32.encode(hrp, bytes);
+       return Bech32.encode(bytes, hrp);
     }
 
     private static List<Integer> convertBits(byte[] data, int fromWidth, int toWidth, boolean pad) {
