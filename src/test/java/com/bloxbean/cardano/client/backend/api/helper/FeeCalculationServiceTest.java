@@ -32,19 +32,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 class FeeCalculationServiceTest extends BaseTest {
 
     public static final String LIST_1 = "list1";
+    public static final String LIST_2 = "list2-insufficient-change-amount";
 
     @Mock
     UtxoService utxoService;
@@ -150,5 +151,32 @@ class FeeCalculationServiceTest extends BaseTest {
 
         assertThat(fee.longValue(), greaterThan(170905L));
         assertThat(fee.longValue(), lessThan(180000L));
+    }
+
+    @Test
+    public void testBuildTransaction_whenNotEnoughUtxosLeft() throws ApiException, IOException, AddressExcepion, CborSerializationException {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_2);
+        given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(BigInteger.valueOf(11000000))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, detailsParams
+                , null, protocolParams);
+
+        System.out.println(fee);
+        assertThat(fee, greaterThan(new BigInteger("1000")));
     }
 }

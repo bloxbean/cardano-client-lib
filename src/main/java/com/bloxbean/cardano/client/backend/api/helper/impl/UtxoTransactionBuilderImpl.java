@@ -264,8 +264,12 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             List<Utxo> additionalUtxos = getUtxos(transactionOutput.getAddress(), LOVELACE, minRequiredLovelaceInOutput,
                     new HashSet(ignoreUtxoList));
 
-            if(additionalUtxos == null || additionalUtxos.size() == 0)
-                throw new InsufficientBalanceException("Not enough utxos found to cover minimum lovelace in an ouput");
+            if(additionalUtxos == null || additionalUtxos.size() == 0) {
+                if(LOG.isDebugEnabled()) {
+                    LOG.debug("Not enough utxos found to cover minimum lovelace in an output");
+                }
+                break;
+            }
 
             if(LOG.isDebugEnabled())
                 LOG.debug("Additional Utoxs found: " + additionalUtxos);
@@ -432,7 +436,16 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             //Transaction will fail if minimun ada not there. So try to get some additiona utxos
             verifyMinAdaInOutputAndUpdateIfRequired(transactionInputs, changeOutput, detailsParams, utxoSet);
 
-            transactionOutputs.add(changeOutput);
+            //If changeoutput value is not zero or there are multi-assets, then add to change output
+            if(BigInteger.ZERO.compareTo(changeOutput.getValue().getCoin()) != 0
+                    || (changeOutput.getValue().getMultiAssets() != null && changeOutput.getValue().getMultiAssets().size() > 0)) {
+                transactionOutputs.add(changeOutput);
+            }
+
+            if(BigInteger.ZERO.compareTo(changeOutput.getValue().getCoin()) == 0 &&
+                    changeOutput.getValue().getMultiAssets() != null && changeOutput.getValue().getMultiAssets().size() > 0) {
+                LOG.warn("The sender address balance cannot be zero as the sender has {} native token(s).", changeOutput.getValue().getMultiAssets().size());
+            }
         }
     }
 

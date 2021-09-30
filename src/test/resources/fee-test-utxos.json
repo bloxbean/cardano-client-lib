@@ -52,5 +52,37 @@
       ],
       "block": "c2a5408a54596d52e3b0d7aed546ceb7e4d74a06ce80dca13664acd3afdea3e5"
     }
+  ],
+  "list2-insufficient-change-amount": [
+    {
+      "tx_hash": "f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1452846"
+        },
+        {
+          "unit": "07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e",
+          "quantity": "56"
+        }
+      ],
+      "block": "10974607187afacfeed5e3eaf4342e06bad0f26de438319eca18fa93f6a1541e",
+      "data_hash": null
+    },
+    {
+      "tx_hash": "d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "10000000"
+        }
+      ],
+      "block": "eee6cd082d297f85406cff49f83aa3ebd1083dae3c8997ec03f4a17f49297bf6",
+      "data_hash": null
+    }
   ]
 }

@@ -33,7 +33,6 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -42,6 +41,8 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -54,6 +55,8 @@ public class UtxoTransactionBuilderTest {
     public static final String LIST_4 = "list4-multiassets";
     public static final String LIST_5 = "list5-multiassets-insufficientADA";
     public static final String LIST_6 = "list6-multiassets-insufficientADA_Error";
+    public static final String LIST_7 = "list7-insufficient-change-amount";
+    public static final String LIST_8 = "list8-insufficient-change-amount-with-native-token";
 
     @Mock
     UtxoService utxoService;
@@ -636,5 +639,80 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
 
         verify(utxoService, atLeast(2)).getUtxos(any(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    public void testBuildTransaction_whenNotEnoughUtxosLeft() throws ApiException, IOException, AddressExcepion {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_7);
+        given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(BigInteger.valueOf(11000000))
+                .fee(BigInteger.valueOf(17000))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        BigInteger balanceAmt = BigInteger.valueOf(10000000 + 1452846); //Utxo amount
+        BigInteger newAmount = balanceAmt.subtract(paymentTransaction.getFee());
+
+        paymentTransaction.setAmount(newAmount);
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+
+        assertThat(transaction.getBody().getInputs(), hasSize(2));
+        assertThat(transaction.getBody().getOutputs(), hasSize(1));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb"));
+        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9"));
+
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(newAmount));
+        assertNull(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets());
+    }
+
+    @Test
+    public void testBuildTransaction_whenNotEnoughUtxosLeftWithNativeToken() throws ApiException, IOException, AddressExcepion {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_8);
+        given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(BigInteger.valueOf(11000000))
+                .fee(BigInteger.valueOf(17000))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        BigInteger balanceAmt = BigInteger.valueOf(10000000 + 1452846); //Utxo amount
+        BigInteger newAmount = balanceAmt.subtract(paymentTransaction.getFee());
+
+        paymentTransaction.setAmount(newAmount);
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+
+        assertThat(transaction.getBody().getInputs(), hasSize(2));
+        assertThat(transaction.getBody().getOutputs(), hasSize(2));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb"));
+        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9"));
+
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(newAmount));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.ZERO));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().size(), is(1));
     }
 }
