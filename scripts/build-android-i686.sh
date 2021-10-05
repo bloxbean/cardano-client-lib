@@ -3,8 +3,8 @@ export NATIVE_FOLDER=i686-linux-android
 
 cd rust
 cargo install cargo-ndk
-cargo ndk -t i686 -o ./jniLibs build --release
-cp jniLibs/i686/$SRC_LIB_FILE target/release/$SRC_LIB_FILE
+cargo ndk -t x86 -o ./jniLibs build --release
+cp jniLibs/x86/$SRC_LIB_FILE target/release/$SRC_LIB_FILE
 cd ..
 
 mkdir -p native/$NATIVE_FOLDER
