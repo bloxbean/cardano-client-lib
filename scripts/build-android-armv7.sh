@@ -9,6 +9,6 @@ cp jniLibs/armeabi-v7a/$SRC_LIB_FILE target/release/$TARGET_LIB_FILE
 cd ..
 
 mkdir -p native/$NATIVE_FOLDER
-cp rust/target/release/$SRC_LIB_FILE native/$NATIVE_FOLDER
+cp rust/target/release/$TARGET_LIB_FILE native/$NATIVE_FOLDER
 
 ls native/$NATIVE_FOLDER && pwd
