@@ -3,6 +3,7 @@ export TARGET_LIB_FILE=aarch64-linux-android_libcardano_jni_wrapper.so
 export NATIVE_FOLDER=armv7-linux-android
 
 cd rust
+cargo install cargo-ndk
 cargo ndk -t arm64-v8a -o ./jniLibs build --release
 cp jniLibs/arm64-v8a/$SRC_LIB_FILE target/release/$TARGET_LIB_FILE
 cd ..
