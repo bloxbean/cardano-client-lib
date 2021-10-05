@@ -10,11 +10,12 @@ The Alonzo related changes are currently **under development**. But the existing
 ## Supported Operating Systems
 The library has been tested on the following Operating Systems. 
 
+- Android (both x86 and ARM in 32-bit and 64-bit)
 - Apple MacOS (Intel and Apple Silicon)
 - Linux (x86_64) (Ubuntu 18.04 and above or compatible ...)
 - Windows 64bits (x86_64)
 
-For anyother platform, please create a request [here](https://github.com/bloxbean/cardano-client-lib/issues)
+For another platform, please create a request [here](https://github.com/bloxbean/cardano-client-lib/issues)
 
 **Posts**
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
