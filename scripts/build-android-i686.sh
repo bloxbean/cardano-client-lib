@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 export SRC_LIB_FILE=libcardano_jni_wrapper.so
 export TARGET_LIB_FILE=i686-linux-android_libcardano_jni_wrapper.so
 export NATIVE_FOLDER=i686-linux-android
