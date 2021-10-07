@@ -78,8 +78,10 @@ public class BFEpochServiceIT extends BFBaseTest{
 
         assertThat(protocolParams, notNullValue());
         assertThat(protocolParams, notNullValue());
-        assertThat(protocolParams.getMinUtxo(), is("1000000"));
+        assertThat(protocolParams.getMinUtxo(), is("0"));
         assertThat(protocolParams.getPoolDeposit(), is("500000000"));
+        //TODO commented as coinsPerUtxoWord in testnet is currently 0
+//        assertThat(Integer.valueOf(protocolParams.getCoinsPerUtxoWord()), greaterThan(10000)); //actual value 34482
         assertThat(protocolParams.getEMax(), notNullValue());
         assertThat(protocolParams.getNOpt(), notNullValue());
     }

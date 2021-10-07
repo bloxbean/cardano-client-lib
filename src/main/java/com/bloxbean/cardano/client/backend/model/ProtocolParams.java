@@ -39,4 +39,16 @@ public class ProtocolParams {
     private String minUtxo;
     private String minPoolCost;
     private String nonce;
+
+    //Alonzo changes
+    private BigDecimal priceMem;
+    private BigDecimal priceStep;
+    private String maxTxExMem;
+    private String maxTxExSteps;
+    private String maxBlockExMem;
+    private String maxBlockExSteps;
+    private String maxValSize;
+    private BigDecimal collateralPercent;
+    private Integer maxCollateralInputs;
+    private String coinsPerUtxoWord;
 }
