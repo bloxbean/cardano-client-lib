@@ -343,6 +343,7 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 # Used by
 * [EASY1 Stake Pool Raffles](https://raffles.easystaking.online)
 * [Cardanotales](https://cardanotales.com)
+* [Cardano Fans Raffles](https://cardano.fans
 
 ---
 
