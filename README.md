@@ -344,7 +344,7 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 * [EASY1 Stake Pool Raffles](https://raffles.easystaking.online)
 * [Cardanotales](https://cardanotales.com)
 * [Cardano Fans Raffles](https://cardano.fans)
-
+* [adadomains.io](https://www.adadomains.io/)
 ---
 
 ##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
