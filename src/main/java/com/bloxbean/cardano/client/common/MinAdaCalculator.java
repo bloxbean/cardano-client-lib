@@ -1,51 +1,64 @@
 package com.bloxbean.cardano.client.common;
 
+import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 
 import java.math.BigInteger;
+import java.util.HashSet;
+import java.util.Set;
+
+import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 
 public class MinAdaCalculator {
-    private BigInteger minUtxoValue;
-    int adaOnlyUtxoSize = 27;
-    int utxoEntrySizeWithoutVal = 27;
+    private BigInteger adaOnlyMinUtxoValue = ONE_ADA;
+    private int utxoEntrySizeWithoutVal = 27;
+    private BigInteger coinsPerUtxoWord; //protocol parameter
 
-    public MinAdaCalculator(BigInteger minUtxoValue) {
-        this.minUtxoValue = minUtxoValue;
+    public MinAdaCalculator(ProtocolParams protocolParams) {
+        if(protocolParams.getCoinsPerUtxoWord() != null && !protocolParams.getCoinsPerUtxoWord().isEmpty()) {
+            this.coinsPerUtxoWord = new BigInteger(protocolParams.getCoinsPerUtxoWord());
+        }
     }
 
     public BigInteger calculateMinAda(TransactionOutput output) {
         if(output.getValue().getMultiAssets() == null || output.getValue().getMultiAssets().size() == 0)
-            return minUtxoValue;
+            return adaOnlyMinUtxoValue;
 
+        long sizeB = bundleSize(output);
+
+        long utxoEntrySize = utxoEntrySizeWithoutVal + sizeB; //TODO + dataHashSize (dh)
+        BigInteger value = coinsPerUtxoWord.multiply(BigInteger.valueOf(utxoEntrySize));
+
+        return value;
+    }
+
+    private long bundleSize(TransactionOutput output) {
         int numAssets = 0;
         int numPIDs = 0;
         long sumAssetNameLengths = 0;
         int pidSize = 28; //Policy id size is currently 28
+
+        Set<String> uniqueAssetNames = new HashSet<>();
         //If multi asssets
         for(MultiAsset ma: output.getValue().getMultiAssets()) {
             numPIDs++;
             for(Asset asset: ma.getAssets()) {
                 numAssets++;
-                sumAssetNameLengths += asset.getNameAsBytes().length;
+
+                //the sum of the length of the ByteStrings representing distinct asset names
+                if(!uniqueAssetNames.contains(asset.getName())) {
+                    sumAssetNameLengths += asset.getNameAsBytes().length;
+                    if(asset.getName() != null && !asset.getName().isEmpty()) {
+                        uniqueAssetNames.add(asset.getName());
+                    }
+                }
             }
         }
 
         long sizeB = calculateSizeB(numAssets, sumAssetNameLengths, numPIDs, pidSize);
-        //minAda (u) = max (minUTxOValue, (quot (minUTxOValue, adaOnlyUTxOSize)) * (utxoEntrySizeWithoutVal + (size B)))
-        //adaOnlyUTxOSize = utxoEntrySizeWithoutVal + coinSize = 27
-        //quot (minUTxOValue, adaOnlyUTxOSize))
-        BigInteger a = (minUtxoValue.divide(BigInteger.valueOf(adaOnlyUtxoSize)));
-        long b = utxoEntrySizeWithoutVal + sizeB;
-
-        BigInteger value = a.multiply(BigInteger.valueOf(b));
-
-        if(value.compareTo(minUtxoValue) == 1)
-            return value;
-        else
-            return minUtxoValue;
-
+        return sizeB;
     }
 
     private long calculateSizeB(long numAssets, long sumAssetNameLengths, int numPIDs, int pidSize) {

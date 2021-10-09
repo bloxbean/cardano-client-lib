@@ -7,8 +7,10 @@ import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
+import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFEpochService;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFTransactionService;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFUtxoService;
+import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
@@ -42,12 +44,14 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
     UtxoService utxoService;
     BFTransactionService transactionService;
     UtxoTransactionBuilder utxoTransactionBuilder;
+    ProtocolParams protocolParams;
 
     @BeforeEach
-    public void setup() {
+    public void setup() throws ApiException {
         utxoService = new BFUtxoService(Constants.BLOCKFROST_TESTNET_URL, projectId);
         transactionService = new BFTransactionService(Constants.BLOCKFROST_TESTNET_URL, projectId);
         utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
+        protocolParams = new BFEpochService(Constants.BLOCKFROST_TESTNET_URL, projectId).getProtocolParameters().getValue();
     }
 
     @Test
@@ -67,7 +71,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
         );
 
         Transaction transaction
-                = utxoTransactionBuilder.buildTransaction(paymentTransactionList, TransactionDetailsParams.builder().ttl(1000).build(), null);
+                = utxoTransactionBuilder.buildTransaction(paymentTransactionList, TransactionDetailsParams.builder().ttl(1000).build(), null, protocolParams);
 
         System.out.println(transaction);
 
@@ -94,7 +98,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
         paymentTransaction.setUtxosToInclude(Arrays.asList(utxo));
 
         Transaction transaction
-                = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), TransactionDetailsParams.builder().ttl(1000).build(), null);
+                = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), TransactionDetailsParams.builder().ttl(1000).build(), null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -136,7 +140,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
         mintTokenTxn.setUtxosToInclude(Arrays.asList(utxo));
 
         Transaction transaction
-                = utxoTransactionBuilder.buildMintTokenTransaction(mintTokenTxn, TransactionDetailsParams.builder().ttl(1000).build(), null);
+                = utxoTransactionBuilder.buildMintTokenTransaction(mintTokenTxn, TransactionDetailsParams.builder().ttl(1000).build(), null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 

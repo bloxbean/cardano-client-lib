@@ -1,10 +1,7 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.BlockService;
-import com.bloxbean.cardano.client.backend.api.TransactionService;
-import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.api.*;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;
@@ -60,6 +57,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     TransactionHelperService transactionHelperService;
     BlockService blockService;
     FeeCalculationService feeCalculationService;
+    EpochService epochService;
 
     String dataFile = "json-metadata.json";
 
@@ -71,6 +69,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         transactionHelperService = backendService.getTransactionHelperService();
         blockService = backendService.getBlockService();
         feeCalculationService = backendService.getFeeCalculationService();
+        epochService = backendService.getEpochService();
     }
 
     @Test

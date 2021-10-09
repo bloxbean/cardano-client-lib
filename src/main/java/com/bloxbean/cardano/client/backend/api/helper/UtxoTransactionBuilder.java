@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -32,7 +33,7 @@ public interface UtxoTransactionBuilder {
      * @throws ApiException
      * @throws AddressExcepion
      */
-    Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException,
+    Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, Metadata metadata, ProtocolParams protocolParams) throws ApiException,
             AddressExcepion;
 
     /**
@@ -54,5 +55,5 @@ public interface UtxoTransactionBuilder {
      * @throws ApiException
      * @throws AddressExcepion
      */
-    Transaction buildMintTokenTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException, AddressExcepion;
+    Transaction buildMintTokenTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata, ProtocolParams protocolParams) throws ApiException, AddressExcepion;
 }

@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
+import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
@@ -75,7 +76,8 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
      * @throws ApiException
      */
     @Override
-    public Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException {
+    public Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams,
+                                        Metadata metadata, ProtocolParams protocolParams) throws ApiException {
 
         List<TransactionInput> transactionInputs = new ArrayList<>();
         List<TransactionOutput> transactionOutputs = new ArrayList<>();
@@ -98,7 +100,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
         //Create output for receivers and calculate total fees/cost for each sender
         for(PaymentTransaction transaction: transactions) {
-            totalFee = createReceiverOutputsAndPopulateCost(transaction, detailsParams, totalFee, transactionOutputs, senderMiscCostMap);
+            totalFee = createReceiverOutputsAndPopulateCost(transaction, detailsParams, totalFee, transactionOutputs, senderMiscCostMap, protocolParams);
         }
 
         //Check if min cost is there in all selected Utxos
@@ -112,7 +114,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             Set<Utxo> utxoSet = entry.getValue();
             try {
                 buildOuputsForSenderFromUtxos(sender, utxoSet, transactionInputs, transactionOutputs, senderAmountsMap,
-                        senderMiscCostMap, detailsParams);
+                        senderMiscCostMap, detailsParams, protocolParams);
             } catch (ApiException e) {
                 LOG.error("Error builiding transaction outputs", e);
                 throw new ApiRuntimeException("Error building transaction outputs", e);
@@ -149,7 +151,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     }
 
     @Override
-    public Transaction buildMintTokenTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata) throws ApiException {
+    public Transaction buildMintTokenTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata, ProtocolParams protocolParams) throws ApiException {
         String sender = mintTransaction.getSender().baseAddress();
 
         String receiver = mintTransaction.getReceiver();
@@ -157,7 +159,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             receiver = mintTransaction.getSender().baseAddress();
 
         BigInteger minAmount = createDummyOutputAndCalculateMinAdaForTxnOutput(receiver,
-                mintTransaction.getMintAssets(), detailsParams.getMinUtxoValue());
+                mintTransaction.getMintAssets(), protocolParams);
         //getMinimumLovelaceForMultiAsset(detailsParams).multiply(BigInteger.valueOf(totalAssets));
         BigInteger totalCost = minAmount.add(mintTransaction.getFee());
 
@@ -211,7 +213,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
         //Check if minimum Ada is not met. Topup
         //Transaction will fail if minimun ada not there. So try to get some additional utxos
-        verifyMinAdaInOutputAndUpdateIfRequired(inputs, transactionOutput, detailsParams, utxos);
+        verifyMinAdaInOutputAndUpdateIfRequired(inputs, transactionOutput, detailsParams, utxos, protocolParams);
 
         outputs.add(transactionOutput);
 
@@ -251,9 +253,9 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     }
 
     private void verifyMinAdaInOutputAndUpdateIfRequired(List<TransactionInput> inputs, TransactionOutput transactionOutput,
-                                                         TransactionDetailsParams detailsParams, Collection<Utxo> excludeUtxos) throws ApiException {
+                                                         TransactionDetailsParams detailsParams, Collection<Utxo> excludeUtxos, ProtocolParams protocolParams) throws ApiException {
         BigInteger minRequiredLovelaceInOutput =
-                new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(transactionOutput);
+                new MinAdaCalculator(protocolParams).calculateMinAda(transactionOutput);
 
         //Create another copy of the list
         List<Utxo> ignoreUtxoList =  excludeUtxos.stream().map(u -> u).collect(Collectors.toList());
@@ -287,7 +289,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
             //Calculate final minReq balance in output, if still doesn't satisfy, continue again
             minRequiredLovelaceInOutput =
-                    new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(transactionOutput);
+                    new MinAdaCalculator(protocolParams).calculateMinAda(transactionOutput);
         }
     }
 
@@ -362,7 +364,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     }
 
     private BigInteger createReceiverOutputsAndPopulateCost(PaymentTransaction transaction, TransactionDetailsParams detailsParams, BigInteger totalFee,
-                                                            List<TransactionOutput> transactionOutputs, Map<String, BigInteger> senderMiscCostMap) {
+                                                            List<TransactionOutput> transactionOutputs, Map<String, BigInteger> senderMiscCostMap, ProtocolParams protocolParams) {
         //Sender misc cost
         BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(transaction.getSender().baseAddress(), BigInteger.ZERO);
 
@@ -380,7 +382,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
             //Calculate required minAda
             BigInteger minRequiredAda =
-                    new MinAdaCalculator(detailsParams.getMinUtxoValue()).calculateMinAda(outputBuilder.build());
+                    new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
 
             //set minRequiredAdaToValue
             outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
@@ -398,7 +400,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     private void buildOuputsForSenderFromUtxos(String sender, Set<Utxo> utxoSet, List<TransactionInput> transactionInputs,
                                                List<TransactionOutput> transactionOutputs, Multimap<String, Amount> senderAmountsMap,
-                                               Map<String, BigInteger> senderMiscCostMap, TransactionDetailsParams detailsParams) throws ApiException {
+                                               Map<String, BigInteger> senderMiscCostMap, TransactionDetailsParams detailsParams, ProtocolParams protocolParams) throws ApiException {
         TransactionOutput changeOutput = new TransactionOutput(sender, new Value());
         //Initial sender txnoutput with negative amount
         senderAmountsMap.get(sender).stream()
@@ -434,7 +436,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
             //Check if minimum Ada is not met. Topup
             //Transaction will fail if minimun ada not there. So try to get some additiona utxos
-            verifyMinAdaInOutputAndUpdateIfRequired(transactionInputs, changeOutput, detailsParams, utxoSet);
+            verifyMinAdaInOutputAndUpdateIfRequired(transactionInputs, changeOutput, detailsParams, utxoSet, protocolParams);
 
             //If changeoutput value is not zero or there are multi-assets, then add to change output
             if(BigInteger.ZERO.compareTo(changeOutput.getValue().getCoin()) != 0
@@ -549,13 +551,13 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         }
     }
 
-    private BigInteger createDummyOutputAndCalculateMinAdaForTxnOutput(String address, List<MultiAsset> multiAssets, BigInteger minUtxoValue) {
+    private BigInteger createDummyOutputAndCalculateMinAdaForTxnOutput(String address, List<MultiAsset> multiAssets, ProtocolParams protocolParams) {
         TransactionOutput txnOutput = new TransactionOutput();
         //Dummy address
         txnOutput.setAddress(address);
         txnOutput.setValue(new Value(BigInteger.ZERO, multiAssets));
 
-        return new MinAdaCalculator(minUtxoValue).calculateMinAda(txnOutput);
+        return new MinAdaCalculator(protocolParams).calculateMinAda(txnOutput);
     }
 
 }

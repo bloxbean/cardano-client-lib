@@ -71,7 +71,7 @@ class FeeCalculationServiceTest extends BaseTest {
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
         utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
-        transactionHelperService = new TransactionHelperService(transactionService, utxoService);
+        transactionHelperService = new TransactionHelperService(transactionService, epochService, utxoService);
         feeCalculationService = new FeeCalculationServiceImpl(transactionHelperService, epochService);
         utxoJsonFile = "fee-test-utxos.json";
         protocolParamJsonFile = "protocol-params.json";
@@ -85,6 +85,7 @@ class FeeCalculationServiceTest extends BaseTest {
 
         List<Utxo> utxos = loadUtxos(LIST_1);
         given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -112,6 +113,7 @@ class FeeCalculationServiceTest extends BaseTest {
 
         List<Utxo> utxos = loadUtxos(LIST_1);
         given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
 
         CBORMetadataMap mm = new CBORMetadataMap()
                 .put(new BigInteger("1978"), "1978value")
@@ -160,6 +162,7 @@ class FeeCalculationServiceTest extends BaseTest {
         List<Utxo> utxos = loadUtxos(LIST_2);
         given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()

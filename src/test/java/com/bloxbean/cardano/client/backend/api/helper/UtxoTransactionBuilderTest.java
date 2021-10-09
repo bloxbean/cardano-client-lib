@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.api.helper.impl.DefaultUtxoSelectionS
 import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.CardanoConstants;
@@ -67,6 +68,8 @@ public class UtxoTransactionBuilderTest {
     @InjectMocks
     UtxoTransactionBuilderImpl utxoTransactionBuilder;
 
+    ProtocolParams protocolParams;
+
     ObjectMapper objectMapper = new ObjectMapper();
 
     String dataFile = "utxos.json";
@@ -75,6 +78,9 @@ public class UtxoTransactionBuilderTest {
     public void setup() {
         MockitoAnnotations.openMocks(this);
         utxoTransactionBuilder = new UtxoTransactionBuilderImpl(new DefaultUtxoSelectionStrategyImpl(utxoService));
+        protocolParams = ProtocolParams.builder()
+                .coinsPerUtxoWord("34482")
+                .build();
     }
 
     private List<Utxo> loadUtxos(String key) throws IOException {
@@ -136,7 +142,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
 
         assertThat(transaction.getBody().getInputs(), hasSize(2));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9"));
@@ -169,7 +175,7 @@ public class UtxoTransactionBuilderTest {
         TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
                 .ttl(199999)
                 .build();
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -209,7 +215,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -255,7 +261,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -273,7 +279,7 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets(), hasSize(3));
 
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets(), hasSize(1));
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(975334016)));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(975431106)));
 
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(1).getAssets(), hasSize(2));
     }
@@ -310,7 +316,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -350,17 +356,16 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
         System.out.println(transaction.serializeToHex());
 
-        assertThat(transaction.getBody().getInputs(), hasSize(4));
+        assertThat(transaction.getBody().getInputs(), hasSize(3));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
         assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
         assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
-        assertThat(transaction.getBody().getInputs().get(3).getTransactionId(), is("cccc341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
 
         assertThat(transaction.getBody().getOutputs(), hasSize(3));
         assertThat(transaction.getBody().getOutputs().get(0).getAddress(), is(receiver));
@@ -396,7 +401,7 @@ public class UtxoTransactionBuilderTest {
                 .sender(sender)
                 .fee(BigInteger.valueOf(12000))
                 .unit(LOVELACE)
-                .amount(BigInteger.valueOf(1700000))
+                .amount(BigInteger.valueOf(3700000))
                 .receiver(receiver)
                 .build();
 
@@ -405,7 +410,8 @@ public class UtxoTransactionBuilderTest {
                 .build();
 
         Assertions.assertThrows(ApiRuntimeException.class, () -> {
-            Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null);
+            Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null, protocolParams);
+            System.out.println(JsonUtil.getPrettyJson(transaction));
         });
 
     }
@@ -420,7 +426,6 @@ public class UtxoTransactionBuilderTest {
         given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(0))).code(200));
         given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(1))).code(200));
         given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(2))).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(3), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(3))).code(200));
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
@@ -439,17 +444,16 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
         System.out.println(transaction.serializeToHex());
 
-        assertThat(transaction.getBody().getInputs(), hasSize(4));
+        assertThat(transaction.getBody().getInputs(), hasSize(3));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
         assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
         assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
-        assertThat(transaction.getBody().getInputs().get(3).getTransactionId(), is("cccc341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
 
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
     }
@@ -485,7 +489,7 @@ public class UtxoTransactionBuilderTest {
                 .build();
 
         Assertions.assertThrows(ApiException.class, () -> {
-            Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null);
+            Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null, protocolParams);
             System.out.println(transaction);
         });
     }
@@ -510,7 +514,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
 
         assertThat(transaction.getBody().getInputs(), hasSize(2));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("1d98fc1aad22af10eec3cfc924d9edb4dcea6181e1d33895588c4d3c60d2af8b"));
@@ -546,7 +550,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
 
         assertThat(transaction.getBody().getInputs(), hasSize(5));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("1d98fc1aad22af10eec3cfc924d9edb4dcea6181e1d33895588c4d3c60d2af8b"));
@@ -584,7 +588,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -625,7 +629,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null, protocolParams);
 
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -667,7 +671,7 @@ public class UtxoTransactionBuilderTest {
 
         paymentTransaction.setAmount(newAmount);
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
 
         assertThat(transaction.getBody().getInputs(), hasSize(2));
         assertThat(transaction.getBody().getOutputs(), hasSize(1));
@@ -704,7 +708,7 @@ public class UtxoTransactionBuilderTest {
 
         paymentTransaction.setAmount(newAmount);
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
 
         assertThat(transaction.getBody().getInputs(), hasSize(2));
         assertThat(transaction.getBody().getOutputs(), hasSize(2));

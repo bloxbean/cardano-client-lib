@@ -1,11 +1,13 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -34,15 +36,19 @@ public class TransactionHelperService {
 
     private TransactionService transactionService;
     private UtxoTransactionBuilder utxoTransactionBuilder;
+    private EpochService epochService;
+
+    private ProtocolParams protocolParams;
 
     /**
      * Create a {@link TransactionHelperService} from {@link TransactionService} and {@link UtxoService}
      * @param transactionService
      * @param utxoService
      */
-    public TransactionHelperService(TransactionService transactionService, UtxoService utxoService) {
+    public TransactionHelperService(TransactionService transactionService, EpochService epochService, UtxoService utxoService ) {
         this.transactionService = transactionService;
         this.utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
+        this.epochService = epochService;
     }
 
     /**
@@ -50,9 +56,10 @@ public class TransactionHelperService {
      * @param transactionService
      * @param utxoTransactionBuilder
      */
-    public TransactionHelperService(TransactionService transactionService, UtxoTransactionBuilder utxoTransactionBuilder) {
+    public TransactionHelperService(TransactionService transactionService, EpochService epochService, UtxoTransactionBuilder utxoTransactionBuilder) {
         this.transactionService = transactionService;
         this.utxoTransactionBuilder = utxoTransactionBuilder;
+        this.epochService = epochService;
     }
 
 
@@ -165,7 +172,7 @@ public class TransactionHelperService {
         if(LOG.isDebugEnabled())
             LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(paymentTransactions));
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(paymentTransactions, detailsParams, metadata);
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(paymentTransactions, detailsParams, metadata, getProtocolParams());
 
         if(LOG.isDebugEnabled())
             LOG.debug(JsonUtil.getPrettyJson(transaction));
@@ -232,7 +239,7 @@ public class TransactionHelperService {
         if(LOG.isDebugEnabled())
             LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(mintTransaction));
 
-        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, metadata);
+        Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, metadata, getProtocolParams());
 
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
         transactionWitnessSet.getNativeScripts().add(mintTransaction.getPolicyScript());
@@ -262,6 +269,14 @@ public class TransactionHelperService {
         return signedTxn;
     }
 
+    /**
+     * Set protocolparams. Caller invokes this method to set custom protocol parameters.
+     * @param protocolParams
+     */
+    public void setProtocolParams(ProtocolParams protocolParams) {
+        this.protocolParams = protocolParams;
+    }
+
     private Result<TransactionResult> processTransactionResult(byte[] signedTxn, Result<String> result) {
         TransactionResult transactionResult = new TransactionResult();
         transactionResult.setSignedTxn(signedTxn);
@@ -274,4 +289,20 @@ public class TransactionHelperService {
             return Result.error(result.getResponse()).withValue(transactionResult).code(result.code());
         }
     }
+
+    private ProtocolParams getProtocolParams() throws ApiException {
+        if(protocolParams == null) {
+            Result<ProtocolParams> protocolParamsResult = epochService.getProtocolParameters();
+            if(!protocolParamsResult.isSuccessful())
+                throw new ApiException("Unable to fetch protocol parameters to build transaction");
+
+            protocolParams = protocolParamsResult.getValue();
+        }
+
+        if(protocolParams == null)
+            throw new ApiException("Unable to fetch protocol parameters to build transaction");
+
+        return protocolParams;
+    }
+
 }

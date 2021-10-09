@@ -61,7 +61,8 @@ public interface BackendService {
      * @return
      */
     default public TransactionHelperService getTransactionHelperService() {
-        TransactionHelperService transactionHelperService = new TransactionHelperService(getTransactionService(), getUtxoService());
+        TransactionHelperService transactionHelperService = new TransactionHelperService(getTransactionService(),
+                getEpochService(), getUtxoService());
         return transactionHelperService;
     }
 
