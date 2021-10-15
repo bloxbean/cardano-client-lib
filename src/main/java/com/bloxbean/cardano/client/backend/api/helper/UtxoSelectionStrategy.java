@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
-import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 
@@ -19,8 +18,24 @@ public interface UtxoSelectionStrategy {
      * @param unit Unit
      * @param amount Amount
      * @param excludeUtxos Utxos to ignore
-     * @return
+     * @return List of Utxos
      */
-    public List<Utxo> selectUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException;
+    List<Utxo> selectUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException;
+
+    /**
+     *
+     * @return True if utxos with datum hash need to ignored, otherwise false
+     */
+    default boolean ignoreUtxosWithDatumHash() {
+        return true;
+    }
+
+    /**
+     * Set if utxos with datum hash need to be ignored or not
+     * @param ignoreUtxosWithDatumHash
+     */
+    default void setIgnoreUtxosWithDatumHash(boolean ignoreUtxosWithDatumHash) {
+
+    }
 
 }

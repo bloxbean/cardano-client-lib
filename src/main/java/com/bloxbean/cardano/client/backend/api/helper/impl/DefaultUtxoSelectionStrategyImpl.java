@@ -21,8 +21,11 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
 
     private UtxoService utxoService;
 
+    private boolean ignoreUtxosWithDatumHash;
+
     public DefaultUtxoSelectionStrategyImpl(UtxoService utxoService) {
         this.utxoService = utxoService;
+        this.ignoreUtxosWithDatumHash = true;
     }
 
     @Override
@@ -33,7 +36,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
         BigInteger totalUtxoAmount = BigInteger.valueOf(0);
         List<Utxo> selectedUtxos = new ArrayList<>();
         boolean canContinue = true;
-        int i = 0;
+        int i = 1;
 
         while(canContinue) {
             Result<List<Utxo>> result = utxoService.getUtxos(address, getUtxoFetchSize(),
@@ -47,6 +50,9 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
 
                 for(Utxo utxo: data) {
                     if(excludeUtxos.contains(utxo))
+                        continue;
+
+                    if(utxo.getDataHash() != null && !utxo.getDataHash().isEmpty() && ignoreUtxosWithDatumHash())
                         continue;
 
                     List<Amount> utxoAmounts = utxo.getAmount();
@@ -74,6 +80,16 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
         }
 
         return selectedUtxos;
+    }
+
+    @Override
+    public boolean ignoreUtxosWithDatumHash() {
+        return ignoreUtxosWithDatumHash;
+    }
+
+    @Override
+    public void setIgnoreUtxosWithDatumHash(boolean ignoreUtxosWithDatumHash) {
+        this.ignoreUtxosWithDatumHash = ignoreUtxosWithDatumHash;
     }
 
     protected List<Utxo> filter(List<Utxo> fetchData) {

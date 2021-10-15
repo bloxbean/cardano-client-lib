@@ -19,9 +19,9 @@ import java.util.Objects;
 @JsonNaming(PropertyNamingStrategy.SnakeCaseStrategy.class)
 public class Utxo {
     private String txHash;
-//    private int txIndex;
     private int outputIndex;
     private List<Amount> amount;
+    private String dataHash;
 
     @Override
     public boolean equals(Object o) {
