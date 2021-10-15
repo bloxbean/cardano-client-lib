@@ -384,9 +384,9 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_6);
-        given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(404));
+        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(3), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(404));
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -423,9 +423,9 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_5);
-        given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(0))).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(1))).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(2))).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(0))).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(1))).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(3), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(2))).code(200));
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
@@ -650,8 +650,8 @@ public class UtxoTransactionBuilderTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_7);
-        given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -687,8 +687,8 @@ public class UtxoTransactionBuilderTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_8);
-        given(utxoService.getUtxos(any(), anyInt(), eq(0), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
