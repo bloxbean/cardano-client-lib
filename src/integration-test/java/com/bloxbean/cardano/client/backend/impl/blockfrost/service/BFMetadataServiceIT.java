@@ -7,8 +7,6 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.model.Result;
-import static org.hamcrest.Matchers.*;
-
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataCBORContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataJSONContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataLabel;
@@ -19,8 +17,10 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
 public class BFMetadataServiceIT extends BFBaseTest {
 
@@ -43,10 +43,13 @@ public class BFMetadataServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(value));
 
+        List<String> labels = value.stream().map(v -> v.getLabel()).collect(Collectors.toList());
+        List<String> cborMetadata = value.stream().map(v -> v.getCborMetadata()).collect(Collectors.toList());
+
         assertThat(value, Matchers.notNullValue());
         assertThat(value, hasSize(5));
-        assertThat(value.get(0).getLabel(), is("197819781978"));
-        assertThat(value.get(0).getCborMetadata(), is("\\xa11b0000002e0efa535a644a6f686e"));
+        assertThat(labels, hasItem("197819781978"));
+        assertThat(cborMetadata, hasItem("\\xa11b0000002e0efa535a644a6f686e"));
     }
 
 
@@ -60,11 +63,11 @@ public class BFMetadataServiceIT extends BFBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(value));
 
+        List<String> labels = value.stream().map(v -> v.getLabel()).collect(Collectors.toList());
+
         assertThat(value, Matchers.notNullValue());
         assertThat(value, hasSize(5));
-        assertThat(value.get(0).getLabel(), is("197819781978"));
-        assertThat(value.get(0).getJsonMetadata().asText(), is("John"));
-        assertThat(value.get(3).getJsonMetadata().get("197819").asText(), is("200001"));
+        assertThat(labels, hasItem("197819781978"));
     }
 
     @Test
@@ -94,7 +97,7 @@ public class BFMetadataServiceIT extends BFBaseTest {
 
     @Test
     public void testGetCBORMetadataByLabel() throws ApiException {
-        Result<List<MetadataCBORContent>> result = metadataService.getCBORMetadataByLabel(new BigInteger("197819781978"),  10, 1, OrderEnum.asc);
+        Result<List<MetadataCBORContent>> result = metadataService.getCBORMetadataByLabel(new BigInteger("1985"),  10, 1, OrderEnum.asc);
 
         List<MetadataCBORContent> value = result.getValue();
 
@@ -102,7 +105,7 @@ public class BFMetadataServiceIT extends BFBaseTest {
 
         assertThat(value, Matchers.notNullValue());
         assertThat(value, hasSize(10));
-        assertThat(value.get(0).getTxHash(), is("ca34aa6810382752c10ddbe8443f50242beddebafbb5df2f312753512325b071"));
+        assertThat(value.get(0).getTxHash(), is("c13c61a6e4da17482d1e79cb2eeed3e8c54a3edd23aad8722ad003be2d51d6e3"));
     }
 
 }
