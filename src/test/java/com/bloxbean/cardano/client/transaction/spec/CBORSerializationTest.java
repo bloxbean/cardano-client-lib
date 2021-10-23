@@ -50,7 +50,7 @@ public class CBORSerializationTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-        multiAsset.setAssets(Arrays.asList(new Asset("736174636f696e", BigInteger.valueOf(4000))));
+        multiAsset.setAssets(Arrays.asList(new Asset("0x736174636f696e", BigInteger.valueOf(4000))));
 
         MultiAsset multiAsset1 = new MultiAsset();
         multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");
@@ -103,7 +103,7 @@ public class CBORSerializationTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-        multiAsset.setAssets(Arrays.asList(new Asset("736174636f696e", BigInteger.valueOf(4000))));
+        multiAsset.setAssets(Arrays.asList(new Asset("0x736174636f696e", BigInteger.valueOf(4000))));
 
         MultiAsset multiAsset1 = new MultiAsset();
         multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");
@@ -176,17 +176,17 @@ public class CBORSerializationTest {
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
         multiAsset.setAssets(Arrays.asList(
-                new Asset("736174636f696e", BigInteger.valueOf(4000)),
-                new Asset("446174636f696e", BigInteger.valueOf(1100))
+                new Asset("0x736174636f696e", BigInteger.valueOf(4000)),
+                new Asset("0x446174636f696e", BigInteger.valueOf(1100))
                 ));
 
         MultiAsset multiAsset1 = new MultiAsset();
         multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");
-        multiAsset1.setAssets(Arrays.asList(new Asset("", BigInteger.valueOf(9000))));
+        multiAsset1.setAssets(Arrays.asList(new Asset("0x", BigInteger.valueOf(9000))));
 
         MultiAsset multiAsset2 = new MultiAsset();
         multiAsset2.setPolicyId("449728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-        multiAsset2.setAssets(Arrays.asList(new Asset("666174636f696e", BigInteger.valueOf(5000))));
+        multiAsset2.setAssets(Arrays.asList(new Asset("0x666174636f696e", BigInteger.valueOf(5000))));
         changeOutput.setValue(new Value(new BigInteger(String.valueOf(340000)), Arrays.asList(multiAsset, multiAsset1, multiAsset2)));
 
         List<TransactionOutput> outputs = new ArrayList<>();
@@ -247,17 +247,17 @@ public class CBORSerializationTest {
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
         multiAsset.setAssets(Arrays.asList(
-                new Asset("736174636f696e", BigInteger.valueOf(4000)),
-                new Asset("446174636f696e", BigInteger.valueOf(1100))
+                new Asset("0x736174636f696e", BigInteger.valueOf(4000)),
+                new Asset("0x446174636f696e", BigInteger.valueOf(1100))
         ));
 
         MultiAsset multiAsset1 = new MultiAsset();
         multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");
-        multiAsset1.setAssets(Arrays.asList(new Asset("", BigInteger.valueOf(9000))));
+        multiAsset1.setAssets(Arrays.asList(new Asset("0x", BigInteger.valueOf(9000))));
 
         MultiAsset multiAsset2 = new MultiAsset();
         multiAsset2.setPolicyId("449728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-        multiAsset2.setAssets(Arrays.asList(new Asset("666174636f696e", BigInteger.valueOf(5000))));
+        multiAsset2.setAssets(Arrays.asList(new Asset("0x666174636f696e", BigInteger.valueOf(5000))));
         changeOutput.setValue(new Value(new BigInteger(String.valueOf(340000)), Arrays.asList(multiAsset, multiAsset1, multiAsset2)));
 
         List<TransactionOutput> outputs = new ArrayList<>();

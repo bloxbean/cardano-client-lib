@@ -2,14 +2,28 @@ package com.bloxbean.cardano.client.util;
 
 public class HexUtil {
     public static String encodeHexString(byte[] byteArray) {
+        return encodeHexString(byteArray, false);
+    }
+
+    public static String encodeHexString(byte[] byteArray, boolean withPrefix) {
         StringBuffer hexStringBuffer = new StringBuffer();
         for (int i = 0; i < byteArray.length; i++) {
             hexStringBuffer.append(byteToHex(byteArray[i]));
         }
-        return hexStringBuffer.toString();
+        String hexString = hexStringBuffer.toString();
+        if(hexString == null)
+            return null;
+
+        if(withPrefix)
+            return "0x" + hexString;
+        else
+            return hexString;
     }
 
     public static byte[] decodeHexString(String hexString) {
+        if(hexString != null && hexString.startsWith("0x"))
+            hexString = hexString.substring(2);
+
         if (hexString.length() % 2 == 1) {
             throw new IllegalArgumentException(
                     "Invalid hexadecimal String supplied.");

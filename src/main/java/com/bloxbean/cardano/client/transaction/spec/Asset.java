@@ -22,15 +22,11 @@ public class Asset {
     public byte[] getNameAsBytes() {
         byte[] assetNameBytes = null;
         if(name != null && !name.isEmpty()) {
-            //name is stored in hex in ledger. Try Hex decode first. If fails, try string.getBytes (used in mint transaction from client)
+            //Check if caller has provided a hex string as asset name
             if(name.startsWith("0x")) {
                 assetNameBytes = HexUtil.decodeHexString(name.substring(2));
             } else {
-                try {
-                    assetNameBytes = HexUtil.decodeHexString(name); //If hex decoding fails, then try string.getbytes
-                } catch (Exception e) {
-                    assetNameBytes = name.getBytes(StandardCharsets.UTF_8);
-                }
+                assetNameBytes = name.getBytes(StandardCharsets.UTF_8);
             }
         } else {
             assetNameBytes = new byte[0];

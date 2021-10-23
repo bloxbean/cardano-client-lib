@@ -10,5 +10,6 @@ public class BFBaseTest {
             projectId = System.getenv("BF_PROJECT_ID");
         }
 
+        projectId = "SmzYuTWziWPs0fTRON2Qrz9PnGkkhJ2y";
     }
 }

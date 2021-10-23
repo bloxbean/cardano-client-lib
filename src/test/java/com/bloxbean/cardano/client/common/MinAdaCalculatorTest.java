@@ -65,7 +65,7 @@ public class MinAdaCalculatorTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-        multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(getRandomBytes(1)), BigInteger.valueOf(4000))));
+        multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(getRandomBytes(1), true), BigInteger.valueOf(4000))));
 
         output.setValue(new Value(new BigInteger(String.valueOf(40000)), Arrays.asList(multiAsset)));
 
@@ -83,7 +83,7 @@ public class MinAdaCalculatorTest {
         multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
         List<Asset> assets = new ArrayList<>();
         for(int i=0; i < 3; i++) {
-            Asset asset = new Asset(HexUtil.encodeHexString(getRandomBytes(1)), BigInteger.valueOf(4000));
+            Asset asset = new Asset(HexUtil.encodeHexString(getRandomBytes(1), true), BigInteger.valueOf(4000));
             assets.add(asset);
         }
         multiAsset.setAssets(assets);
@@ -104,7 +104,7 @@ public class MinAdaCalculatorTest {
         for(int i=0; i< 2;i++) {
             MultiAsset multiAsset = new MultiAsset();
             multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-            multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(new byte[0]), BigInteger.valueOf(4000))));
+            multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(new byte[0], true), BigInteger.valueOf(4000))));
             multiAssets.add(multiAsset);
         }
 
@@ -124,7 +124,7 @@ public class MinAdaCalculatorTest {
         for(int i=0; i< 2;i++) {
             MultiAsset multiAsset = new MultiAsset();
             multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-            multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(getRandomBytes(1)), BigInteger.valueOf(4000))));
+            multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(getRandomBytes(1), true), BigInteger.valueOf(4000))));
             multiAssets.add(multiAsset);
         }
 
@@ -155,7 +155,7 @@ public class MinAdaCalculatorTest {
             multiAsset.setPolicyId(policyId);
 
             for(int k=0; k<32; k++) {
-                multiAsset.getAssets().add(new Asset(HexUtil.encodeHexString(new byte[]{(byte)chars[index++]}), BigInteger.valueOf(4000)));
+                multiAsset.getAssets().add(new Asset(HexUtil.encodeHexString(new byte[]{(byte)chars[index++]}, true), BigInteger.valueOf(4000)));
             }
             multiAssets.add(multiAsset);
         }
@@ -179,7 +179,7 @@ public class MinAdaCalculatorTest {
         multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
         List<Asset> assets = new ArrayList<>();
         for(int i=0; i < 110; i++) {
-            Asset asset = new Asset(HexUtil.encodeHexString(getRandomBytes(32)), BigInteger.valueOf(4000));
+            Asset asset = new Asset(HexUtil.encodeHexString(getRandomBytes(32), true), BigInteger.valueOf(4000));
             assets.add(asset);
         }
         multiAsset.setAssets(assets);
@@ -200,7 +200,7 @@ public class MinAdaCalculatorTest {
         for(int i=0; i<60; i++) {
             MultiAsset multiAsset = new MultiAsset();
             multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-            multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(getRandomBytes(32)), BigInteger.valueOf(4000))));
+            multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(getRandomBytes(32), true), BigInteger.valueOf(4000))));
             multiAssets.add(multiAsset);
         }
 
@@ -239,7 +239,7 @@ public class MinAdaCalculatorTest {
             multiAsset.setPolicyId(policyId);
 
             for(int k=0; k<32; k++) {
-                multiAsset.getAssets().add(new Asset(HexUtil.encodeHexString(new byte[]{(byte)chars[index++]}), BigInteger.valueOf(4000)));
+                multiAsset.getAssets().add(new Asset(HexUtil.encodeHexString(new byte[]{(byte)chars[index++]}, true), BigInteger.valueOf(4000)));
             }
             multiAssets.add(multiAsset);
         }

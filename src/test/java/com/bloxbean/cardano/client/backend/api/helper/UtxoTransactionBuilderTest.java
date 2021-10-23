@@ -429,7 +429,7 @@ public class UtxoTransactionBuilderTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         Account sender = new Account(Networks.testnet());
@@ -473,7 +473,7 @@ public class UtxoTransactionBuilderTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         Account sender = new Account(Networks.testnet());
@@ -572,7 +572,7 @@ public class UtxoTransactionBuilderTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         Account sender = new Account(Networks.testnet());
@@ -613,7 +613,7 @@ public class UtxoTransactionBuilderTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         Account sender = new Account(Networks.testnet());

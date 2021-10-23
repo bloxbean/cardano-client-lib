@@ -43,7 +43,7 @@ public class MultiAsset {
             ByteString assetNameBS = (ByteString)assetKey;
             UnsignedInteger assetValueUI = (UnsignedInteger)(assetsMap.get(assetKey));
 
-            String name = HexUtil.encodeHexString(assetNameBS.getBytes());
+            String name = HexUtil.encodeHexString(assetNameBS.getBytes(), true);
             multiAsset.getAssets().add(new Asset(name, assetValueUI.getValue()));
         }
         return multiAsset;

@@ -335,7 +335,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction paymentTransaction =
@@ -392,7 +392,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction mintTransaction =
@@ -452,7 +452,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8), true), BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction mintTransaction =
@@ -513,7 +513,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8), true), BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction mintTransaction =
@@ -579,7 +579,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction mintTransaction =
@@ -650,7 +650,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction mintTransaction =
@@ -705,7 +705,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
+        Asset asset = new Asset("selftoken1", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction mintTransaction =
@@ -872,7 +872,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policyId);
-        Asset asset = new Asset(HexUtil.encodeHexString("Testtoken123".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(150000));
+        Asset asset = new Asset(HexUtil.encodeHexString("Testtoken123".getBytes(StandardCharsets.UTF_8), true), BigInteger.valueOf(150000));
         multiAsset.getAssets().add(asset);
 
         MintTransaction mintTransaction =

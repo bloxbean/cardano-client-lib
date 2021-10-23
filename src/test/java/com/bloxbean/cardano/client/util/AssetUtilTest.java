@@ -99,4 +99,26 @@ class AssetUtilTest {
 
         assertEquals("asset1pkpwyknlvul7az0xx8czhl60pyel45rpje4z8w", fingerPrint);
     }
+
+    @Test
+    void testCalculateFingerPrint_when0xPrefixInParameters() {
+        String policyId = "0x7eae28af2208be856f7a119668ae52a49b73725e326dc16579dcc373";
+        String assetName = "0x1e349c9bdea19fd6c147626a5260bc44b71635f398b67c59881df209";
+
+        String fingerPrint =
+                AssetUtil.calculateFingerPrint(policyId, assetName);
+
+        assertEquals("asset17jd78wukhtrnmjh3fngzasxm8rck0l2r4hhyyt", fingerPrint);
+    }
+
+    @Test
+    void testCalculateFingerPrint__when0xPrefixInParametersAndEmptyAssetName() {
+        String policyId = "0x1e349c9bdea19fd6c147626a5260bc44b71635f398b67c59881df209";
+        String assetName = "";
+
+        String fingerPrint =
+                AssetUtil.calculateFingerPrint(policyId, "0x" + HexUtil.encodeHexString(assetName.getBytes(StandardCharsets.UTF_8)));
+
+        assertEquals("asset1uyuxku60yqe57nusqzjx38aan3f2wq6s93f6ea", fingerPrint);
+    }
 }

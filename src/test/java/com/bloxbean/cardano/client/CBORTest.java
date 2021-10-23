@@ -48,7 +48,7 @@ public class CBORTest {
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
-        multiAsset.setAssets(Arrays.asList(new Asset("736174636f696e", BigInteger.valueOf(4000))));
+        multiAsset.setAssets(Arrays.asList(new Asset("0x736174636f696e", BigInteger.valueOf(4000))));
 
         MultiAsset multiAsset1 = new MultiAsset();
         multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");

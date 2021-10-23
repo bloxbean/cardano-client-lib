@@ -12,6 +12,8 @@ public class AssetUtil {
 
     /**
      * Get policy id and asset name in hex from asset id
+     * Policy id is returned without hex prefix (0x)
+     * Asset name is returned with hex prefix (0x)
      * @param asssetId
      * @return
      */
@@ -25,7 +27,8 @@ public class AssetUtil {
         bb.get(policyId, 0, policyId.length);
         bb.get(assetName, 0, assetName.length);
 
-        return new Tuple<>(HexUtil.encodeHexString(policyId), HexUtil.encodeHexString(assetName));
+        //Add hex prefix to asset name as it's required by Asset class
+        return new Tuple<>(HexUtil.encodeHexString(policyId), HexUtil.encodeHexString(assetName, true));
     }
 
     /**
@@ -35,6 +38,11 @@ public class AssetUtil {
      * @return
      */
     public static String calculateFingerPrint(String policyIdHex, String assetNameHex) {
+        if(assetNameHex.startsWith("0x"))
+            assetNameHex = assetNameHex.substring(2);
+        if(policyIdHex.startsWith("0x"))
+            policyIdHex = policyIdHex.substring(2);
+
         String assetId = policyIdHex + assetNameHex;
         byte[] hashBytes = blake2bHash160(HexUtil.decodeHexString(assetId));
 
