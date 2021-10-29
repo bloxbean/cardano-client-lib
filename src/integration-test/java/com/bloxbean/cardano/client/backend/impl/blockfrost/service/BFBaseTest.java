@@ -9,7 +9,5 @@ public class BFBaseTest {
         if(projectId == null || projectId.isEmpty()) {
             projectId = System.getenv("BF_PROJECT_ID");
         }
-
-        projectId = "SmzYuTWziWPs0fTRON2Qrz9PnGkkhJ2y";
     }
 }
