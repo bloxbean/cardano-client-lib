@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class CBORSerializationTest {
 
     @Test
-    public void testSerializeTransactionWithMint() throws AddressExcepion, CborSerializationException {
+    public void testSerializeTransactionWithMint() throws AddressExcepion, CborSerializationException, CborDeserializationException {
         TransactionBody txnBody = new TransactionBody();
 
         long fee = 367965;
@@ -54,9 +54,12 @@ public class CBORSerializationTest {
 
         MultiAsset multiAsset1 = new MultiAsset();
         multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");
-        multiAsset1.setAssets(Arrays.asList(new Asset(null, BigInteger.valueOf(9000))));
+        multiAsset1.setAssets(Arrays.asList(new Asset("Test", BigInteger.valueOf(9000))));
         changeOutput.setValue(new Value(new BigInteger(String.valueOf(340000)), Arrays.asList(multiAsset, multiAsset1)));
 
+        MultiAsset burnAsset = new MultiAsset();
+        burnAsset.setPolicyId("229728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a26");
+        burnAsset.setAssets(Arrays.asList(new Asset("0x736174636f696e", BigInteger.valueOf(-5000))));
 
         List<TransactionOutput> outputs = new ArrayList<>();
         outputs.add(txnOutput1);
@@ -67,6 +70,7 @@ public class CBORSerializationTest {
         txnBody.setTtl(ttl);
         txnBody.getMint().add(multiAsset);
         txnBody.getMint().add(multiAsset1);
+        txnBody.getMint().add(burnAsset);
 
         Transaction transaction = new Transaction();
         transaction.setBody(txnBody);
@@ -74,9 +78,10 @@ public class CBORSerializationTest {
         System.out.println("********************");
         System.out.println(hexStr);
 
+        Transaction.deserialize(HexUtil.decodeHexString(hexStr));
+
         boolean res = CardanoJNAUtil.validateTransactionCBOR(hexStr);
         System.out.println(res);
-
         assertTrue(res);
     }
 
