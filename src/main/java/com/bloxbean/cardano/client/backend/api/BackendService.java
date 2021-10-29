@@ -82,4 +82,13 @@ public interface BackendService {
     default public FeeCalculationService getFeeCalculationService() {
         return new FeeCalculationServiceImpl(getTransactionHelperService(), getEpochService());
     }
+
+    /**
+     * Get FeeCalculationService
+     * @param transactionHelperService TransactionHelperService instance
+     * @return
+     */
+    default public FeeCalculationService getFeeCalculationService(TransactionHelperService transactionHelperService) {
+        return new FeeCalculationServiceImpl(transactionHelperService, getEpochService());
+    }
 }
