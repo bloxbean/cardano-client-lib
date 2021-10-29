@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.math.BigInteger;
@@ -71,6 +72,24 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
 
         //Calculate fee
         return doFeeCalculationFromTxnSize(HexUtil.decodeHexString(txnCBORHash), protocolParams);
+    }
+
+    @Override
+    public BigInteger calculateFee(Transaction transaction) throws ApiException, CborSerializationException {
+        Result<ProtocolParams> protocolParamsResult = epochService.getProtocolParameters();
+        if(!protocolParamsResult.isSuccessful())
+            throw new ApiException("Unable to fetch protocol parameters to calculate the fee");
+
+        return calculateFee(transaction, protocolParamsResult.getValue());
+    }
+
+    @Override
+    public BigInteger calculateFee(Transaction transaction, ProtocolParams protocolParams) throws CborSerializationException {
+        if(transaction.getBody().getFee() == null) //Just a dummy fee
+            transaction.getBody().setFee(new BigInteger("170000")); //Set a min fee just for calcuation purpose if not set
+
+        byte[] serializedBytes = transaction.serialize();
+        return doFeeCalculationFromTxnSize(serializedBytes, protocolParams);
     }
 
     private BigInteger doFeeCalculationFromTxnSize(byte[] bytes, ProtocolParams protocolParams) {

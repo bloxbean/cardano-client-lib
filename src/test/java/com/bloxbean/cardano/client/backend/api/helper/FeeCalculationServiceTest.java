@@ -14,6 +14,7 @@ import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
@@ -21,6 +22,8 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -181,5 +185,47 @@ class FeeCalculationServiceTest extends BaseTest {
 
         System.out.println(fee);
         assertThat(fee, greaterThan(new BigInteger("1000")));
+    }
+
+    @Test
+    public void calculateFee_whenTransaction() throws ApiException, IOException, AddressExcepion, CborSerializationException, CborDeserializationException {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<TransactionInput> inputs = new ArrayList<>();
+        TransactionInput txnInput = TransactionInput.builder()
+                .transactionId("5c0d3777218c631b945ebae44eb49f81acff6b53a87919d2606ac49ead07343a")
+                .index(0)
+                .build();
+        inputs.add(txnInput);
+
+        List<TransactionOutput> outputs = new ArrayList<>();
+        TransactionOutput output = TransactionOutput.builder()
+                .address(receiver)
+                .value(Value.builder()
+                        .coin(BigInteger.valueOf(2000))
+                        .build())
+                .build();
+
+        TransactionBody txBody = TransactionBody.builder()
+                .inputs(inputs)
+                .outputs(outputs)
+                .fee(BigInteger.valueOf(17000))
+                .ttl(233000001)
+                .build();
+
+        Transaction transaction = Transaction.builder()
+                .body(txBody)
+                .build();
+
+        Account account = new Account(Networks.testnet());
+        String signedTxn = account.sign(transaction);
+        byte[] signedTxnBytes =  HexUtil.decodeHexString(signedTxn);
+
+        Transaction signedTransaction = Transaction.deserialize(signedTxnBytes);
+
+        BigInteger fee = feeCalculationService.calculateFee(signedTransaction, protocolParams);
+
+        System.out.println(fee);
+        assertThat(fee, greaterThan(new BigInteger("15000")));
     }
 }
