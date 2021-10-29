@@ -1,15 +1,14 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.Map;
-import co.nstant.in.cbor.model.UnsignedInteger;
+import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Number;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,8 +24,14 @@ public class MultiAsset {
         Map assetsMap = new Map();
         for (Asset asset : assets) {
             ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
-            UnsignedInteger value = new UnsignedInteger(asset.getValue());
-            assetsMap.put(assetNameBytes, value);
+
+            if(asset.getValue().compareTo(BigInteger.ZERO) == 0 || asset.getValue().compareTo(BigInteger.ZERO) == 1) {
+                UnsignedInteger value = new UnsignedInteger(asset.getValue());
+                assetsMap.put(assetNameBytes, value);
+            } else {
+                NegativeInteger value = new NegativeInteger(asset.getValue());
+                assetsMap.put(assetNameBytes, value);
+            }
         }
 
         ByteString policyIdByte = new ByteString(HexUtil.decodeHexString(policyId));
@@ -41,7 +46,7 @@ public class MultiAsset {
         Map assetsMap = (Map) multiAssetsMap.get(key);
         for(DataItem assetKey: assetsMap.getKeys()) {
             ByteString assetNameBS = (ByteString)assetKey;
-            UnsignedInteger assetValueUI = (UnsignedInteger)(assetsMap.get(assetKey));
+            Number assetValueUI = (Number) (assetsMap.get(assetKey));
 
             String name = HexUtil.encodeHexString(assetNameBS.getBytes(), true);
             multiAsset.getAssets().add(new Asset(name, assetValueUI.getValue()));
