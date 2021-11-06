@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 
 import java.math.BigInteger;
+import java.util.List;
 
 public interface FeeCalculationService {
 
@@ -86,4 +87,31 @@ public interface FeeCalculationService {
      * @throws CborSerializationException
      */
     BigInteger calculateFee(Transaction transaction, ProtocolParams protocolParams) throws CborSerializationException;
+
+    /**
+     * Calculate estimated fee for a list of payment transactions
+     * @param paymentTransactions
+     * @param detailsParams
+     * @param metadata
+     * @return
+     * @throws ApiException
+     * @throws CborSerializationException
+     * @throws AddressExcepion
+     */
+    BigInteger calculateFee(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams,
+                            Metadata metadata) throws ApiException, CborSerializationException, AddressExcepion;
+
+    /**
+     * Calculate estimated fee for a list of payment transactions
+     * @param paymentTransactions
+     * @param detailsParams
+     * @param metadata
+     * @param protocolParams
+     * @return
+     * @throws CborSerializationException
+     * @throws AddressExcepion
+     * @throws ApiException
+     */
+    BigInteger calculateFee(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams,
+                            Metadata metadata, ProtocolParams protocolParams) throws CborSerializationException, AddressExcepion, ApiException;
 }

@@ -204,7 +204,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
     }
 
     @Test
-    void transferMultiAssetMultiPayments() throws CborSerializationException, AddressExcepion, ApiException {
+    void transferMultiAssetMultiPayments_whenMultipleSenders() throws CborSerializationException, AddressExcepion, ApiException {
         //Sender address : addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -226,8 +226,6 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .amount(BigInteger.valueOf(14))
                         .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
                         .build();
-        BigInteger fee1 = feeCalculationService.calculateFee(paymentTransaction1, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
-        paymentTransaction1.setFee(fee1);
 
         PaymentTransaction paymentTransaction2 =
                 PaymentTransaction.builder()
@@ -236,8 +234,6 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .amount(BigInteger.valueOf(33))
                         .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
                         .build();
-        BigInteger fee2 = feeCalculationService.calculateFee(paymentTransaction2, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
-        paymentTransaction2.setFee(fee2);
 
         PaymentTransaction paymentTransaction3 =
                 PaymentTransaction.builder()
@@ -246,8 +242,70 @@ class TransactionHelperServiceIT extends BFBaseTest {
                         .amount(BigInteger.valueOf(3110000))
                         .unit(LOVELACE)
                         .build();
-        BigInteger fee3 = feeCalculationService.calculateFee(paymentTransaction3, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
-        paymentTransaction3.setFee(fee3);
+
+        //Calculate total fee for all 3 payment transactions and set in one of the payment transaction
+        BigInteger fee = feeCalculationService.calculateFee(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3),
+                TransactionDetailsParams
+                        .builder()
+                        .ttl(getTtl())
+                        .build(), null);
+        paymentTransaction1.setFee(fee);
+
+        Result<TransactionResult> result = transactionHelperService.transfer(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3),
+                TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+        if(result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        System.out.println(result);
+        waitForTransaction(result);
+        assertThat(result.isSuccessful(), is(true));
+    }
+
+    @Test
+    void transferMultiAssetMultiPayments_whenSingleSender() throws CborSerializationException, AddressExcepion, ApiException {
+        //Sender address : addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+
+        String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        String receiver2 = "addr_test1qz7r5eu2jg0hx470mmf79vpgueaggh22pmayry8xrre5grtpyy9s8u2heru58a4r68wysmdw9v40zznttmwrg0a6v9tq36pjak";
+        String receiver3 = "addr_test1qrp6x6aq2m28xhvxhqzufl0ff7x8gmzjejssrk29mx0q829dsty3hzmrl2k8jhwzghgxuzfjatgxlhg9wtl6ecv0v3cqf92rnh";
+
+        PaymentTransaction paymentTransaction1 =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver1)
+                        .unit(LOVELACE)
+                        .amount(BigInteger.valueOf(1000000))
+                        .fee(BigInteger.valueOf(4000)) //some low fee (invalid). Just for testing
+                        .build();
+
+        PaymentTransaction paymentTransaction2 =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver2)
+                        .unit(LOVELACE)
+                        .amount(BigInteger.valueOf(2000000))
+                        .build();
+
+        PaymentTransaction paymentTransaction3 =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver3)
+                        .amount(BigInteger.valueOf(3000000))
+                        .unit(LOVELACE)
+                        .build();
+
+        //Calculate total fee for all 3 payment transactions and set in one of the payment transaction
+        BigInteger fee = feeCalculationService.calculateFee(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3),
+                TransactionDetailsParams
+                        .builder()
+                        .ttl(getTtl())
+                        .build(), null);
+        paymentTransaction1.setFee(fee);
 
         Result<TransactionResult> result = transactionHelperService.transfer(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3),
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
