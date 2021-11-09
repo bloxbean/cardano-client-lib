@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Number;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
@@ -10,6 +11,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigInteger;
 import java.util.List;
 
 @Data
@@ -32,8 +34,15 @@ public class TransactionOutput {
         if(value.getMultiAssets() != null && value.getMultiAssets().size() > 0) {
             Array coinAssetArray = new Array();
 
-            if(value.getCoin() != null)
-                coinAssetArray.add(new UnsignedInteger(value.getCoin()));
+            if(value.getCoin() != null) {
+                if(value.getCoin().compareTo(BigInteger.ZERO) == 0 || value.getCoin().compareTo(BigInteger.ZERO) == 1) {
+                    coinAssetArray.add(new UnsignedInteger(value.getCoin()));
+                } else {
+                    coinAssetArray.add(new NegativeInteger(value.getCoin()));
+                }
+            } else {
+                coinAssetArray.add(new UnsignedInteger(BigInteger.ZERO));
+            }
 
             Map valueMap = value.serialize();
             coinAssetArray.add(valueMap);
@@ -41,7 +50,15 @@ public class TransactionOutput {
             array.add(coinAssetArray);
 
         } else {
-            array.add(new UnsignedInteger(value.getCoin()));
+            if(value.getCoin() != null) {
+                if (value.getCoin().compareTo(BigInteger.ZERO) == 0 || value.getCoin().compareTo(BigInteger.ZERO) == 1) {
+                    array.add(new UnsignedInteger(value.getCoin()));
+                } else {
+                    array.add(new NegativeInteger(value.getCoin()));
+                }
+            } else {
+                array.add(new UnsignedInteger(BigInteger.ZERO));
+            }
         }
 
         return array;
@@ -66,9 +83,17 @@ public class TransactionOutput {
 
         Value value = null;
         DataItem valueItem = items.get(1);
-        if(MajorType.UNSIGNED_INTEGER.equals(valueItem.getMajorType())) {
+        if(MajorType.UNSIGNED_INTEGER.equals(valueItem.getMajorType()) || MajorType.NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
             value = new Value();
-            value.setCoin(((UnsignedInteger)valueItem).getValue());
+            value.setCoin(((Number) valueItem).getValue());
+        } else if(MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
+            if(valueItem.getTag().getValue() == 2) {
+                value = new Value();
+                value.setCoin(new BigInteger(((ByteString) valueItem).getBytes()));
+            } else if(valueItem.getTag().getValue() == 3) {
+                value = new Value();
+                value.setCoin(new BigInteger(((ByteString)valueItem).getBytes()).multiply(BigInteger.valueOf(-1)));
+            }
         } else if(MajorType.ARRAY.equals(valueItem.getMajorType())) {
             Array coinAssetArray = (Array)valueItem;
             value = Value.deserialize(coinAssetArray);

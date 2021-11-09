@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
-import co.nstant.in.cbor.model.Number;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -46,10 +45,12 @@ public class MultiAsset {
         Map assetsMap = (Map) multiAssetsMap.get(key);
         for(DataItem assetKey: assetsMap.getKeys()) {
             ByteString assetNameBS = (ByteString)assetKey;
-            Number assetValueUI = (Number) (assetsMap.get(assetKey));
+
+            DataItem valueDI = assetsMap.get(assetKey);
+            BigInteger value = CborSerializationUtil.getBigInteger(valueDI);
 
             String name = HexUtil.encodeHexString(assetNameBS.getBytes(), true);
-            multiAsset.getAssets().add(new Asset(name, assetValueUI.getValue()));
+            multiAsset.getAssets().add(new Asset(name, value));
         }
         return multiAsset;
     }
