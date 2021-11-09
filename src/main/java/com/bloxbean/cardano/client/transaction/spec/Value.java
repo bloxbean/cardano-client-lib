@@ -1,8 +1,9 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,7 +26,8 @@ public class Value {
         Map map = new Map();
         if(multiAssets != null) {
             for (MultiAsset multiAsset : multiAssets) {
-                Map assetsMap = new Map();
+                multiAsset.serialize(map);
+                /*Map assetsMap = new Map();
                 for (Asset asset : multiAsset.getAssets()) {
                     ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
                     UnsignedInteger value = new UnsignedInteger(asset.getValue());
@@ -33,7 +35,7 @@ public class Value {
                 }
 
                 ByteString policyIdByte = new ByteString(HexUtil.decodeHexString(multiAsset.getPolicyId()));
-                map.put(policyIdByte, assetsMap);
+                map.put(policyIdByte, assetsMap);*/
             }
         }
         return map;
@@ -46,8 +48,8 @@ public class Value {
         Value value = new Value();
         List<DataItem> valueDataItems = valueArray.getDataItems();
         if(valueDataItems != null && valueDataItems.size() == 2) {
-            UnsignedInteger coinUI = (UnsignedInteger)valueDataItems.get(0);
-            BigInteger coin = coinUI.getValue();
+            DataItem valueDI = valueDataItems.get(0);
+            BigInteger coin = CborSerializationUtil.getBigInteger(valueDI);
             value.setCoin(coin);
 
             Map multiAssetsMap = (Map)valueDataItems.get(1);
