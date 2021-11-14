@@ -22,6 +22,10 @@ For another platform, please create a request [here](https://github.com/bloxbean
 - [Cardano-client-lib: Transaction with Metadata in Java - Part II](https://medium.com/p/fa34f403b90e)
 - [Cardano-client-lib: Minting a new Native Token in Java - Part III](https://medium.com/p/1a94a21cfeeb)
 
+**Examples**
+
+[Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
+
 **Features**
 
 #### Address Generation
