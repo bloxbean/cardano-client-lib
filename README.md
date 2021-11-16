@@ -349,6 +349,7 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 * [Cardanotales](https://cardanotales.com)
 * [Cardano Fans Raffles](https://cardano.fans)
 * [adadomains.io](https://www.adadomains.io/)
+* [ADAM - ADA Monitor APP](https://play.google.com/store/apps/details?id=com.esodot.andro.monitor)
 ---
 
 ##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
