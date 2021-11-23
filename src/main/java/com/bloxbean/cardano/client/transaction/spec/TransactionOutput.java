@@ -21,8 +21,14 @@ import java.util.List;
 public class TransactionOutput {
     private String address;
     private Value value;
+    private byte[] datumHash;
 
-    //transaction_output = [address, amount : value]
+    //transaction_output = [address, amount : value, ? datum_hash : $hash32]
+    public TransactionOutput(String address, Value value) {
+        this.address = address;
+        this.value = value;
+    }
+
     public Array serialize() throws CborSerializationException, AddressExcepion {
         Array array = new Array();
         byte[] addressByte = Account.toBytes(address);
@@ -61,6 +67,9 @@ public class TransactionOutput {
             }
         }
 
+        if(datumHash != null)
+            array.add(new ByteString(datumHash));
+
         return array;
     }
 
@@ -68,7 +77,7 @@ public class TransactionOutput {
         List<DataItem> items = ouptutItem.getDataItems();
         TransactionOutput output = new TransactionOutput();
 
-        if(items == null || items.size() != 2) {
+        if(items == null || (items.size() != 2 && items.size() != 3)) {
             throw new CborDeserializationException("TransactionOutput deserialization failed. Invalid no of DataItems");
         }
 
@@ -98,6 +107,13 @@ public class TransactionOutput {
             Array coinAssetArray = (Array)valueItem;
             value = Value.deserialize(coinAssetArray);
 
+        }
+
+        if (items.size() == 3) {
+            ByteString datumBytes = (ByteString) items.get(2);
+            if(datumBytes != null) {
+                output.setDatumHash(datumBytes.getBytes());
+            }
         }
 
         output.setValue(value);

@@ -1,9 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.Map;
-import co.nstant.in.cbor.model.UnsignedInteger;
+import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
@@ -22,6 +19,12 @@ import java.util.List;
 public class TransactionWitnessSet {
     private List<VkeyWitness> vkeyWitnesses = new ArrayList<>();
     private List<NativeScript> nativeScripts = new ArrayList<>();
+
+    private List<BootstrapWitness> bootstrapWitnesses = new ArrayList<>(); //Not implemented
+    //Alonzo
+    private List<PlutusScript> plutusScripts = new ArrayList<>();
+    private List<PlutusData> plutusDataList = new ArrayList<>();
+    private List<Redeemer> redeemers = new ArrayList<>();
 
     public Map serialize() throws CborSerializationException {
         //Array
@@ -47,6 +50,43 @@ public class TransactionWitnessSet {
 
             witnessMap.put(new UnsignedInteger(1), nativeScriptArray);
         }
+
+        if(bootstrapWitnesses != null && bootstrapWitnesses.size() > 0) {
+            Array bootstrapWitnessArray = new Array();
+            for(BootstrapWitness bootstrapWitness: bootstrapWitnesses) {
+                bootstrapWitnessArray.add(bootstrapWitness.serialize());
+            }
+
+            witnessMap.put(new UnsignedInteger(2), bootstrapWitnessArray);
+        }
+
+        if(plutusScripts != null && plutusScripts.size() > 0) {
+            Array plutusScriptArray = new Array();
+            for(PlutusScript plutusScript: plutusScripts) {
+                plutusScriptArray.add(plutusScript.serialize());
+            }
+
+            witnessMap.put(new UnsignedInteger(3), plutusScriptArray);
+        }
+
+        if(plutusDataList != null && plutusDataList.size() > 0) {
+            Array plutusdataArray = new Array();
+            for(PlutusData plutusData: plutusDataList) {
+                plutusdataArray.add(plutusData.serialize());
+            }
+
+            witnessMap.put(new UnsignedInteger(4), plutusdataArray);
+        }
+
+        if(redeemers != null && redeemers.size() > 0) {
+            Array redeemerArray = new Array();
+            for(Redeemer redeemer: redeemers) {
+                redeemerArray.add(redeemer.serialize());
+            }
+
+            witnessMap.put(new UnsignedInteger(5), redeemerArray);
+        }
+
         return witnessMap;
     }
 
@@ -63,6 +103,11 @@ public class TransactionWitnessSet {
 
         DataItem vkWitnessesArray = witnessMap.get(new UnsignedInteger(0));
         DataItem nativeScriptArray = witnessMap.get(new UnsignedInteger(1));
+        DataItem bootstrapWitnessArray = witnessMap.get(new UnsignedInteger(2));
+        DataItem plutusScriptArray = witnessMap.get(new UnsignedInteger(3));
+        DataItem plutusDataArray = witnessMap.get(new UnsignedInteger(4));
+        DataItem redeemerArray = witnessMap.get(new UnsignedInteger(5));
+
 
         if(vkWitnessesArray != null) { //vkwitnesses
             List<DataItem> vkeyWitnessesDIList = ((Array) vkWitnessesArray).getDataItems();
@@ -96,8 +141,78 @@ public class TransactionWitnessSet {
             transactionWitnessSet.setNativeScripts(null);
         }
 
+        if(bootstrapWitnessArray != null) {
+            List<DataItem> bootstrapWitnessDIList = ((Array)bootstrapWitnessArray).getDataItems();
+            List<BootstrapWitness> bootstrapWitnesses = new ArrayList<>();
+
+            for(DataItem bootstrapWitnessDI: bootstrapWitnessDIList) {
+                BootstrapWitness bootstrapWitness = BootstrapWitness.deserialize((Array) bootstrapWitnessDI);
+                if(bootstrapWitness != null)
+                    bootstrapWitnesses.add(bootstrapWitness);
+            }
+
+            if(bootstrapWitnesses.size() > 0) {
+                transactionWitnessSet.setBootstrapWitnesses(bootstrapWitnesses);
+            }
+        } else {
+            transactionWitnessSet.setBootstrapWitnesses(null);
+        }
+
+        //plutus_script
+        if(plutusScriptArray != null) {
+            List<DataItem> plutusScriptDIList = ((Array)plutusScriptArray).getDataItems();
+            List<PlutusScript> plutusScripts = new ArrayList<>();
+
+            for(DataItem plutusScriptDI: plutusScriptDIList) {
+                PlutusScript plutusScript = PlutusScript.deserialize((ByteString) plutusScriptDI);
+                if(plutusScript != null)
+                    plutusScripts.add(plutusScript);
+            }
+
+            if(plutusScripts.size() > 0) {
+                transactionWitnessSet.setPlutusScripts(plutusScripts);
+            }
+        } else {
+            transactionWitnessSet.setPlutusScripts(null);
+        }
+
+        //plutus_data
+        if(plutusDataArray != null) {
+            List<DataItem> plutusDataDIList = ((Array) plutusDataArray).getDataItems();
+            List<PlutusData> plutusDataList = new ArrayList<>();
+
+            for(DataItem plutusDataDI: plutusDataDIList) {
+                plutusDataList.add(PlutusData.deserialize(plutusDataDI));
+            }
+
+            if(plutusDataList.size() > 0) {
+                transactionWitnessSet.setPlutusDataList(plutusDataList);
+            }
+        } else {
+            transactionWitnessSet.setPlutusDataList(null);
+        }
+
+        //redeemers
+        if(redeemerArray != null) {
+            List<DataItem> redeemerDIList = ((Array) redeemerArray).getDataItems();
+            List<Redeemer> redeemers = new ArrayList<>();
+
+            for(DataItem redeemerDI: redeemerDIList) {
+                redeemers.add(Redeemer.deserialize((Array) redeemerDI));
+            }
+
+            if(redeemers.size() > 0) {
+                transactionWitnessSet.setRedeemers(redeemers);
+            }
+        } else {
+            transactionWitnessSet.setRedeemers(null);
+        }
+
+
         if(transactionWitnessSet.getVkeyWitnesses() == null
-                && transactionWitnessSet.getNativeScripts() == null) {
+                && transactionWitnessSet.getNativeScripts() == null
+                && transactionWitnessSet.getBootstrapWitnesses() == null
+                && transactionWitnessSet.getPlutusScripts() == null) {
             return null;
         } else {
             return transactionWitnessSet;

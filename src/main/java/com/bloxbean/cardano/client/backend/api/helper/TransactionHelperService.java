@@ -10,13 +10,13 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.crypto.SecretKey;
-import com.bloxbean.cardano.client.metadata.Metadata;
-import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
-import com.bloxbean.cardano.client.transaction.model.MintTransaction;
-import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
+import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.transaction.model.MintTransaction;
+import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
+import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -99,7 +99,7 @@ public class TransactionHelperService {
      * @throws AddressExcepion
      * @throws CborSerializationException
      */
-    public Result transfer(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams)
+    public Result<TransactionResult> transfer(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams)
             throws ApiException, AddressExcepion, CborSerializationException {
         return transfer(Arrays.asList(paymentTransaction), detailsParams, null);
     }
@@ -244,7 +244,11 @@ public class TransactionHelperService {
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
         transactionWitnessSet.getNativeScripts().add(mintTransaction.getPolicyScript());
         transaction.setWitnessSet(transactionWitnessSet);
-        transaction.setMetadata(metadata);
+
+        //TODO - check probably not required here.
+//        transaction.setAuxiliaryData(AuxiliaryData.builder()
+//                .metadata(metadata)
+//                .build());
 
         if(LOG.isDebugEnabled())
             LOG.debug(JsonUtil.getPrettyJson(transaction));

@@ -30,6 +30,11 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
 
     @Override
     public List<Utxo> selectUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException {
+        return selectUtxos(address, unit, amount, null, excludeUtxos);
+    }
+
+    @Override
+    public List<Utxo> selectUtxos(String address, String unit, BigInteger amount, String datumHash, Set<Utxo> excludeUtxos) throws ApiException {
         if(amount == null)
             amount = BigInteger.ZERO;
 
@@ -53,6 +58,9 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                         continue;
 
                     if(utxo.getDataHash() != null && !utxo.getDataHash().isEmpty() && ignoreUtxosWithDatumHash())
+                        continue;
+
+                    if(datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash()))
                         continue;
 
                     List<Amount> utxoAmounts = utxo.getAmount();
