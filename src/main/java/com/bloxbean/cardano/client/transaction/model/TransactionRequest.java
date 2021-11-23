@@ -22,4 +22,7 @@ public abstract class TransactionRequest {
 
     //Optional - Utxos to include to the transaction
     private List<Utxo> utxosToInclude;
+
+    //Datumhash - Required when receiver is a script
+    private String datumHash;
 }

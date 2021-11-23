@@ -30,8 +30,8 @@ public class MintTransaction extends TransactionRequest {
 
     @Builder
     public MintTransaction(Account sender, String receiver, BigInteger fee, List<Account> additionalWitnessAccounts,
-                           List<Utxo> utxosToInclude, List<MultiAsset> mintAssets, NativeScript policyScript, List<SecretKey> policyKeys) {
-        super(sender, receiver, fee, additionalWitnessAccounts, utxosToInclude);
+                           List<Utxo> utxosToInclude, String datumHash, List<MultiAsset> mintAssets, NativeScript policyScript, List<SecretKey> policyKeys) {
+        super(sender, receiver, fee, additionalWitnessAccounts, utxosToInclude, datumHash);
         this.mintAssets = mintAssets;
         this.policyScript = policyScript;
         this.policyKeys = policyKeys;

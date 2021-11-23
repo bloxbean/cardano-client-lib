@@ -43,11 +43,11 @@ public class CBORSerializationTest {
         txnBody.setInputs(Arrays.asList(txnInput));
 
         //Output 1
-        TransactionOutput txnOutput1 =  new TransactionOutput();
+        TransactionOutput txnOutput1 = new TransactionOutput();
         txnOutput1.setAddress(recAddress);
         txnOutput1.setValue(new Value(new BigInteger(String.valueOf(40000)), null));
 
-        TransactionOutput changeOutput =  new TransactionOutput();
+        TransactionOutput changeOutput = new TransactionOutput();
         changeOutput.setAddress(outputAddress);
 
         MultiAsset multiAsset1 = new MultiAsset();
@@ -136,17 +136,17 @@ public class CBORSerializationTest {
         txnBody.setInputs(Arrays.asList(txnInput));
 
         //Output 1
-        TransactionOutput txnOutput1 =  new TransactionOutput();
+        TransactionOutput txnOutput1 = new TransactionOutput();
         txnOutput1.setAddress(recAddress);
         txnOutput1.setValue(new Value(new BigInteger(String.valueOf(40000)), null));
 
         //output 2
-        TransactionOutput txnOutput2 =  new TransactionOutput();
+        TransactionOutput txnOutput2 = new TransactionOutput();
         txnOutput2.setAddress(recAddress);
         txnOutput2.setValue(new Value(null, null));
 
         //change output
-        TransactionOutput changeOutput =  new TransactionOutput();
+        TransactionOutput changeOutput = new TransactionOutput();
         changeOutput.setAddress(outputAddress);
 
         MultiAsset multiAsset1 = new MultiAsset();
@@ -209,11 +209,11 @@ public class CBORSerializationTest {
         txnBody.setInputs(Arrays.asList(txnInput));
 
         //Output 1
-        TransactionOutput txnOutput1 =  new TransactionOutput();
+        TransactionOutput txnOutput1 = new TransactionOutput();
         txnOutput1.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
         txnOutput1.setValue(new Value(new BigInteger(String.valueOf(40000)), null));
 
-        TransactionOutput changeOutput =  new TransactionOutput();
+        TransactionOutput changeOutput = new TransactionOutput();
         changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
 
         MultiAsset multiAsset = new MultiAsset();
@@ -238,20 +238,20 @@ public class CBORSerializationTest {
 
         CBORMetadataMap mm = new CBORMetadataMap()
                 .put(new BigInteger("1978"), "201value")
-                .put(new BigInteger("197819"),new BigInteger("200001"))
-                .put("203", new byte[] { 11,11,10});
+                .put(new BigInteger("197819"), new BigInteger("200001"))
+                .put("203", new byte[]{11, 11, 10});
 
         CBORMetadataList list = new CBORMetadataList()
                 .add("301value")
                 .add(new BigInteger("300001"))
-                .add(new byte[] { 11,11,10})
+                .add(new byte[]{11, 11, 10})
                 .add(new CBORMetadataMap()
                         .put(new BigInteger("401"), "401str")
                         .put("hello", "hellovalue"));
         Metadata metadata = new CBORMetadata()
                 .put(new BigInteger("197819781978"), "John")
                 .put(new BigInteger("197819781979"), "CA")
-                .put(new BigInteger("1978197819710"), new byte[]{0,11})
+                .put(new BigInteger("1978197819710"), new byte[]{0, 11})
                 .put(new BigInteger("1978197819711"), mm)
                 .put(new BigInteger("1978197819712"), list);
 
@@ -281,11 +281,11 @@ public class CBORSerializationTest {
         txnBody.setInputs(Arrays.asList(txnInput));
 
         //Output 1
-        TransactionOutput txnOutput1 =  new TransactionOutput();
+        TransactionOutput txnOutput1 = new TransactionOutput();
         txnOutput1.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
         txnOutput1.setValue(new Value(new BigInteger(String.valueOf(40000)), Collections.emptyList()));
 
-        TransactionOutput changeOutput =  new TransactionOutput();
+        TransactionOutput changeOutput = new TransactionOutput();
         changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
 
         MultiAsset multiAsset = new MultiAsset();
@@ -293,7 +293,7 @@ public class CBORSerializationTest {
         multiAsset.setAssets(Arrays.asList(
                 new Asset("0x736174636f696e", BigInteger.valueOf(4000)),
                 new Asset("0x446174636f696e", BigInteger.valueOf(1100))
-                ));
+        ));
 
         MultiAsset multiAsset1 = new MultiAsset();
         multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");
@@ -327,7 +327,7 @@ public class CBORSerializationTest {
         assertThat(deSeTransaction.getBody().getFee()).isEqualTo((transaction.getBody().getFee()));
         assertThat(deSeTransaction.getBody().getTtl()).isEqualTo(transaction.getBody().getTtl());
         assertThat(deSeTransaction.getBody().getValidityStartInterval()).isEqualTo(transaction.getBody().getValidityStartInterval());
-        assertThat(deSeTransaction.getBody().getMetadataHash()).isEqualTo(transaction.getBody().getMetadataHash());
+        assertThat(deSeTransaction.getBody().getAuxiliaryDataHash()).isEqualTo(transaction.getBody().getAuxiliaryDataHash());
         assertThat(deSeTransaction.getBody().getMint()).isEqualTo(transaction.getBody().getMint());
         assertThat(deSeTransaction).isEqualTo(transaction);
 
@@ -352,11 +352,11 @@ public class CBORSerializationTest {
         txnBody.setInputs(Arrays.asList(txnInput));
 
         //Output 1
-        TransactionOutput txnOutput1 =  new TransactionOutput();
+        TransactionOutput txnOutput1 = new TransactionOutput();
         txnOutput1.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
         txnOutput1.setValue(new Value(new BigInteger(String.valueOf(40000)), Collections.emptyList()));
 
-        TransactionOutput changeOutput =  new TransactionOutput();
+        TransactionOutput changeOutput = new TransactionOutput();
         changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
 
         MultiAsset multiAsset = new MultiAsset();
@@ -388,25 +388,27 @@ public class CBORSerializationTest {
 
         CBORMetadataMap mm = new CBORMetadataMap()
                 .put(new BigInteger("1978"), "201value")
-                .put(new BigInteger("197819"),new BigInteger("200001"))
-                .put("203", new byte[] { 11,11,10});
+                .put(new BigInteger("197819"), new BigInteger("200001"))
+                .put("203", new byte[]{11, 11, 10});
 
         CBORMetadataList list = new CBORMetadataList()
                 .add("301value")
                 .add(new BigInteger("300001"))
-                .add(new byte[] { 11,11,10})
+                .add(new byte[]{11, 11, 10})
                 .add(new CBORMetadataMap()
                         .put(new BigInteger("401"), "401str")
                         .put("hello", "hellovalue"));
         Metadata metadata = new CBORMetadata()
                 .put(new BigInteger("197819781978"), "John")
                 .put(new BigInteger("197819781979"), "CA")
-                .put(new BigInteger("1978197819710"), new byte[]{0,11})
+                .put(new BigInteger("1978197819710"), new byte[]{0, 11})
                 .put(new BigInteger("1978197819711"), mm)
                 .put(new BigInteger("1978197819712"), list);
 
         Transaction transaction = new Transaction();
-        transaction.setMetadata(metadata);
+        transaction.setAuxiliaryData(AuxiliaryData.builder()
+                .metadata(metadata)
+                .build());
         transaction.setBody(txnBody);
 
         String txnHex = account1.sign(transaction);
@@ -451,7 +453,7 @@ public class CBORSerializationTest {
         assertThat(deSeTransaction.getBody().getFee()).isEqualTo(transaction.getBody().getFee());
         assertThat(deSeTransaction.getBody().getTtl()).isEqualTo(transaction.getBody().getTtl());
         assertThat(deSeTransaction.getBody().getValidityStartInterval()).isEqualTo(transaction.getBody().getValidityStartInterval());
-        assertThat(deSeTransaction.getBody().getMetadataHash()).isEqualTo(transaction.getBody().getMetadataHash());
+        assertThat(deSeTransaction.getBody().getAuxiliaryDataHash()).isEqualTo(transaction.getBody().getAuxiliaryDataHash());
         assertThat(deSeTransaction.getBody().getMint()).hasSize(3);
         assertThat(deSeTransaction.getBody().getMint().get(0).getAssets()).isEqualTo(transaction.getBody().getMint().get(0).getAssets());
         assertThat(deSeTransaction.getWitnessSet().getVkeyWitnesses()).hasSize(2);
@@ -459,11 +461,11 @@ public class CBORSerializationTest {
         assertThat(deSeTransaction.getWitnessSet().getVkeyWitnesses().get(0).getSignature()).isNotNull();
 
         //metadata
-        assertThat(deSeTransaction.getMetadata())
+        assertThat(deSeTransaction.getAuxiliaryData().getMetadata())
                 .usingDefaultComparator()
                 .usingRecursiveComparison()
-                .isEqualTo(transaction.getMetadata());
-        assertThat(deSeTransaction.getMetadata().serialize()).isEqualTo(transaction.getMetadata().serialize());
+                .isEqualTo(transaction.getAuxiliaryData().getMetadata());
+        assertThat(deSeTransaction.getAuxiliaryData().getMetadata().serialize()).isEqualTo(transaction.getAuxiliaryData().getMetadata().serialize());
 
         assertThat(deSeTransaction.serializeToHex()).isEqualTo((txnHex));
     }
@@ -486,11 +488,11 @@ public class CBORSerializationTest {
         txnBody.setInputs(Arrays.asList(txnInput));
 
         //Output 1
-        TransactionOutput txnOutput1 =  new TransactionOutput();
+        TransactionOutput txnOutput1 = new TransactionOutput();
         txnOutput1.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
         txnOutput1.setValue(new Value(new BigInteger(String.valueOf(40000)), Collections.emptyList()));
 
-        TransactionOutput changeOutput =  new TransactionOutput();
+        TransactionOutput changeOutput = new TransactionOutput();
         changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
         changeOutput.setValue(new Value(new BigInteger("30"), Collections.emptyList()));
 
@@ -538,7 +540,7 @@ public class CBORSerializationTest {
         assertThat(deSeTransaction.getBody().getFee()).isEqualTo(transaction.getBody().getFee());
         assertThat(deSeTransaction.getBody().getTtl()).isEqualTo(transaction.getBody().getTtl());
         assertThat(deSeTransaction.getBody().getValidityStartInterval()).isEqualTo(transaction.getBody().getValidityStartInterval());
-        assertThat(deSeTransaction.getBody().getMetadataHash()).isEqualTo(transaction.getBody().getMetadataHash());
+        assertThat(deSeTransaction.getBody().getAuxiliaryDataHash()).isEqualTo(transaction.getBody().getAuxiliaryDataHash());
 
         assertThat(deSeTransaction.getWitnessSet().getVkeyWitnesses()).hasSize(3);
         assertThat(deSeTransaction.getWitnessSet().getVkeyWitnesses().get(0).getVkey()).isNotNull();

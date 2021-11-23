@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

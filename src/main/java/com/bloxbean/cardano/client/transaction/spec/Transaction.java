@@ -7,7 +7,6 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
-import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,13 +23,21 @@ import java.util.List;
 public class Transaction {
     private TransactionBody body;
     private TransactionWitnessSet witnessSet;
+    @Deprecated
     private Metadata metadata;
+    private boolean isValid;
+    private AuxiliaryData auxiliaryData;
 
     public byte[] serialize() throws CborSerializationException {
         try {
-            if (metadata != null && body.getMetadataHash() == null) {
-                byte[] metadataHash = metadata.getMetadataHash();
-                body.setMetadataHash(metadataHash);
+//            if (metadata != null && body.getMetadataHash() == null) {
+//                byte[] metadataHash = metadata.getMetadataHash();
+//                body.setMetadataHash(metadataHash);
+//            }
+
+            if (auxiliaryData != null && body.getAuxiliaryDataHash() == null) {
+                byte[] auxiliaryDataHash = auxiliaryData.getAuxiliaryDataHash();
+                body.setAuxiliaryDataHash(auxiliaryDataHash);
             }
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -48,12 +55,25 @@ public class Transaction {
                 Map witnessMap = new Map();
                 array.add(witnessMap);
             }
+            //metadata - Still supported in Alonzo
+//            if (metadata != null && auxiliaryData == null) {
+//                array.add(metadata.getData());
+//            } else
+//                array.add(new ByteString((byte[]) null)); //Null for meta  //TODO alonzo changes
 
-            //metadata
-            if (metadata != null) {
-                array.add(metadata.getData());
+            if(isValid)
+                array.add(SimpleValue.TRUE);
+            else
+                array.add(SimpleValue.FALSE);
+
+            //Auxiliary Data
+            if (auxiliaryData != null) {
+                DataItem[] dataItems = auxiliaryData.serialize();
+                for (DataItem dataItem: dataItems) {
+                    array.add(dataItem);
+                }
             } else
-                array.add(new ByteString((byte[]) null)); //Null for meta
+                array.add(SimpleValue.NULL);
 
             cborBuilder.add(array);
 
@@ -98,10 +118,16 @@ public class Transaction {
             }
 
             //metadata
-            if (MajorType.MAP.equals(metadata.getMajorType())) { //Metadata available
-                Map metadataMap = (Map) metadata;
-                Metadata cborMetadata = CBORMetadata.deserialize(metadataMap);
-                transaction.setMetadata(cborMetadata);
+//            if (MajorType.MAP.equals(metadata.getMajorType())) { //Metadata available
+//                Map metadataMap = (Map) metadata;
+//                Metadata cborMetadata = CBORMetadata.deserialize(metadataMap);
+//                transaction.setMetadata(cborMetadata);
+//            }
+
+            if(metadata != null && metadata.getTag() != null && metadata.getTag().getValue() == 259) { //Auxiliary data
+                DataItem auxiliaryDataMap = metadata;
+                AuxiliaryData auxiliaryData = AuxiliaryData.deserialize((Map) auxiliaryDataMap);
+                transaction.setAuxiliaryData(auxiliaryData);
             }
 
             TransactionBody body = TransactionBody.deserialize((Map) txnBody);

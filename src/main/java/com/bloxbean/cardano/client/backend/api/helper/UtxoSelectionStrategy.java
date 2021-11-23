@@ -23,6 +23,18 @@ public interface UtxoSelectionStrategy {
     List<Utxo> selectUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException;
 
     /**
+     * Selected utxos based on a strategy
+     * @param address Address to select utxos for
+     * @param unit Unit
+     * @param amount Amount
+     * @param datumHash DatumHash to compare
+     * @param excludeUtxos Utxos to ignore
+     * @return List of Utxos
+     * @throws ApiException
+     */
+    List<Utxo> selectUtxos(String address, String unit, BigInteger amount, String datumHash, Set<Utxo> excludeUtxos) throws ApiException;
+
+    /**
      *
      * @return True if utxos with datum hash need to ignored, otherwise false
      */

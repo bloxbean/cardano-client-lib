@@ -17,6 +17,7 @@ import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.AssetUtil;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.google.common.collect.ArrayListMultimap;
@@ -129,9 +130,13 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                 .validityStartInterval(detailsParams.getValidityStartInterval())
                 .build();
 
+        AuxiliaryData auxiliaryData = AuxiliaryData.builder()
+                .metadata(metadata)
+                .build();
+
         Transaction transaction = Transaction.builder()
                 .body(transactionBody)
-                .metadata(metadata)
+                .auxiliaryData(auxiliaryData)
                 .build();
 
         return transaction;
@@ -229,6 +234,12 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         for (MultiAsset ma : mintTransaction.getMintAssets()) {
              mintedTransactionOutput.getValue().getMultiAssets().add(ma);
         }
+
+        //Add datum hash. Should be used only for receiver as script address
+        if(mintTransaction.getDatumHash() != null && !mintTransaction.getDatumHash().isEmpty()) {
+            mintedTransactionOutput.setDatumHash(HexUtil.decodeHexString(mintTransaction.getDatumHash()));
+        }
+
         outputs.add(mintedTransactionOutput);
 
         TransactionBody body = TransactionBody
@@ -244,9 +255,13 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         if(LOG.isDebugEnabled())
             LOG.debug(JsonUtil.getPrettyJson(body));
 
+        AuxiliaryData auxiliaryData = AuxiliaryData.builder()
+                .metadata(metadata)
+                .build();
+
         Transaction transaction = Transaction.builder()
                 .body(body)
-                .metadata(metadata)
+                .auxiliaryData(auxiliaryData)
                 .build();
 
         return transaction;
@@ -394,6 +409,12 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         senderMiscCostMap.put(transaction.getSender().baseAddress(), existingMiscCost);
 
         totalFee = totalFee.add(transaction.getFee());
+
+        //Add datum hash. Should be used only for receiver as script address
+        if(transaction.getDatumHash() != null && !transaction.getDatumHash().isEmpty()) {
+            outputBuilder.datumHash(HexUtil.decodeHexString(transaction.getDatumHash()));
+        }
+
         transactionOutputs.add(outputBuilder.build());
         return totalFee;
     }

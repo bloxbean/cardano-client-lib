@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.transaction.model;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.model.Utxo;
-import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,8 +22,8 @@ public class PaymentTransaction extends TransactionRequest {
 
     @Builder
     public PaymentTransaction(Account sender, String receiver, BigInteger fee, List<Account> additionalWitnessAccounts,
-                              List<Utxo> utxosToInclude, String unit, BigInteger amount) {
-        super(sender, receiver, fee, additionalWitnessAccounts, utxosToInclude);
+                              List<Utxo> utxosToInclude, String unit, BigInteger amount, String datumHash) {
+        super(sender, receiver, fee, additionalWitnessAccounts, utxosToInclude, datumHash);
         this.unit = unit;
         this.amount = amount;
     }

@@ -23,9 +23,14 @@ public class TransactionBody {
     private List<TransactionOutput> outputs;
     private BigInteger fee;
     private long ttl; //Optional
+    //certs -- Not implemented
     private List<MultiAsset> mint = new ArrayList<>();
-    private byte[] metadataHash;
+    private byte[] auxiliaryDataHash; //auxiliary_data_hash
     private long validityStartInterval;
+    private byte[] scriptDataHash;
+    private List<TransactionInput> collateral;
+    private List<byte[]> requiredSigners;
+    private NetworkId networkId; // 1 or 0
 
     public Map serialize() throws CborSerializationException, AddressExcepion {
         Map bodyMap = new Map();
@@ -50,8 +55,8 @@ public class TransactionBody {
            bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
        }
 
-       if(metadataHash != null) {
-           bodyMap.put(new UnsignedInteger(7), new ByteString(metadataHash));
+       if(auxiliaryDataHash != null) {
+           bodyMap.put(new UnsignedInteger(7), new ByteString(auxiliaryDataHash));
        }
 
        if(validityStartInterval != 0) {
@@ -64,6 +69,41 @@ public class TransactionBody {
                 multiAsset.serialize(mintMap);
             }
             bodyMap.put(new UnsignedInteger(9), mintMap);
+        }
+
+        if(scriptDataHash != null) {
+            bodyMap.put(new UnsignedInteger(11), new ByteString(scriptDataHash));
+        }
+
+        //collateral
+        if(collateral != null && collateral.size() > 0) {
+            Array collateralArray = new Array();
+            for (TransactionInput ti : collateral) {
+                Array input = ti.serialize();
+                collateralArray.add(input);
+            }
+            bodyMap.put(new UnsignedInteger(13), collateralArray);
+        }
+
+        //required_signers
+        if (requiredSigners != null && requiredSigners.size() > 0) {
+            Array requiredSignerArray = new Array();
+            for (byte[] requiredSigner : requiredSigners) {
+                requiredSignerArray.add(new ByteString(requiredSigner));
+            }
+            bodyMap.put(new UnsignedInteger(14), requiredSignerArray);
+        }
+
+        //NetworkId
+        if (networkId != null) {
+            switch (networkId) {
+                case TESTNET:
+                    bodyMap.put(new UnsignedInteger(15), new UnsignedInteger(0));
+                    break;
+                case MAINNET:
+                    bodyMap.put(new UnsignedInteger(15), new UnsignedInteger(1));
+                    break;
+            }
         }
 
         return bodyMap;
@@ -100,7 +140,7 @@ public class TransactionBody {
 
         ByteString metadataHashBS = (ByteString)bodyMap.get(new UnsignedInteger(7));
         if(metadataHashBS != null) {
-            transactionBody.setMetadataHash(metadataHashBS.getBytes());
+            transactionBody.setAuxiliaryDataHash(metadataHashBS.getBytes());
         }
 
         UnsignedInteger validityStartIntervalUI = (UnsignedInteger)bodyMap.get(new UnsignedInteger(8));
@@ -115,6 +155,47 @@ public class TransactionBody {
             for (DataItem multiAssetKey : mintDataItems) {
                 MultiAsset ma = MultiAsset.deserialize(mintMap, multiAssetKey);
                 transactionBody.getMint().add(ma);
+            }
+        }
+
+        //script_data_hash
+        ByteString scriptDataHashBS = (ByteString)bodyMap.get(new UnsignedInteger(11));
+        if (scriptDataHashBS != null) {
+            transactionBody.setScriptDataHash(scriptDataHashBS.getBytes());
+        }
+
+        //collateral
+        Array collateralArray =  (Array)bodyMap.get(new UnsignedInteger(13));
+        if (collateralArray != null) {
+            List<TransactionInput> collateral = new ArrayList<>();
+            for (DataItem inputItem : collateralArray.getDataItems()) {
+                TransactionInput ti = TransactionInput.deserialize((Array) inputItem);
+                collateral.add(ti);
+            }
+            transactionBody.setCollateral(collateral);
+        }
+
+        //required_signers
+        Array requiredSignerArray = (Array)bodyMap.get(new UnsignedInteger(14));
+        if (requiredSignerArray != null) {
+            List<byte[]> requiredSigners = new ArrayList<>();
+            for (DataItem requiredSigDI: requiredSignerArray.getDataItems()) {
+                ByteString requiredSigBS = (ByteString) requiredSigDI;
+                requiredSigners.add(requiredSigBS.getBytes());
+            }
+            transactionBody.setRequiredSigners(requiredSigners);
+        }
+
+        //network Id
+        UnsignedInteger networkIdUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(15));
+        if (networkIdUI != null) {
+            int networkIdInt = networkIdUI.getValue().intValue();
+            if (networkIdInt == 0) {
+                transactionBody.setNetworkId(NetworkId.TESTNET);
+            }else if (networkIdInt == 1) {
+                transactionBody.setNetworkId(NetworkId.MAINNET);
+            } else {
+                throw new CborDeserializationException("Invalid networkId value : " + networkIdInt);
             }
         }
 
