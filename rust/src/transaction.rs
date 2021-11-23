@@ -215,4 +215,25 @@ mod tests {
         println!("Policy Id2 : {}", policyIdStr2);
     }
 
+    #[test]
+    fn parse_and_sign_plutus_script_txn() {
+        let str = "84a8008182582070463295d7bd7493ac9caad5e9dbf1127584d6b8c1dfe3a4abb3cb2baf119879000181825839006d80ab5fafa4a486b81b7e599e22dcdc7a8061d560da3b49766005e907834bbc597fd787352df85dd541913f150a449be6d475884d1ebf5d1a0020e530021a0004ef80031a0294e2aa075820cc9a635a116b7766fa90c355e5e7201e11b9027591d098deb074137d669fc4a90b582037d2cb7c299b3642435cbe87c9e7af0f1783d51867805e5d7d2a3b14e8f7557f0d8182582006568935be80d4484485ec902676b0001a935a9b8d677fdfa2674dd6c4022479000f00a303814e4d0100003322222005120012001104811907e505818400001907e5821906a41a00074534f5d90103a200a11902a2a1636d7367816d436f6e74726163742063616c6c02814e4d01000033222220051200120011";
+
+        let pvtKeyHash = "xprv10zlue93vusfclwsqafhyd48v56hfg4aqtptxwzd499q64upxlefaah3l9hw7wa3gy8p0j4a2caacpg7rd04twkypejpuvqrftqr0rh24rn8ay6kadm00t0h878l2fwhcpw6c87v2q746d4u7x6uxsnn84ugncknq";
+
+        let cborTxn = add_witness_and_sign(&str, pvtKeyHash);
+
+        let pvtKeyHash2 = "xprv17qvknep0qlfzxzwm7nhdukkr2ez00yhhf5tztqml4hun8yume30yedlqzlfvcg48v8xqx0a5q5us90pc09ct50d4938echyj6lvp0gvx5yasjh9w02vgaplsh9t892hc2gwvhjz5qv0l4jwq4hjj7pdgeg25rhsq";
+
+        let txnHex = hex::encode(cborTxn);
+        let finalCborTxn = add_witness_and_sign(&txnHex, pvtKeyHash2);
+
+        let finalTxn = Transaction::from_bytes(finalCborTxn).unwrap();
+
+        assert_eq!(2, finalTxn.witness_set().vkeys().unwrap().len());
+        assert_eq!("323456", finalTxn.body().fee().to_str());
+        assert_eq!(1, finalTxn.body().inputs().len());
+        assert_eq!(1, finalTxn.body().outputs().len());
+    }
+
 }
