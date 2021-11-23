@@ -26,7 +26,7 @@ public class HexUtil {
 
         if (hexString.length() % 2 == 1) {
             throw new IllegalArgumentException(
-                    "Invalid hexadecimal String supplied.");
+                    "Invalid hexadecimal String supplied. " + hexString);
         }
 
         byte[] bytes = new byte[hexString.length() / 2];
