@@ -21,13 +21,44 @@ import java.util.List;
 public class Transaction {
     private TransactionBody body;
     private TransactionWitnessSet witnessSet;
-    @Deprecated
-    private Metadata metadata;
     private boolean isValid;
     private AuxiliaryData auxiliaryData;
 
     public Transaction() {
         this.isValid = true;
+    }
+
+    /**
+     * Set metadata
+     * @deprecated
+     * This method should not be used.
+     * <p> Use {@link AuxiliaryData#setMetadata(Metadata)} instead</p>
+     * @param metadata
+     */
+    @Deprecated
+    public void setMetadata(Metadata metadata) {
+        if (metadata == null)
+            return;
+
+        if (auxiliaryData == null)
+            this.auxiliaryData = new AuxiliaryData();
+
+        auxiliaryData.setMetadata(metadata);
+    }
+
+    /**
+     * Get metadata
+     * @deprecated
+     * This method should not be used.
+     *  <p> Use {@link AuxiliaryData#getMetadata()} instead</p>
+     * @return
+     */
+    @Deprecated
+    public Metadata getMetadata() {
+        if (auxiliaryData != null)
+            return auxiliaryData.getMetadata();
+        else
+            return null;
     }
 
     public byte[] serialize() throws CborSerializationException {
@@ -138,6 +169,32 @@ public class Transaction {
             return transaction;
         } catch (Exception e) {
             throw new CborDeserializationException("CBOR deserialization failed", e);
+        }
+    }
+
+    // This customization is not required after metadata (deprecated) method is removed in future release.
+    public static class TransactionBuilder {
+        private AuxiliaryData auxiliaryData;
+
+        /**
+         * Set metadata
+         * @deprecated
+         * This method should not be used
+         * <p> Use {@link TransactionBuilder#auxiliaryData(AuxiliaryData)} instead</p>
+         * @param metadata
+         * @return
+         */
+        @Deprecated
+        public TransactionBuilder metadata(Metadata metadata) {
+            if (metadata == null)
+                return this;
+
+            if (auxiliaryData == null)
+                auxiliaryData = new AuxiliaryData();
+
+            auxiliaryData.setMetadata(metadata);
+
+            return this;
         }
     }
 }
