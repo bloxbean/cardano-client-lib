@@ -36,12 +36,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 
@@ -108,6 +108,48 @@ class FeeCalculationServiceTest extends BaseTest {
 
         assertThat(fee.longValue(), greaterThan(166000L));
         assertThat(fee.longValue(), lessThan(176000L));
+    }
+
+    @Test
+    void testCalculateFeeMultiplePaymentTransactions() throws ApiException, IOException, AddressExcepion, CborSerializationException {
+
+        String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_1);
+        given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(BigInteger.valueOf(500000000))
+                .receiver(receiver1)
+                .fee(BigInteger.valueOf(200))
+                .build();
+
+        PaymentTransaction paymentTransaction2 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(BigInteger.valueOf(200000000))
+                .receiver(receiver2)
+                .fee(BigInteger.valueOf(400))
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(Arrays.asList(paymentTransaction1, paymentTransaction2),
+                TransactionDetailsParams.builder().build(), null, protocolParams);
+        System.out.println(fee);
+
+        assertThat(fee.longValue(), greaterThan(178000L));
+        assertThat(fee.longValue(), lessThan(180000L));
+        //assert if original fee are there
+        assertThat(paymentTransaction1.getFee(), is(BigInteger.valueOf(200)));
+        assertThat(paymentTransaction2.getFee(), is(BigInteger.valueOf(400)));
     }
 
     @Test
