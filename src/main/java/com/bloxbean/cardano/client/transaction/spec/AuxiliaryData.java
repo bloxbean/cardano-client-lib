@@ -26,42 +26,47 @@ public class AuxiliaryData {
     private List<NativeScript> nativeScripts = new ArrayList<>();
     private List<PlutusScript> plutusScripts = new ArrayList<>();
 
-    public DataItem[] serialize() throws CborSerializationException {
+    public DataItem serialize() throws CborSerializationException {
         Map map = getAuxiliaryData();
 
-        return new DataItem[]{map};
+        return map;
     }
 
     public static AuxiliaryData deserialize(Map map) throws CborDeserializationException {
-        DataItem metadataValueDI = map.get(new UnsignedInteger(0));
-        DataItem nativeScriptsValueDI = map.get(new UnsignedInteger(1));
-        DataItem plutusScriptsValueDI = map.get(new UnsignedInteger(2));
-
+        Tag mapTag = map.getTag();
         AuxiliaryData auxiliaryData = new AuxiliaryData();
 
-        if (metadataValueDI != null) {
-            Metadata cborMetadata = CBORMetadata.deserialize((Map) metadataValueDI);
-            auxiliaryData.setMetadata(cborMetadata);
-        }
+        if (mapTag != null && mapTag.getValue() == 259) { //Alonzo
+            DataItem metadataValueDI = map.get(new UnsignedInteger(0));
+            DataItem nativeScriptsValueDI = map.get(new UnsignedInteger(1));
+            DataItem plutusScriptsValueDI = map.get(new UnsignedInteger(2));
 
-        if (nativeScriptsValueDI != null) {
-            Array nativeScriptsArray = (Array) nativeScriptsValueDI;
-            for (DataItem nativeScriptDI : nativeScriptsArray.getDataItems()) {
-                NativeScript nativeScript = NativeScript.deserialize((Array) nativeScriptDI);
-                auxiliaryData.getNativeScripts().add(nativeScript);
+            if (metadataValueDI != null) {
+                Metadata cborMetadata = CBORMetadata.deserialize((Map) metadataValueDI);
+                auxiliaryData.setMetadata(cborMetadata);
             }
-        }
 
-        if (plutusScriptsValueDI != null) {
-            Array plutusScriptsArray = (Array) plutusScriptsValueDI;
-            for (DataItem plutusScriptDI : plutusScriptsArray.getDataItems()) {
-                PlutusScript plutusScript = PlutusScript.deserialize((ByteString) plutusScriptDI);
-                auxiliaryData.getPlutusScripts().add(plutusScript);
+            if (nativeScriptsValueDI != null) {
+                Array nativeScriptsArray = (Array) nativeScriptsValueDI;
+                for (DataItem nativeScriptDI : nativeScriptsArray.getDataItems()) {
+                    NativeScript nativeScript = NativeScript.deserialize((Array) nativeScriptDI);
+                    auxiliaryData.getNativeScripts().add(nativeScript);
+                }
             }
+
+            if (plutusScriptsValueDI != null) {
+                Array plutusScriptsArray = (Array) plutusScriptsValueDI;
+                for (DataItem plutusScriptDI : plutusScriptsArray.getDataItems()) {
+                    PlutusScript plutusScript = PlutusScript.deserialize((ByteString) plutusScriptDI);
+                    auxiliaryData.getPlutusScripts().add(plutusScript);
+                }
+            }
+        } else { //Shelley-mary
+            Metadata metadata = CBORMetadata.deserialize(map);
+            auxiliaryData.setMetadata(metadata);
         }
 
         return auxiliaryData;
-
     }
 
     public byte[] getAuxiliaryDataHash() throws MetadataSerializationException {
@@ -69,10 +74,11 @@ public class AuxiliaryData {
             Map map = getAuxiliaryData();
             byte[] encodedBytes = null;
 
-            if (metadata != null && nativeScripts == null && plutusScripts == null) {
-                encodedBytes = CborSerializationUtil.serialize(map.get(new UnsignedInteger(0)));
+            if (metadata != null && (nativeScripts == null || nativeScripts.size() == 0)
+                    && (plutusScripts == null || plutusScripts.size() == 0)) {
+                encodedBytes = CborSerializationUtil.serialize(map);
             } else {
-                encodedBytes = CborSerializationUtil.serialize(map, true);
+                encodedBytes = CborSerializationUtil.serialize(map);
             }
 
             return KeyGenUtil.blake2bHash256(encodedBytes);
@@ -83,6 +89,14 @@ public class AuxiliaryData {
 
     private Map getAuxiliaryData() throws CborSerializationException {
         Map map = new Map();
+
+        //Shelley-mary format
+        if (metadata != null && (nativeScripts == null || nativeScripts.size() == 0)
+                && (plutusScripts == null || plutusScripts.size() == 0)) {
+            return metadata.getData();
+        }
+
+        //Alonzo format
         map.setTag(new Tag(259));
 
         if (metadata != null) {

@@ -24,9 +24,11 @@ public class TransactionBody {
     private BigInteger fee;
     private long ttl; //Optional
     //certs -- Not implemented
-    private List<MultiAsset> mint = new ArrayList<>();
+    //withdrawals -- Not implemented
+    //update -- Not implemented
     private byte[] auxiliaryDataHash; //auxiliary_data_hash
     private long validityStartInterval;
+    private List<MultiAsset> mint = new ArrayList<>();
     private byte[] scriptDataHash;
     private List<TransactionInput> collateral;
     private List<byte[]> requiredSigners;

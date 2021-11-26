@@ -18,7 +18,6 @@ public class PlutusScript {
     private String type = "PlutusScriptV1";
     private String description;
     private String cborHex;
-//    private byte[] bytes;
 
     public ByteString serialize() throws CborSerializationException {
         byte[] bytes = HexUtil.decodeHexString(cborHex);
@@ -40,9 +39,9 @@ public class PlutusScript {
         }
     }
 
-    public byte[] getScriptHash() throws CborSerializationException {
-        byte[] encodedBytes = serialize().getBytes();
-
-        return KeyGenUtil.blake2bHash256(encodedBytes);
-    }
+//    public byte[] getScriptHash() throws CborSerializationException {
+//        byte[] encodedBytes = serialize().getBytes();
+//
+//        return KeyGenUtil.blake2bHash256(encodedBytes);
+//    }
 }

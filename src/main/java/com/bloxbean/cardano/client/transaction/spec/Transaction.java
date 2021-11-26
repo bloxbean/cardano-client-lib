@@ -11,14 +11,12 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 @Data
 @AllArgsConstructor
-@NoArgsConstructor
 @Builder
 public class Transaction {
     private TransactionBody body;
@@ -28,13 +26,12 @@ public class Transaction {
     private boolean isValid;
     private AuxiliaryData auxiliaryData;
 
+    public Transaction() {
+        this.isValid = true;
+    }
+
     public byte[] serialize() throws CborSerializationException {
         try {
-//            if (metadata != null && body.getMetadataHash() == null) {
-//                byte[] metadataHash = metadata.getMetadataHash();
-//                body.setMetadataHash(metadataHash);
-//            }
-
             if (auxiliaryData != null && body.getAuxiliaryDataHash() == null) {
                 byte[] auxiliaryDataHash = auxiliaryData.getAuxiliaryDataHash();
                 body.setAuxiliaryDataHash(auxiliaryDataHash);
@@ -55,11 +52,6 @@ public class Transaction {
                 Map witnessMap = new Map();
                 array.add(witnessMap);
             }
-            //metadata - Still supported in Alonzo
-//            if (metadata != null && auxiliaryData == null) {
-//                array.add(metadata.getData());
-//            } else
-//                array.add(new ByteString((byte[]) null)); //Null for meta  //TODO alonzo changes
 
             if(isValid)
                 array.add(SimpleValue.TRUE);
@@ -68,10 +60,8 @@ public class Transaction {
 
             //Auxiliary Data
             if (auxiliaryData != null) {
-                DataItem[] dataItems = auxiliaryData.serialize();
-                for (DataItem dataItem: dataItems) {
-                    array.add(dataItem);
-                }
+                DataItem auxDataMap = auxiliaryData.serialize();
+                array.add(auxDataMap);
             } else
                 array.add(SimpleValue.NULL);
 
@@ -108,29 +98,41 @@ public class Transaction {
             if (txnItems.size() < 3)
                 throw new CborDeserializationException("Invalid no of items");
 
-            DataItem txnBody = txnItems.get(0);
-            DataItem witness = txnItems.get(1);
-            DataItem metadata = txnItems.get(2);
+            DataItem txnBodyDI = txnItems.get(0);
+            DataItem witnessDI = txnItems.get(1);
 
-            if (witness != null) {
-                TransactionWitnessSet witnessSet = TransactionWitnessSet.deserialize((Map) witness);
+            if (witnessDI != null) {
+                TransactionWitnessSet witnessSet = TransactionWitnessSet.deserialize((Map) witnessDI);
                 transaction.setWitnessSet(witnessSet);
             }
 
-            //metadata
-//            if (MajorType.MAP.equals(metadata.getMajorType())) { //Metadata available
-//                Map metadataMap = (Map) metadata;
-//                Metadata cborMetadata = CBORMetadata.deserialize(metadataMap);
-//                transaction.setMetadata(cborMetadata);
-//            }
+            DataItem isValidDI = txnItems.get(2);
 
-            if(metadata != null && metadata.getTag() != null && metadata.getTag().getValue() == 259) { //Auxiliary data
-                DataItem auxiliaryDataMap = metadata;
-                AuxiliaryData auxiliaryData = AuxiliaryData.deserialize((Map) auxiliaryDataMap);
-                transaction.setAuxiliaryData(auxiliaryData);
+            boolean checkAuxData = true;
+            //If it's special it can be either a bool or null. If it's null, then it's empty auxiliary data, otherwise
+            //not a valid encoding
+            if (isValidDI != null && isValidDI instanceof Special) {
+                if (isValidDI == SimpleValue.TRUE) {
+                    transaction.setValid(true);
+                } else if (isValidDI == SimpleValue.FALSE) {
+                    transaction.setValid(false);
+                } else if (isValidDI == SimpleValue.NULL) {
+                    checkAuxData = false;
+                    transaction.setValid(true);
+                }
             }
 
-            TransactionBody body = TransactionBody.deserialize((Map) txnBody);
+            if (checkAuxData) {
+                //Check for AuxiliaryData
+                DataItem auxiliaryDataDI = txnItems.get(3);
+                if (auxiliaryDataDI != null && MajorType.MAP.equals(auxiliaryDataDI.getMajorType())) { //Auxiliary data
+                    DataItem auxiliaryDataMap = auxiliaryDataDI;
+                    AuxiliaryData auxiliaryData = AuxiliaryData.deserialize((Map) auxiliaryDataMap);
+                    transaction.setAuxiliaryData(auxiliaryData);
+                }
+            }
+
+            TransactionBody body = TransactionBody.deserialize((Map) txnBodyDI);
             transaction.setBody(body);
 
             return transaction;
