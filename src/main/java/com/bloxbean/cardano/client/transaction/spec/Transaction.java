@@ -32,7 +32,7 @@ public class Transaction {
      * Set metadata
      * @deprecated
      * This method should not be used.
-     * <p> Use {@link AuxiliaryData#setMetadata(Metadata)} instead</p>
+     * <p> Use AuxiliaryData#setMetadata(Metadata) (Metadata)} instead</p>
      * @param metadata
      */
     @Deprecated
@@ -50,7 +50,7 @@ public class Transaction {
      * Get metadata
      * @deprecated
      * This method should not be used.
-     *  <p> Use {@link AuxiliaryData#getMetadata()} instead</p>
+     *  <p> Use AuxiliaryData#getMetadata() instead</p>
      * @return
      */
     @Deprecated
@@ -180,7 +180,7 @@ public class Transaction {
          * Set metadata
          * @deprecated
          * This method should not be used
-         * <p> Use {@link TransactionBuilder#auxiliaryData(AuxiliaryData)} instead</p>
+         * <p> Use TransactionBuilder#auxiliaryData(AuxiliaryData) (AuxiliaryData)} instead</p>
          * @param metadata
          * @return
          */
