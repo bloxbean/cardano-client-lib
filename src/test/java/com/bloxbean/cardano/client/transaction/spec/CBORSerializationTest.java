@@ -470,6 +470,159 @@ public class CBORSerializationTest {
         assertThat(deSeTransaction.serializeToHex()).isEqualTo((txnHex));
     }
 
+    @Test
+    public void testDeserializationWithWitness_whenMetadataPlutusScriptAndNativeScripts()
+            throws CborDeserializationException, AddressExcepion, CborSerializationException {
+        TransactionBody txnBody = new TransactionBody();
+
+        Account account1 = new Account(Networks.testnet());
+        Account account2 = new Account(Networks.testnet());
+
+        long fee = 367965;
+        int ttl = 26194586;
+
+        TransactionInput txnInput = new TransactionInput();
+        txnInput.setTransactionId("73198b7ad003862b9798106b88fbccfca464b1a38afb34958275c4a7d7d8d002"); //989264070
+        txnInput.setIndex(1);
+
+        txnBody.setInputs(Arrays.asList(txnInput));
+
+        //Output 1
+        TransactionOutput txnOutput1 = new TransactionOutput();
+        txnOutput1.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
+        txnOutput1.setValue(new Value(new BigInteger(String.valueOf(40000)), Collections.emptyList()));
+
+        TransactionOutput changeOutput = new TransactionOutput();
+        changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
+
+        MultiAsset multiAsset = new MultiAsset();
+        multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
+        multiAsset.setAssets(Arrays.asList(
+                new Asset("0x736174636f696e", BigInteger.valueOf(4000)),
+                new Asset("0x446174636f696e", BigInteger.valueOf(1100))
+        ));
+
+        MultiAsset multiAsset1 = new MultiAsset();
+        multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");
+        multiAsset1.setAssets(Arrays.asList(new Asset("0x", BigInteger.valueOf(9000))));
+
+        MultiAsset multiAsset2 = new MultiAsset();
+        multiAsset2.setPolicyId("449728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
+        multiAsset2.setAssets(Arrays.asList(new Asset("0x666174636f696e", BigInteger.valueOf(5000))));
+        changeOutput.setValue(new Value(new BigInteger(String.valueOf(340000)), Arrays.asList(multiAsset, multiAsset1, multiAsset2)));
+
+        List<TransactionOutput> outputs = new ArrayList<>();
+        outputs.add(txnOutput1);
+        outputs.add(changeOutput);
+        txnBody.setOutputs(outputs);
+
+        txnBody.setFee(new BigInteger(String.valueOf(fee)));
+        txnBody.setTtl(ttl);
+        txnBody.getMint().add(multiAsset);
+        txnBody.getMint().add(multiAsset1);
+        txnBody.getMint().add(multiAsset2);
+
+        CBORMetadataMap mm = new CBORMetadataMap()
+                .put(new BigInteger("1978"), "201value")
+                .put(new BigInteger("197819"), new BigInteger("200001"))
+                .put("203", new byte[]{11, 11, 10});
+
+        CBORMetadataList list = new CBORMetadataList()
+                .add("301value")
+                .add(new BigInteger("300001"))
+                .add(new byte[]{11, 11, 10})
+                .add(new CBORMetadataMap()
+                        .put(new BigInteger("401"), "401str")
+                        .put("hello", "hellovalue"));
+        Metadata metadata = new CBORMetadata()
+                .put(new BigInteger("197819781978"), "John")
+                .put(new BigInteger("197819781979"), "CA")
+                .put(new BigInteger("1978197819710"), new byte[]{0, 11})
+                .put(new BigInteger("1978197819711"), mm)
+                .put(new BigInteger("1978197819712"), list);
+
+        Transaction transaction = new Transaction();
+
+        PlutusScript plutusScript = PlutusScript.builder()
+                .type("PlutusScriptV1")
+                .cborHex("4d01000033222220051200120011")
+                .build();
+        PlutusScript plutusScript1 = PlutusScript.builder()
+                .type("PlutusScriptV1")
+                .cborHex("4d01000033222220051200120011")
+                .build();
+
+        ScriptPubkey scriptPubkey = ScriptPubkey.createWithNewKey()._1;
+
+        transaction.setAuxiliaryData(AuxiliaryData.builder()
+                .metadata(metadata)
+                .plutusScripts(Arrays.asList(plutusScript, plutusScript1))
+                .nativeScripts(Arrays.asList(scriptPubkey))
+                .build());
+
+        transaction.setBody(txnBody);
+
+        String txnHex = account1.sign(transaction);
+        txnHex = account2.sign(txnHex);
+
+        Transaction deSeTransaction = Transaction.deserialize(HexUtil.decodeHexString(txnHex));
+
+        //Sort certain fields and then assert
+        Comparator<Asset> assetComparator = new Comparator<Asset>() {
+            @Override
+            public int compare(Asset o1, Asset o2) {
+                return o1.getName().compareTo(o2.getName());
+            }
+        };
+
+        Comparator<MultiAsset> multiAssetComparator = new Comparator<MultiAsset>() {
+            @Override
+            public int compare(MultiAsset o1, MultiAsset o2) {
+                return o1.getPolicyId().compareTo(o2.getPolicyId());
+            }
+        };
+
+        deSeTransaction.getBody().getOutputs().forEach(
+                out -> Collections.sort(out.getValue().getMultiAssets(), multiAssetComparator));
+        deSeTransaction.getBody().getOutputs().forEach(
+                out -> out.getValue().getMultiAssets()
+                        .forEach(ma -> Collections.sort(ma.getAssets(), assetComparator))
+        );
+
+        transaction.getBody().getOutputs().forEach(
+                out -> Collections.sort(out.getValue().getMultiAssets(), multiAssetComparator));
+        transaction.getBody().getOutputs().forEach(
+                out -> out.getValue().getMultiAssets()
+                        .forEach(ma -> Collections.sort(ma.getAssets(), assetComparator))
+        );
+
+        deSeTransaction.getBody().getMint().forEach(ma -> Collections.sort(ma.getAssets(), assetComparator));
+        transaction.getBody().getMint().forEach(ma -> Collections.sort(ma.getAssets(), assetComparator));
+
+        assertThat(deSeTransaction.getBody().getInputs()).isEqualTo(transaction.getBody().getInputs());
+        assertThat(deSeTransaction.getBody().getOutputs()).isEqualTo(transaction.getBody().getOutputs());
+        assertThat(deSeTransaction.getBody().getFee()).isEqualTo(transaction.getBody().getFee());
+        assertThat(deSeTransaction.getBody().getTtl()).isEqualTo(transaction.getBody().getTtl());
+        assertThat(deSeTransaction.getBody().getValidityStartInterval()).isEqualTo(transaction.getBody().getValidityStartInterval());
+        assertThat(deSeTransaction.getBody().getAuxiliaryDataHash()).isEqualTo(transaction.getBody().getAuxiliaryDataHash());
+        assertThat(deSeTransaction.getAuxiliaryData().getPlutusScripts()).hasSize(2);
+        assertThat(deSeTransaction.getAuxiliaryData().getPlutusScripts()).hasSameElementsAs(transaction.getAuxiliaryData().getPlutusScripts());
+        assertThat(deSeTransaction.getAuxiliaryData().getNativeScripts()).hasSameElementsAs(transaction.getAuxiliaryData().getNativeScripts());
+        assertThat(deSeTransaction.getBody().getMint()).hasSize(3);
+        assertThat(deSeTransaction.getBody().getMint().get(0).getAssets()).isEqualTo(transaction.getBody().getMint().get(0).getAssets());
+        assertThat(deSeTransaction.getWitnessSet().getVkeyWitnesses()).hasSize(2);
+        assertThat(deSeTransaction.getWitnessSet().getVkeyWitnesses().get(0).getVkey()).isNotNull();
+        assertThat(deSeTransaction.getWitnessSet().getVkeyWitnesses().get(0).getSignature()).isNotNull();
+
+        //metadata
+        assertThat(deSeTransaction.getAuxiliaryData().getMetadata())
+                .usingDefaultComparator()
+                .usingRecursiveComparison()
+                .isEqualTo(transaction.getAuxiliaryData().getMetadata());
+        assertThat(deSeTransaction.getAuxiliaryData().getMetadata().serialize()).isEqualTo(transaction.getAuxiliaryData().getMetadata().serialize());
+
+        assertThat(deSeTransaction.serializeToHex()).isEqualTo((txnHex));
+    }
 
     @Test
     public void testDeserializationWithScriptWitness() throws CborDeserializationException, CborSerializationException {
