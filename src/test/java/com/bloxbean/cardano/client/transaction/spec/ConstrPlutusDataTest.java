@@ -13,14 +13,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ConstrPlutusDataTest {
 
     @Test
-    void serializeDeserialize_whenConciseFormWhenAltIs_lessThan_6() throws CborSerializationException, CborDeserializationException {
+    void serializeDeserialize_whenConciseFormWhenAltIs_123() throws CborSerializationException, CborDeserializationException {
         ListPlutusData plutusDataList = ListPlutusData.builder()
                 .plutusDataList(Arrays.asList(
                         new BigIntPlutusData(BigInteger.valueOf(1280))
                 )).build();
 
         ConstrPlutusData constrPlutusData = ConstrPlutusData.builder()
-                .alternative(2)
+                .tag(123)
                 .data(plutusDataList)
                 .build();
 
@@ -29,19 +29,19 @@ class ConstrPlutusDataTest {
         ConstrPlutusData deConstrPlutusData = ConstrPlutusData.deserialize(dataItem);
 
         assertThat(dataItem.getTag().getValue()).isEqualTo(123);
-        assertThat(deConstrPlutusData.getAlternative()).isEqualTo(2);
+        assertThat(deConstrPlutusData.getTag()).isEqualTo(123);
         assertThat(((BigIntPlutusData) deConstrPlutusData.getData().getPlutusDataList().get(0)).getValue()).isEqualTo(1280);
     }
 
     @Test
-    void serializeDeserialize_whenConciseFormWhenAltIs_6() throws CborSerializationException, CborDeserializationException {
+    void serializeDeserialize_whenConciseFormWhenAltIs_121() throws CborSerializationException, CborDeserializationException {
         ListPlutusData plutusDataList = ListPlutusData.builder()
                 .plutusDataList(Arrays.asList(
                         new BigIntPlutusData(BigInteger.valueOf(1280))
                 )).build();
 
         ConstrPlutusData constrPlutusData = ConstrPlutusData.builder()
-                .alternative(6)
+                .tag(121)
                 .data(plutusDataList)
                 .build();
 
@@ -49,20 +49,20 @@ class ConstrPlutusDataTest {
 
         ConstrPlutusData deConstrPlutusData = ConstrPlutusData.deserialize(dataItem);
 
-        assertThat(dataItem.getTag().getValue()).isEqualTo(127);
-        assertThat(deConstrPlutusData.getAlternative()).isEqualTo(6);
+        assertThat(dataItem.getTag().getValue()).isEqualTo(121);
+        assertThat(deConstrPlutusData.getTag()).isEqualTo(121);
         assertThat(((BigIntPlutusData) deConstrPlutusData.getData().getPlutusDataList().get(0)).getValue()).isEqualTo(1280);
     }
 
     @Test
-    void serializeDeserialize_whenConciseFormWhenAltIs_7() throws CborSerializationException, CborDeserializationException {
+    void serializeDeserialize_whenConciseFormWhenAltIs_1280() throws CborSerializationException, CborDeserializationException {
         ListPlutusData plutusDataList = ListPlutusData.builder()
                 .plutusDataList(Arrays.asList(
                         new BigIntPlutusData(BigInteger.valueOf(5555))
                 )).build();
 
         ConstrPlutusData constrPlutusData = ConstrPlutusData.builder()
-                .alternative(7)
+                .tag(1280)
                 .data(plutusDataList)
                 .build();
 
@@ -71,19 +71,19 @@ class ConstrPlutusDataTest {
         ConstrPlutusData deConstrPlutusData = ConstrPlutusData.deserialize(dataItem);
 
         assertThat(dataItem.getTag().getValue()).isEqualTo(1280);
-        assertThat(deConstrPlutusData.getAlternative()).isEqualTo(7);
+        assertThat(deConstrPlutusData.getTag()).isEqualTo(1280);
         assertThat(((BigIntPlutusData) deConstrPlutusData.getData().getPlutusDataList().get(0)).getValue()).isEqualTo(5555);
     }
 
     @Test
-    void serializeDeserialize_whenConciseFormWhenAltIs_10() throws CborSerializationException, CborDeserializationException {
+    void serializeDeserialize_whenConciseFormWhenAltIs_1283() throws CborSerializationException, CborDeserializationException {
         ListPlutusData plutusDataList = ListPlutusData.builder()
                 .plutusDataList(Arrays.asList(
                         new BigIntPlutusData(BigInteger.valueOf(5555))
                 )).build();
 
         ConstrPlutusData constrPlutusData = ConstrPlutusData.builder()
-                .alternative(10)
+                .tag(1283)
                 .data(plutusDataList)
                 .build();
 
@@ -92,7 +92,7 @@ class ConstrPlutusDataTest {
         ConstrPlutusData deConstrPlutusData = ConstrPlutusData.deserialize(dataItem);
 
         assertThat(dataItem.getTag().getValue()).isEqualTo(1283);
-        assertThat(deConstrPlutusData.getAlternative()).isEqualTo(10);
+        assertThat(deConstrPlutusData.getTag()).isEqualTo(1283);
         assertThat(((BigIntPlutusData) deConstrPlutusData.getData().getPlutusDataList().get(0)).getValue()).isEqualTo(5555);
     }
 
@@ -104,7 +104,7 @@ class ConstrPlutusDataTest {
                 )).build();
 
         ConstrPlutusData constrPlutusData = ConstrPlutusData.builder()
-                .alternative(127)
+                .tag(127)
                 .data(plutusDataList)
                 .build();
 
@@ -112,8 +112,8 @@ class ConstrPlutusDataTest {
 
         ConstrPlutusData deConstrPlutusData = ConstrPlutusData.deserialize(dataItem);
 
-        assertThat(dataItem.getTag().getValue()).isEqualTo(1400);
-        assertThat(deConstrPlutusData.getAlternative()).isEqualTo(127);
+        assertThat(dataItem.getTag().getValue()).isEqualTo(127);
+        assertThat(deConstrPlutusData.getTag()).isEqualTo(127);
         assertThat(((BigIntPlutusData) deConstrPlutusData.getData().getPlutusDataList().get(0)).getValue()).isEqualTo(5555);
     }
 
@@ -125,7 +125,7 @@ class ConstrPlutusDataTest {
                 )).build();
 
         ConstrPlutusData constrPlutusData = ConstrPlutusData.builder()
-                .alternative(8900)
+                .tag(8900)
                 .data(plutusDataList)
                 .build();
 
@@ -135,7 +135,7 @@ class ConstrPlutusDataTest {
 
         assertThat(dataItem.getTag().getValue()).isEqualTo(102);
 
-        assertThat(deConstrPlutusData.getAlternative()).isEqualTo(8900);
+        assertThat(deConstrPlutusData.getTag()).isEqualTo(8900);
         assertThat(((BigIntPlutusData) deConstrPlutusData.getData().getPlutusDataList().get(0)).getValue()).isEqualTo(1280);
     }
 }
