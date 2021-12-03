@@ -270,4 +270,20 @@ class FeeCalculationServiceTest extends BaseTest {
         System.out.println(fee);
         assertThat(fee, greaterThan(new BigInteger("15000")));
     }
+
+    @Test
+    public void calculateScriptFee() throws ApiException {
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        ExUnits exUnits1 = ExUnits.builder()
+                .mem(BigInteger.valueOf(1700))
+                .steps(BigInteger.valueOf(476468)).build();
+
+        ExUnits exUnits2 = ExUnits.builder()
+                .mem(BigInteger.valueOf(2100))
+                .steps(BigInteger.valueOf(576468)).build();
+
+        BigInteger fee = feeCalculationService.calculateScriptFee(Arrays.asList(exUnits1, exUnits2));
+        assertThat(fee.intValue(), is(296));
+    }
 }

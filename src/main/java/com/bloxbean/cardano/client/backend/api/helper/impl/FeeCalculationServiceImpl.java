@@ -12,10 +12,13 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.spec.ExUnits;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -95,6 +98,20 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
     }
 
     @Override
+    public BigInteger calculateFee(byte[] transaction) throws ApiException {
+        Result<ProtocolParams> protocolParamsResult = epochService.getProtocolParameters();
+        if(!protocolParamsResult.isSuccessful())
+            throw new ApiException("Unable to fetch protocol parameters to calculate the fee");
+
+        return calculateFee(transaction, protocolParamsResult.getValue());
+    }
+
+    @Override
+    public BigInteger calculateFee(byte[] transaction, ProtocolParams protocolParams) {
+        return doFeeCalculationFromTxnSize(transaction, protocolParams);
+    }
+
+    @Override
     public BigInteger calculateFee(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, CborSerializationException, AddressExcepion {
         Result<ProtocolParams> protocolParamsResult = epochService.getProtocolParameters();
@@ -126,6 +143,33 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
 
         //Calculate fee
         return doFeeCalculationFromTxnSize(HexUtil.decodeHexString(txnCBORHash), protocolParams);
+    }
+
+    @Override
+    public BigInteger calculateScriptFee(List<ExUnits> exUnitsList) throws ApiException {
+        Result<ProtocolParams> protocolParamsResult = epochService.getProtocolParameters();
+        if(!protocolParamsResult.isSuccessful())
+            throw new ApiException("Unable to fetch protocol parameters to calculate the fee");
+
+        return calculateScriptFee(exUnitsList, protocolParamsResult.getValue());
+    }
+
+    @Override
+    public BigInteger calculateScriptFee(List<ExUnits> exUnitsList, ProtocolParams protocolParams) {
+        BigDecimal priceMem = protocolParams.getPriceMem();
+        BigDecimal priceSteps = protocolParams.getPriceStep();
+
+        BigDecimal scriptFee = BigDecimal.ZERO;
+        for (ExUnits exUnits: exUnitsList) {
+            BigDecimal memCost = new BigDecimal(exUnits.getMem()).multiply(priceMem);
+            BigDecimal stepCost = new BigDecimal(exUnits.getSteps()).multiply(priceSteps);
+            scriptFee = scriptFee.add(memCost.add(stepCost));
+        }
+
+        //round
+        scriptFee = scriptFee.setScale(0, RoundingMode.CEILING);
+
+        return scriptFee.toBigInteger();
     }
 
     private BigInteger doFeeCalculationFromTxnSize(byte[] bytes, ProtocolParams protocolParams) {

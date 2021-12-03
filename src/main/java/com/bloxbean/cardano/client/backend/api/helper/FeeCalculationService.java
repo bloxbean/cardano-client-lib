@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
+import com.bloxbean.cardano.client.transaction.spec.ExUnits;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 
 import java.math.BigInteger;
@@ -89,6 +90,22 @@ public interface FeeCalculationService {
     BigInteger calculateFee(Transaction transaction, ProtocolParams protocolParams) throws CborSerializationException;
 
     /**
+     * Calculate estimated fee for a transaction. For correct fee estimation, sign the transaction and then calculate fee.
+     * @param transaction Signed transaction serialized bytes
+     * @return Estimated fee
+     * @throws ApiException
+     */
+    BigInteger calculateFee(byte[] transaction) throws ApiException;
+
+    /**
+     * Calculate estimated fee for a transaction. For correct fee estimation, sign the transaction and then calculate fee.
+     * @param transaction Signed transaction serialized bytes
+     * @param protocolParams
+     * @return Estimated fee
+     */
+    BigInteger calculateFee(byte[] transaction, ProtocolParams protocolParams);
+
+    /**
      * Calculate estimated fee for a list of payment transactions
      * @param paymentTransactions
      * @param detailsParams
@@ -114,4 +131,20 @@ public interface FeeCalculationService {
      */
     BigInteger calculateFee(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams,
                             Metadata metadata, ProtocolParams protocolParams) throws CborSerializationException, AddressExcepion, ApiException;
+
+    /**
+     * Calculate script fee from execution units
+     * @param exUnits
+     * @return Estimated fee
+     * @throws ApiException
+     */
+    BigInteger calculateScriptFee(List<ExUnits> exUnits) throws ApiException;
+
+    /**
+     * Calculate script fee from execution units
+     * @param exUnits
+     * @param protocolParams
+     * @return Estimated fee
+     */
+    BigInteger calculateScriptFee(List<ExUnits> exUnits, ProtocolParams protocolParams);
 }
