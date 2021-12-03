@@ -51,7 +51,11 @@ public class TransactionBody {
         }
         bodyMap.put(new UnsignedInteger(1), outputsArray);
 
-       bodyMap.put(new UnsignedInteger(2), new UnsignedInteger(fee)); //fee
+        if (fee != null) {
+            bodyMap.put(new UnsignedInteger(2), new UnsignedInteger(fee)); //fee
+        } else {
+            throw new CborSerializationException("Fee cannot be null");
+        }
 
        if(ttl != 0) {
            bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
