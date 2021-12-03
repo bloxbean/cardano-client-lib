@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -69,6 +70,7 @@ public class AuxiliaryData {
         return auxiliaryData;
     }
 
+    @JsonIgnore
     public byte[] getAuxiliaryDataHash() throws MetadataSerializationException {
         try {
             Map map = getAuxiliaryData();
