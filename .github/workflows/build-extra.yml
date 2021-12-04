@@ -69,4 +69,4 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Build with Gradle
-        run: ./gradlew build -PskipSigning=true --stacktrace
+        run: ./gradlew build -PskipSigning=true --info --stacktrace
