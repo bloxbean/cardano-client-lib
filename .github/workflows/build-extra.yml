@@ -3,12 +3,13 @@ name: Clean, Build
 on:
   push:
     branches:
-      - master
-      - develop
+      - rpi_ci
+#      - master
+#      - develop
   pull_request:
     branches:
-      - master
-      - develop
+#      - master
+#      - develop
 
 jobs:
   build-job:
@@ -47,16 +48,16 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.rust }}
 
       - name: Install Linker
-          if: matrix.cross
-          run: |
-            sudo apt update
-            sudo apt install ${{ matrix.linker }}
+        if: matrix.cross
+        run: |
+          sudo apt update
+          sudo apt install ${{ matrix.linker }}
 
       - name: Install Rust
-          run: |
-            rustup install ${{ matrix.rust }}
-            rustup target add ${{ matrix.target }}
-            rustup show
+        run: |
+          rustup install ${{ matrix.rust }}
+          rustup target add ${{ matrix.target }}
+          rustup show
 
       - name: Build and Copy
         run: sh scripts/build-linux-${{ matrix.build }}.sh
