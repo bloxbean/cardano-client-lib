@@ -13,9 +13,8 @@ on:
 
 jobs:
   build-job:
-    runs-on: ${{ matrix.distro }}
-    name: Build on ${{ matrix.distro }} ${{ matrix.arch }}
-
+    runs-on: ${{ matrix.os }}
+    name: Build on ${{ matrix.os }} ${{ matrix.build }}
     strategy:
       matrix:
         include:
