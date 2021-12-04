@@ -1,0 +1,76 @@
+name: Extra Tag Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-job:
+    runs-on: ${{ matrix.os }}
+    name: Build on ${{ matrix.os }} ${{ matrix.build }}
+    strategy:
+      matrix:
+        include:
+          - build: arm
+            os: ubuntu-latest
+            rust: stable
+            target: armv7-unknown-linux-gnueabihf
+            linker: gcc-arm-linux-gnueabihf
+            cross: true
+          - build: aarch64
+            os: ubuntu-latest
+            rust: stable
+            target: aarch64-unknown-linux-gnu
+            linker: gcc-aarch64-linux-gnu
+            cross: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.rustup
+            target
+          key: ${{ runner.os }}-${{ matrix.rust }}
+
+      - name: Install Linker
+        if: matrix.cross
+        run: |
+          sudo apt update
+          sudo apt install ${{ matrix.linker }}
+
+      - name: Install Rust
+        run: |
+          rustup install ${{ matrix.rust }}
+          rustup target add ${{ matrix.target }}
+          rustup show
+
+      - name: Build and Copy
+        run: sh scripts/build-linux-${{ matrix.build }}.sh
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v2
+        with:
+          java-version: '8'
+          distribution: 'adopt'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Build with Gradle
+        run: ./gradlew build -PskipSigning=true -x test --info --stacktrace
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            rust/target/${{ matrix.target }}/release/linux-${{ matrix.build }}_libcardano_jni_wrapper.so
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
