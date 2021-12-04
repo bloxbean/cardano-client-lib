@@ -18,19 +18,25 @@ jobs:
     strategy:
       matrix:
         include:
-        - build: arm-v7
-          os: ubuntu-latest
+        - build: armv7
+          os: ubuntu18.04
           rust: stable
           target: armv7-unknown-linux-gnueabihf
           linker: gcc-arm-linux-gnueabihf
           cross: true
         - build: aarch64
-          os: ubuntu-latest
+          os: ubuntu18.04
           rust: stable
           target: aarch64-unknown-linux-gnu
           linker: gcc-aarch64-linux-gnu
           cross: true
     steps:
+      - uses: uraimo/run-on-arch-action@v2.0.5
+        name: Build artifact
+        with:
+          arch: ${{ matrix.build }}
+          distro: ${{ matrix.os }}
+
       - name: Checkout
         uses: actions/checkout@v2
         with:
