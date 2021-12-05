@@ -137,7 +137,6 @@ publishing {
                     developer {
                         id = 'satran004'
                         name = 'Satya'
-                        email = 'satran004@gmail.com'
                     }
                 }
                 scm {
