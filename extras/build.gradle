@@ -20,28 +20,14 @@ sourceSets {
     }
 }
 
-compileJava {
-    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
-}
-
-artifacts {
-    archives jar
-}
-
-test {
-    useJUnitPlatform()
-    testLogging {
-        showStandardStreams = true
-    }
-}
-
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
+
             pom {
-                name = 'Cardano Client Library Extra'
-                description = 'Cardano Client Library Extra - Compiled native libs for Raspberry pi and other platforms not included in main jar'
+                name = 'Cardano Client Library Extras'
+                description = 'Cardano Client Library Extras - Native libraries for Raspberry pi and other platforms which are not part of the main jar.'
                 url = 'https://github.com/bloxbean/cardano-client-lib'
                 licenses {
                     license {
@@ -67,7 +53,6 @@ publishing {
     repositories {
         String ossrhUsername = System.getenv('MAVEN_USER')
         String ossrhPassword = System.getenv('MAVEN_PASSWORD')
-
         maven {
             def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
             def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"

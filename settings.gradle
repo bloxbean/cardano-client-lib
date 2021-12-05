@@ -1,2 +1,6 @@
 rootProject.name = 'cardano-client-lib'
+include 'extras'
+
+// change subproject name
+project(":extras").name = "cardano-client-lib-extras"
 

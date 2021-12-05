@@ -25,7 +25,9 @@ pipeline {
             steps {
                  sh  "chmod +x scripts/download_libs.sh"
                  sh  "./scripts/download_libs.sh  ${TAG_NAME}"
-                 sh  './gradlew build fatJar -Psigning.password=${SIGNING_PASSWORD} --stacktrace'
+                 sh  "chmod +x extras/scripts/download_extra_libs.sh"
+                 sh  "./extras/scripts/download_extra_libs.sh  ${TAG_NAME}"
+                 sh  './gradlew clean build fatJar -Psigning.password=${SIGNING_PASSWORD} --stacktrace'
             }
         }
 
@@ -39,7 +41,7 @@ pipeline {
 
         stage('Results') {
             steps {
-                archiveArtifacts 'build/libs/*.jar'
+                archiveArtifacts 'build/libs/*.jar', 'extras/build/libs/*.jar'
             }
         }
     }
