@@ -1,4 +1,4 @@
-name: Clean, Build
+name: Clean, Build extra native libs
 
 on:
   push:
