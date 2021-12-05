@@ -41,8 +41,14 @@ pipeline {
 
         stage('Results') {
             steps {
-                archiveArtifacts 'build/libs/*.jar', 'extras/build/libs/*.jar'
+                archiveArtifacts 'build/libs/*.jar'
             }
+        }
+
+        stage('Results - Extras') {
+             steps {
+                 archiveArtifacts 'extras/build/libs/*.jar'
+             }
         }
     }
 }
