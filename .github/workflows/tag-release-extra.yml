@@ -3,7 +3,7 @@ name: Extra Tag Release
 on:
   push:
     tags:
-      - 'test*'
+      - 'v*'
 
 jobs:
   build-job:
@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - build: arm
+          - build: armv7
             os: ubuntu-latest
             rust: stable
             target: armv7-unknown-linux-gnueabihf
