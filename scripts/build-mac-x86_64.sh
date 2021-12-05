@@ -10,11 +10,10 @@ cd ..
 mkdir -p native/$NATIVE_FOLDER
 cp rust/target/release/$SRC_LIB_FILE native/$NATIVE_FOLDER
 
-ls native/$NATIVE_FOLDER && pwd
-#RESULT=$?
-#if [ $RESULT -eq 0 ]; then
-#  echo success
-#  ls native/$NATIVE_FOLDER && pwd
-#else
-#  exit 1
-#fi
+RESULT=$?
+if [ $RESULT -eq 0 ]; then
+  echo success
+  ls native/$NATIVE_FOLDER && pwd
+else
+  exit 1
+fi
