@@ -3,7 +3,7 @@ name: Extra Tag Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'test*'
 
 jobs:
   build-job:
