@@ -53,7 +53,7 @@ public class CBORMetadataList {
         return this;
     }
 
-    Array getArray() {
+    public Array getArray() {
         return array;
     }
 }
