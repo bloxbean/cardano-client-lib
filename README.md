@@ -2,10 +2,11 @@
 
 A client library for Cardano in Java. 
 For some features like transaction signing and address generation, it currently uses [cardano-serialization-lib](https://github.com/Emurgo/cardano-serialization-lib) rust library though JNI. The library
-bundles the platform specific binaries of cardano-serialization-lib. You can check the currently supported operating systems below. This dependency will be removed in the future release.
+bundles the platform specific binaries of cardano-serialization-lib. You can check the currently supported operating systems below.
 
-**Note (Alonzo Support - Known issues) :** 
-The Alonzo related changes are currently **under development**. But the existing features like transfer transaction, token minting etc should work as long as you are using Utxos not specific to smart contract (or, data_hash field is null in Utxo). 
+**Latest Stable Version** : [0.1.5](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.1.5)
+
+**Preview Version** (Alonzo changes & RaspberryPi Support) : [0.2.0-preview1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-preview1)
 
 ## Supported Operating Systems
 The library has been tested on the following Operating Systems. 
