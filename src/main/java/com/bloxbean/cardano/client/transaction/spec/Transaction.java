@@ -21,7 +21,8 @@ import java.util.List;
 public class Transaction {
     private TransactionBody body;
     private TransactionWitnessSet witnessSet;
-    private boolean isValid;
+    @Builder.Default
+    private boolean isValid = true;
     private AuxiliaryData auxiliaryData;
 
     public Transaction() {
@@ -151,6 +152,11 @@ public class Transaction {
                     checkAuxData = false;
                     transaction.setValid(true);
                 }
+                else {
+                    transaction.setValid(true);
+                }
+            } else {
+                transaction.setValid(true); //Default value
             }
 
             if (checkAuxData) {
