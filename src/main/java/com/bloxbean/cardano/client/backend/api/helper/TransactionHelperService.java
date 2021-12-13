@@ -12,8 +12,8 @@ import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
@@ -173,22 +173,23 @@ public class TransactionHelperService {
             LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(paymentTransactions));
 
         Transaction transaction = utxoTransactionBuilder.buildTransaction(paymentTransactions, detailsParams, metadata, getProtocolParams());
+        transaction.setValid(true);
 
         if(LOG.isDebugEnabled())
             LOG.debug(JsonUtil.getPrettyJson(transaction));
 
-        String txnHex = transaction.serializeToHex();
-        String signedTxn = txnHex;
+        Transaction finalTxn = transaction;
         for(PaymentTransaction txn: paymentTransactions) {
-            signedTxn = txn.getSender().sign(signedTxn);
+            finalTxn = txn.getSender().sign(finalTxn);
 
             if(txn.getAdditionalWitnessAccounts() != null) { //Add additional witnesses
                 for(Account additionalWitnessAcc: txn.getAdditionalWitnessAccounts()) {
-                    signedTxn = additionalWitnessAcc.sign(signedTxn);
+                    finalTxn = additionalWitnessAcc.sign(finalTxn);
                 }
             }
         }
-        return signedTxn;
+
+        return finalTxn.serializeToHex();
     }
 
     /**
@@ -240,6 +241,7 @@ public class TransactionHelperService {
             LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(mintTransaction));
 
         Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, metadata, getProtocolParams());
+        transaction.setValid(true);
 
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
         transactionWitnessSet.getNativeScripts().add(mintTransaction.getPolicyScript());
@@ -253,11 +255,11 @@ public class TransactionHelperService {
         if(LOG.isDebugEnabled())
             LOG.debug(JsonUtil.getPrettyJson(transaction));
 
-        String signedTxn = mintTransaction.getSender().sign(transaction);
+        Transaction signedTxn = mintTransaction.getSender().sign(transaction);
 
         if(mintTransaction.getPolicyKeys() != null) {
             for (SecretKey key : mintTransaction.getPolicyKeys()) {
-                signedTxn = CardanoJNAUtil.signWithSecretKey(signedTxn, HexUtil.encodeHexString(key.getBytes()));
+                signedTxn = TransactionSigner.INSTANCE.sign(signedTxn, key);
             }
         }
 
@@ -268,9 +270,10 @@ public class TransactionHelperService {
         }
 
         if(LOG.isDebugEnabled()) {
-            LOG.debug("Signed Txn : " + signedTxn);
+            LOG.debug(signedTxn.toString());
+            LOG.debug(signedTxn.serializeToHex());
         }
-        return signedTxn;
+        return signedTxn.serializeToHex();
     }
 
     /**
