@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
+import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -411,10 +412,13 @@ public class CBORSerializationTest {
                 .build());
         transaction.setBody(txnBody);
 
-        String txnHex = account1.sign(transaction);
-        txnHex = account2.sign(txnHex);
+        Transaction signTxn = account1.sign(transaction);
+        signTxn = account2.sign(signTxn);
 
-        Transaction deSeTransaction = Transaction.deserialize(HexUtil.decodeHexString(txnHex));
+        Transaction deSeTransaction = Transaction.deserialize(HexUtil.decodeHexString(signTxn.serializeToHex()));
+
+        //Asserts
+        assertThat(deSeTransaction.serializeToHex()).isEqualTo((signTxn.serializeToHex()));
 
         //Sort certain fields and then assert
         Comparator<Asset> assetComparator = new Comparator<Asset>() {
@@ -466,8 +470,6 @@ public class CBORSerializationTest {
                 .usingRecursiveComparison()
                 .isEqualTo(transaction.getAuxiliaryData().getMetadata());
         assertThat(deSeTransaction.getAuxiliaryData().getMetadata().serialize()).isEqualTo(transaction.getAuxiliaryData().getMetadata().serialize());
-
-        assertThat(deSeTransaction.serializeToHex()).isEqualTo((txnHex));
     }
 
     @Test
@@ -562,11 +564,13 @@ public class CBORSerializationTest {
 
         transaction.setBody(txnBody);
 
-        String txnHex = account1.sign(transaction);
-        txnHex = account2.sign(txnHex);
+        Transaction signTxn = account1.sign(transaction);
+        signTxn = account2.sign(signTxn);
 
-        Transaction deSeTransaction = Transaction.deserialize(HexUtil.decodeHexString(txnHex));
+        Transaction deSeTransaction = Transaction.deserialize(HexUtil.decodeHexString(signTxn.serializeToHex()));
 
+        //Asserts
+        assertThat(deSeTransaction.serializeToHex()).isEqualTo(signTxn.serializeToHex());
         //Sort certain fields and then assert
         Comparator<Asset> assetComparator = new Comparator<Asset>() {
             @Override
@@ -581,21 +585,19 @@ public class CBORSerializationTest {
                 return o1.getPolicyId().compareTo(o2.getPolicyId());
             }
         };
-
+        assertThat(deSeTransaction.serializeToHex()).isEqualTo((signTxn.serializeToHex()));
         deSeTransaction.getBody().getOutputs().forEach(
                 out -> Collections.sort(out.getValue().getMultiAssets(), multiAssetComparator));
         deSeTransaction.getBody().getOutputs().forEach(
                 out -> out.getValue().getMultiAssets()
                         .forEach(ma -> Collections.sort(ma.getAssets(), assetComparator))
         );
-
         transaction.getBody().getOutputs().forEach(
                 out -> Collections.sort(out.getValue().getMultiAssets(), multiAssetComparator));
         transaction.getBody().getOutputs().forEach(
                 out -> out.getValue().getMultiAssets()
                         .forEach(ma -> Collections.sort(ma.getAssets(), assetComparator))
         );
-
         deSeTransaction.getBody().getMint().forEach(ma -> Collections.sort(ma.getAssets(), assetComparator));
         transaction.getBody().getMint().forEach(ma -> Collections.sort(ma.getAssets(), assetComparator));
 
@@ -620,8 +622,6 @@ public class CBORSerializationTest {
                 .usingRecursiveComparison()
                 .isEqualTo(transaction.getAuxiliaryData().getMetadata());
         assertThat(deSeTransaction.getAuxiliaryData().getMetadata().serialize()).isEqualTo(transaction.getAuxiliaryData().getMetadata().serialize());
-
-        assertThat(deSeTransaction.serializeToHex()).isEqualTo((txnHex));
     }
 
     @Test
@@ -680,12 +680,12 @@ public class CBORSerializationTest {
         transaction.getWitnessSet().setNativeScripts(Arrays.asList(scriptAtLeast));
 
 
-        String txnHex = account1.sign(transaction);
-        txnHex = account2.sign(txnHex);
+        Transaction signTxn = account1.sign(transaction);
+        signTxn = account2.sign(signTxn);
 
-        txnHex = CardanoJNAUtil.signWithSecretKey(txnHex, HexUtil.encodeHexString(sk1.getBytes()));
+        signTxn = TransactionSigner.INSTANCE.sign(signTxn, sk1);
 
-        Transaction deSeTransaction = Transaction.deserialize(HexUtil.decodeHexString(txnHex));
+        Transaction deSeTransaction = Transaction.deserialize(HexUtil.decodeHexString(signTxn.serializeToHex()));
 
 
         assertThat(deSeTransaction.getBody().getInputs()).isEqualTo(transaction.getBody().getInputs());
@@ -701,7 +701,7 @@ public class CBORSerializationTest {
 
         assertThat(deSeTransaction.getWitnessSet().getNativeScripts()).hasSize(1);
 
-        assertThat(deSeTransaction.serializeToHex()).isEqualTo(txnHex);
+        assertThat(deSeTransaction.serializeToHex()).isEqualTo(signTxn.serializeToHex());
     }
 
     @Test
