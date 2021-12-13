@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -40,5 +41,17 @@ public class VkeyWitness {
         vkeyWitness.setSignature(((ByteString)sigDI).getBytes());
 
         return vkeyWitness;
+    }
+
+    @Override
+    public String toString() {
+        if (vkey != null && signature != null) {
+            return "VkeyWitness{" +
+                    "vkey=" + HexUtil.encodeHexString(vkey) +
+                    ", signature=" + HexUtil.encodeHexString(signature) +
+                    '}';
+        } else {
+            return super.toString();
+        }
     }
 }
