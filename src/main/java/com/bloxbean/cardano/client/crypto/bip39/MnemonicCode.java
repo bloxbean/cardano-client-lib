@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -136,6 +137,13 @@ public class MnemonicCode {
         watch.stop();
         log.info("PBKDF2 took {}", watch);
         return seed;
+    }
+
+    public byte[] toEntropy(String mnemonicPhrase) throws MnemonicException.MnemonicLengthException, MnemonicException.MnemonicWordException, MnemonicException.MnemonicChecksumException {
+        String[] wordsList;
+        wordsList = mnemonicPhrase.split(" ");
+
+        return toEntropy(Arrays.asList(wordsList));
     }
 
     /**
