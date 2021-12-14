@@ -20,7 +20,7 @@ public class CIP1852 {
             HdKeyPair accountKey = hdKeyGenerator.getChildKeyPair(coinTypeKey, derivationPath.getAccount().getValue(), derivationPath.getAccount().isHarden());
             HdKeyPair roleKey = hdKeyGenerator.getChildKeyPair(accountKey, derivationPath.getRole().getValue(), derivationPath.getRole().isHarden());
 
-            HdKeyPair indexKey = hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getRole().getValue(), derivationPath.getRole().isHarden());
+            HdKeyPair indexKey = hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
             return indexKey;
         } catch (Exception ex) {
             throw new CryptoException("Mnemonic to KeyPair generation failed", ex);
