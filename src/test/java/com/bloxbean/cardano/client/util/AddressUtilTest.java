@@ -15,16 +15,16 @@ public class AddressUtilTest {
 
     @Test
     public void testInvalidShelleyAddr() {
-        boolean isValid = AddressUtil.isValidAddress("addr1qxkeutm43mhc8jpqg6sk4cqtypzy3ez6z8k7qlfwa97h2acz7xprvuysll04e5gaa65vavyj0wvd0v99lhpntm7c03us8wk6xa");
-
-        assertFalse(isValid);
+        assertThrows(RuntimeException.class, () -> {
+            AddressUtil.isValidAddress("addr1qxkeutm43mhc8jpqg6sk4cqtypzy3ez6z8k7qlfwa97h2acz7xprvuysll04e5gaa65vavyj0wvd0v99lhpntm7c03us8wk6xa");
+        });
     }
 
     @Test
     public void testInvalidJunk() {
-        boolean isValid = AddressUtil.isValidAddress("some_text");
-
-        assertFalse(isValid);
+        assertThrows(Exception.class, () -> {
+            AddressUtil.isValidAddress("some_text");
+        });
     }
 
     @Test
@@ -36,9 +36,10 @@ public class AddressUtilTest {
 
     @Test
     public void testInvalidByronAddr() {
-        boolean isValid = AddressUtil.isValidAddress("DdzFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREk");
+        assertThrows(Exception.class, () -> {
+            AddressUtil.isValidAddress("ExxxFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREk");
+        });
 
-        assertFalse(isValid);
     }
 
 }

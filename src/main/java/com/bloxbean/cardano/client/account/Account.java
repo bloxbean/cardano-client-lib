@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.account;
 
+import com.bloxbean.cardano.client.address.*;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.config.Configuration;
@@ -64,7 +65,7 @@ public class Account {
      * @param index
      */
     public Account(Network network, int index) {
-        this(network, DerivationPath.createShelleyDerivationPath(index));
+        this(network, DerivationPath.createExternalAddressDerivationPath(index));
     }
 
     /**
@@ -110,7 +111,7 @@ public class Account {
      * @param index
      */
     public Account(Network network, String mnemonic, int index) {
-        this(network, mnemonic, DerivationPath.createShelleyDerivationPath(index));
+        this(network, mnemonic, DerivationPath.createExternalAddressDerivationPath(index));
     }
 
     /**
@@ -140,12 +141,20 @@ public class Account {
      * @return baseAddress at index
      */
     public String baseAddress() {
-        if(this.baseAddress == null || this.baseAddress.trim().length() == 0) {
-            Network.ByReference refNetwork = new Network.ByReference();
-            refNetwork.network_id = network.network_id;
-            refNetwork.protocol_magic = network.protocol_magic;
+        if (this.baseAddress == null || this.baseAddress.trim().length() == 0) {
+            if (Configuration.INSTANCE.isUseNativeLibForAccountGen()) {
+                Network.ByReference refNetwork = new Network.ByReference();
+                refNetwork.network_id = network.network_id;
+                refNetwork.protocol_magic = network.protocol_magic;
 
-            this.baseAddress = CardanoJNAUtil.getBaseAddressByNetwork(mnemonic, derivationPath.getIndex().getValue(), refNetwork);
+                this.baseAddress = CardanoJNAUtil.getBaseAddressByNetwork(mnemonic, derivationPath.getIndex().getValue(), refNetwork);
+            } else {
+                HdKeyPair paymentKeyPair = getHdKeyPair();
+                HdKeyPair stakeKeyPair = getStakeKeyPair();
+
+                Address address = AddressService.getInstance().getAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network, AddressType.Base);
+                this.baseAddress = address.toBech32();
+            }
         }
 
         return this.baseAddress;
@@ -157,19 +166,39 @@ public class Account {
      */
     public String enterpriseAddress() {
         if(this.enterpriseAddress == null || this.enterpriseAddress.trim().length() == 0) {
-            Network.ByReference refNetwork = new Network.ByReference();
-            refNetwork.network_id = network.network_id;
-            refNetwork.protocol_magic = network.protocol_magic;
+            if (Configuration.INSTANCE.isUseNativeLibForAccountGen()) {
+                Network.ByReference refNetwork = new Network.ByReference();
+                refNetwork.network_id = network.network_id;
+                refNetwork.protocol_magic = network.protocol_magic;
 
-            this.enterpriseAddress = CardanoJNAUtil.getEnterpriseAddressByNetwork(mnemonic, derivationPath.getIndex().getValue(), refNetwork);
+                this.enterpriseAddress = CardanoJNAUtil.getEnterpriseAddressByNetwork(mnemonic, derivationPath.getIndex().getValue(), refNetwork);
+            } else {
+                HdKeyPair paymentKeyPair = getHdKeyPair();
+                HdKeyPair stakeKeyPair = getStakeKeyPair();
+
+                Address address = AddressService.getInstance().getAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network, AddressType.Enterprise);
+                this.enterpriseAddress = address.toBech32();
+            }
         }
 
         return this.enterpriseAddress;
     }
 
+    /**
+     *
+     * @return Reward (stake) address
+     */
+    public String stakeAddress() {
+        HdKeyPair stakeKeyPair = getStakeKeyPair();
+
+        Address address = AddressService.getInstance().getAddress(null, stakeKeyPair.getPublicKey(), network, AddressType.Reward);
+        return address.toBech32();
+    }
+
     @JsonIgnore
     public String getBech32PrivateKey() {
-        return CardanoJNAUtil.getPrivateKeyFromMnemonic(mnemonic, derivationPath.getIndex().getValue());
+        HdKeyPair hdKeyPair = getHdKeyPair();
+        return hdKeyPair.getPrivateKey().toBech32();
     }
 
     @JsonIgnore
@@ -213,41 +242,37 @@ public class Account {
     }
 
     public static byte[] toBytes(String address) throws AddressExcepion {
-        if(address == null)
+        if (address == null)
             return null;
 
-        String hexStr = null;
-        if(address.startsWith("addr")) { //Shelley address
-            hexStr = CardanoJNAUtil.bech32AddressToBytes(address);
+        if (address.startsWith("addr") || address.startsWith("stake")) { //Shelley address
+            Address addressObj = new Address(address);
+            return addressObj.getBytes();
         } else { //Try for byron address
-            hexStr = CardanoJNAUtil.base58AddressToBytes(address);
-        }
-
-        if(hexStr == null || hexStr.length() == 0)
-            throw new AddressExcepion("Address to bytes failed");
-
-        try {
-            return HexUtil.decodeHexString(hexStr);
-        } catch (Exception e) {
-            throw new AddressExcepion("Address to bytes failed", e);
+            ByronAddress byronAddress = new ByronAddress(address);
+            return byronAddress.getBytes();
         }
     }
 
     public static String bytesToBase58Address(byte[] bytes) throws AddressExcepion { //byron address
-        String address = CardanoJNAUtil.hexBytesToBase58Address(HexUtil.encodeHexString(bytes));
-
-        if(address == null || address.isEmpty())
-            throw new AddressExcepion("Bytes cannot be converted to base58 address");
-
-        return address;
+        AddressType addressType = AddressEncoderDecoderUtil.readAddressType(bytes);
+        if(AddressType.Byron.equals(addressType)) {
+            ByronAddress byronAddress = new ByronAddress(bytes);
+            return byronAddress.toBase58();
+        } else {
+            throw new AddressExcepion("Not a Byron address");
+        }
     }
 
-    public static String bytesToBech32(byte[] bytes) throws AddressExcepion {
-        String bech32Address = CardanoJNAUtil.hexBytesToBech32Address(HexUtil.encodeHexString(bytes));
-        if(bech32Address == null || bech32Address.isEmpty())
-            throw new AddressExcepion("Bytes cannot be converted to bech32 address");
-
-        return bech32Address;
+    public static String bytesToAddress(byte[] bytes) throws AddressExcepion {
+        AddressType addressType = AddressEncoderDecoderUtil.readAddressType(bytes);
+        if(AddressType.Byron.equals(addressType)) {
+            ByronAddress byronAddress = new ByronAddress(bytes);
+            return byronAddress.toBase58();
+        } else {
+            Address address = new Address(bytes);
+            return address.toBech32();
+        }
     }
 
     private void generateNew() {
@@ -287,6 +312,13 @@ public class Account {
 
     private HdKeyPair getHdKeyPair() {
         HdKeyPair hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
+        return hdKeyPair;
+    }
+
+    private HdKeyPair getStakeKeyPair() {
+        DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
+        HdKeyPair hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
+
         return hdKeyPair;
     }
 

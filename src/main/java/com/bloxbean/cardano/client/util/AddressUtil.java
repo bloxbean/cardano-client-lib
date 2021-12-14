@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.util;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 
 public class AddressUtil {
 
@@ -17,6 +18,8 @@ public class AddressUtil {
 
             return true;
         } catch (AddressExcepion e) {
+            return false;
+        } catch (AddressRuntimeException e) {
             return false;
         }
     }
