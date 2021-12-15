@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.crypto.api.SigningProvider;
+import com.bloxbean.cardano.client.crypto.bip32.HdKeyGenerator;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -82,12 +83,22 @@ public enum TransactionSigner {
 
         SigningProvider signingProvider = Configuration.INSTANCE.getSigningProvider();
         byte[] signature = signingProvider.sign(txnBodyHash, secretKey.getBytes());
-
         VerificationKey verificationKey = null;
-        try {
-            verificationKey = KeyGenUtil.getPublicKeyFromPrivateKey(secretKey);
-        } catch (CborSerializationException e) {
-            throw new CborRuntimeException("Unable to get verification key from SecretKey", e);
+
+        if (secretKey.getBytes().length == 64) { //extended pvt key (most prob for regular account)
+            //check for public key
+            byte[] vBytes = HdKeyGenerator.getPublicKey(secretKey.getBytes());
+            try {
+                verificationKey = VerificationKey.create(vBytes);
+            } catch (CborSerializationException e) {
+                throw new CborRuntimeException("Unable to get verification key from secret key", e);
+            }
+        } else {
+            try {
+                verificationKey = KeyGenUtil.getPublicKeyFromPrivateKey(secretKey);
+            } catch (CborSerializationException e) {
+                throw new CborRuntimeException("Unable to get verification key from SecretKey", e);
+            }
         }
 
         VkeyWitness vkeyWitness = VkeyWitness.builder()
