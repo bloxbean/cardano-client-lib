@@ -85,7 +85,7 @@ public class CBORMetadata implements Metadata {
             if(UNSIGNED_INTEGER.equals(valueDI.getMajorType())){
                 cborMetadata.put(key, ((UnsignedInteger)valueDI).getValue());
             } else if(NEGATIVE_INTEGER.equals(valueDI.getMajorType())) {
-                cborMetadata.put(key, ((NegativeInteger)valueDI).getValue());
+                cborMetadata.putNegative(key, ((NegativeInteger)valueDI).getValue());
             } else if(BYTE_STRING.equals(valueDI.getMajorType())) {
                 cborMetadata.put(key, ((ByteString)valueDI).getBytes());
             } else if(UNICODE_STRING.equals(valueDI.getMajorType())) {
