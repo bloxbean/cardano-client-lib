@@ -218,4 +218,10 @@ public class HdKeyGenerator {
             return temp;
         }
     }
+
+    public static byte[] getPublicKey(byte[] privateKey) {
+        byte[] IL = Arrays.copyOfRange(privateKey, 0, 32);
+        byte[] A = ED25519SPEC.getB().scalarMultiply(IL).toByteArray();
+        return A;
+    }
 }
