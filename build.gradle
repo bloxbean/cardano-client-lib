@@ -22,7 +22,9 @@ dependencies {
     }
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.12.3'
     implementation group: 'com.google.guava', name: 'guava', version: '30.1.1-jre'
-    //implementation("com.squareup.okhttp3:okhttp:4.9.1")
+
+    //ed25519
+    implementation group: 'net.i2p.crypto', name: 'eddsa', version: '0.3.0'
 
     compileOnly 'org.projectlombok:lombok:1.18.20'
     annotationProcessor 'org.projectlombok:lombok:1.18.20'

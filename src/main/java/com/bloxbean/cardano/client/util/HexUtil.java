@@ -2,10 +2,16 @@ package com.bloxbean.cardano.client.util;
 
 public class HexUtil {
     public static String encodeHexString(byte[] byteArray) {
+        if (byteArray == null)
+            return null;
+
         return encodeHexString(byteArray, false);
     }
 
     public static String encodeHexString(byte[] byteArray, boolean withPrefix) {
+        if (byteArray == null)
+            return null;
+
         StringBuffer hexStringBuffer = new StringBuffer();
         for (int i = 0; i < byteArray.length; i++) {
             hexStringBuffer.append(byteToHex(byteArray[i]));

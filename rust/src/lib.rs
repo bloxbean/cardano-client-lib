@@ -329,6 +329,31 @@ pub fn validateTransactionCBOR(rawTxnHex: *const c_char) -> bool {
     }
 }
 
+#[no_mangle]
+#[allow(non_snake_case)]
+pub fn signMsg(msgHex: *const c_char, privateKey: *const c_char) -> *const c_char {
+    let result = panic::catch_unwind(|| {
+        let msgStr =  to_string(msgHex);
+        let pvtKeyStr = to_string(privateKey);
+
+        let body = hex::decode(msgStr).unwrap();
+        let pvtKeyBytes = hex::decode(pvtKeyStr).unwrap();
+
+        let signature = transaction::sign(body.as_ref(), pvtKeyBytes.as_ref());
+
+        let signatureHex = hex::encode(signature.to_bytes());
+
+        to_ptr(signatureHex)
+    });
+
+    match result {
+        Ok(c) => c,
+        Err(cause) => {
+            to_ptr(String::new())
+        }
+    }
+}
+
 /// Convert a native string to a Rust string
 fn to_string(pointer: *const c_char) -> String {
     let c_str: &CStr = unsafe { CStr::from_ptr(pointer) };

@@ -34,7 +34,7 @@ public class Network extends Structure  implements Closeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+//        if (!super.equals(o)) return false;
         Network network = (Network) o;
         return network_id == network.network_id && protocol_magic == network.protocol_magic;
     }

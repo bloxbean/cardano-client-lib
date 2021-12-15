@@ -85,6 +85,14 @@ interface CardanoJNA extends Library {
 
     public boolean validateTransactionCBOR(String rawTxnInHex);
 
+    /**
+     * Sign a message with a private key
+     * @param msg
+     * @param privateKeyHex
+     * @return Signature
+     */
+    public Pointer signMsg(String msg, String privateKeyHex);
+
     public void dropCharPointer(Pointer pointer);
 
     public void printPointer(Pointer pointer);

@@ -23,7 +23,6 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +41,7 @@ import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 
@@ -260,8 +260,8 @@ class FeeCalculationServiceTest extends BaseTest {
                 .build();
 
         Account account = new Account(Networks.testnet());
-        String signedTxn = account.sign(transaction);
-        byte[] signedTxnBytes =  HexUtil.decodeHexString(signedTxn);
+        Transaction signedTxn = account.sign(transaction);
+        byte[] signedTxnBytes =  signedTxn.serialize();
 
         Transaction signedTransaction = Transaction.deserialize(signedTxnBytes);
 

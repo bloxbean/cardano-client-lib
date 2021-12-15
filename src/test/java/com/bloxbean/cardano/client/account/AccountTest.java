@@ -1,35 +1,27 @@
 package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.util.Platform;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-import java.io.File;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class AccountTest {
 
-    static {
-        String folderPrefix = Platform.getNativeLibraryResourcePrefix();
-        String currentDir = System.getProperty("user.dir");
-        String libPath = (currentDir + "/native/" + folderPrefix).replace('/', File.separatorChar);
-        System.setProperty("jna.library.path", libPath);
-
-        System.out.println(libPath);
-    }
-
-    @BeforeEach
-    void setUp() {
-
+    @BeforeAll
+    static void setUp() {
+        Configuration.INSTANCE.setUseNativeLibForAccountGen(false);
+        System.out.println("Testing with useNativeLibForAccountGen: " + Configuration.INSTANCE.isUseNativeLibForAccountGen());
     }
 
     @Test
@@ -96,6 +88,28 @@ public class AccountTest {
     }
 
     @Test
+    void getStakeAddressFromMnemonic_whenTestnet() {
+        String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+        String expectedRewardAddress = "stake_test1uq06d3cktqn4z9tv8rr9723fvrxdnh44an9tjvjftw6krscamyncv";
+
+        Account account = new Account(Networks.testnet(), phrase24W);
+        String rewardAddress = account.stakeAddress();
+
+        assertEquals(expectedRewardAddress, rewardAddress);
+    }
+
+    @Test
+    void getStakeAddressFromMnemonic_whenMainnet() {
+        String phrase24W = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        String expectedRewardAddress = "stake1u9xeg0r67z4wca682l28ghg69jxaxgswdmpvnher7at697quawequ";
+
+        Account account = new Account(Networks.mainnet(), phrase24W);
+        String rewardAddress = account.stakeAddress();
+
+        assertEquals(expectedRewardAddress, rewardAddress);
+    }
+
+    @Test
     void getAddressFromInvalidMnemonic() {
         String phrase = "invalid pass goose lava verb buzz service consider execute goose abstract fresh endless cruise layer belt immense clay glimpse install garage elegant cricket make";
 
@@ -118,7 +132,7 @@ public class AccountTest {
         String phrase = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
 
         Account account = new Account(Networks.testnet(), phrase, 0);
-        assertEquals(96, account.privateKeyBytes().length);
+        assertEquals(64, account.privateKeyBytes().length);
     }
 
     @Test
@@ -166,10 +180,12 @@ public class AccountTest {
         String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
         Account account = new Account(Networks.testnet(), phrase24W);
 
-        String signedTxn = account.sign(transaction);
+        Transaction signedTxn = account.sign(transaction);
+
+        String signedTxnHex = signedTxn.serializeToHex();
 
         String expectdSignTxn = "84a40081825820dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d010182825839000916a5fed4589d910691b85addf608dceee4d9d60d4c9a4d2a925026c3229b212ba7ef8643cd8f7e38d6279336d61a40d228b036f40feed61a004c4b40825839008c5bf0f2af6f1ef08bb3f6ec702dd16e1c514b7e1d12f7549b47db9f4d943c7af0aaec774757d4745d1a2c8dd3220e6ec2c9df23f757a2f81a3af6f8c6021a00059d5d031a018fb29aa100818258204d88ec934e586062c12302e7a5d40fb357035c1142730d8b5b172607d45c2f9f5840e627ac36d4699bb52611bfb49ebc772efe85a7315e15dc8aeae83696fd5d27b7d9c9635ba0bf1b091ad5dde1330117cb206427dfaf9adfe4b64ba574a9f30e04f5f6";
-        assertEquals(expectdSignTxn, signedTxn);
+        assertEquals(expectdSignTxn, signedTxnHex);
     }
 
     @Test
@@ -188,7 +204,7 @@ public class AccountTest {
 
     @Test
     public void testInvalidAddressToBytes() throws AddressExcepion {
-        assertThrows(AddressExcepion.class, () -> {
+        assertThrows(Exception.class, () -> {
             String shelleyAddr = "invalid_address";
             byte[] bytes = Account.toBytes(shelleyAddr);
         });
@@ -208,7 +224,19 @@ public class AccountTest {
         String shelleyAddr = "addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v";
         byte[] bytes = Account.toBytes(shelleyAddr);
 
-        String newAddr = Account.bytesToBech32(bytes);
+        String newAddr = Account.bytesToAddress(bytes);
         assertEquals(shelleyAddr, newAddr);
+    }
+
+    @Test
+    public void testBech32PrivateKey() {
+        String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+        Account account = new Account(Networks.testnet(), phrase24W);
+
+        String bech32PrvKey = account.getBech32PrivateKey();
+        System.out.println(bech32PrvKey);
+
+        String expected = "xprv1fqxc29k9p4uz5gy4nax8efjaqydr5zz9z33n2lqfkqvz5xaapa8nmr0jgp26np8t65639yjnzf0d690qn2wwacmhyq2fj70sy2n3sr8t94x6l2ecqxllyvzywnjejz5c7cxzvswslzd9g5c95ug2vw7tzgstdx0p";
+        assertThat(bech32PrvKey).isEqualTo(expected);
     }
 }

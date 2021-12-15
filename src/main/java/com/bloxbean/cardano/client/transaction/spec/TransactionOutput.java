@@ -84,7 +84,7 @@ public class TransactionOutput {
         ByteString addrByteStr = (ByteString)items.get(0);
         if(addrByteStr != null) {
             try {
-                output.setAddress(Account.bytesToBech32(addrByteStr.getBytes()));
+                output.setAddress(Account.bytesToAddress(addrByteStr.getBytes()));
             } catch (Exception e) {
                 throw new CborDeserializationException("Bytes cannot be converted to bech32 address", e);
             }

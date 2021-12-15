@@ -25,8 +25,8 @@ import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.util.CostModelConstants;
 import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
-import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.util.Tuple;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -62,8 +62,17 @@ public class ContractTransactionIT extends BFBaseTest {
         String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
 
-        String collateral = "06568935be80d4484485ec902676b0001a935a9b8d677fdfa2674dd6c4022479";
+        String collateral = "c40adfc03cc3c65e4534384f7a4bdb76055a97d8474c8a0f04b965dca8e52999";
         int collateralIndex = 0;
+
+        Tuple<String, Integer> collateralTuple = checkCollateral(sender, collateral, collateralIndex);
+        if (collateralTuple == null) {
+            System.out.println("Collateral cannot be found or created. " + collateral);
+            return;
+        }
+
+        collateral = collateralTuple._1;
+        collateralIndex = collateralTuple._2;
 
         BigInteger scriptAmt = new BigInteger("2479280");
         String scriptAddress = "addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8";
@@ -156,9 +165,9 @@ public class ContractTransactionIT extends BFBaseTest {
                 .build();
 
         System.out.println(transaction);
-        String signTxnHashForFeeCalculation = sender.sign(transaction);
+        Transaction signTxnForFeeCalculation = sender.sign(transaction);
 
-        BigInteger baseFee = feeCalculationService.calculateFee(HexUtil.decodeHexString(signTxnHashForFeeCalculation));
+        BigInteger baseFee = feeCalculationService.calculateFee(signTxnForFeeCalculation);
         BigInteger scriptFee = feeCalculationService.calculateScriptFee(Arrays.asList(redeemer.getExUnits()));
         BigInteger totalFee = baseFee.add(scriptFee);
 
@@ -171,14 +180,98 @@ public class ContractTransactionIT extends BFBaseTest {
 
         System.out.println("-- fee : " + totalFee );
 
-        String signTxnHash = sender.sign(transaction); //cbor encoded bytes in Hex format
-        System.out.println(signTxnHash);
-        byte[] signTxnBytes = HexUtil.decodeHexString(signTxnHash);
+        Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
+        System.out.println(signTxn);
 
-        Result<String> result = transactionService.submitTransaction(signTxnBytes);
+        Result<String> result = transactionService.submitTransaction(signTxn.serialize());
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
+    }
+
+    private Tuple<String, Integer> checkCollateral(Account sender, final String collateralUtxoHash, final int collateralIndex) throws ApiException, AddressExcepion, CborSerializationException {
+        List<Utxo> utxos = utxoService.getUtxos(sender.baseAddress(), 100, 1).getValue(); //Check 1st page 100 utxos
+        Optional<Utxo> collateralUtxoOption = utxos.stream().filter(utxo -> utxo.getTxHash().equals(collateralUtxoHash))
+                .findAny();
+
+        if (collateralUtxoOption.isPresent()) {//Collateral present
+            System.out.println("--- Collateral utxo still there");
+            return new Tuple(collateralUtxoHash, collateralIndex);
+        } else {
+            System.out.println("*** Collateral utxo not found");
+
+            //Transfer to self to create collateral utxo
+            BigInteger collateralAmt = BigInteger.valueOf(5000000L);
+            transferFund(sender, sender.baseAddress(), collateralAmt, null, null, null);
+
+            //Find collateral utxo again
+            utxos = utxoService.getUtxos(sender.baseAddress(), 100, 1).getValue();
+            collateralUtxoOption = utxos.stream().filter(utxo -> {
+                if (utxo.getAmount().size() == 1 //Assumption: 1 Amount means, only LOVELACE
+                        && LOVELACE.equals(utxo.getAmount().get(0).getUnit())
+                        && collateralAmt.equals(utxo.getAmount().get(0).getQuantity()))
+                    return true;
+                else
+                    return false;
+            }).findFirst();
+
+            if (!collateralUtxoOption.isPresent()) {
+                System.out.println("Collateral cannot be created");
+                return null;
+            }
+
+            Utxo collateral = collateralUtxoOption.get();
+            String colUtxoHash = collateral.getTxHash();
+            int colIndex = collateral.getOutputIndex();
+
+            return new Tuple(colUtxoHash, colIndex);
+        }
+    }
+
+    private boolean transferFund(Account sender, String recevingAddress, BigInteger amount, String datumHash, String collateralUtxoHash, Integer collateralIndex) throws CborSerializationException, AddressExcepion, ApiException {
+
+        //Ignore collateral utxos
+        Set ignoreUtxos = new HashSet();
+        if (collateralUtxoHash != null) {
+            Utxo collateralUtxo = Utxo.builder()
+                    .txHash(collateralUtxoHash)
+                    .outputIndex(collateralIndex)
+                    .build();
+            ignoreUtxos.add(collateralUtxo);
+        }
+
+        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        List<Utxo> utxos = utxoSelectionStrategy.selectUtxos(sender.baseAddress(), LOVELACE, amount, ignoreUtxos);
+
+        PaymentTransaction paymentTransaction =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(recevingAddress)
+                        .amount(amount)
+                        .unit("lovelace")
+                        .datumHash(datumHash)
+                        .utxosToInclude(utxos)
+                        .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+        paymentTransaction.setFee(fee);
+
+        Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
+        if (result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        if (result.isSuccessful()) {
+            Result<String> resultWithTxId = Result.success(result.getResponse()).code(result.code())
+                    .withValue(result.getValue().getTransactionId());
+
+            waitForTransaction(resultWithTxId);
+        } else {
+            System.out.println(result);
+        }
+
+        return result.isSuccessful();
     }
 
     /*

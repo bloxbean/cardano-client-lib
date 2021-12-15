@@ -196,4 +196,18 @@ public class CardanoJNAUtil {
         return CardanoJNA.INSTANCE.validateTransactionCBOR(rawTxnInHex);
     }
 
+    /**
+     * Sign a message with private key
+     * @param msgInHex
+     * @param privateKeyInHex
+     * @return Signature
+     */
+    public static String signMsg(String msgInHex, String privateKeyInHex) {
+        Pointer pointer = CardanoJNA.INSTANCE.signMsg(msgInHex, privateKeyInHex);
+        String result = pointer.getString(0);
+
+        CardanoJNA.INSTANCE.dropCharPointer(pointer);
+        return result;
+    }
+
 }
