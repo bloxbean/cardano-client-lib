@@ -99,7 +99,7 @@ public class Transaction {
 
             cborBuilder.add(array);
 
-            new CborEncoder(baos).nonCanonical().encode(cborBuilder.build());
+            new CborEncoder(baos).encode(cborBuilder.build());
             byte[] encodedBytes = baos.toByteArray();
             return encodedBytes;
         } catch (Exception e) {
