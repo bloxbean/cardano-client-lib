@@ -39,7 +39,7 @@ public class AuxiliaryDataTest {
         byte[] auxHashBytes = auxiliaryData.getAuxiliaryDataHash();
         String auxHash = HexUtil.encodeHexString(auxHashBytes);
 
-        assertThat(auxHash).isEqualTo("79906018ae50cbed76c2f89382f504036ff43b935ee8488eb51884f9fd4f13cd");
+        assertThat(auxHash).isEqualTo("17df7ed927194d072174f36ac34e09f92e8a63f4131bef66d8cd186b95b6bfe8");
     }
 
     @Test

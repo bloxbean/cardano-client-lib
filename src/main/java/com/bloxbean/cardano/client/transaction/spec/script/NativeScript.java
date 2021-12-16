@@ -27,7 +27,7 @@ public interface NativeScript {
         Array array = (Array) serializeAsDataItem();
         cborBuilder.add(array);
         try {
-            new CborEncoder(baos).nonCanonical().encode(cborBuilder.build());
+            new CborEncoder(baos).encode(cborBuilder.build());
         } catch (CborException e) {
             throw new CborSerializationException("Cbor serializaion error", e);
         }

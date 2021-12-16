@@ -66,7 +66,7 @@ public class CBORMetadata implements Metadata {
 
             cborBuilder.add(map);
 
-            new CborEncoder(baos).nonCanonical().encode(cborBuilder.build());
+            new CborEncoder(baos).encode(cborBuilder.build());
             byte[] encodedBytes = baos.toByteArray();
 
             return encodedBytes;

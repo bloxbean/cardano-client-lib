@@ -22,7 +22,7 @@ public class KeyGenCborUtil {
 
         try {
             List<DataItem> dataItems = cborBuilder.add(bytes).build();
-            new CborEncoder(baos).nonCanonical().encode(dataItems);
+            new CborEncoder(baos).encode(dataItems);
             byte[] encodedBytes = baos.toByteArray();
 
             return Hex.toHexString(encodedBytes);

@@ -43,7 +43,7 @@ public class CborSerializationUtil {
      * @throws CborException
      */
     public static byte[] serialize(DataItem value) throws CborException {
-        return serialize(new DataItem[]{value}, false);
+        return serialize(new DataItem[]{value}, true); //By default Canonical = true
     }
 
     /**
@@ -65,7 +65,7 @@ public class CborSerializationUtil {
      * @return
      */
     public static byte[] serialize(DataItem[] values) throws CborException {
-        return serialize(values, false);
+        return serialize(values, true); //By default Canonical = true
     }
 
     /**
