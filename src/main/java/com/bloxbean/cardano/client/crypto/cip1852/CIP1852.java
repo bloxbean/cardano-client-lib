@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
 
 public class CIP1852 {
-    private HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
 
     public HdKeyPair getKeyPairFromMnemonic(String mnemonicPhrase, DerivationPath derivationPath) {
         HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
