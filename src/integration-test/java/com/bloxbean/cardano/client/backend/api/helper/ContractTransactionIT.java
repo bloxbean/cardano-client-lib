@@ -115,7 +115,7 @@ public class ContractTransactionIT extends BFBaseTest {
 
         PlutusScript plutusScript = PlutusScript.builder()
                 .type("PlutusScriptV1")
-                .cborHex("4d01000033222220051200120011")
+                .cborHex("4e4d01000033222220051200120011")
                 .build();
 
         //Create the transaction body with dummy fee

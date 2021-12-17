@@ -152,7 +152,7 @@ public class Account {
                 HdKeyPair paymentKeyPair = getHdKeyPair();
                 HdKeyPair stakeKeyPair = getStakeKeyPair();
 
-                Address address = AddressService.getInstance().getAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network, AddressType.Base);
+                Address address = AddressService.getInstance().getBaseAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
                 this.baseAddress = address.toBech32();
             }
         }
@@ -176,7 +176,7 @@ public class Account {
                 HdKeyPair paymentKeyPair = getHdKeyPair();
                 HdKeyPair stakeKeyPair = getStakeKeyPair();
 
-                Address address = AddressService.getInstance().getAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network, AddressType.Enterprise);
+                Address address = AddressService.getInstance().getEntAddress(paymentKeyPair.getPublicKey(), network);
                 this.enterpriseAddress = address.toBech32();
             }
         }
@@ -191,7 +191,7 @@ public class Account {
     public String stakeAddress() {
         HdKeyPair stakeKeyPair = getStakeKeyPair();
 
-        Address address = AddressService.getInstance().getAddress(null, stakeKeyPair.getPublicKey(), network, AddressType.Reward);
+        Address address = AddressService.getInstance().getRewardAddress(stakeKeyPair.getPublicKey(), network);
         return address.toBech32();
     }
 

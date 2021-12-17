@@ -63,7 +63,7 @@ public class TransactionWitnessSet {
         if(plutusScripts != null && plutusScripts.size() > 0) {
             Array plutusScriptArray = new Array();
             for(PlutusScript plutusScript: plutusScripts) {
-                plutusScriptArray.add(plutusScript.serialize());
+                plutusScriptArray.add(plutusScript.serializeAsDataItem());
             }
 
             witnessMap.put(new UnsignedInteger(3), plutusScriptArray);

@@ -1,47 +1,100 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import co.nstant.in.cbor.CborDecoder;
+import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.spec.script.Script;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.nio.ByteBuffer;
+import java.util.List;
+
+import static com.bloxbean.cardano.client.crypto.KeyGenUtil.blake2bHash224;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class PlutusScript {
+public class PlutusScript implements Script {
     private String type = "PlutusScriptV1";
     private String description;
     private String cborHex;
 
-    public ByteString serialize() throws CborSerializationException {
+    //TODO -- remove commented code later
+//    public ByteString serializeAsDataItem() throws CborSerializationException {
+//        byte[] bytes = HexUtil.decodeHexString(cborHex);
+//        if (bytes != null && bytes.length > 0) {
+//            return new ByteString(bytes);
+//        } else {
+//            return null;
+//        }
+//    }
+
+    public ByteString serializeAsDataItem() throws CborSerializationException {
         byte[] bytes = HexUtil.decodeHexString(cborHex);
         if (bytes != null && bytes.length > 0) {
-            return new ByteString(bytes);
+            try {
+                List<DataItem> diList = CborDecoder.decode(bytes);
+                if (diList == null || diList.size() == 0)
+                    throw new CborSerializationException("Serialization failed");
+
+                DataItem di = diList.get(0);
+                return (ByteString)di;
+            } catch (CborException e) {
+                throw new CborSerializationException("Serialization failed", e);
+            }
         } else {
             return null;
         }
     }
 
+    //TODO -- remove commented code later
+    //plutus_script = bytes ; New
+//    public static PlutusScript deserialize(ByteString plutusScriptDI) throws CborDeserializationException {
+//        if (plutusScriptDI != null) {
+//            PlutusScript plutusScript = new PlutusScript();
+//            plutusScript.setCborHex(HexUtil.encodeHexString(plutusScriptDI.getBytes()));
+//            return plutusScript;
+//        } else {
+//            return null;
+//        }
+//    }
+
     //plutus_script = bytes ; New
     public static PlutusScript deserialize(ByteString plutusScriptDI) throws CborDeserializationException {
         if (plutusScriptDI != null) {
             PlutusScript plutusScript = new PlutusScript();
-            plutusScript.setCborHex(HexUtil.encodeHexString(plutusScriptDI.getBytes()));
+            byte[] bytes;
+            try {
+                bytes = CborSerializationUtil.serialize(plutusScriptDI);
+            } catch (CborException e) {
+                throw new CborDeserializationException("CBor deserialization error", e);
+            }
+            plutusScript.setCborHex(HexUtil.encodeHexString(bytes));
             return plutusScript;
         } else {
             return null;
         }
     }
 
-//    public byte[] getScriptHash() throws CborSerializationException {
-//        byte[] encodedBytes = serialize().getBytes();
-//
-//        return KeyGenUtil.blake2bHash256(encodedBytes);
-//    }
+    @JsonIgnore
+    public byte[] getScriptHash() throws CborSerializationException {
+        byte[] first = new byte[]{01};
+        byte[] serializedBytes = serializeAsDataItem().getBytes();
+        byte[] finalBytes = ByteBuffer.allocate(first.length + serializedBytes.length)
+                .put(first)
+                .put(serializedBytes)
+                .array();
+
+        return blake2bHash224(finalBytes);
+    }
 }

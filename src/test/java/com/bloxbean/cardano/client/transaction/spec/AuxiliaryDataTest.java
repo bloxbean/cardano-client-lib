@@ -56,7 +56,7 @@ public class AuxiliaryDataTest {
         byte[] auxHashBytes = auxiliaryData.getAuxiliaryDataHash();
         String auxHash = HexUtil.encodeHexString(auxHashBytes);
 
-        assertThat(auxHash).isEqualTo("bcd5c19833c5b47b0d5684e4e9a7feb1d2b0951eecd03915e1082eab2d028888");
+        assertThat(auxHash).isEqualTo("7f0a2910e344e22e60ee9fa985820e9b5136977c15ddd6a38d134b1dc4f3e150");
     }
 
     @Test
@@ -82,7 +82,7 @@ public class AuxiliaryDataTest {
         byte[] auxHashBytes = auxiliaryData.getAuxiliaryDataHash();
         String auxHash = HexUtil.encodeHexString(auxHashBytes);
 
-        assertThat(auxHash).isEqualTo("f9c8cfaf79eea2b4ba97e87e295a527a0586567f7e036f5e5bee877a481d3c5c");
+        assertThat(auxHash).isEqualTo("591ad666282de3400e798f7a78957410624b0bb7bcbc004325eafc869818f142");
     }
 
     @Test

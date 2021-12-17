@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.address;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.exception.AddressExcepion;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

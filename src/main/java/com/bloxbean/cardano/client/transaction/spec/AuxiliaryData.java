@@ -117,7 +117,7 @@ public class AuxiliaryData {
         if (plutusScripts != null && plutusScripts.size() > 0) {
             Array plutusScriptArray = new Array();
             for (PlutusScript plutusScript : plutusScripts) {
-                plutusScriptArray.add(plutusScript.serialize());
+                plutusScriptArray.add(plutusScript.serializeAsDataItem());
             }
 
             map.put(new UnsignedInteger(2), plutusScriptArray);

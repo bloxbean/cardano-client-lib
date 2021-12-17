@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 
 import static com.bloxbean.cardano.client.address.AddressEncoderDecoderUtil.*;
 
-//TODO: Handle Byron address
 public class Address {
     private String prefix;
     private byte[] bytes;

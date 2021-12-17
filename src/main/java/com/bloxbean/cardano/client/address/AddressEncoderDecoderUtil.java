@@ -19,6 +19,9 @@ public class AddressEncoderDecoderUtil {
             case Enterprise:
                 prefixHead = "addr";
                 break;
+            case Ptr:
+                prefixHead = "addr";
+                break;
             default:
                 throw new AddressRuntimeException("Unknown address type");
         }
@@ -54,22 +57,8 @@ public class AddressEncoderDecoderUtil {
         return network;
     }
 
-    public static byte getAddressHeader(Network network, AddressType addressType) {
-        byte addressHeader;
-        switch (addressType) {
-            case Base:
-                addressHeader = (byte) (network.network_id & 0xF);
-                break;
-            case Enterprise:
-                addressHeader = (byte) (0b0110_0000 | network.network_id & 0xF);
-                break;
-            case Reward:
-                addressHeader = (byte) (0b1110_0000 | network.network_id & 0xF);
-                break;
-            default:
-                throw new AddressRuntimeException("Unknown address type");
-        }
-        return addressHeader;
+    public static byte getAddressHeader(byte headerKind, Network network, AddressType addressType) {
+        return (byte) (headerKind | network.network_id & 0xF);
     }
 
     public static AddressType readAddressType(byte[] addressBytes) {
