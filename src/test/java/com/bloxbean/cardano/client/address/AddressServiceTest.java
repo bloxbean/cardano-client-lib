@@ -117,6 +117,17 @@ class AddressServiceTest {
         assertThat(stakeAddress.toBech32()).isEqualTo(expected);
     }
 
+    @Test
+    void getPaymentAddress_fromPaymentVerificationKey() {
+        String paymentVkey = "addr_xvk1r30n0pv6d40kzzl4e6xje2y7c446gw2x9sgnms3vv62tx264tf5n9lxnuxqc5xpqlg30dtlq0tf0fav4kafsge6u24x296vg85l399cx2uv4k";
+        byte[] paymentVKeyBytes = Bech32.decode(paymentVkey).data;
+
+        HdPublicKey hdPublicKey = HdPublicKey.fromBytes(paymentVKeyBytes);
+        Address address = AddressService.getInstance().getEntAddress(hdPublicKey, Networks.testnet());
+
+        assertThat(address.getAddress()).isEqualTo("addr_test1vp8w93j8pappvvu8tcajysvr65ph8wt5yg5u4s5u2j4e80ggxcu4e");
+    }
+
     @Nested
     class ScriptAddresses {
 
