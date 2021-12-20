@@ -184,23 +184,39 @@ public class Account {
         return stakeAddress;
     }
 
+    /**
+     * Get private key in bech32 format
+     * @return
+     */
     @JsonIgnore
     public String getBech32PrivateKey() {
         HdKeyPair hdKeyPair = getHdKeyPair();
         return hdKeyPair.getPrivateKey().toBech32();
     }
 
+    /**
+     * Get private key bytes
+     * @return
+     */
     @JsonIgnore
     public byte[] privateKeyBytes() {
         HdKeyPair hdKeyPair = getHdKeyPair();
         return hdKeyPair.getPrivateKey().getKeyData();
     }
 
+    /**
+     * Get public key bytes
+     * @return
+     */
     @JsonIgnore
     public byte[] publicKeyBytes() {
         return getHdKeyPair().getPublicKey().getKeyData();
     }
 
+    /**
+     * Get Hd key pair
+     * @return
+     */
     @JsonIgnore
     public HdKeyPair hdKeyPair() {
         return getHdKeyPair();
@@ -233,52 +249,6 @@ public class Account {
      */
     public Transaction sign(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getHdKeyPair());
-    }
-
-    /**
-     * Convert a Shelley or Byron address to bytes
-     * @param address
-     * @return
-     * @throws AddressExcepion
-     */
-    public static byte[] toBytes(String address) throws AddressExcepion {
-        if (address == null)
-            return null;
-
-        if (address.startsWith("addr") || address.startsWith("stake")) { //Shelley address
-            Address addressObj = new Address(address);
-            return addressObj.getBytes();
-        } else { //Try for byron address
-            ByronAddress byronAddress = new ByronAddress(address);
-            return byronAddress.getBytes();
-        }
-    }
-
-    /**
-     * Convert a Byron address bytes to Base58 Byron address string
-     * @param bytes
-     * @return
-     * @throws AddressExcepion
-     */
-    public static String bytesToBase58Address(byte[] bytes) throws AddressExcepion { //byron address
-        AddressType addressType = AddressEncoderDecoderUtil.readAddressType(bytes);
-        if (AddressType.Byron.equals(addressType)) {
-            ByronAddress byronAddress = new ByronAddress(bytes);
-            return byronAddress.toBase58();
-        } else {
-            throw new AddressExcepion("Not a Byron address");
-        }
-    }
-
-    public static String bytesToAddress(byte[] bytes) throws AddressExcepion {
-        AddressType addressType = AddressEncoderDecoderUtil.readAddressType(bytes);
-        if (AddressType.Byron.equals(addressType)) {
-            ByronAddress byronAddress = new ByronAddress(bytes);
-            return byronAddress.toBase58();
-        } else {
-            Address address = new Address(bytes);
-            return address.toBech32();
-        }
     }
 
     private void generateNew() {

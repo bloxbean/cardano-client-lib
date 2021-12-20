@@ -4,7 +4,7 @@ import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.crypto.Bech32;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 
-import static com.bloxbean.cardano.client.address.AddressEncoderDecoderUtil.*;
+import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
 
 public class Address {
     private String prefix;

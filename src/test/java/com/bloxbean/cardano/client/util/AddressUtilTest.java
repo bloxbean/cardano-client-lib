@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.util;
 
+import com.bloxbean.cardano.client.address.util.AddressUtil;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;

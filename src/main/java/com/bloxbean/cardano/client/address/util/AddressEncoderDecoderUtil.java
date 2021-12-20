@@ -1,5 +1,6 @@
-package com.bloxbean.cardano.client.address;
+package com.bloxbean.cardano.client.address.util;
 
+import com.bloxbean.cardano.client.address.AddressType;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;

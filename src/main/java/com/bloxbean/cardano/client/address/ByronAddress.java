@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.address;
 import com.bloxbean.cardano.client.crypto.Base58;
 import com.bloxbean.cardano.client.crypto.exception.AddressFormatException;
 
-import static com.bloxbean.cardano.client.address.AddressEncoderDecoderUtil.readAddressType;
+import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.readAddressType;
 
 public class ByronAddress {
     private byte[] bytes;

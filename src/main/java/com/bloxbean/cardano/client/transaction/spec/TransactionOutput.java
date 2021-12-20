@@ -2,10 +2,10 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.address.util.AddressUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -31,7 +31,7 @@ public class TransactionOutput {
 
     public Array serialize() throws CborSerializationException, AddressExcepion {
         Array array = new Array();
-        byte[] addressByte = Account.toBytes(address);
+        byte[] addressByte = AddressUtil.addressToBytes(address);
         array.add(new ByteString(addressByte));
 
         if(value == null)
@@ -84,7 +84,7 @@ public class TransactionOutput {
         ByteString addrByteStr = (ByteString)items.get(0);
         if(addrByteStr != null) {
             try {
-                output.setAddress(Account.bytesToAddress(addrByteStr.getBytes()));
+                output.setAddress(AddressUtil.bytesToAddress(addrByteStr.getBytes()));
             } catch (Exception e) {
                 throw new CborDeserializationException("Bytes cannot be converted to bech32 address", e);
             }

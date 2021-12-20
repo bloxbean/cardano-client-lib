@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
+import com.bloxbean.cardano.client.address.util.AddressUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -114,16 +115,16 @@ public class AccountTest {
     @Test
     public void testBech32AddressToBytes() throws AddressExcepion {
         String baseAddress = "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w";
-        byte[] bytes = Account.toBytes(baseAddress);
+        byte[] bytes = AddressUtil.addressToBytes(baseAddress);
         Assertions.assertNotEquals(0, bytes);
     }
 
     @Test
     public void testHexBytesAddressToBech32() throws AddressExcepion {
         String baseAddress = "addr_test1qpu5vlrf4xkxv2qpwngf6cjhtw542ayty80v8dyr49rf5ewvxwdrt70qlcpeeagscasafhffqsxy36t90ldv06wqrk2qum8x5w";
-        byte[] bytes = Account.toBytes(baseAddress);
+        byte[] bytes = AddressUtil.addressToBytes(baseAddress);
 
-        String finalBech32Address = Account.bytesToAddress(bytes);
+        String finalBech32Address = AddressUtil.bytesToAddress(bytes);
 
         Assertions.assertEquals(baseAddress, finalBech32Address);
     }
@@ -163,29 +164,29 @@ public class AccountTest {
 
     @Test
     public void testBase58AddressToBytes() throws AddressExcepion {
-        byte[] bytes = Account.toBytes(testByronAddress0);
+        byte[] bytes = AddressUtil.addressToBytes(testByronAddress0);
         Assertions.assertNotEquals(0, bytes);
     }
 
     @Test
     public void testBase58AddressToBytes1() throws AddressExcepion {
-        byte[] bytes = Account.toBytes(testByronAddress1);
+        byte[] bytes = AddressUtil.addressToBytes(testByronAddress1);
         Assertions.assertNotEquals(0, bytes);
     }
 
     @Test
     public void testHexBytesToBase58Address() throws AddressExcepion {
-        byte[] bytes = Account.toBytes(testByronAddress0);
+        byte[] bytes = AddressUtil.addressToBytes(testByronAddress0);
 
-        String byronAddress = Account.bytesToBase58Address(bytes);
+        String byronAddress = AddressUtil.bytesToBase58Address(bytes);
         Assertions.assertEquals(testByronAddress0, byronAddress);
     }
 
     @Test
     public void testHexBytesToBase58Address1() throws AddressExcepion {
-        byte[] bytes = Account.toBytes(testByronAddress1);
+        byte[] bytes = AddressUtil.addressToBytes(testByronAddress1);
 
-        String byronAddress = Account.bytesToBase58Address(bytes);
+        String byronAddress = AddressUtil.bytesToBase58Address(bytes);
         Assertions.assertEquals(testByronAddress1, byronAddress);
     }
 }

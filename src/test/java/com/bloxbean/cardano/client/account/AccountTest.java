@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.address.util.AddressUtil;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -189,14 +190,14 @@ public class AccountTest {
     @Test
     public void testByronAddressToBytes() throws AddressExcepion {
         String byronAddress = "DdzFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREK";
-        byte[] bytes = Account.toBytes(byronAddress);
+        byte[] bytes = AddressUtil.addressToBytes(byronAddress);
         assertNotEquals(0, bytes.length);
     }
 
     @Test
     public void testShelleyAddressToBytes() throws AddressExcepion {
         String shelleyAddr = "addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v";
-        byte[] bytes = Account.toBytes(shelleyAddr);
+        byte[] bytes = AddressUtil.addressToBytes(shelleyAddr);
         assertNotEquals(0, bytes.length);
     }
 
@@ -204,25 +205,25 @@ public class AccountTest {
     public void testInvalidAddressToBytes() throws AddressExcepion {
         assertThrows(Exception.class, () -> {
             String shelleyAddr = "invalid_address";
-            byte[] bytes = Account.toBytes(shelleyAddr);
+            byte[] bytes = AddressUtil.addressToBytes(shelleyAddr);
         });
     }
 
     @Test
     public void testBytesToByronAddress() throws AddressExcepion {
         String byronAddress = "DdzFFzCqrhszg6cqZvDhEwUX7cZyNzdycAVpm4Uo2vjKMgTLrVqiVKi3MBt2tFAtDe7NkptK6TAhVkiYzhavmKV5hE79CWwJnPCJTREK";
-        byte[] bytes = Account.toBytes(byronAddress);
+        byte[] bytes = AddressUtil.addressToBytes(byronAddress);
 
-        String newAddr = Account.bytesToBase58Address(bytes);
+        String newAddr = AddressUtil.bytesToBase58Address(bytes);
         assertEquals(byronAddress, newAddr);
     }
 
     @Test
     public void testBytesToBech32Address() throws AddressExcepion {
         String shelleyAddr = "addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v";
-        byte[] bytes = Account.toBytes(shelleyAddr);
+        byte[] bytes = AddressUtil.addressToBytes(shelleyAddr);
 
-        String newAddr = Account.bytesToAddress(bytes);
+        String newAddr = AddressUtil.bytesToAddress(bytes);
         assertEquals(shelleyAddr, newAddr);
     }
 

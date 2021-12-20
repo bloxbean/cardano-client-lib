@@ -7,7 +7,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.spec.script.Script;
 
-import static com.bloxbean.cardano.client.address.AddressEncoderDecoderUtil.*;
+import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
 
 public class AddressService {
 
