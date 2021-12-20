@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -20,8 +19,7 @@ public class AccountTest {
 
     @BeforeAll
     static void setUp() {
-        Configuration.INSTANCE.setUseNativeLibForAccountGen(false);
-        System.out.println("Testing with useNativeLibForAccountGen: " + Configuration.INSTANCE.isUseNativeLibForAccountGen());
+
     }
 
     @Test

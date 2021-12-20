@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.account;
 import com.bloxbean.cardano.client.address.*;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicException;
@@ -14,7 +13,6 @@ import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -31,6 +29,7 @@ public class Account {
     private String mnemonic;
     private String baseAddress;
     private String enterpriseAddress;
+    private String stakeAddress;
     private Network network;
 
     @JsonIgnore
@@ -45,6 +44,7 @@ public class Account {
 
     /**
      * Create a new random mainnet account at index
+     *
      * @param index
      */
     public Account(int index) {
@@ -53,6 +53,7 @@ public class Account {
 
     /**
      * Create a new random account for the network
+     *
      * @param network
      */
     public Account(Network network) {
@@ -61,6 +62,7 @@ public class Account {
 
     /**
      * Create a new random account for the network at index
+     *
      * @param network
      * @param index
      */
@@ -70,6 +72,7 @@ public class Account {
 
     /**
      * Create a new random account for the network and derivation path
+     *
      * @param network
      * @param derivationPath
      */
@@ -81,6 +84,7 @@ public class Account {
 
     /**
      * Create a mainnet account from a mnemonic
+     *
      * @param mnemonic
      */
     public Account(String mnemonic) {
@@ -89,6 +93,7 @@ public class Account {
 
     /**
      * Create a mainnet account from a mnemonic at index
+     *
      * @param mnemonic
      */
     public Account(String mnemonic, int index) {
@@ -97,6 +102,7 @@ public class Account {
 
     /**
      * Create a account for the network from a mnemonic
+     *
      * @param network
      * @param mnemonic
      */
@@ -106,6 +112,7 @@ public class Account {
 
     /**
      * Create an account for the network, mnemonic at given index
+     *
      * @param network
      * @param mnemonic
      * @param index
@@ -116,6 +123,7 @@ public class Account {
 
     /**
      * Crate an account for the network from mnemonic at index
+     *
      * @param network
      * @param mnemonic
      * @param derivationPath
@@ -129,7 +137,6 @@ public class Account {
     }
 
     /**
-     *
      * @return string a 24 word mnemonic
      */
     public String mnemonic() {
@@ -137,62 +144,44 @@ public class Account {
     }
 
     /**
-     *
      * @return baseAddress at index
      */
     public String baseAddress() {
-        if (this.baseAddress == null || this.baseAddress.trim().length() == 0) {
-            if (Configuration.INSTANCE.isUseNativeLibForAccountGen()) {
-                Network.ByReference refNetwork = new Network.ByReference();
-                refNetwork.network_id = network.network_id;
-                refNetwork.protocol_magic = network.protocol_magic;
+        if (baseAddress == null || baseAddress.isEmpty()) {
+            HdKeyPair paymentKeyPair = getHdKeyPair();
+            HdKeyPair stakeKeyPair = getStakeKeyPair();
 
-                this.baseAddress = CardanoJNAUtil.getBaseAddressByNetwork(mnemonic, derivationPath.getIndex().getValue(), refNetwork);
-            } else {
-                HdKeyPair paymentKeyPair = getHdKeyPair();
-                HdKeyPair stakeKeyPair = getStakeKeyPair();
-
-                Address address = AddressService.getInstance().getBaseAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
-                this.baseAddress = address.toBech32();
-            }
+            Address address = AddressService.getInstance().getBaseAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
+            baseAddress = address.toBech32();
         }
 
-        return this.baseAddress;
+        return baseAddress;
     }
 
     /**
-     *
      * @return enterpriseAddress at index
      */
     public String enterpriseAddress() {
-        if(this.enterpriseAddress == null || this.enterpriseAddress.trim().length() == 0) {
-            if (Configuration.INSTANCE.isUseNativeLibForAccountGen()) {
-                Network.ByReference refNetwork = new Network.ByReference();
-                refNetwork.network_id = network.network_id;
-                refNetwork.protocol_magic = network.protocol_magic;
-
-                this.enterpriseAddress = CardanoJNAUtil.getEnterpriseAddressByNetwork(mnemonic, derivationPath.getIndex().getValue(), refNetwork);
-            } else {
-                HdKeyPair paymentKeyPair = getHdKeyPair();
-                HdKeyPair stakeKeyPair = getStakeKeyPair();
-
-                Address address = AddressService.getInstance().getEntAddress(paymentKeyPair.getPublicKey(), network);
-                this.enterpriseAddress = address.toBech32();
-            }
+        if (enterpriseAddress == null || enterpriseAddress.isEmpty()) {
+            HdKeyPair paymentKeyPair = getHdKeyPair();
+            Address address = AddressService.getInstance().getEntAddress(paymentKeyPair.getPublicKey(), network);
+            enterpriseAddress = address.toBech32();
         }
 
-        return this.enterpriseAddress;
+        return enterpriseAddress;
     }
 
     /**
-     *
      * @return Reward (stake) address
      */
     public String stakeAddress() {
-        HdKeyPair stakeKeyPair = getStakeKeyPair();
+        if (stakeAddress == null || stakeAddress.isEmpty()) {
+            HdKeyPair stakeKeyPair = getStakeKeyPair();
+            Address address = AddressService.getInstance().getRewardAddress(stakeKeyPair.getPublicKey(), network);
+            stakeAddress = address.toBech32();
+        }
 
-        Address address = AddressService.getInstance().getRewardAddress(stakeKeyPair.getPublicKey(), network);
-        return address.toBech32();
+        return stakeAddress;
     }
 
     @JsonIgnore
@@ -218,14 +207,14 @@ public class Account {
     }
 
     /**
-     *
+     * @deprecated Use {@link Account#sign(Transaction)}
      * @param txnHex
      * @return
      * @throws CborSerializationException
      */
     @Deprecated
     public String sign(String txnHex) throws CborSerializationException {
-        if(txnHex == null || txnHex.length() == 0)
+        if (txnHex == null || txnHex.length() == 0)
             throw new CborSerializationException("Invalid transaction hash");
 
         try {
@@ -237,10 +226,21 @@ public class Account {
         }
     }
 
+    /**
+     * Sign a transaction object with this account
+     * @param transaction
+     * @return
+     */
     public Transaction sign(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getHdKeyPair());
     }
 
+    /**
+     * Convert a Shelley or Byron address to bytes
+     * @param address
+     * @return
+     * @throws AddressExcepion
+     */
     public static byte[] toBytes(String address) throws AddressExcepion {
         if (address == null)
             return null;
@@ -254,9 +254,15 @@ public class Account {
         }
     }
 
+    /**
+     * Convert a Byron address bytes to Base58 Byron address string
+     * @param bytes
+     * @return
+     * @throws AddressExcepion
+     */
     public static String bytesToBase58Address(byte[] bytes) throws AddressExcepion { //byron address
         AddressType addressType = AddressEncoderDecoderUtil.readAddressType(bytes);
-        if(AddressType.Byron.equals(addressType)) {
+        if (AddressType.Byron.equals(addressType)) {
             ByronAddress byronAddress = new ByronAddress(bytes);
             return byronAddress.toBase58();
         } else {
@@ -266,7 +272,7 @@ public class Account {
 
     public static String bytesToAddress(byte[] bytes) throws AddressExcepion {
         AddressType addressType = AddressEncoderDecoderUtil.readAddressType(bytes);
-        if(AddressType.Byron.equals(addressType)) {
+        if (AddressType.Byron.equals(addressType)) {
             ByronAddress byronAddress = new ByronAddress(bytes);
             return byronAddress.toBase58();
         } else {
@@ -277,36 +283,27 @@ public class Account {
 
     private void generateNew() {
         String mnemonic = null;
-
-        if (Configuration.INSTANCE.isUseNativeLibForAccountGen()) {
-            mnemonic = CardanoJNAUtil.generateMnemonic();
-        } else {
-            try {
-                mnemonic = MnemonicCode.INSTANCE.createMnemonic(Words.TWENTY_FOUR).stream().collect(Collectors.joining(" "));
-            } catch (MnemonicException.MnemonicLengthException e) {
-                throw new RuntimeException("Mnemonic generation failed", e);
-            }
+        try {
+            mnemonic = MnemonicCode.INSTANCE.createMnemonic(Words.TWENTY_FOUR).stream().collect(Collectors.joining(" "));
+        } catch (MnemonicException.MnemonicLengthException e) {
+            throw new RuntimeException("Mnemonic generation failed", e);
         }
         this.mnemonic = mnemonic;
         baseAddress();
     }
 
     private void validateMnemonic() {
-        if (Configuration.INSTANCE.isUseNativeLibForAccountGen()) {
-            CardanoJNAUtil.getPrivateKeyFromMnemonic(mnemonic, derivationPath.getIndex().getValue());
-        } else {
-            if (mnemonic == null) {
-                throw new AddressRuntimeException("Mnemonic cannot be null");
-            }
+        if (mnemonic == null) {
+            throw new AddressRuntimeException("Mnemonic cannot be null");
+        }
 
-            mnemonic = mnemonic.replaceAll("\\s+", " ");
-            String[] words = mnemonic.split("\\s+");
+        mnemonic = mnemonic.replaceAll("\\s+", " ");
+        String[] words = mnemonic.split("\\s+");
 
-            try {
-                MnemonicCode.INSTANCE.check(Arrays.asList(words));
-            } catch (MnemonicException e) {
-                throw new AddressRuntimeException("Invalid mnemonic phrase", e);
-            }
+        try {
+            MnemonicCode.INSTANCE.check(Arrays.asList(words));
+        } catch (MnemonicException e) {
+            throw new AddressRuntimeException("Invalid mnemonic phrase", e);
         }
     }
 

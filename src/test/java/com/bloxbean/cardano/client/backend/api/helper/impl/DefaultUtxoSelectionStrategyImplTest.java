@@ -23,7 +23,8 @@ import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)

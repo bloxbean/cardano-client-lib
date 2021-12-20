@@ -7,7 +7,6 @@ import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
@@ -24,7 +23,6 @@ import java.math.BigInteger;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CBORSerializationTest {
 
@@ -83,10 +81,10 @@ public class CBORSerializationTest {
 
         Transaction transaction = new Transaction();
         transaction.setBody(txnBody);
-        String hexStr = transaction.serializeToHex();
-        System.out.println(hexStr);
+        String txnHex = transaction.serializeToHex();
+        System.out.println(txnHex);
 
-        Transaction desTxn = Transaction.deserialize(HexUtil.decodeHexString(hexStr));
+        Transaction desTxn = Transaction.deserialize(HexUtil.decodeHexString(txnHex));
 
         assertThat(desTxn.getBody().getInputs().get(0)).isEqualTo(txnBody.getInputs().get(0));
 
@@ -117,11 +115,9 @@ public class CBORSerializationTest {
 
         assertThat(desTxn.getBody().getMint()).contains(burnAsset);
 
-        boolean res = CardanoJNAUtil.validateTransactionCBOR(hexStr);
-        System.out.println(res);
-        assertTrue(res);
+        assertThat(desTxn.serializeToHex()).isEqualTo(txnHex);
 
-        //Verify if the serialized value (without witness) is same after native txn sign
+        //Verify if the signed serialized value (without witness) is same after txn sign
         String signedTxn = fakeSignAndSerializedRemoveWitness(transaction);
         assertThat(signedTxn).isEqualTo(transaction.serializeToHex());
     }
@@ -204,7 +200,7 @@ public class CBORSerializationTest {
     }
 
     @Test
-    public void testSerializeTransactionWithMetadata() throws CborSerializationException {
+    public void testSerializeTransactionWithMetadata() throws CborSerializationException, CborDeserializationException {
         TransactionBody txnBody = new TransactionBody();
 
         long fee = 367965;
@@ -232,7 +228,6 @@ public class CBORSerializationTest {
         multiAsset1.setPolicyId("6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");
         multiAsset1.setAssets(Arrays.asList(new Asset(null, BigInteger.valueOf(9000))));
         changeOutput.setValue(new Value(new BigInteger(String.valueOf(340000)), Arrays.asList(multiAsset, multiAsset1)));
-
 
         List<TransactionOutput> outputs = new ArrayList<>();
         outputs.add(txnOutput1);
@@ -269,10 +264,10 @@ public class CBORSerializationTest {
         System.out.println("********************");
         System.out.println(hexStr);
 
-        boolean res = CardanoJNAUtil.validateTransactionCBOR(hexStr);
-        System.out.println(res);
+        Transaction deserTxn = Transaction.deserialize(HexUtil.decodeHexString(hexStr));
+        String deSerTxnHex = deserTxn.serializeToHex();
 
-        assertTrue(res);
+        assertThat(deSerTxnHex).isEqualTo(hexStr);
     }
 
     @Test
@@ -847,8 +842,8 @@ public class CBORSerializationTest {
 
             Account account = new Account(Networks.testnet());
 
-            String signedTxn = CardanoJNAUtil.sign(txnHex, account.getBech32PrivateKey());
-            Transaction signedTxnObj = Transaction.deserialize(HexUtil.decodeHexString(signedTxn));
+            String signedOutputFromRustSerializationLib = "84a4008182582073198b7ad003862b9798106b88fbccfca464b1a38afb34958275c4a7d7d8d002010182825839000916a5fed4589d910691b85addf608dceee4d9d60d4c9a4d2a925026c3229b212ba7ef8643cd8f7e38d6279336d61a40d228b036f40feed6199c40825839008c5bf0f2af6f1ef08bb3f6ec702dd16e1c514b7e1d12f7549b47db9f4d943c7af0aaec774757d4745d1a2c8dd3220e6ec2c9df23f757a2f8821a00053020a3581c449728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96a34231661903e8433261621907d043336364190bb8581c6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7a140192328581c829728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96a4427878190fa04361616119044c43626262190fa0477972727272727219044c021a00029810031a1daee080a10081825820af4e628f916f670af1dde3c604a5270ec5dadfe28e6dd96cc6e1c4bff6a5d2ef5840d8a5c820487f936f3c9a7974ffe7b243f86d616197074f9b9ab02408dac875a213e3553c3316a0b20da24b26e7a64b8d1c51f8fe3697b569bfcf9153021a7b09f5f6";
+            Transaction signedTxnObj = Transaction.deserialize(HexUtil.decodeHexString(signedOutputFromRustSerializationLib));
             //clear witness
             signedTxnObj.setWitnessSet(new TransactionWitnessSet());
 
@@ -861,12 +856,11 @@ public class CBORSerializationTest {
     }
 
     private String fakeSignAndSerializedRemoveWitness(Transaction transaction) throws CborSerializationException, CborDeserializationException {
-        String signedTxn = CardanoJNAUtil.sign(transaction.serializeToHex(), new Account().getBech32PrivateKey());
-        Transaction signedTxnObj = Transaction.deserialize(HexUtil.decodeHexString(signedTxn));
+        Transaction signedTxn = TransactionSigner.INSTANCE.sign(transaction, new Account().hdKeyPair());
         //clear witness
-        signedTxnObj.setWitnessSet(new TransactionWitnessSet());
+        signedTxn.setWitnessSet(new TransactionWitnessSet());
 
-        String signedTxnHex = signedTxnObj.serializeToHex();
+        String signedTxnHex = signedTxn.serializeToHex();
         return signedTxnHex;
     }
 }

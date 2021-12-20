@@ -2,14 +2,12 @@ package com.bloxbean.cardano.client.crypto.api.impl;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.crypto.CryptoException;
+import com.bloxbean.cardano.client.crypto.api.SigningProvider;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.jna.CardanoJNAUtil;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -19,31 +17,32 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class NativeSigningProviderTest {
+class DefaultSigningProviderTest {
 
     @Test
     void sign() {
         String msg = "hello";
         String pvtKey = "78bfcc962ce4138fba00ea6e46d4eca6ae9457a058566709b52941aaf026fe53dede3f2ddde7762821c2f957aac77b80a3c36beab75881cc83c600695806f1dd";
+        String pubKey = "9518c18103cbdab9c6e60b58ecc3e2eb439fef6519bb22570f391327381900a8";
 
-        NativeSigningProvider signingProvider = new NativeSigningProvider();
-        byte[] signature = signingProvider.sign(msg.getBytes(StandardCharsets.UTF_8), HexUtil.decodeHexString(pvtKey));
+        SigningProvider signingProvider = new DefaultSigningProvider();
+        byte[] signature = signingProvider.signExtended(msg.getBytes(StandardCharsets.UTF_8), HexUtil.decodeHexString(pvtKey), HexUtil.decodeHexString(pubKey));
 
         String signatureHex = HexUtil.encodeHexString(signature);
 
         assertThat(signatureHex).isEqualTo("f13fa9acffb108114ec060561b58005fb2d69184de0a2d7400b2ea1f111c0794831cc832c92daf4807820dd9458324935e90bec855e8bf076bbbc4e42b727b07");
     }
 
-    @Test
-    void sign_throwErrorWhenInvalidPrivateKey() {
-        String msg = "hello";
-        String pvtKey = "bfcc962ce4138fba00ea6e46d4eca6ae9457a058566709b52941aaf026fe53dede3f2ddde7762821c2f957aac77b80a3c36beab75881cc83c600695806f1dd";
-
-        Assertions.assertThrows(CryptoException.class, () -> {
-            NativeSigningProvider signingProvider = new NativeSigningProvider();
-            byte[] signature = signingProvider.sign(msg.getBytes(StandardCharsets.UTF_8), HexUtil.decodeHexString(pvtKey));
-        });
-    }
+//    @Test
+//    void sign_throwErrorWhenInvalidPrivateKey() {
+//        String msg = "hello";
+//        String pvtKey = "bfcc962ce4138fba00ea6e46d4eca6ae9457a058566709b52941aaf026fe53dede3f2ddde7762821c2f957aac77b80a3c36beab75881cc83c600695806f1dd";
+//
+//        Assertions.assertThrows(CryptoException.class, () -> {
+//            NativeSigningProvider signingProvider = new NativeSigningProvider();
+//            byte[] signature = signingProvider.sign(msg.getBytes(StandardCharsets.UTF_8), HexUtil.decodeHexString(pvtKey));
+//        });
+//    }
 
     @Test
     public void sign_checkSerialized() throws CborDeserializationException, CborSerializationException, CborException {
@@ -90,15 +89,14 @@ class NativeSigningProviderTest {
 
         Account account = new Account();
 
-        //Do old way of signing
-        String signedTxnHex = CardanoJNAUtil.sign(HexUtil.encodeHexString(transaction.serialize()), account.getBech32PrivateKey());
+        Transaction signedTxn1 = account.sign(transaction);
+        //Sign again
+        Transaction signTxn2 = account.sign(transaction);
 
-        Transaction signedTxnNative = Transaction.deserialize(HexUtil.decodeHexString(signedTxnHex));
+        assertThat(signedTxn1.serializeToHex()).isEqualTo(signTxn2.serializeToHex());
 
-        String signedTxNativeHex = signedTxnNative.serializeToHex();
-        Transaction signedTxnJava = account.sign(transaction);
-        String signedTxnJavaHex = signedTxnJava.serializeToHex();
-
-        assertThat(signedTxNativeHex).isEqualTo(signedTxnJavaHex);
+        //Clear witness and check with original txn
+        signTxn2.setWitnessSet(new TransactionWitnessSet());
+        assertThat(signTxn2.serializeToHex()).isEqualTo(transaction.serializeToHex());
     }
 }

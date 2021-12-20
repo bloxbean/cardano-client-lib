@@ -46,7 +46,7 @@ public enum TransactionSigner {
         byte[] txnBodyHash = KeyGenUtil.blake2bHash256(txnBody);
 
         SigningProvider signingProvider = Configuration.INSTANCE.getSigningProvider();
-        byte[] signature = signingProvider.sign(txnBodyHash, hdKeyPair.getPrivateKey().getKeyData());
+        byte[] signature = signingProvider.signExtended(txnBodyHash, hdKeyPair.getPrivateKey().getKeyData(), hdKeyPair.getPublicKey().getKeyData());
 
         VkeyWitness vkeyWitness = VkeyWitness.builder()
                 .vkey(hdKeyPair.getPublicKey().getKeyData())
@@ -82,18 +82,21 @@ public enum TransactionSigner {
         byte[] txnBodyHash = KeyGenUtil.blake2bHash256(txnBody);
 
         SigningProvider signingProvider = Configuration.INSTANCE.getSigningProvider();
-        byte[] signature = signingProvider.sign(txnBodyHash, secretKey.getBytes());
         VerificationKey verificationKey = null;
+        byte[] signature = null;
 
         if (secretKey.getBytes().length == 64) { //extended pvt key (most prob for regular account)
             //check for public key
             byte[] vBytes = HdKeyGenerator.getPublicKey(secretKey.getBytes());
+            signature = signingProvider.signExtended(txnBodyHash, secretKey.getBytes(), vBytes);
+
             try {
                 verificationKey = VerificationKey.create(vBytes);
             } catch (CborSerializationException e) {
                 throw new CborRuntimeException("Unable to get verification key from secret key", e);
             }
         } else {
+            signature = signingProvider.sign(txnBodyHash, secretKey.getBytes());
             try {
                 verificationKey = KeyGenUtil.getPublicKeyFromPrivateKey(secretKey);
             } catch (CborSerializationException e) {

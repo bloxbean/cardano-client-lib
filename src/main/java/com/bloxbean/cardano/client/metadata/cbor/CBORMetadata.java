@@ -7,14 +7,12 @@ import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
-import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.Collection;
 
 import static co.nstant.in.cbor.model.MajorType.*;
-import static co.nstant.in.cbor.model.MajorType.ARRAY;
 
 public class CBORMetadata implements Metadata {
     private Map map;
