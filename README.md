@@ -332,7 +332,6 @@ Base Address-0: addr_test1qqyc4rcuz0wwy...
 
 ```
 git clone https://github.com/bloxbean/cardano-client-lib.git
-git submodule update --init --recursive
 
 . script/build-<os>-<arch>.sh
 
