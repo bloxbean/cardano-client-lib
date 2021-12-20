@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.backend.impl.blockfrost.service.http;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataCBORContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataJSONContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataLabel;
-import com.bloxbean.cardano.client.backend.model.metadata.TxMetadataCBORLabelContent;
 import retrofit2.Call;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
