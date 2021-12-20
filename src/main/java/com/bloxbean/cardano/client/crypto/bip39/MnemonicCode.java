@@ -16,6 +16,7 @@
  */
 package com.bloxbean.cardano.client.crypto.bip39;
 
+import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
@@ -24,7 +25,6 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -241,9 +241,7 @@ public class MnemonicCode {
     }
 
     public List<String> createMnemonic(Words wordCount) throws MnemonicException.MnemonicLengthException {
-        StringBuilder sb = new StringBuilder();
-        byte[] entropy = new byte[wordCount.byteLength()];
-        new SecureRandom().nextBytes(entropy);
+        byte[] entropy = Configuration.INSTANCE.getEntropyProvider().generateRandom(wordCount.byteLength());
 
         return toMnemonic(entropy);
     }

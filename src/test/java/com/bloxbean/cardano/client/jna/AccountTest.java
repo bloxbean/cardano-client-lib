@@ -2,12 +2,16 @@ package com.bloxbean.cardano.client.jna;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.bip39.Words;
+import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class AccountTest {
 
@@ -62,7 +66,17 @@ public class AccountTest {
     public void generateMnemonic24w() {
         String mnemonic = new Account().mnemonic();
         System.out.println(mnemonic);
-        Assertions.assertTrue(mnemonic.length() > 0);
+        String[] tokens = mnemonic.split("\\s");
+        assertThat(tokens).hasSize(24);
+    }
+
+    @Test
+    public void generateMnemonic15w() {
+        Account account = new Account(Networks.mainnet(), DerivationPath.createExternalAddressDerivationPath(), Words.FIFTEEN);
+        String mnemonic = account.mnemonic();
+        System.out.println(mnemonic);
+        String[] tokens = mnemonic.split("\\s");
+        assertThat(tokens).hasSize(15);
     }
 
     @Test

@@ -67,7 +67,7 @@ public class Account {
      * @param index
      */
     public Account(Network network, int index) {
-        this(network, DerivationPath.createExternalAddressDerivationPath(index));
+        this(network, DerivationPath.createExternalAddressDerivationPath(index), Words.TWENTY_FOUR);
     }
 
     /**
@@ -76,10 +76,10 @@ public class Account {
      * @param network
      * @param derivationPath
      */
-    public Account(Network network, DerivationPath derivationPath) {
+    public Account(Network network, DerivationPath derivationPath, Words noOfWords) {
         this.network = network;
         this.derivationPath = derivationPath;
-        generateNew();
+        generateNew(noOfWords);
     }
 
     /**
@@ -251,10 +251,10 @@ public class Account {
         return TransactionSigner.INSTANCE.sign(transaction, getHdKeyPair());
     }
 
-    private void generateNew() {
+    private void generateNew(Words noOfWords) {
         String mnemonic = null;
         try {
-            mnemonic = MnemonicCode.INSTANCE.createMnemonic(Words.TWENTY_FOUR).stream().collect(Collectors.joining(" "));
+            mnemonic = MnemonicCode.INSTANCE.createMnemonic(noOfWords).stream().collect(Collectors.joining(" "));
         } catch (MnemonicException.MnemonicLengthException e) {
             throw new RuntimeException("Mnemonic generation failed", e);
         }
