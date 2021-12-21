@@ -1,13 +1,21 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ScriptTest {
+    ObjectMapper mapper = new ObjectMapper();
 
     @Test
     public void testGetPolicyId() throws CborSerializationException {
@@ -121,6 +129,104 @@ class ScriptTest {
         System.out.println(JsonUtil.getPrettyJson(scriptAny));
 
         assertThat(policyId, is("6519f942518b8761f4b02e1403365b7d7befae1eb488b7fffcbab33f"));
+    }
+
+    @Test
+    public void testJsonSerDeser_whenScriptPubKey() throws JsonProcessingException, CborDeserializationException {
+        ScriptPubkey key = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
+
+        String jsonStr = mapper.writeValueAsString(key);
+        System.out.println(jsonStr);
+
+        NativeScript deKey = NativeScript.deserializeJson(jsonStr);
+
+        assertThat(key, equalTo(deKey));
+    }
+
+    @Test
+    public void testJsonSerDeser_whenScriptAll() throws IOException, CborDeserializationException {
+        ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
+        ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
+        ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
+
+        ScriptAll scriptAll = new ScriptAll();
+        scriptAll.addScript(key1)
+                .addScript(key2)
+                .addScript(key3);
+
+        String jsonStr = mapper.writeValueAsString(scriptAll);
+        System.out.println(jsonStr);
+
+        NativeScript deScript = NativeScript.deserializeJson(jsonStr);
+
+        assertTrue(deScript instanceof ScriptAll);
+        assertThat(scriptAll, equalTo(deScript));
+    }
+
+    @Test
+    public void testJsonSerDeser_whenScriptAny() throws IOException, CborDeserializationException {
+        ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
+        ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
+        ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
+
+        ScriptAny scriptAny = new ScriptAny();
+        scriptAny.addScript(key1)
+                .addScript(key2)
+                .addScript(key3);
+
+        String jsonStr = mapper.writeValueAsString(scriptAny);
+        System.out.println(jsonStr);
+
+        NativeScript deScript = NativeScript.deserializeJson(jsonStr);
+
+        assertTrue(deScript instanceof ScriptAny);
+        assertThat(scriptAny, equalTo(deScript));
+    }
+
+    @Test
+    public void testJsonSerDeser_whenScriptAtLeast() throws IOException, CborDeserializationException {
+        ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
+        ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
+        ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
+
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2);
+        scriptAtLeast.addScript(key1)
+                .addScript(key2)
+                .addScript(key3);
+
+        String jsonStr = mapper.writeValueAsString(scriptAtLeast);
+        System.out.println(jsonStr);
+
+        NativeScript deScriptAtLeast = NativeScript.deserializeJson(jsonStr);
+
+        assertTrue(deScriptAtLeast instanceof ScriptAtLeast);
+        assertThat(scriptAtLeast, equalTo(deScriptAtLeast));
+    }
+
+    @Test
+    public void testJsonSerDeSer_whenRequireTimeBefore() throws JsonProcessingException, CborDeserializationException {
+        RequireTimeBefore requireTimeBefore = new RequireTimeBefore(30003);
+
+        String jsonStr = mapper.writeValueAsString(requireTimeBefore);
+        System.out.println(jsonStr);
+
+        NativeScript deScript = NativeScript.deserializeJson(jsonStr);
+
+        assertTrue(deScript instanceof RequireTimeBefore);
+        assertThat(requireTimeBefore, equalTo(deScript));
+    }
+
+    @Test
+    public void testJsonSerDeSer_whenRequireTimeAfter() throws JsonProcessingException, CborDeserializationException {
+        RequireTimeAfter requireTimeAfter = new RequireTimeAfter(20003);
+
+        String jsonStr = mapper.writeValueAsString(requireTimeAfter);
+        System.out.println(jsonStr);
+
+        NativeScript deScript = NativeScript.deserializeJson(jsonStr);
+
+        assertTrue(deScript instanceof RequireTimeAfter);
+        assertThat(requireTimeAfter, equalTo(deScript));
     }
 
 }

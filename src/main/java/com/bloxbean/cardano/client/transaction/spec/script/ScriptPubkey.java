@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +56,13 @@ public class ScriptPubkey implements NativeScript {
         ScriptPubkey scriptPubkey = new ScriptPubkey();
         ByteString keyHashBS = (ByteString)(array.getDataItems().get(1));
         scriptPubkey.setKeyHash(HexUtil.encodeHexString(keyHashBS.getBytes()));
+        return scriptPubkey;
+    }
+
+    public static ScriptPubkey deserialize(JsonNode jsonNode) throws CborDeserializationException {
+        ScriptPubkey scriptPubkey = new ScriptPubkey();
+        String keyHash = jsonNode.get("keyHash").asText();
+        scriptPubkey.setKeyHash(keyHash);
         return scriptPubkey;
     }
 

@@ -5,6 +5,8 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +57,18 @@ public class ScriptAll implements NativeScript {
             Array scriptArray = (Array)scriptDI;
             NativeScript nativeScript = NativeScript.deserialize(scriptArray);
             if(nativeScript != null)
+                scriptAll.addScript(nativeScript);
+        }
+
+        return scriptAll;
+    }
+
+    public static ScriptAll deserialize(JsonNode jsonNode) throws CborDeserializationException {
+        ScriptAll scriptAll = new ScriptAll();
+        ArrayNode scriptsNode = (ArrayNode)jsonNode.get("scripts");
+        for (JsonNode scriptNode: scriptsNode) {
+            NativeScript nativeScript = NativeScript.deserialize(scriptNode);
+            if (scriptNode != null)
                 scriptAll.addScript(nativeScript);
         }
 

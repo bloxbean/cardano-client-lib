@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 
 /**
@@ -34,6 +35,11 @@ public class RequireTimeAfter implements NativeScript {
 
     public static RequireTimeAfter deserialize(Array array) throws CborDeserializationException {
         long slot = ((UnsignedInteger)array.getDataItems().get(1)).getValue().longValue();
+        return new RequireTimeAfter(slot);
+    }
+
+    public static RequireTimeAfter deserialize(JsonNode jsonNode) throws CborDeserializationException {
+        long slot = jsonNode.get("slot").asLong();
         return new RequireTimeAfter(slot);
     }
 }

@@ -5,7 +5,10 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.bouncycastle.util.encoders.Hex;
 
 import java.nio.ByteBuffer;
@@ -61,5 +64,39 @@ public interface NativeScript extends Script {
                 .array();
 
         return blake2bHash224(finalBytes);
+    }
+
+    static NativeScript deserializeJson(String jsonContent) throws CborDeserializationException, JsonProcessingException {
+        return NativeScript.deserialize(JsonUtil.parseJson(jsonContent));
+    }
+
+    static NativeScript deserialize(JsonNode jsonNode) throws CborDeserializationException {
+        String type = jsonNode.get("type").asText();
+
+        NativeScript nativeScript = null;
+        switch (ScriptType.valueOf(type)) {
+            case sig:
+                nativeScript = ScriptPubkey.deserialize(jsonNode);
+                break;
+            case all:
+                nativeScript = ScriptAll.deserialize(jsonNode);
+                break;
+            case any:
+                nativeScript = ScriptAny.deserialize(jsonNode);
+                break;
+            case atLeast:
+                nativeScript = ScriptAtLeast.deserialize(jsonNode);
+                break;
+            case after:
+                nativeScript = RequireTimeAfter.deserialize(jsonNode);
+                break;
+            case before:
+                nativeScript = RequireTimeBefore.deserialize(jsonNode);
+                break;
+            default:
+                throw new RuntimeException("Unknow script type");
+        }
+
+        return nativeScript;
     }
 }
