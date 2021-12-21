@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.common;
+package com.bloxbean.cardano.client.util;
 
 /*
  * Copyright 2018 Coinomi Ltd
@@ -19,7 +19,11 @@ package com.bloxbean.cardano.client.common;
 import java.util.Arrays;
 import java.util.Locale;
 
-public class Bech32 {
+/**
+ * This Bech32 util class is used only to calculate asset's fingerprint.
+ * For address encoding, please refer to {@link com.bloxbean.cardano.client.crypto.Bech32}
+ */
+class Bech32 {
     /**
      * The Bech32 character set for encoding.
      */
