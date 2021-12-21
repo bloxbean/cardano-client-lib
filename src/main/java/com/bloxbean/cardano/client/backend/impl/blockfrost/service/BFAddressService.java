@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.http.AddressesApi;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
+import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
 import com.bloxbean.cardano.client.backend.model.Result;
 import retrofit2.Call;
 import retrofit2.Response;
@@ -35,16 +36,20 @@ public class BFAddressService extends BFBaseService implements AddressService {
     }
 
     @Override
-    public Result<List<String>> getTransactions(String address, int count, int page) throws ApiException {
+    public Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page) throws ApiException {
         return getTransactions(address, count, page, OrderEnum.asc);
     }
 
+    public Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page, OrderEnum order) throws ApiException {
+        return getTransactions(address, count, page, order, null, null);
+    }
+
     @Override
-    public Result<List<String>> getTransactions(String address, int count, int page, OrderEnum order) throws ApiException {
-        Call<List<String>> call = addressApi.getTransactions(getProjectId(), address, count, page, order.toString());
+    public Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page, OrderEnum order, String from, String to) throws ApiException {
+        Call<List<AddressTransactionContent>> call = addressApi.getTransactions(getProjectId(), address, count, page, order.toString(), from, to);
 
         try {
-            Response<List<String>> response = call.execute();
+            Response<List<AddressTransactionContent>> response = call.execute();
             return processResponse(response);
 
         } catch (IOException e) {
