@@ -2,10 +2,16 @@ package com.bloxbean.cardano.client.address;
 
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
+import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.spec.script.Script;
+import com.google.common.primitives.Bytes;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
 
@@ -82,7 +88,7 @@ public class AddressService {
 
     //TODO -- Implement Pointer address
     //header: 0100....
-   /* public Address getPointerAddress(HdPublicKey paymentKey, Pointer delegationPointer, Network networkInfo) {
+    public Address getPointerAddress(HdPublicKey paymentKey, Pointer delegationPointer, Network networkInfo) {
         if (paymentKey == null || delegationPointer == null)
             throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
 
@@ -105,7 +111,7 @@ public class AddressService {
 
         byte headerType = 0b0101_0000;
         return getAddress(paymentKeyHash, delegationPointerHash, headerType, networkInfo, AddressType.Ptr);
-    }*/
+    }
 
     //header: 0110....
     public Address getEntAddress(HdPublicKey paymentKey, Network networkInfo)  {
@@ -182,15 +188,30 @@ public class AddressService {
                 addressArray[0] = header;
                 System.arraycopy(stakeKeyHash, 0, addressArray, 1, stakeKeyHash.length);
                 break;
-//            case Ptr:
-//                addressArray = new byte[1 + paymentKeyHash.length + stakeKeyHash.length];
-//                System.arraycopy(paymentKeyHash, 0, addressArray, 1, paymentKeyHash.length);
-//                System.arraycopy(stakeKeyHash, 0, addressArray, paymentKeyHash.length + 1, stakeKeyHash.length);
-//                break;
+            case Ptr:
+                addressArray = new byte[1 + paymentKeyHash.length + stakeKeyHash.length];
+                addressArray[0] = header;
+                System.arraycopy(paymentKeyHash, 0, addressArray, 1, paymentKeyHash.length);
+                System.arraycopy(stakeKeyHash, 0, addressArray, paymentKeyHash.length + 1, stakeKeyHash.length);
+                break;
             default:
                 throw new AddressRuntimeException("Unknown address type");
         }
 
         return new Address(prefix, addressArray);
+    }
+
+    private byte[] variableNatEncode(long num) {
+        List<Byte> output = new ArrayList<>();
+        output.add((byte)(num & 0x7F));
+
+        num /= 128;
+        while(num > 0) {
+            output.add((byte)((num & 0x7F) | 0x80));
+            num /= 128;
+        }
+        Collections.reverse(output);
+
+        return Bytes.toArray(output);
     }
 }

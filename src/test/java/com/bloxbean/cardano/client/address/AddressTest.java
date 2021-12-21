@@ -80,4 +80,26 @@ public class AddressTest {
         assertThat(address.getNetwork()).isEqualTo(Networks.testnet());
         assertThat(address.getPrefix()).isEqualTo("stake_test");
     }
+
+    @Test
+    public void testPointerAddress_whenMainnet() {
+        String pointerAddress = "addr1gx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer5ph3wczvf2w8lunk";
+
+        Address address = new Address(pointerAddress);
+
+        assertThat(address.getAddressType()).isEqualTo(AddressType.Ptr);
+        assertThat(address.getNetwork()).isEqualTo(Networks.mainnet());
+        assertThat(address.getPrefix()).isEqualTo("addr");
+    }
+
+    @Test
+    public void testPointerAddress_whenTestnet() {
+        String pointerAddress = "addr_test1gz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspqgpsqe70et";
+
+        Address address = new Address(pointerAddress);
+
+        assertThat(address.getAddressType()).isEqualTo(AddressType.Ptr);
+        assertThat(address.getNetwork()).isEqualTo(Networks.testnet());
+        assertThat(address.getPrefix()).isEqualTo("addr_test");
+    }
 }

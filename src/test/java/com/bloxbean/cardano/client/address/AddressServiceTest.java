@@ -238,8 +238,6 @@ class AddressServiceTest {
             assertThat(address.toBech32()).isEqualTo("addr_test1xrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gt7r0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shs4p04xh");
         }
 
-        /*
-        //TODO -- Uncomment after Pointer address impl
         @Test
         void getPointerAddress_type04_mainnet() {
             Address address = AddressService.getInstance().getPointerAddress(publicKey, pointer, Networks.mainnet());
@@ -263,7 +261,25 @@ class AddressServiceTest {
             Address address = AddressService.getInstance().getPointerAddress(script, pointer, Networks.testnet());
             assertThat(address.toBech32()).isEqualTo("addr_test12rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtupnz75xxcryqrvmw");
         }
-        */
+
+        @Test
+        void getPointerAddress_fromPublicKey() {
+            byte[] entropy = new byte[] {(byte) 0xdf, (byte)0x9e, (byte)0xd2, (byte)0x5e, (byte)0xd1, (byte)0x46, (byte)0xbf, 0x43, 0x33, 0x6a, 0x5d, 0x7c, (byte)0xf7, 0x39, 0x59, (byte)0x94};
+            HdKeyPair hdKeyPair = new CIP1852().getKeyPairFromEntropy(entropy, DerivationPath.createExternalAddressDerivationPath());
+
+            Pointer pointer = Pointer.builder()
+                    .slot(1).txIndex(2).certIndex(3)
+                    .build();
+            Address address = AddressService.getInstance().getPointerAddress(hdKeyPair.getPublicKey(), pointer, Networks.testnet());
+            assertThat(address.toBech32()).isEqualTo("addr_test1gz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspqgpsqe70et");
+
+            Pointer  pointer1 = Pointer.builder()
+                    .slot(24157).txIndex(177).certIndex(42)
+                    .build();
+            Address mainnetAddress = AddressService.getInstance().getPointerAddress(hdKeyPair.getPublicKey(), pointer1, Networks.mainnet());
+            assertThat(mainnetAddress.toBech32()).isEqualTo("addr1gx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer5ph3wczvf2w8lunk");
+        }
+
 
         @Test
         void getEntAddress_type06_mainnet() {
