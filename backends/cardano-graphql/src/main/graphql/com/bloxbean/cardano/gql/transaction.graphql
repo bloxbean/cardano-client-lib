@@ -1,0 +1,57 @@
+query TransactionQuery ($txnhash: Hash32Hex!) {
+    transactions(
+        where: {
+            hash: {
+                _eq: $txnhash
+            }
+        }
+    ) {
+        block {
+            hash
+            number
+            slotNo
+        }
+        blockIndex
+        fee
+        deposit
+        size
+        invalidBefore
+        invalidHereafter
+        # utxoCount
+        withdrawals_aggregate {
+            aggregate {
+                count
+            }
+        }
+        outputs {
+            address
+            value
+            tokens {
+                quantity
+                asset {
+                    assetId
+                }
+            }
+        }
+
+        inputs {
+            address
+            value
+            tokens {
+                quantity
+                asset {
+                    assetId
+                }
+            }
+        }
+    }
+}
+
+mutation SubmitTx($signedTx: String!){
+
+    submitTransaction(
+        transaction: $signedTx
+    ) {
+        hash
+    }
+}

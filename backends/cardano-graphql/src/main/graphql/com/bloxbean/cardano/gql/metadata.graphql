@@ -1,0 +1,14 @@
+query MetadataQuery ($txnhash: Hash32Hex!) {
+    transactions(
+        where: {
+            hash: {
+                _eq: $txnhash
+            }
+        }
+    ) {
+        metadata {
+            key
+            value
+        }
+    }
+}

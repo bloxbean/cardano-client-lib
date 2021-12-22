@@ -1,0 +1,65 @@
+fragment EpochFragment on Epoch {
+    number
+    startedAt
+    # enedAt
+    lastBlockTime
+    blocksCount
+    transactionsCount
+    output
+    fees
+}
+
+query LatestEpochQuery {
+    epochs(limit: 1
+        order_by: [{
+            number: desc
+        }]
+    ) {
+        ...EpochFragment
+    }
+}
+
+query EpochQuery($number: Int!) {
+    epochs(
+        where: {
+            number: {
+                _eq: $number
+            }
+        }
+    ) {
+        ...EpochFragment
+    }
+}
+
+query ProtocolParamQuery($number: Int!) {
+    epochs(
+        where: {
+            number: {
+                _eq: $number
+            }
+        }
+    ) {
+        protocolParams {
+            a0
+            decentralisationParam
+            eMax
+            extraEntropy
+            keyDeposit
+            maxBlockBodySize
+            maxBlockHeaderSize
+            maxTxSize
+            minFeeA
+            minFeeB
+            minPoolCost
+            minUTxOValue
+            nOpt
+            poolDeposit
+            protocolVersion
+            rho
+            tau
+            coinsPerUtxoWord
+            collateralPercent
+            maxCollateralInputs
+        }
+    }
+}

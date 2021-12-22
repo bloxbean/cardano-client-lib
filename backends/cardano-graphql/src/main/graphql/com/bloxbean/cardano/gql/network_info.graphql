@@ -1,0 +1,17 @@
+query NetworkInfoQuery {
+    genesis {
+        shelley {
+            activeSlotsCoeff
+            epochLength
+            maxKESEvolutions
+            maxLovelaceSupply
+            networkId
+            networkMagic
+            securityParam
+            slotLength
+            slotsPerKESPeriod
+            systemStart
+            updateQuorum
+        }
+    }
+}

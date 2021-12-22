@@ -1,0 +1,67 @@
+query AddressSummary($addresses:[String]!) {
+    paymentAddresses(addresses: $addresses) {
+        summary {
+            assetBalances {
+                asset {
+                    assetId
+                    policyId
+                    assetName
+                    fingerprint
+                }
+                quantity
+            }
+        }
+        address
+        summary {
+            utxosCount
+        }
+    }
+}
+
+query AddressTransactionsByOutputs($address: String!, $limit: Int!, $offset: Int!, $orderby: order_by!) {
+    transactions (
+        limit: $limit
+        offset: $offset
+        order_by: [{
+            includedAt: $orderby
+        }]
+        where: {
+            outputs: {
+                address: {
+                    _eq: $address
+                }
+            }
+        }
+    ) {
+        hash
+        includedAt
+        block {
+            number
+        }
+        blockIndex
+    }
+}
+
+query AddressTransactionsByInputs($address: String!, $limit: Int!, $offset: Int!, $orderby: order_by!) {
+    transactions (
+        limit: $limit
+        offset: $offset
+        order_by: [{
+            includedAt: $orderby
+        }]
+        where: {
+            inputs: {
+                address: {
+                    _eq: $address
+                }
+            }
+        }
+    ) {
+        hash
+        includedAt
+        block {
+            number
+        }
+        blockIndex
+    }
+}

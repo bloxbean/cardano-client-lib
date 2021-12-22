@@ -1,0 +1,21 @@
+query UtxosQuery($address:String, $limit: Int, $offset: Int){
+    utxos(
+        limit: $limit
+        offset: $offset
+        where: {
+            address: {
+                _eq: $address
+            }
+        }
+    ) {
+        txHash
+        index
+        value
+        tokens {
+            asset {
+                assetId
+            }
+            quantity
+        }
+    }
+}

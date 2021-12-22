@@ -1,0 +1,22 @@
+query AssetQuery($assetId: Hex!) {
+    assets(
+        where: {
+            assetId: {
+                _eq: $assetId
+            }
+        }
+    ) {
+        assetId
+        policyId
+        assetName
+        fingerprint
+        tokenMints {
+            transaction {
+                hash
+            }
+        }
+        tokenMints {
+            quantity
+        }
+    }
+}

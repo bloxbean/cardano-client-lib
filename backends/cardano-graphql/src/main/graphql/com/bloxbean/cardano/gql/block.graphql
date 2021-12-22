@@ -1,0 +1,57 @@
+fragment BlockFragment on Block {
+    forgedAt
+    number
+    hash
+    slotNo
+    epoch {
+        number
+    }
+    slotInEpoch
+    slotLeader {
+        hash
+    }
+    size
+    transactionsCount
+    # outputs
+    fees
+    vrfKey
+    previousBlock {
+        hash
+    }
+    nextBlock {
+        hash
+    }
+}
+
+query RecentBlockQuery {
+    blocks(
+        limit: 1
+        order_by: [{
+            forgedAt: desc
+        }]
+    ) {
+        ...BlockFragment
+    }
+}
+
+query BlockByHashQuery($hash: Hash32Hex!) {
+    blocks(
+        limit: 1
+        where: {
+            hash: {_eq: $hash}
+        }
+    ) {
+        ...BlockFragment
+    }
+}
+
+query BlockByNumberQuery($number: Int!) {
+    blocks(
+        limit: 1
+        where: {
+            number: {_eq: $number}
+        }
+    ) {
+        ...BlockFragment
+    }
+}
