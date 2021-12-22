@@ -124,15 +124,6 @@ public class NFTMetadata extends CBORMetadata {
         return version;
     }
 
-    /**
-     * Convert to json string
-     * @return
-     */
-    public String toJson() {
-        String json = MetadataToJsonNoSchemaConverter.cborBytesToJson(this.serialize());
-        return JsonUtil.getPrettyJson(json);
-    }
-
     public String toString() {
         try {
             return toJson();

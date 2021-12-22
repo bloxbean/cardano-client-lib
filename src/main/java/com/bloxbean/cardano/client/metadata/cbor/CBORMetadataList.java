@@ -1,8 +1,11 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.util.JsonUtil;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.bloxbean.cardano.client.metadata.cbor.MetadataHelper.*;
 
@@ -50,12 +53,6 @@ public class CBORMetadataList {
         return this;
     }
 
-    public CBORMetadataList MetadataList(CBORMetadataList list) {
-        if(list != null)
-            array.add(list.getArray());
-        return this;
-    }
-
     public void replaceAt(int index, BigInteger value) {
         replaceAt(index, objectToDataItem(value));
     }
@@ -73,11 +70,11 @@ public class CBORMetadataList {
     }
 
     public void replaceAt(int index, CBORMetadataList list) {
-        replaceAt(index, list);
+        replaceAt(index, objectToDataItem(list));
     }
 
     public void removeItem(Object value) {
-        array.getDataItems().remove(value);
+        array.getDataItems().remove(objectToDataItem(value));
     }
 
     public void removeItemAt(int index) {
@@ -112,4 +109,19 @@ public class CBORMetadataList {
         array.getDataItems().remove(index);
         array.getDataItems().add(index, value);
     }
+
+    public String toJson() {
+        List<DataItem> dataItemList = array.getDataItems();
+        List list = new ArrayList();
+
+        for (DataItem di: dataItemList) {
+            list.add(extractActualValue(di));
+        }
+
+        return JsonUtil.getPrettyJson(list);
+    }
+
+
+
+
 }

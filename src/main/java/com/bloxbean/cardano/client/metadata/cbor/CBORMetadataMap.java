@@ -1,6 +1,10 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
+import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.metadata.helper.MetadataToJsonNoSchemaConverter;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
+import com.bloxbean.cardano.client.util.JsonUtil;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -148,5 +152,11 @@ public class CBORMetadataMap {
 
     public Map getMap() {
         return map;
+    }
+
+    public String toJson() throws CborException {
+        byte[] bytes = CborSerializationUtil.serialize(map);
+        String json = MetadataToJsonNoSchemaConverter.cborBytesToJson(bytes);
+        return JsonUtil.getPrettyJson(json);
     }
 }

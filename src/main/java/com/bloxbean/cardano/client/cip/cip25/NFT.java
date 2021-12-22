@@ -242,11 +242,6 @@ public class NFT extends NFTProperties {
         return (NFT)super.property(name, values);
     }
 
-    public String toJson() throws CborException {
-        String json = MetadataToJsonNoSchemaConverter.cborBytesToJson(CborSerializationUtil.serialize(getMap()));
-        return JsonUtil.getPrettyJson(json);
-    }
-
     public String toString() {
         try {
             return toJson();

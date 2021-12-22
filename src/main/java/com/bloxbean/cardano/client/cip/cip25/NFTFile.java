@@ -164,17 +164,6 @@ public class NFTFile extends NFTProperties {
         return (NFTFile)super.property(name, values);
     }
 
-    /**
-     * Convert to json
-     *
-     * @return json string
-     * @throws CborException
-     */
-    public String toJson() throws CborException {
-        String json = MetadataToJsonNoSchemaConverter.cborBytesToJson(CborSerializationUtil.serialize(getMap()));
-        return JsonUtil.getPrettyJson(json);
-    }
-
     public String toString() {
         try {
             return toJson();

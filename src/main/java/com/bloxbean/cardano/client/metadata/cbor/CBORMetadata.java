@@ -9,6 +9,8 @@ import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
+import com.bloxbean.cardano.client.metadata.helper.MetadataToJsonNoSchemaConverter;
+import com.bloxbean.cardano.client.util.JsonUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
@@ -150,6 +152,15 @@ public class CBORMetadata implements Metadata {
         byte[] encodedBytes = serialize();
 
         return KeyGenUtil.blake2bHash256(encodedBytes);
+    }
+
+    /**
+     * Convert to json string
+     * @return
+     */
+    public String toJson() {
+        String json = MetadataToJsonNoSchemaConverter.cborBytesToJson(this.serialize());
+        return JsonUtil.getPrettyJson(json);
     }
 
 }
