@@ -6,7 +6,7 @@ bundles the platform specific binaries of cardano-serialization-lib. You can che
 
 **Latest Stable Version** : [0.1.5](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.1.5)
 
-**Preview Version** (Alonzo changes & Raspberry pi Support) : [0.2.0-preview1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-preview1)
+**Preview Version** (Alonzo specific changes) : [0.2.0-preview2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-preview2)
 
 ## Supported Operating Systems
 The library has been tested on the following Operating Systems. 
