@@ -3,6 +3,10 @@ package com.bloxbean.cardano.client.metadata.cbor;
 import co.nstant.in.cbor.model.*;
 
 import java.math.BigInteger;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static com.bloxbean.cardano.client.metadata.cbor.MetadataHelper.*;
 
 public class CBORMetadataMap {
     private Map map;
@@ -31,6 +35,7 @@ public class CBORMetadataMap {
     }
 
     public CBORMetadataMap put(BigInteger key, String value) {
+        checkLength(value);
         map.put(new UnsignedInteger(key), new UnicodeString(value));
         return this;
     }
@@ -63,6 +68,7 @@ public class CBORMetadataMap {
     }
 
     public CBORMetadataMap put(String key, String value) {
+        checkLength(value);
         map.put(new UnicodeString(key), new UnicodeString(value));
         return this;
     }
@@ -95,6 +101,7 @@ public class CBORMetadataMap {
     }
 
     public CBORMetadataMap put(byte[] key, String value) {
+        checkLength(value);
         map.put(new ByteString(key), new UnicodeString(value));
         return this;
     }
@@ -111,7 +118,35 @@ public class CBORMetadataMap {
         return this;
     }
 
-    Map getMap() {
+    public Object get(String key) {
+        return extractActualValue(this.map.get(objectToDataItem(key)));
+    }
+
+    public Object get(BigInteger key) {
+        return extractActualValue(this.map.get(objectToDataItem(key)));
+    }
+
+    public Object get(byte[] key) {
+        return extractActualValue(this.map.get(objectToDataItem(key)));
+    }
+
+    public void remove(String key) {
+        this.map.remove(objectToDataItem(key));
+    }
+
+    public void remove(BigInteger key) {
+        this.map.remove(objectToDataItem(key));
+    }
+
+    public void remove(byte[] key) {
+        this.map.remove(objectToDataItem(key));
+    }
+
+    public List keys() {
+        return this.map.getKeys().stream().map(di -> extractActualValue(di)).collect(Collectors.toList());
+    }
+
+    public Map getMap() {
         return map;
     }
 }

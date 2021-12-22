@@ -4,6 +4,8 @@ import co.nstant.in.cbor.model.*;
 
 import java.math.BigInteger;
 
+import static com.bloxbean.cardano.client.metadata.cbor.MetadataHelper.*;
+
 public class CBORMetadataList {
     Array array;
 
@@ -26,6 +28,7 @@ public class CBORMetadataList {
     }
 
     public CBORMetadataList add(String value) {
+        checkLength(value);
         array.add(new UnicodeString(value));
         return this;
     }
@@ -53,7 +56,60 @@ public class CBORMetadataList {
         return this;
     }
 
+    public void replaceAt(int index, BigInteger value) {
+        replaceAt(index, objectToDataItem(value));
+    }
+
+    public void replaceAt(int index, String value) {
+        replaceAt(index, objectToDataItem(value));
+    }
+
+    public void replaceAt(int index, byte[] value) {
+        replaceAt(index, objectToDataItem(value));
+    }
+
+    public void replaceAt(int index, CBORMetadataMap map) {
+        replaceAt(index, objectToDataItem(map));
+    }
+
+    public void replaceAt(int index, CBORMetadataList list) {
+        replaceAt(index, list);
+    }
+
+    public void removeItem(Object value) {
+        array.getDataItems().remove(value);
+    }
+
+    public void removeItemAt(int index) {
+        if(index != -1 && index < array.getDataItems().size()) {
+            array.getDataItems().remove(index);
+        }
+    }
+
+    public Object getValueAt(int index) {
+        if(index != -1 && index < array.getDataItems().size()) {
+            DataItem dataItem = array.getDataItems().get(index);
+            return extractActualValue(dataItem);
+        }
+
+        return null;
+    }
+
+    public int size() {
+        if(array.getDataItems() != null)
+            return array.getDataItems().size();
+        else
+            return 0;
+    }
+
     public Array getArray() {
         return array;
+    }
+
+    private void replaceAt(int index, DataItem value) {
+        if(index == -1)
+            return;
+        array.getDataItems().remove(index);
+        array.getDataItems().add(index, value);
     }
 }

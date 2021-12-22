@@ -1,7 +1,9 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
 import co.nstant.in.cbor.CborBuilder;
+import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborEncoder;
+import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -11,14 +13,21 @@ import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationExcep
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static co.nstant.in.cbor.model.MajorType.*;
+import static com.bloxbean.cardano.client.metadata.cbor.MetadataHelper.*;
 
 public class CBORMetadata implements Metadata {
     private Map map;
 
     public CBORMetadata() {
         map = new Map();
+    }
+
+    public CBORMetadata(Map map) {
+        this.map = map;
     }
 
     public CBORMetadata put(BigInteger key, BigInteger value) {
@@ -37,6 +46,7 @@ public class CBORMetadata implements Metadata {
     }
 
     public CBORMetadata put(BigInteger key, String value) {
+        checkLength(value);
         map.put(new UnsignedInteger(key), new UnicodeString(value));
         return this;
     }
@@ -50,6 +60,18 @@ public class CBORMetadata implements Metadata {
     public CBORMetadata put(BigInteger key, CBORMetadataList list) {
         map.put(new UnsignedInteger(key), list.getArray());
         return this;
+    }
+
+    public Object get(BigInteger key) {
+        return extractActualValue(getData().get(objectToDataItem(key)));
+    }
+
+    public void remove(BigInteger key) {
+        this.getData().remove(objectToDataItem(key));
+    }
+
+    public List keys() {
+        return getData().getKeys().stream().map(di -> extractActualValue(di)).collect(Collectors.toList());
     }
 
     @Override
@@ -100,6 +122,28 @@ public class CBORMetadata implements Metadata {
         }
 
         return cborMetadata;
+    }
+
+    public static CBORMetadata deserialize(byte[] cborBytes) throws MetadataDeSerializationException {
+        List<DataItem> dataItemList = null;
+        try {
+            dataItemList = CborDecoder.decode(cborBytes);
+        } catch (CborException e) {
+            throw new MetadataDeSerializationException("Cbor deserialization failed", e);
+        }
+
+        if (dataItemList == null || dataItemList.size() == 0)
+            throw new MetadataDeSerializationException("Cbor deserialization failed. Null dataitem");
+
+        if(dataItemList.size() > 1)
+            throw new MetadataDeSerializationException("Multiple DataItems found at top level. Should be one : " + dataItemList.size());
+
+        DataItem di = dataItemList.get(0);
+        if (di instanceof Map) {
+            return deserialize((Map) di);
+        } else {
+            throw new MetadataDeSerializationException("Unknown data type at the top level. Should be a Map. " + di.getClass());
+        }
     }
 
     public byte[] getMetadataHash() throws MetadataSerializationException {
