@@ -6,23 +6,20 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * This script class is for "RequireTimeBefore" expression
  */
 @Data
+@NoArgsConstructor
 public class RequireTimeBefore implements NativeScript {
-    private ScriptType type;
+
+    private final ScriptType type = ScriptType.before;
     private long slot;
 
     public RequireTimeBefore(long slot) {
-        this.type = ScriptType.before;
         this.slot = slot;
-    }
-
-    public RequireTimeBefore before(long slot) {
-        this.slot = slot;
-        return this;
     }
 
     @Override
