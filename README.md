@@ -351,6 +351,8 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 * [Cardano Fans Donation App](https://github.com/Cardano-Fans/crfa-cardano-donation-app)
 * [adadomains.io](https://www.adadomains.io/)
 * [ADAM - ADA Monitor APP](https://play.google.com/store/apps/details?id=com.esodot.andro.monitor)
+* [ISR - Israeli Cardano Community](https://www.cardano-israel.com/)
+* [MusicBox - CNFT Project](https://www.musicboxnft.com/)
 ---
 
 ##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
