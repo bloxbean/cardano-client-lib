@@ -3,6 +3,9 @@ package com.bloxbean.cardano.client.crypto;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.util.Tuple;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 
@@ -61,5 +64,18 @@ public class KeyGenUtilTest {
 
         System.out.println(JsonUtil.getPrettyJson(scriptPubkey));
         assertThat(scriptPubkey.getKeyHash(), is("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884"));
+    }
+
+    @Test
+    public void testKeysSerializationDeserialization() throws CborSerializationException, JsonProcessingException {
+        Tuple<ScriptPubkey,Keys> tuple = ScriptPubkey.createWithNewKey();
+        Keys keys1 = tuple._2;
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String keysJson = objectMapper.writeValueAsString(keys1);
+
+        Keys keys2 = objectMapper.readValue(keysJson,Keys.class);
+
+        assertEquals(keys1,keys2);
     }
 }
