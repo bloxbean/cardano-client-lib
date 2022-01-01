@@ -1,9 +1,12 @@
 package com.bloxbean.cardano.client.crypto;
 
 public class Keys {
+    
     private VerificationKey vkey;
     private SecretKey skey;
 
+    public Keys() {}
+    
     public Keys(SecretKey skey, VerificationKey vkey) {
         this.skey = skey;
         this.vkey = vkey;
