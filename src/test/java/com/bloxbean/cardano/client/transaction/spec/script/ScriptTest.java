@@ -12,9 +12,11 @@ import java.io.IOException;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ScriptTest {
+
     ObjectMapper mapper = new ObjectMapper();
 
     @Test
@@ -229,4 +231,15 @@ class ScriptTest {
         assertThat(requireTimeAfter, equalTo(deScript));
     }
 
+    @Test
+    public void testJsonSerDeSer_whenRequireTimeBeforeJackson() throws JsonProcessingException {
+        RequireTimeBefore requireTimeBefore1 = new RequireTimeBefore(30003);
+
+        String jsonStr = mapper.writeValueAsString(requireTimeBefore1);
+        System.out.println(jsonStr);
+
+        RequireTimeBefore requireTimeBefore2 = mapper.readValue(jsonStr,RequireTimeBefore.class);
+
+        assertEquals(requireTimeBefore1, requireTimeBefore2);
+    }
 }
