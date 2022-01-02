@@ -1,8 +1,11 @@
 package com.bloxbean.cardano.client.backend.gql;
 
 import com.bloxbean.cardano.client.backend.api.AssetService;
+import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Asset;
+import com.bloxbean.cardano.client.backend.model.AssetAddress;
+import com.bloxbean.cardano.client.backend.model.PolicyAsset;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.gql.AssetQuery;
 import okhttp3.OkHttpClient;
@@ -55,5 +58,20 @@ public class GqlAssetService extends BaseGqlService implements AssetService {
         } catch (Exception e) {}
 
         return processSuccessResult(asset);
+    }
+
+    @Override
+    public Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page, OrderEnum order) throws ApiException {
+        return null;
+    }
+
+    @Override
+    public Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page) throws ApiException {
+        return null;
+    }
+
+    @Override
+    public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page, OrderEnum order) throws ApiException {
+        return null;
     }
 }
