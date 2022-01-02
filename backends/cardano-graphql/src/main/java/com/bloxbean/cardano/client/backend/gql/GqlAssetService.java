@@ -74,4 +74,9 @@ public class GqlAssetService extends BaseGqlService implements AssetService {
     public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page, OrderEnum order) throws ApiException {
         return null;
     }
+
+    @Override
+    public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page) throws ApiException {
+        return null;
+    }
 }
