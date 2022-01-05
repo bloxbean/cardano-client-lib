@@ -6,11 +6,13 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * This script class is for "RequireTimeAfter" expression
  */
 @Data
+@NoArgsConstructor
 public class RequireTimeAfter implements NativeScript {
     private ScriptType type;
     private long slot;

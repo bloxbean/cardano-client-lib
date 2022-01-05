@@ -242,4 +242,16 @@ class ScriptTest {
 
         assertEquals(requireTimeBefore1, requireTimeBefore2);
     }
+
+    @Test
+    public void testJsonSerDeSer_whenRequireTimeAfterJackson() throws JsonProcessingException {
+        RequireTimeAfter requireTimeAfter1 = new RequireTimeAfter(20003);
+
+        String jsonStr = mapper.writeValueAsString(requireTimeAfter1);
+        System.out.println(jsonStr);
+
+        RequireTimeAfter requireTimeAfter2 = mapper.readValue(jsonStr,RequireTimeAfter.class);
+
+        assertEquals(requireTimeAfter1, requireTimeAfter2);
+    }
 }
