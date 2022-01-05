@@ -15,7 +15,6 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
-import com.bloxbean.cardano.client.transaction.model.TransactionRequest;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -380,153 +379,57 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         return senderToUtxoMap;
     }
 
-    private BigInteger createReceiverOutputsAndPopulateCostV2(PaymentTransaction transaction, TransactionDetailsParams detailsParams, BigInteger totalFee,
+    private BigInteger createReceiverOutputsAndPopulateCostV2(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, BigInteger totalFee,
                                                               List<TransactionOutput> transactionOutputs, Map<String, BigInteger> senderMiscCostMap, ProtocolParams protocolParams) {
 
-//        var transactions = new ArrayList<PaymentTransaction>();
-//
-//        transactions
-//                .stream()
-//                .collect(Collectors.groupingBy(TransactionRequest::getReceiver))
-//                .entrySet()
-//                .stream()
-//                .map(entry -> {
-//
-//                    var adaAmount = entry.getValue().stream().filter(foo -> CardanoConstants.LOVELACE.equals(foo.getUnit())).findFirst().map(asd -> asd.getAmount()).orElse(BigInteger.ZERO);
-//
-//
-//                    var foo = entry.getValue().stream().collect(Collectors.partitioningBy(tx -> CardanoConstants.LOVELACE.equals(tx.getUnit())));
-//                    entry
-//                            .getValue()
-//                            .stream()
-//                            .reduce(TransactionOutput.builder().value(Value.builder().coin(BigInteger.ZERO).multiAssets(List.of()).build()), (asd, bar) -> {
-//                                var to = asd.build();
-//                                if (CardanoConstants.LOVELACE.equals(bar.getUnit())) {
-//                                    return asd.value(new Value(to.getValue().getCoin().add(bar.getAmount()), to.getValue().getMultiAssets()));
-//                                } else {
-//                                    Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
-//                                    Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-//
-//                                    var multiAsset = to
-//                                            .getValue()
-//                                            .getMultiAssets()
-//                                            .stream()
-//                                            .filter(ma -> ma.getPolicyId().equals(policyIdAssetName._1))
-//                                            .findFirst()
-//                                            .map(ma -> {
-//                                                to.getValue().getMultiAssets().remove(ma);
-//                                                ma.getAssets().add(asset);
-//                                                return ma;
-//                                            })
-//                                            .orElse(new MultiAsset(policyIdAssetName._1, Arrays.asList(asset)));
-//                                    to.getValue().getMultiAssets().add(multiAsset);
-//                                    return asd.value(new Value(to.getValue().getCoin(), to.getValue().getMultiAssets()));
-//                                }
-//                            }, (transactionOutputBuilder, transactionOutputBuilder2) -> )
-//
-//                    TransactionOutput.TransactionOutputBuilder outputBuilder = TransactionOutput.builder().address(transaction.getReceiver());
-//                    if (CardanoConstants.LOVELACE.equals(transaction.getUnit())) {
-//                        outputBuilder.value(new Value(transaction.getAmount(), null));
-//                    } else {
-//                        Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
-//                        Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-//                        MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
-//
-//                        //Dummy value for min required ada calculation
-//                        outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
-//                        //Calculate required minAda
-//                        BigInteger minRequiredAda =
-//                                new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
-//
-//                        //set minRequiredAdaToValue
-//                        outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
-//
-//
-//                    }
-//
-//                })
-//
-//        transactions
-//                .stream()
-//                .collect(Collectors.groupingBy(TransactionRequest::getReceiver))
-//                .entrySet()
-//                .stream()
-//                .map(entry -> {
-//
-//                    var receivingAddress = entry.getKey();
-//
-//                    entry
-//                            .getValue()
-//                            .stream()
-//                            .map(paymentTx -> {
-//                                if (CardanoConstants.LOVELACE.equals(paymentTx.getUnit())) {
-//                                    return new Value(paymentTx.getAmount(), List.of());
-//                                } else {
-//                                    Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
-//                                    var asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-//                                    var multiAsset = new MultiAsset(policyIdAssetName._1, List.of(asset));
-//                                    return new Value(BigInteger.ZERO, List.of(multiAsset));
-//                                }
-//                            })
-//                            .reduce((a,b) -> {
-//
-//                                return null;
-//                            });
-//
-//                    TransactionOutput.TransactionOutputBuilder outputBuilder = TransactionOutput.builder().address(transaction.getReceiver());
-//                    if (CardanoConstants.LOVELACE.equals(transaction.getUnit())) {
-//                        outputBuilder.value(new Value(transaction.getAmount(), null));
-//                    } else {
-//                        Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
-//                        Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-//                        MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
-//
-//                        //Dummy value for min required ada calculation
-//                        outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
-//                        //Calculate required minAda
-//                        BigInteger minRequiredAda =
-//                                new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
-//
-//                        //set minRequiredAdaToValue
-//                        outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
-//
-//
-//                    }
-//
-//                })
+        var outputs = transactions
+                .stream()
+                .collect(Collectors.groupingBy(PaymentTransaction::getReceiver))
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    var value = entry
+                            .getValue()
+                            .stream()
+                            .map(tx -> {
+                                if (LOVELACE.equals(tx.getUnit())) {
+                                    return Value.builder().coin(tx.getAmount()).build();
+                                } else {
+                                    Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(tx.getUnit());
+                                    Asset asset = new Asset(policyIdAssetName._2, tx.getAmount());
+                                    MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, List.of(asset));
+                                    return Value.builder().coin(BigInteger.ZERO).multiAssets(List.of(multiAsset)).build();
+                                }
+                            })
+                            .reduce(Value.builder().coin(BigInteger.ZERO).build(), Value::plus);
+
+                    // TxOut before min ada adjustment
+                    var candidateTxOutput =  TransactionOutput.builder().address(entry.getKey()).value(value).build();
+
+                    //Calculate required minAda
+                    BigInteger minRequiredAda = new MinAdaCalculator(protocolParams).calculateMinAda(candidateTxOutput);
+
+                    var finalValue = Value.builder().coin(minRequiredAda).multiAssets(candidateTxOutput.getValue().getMultiAssets()).build();
+                    var fees = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
+
+                    // Costs
+                    entry
+                            .getValue()
+                            .forEach(transaction -> {
+                                BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(transaction.getSender().baseAddress(), BigInteger.ZERO);
+                                existingMiscCost = existingMiscCost.add(minRequiredAda);
+                                existingMiscCost = existingMiscCost.add(transaction.getFee());
+                                senderMiscCostMap.put(transaction.getSender().baseAddress(), existingMiscCost);
+                            });
+
+                    return new Tuple<>(TransactionOutput.builder().address(entry.getKey()).value(finalValue).build(), fees);
+                })
+                .collect(Collectors.toList());
 
 
+        totalFee = totalFee.add(transactions.stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add));
+        transactionOutputs.addAll(outputs.stream().map(tuple -> tuple._1).collect(Collectors.toList()));
 
-        //Sender misc cost
-        BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(transaction.getSender().baseAddress(), BigInteger.ZERO);
-
-        //Main output
-        TransactionOutput.TransactionOutputBuilder outputBuilder = TransactionOutput.builder()
-                .address(transaction.getReceiver());
-        if (CardanoConstants.LOVELACE.equals(transaction.getUnit())) {
-            outputBuilder.value(new Value(transaction.getAmount(), null));
-        } else {
-            Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
-            Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-            MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
-
-            //Dummy value for min required ada calculation
-            outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
-            //Calculate required minAda
-            BigInteger minRequiredAda =
-                    new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
-
-            //set minRequiredAdaToValue
-            outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
-
-            existingMiscCost = existingMiscCost.add(minRequiredAda);
-        }
-
-        existingMiscCost = existingMiscCost.add(transaction.getFee());
-        senderMiscCostMap.put(transaction.getSender().baseAddress(), existingMiscCost);
-
-        totalFee = totalFee.add(transaction.getFee());
-        transactionOutputs.add(outputBuilder.build());
         return totalFee;
     }
 
