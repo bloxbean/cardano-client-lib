@@ -12,7 +12,9 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Data
 @AllArgsConstructor
@@ -65,6 +67,12 @@ public class Value {
         }
 
         return value;
+    }
+
+    public Value plus(Value that) {
+        var coin = getCoin().add(that.getCoin());
+        var multiAssets =MultiAsset.mergeMultiAssetLists(getMultiAssets(), that.getMultiAssets());
+        return Value.builder().coin(coin).multiAssets(multiAssets).build();
     }
 
 }

@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Data
 @AllArgsConstructor
@@ -70,4 +71,35 @@ public class MultiAsset {
             return "MultiAsset { Error : " + e.getMessage() + " }";
         }
     }
+
+    public MultiAsset plus(MultiAsset that) {
+        if (!getPolicyId().equals(that.getPolicyId())) {
+            throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
+        }
+        var assets = new ArrayList<Asset>();
+        assets.addAll(getAssets());
+        assets.addAll(that.getAssets());
+        var mergedAssets = assets
+                .stream()
+                .collect(Collectors.groupingBy(Asset::getName))
+                .entrySet()
+                .stream()
+                .map(entry -> entry.getValue().stream().reduce(Asset.builder().name(entry.getKey()).value(BigInteger.ZERO).build(), Asset::plus))
+                .collect(Collectors.toList());
+        return MultiAsset.builder().policyId(getPolicyId()).assets(mergedAssets).build();
+    }
+
+    public static List<MultiAsset> mergeMultiAssetLists(List<MultiAsset> multiAssets1, List<MultiAsset> multiAssets2) {
+        var tempMultiAssets = new ArrayList<MultiAsset>();
+        tempMultiAssets.addAll(multiAssets1);
+        tempMultiAssets.addAll(multiAssets2);
+        return tempMultiAssets
+                .stream()
+                .collect(Collectors.groupingBy(MultiAsset::getPolicyId))
+                .entrySet()
+                .stream()
+                .map(entry -> entry.getValue().stream().reduce(MultiAsset.builder().policyId(entry.getKey()).assets(List.of()).build(), MultiAsset::plus))
+                .collect(Collectors.toList());
+    }
+
 }

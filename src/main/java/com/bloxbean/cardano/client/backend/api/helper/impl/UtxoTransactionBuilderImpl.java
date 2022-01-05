@@ -383,68 +383,118 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     private BigInteger createReceiverOutputsAndPopulateCostV2(PaymentTransaction transaction, TransactionDetailsParams detailsParams, BigInteger totalFee,
                                                               List<TransactionOutput> transactionOutputs, Map<String, BigInteger> senderMiscCostMap, ProtocolParams protocolParams) {
 
-        var transactions = new ArrayList<PaymentTransaction>();
+//        var transactions = new ArrayList<PaymentTransaction>();
+//
+//        transactions
+//                .stream()
+//                .collect(Collectors.groupingBy(TransactionRequest::getReceiver))
+//                .entrySet()
+//                .stream()
+//                .map(entry -> {
+//
+//                    var adaAmount = entry.getValue().stream().filter(foo -> CardanoConstants.LOVELACE.equals(foo.getUnit())).findFirst().map(asd -> asd.getAmount()).orElse(BigInteger.ZERO);
+//
+//
+//                    var foo = entry.getValue().stream().collect(Collectors.partitioningBy(tx -> CardanoConstants.LOVELACE.equals(tx.getUnit())));
+//                    entry
+//                            .getValue()
+//                            .stream()
+//                            .reduce(TransactionOutput.builder().value(Value.builder().coin(BigInteger.ZERO).multiAssets(List.of()).build()), (asd, bar) -> {
+//                                var to = asd.build();
+//                                if (CardanoConstants.LOVELACE.equals(bar.getUnit())) {
+//                                    return asd.value(new Value(to.getValue().getCoin().add(bar.getAmount()), to.getValue().getMultiAssets()));
+//                                } else {
+//                                    Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
+//                                    Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
+//
+//                                    var multiAsset = to
+//                                            .getValue()
+//                                            .getMultiAssets()
+//                                            .stream()
+//                                            .filter(ma -> ma.getPolicyId().equals(policyIdAssetName._1))
+//                                            .findFirst()
+//                                            .map(ma -> {
+//                                                to.getValue().getMultiAssets().remove(ma);
+//                                                ma.getAssets().add(asset);
+//                                                return ma;
+//                                            })
+//                                            .orElse(new MultiAsset(policyIdAssetName._1, Arrays.asList(asset)));
+//                                    to.getValue().getMultiAssets().add(multiAsset);
+//                                    return asd.value(new Value(to.getValue().getCoin(), to.getValue().getMultiAssets()));
+//                                }
+//                            }, (transactionOutputBuilder, transactionOutputBuilder2) -> )
+//
+//                    TransactionOutput.TransactionOutputBuilder outputBuilder = TransactionOutput.builder().address(transaction.getReceiver());
+//                    if (CardanoConstants.LOVELACE.equals(transaction.getUnit())) {
+//                        outputBuilder.value(new Value(transaction.getAmount(), null));
+//                    } else {
+//                        Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
+//                        Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
+//                        MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
+//
+//                        //Dummy value for min required ada calculation
+//                        outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
+//                        //Calculate required minAda
+//                        BigInteger minRequiredAda =
+//                                new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
+//
+//                        //set minRequiredAdaToValue
+//                        outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
+//
+//
+//                    }
+//
+//                })
+//
+//        transactions
+//                .stream()
+//                .collect(Collectors.groupingBy(TransactionRequest::getReceiver))
+//                .entrySet()
+//                .stream()
+//                .map(entry -> {
+//
+//                    var receivingAddress = entry.getKey();
+//
+//                    entry
+//                            .getValue()
+//                            .stream()
+//                            .map(paymentTx -> {
+//                                if (CardanoConstants.LOVELACE.equals(paymentTx.getUnit())) {
+//                                    return new Value(paymentTx.getAmount(), List.of());
+//                                } else {
+//                                    Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
+//                                    var asset = new Asset(policyIdAssetName._2, transaction.getAmount());
+//                                    var multiAsset = new MultiAsset(policyIdAssetName._1, List.of(asset));
+//                                    return new Value(BigInteger.ZERO, List.of(multiAsset));
+//                                }
+//                            })
+//                            .reduce((a,b) -> {
+//
+//                                return null;
+//                            });
+//
+//                    TransactionOutput.TransactionOutputBuilder outputBuilder = TransactionOutput.builder().address(transaction.getReceiver());
+//                    if (CardanoConstants.LOVELACE.equals(transaction.getUnit())) {
+//                        outputBuilder.value(new Value(transaction.getAmount(), null));
+//                    } else {
+//                        Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
+//                        Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
+//                        MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
+//
+//                        //Dummy value for min required ada calculation
+//                        outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
+//                        //Calculate required minAda
+//                        BigInteger minRequiredAda =
+//                                new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
+//
+//                        //set minRequiredAdaToValue
+//                        outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
+//
+//
+//                    }
+//
+//                })
 
-        transactions
-                .stream()
-                .collect(Collectors.groupingBy(TransactionRequest::getReceiver))
-                .entrySet()
-                .stream()
-                .map(entry -> {
-
-                    var adaAmount = entry.getValue().stream().filter(foo -> CardanoConstants.LOVELACE.equals(foo.getUnit())).findFirst().map(asd -> asd.getAmount()).orElse(BigInteger.ZERO);
-
-
-                    var foo = entry.getValue().stream().collect(Collectors.partitioningBy(tx -> CardanoConstants.LOVELACE.equals(tx.getUnit())));
-                    entry
-                            .getValue()
-                            .stream()
-                            .reduce(TransactionOutput.builder().value(Value.builder().coin(BigInteger.ZERO).multiAssets(List.of()).build()), (asd, bar) -> {
-                                var to = asd.build();
-                                if (CardanoConstants.LOVELACE.equals(bar.getUnit())) {
-                                    return asd.value(new Value(to.getValue().getCoin().add(bar.getAmount()), to.getValue().getMultiAssets()));
-                                } else {
-                                    Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
-                                    Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-
-                                    var multiAsset = to
-                                            .getValue()
-                                            .getMultiAssets()
-                                            .stream()
-                                            .filter(ma -> ma.getPolicyId().equals(policyIdAssetName._1))
-                                            .findFirst()
-                                            .map(ma -> {
-                                                to.getValue().getMultiAssets().remove(ma);
-                                                ma.getAssets().add(asset);
-                                                return ma;
-                                            })
-                                            .orElse(new MultiAsset(policyIdAssetName._1, Arrays.asList(asset)));
-                                    to.getValue().getMultiAssets().add(multiAsset);
-                                    return asd.value(new Value(to.getValue().getCoin(), to.getValue().getMultiAssets()));
-                                }
-                            }, (transactionOutputBuilder, transactionOutputBuilder2) -> )
-
-                    TransactionOutput.TransactionOutputBuilder outputBuilder = TransactionOutput.builder().address(transaction.getReceiver());
-                    if (CardanoConstants.LOVELACE.equals(transaction.getUnit())) {
-                        outputBuilder.value(new Value(transaction.getAmount(), null));
-                    } else {
-                        Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
-                        Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-                        MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
-
-                        //Dummy value for min required ada calculation
-                        outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
-                        //Calculate required minAda
-                        BigInteger minRequiredAda =
-                                new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
-
-                        //set minRequiredAdaToValue
-                        outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
-
-
-                    }
-
-                })
 
 
         //Sender misc cost
