@@ -18,6 +18,10 @@ public interface PlutusData {
 //            / big_int
 //  / bounded_bytes
 
+//    big_int = int / big_uint / big_nint ; New
+//    big_uint = #6.2(bounded_bytes) ; New
+//    big_nint = #6.3(bounded_bytes) ; New
+
     DataItem serialize() throws CborSerializationException;
 
     static PlutusData deserialize(DataItem dataItem) throws CborDeserializationException {
@@ -29,7 +33,11 @@ public interface PlutusData {
         } else if (dataItem instanceof ByteString) {
             return BytesPlutusData.deserialize((ByteString) dataItem);
         } else if (dataItem instanceof Array) {
-            return ListPlutusData.deserialize((Array) dataItem);
+            if (dataItem.getTag() == null) {
+                return ListPlutusData.deserialize((Array) dataItem);
+            } else { //Tag found .. try Constr
+                return ConstrPlutusData.deserialize(dataItem);
+            }
         } else if (dataItem instanceof Map) {
             return MapPlutusData.deserialize((Map) dataItem);
         } else
