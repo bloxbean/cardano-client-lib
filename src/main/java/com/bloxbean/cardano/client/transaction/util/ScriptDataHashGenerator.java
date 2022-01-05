@@ -22,14 +22,14 @@ public class ScriptDataHashGenerator {
                 redeemerArray.add(redeemer.serialize());
             }
         }
-        byte[] redeemerBytes = CborSerializationUtil.serialize(redeemerArray);
 
-//        byte[] plutusDataBytes = null;
-//        if (datums != null) {
-//            plutusDataBytes = CborSerializationUtil.serialize(datums.serialize(), true);
-//        } else {
-//            plutusDataBytes = new byte[0];
-//        }
+        byte[] redeemerBytes = null;
+        if (redeemerArray.getDataItems().size() != 0) {
+            redeemerBytes = CborSerializationUtil.serialize(redeemerArray);
+        } else {
+            redeemerBytes = new byte[0];
+        }
+
         Array datumArray = new Array();
         if (datums != null && datums.size() > 0) {
             for (PlutusData datum : datums) {
@@ -37,7 +37,12 @@ public class ScriptDataHashGenerator {
             }
         }
 
-        byte[] plutusDataBytes = CborSerializationUtil.serialize(datumArray);
+        byte[] plutusDataBytes = null;
+        if (datumArray.getDataItems().size() != 0) {
+            plutusDataBytes = CborSerializationUtil.serialize(datumArray);
+        } else {
+            plutusDataBytes = new byte[0];
+        }
 
         byte[] langViewsBytes = HexUtil.decodeHexString(languageViewsEncoded);
 
