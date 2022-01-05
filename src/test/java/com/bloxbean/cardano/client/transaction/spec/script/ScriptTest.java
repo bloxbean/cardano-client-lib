@@ -73,7 +73,7 @@ class ScriptTest {
         ScriptPubkey scriptPubkey2 = new ScriptPubkey("f856c0c5839bab22673747d53f1ae9eed84afafb085f086e8e988614");
         ScriptPubkey scriptPubkey3 = new ScriptPubkey("b275b08c999097247f7c17e77007c7010cd19f20cc086ad99d398538");
 
-       ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2);
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2);
         scriptAtLeast.addScript(scriptPubkey1)
                 .addScript(scriptPubkey2)
                 .addScript(scriptPubkey3);
@@ -146,6 +146,18 @@ class ScriptTest {
     }
 
     @Test
+    public void testJsonSerDeser_whenScriptPubKeyJackson() throws JsonProcessingException {
+        ScriptPubkey scriptPubkey1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
+
+        String jsonStr = mapper.writeValueAsString(scriptPubkey1);
+        System.out.println(jsonStr);
+
+        ScriptPubkey scriptPubkey2 = mapper.readValue(jsonStr, ScriptPubkey.class);
+
+        assertEquals(scriptPubkey1, scriptPubkey2);
+    }
+
+    @Test
     public void testJsonSerDeser_whenScriptAll() throws IOException, CborDeserializationException {
         ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
         ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
@@ -163,6 +175,25 @@ class ScriptTest {
 
         assertTrue(deScript instanceof ScriptAll);
         assertThat(scriptAll, equalTo(deScript));
+    }
+
+    @Test
+    public void testJsonSerDeser_whenScriptAllJackson() throws IOException {
+        ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
+        ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
+        ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
+
+        ScriptAll scriptAll1 = new ScriptAll();
+        scriptAll1.addScript(key1)
+                .addScript(key2)
+                .addScript(key3);
+
+        String jsonStr = mapper.writeValueAsString(scriptAll1);
+        System.out.println(jsonStr);
+
+        ScriptAll scriptAll2 = mapper.readValue(jsonStr, ScriptAll.class);
+
+        assertEquals(scriptAll1, scriptAll2);
     }
 
     @Test
@@ -186,6 +217,24 @@ class ScriptTest {
     }
 
     @Test
+    public void testJsonSerDeser_whenScriptAnyJackson() throws IOException {
+        ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
+        ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
+        ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
+
+        ScriptAny scriptAny1 = new ScriptAny();
+        scriptAny1.addScript(key1)
+                .addScript(key2)
+                .addScript(key3);
+
+        String jsonStr = mapper.writeValueAsString(scriptAny1);
+        System.out.println(jsonStr);
+
+        ScriptAny scriptAny2 = mapper.readValue(jsonStr, ScriptAny.class);
+        assertEquals(scriptAny1, scriptAny2);
+    }
+
+    @Test
     public void testJsonSerDeser_whenScriptAtLeast() throws IOException, CborDeserializationException {
         ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
         ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
@@ -206,6 +255,25 @@ class ScriptTest {
     }
 
     @Test
+    public void testJsonSerDeser_whenScriptAtLeastJackson() throws IOException {
+        ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
+        ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
+        ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
+
+        ScriptAtLeast scriptAtLeast1 = new ScriptAtLeast(2);
+        scriptAtLeast1.addScript(key1)
+                .addScript(key2)
+                .addScript(key3);
+
+        String jsonStr = mapper.writeValueAsString(scriptAtLeast1);
+        System.out.println(jsonStr);
+
+        ScriptAtLeast scriptAtLeast2 = mapper.readValue(jsonStr, ScriptAtLeast.class);
+
+        assertEquals(scriptAtLeast1, scriptAtLeast2);
+    }
+
+    @Test
     public void testJsonSerDeSer_whenRequireTimeBefore() throws JsonProcessingException, CborDeserializationException {
         RequireTimeBefore requireTimeBefore = new RequireTimeBefore(30003);
 
@@ -216,6 +284,18 @@ class ScriptTest {
 
         assertTrue(deScript instanceof RequireTimeBefore);
         assertThat(requireTimeBefore, equalTo(deScript));
+    }
+
+    @Test
+    public void testJsonSerDeSer_whenRequireTimeBeforeJackson() throws JsonProcessingException {
+        RequireTimeBefore requireTimeBefore1 = new RequireTimeBefore(30003);
+
+        String jsonStr = mapper.writeValueAsString(requireTimeBefore1);
+        System.out.println(jsonStr);
+
+        RequireTimeBefore requireTimeBefore2 = mapper.readValue(jsonStr, RequireTimeBefore.class);
+
+        assertEquals(requireTimeBefore1, requireTimeBefore2);
     }
 
     @Test
@@ -232,25 +312,13 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeSer_whenRequireTimeBeforeJackson() throws JsonProcessingException {
-        RequireTimeBefore requireTimeBefore1 = new RequireTimeBefore(30003);
-
-        String jsonStr = mapper.writeValueAsString(requireTimeBefore1);
-        System.out.println(jsonStr);
-
-        RequireTimeBefore requireTimeBefore2 = mapper.readValue(jsonStr,RequireTimeBefore.class);
-
-        assertEquals(requireTimeBefore1, requireTimeBefore2);
-    }
-
-    @Test
     public void testJsonSerDeSer_whenRequireTimeAfterJackson() throws JsonProcessingException {
         RequireTimeAfter requireTimeAfter1 = new RequireTimeAfter(20003);
 
         String jsonStr = mapper.writeValueAsString(requireTimeAfter1);
         System.out.println(jsonStr);
 
-        RequireTimeAfter requireTimeAfter2 = mapper.readValue(jsonStr,RequireTimeAfter.class);
+        RequireTimeAfter requireTimeAfter2 = mapper.readValue(jsonStr, RequireTimeAfter.class);
 
         assertEquals(requireTimeAfter1, requireTimeAfter2);
     }

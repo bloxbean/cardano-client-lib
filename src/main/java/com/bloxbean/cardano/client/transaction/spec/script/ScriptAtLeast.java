@@ -8,8 +8,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.Data;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,8 +17,8 @@ import java.util.List;
  * This script class is for "RequireMOf" expression
  */
 @Data
+@NoArgsConstructor
 public class ScriptAtLeast implements NativeScript {
-    private final static Logger LOG = LoggerFactory.getLogger(ScriptAtLeast.class);
 
     private ScriptType type;
     private int required;
@@ -38,9 +37,8 @@ public class ScriptAtLeast implements NativeScript {
 
     public ScriptAtLeast addScript(NativeScript script) {
         scripts.add(script);
-        return  this;
+        return this;
     }
-
 
     //script_n_of_k = (3, n: uint, [ * native_script ])
     @Override
@@ -50,7 +48,7 @@ public class ScriptAtLeast implements NativeScript {
         array.add(new UnsignedInteger(required));
 
         Array scriptsArray = new Array();
-        for(NativeScript script: scripts) {
+        for (NativeScript script : scripts) {
             scriptsArray.add(script.serializeAsDataItem());
         }
 
@@ -59,13 +57,13 @@ public class ScriptAtLeast implements NativeScript {
     }
 
     public static ScriptAtLeast deserialize(Array array) throws CborDeserializationException {
-        int required = ((UnsignedInteger)(array.getDataItems().get(1))).getValue().intValue();
+        int required = ((UnsignedInteger) (array.getDataItems().get(1))).getValue().intValue();
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(required);
         Array scriptsDIArray = (Array) (array.getDataItems().get(2));
-        for(DataItem scriptDI: scriptsDIArray.getDataItems()) {
-            Array scriptArray = (Array)scriptDI;
+        for (DataItem scriptDI : scriptsDIArray.getDataItems()) {
+            Array scriptArray = (Array) scriptDI;
             NativeScript nativeScript = NativeScript.deserialize(scriptArray);
-            if(nativeScript != null)
+            if (nativeScript != null)
                 scriptAtLeast.addScript(nativeScript);
         }
 
@@ -76,13 +74,11 @@ public class ScriptAtLeast implements NativeScript {
         int required = jsonNode.get("required").asInt();
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(required);
 
-        ArrayNode scriptsNode = (ArrayNode)jsonNode.get("scripts");
-        for (JsonNode scriptNode: scriptsNode) {
+        ArrayNode scriptsNode = (ArrayNode) jsonNode.get("scripts");
+        for (JsonNode scriptNode : scriptsNode) {
             NativeScript nativeScript = NativeScript.deserialize(scriptNode);
-            if (scriptNode != null)
-                scriptAtLeast.addScript(nativeScript);
+            scriptAtLeast.addScript(nativeScript);
         }
-
         return scriptAtLeast;
     }
 }
