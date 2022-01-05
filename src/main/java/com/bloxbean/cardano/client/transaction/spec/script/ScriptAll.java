@@ -8,8 +8,6 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.Data;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,20 +17,17 @@ import java.util.List;
  */
 @Data
 public class ScriptAll implements NativeScript {
-    private final static Logger LOG = LoggerFactory.getLogger(ScriptAll.class);
 
-    private ScriptType type;
+    private final ScriptType type = ScriptType.all;
     private List<NativeScript> scripts;
 
     public ScriptAll() {
-        this.type = ScriptType.all;
         this.scripts = new ArrayList<>();
     }
 
     public ScriptAll addScript(NativeScript script) {
         scripts.add(script);
-
-        return  this;
+        return this;
     }
 
     //script_all = (1, [ * native_script ])
@@ -42,7 +37,7 @@ public class ScriptAll implements NativeScript {
         array.add(new UnsignedInteger(1));
 
         Array scriptsArray = new Array();
-        for(NativeScript script: scripts) {
+        for (NativeScript script : scripts) {
             scriptsArray.add(script.serializeAsDataItem());
         }
 
@@ -52,26 +47,23 @@ public class ScriptAll implements NativeScript {
 
     public static ScriptAll deserialize(Array array) throws CborDeserializationException {
         ScriptAll scriptAll = new ScriptAll();
-        Array scriptsDIArray = (Array)(array.getDataItems().get(1));
-        for(DataItem scriptDI: scriptsDIArray.getDataItems()) {
-            Array scriptArray = (Array)scriptDI;
+        Array scriptsDIArray = (Array) (array.getDataItems().get(1));
+        for (DataItem scriptDI : scriptsDIArray.getDataItems()) {
+            Array scriptArray = (Array) scriptDI;
             NativeScript nativeScript = NativeScript.deserialize(scriptArray);
-            if(nativeScript != null)
+            if (nativeScript != null)
                 scriptAll.addScript(nativeScript);
         }
-
         return scriptAll;
     }
 
     public static ScriptAll deserialize(JsonNode jsonNode) throws CborDeserializationException {
         ScriptAll scriptAll = new ScriptAll();
-        ArrayNode scriptsNode = (ArrayNode)jsonNode.get("scripts");
-        for (JsonNode scriptNode: scriptsNode) {
+        ArrayNode scriptsNode = (ArrayNode) jsonNode.get("scripts");
+        for (JsonNode scriptNode : scriptsNode) {
             NativeScript nativeScript = NativeScript.deserialize(scriptNode);
-            if (scriptNode != null)
-                scriptAll.addScript(nativeScript);
+            scriptAll.addScript(nativeScript);
         }
-
         return scriptAll;
     }
 }

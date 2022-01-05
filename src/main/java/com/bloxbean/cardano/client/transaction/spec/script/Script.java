@@ -22,8 +22,7 @@ public interface Script {
         } catch (CborException e) {
             throw new CborSerializationException("Cbor serializaion error", e);
         }
-        byte[] encodedBytes = baos.toByteArray();
-        return encodedBytes;
+        return baos.toByteArray();
     }
 
     byte[] getScriptHash() throws CborSerializationException;

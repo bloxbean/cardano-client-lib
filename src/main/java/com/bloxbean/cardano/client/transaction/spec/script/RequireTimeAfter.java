@@ -14,11 +14,11 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 public class RequireTimeAfter implements NativeScript {
-    private ScriptType type;
+
+    private final ScriptType type = ScriptType.after;
     private long slot;
 
     public RequireTimeAfter(long slot) {
-        this.type = ScriptType.after;
         this.slot = slot;
     }
 

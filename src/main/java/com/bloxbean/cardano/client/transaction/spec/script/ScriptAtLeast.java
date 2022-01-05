@@ -14,18 +14,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This script class is for "RequireMOf" expression
+ * This script class is for "RequireOf" expression
  */
 @Data
 @NoArgsConstructor
 public class ScriptAtLeast implements NativeScript {
 
-    private ScriptType type;
+    private final ScriptType type = ScriptType.atLeast;
     private int required;
     private List<NativeScript> scripts;
 
     public ScriptAtLeast(int required) {
-        this.type = ScriptType.atLeast;
         this.required = required;
         this.scripts = new ArrayList<>();
     }
