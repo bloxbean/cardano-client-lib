@@ -13,22 +13,18 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Data
+@Slf4j
+@NoArgsConstructor
 public class ScriptPubkey implements NativeScript {
-    private final static Logger LOG = LoggerFactory.getLogger(ScriptPubkey.class);
 
+    private final ScriptType type = ScriptType.sig;
     private String keyHash;
-    private ScriptType type;
-
-    public ScriptPubkey() {
-        this.type = ScriptType.sig;
-    }
 
     public ScriptPubkey(String keyHash) {
-        this();
         this.keyHash = keyHash;
     }
 
@@ -40,7 +36,7 @@ public class ScriptPubkey implements NativeScript {
         try {
             keyHashBytes = HexUtil.decodeHexString(keyHash);
         } catch (Exception e) {
-            LOG.error("Error ", e);
+            log.error("Error ", e);
         }
         return keyHashBytes;
     }
@@ -54,7 +50,7 @@ public class ScriptPubkey implements NativeScript {
 
     public static ScriptPubkey deserialize(Array array) throws CborDeserializationException {
         ScriptPubkey scriptPubkey = new ScriptPubkey();
-        ByteString keyHashBS = (ByteString)(array.getDataItems().get(1));
+        ByteString keyHashBS = (ByteString) (array.getDataItems().get(1));
         scriptPubkey.setKeyHash(HexUtil.encodeHexString(keyHashBS.getBytes()));
         return scriptPubkey;
     }
@@ -74,6 +70,6 @@ public class ScriptPubkey implements NativeScript {
         Keys keys = KeyGenUtil.generateKey();
 
         ScriptPubkey scriptPubkey = ScriptPubkey.create(keys.getVkey());
-        return new Tuple<ScriptPubkey, Keys>(scriptPubkey, keys);
+        return new Tuple<>(scriptPubkey, keys);
     }
 }

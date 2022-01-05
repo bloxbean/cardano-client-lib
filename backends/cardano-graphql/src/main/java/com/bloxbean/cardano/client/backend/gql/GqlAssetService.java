@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.backend.gql;
 
 import com.bloxbean.cardano.client.backend.api.AssetService;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Asset;
 import com.bloxbean.cardano.client.backend.model.AssetAddress;
 import com.bloxbean.cardano.client.backend.model.PolicyAsset;
@@ -20,7 +19,7 @@ public class GqlAssetService extends BaseGqlService implements AssetService {
         super(gqlUrl);
     }
 
-    public GqlAssetService(String gqlUrl, Map<String, String > headers) {
+    public GqlAssetService(String gqlUrl, Map<String, String> headers) {
         super(gqlUrl, headers);
     }
 
@@ -29,15 +28,15 @@ public class GqlAssetService extends BaseGqlService implements AssetService {
     }
 
     @Override
-    public Result<Asset> getAsset(String unit) throws ApiException {
+    public Result<Asset> getAsset(String unit) {
         AssetQuery query = new AssetQuery(unit);
         AssetQuery.Data data = execute(query);
-        if(data == null)
-            return Result.error("No asset found for assetId: " + unit);
+        if (data == null)
+            return (Result<Asset>) Result.error("No asset found for assetId: " + unit);
 
         List<AssetQuery.Asset> assets = data.assets();
-        if(assets == null || assets.size() == 0)
-            return Result.error("No asset found for assetId: " + unit);
+        if (assets.size() == 0)
+            return (Result<Asset>) Result.error("No asset found for assetId: " + unit);
 
         AssetQuery.Asset gqlAsset = assets.get(0);
         Asset asset = new Asset();
@@ -47,36 +46,36 @@ public class GqlAssetService extends BaseGqlService implements AssetService {
 
         BigInteger quantity = BigInteger.ZERO;
         String initialMintHash;
-        int i=0;
         try {
-            for(AssetQuery.TokenMint tokenMint: gqlAsset.tokenMints()) {
+            for (AssetQuery.TokenMint tokenMint : gqlAsset.tokenMints()) {
                 quantity = quantity.add(new BigInteger(tokenMint.quantity()));
             }
             initialMintHash = String.valueOf(gqlAsset.tokenMints().get(0).transaction().hash());
             asset.setQuantity(quantity.toString());
             asset.setInitialMintTxHash(initialMintHash);
-        } catch (Exception e) {}
+        } catch (Exception ignored) {
+        }
 
         return processSuccessResult(asset);
     }
 
     @Override
-    public Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page, OrderEnum order) throws ApiException {
-        return null;
+    public Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page, OrderEnum order) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page) throws ApiException {
-        return null;
+    public Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page, OrderEnum order) throws ApiException {
-        return null;
+    public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page, OrderEnum order) {
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page) throws ApiException {
-        return null;
+    public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page) {
+        throw new UnsupportedOperationException();
     }
 }
