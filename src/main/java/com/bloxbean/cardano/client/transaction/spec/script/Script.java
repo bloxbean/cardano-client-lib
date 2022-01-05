@@ -26,4 +26,6 @@ public interface Script {
     }
 
     byte[] getScriptHash() throws CborSerializationException;
+
+    String getPolicyId() throws CborSerializationException;
 }

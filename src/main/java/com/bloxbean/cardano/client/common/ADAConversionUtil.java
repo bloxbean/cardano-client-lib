@@ -36,4 +36,8 @@ public class ADAConversionUtil {
 
         return amount.toBigInteger();
     }
+
+    public static BigInteger adaToLovelace(double amount) {
+        return adaToLovelace(BigDecimal.valueOf(amount));
+    }
 }

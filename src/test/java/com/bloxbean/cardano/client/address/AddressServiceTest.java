@@ -187,6 +187,11 @@ class AddressServiceTest {
                     byte[] serializedBytes = Bech32.decode(scriptKey).data;
                     return serializedBytes;
                 }
+
+                @Override
+                public String getPolicyId() throws CborSerializationException {
+                    return null;
+                }
             };
         }
 
