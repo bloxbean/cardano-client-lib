@@ -20,4 +20,10 @@ class ADAConversionUtilTest {
         BigDecimal ada = ADAConversionUtil.lovelaceToAda(BigInteger.valueOf(2300000));
         assertEquals(ada, BigDecimal.valueOf(2.3));
     }
+
+    @Test
+    void adaToLovelace_whenDouble() {
+        BigInteger lovelace = ADAConversionUtil.adaToLovelace(5.5);
+        assertEquals(lovelace, BigInteger.valueOf(5500000));
+    }
 }

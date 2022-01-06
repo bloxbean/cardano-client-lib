@@ -14,6 +14,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.bouncycastle.util.encoders.Hex;
 
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -28,16 +29,6 @@ public class PlutusScript implements Script {
     private String type = "PlutusScriptV1";
     private String description;
     private String cborHex;
-
-    //TODO -- remove commented code later
-//    public ByteString serializeAsDataItem() throws CborSerializationException {
-//        byte[] bytes = HexUtil.decodeHexString(cborHex);
-//        if (bytes != null && bytes.length > 0) {
-//            return new ByteString(bytes);
-//        } else {
-//            return null;
-//        }
-//    }
 
     public ByteString serializeAsDataItem() throws CborSerializationException {
         byte[] bytes = HexUtil.decodeHexString(cborHex);
@@ -56,18 +47,6 @@ public class PlutusScript implements Script {
             return null;
         }
     }
-
-    //TODO -- remove commented code later
-    //plutus_script = bytes ; New
-//    public static PlutusScript deserialize(ByteString plutusScriptDI) throws CborDeserializationException {
-//        if (plutusScriptDI != null) {
-//            PlutusScript plutusScript = new PlutusScript();
-//            plutusScript.setCborHex(HexUtil.encodeHexString(plutusScriptDI.getBytes()));
-//            return plutusScript;
-//        } else {
-//            return null;
-//        }
-//    }
 
     //plutus_script = bytes ; New
     public static PlutusScript deserialize(ByteString plutusScriptDI) throws CborDeserializationException {
@@ -96,5 +75,10 @@ public class PlutusScript implements Script {
                 .array();
 
         return blake2bHash224(finalBytes);
+    }
+
+    @JsonIgnore
+    public String getPolicyId() throws CborSerializationException {
+        return Hex.toHexString(getScriptHash());
     }
 }

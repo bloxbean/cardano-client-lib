@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.Special;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import lombok.AllArgsConstructor;
@@ -32,6 +33,11 @@ public class ListPlutusData implements PlutusData {
             return null;
 
         Array plutusDataArray = new Array();
+
+        if (plutusDataList.size() == 0)
+            return plutusDataArray;
+
+        plutusDataArray.setChunked(true);
         for (PlutusData plutusData : plutusDataList) {
             DataItem di = plutusData.serialize();
             if (di == null) {
@@ -40,6 +46,7 @@ public class ListPlutusData implements PlutusData {
 
             plutusDataArray.add(di);
         }
+        plutusDataArray.add(Special.BREAK);
 
         return plutusDataArray;
     }
@@ -50,6 +57,8 @@ public class ListPlutusData implements PlutusData {
 
         ListPlutusData listPlutusData = new ListPlutusData();
         for (DataItem di : arrayDI.getDataItems()) {
+            if (di == Special.BREAK)
+                break;
             PlutusData plutusData = PlutusData.deserialize(di);
             if (plutusData == null)
                 throw new CborDeserializationException("Null value found during PlutusData de-serialization");
