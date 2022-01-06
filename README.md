@@ -1,8 +1,8 @@
 # cardano-client-lib 
 
 A client library for Cardano in Java. 
-For some features like transaction signing and address generation, it currently uses [cardano-serialization-lib](https://github.com/Emurgo/cardano-serialization-lib) rust library though JNI. The library
-bundles the platform specific binaries of cardano-serialization-lib. You can check the currently supported operating systems below.
+For transaction signing, it currently uses a small rust module though JNI. The library
+bundles the platform specific binaries of this rust module. You can check the currently supported operating systems below.
 
 **Latest Stable Version** : [0.1.5](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.1.5)
 
