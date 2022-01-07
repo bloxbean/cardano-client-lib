@@ -391,12 +391,12 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                             .stream()
                             .map(tx -> {
                                 if (LOVELACE.equals(tx.getUnit())) {
-                                    return Value.builder().coin(tx.getAmount()).multiAssets(List.of()).build();
+                                    return Value.builder().coin(tx.getAmount()).multiAssets(Arrays.asList()).build();
                                 } else {
                                     Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(tx.getUnit());
                                     Asset asset = new Asset(policyIdAssetName._2, tx.getAmount());
-                                    MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, List.of(asset));
-                                    return Value.builder().coin(BigInteger.ZERO).multiAssets(List.of(multiAsset)).build();
+                                    MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
+                                    return Value.builder().coin(BigInteger.ZERO).multiAssets(Arrays.asList(multiAsset)).build();
                                 }
                             })
                             .reduce(Value.builder().coin(BigInteger.ZERO).build(), Value::plus);
@@ -466,16 +466,16 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         } else {
             Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
             Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-            MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, List.of(asset));
+            MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
 
             //Dummy value for min required ada calculation
-            outputBuilder.value(new Value(BigInteger.ZERO, List.of(multiAsset)));
+            outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
             //Calculate required minAda
             BigInteger minRequiredAda =
                     new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
 
             //set minRequiredAdaToValue
-            outputBuilder.value(new Value(minRequiredAda, List.of(multiAsset)));
+            outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
 
             existingMiscCost = existingMiscCost.add(minRequiredAda);
         }

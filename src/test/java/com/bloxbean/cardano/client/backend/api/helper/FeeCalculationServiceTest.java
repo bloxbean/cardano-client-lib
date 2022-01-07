@@ -99,10 +99,6 @@ class FeeCalculationServiceTest extends BaseTest {
                 .receiver(receiver)
                 .build();
 
-        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
-                .ttl(199999)
-                .build();
-
         BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().build(), null, protocolParams);
         System.out.println(fee);
 

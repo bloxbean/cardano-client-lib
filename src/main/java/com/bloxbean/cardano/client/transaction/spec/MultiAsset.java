@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -114,7 +115,7 @@ public class MultiAsset {
                 .collect(Collectors.groupingBy(MultiAsset::getPolicyId))
                 .entrySet()
                 .stream()
-                .map(entry -> entry.getValue().stream().reduce(MultiAsset.builder().policyId(entry.getKey()).assets(List.of()).build(), MultiAsset::plus))
+                .map(entry -> entry.getValue().stream().reduce(MultiAsset.builder().policyId(entry.getKey()).assets(Arrays.asList()).build(), MultiAsset::plus))
                 .collect(Collectors.toList());
     }
 
