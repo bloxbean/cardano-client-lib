@@ -380,13 +380,13 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     private BigInteger createReceiverOutputsAndPopulateCostV2(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, BigInteger totalFee,
                                                               List<TransactionOutput> transactionOutputs, Map<String, BigInteger> senderMiscCostMap, ProtocolParams protocolParams) {
 
-        var outputs = transactions
+        List<Tuple<TransactionOutput, BigInteger>> outputs = transactions
                 .stream()
                 .collect(Collectors.groupingBy(paymentTransaction -> new Tuple<>(paymentTransaction.getSender(), paymentTransaction.getReceiver())))
                 .entrySet()
                 .stream()
                 .map(entry -> {
-                    var value = entry
+                    Value value = entry
                             .getValue()
                             .stream()
                             .map(tx -> {
@@ -402,28 +402,28 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                             .reduce(Value.builder().coin(BigInteger.ZERO).build(), Value::plus);
 
                     // TxOut before min ada adjustment
-                    var draftTxOut = TransactionOutput.builder().address(entry.getKey()._2).value(value).build();
+                    TransactionOutput draftTxOut = TransactionOutput.builder().address(entry.getKey()._2).value(value).build();
 
                     // Calculate required minAda
                     BigInteger minRequiredAda = new MinAdaCalculator(protocolParams).calculateMinAda(draftTxOut);
 
                     // Get the max between the minAda and what the user wanted to send
-                    var actualCoin = minRequiredAda.max(draftTxOut.getValue().getCoin());
+                    BigInteger actualCoin = minRequiredAda.max(draftTxOut.getValue().getCoin());
 
                     // The final value to send (value is ada + all multi assets)
-                    var finalValue = Value.builder().coin(actualCoin).multiAssets(draftTxOut.getValue().getMultiAssets()).build();
+                    Value finalValue = Value.builder().coin(actualCoin).multiAssets(draftTxOut.getValue().getMultiAssets()).build();
 
                     // Sum user's fee (if specified)
-                    var fees = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
+                    BigInteger fees = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
 
                     // Costs
                     BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(entry.getKey()._1.baseAddress(), BigInteger.ZERO);
 
                     // Calculating if extra costs are required (diff between minAda and actual ada, and add to costs)
-                    var additionalCost = actualCoin.subtract(draftTxOut.getValue().getCoin());
+                    BigInteger additionalCost = actualCoin.subtract(draftTxOut.getValue().getCoin());
                     existingMiscCost = existingMiscCost.add(additionalCost);
 
-                    var costs = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
+                    BigInteger costs = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
                     existingMiscCost = existingMiscCost.add(costs);
 
                     // Update costs per (sender) base address

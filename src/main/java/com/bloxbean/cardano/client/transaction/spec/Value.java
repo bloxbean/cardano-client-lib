@@ -73,8 +73,8 @@ public class Value {
      * @return
      */
     public Value plus(Value that) {
-        var coin = getCoin().add(that.getCoin());
-        var multiAssets = MultiAsset.mergeMultiAssetLists(getMultiAssets(), that.getMultiAssets());
+        BigInteger coin = getCoin().add(that.getCoin());
+        List<MultiAsset> multiAssets = MultiAsset.mergeMultiAssetLists(getMultiAssets(), that.getMultiAssets());
         return Value.builder().coin(coin).multiAssets(multiAssets).build();
     }
 

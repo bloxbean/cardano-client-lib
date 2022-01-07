@@ -8,11 +8,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import javax.annotation.Nonnull;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Data
@@ -83,10 +81,10 @@ public class MultiAsset {
         if (!getPolicyId().equals(that.getPolicyId())) {
             throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
         }
-        var assets = new ArrayList<Asset>();
+        ArrayList<Asset> assets = new ArrayList<Asset>();
         assets.addAll(getAssets());
         assets.addAll(that.getAssets());
-        var mergedAssets = assets
+        List<Asset> mergedAssets = assets
                 .stream()
                 .collect(Collectors.groupingBy(Asset::getName))
                 .entrySet()
@@ -104,7 +102,7 @@ public class MultiAsset {
      * @return
      */
     public static List<MultiAsset> mergeMultiAssetLists(List<MultiAsset> multiAssets1, List<MultiAsset> multiAssets2) {
-        var tempMultiAssets = new ArrayList<MultiAsset>();
+        List<MultiAsset> tempMultiAssets = new ArrayList<>();
         if (multiAssets1 != null) {
             tempMultiAssets.addAll(multiAssets1);
         }
