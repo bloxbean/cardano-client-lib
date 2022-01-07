@@ -16,6 +16,8 @@ import java.util.HashMap;
 @NoArgsConstructor
 @Builder
 public class MapPlutusData implements PlutusData {
+
+    @Builder.Default
     private java.util.Map<PlutusData, PlutusData> map = new HashMap<>();
 
     public void put(PlutusData key, PlutusData value) {

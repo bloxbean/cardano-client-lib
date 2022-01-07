@@ -20,6 +20,8 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class AddressContent {
+
+    @Builder.Default
     private List<TxContentOutputAmount> amount = new ArrayList<>();
     private String stakeAddress;
     private TypeEnum type;
@@ -32,7 +34,7 @@ public class AddressContent {
 
         SHELLEY("shelley");
 
-        private String value;
+        private final String value;
 
         TypeEnum(String value) {
             this.value = value;

@@ -17,7 +17,10 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class MultiAsset {
+
     private String policyId;
+
+    @Builder.Default
     private List<Asset> assets = new ArrayList<>();
 
     public void serialize(Map multiAssetMap) {

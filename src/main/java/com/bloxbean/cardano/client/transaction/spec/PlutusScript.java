@@ -26,13 +26,15 @@ import static com.bloxbean.cardano.client.crypto.KeyGenUtil.blake2bHash224;
 @NoArgsConstructor
 @Builder
 public class PlutusScript implements Script {
+
+    @Builder.Default
     private String type = "PlutusScriptV1";
     private String description;
     private String cborHex;
 
     public ByteString serializeAsDataItem() throws CborSerializationException {
         byte[] bytes = HexUtil.decodeHexString(cborHex);
-        if (bytes != null && bytes.length > 0) {
+        if (bytes.length > 0) {
             try {
                 List<DataItem> diList = CborDecoder.decode(bytes);
                 if (diList == null || diList.size() == 0)
