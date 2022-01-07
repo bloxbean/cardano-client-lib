@@ -21,7 +21,7 @@ public class ValueSpec {
         var actualValue = lovelaceValue1.plus(lovelaceValue2);
         var expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(2500000L));
-        expectedValue.setMultiAssets(List.of());
+        expectedValue.setMultiAssets(Arrays.asList());
 
         assertThat(actualValue, equalTo(expectedValue));
 
@@ -30,9 +30,9 @@ public class ValueSpec {
     @Test
     public void addMultiAssetToLovelacesValues() {
 
-        var lovelaceValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(List.of()).build();
+        var lovelaceValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(Arrays.asList()).build();
 
-        var testMultiAssets = List.of(MultiAsset.builder().policyId("policy_ud").assets(List.of(Asset.builder().name("asset_name").value(BigInteger.valueOf(123456L)).build())).build());
+        var testMultiAssets = Arrays.asList(MultiAsset.builder().policyId("policy_ud").assets(Arrays.asList(Asset.builder().name("asset_name").value(BigInteger.valueOf(123456L)).build())).build());
 
         var multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets).build();
 
@@ -48,8 +48,8 @@ public class ValueSpec {
     @Test
     public void addDifferentMultiAssetsToLovelacesValues() {
 
-        var testMultiAssets1 = List.of(MultiAsset.builder().policyId("policy_id1").assets(List.of(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
-        var testMultiAssets2 = List.of(MultiAsset.builder().policyId("policy_id2").assets(List.of(Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build())).build());
+        var testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
+        var testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build())).build());
 
         var lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
 
@@ -69,8 +69,8 @@ public class ValueSpec {
     @Test
     public void addSamePolicyMultiAssetsToLovelacesValues() {
 
-        var testMultiAssets1 = List.of(MultiAsset.builder().policyId("policy_id1").assets(List.of(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
-        var testMultiAssets2 = List.of(MultiAsset.builder().policyId("policy_id1").assets(List.of(Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build())).build());
+        var testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
+        var testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build())).build());
 
         var lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
 
@@ -92,8 +92,8 @@ public class ValueSpec {
     @Test
     public void addSameMultiAssetsToLovelacesValues() {
 
-        var testMultiAssets1 = List.of(MultiAsset.builder().policyId("policy_id1").assets(List.of(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
-        var testMultiAssets2 = List.of(MultiAsset.builder().policyId("policy_id1").assets(List.of(Asset.builder().name("asset_name1").value(BigInteger.valueOf(2000000L)).build())).build());
+        var testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
+        var testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(2000000L)).build())).build());
 
         var lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
 

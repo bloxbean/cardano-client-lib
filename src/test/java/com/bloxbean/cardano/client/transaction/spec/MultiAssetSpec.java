@@ -16,10 +16,10 @@ public class MultiAssetSpec {
         var asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
         var asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
         var moreAsset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(300L)).build();
-        var multiAsset1 = MultiAsset.builder().policyId("policy_id").assets(List.of(asset1, asset2)).build();
-        var multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(List.of(asset1, moreAsset2)).build();
+        var multiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, asset2)).build();
+        var multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, moreAsset2)).build();
 
-        var expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(List.of(
+        var expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(
                 asset1.plus(asset1),
                 asset2.plus(moreAsset2)
         )).build();
@@ -29,8 +29,8 @@ public class MultiAssetSpec {
 
     @Test
     public void addMultiAssetWithDifferentPolicyThrowsError() {
-        var multiAsset1 = MultiAsset.builder().policyId("policy1").assets(List.of()).build();
-        var multiAsset2 = MultiAsset.builder().policyId("policy2").assets(List.of()).build();
+        var multiAsset1 = MultiAsset.builder().policyId("policy1").assets(Arrays.asList()).build();
+        var multiAsset2 = MultiAsset.builder().policyId("policy2").assets(Arrays.asList()).build();
 
         assertThrows(IllegalArgumentException.class, () -> multiAsset1.plus(multiAsset2));
     }
