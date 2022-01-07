@@ -31,14 +31,14 @@ public class ValueSpec {
     @Test
     public void addMultiAssetToLovelacesValues() {
 
-        var lovelaceValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(Arrays.asList()).build();
+        Value lovelaceValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(Arrays.asList()).build();
 
-        var testMultiAssets = Arrays.asList(MultiAsset.builder().policyId("policy_ud").assets(Arrays.asList(Asset.builder().name("asset_name").value(BigInteger.valueOf(123456L)).build())).build());
+        List<MultiAsset> testMultiAssets = Arrays.asList(MultiAsset.builder().policyId("policy_ud").assets(Arrays.asList(Asset.builder().name("asset_name").value(BigInteger.valueOf(123456L)).build())).build());
 
-        var multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets).build();
+        Value multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets).build();
 
-        var actualValue = lovelaceValue.plus(multiAssetValue);
-        var expectedValue = new Value();
+        Value actualValue = lovelaceValue.plus(multiAssetValue);
+        Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
         expectedValue.setMultiAssets(testMultiAssets);
 
@@ -49,15 +49,15 @@ public class ValueSpec {
     @Test
     public void addDifferentMultiAssetsToLovelacesValues() {
 
-        var testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
-        var testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build())).build());
+        List<MultiAsset> testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
+        List<MultiAsset> testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build())).build());
 
-        var lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
+        Value lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
 
-        var multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
+        Value multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
 
-        var actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
-        var expectedValue = new Value();
+        Value actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
+        Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
 
         expectedValue.setMultiAssets(MultiAsset.mergeMultiAssetLists(testMultiAssets1, testMultiAssets2));
@@ -70,22 +70,20 @@ public class ValueSpec {
     @Test
     public void addSamePolicyMultiAssetsToLovelacesValues() {
 
-        var testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
-        var testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build())).build());
+        List<MultiAsset> testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
+        List<MultiAsset> testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build())).build());
 
-        var lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
+        Value lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
 
-        var multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
+        Value multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
 
-        var actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
-        var expectedValue = new Value();
+        Value actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
+        Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
 
-        var testMultiAssets = MultiAsset.mergeMultiAssetLists(testMultiAssets1, testMultiAssets2);
+        List<MultiAsset> testMultiAssets = MultiAsset.mergeMultiAssetLists(testMultiAssets1, testMultiAssets2);
         expectedValue.setMultiAssets(testMultiAssets);
 
-        System.out.println(actualValue);
-        System.out.println(expectedValue);
         assertThat(actualValue, equalTo(expectedValue));
 
     }
@@ -93,15 +91,15 @@ public class ValueSpec {
     @Test
     public void addSameMultiAssetsToLovelacesValues() {
 
-        var testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
-        var testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(2000000L)).build())).build());
+        List<MultiAsset> testMultiAssets1 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(1000000L)).build())).build());
+        List<MultiAsset> testMultiAssets2 = Arrays.asList(MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(Asset.builder().name("asset_name1").value(BigInteger.valueOf(2000000L)).build())).build());
 
-        var lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
+        Value lovelaceAndMultiAssetValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(testMultiAssets1).build();
 
-        var multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
+        Value multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
 
-        var actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
-        var expectedValue = new Value();
+        Value actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
+        Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
         expectedValue.setMultiAssets(MultiAsset.mergeMultiAssetLists(testMultiAssets1, testMultiAssets2));
 
