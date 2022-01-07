@@ -12,16 +12,16 @@ public class AssetSpec {
 
     @Test
     public void addSameAsset() {
-        var asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(100L)).build();
-        var asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
+        Asset asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(100L)).build();
+        Asset asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
 
         assertThat(asset1.plus(asset2), equalTo(Asset.builder().name("asset").value(BigInteger.valueOf(300L)).build()));
     }
 
     @Test
     public void addDifferentAssetThrowsError() {
-        var asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
-        var asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
+        Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
+        Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
 
         assertThrows(IllegalArgumentException.class, () -> asset1.plus(asset2));
     }

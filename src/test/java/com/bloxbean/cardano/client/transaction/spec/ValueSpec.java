@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -12,14 +13,14 @@ public class ValueSpec {
 
     @Test
     public void addTwoLovelacesValues() {
-        var lovelaceValue1 = new Value();
+        Value lovelaceValue1 = new Value();
         lovelaceValue1.setCoin(BigInteger.valueOf(1000000L));
 
-        var lovelaceValue2 = new Value();
+        Value lovelaceValue2 = new Value();
         lovelaceValue2.setCoin(BigInteger.valueOf(1500000L));
 
-        var actualValue = lovelaceValue1.plus(lovelaceValue2);
-        var expectedValue = new Value();
+        Value actualValue = lovelaceValue1.plus(lovelaceValue2);
+        Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(2500000L));
         expectedValue.setMultiAssets(Arrays.asList());
 
