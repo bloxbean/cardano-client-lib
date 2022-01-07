@@ -104,9 +104,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         Map<String, BigInteger> senderMiscCostMap = new HashMap<>(); //Misc cost of sender, mini ada
 
         //Create output for receivers and calculate total fees/cost for each sender
-        for (PaymentTransaction transaction : transactions) {
-            totalFee = createReceiverOutputsAndPopulateCost(transaction, detailsParams, totalFee, transactionOutputs, senderMiscCostMap, protocolParams);
-        }
+        totalFee = createReceiverOutputsAndPopulateCostV2(transactions, detailsParams, totalFee, transactionOutputs, senderMiscCostMap, protocolParams);
 
         //Check if min cost is there in all selected Utxos
         for (String sender : senderMiscCostMap.keySet()) {
@@ -384,7 +382,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
         var outputs = transactions
                 .stream()
-                .collect(Collectors.groupingBy(PaymentTransaction::getReceiver))
+                .collect(Collectors.groupingBy(paymentTransaction -> new Tuple<>(paymentTransaction.getSender(), paymentTransaction.getReceiver())))
                 .entrySet()
                 .stream()
                 .map(entry -> {
@@ -393,7 +391,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                             .stream()
                             .map(tx -> {
                                 if (LOVELACE.equals(tx.getUnit())) {
-                                    return Value.builder().coin(tx.getAmount()).build();
+                                    return Value.builder().coin(tx.getAmount()).multiAssets(List.of()).build();
                                 } else {
                                     Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(tx.getUnit());
                                     Asset asset = new Asset(policyIdAssetName._2, tx.getAmount());
@@ -404,36 +402,57 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                             .reduce(Value.builder().coin(BigInteger.ZERO).build(), Value::plus);
 
                     // TxOut before min ada adjustment
-                    var candidateTxOutput =  TransactionOutput.builder().address(entry.getKey()).value(value).build();
+                    var draftTxOut = TransactionOutput.builder().address(entry.getKey()._2).value(value).build();
 
-                    //Calculate required minAda
-                    BigInteger minRequiredAda = new MinAdaCalculator(protocolParams).calculateMinAda(candidateTxOutput);
+                    // Calculate required minAda
+                    BigInteger minRequiredAda = new MinAdaCalculator(protocolParams).calculateMinAda(draftTxOut);
 
-                    var finalValue = Value.builder().coin(minRequiredAda).multiAssets(candidateTxOutput.getValue().getMultiAssets()).build();
+                    // Get the max between the minAda and what the user wanted to send
+                    var actualCoin = minRequiredAda.max(draftTxOut.getValue().getCoin());
+
+                    // The final value to send (value is ada + all multi assets)
+                    var finalValue = Value.builder().coin(actualCoin).multiAssets(draftTxOut.getValue().getMultiAssets()).build();
+
+                    // Sum user's fee (if specified)
                     var fees = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
 
                     // Costs
-                    entry
-                            .getValue()
-                            .forEach(transaction -> {
-                                BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(transaction.getSender().baseAddress(), BigInteger.ZERO);
-                                existingMiscCost = existingMiscCost.add(minRequiredAda);
-                                existingMiscCost = existingMiscCost.add(transaction.getFee());
-                                senderMiscCostMap.put(transaction.getSender().baseAddress(), existingMiscCost);
-                            });
+                    BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(entry.getKey()._1.baseAddress(), BigInteger.ZERO);
 
-                    return new Tuple<>(TransactionOutput.builder().address(entry.getKey()).value(finalValue).build(), fees);
+                    // Calculating if extra costs are required (diff between minAda and actual ada, and add to costs)
+                    var additionalCost = actualCoin.subtract(draftTxOut.getValue().getCoin());
+                    existingMiscCost = existingMiscCost.add(additionalCost);
+
+                    var costs = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
+                    existingMiscCost = existingMiscCost.add(costs);
+
+                    // Update costs per (sender) base address
+                    senderMiscCostMap.put(entry.getKey()._1.baseAddress(), existingMiscCost);
+
+                    return new Tuple<>(TransactionOutput.builder().address(entry.getKey()._2).value(finalValue).build(), fees);
                 })
                 .collect(Collectors.toList());
 
 
         totalFee = totalFee.add(transactions.stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add));
+
         transactionOutputs.addAll(outputs.stream().map(tuple -> tuple._1).collect(Collectors.toList()));
 
         return totalFee;
     }
 
 
+    /**
+     * Deprecated, see createReceiverOutputsAndPopulateCostV2
+     * @param transaction
+     * @param detailsParams
+     * @param totalFee
+     * @param transactionOutputs
+     * @param senderMiscCostMap
+     * @param protocolParams
+     * @return
+     */
+    @Deprecated
     private BigInteger createReceiverOutputsAndPopulateCost(PaymentTransaction transaction, TransactionDetailsParams detailsParams, BigInteger totalFee,
                                                             List<TransactionOutput> transactionOutputs, Map<String, BigInteger> senderMiscCostMap, ProtocolParams protocolParams) {
         //Sender misc cost
@@ -447,16 +466,16 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         } else {
             Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(transaction.getUnit());
             Asset asset = new Asset(policyIdAssetName._2, transaction.getAmount());
-            MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
+            MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, List.of(asset));
 
             //Dummy value for min required ada calculation
-            outputBuilder.value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset)));
+            outputBuilder.value(new Value(BigInteger.ZERO, List.of(multiAsset)));
             //Calculate required minAda
             BigInteger minRequiredAda =
                     new MinAdaCalculator(protocolParams).calculateMinAda(outputBuilder.build());
 
             //set minRequiredAdaToValue
-            outputBuilder.value(new Value(minRequiredAda, Arrays.asList(multiAsset)));
+            outputBuilder.value(new Value(minRequiredAda, List.of(multiAsset)));
 
             existingMiscCost = existingMiscCost.add(minRequiredAda);
         }

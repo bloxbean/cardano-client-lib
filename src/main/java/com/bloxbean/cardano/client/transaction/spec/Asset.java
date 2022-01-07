@@ -48,7 +48,7 @@ public class Asset {
     }
 
     /**
-     *
+     * returns a new asset that is the sum of this and that (asset passed as parameter)
      * @param that
      * @return a new Asset as sum of this value and the one passed as parameter
      */

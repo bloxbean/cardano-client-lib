@@ -8,9 +8,11 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import javax.annotation.Nonnull;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Data
@@ -72,6 +74,11 @@ public class MultiAsset {
         }
     }
 
+    /**
+     * Sums a Multi Asset to another. If an Asset is already present, sums the amounts.
+     * @param that
+     * @return
+     */
     public MultiAsset plus(MultiAsset that) {
         if (!getPolicyId().equals(that.getPolicyId())) {
             throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
@@ -89,10 +96,21 @@ public class MultiAsset {
         return MultiAsset.builder().policyId(getPolicyId()).assets(mergedAssets).build();
     }
 
+    /**
+     * Creates a new list of multi assets from those passed as parameters.
+     * Multi Assets with the same policy id will be aggregated together, and matching assets summed.
+     * @param multiAssets1
+     * @param multiAssets2
+     * @return
+     */
     public static List<MultiAsset> mergeMultiAssetLists(List<MultiAsset> multiAssets1, List<MultiAsset> multiAssets2) {
         var tempMultiAssets = new ArrayList<MultiAsset>();
-        tempMultiAssets.addAll(multiAssets1);
-        tempMultiAssets.addAll(multiAssets2);
+        if (multiAssets1 != null) {
+            tempMultiAssets.addAll(multiAssets1);
+        }
+        if (multiAssets2 != null) {
+            tempMultiAssets.addAll(multiAssets2);
+        }
         return tempMultiAssets
                 .stream()
                 .collect(Collectors.groupingBy(MultiAsset::getPolicyId))
