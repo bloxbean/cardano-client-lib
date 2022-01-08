@@ -110,7 +110,7 @@ class FeeCalculationServiceTest extends BaseTest {
     void testCalculateFeeMultiplePaymentTransactions() throws ApiException, IOException, AddressExcepion, CborSerializationException {
 
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
-        String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        String receiver2 = "addr_test1qpchc7f6zln5c2ruarssn9p8vulhhn3rk7cvz4lm05eq2xwx8e7tf5l25n4ek3gch8tnj4k5z4236fvy6yndrusf7x0sv287t5";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
         given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
