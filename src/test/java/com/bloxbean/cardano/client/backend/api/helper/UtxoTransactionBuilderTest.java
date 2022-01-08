@@ -41,6 +41,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
@@ -677,7 +678,7 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9"));
 
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(newAmount));
-        assertNull(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets());
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets(), is(empty()));
     }
 
     @Test
