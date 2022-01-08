@@ -19,6 +19,7 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class TransactionBody {
+
     private List<TransactionInput> inputs;
     private List<TransactionOutput> outputs;
     private BigInteger fee;
@@ -28,6 +29,8 @@ public class TransactionBody {
     //update -- Not implemented
     private byte[] auxiliaryDataHash; //auxiliary_data_hash
     private long validityStartInterval;
+
+    @Builder.Default
     private List<MultiAsset> mint = new ArrayList<>();
     private byte[] scriptDataHash;
     private List<TransactionInput> collateral;

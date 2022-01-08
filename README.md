@@ -1,12 +1,12 @@
 # cardano-client-lib 
 
 A client library for Cardano in Java. 
-For some features like transaction signing and address generation, it currently uses [cardano-serialization-lib](https://github.com/Emurgo/cardano-serialization-lib) rust library though JNI. The library
-bundles the platform specific binaries of cardano-serialization-lib. You can check the currently supported operating systems below.
+For transaction signing, it currently uses a small rust module though JNI. The library
+bundles the platform specific binaries of this rust module. You can check the currently supported operating systems below.
 
 **Latest Stable Version** : [0.1.5](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.1.5)
 
-**Preview Version** (Alonzo specific changes) : [0.2.0-preview2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-preview2)
+**Latest Beta (Alonzo specific changes)**: [0.2.0-beta1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-beta1)
 
 ## Supported Operating Systems
 The library has been tested on the following Operating Systems. 
@@ -287,46 +287,6 @@ You can create a custom implementation of UtxoSelectionStrategy to change the de
 UtxoSelectionStrategy customUtxoSelectionStrategy = new CustomUtxoSelectionStrategyImpl(utxoService); //Your custom impl
 transactionHelperService.getUtxoTransactionBuilder().setUtxoSelectionStrategy(customUtxoSelectionStrategy);
 ```
-
-
-## Use as a standalone application
-The library also provides some CLI utilities. Download `cardano-client-lib-all-<version>.jar` from release section.
-
-```
-$> java -jar cardano-client-lib-all-<version>.jar  account generate [-ea] [-n mainnet|testnet] [-t total_no_of_accounts]
-$> java -jar cardano-client-lib-all-<version>.jar  account from-mnemonic [-mn mnemonic] [-ea] [-n <mainnet|testnet>] [-t total_no_of_accounts]
-   
-   -ea : Also generate Enterprise address
-```
-
-Examples:
-```
-- java -jar cardano-client-lib-all-<version>.jar account generate  //Generate a new mainnet account
-- java -jar cardano-client-lib-all-<version>.jar account generate -n testnet  //Generate a new testnet account
-- java -jar cardano-client-lib-all-<version>.jar account generate -ea  //Generate a new account and both Base Address and Enterprise address
-- java -jar cardano-client-lib-all-<version>.jar account generate -ea -t 5  //Generate a new account and show first 5 Base Addresses and Ent Addresses
-- java -jar cardano-client-lib-all-<version>.jar account from-mnemonic -mn "chimney proof dismiss ..." -t 5 //Generate first 5 mainnet addresses from the mnemonic
-- java -jar cardano-client-lib-all-<version>.jar account from-mnemonic -mn "chimney proof dismiss ..." -t 5 -n testnet //Testnet accounts
-```
-- Generate a new Mainnet account
-
-```
-$> java -jar cardano-client-lib-all-0.0.1.jar account generate
-
-Output: 
-Mnemonic  : stable fade square ...
-Base Address-0: addr1q9nj6uysd93x ...
-```
-- Generate a new Testnet account
-```
-$> java -jar cardano-client-lib-all-0.0.1.jar account generate -n testnet
-
-Output:
-Mnemonic  : gauge side mandate sight evoke ...
-Base Address-0: addr_test1qqyc4rcuz0wwy...
-
-```
-
 
 # Build
 

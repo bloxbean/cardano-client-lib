@@ -22,11 +22,6 @@ public class RequireTimeAfter implements NativeScript {
         this.slot = slot;
     }
 
-    public RequireTimeAfter after(long slot) {
-        this.slot = slot;
-        return this;
-    }
-
     @Override
     public DataItem serializeAsDataItem() {
         Array array = new Array();

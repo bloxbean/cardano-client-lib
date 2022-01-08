@@ -19,8 +19,10 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class Value {
+
     private BigInteger coin;
     //Policy Id -> Asset
+    @Builder.Default
     private List<MultiAsset> multiAssets = new ArrayList<>();
 
     public Map serialize() throws CborSerializationException {

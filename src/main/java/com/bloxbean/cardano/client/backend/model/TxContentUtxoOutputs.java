@@ -18,6 +18,9 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class TxContentUtxoOutputs {
+
     private String address;
+
+    @Builder.Default
     private List<TxContentOutputAmount> amount = new ArrayList<>();
 }
