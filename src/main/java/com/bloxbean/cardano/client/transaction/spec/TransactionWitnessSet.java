@@ -17,13 +17,24 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class TransactionWitnessSet {
+
+    @Builder.Default
     private List<VkeyWitness> vkeyWitnesses = new ArrayList<>();
+
+    @Builder.Default
     private List<NativeScript> nativeScripts = new ArrayList<>();
 
+    @Builder.Default
     private List<BootstrapWitness> bootstrapWitnesses = new ArrayList<>(); //Not implemented
+
     //Alonzo
+    @Builder.Default
     private List<PlutusScript> plutusScripts = new ArrayList<>();
+
+    @Builder.Default
     private List<PlutusData> plutusDataList = new ArrayList<>();
+
+    @Builder.Default
     private List<Redeemer> redeemers = new ArrayList<>();
 
     public Map serialize() throws CborSerializationException {

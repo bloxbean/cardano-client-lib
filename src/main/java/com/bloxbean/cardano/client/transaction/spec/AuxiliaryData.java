@@ -24,13 +24,15 @@ import java.util.List;
 @Builder
 public class AuxiliaryData {
     private Metadata metadata;
+
+    @Builder.Default
     private List<NativeScript> nativeScripts = new ArrayList<>();
+
+    @Builder.Default
     private List<PlutusScript> plutusScripts = new ArrayList<>();
 
     public DataItem serialize() throws CborSerializationException {
-        Map map = getAuxiliaryData();
-
-        return map;
+        return getAuxiliaryData();
     }
 
     public static AuxiliaryData deserialize(Map map) throws CborDeserializationException {

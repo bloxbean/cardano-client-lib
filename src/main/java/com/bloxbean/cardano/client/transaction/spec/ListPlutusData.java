@@ -18,6 +18,8 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class ListPlutusData implements PlutusData {
+
+    @Builder.Default
     private List<PlutusData> plutusDataList = new ArrayList<>();
 
     public void add(PlutusData plutusData) {

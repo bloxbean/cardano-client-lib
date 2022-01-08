@@ -17,6 +17,10 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class TxContentUtxo {
+
+    @Builder.Default
     private List<TxContentUtxoInputs> inputs = null;
+
+    @Builder.Default
     private List<TxContentUtxoOutputs> outputs = null;
 }
