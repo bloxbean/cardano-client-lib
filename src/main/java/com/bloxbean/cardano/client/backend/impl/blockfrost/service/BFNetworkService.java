@@ -5,17 +5,14 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.http.CardanoLedgerApi;
 import com.bloxbean.cardano.client.backend.model.Genesis;
 import com.bloxbean.cardano.client.backend.model.Result;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import retrofit2.Call;
 import retrofit2.Response;
 
 import java.io.IOException;
 
 public class BFNetworkService extends BFBaseService implements NetworkInfoService {
-    private final static Logger LOG = LoggerFactory.getLogger(BFNetworkService.class);
 
-    private CardanoLedgerApi ledgerApi;
+    private final CardanoLedgerApi ledgerApi;
 
     public BFNetworkService(String baseUrl, String projectId) {
         super(baseUrl, projectId);
@@ -24,12 +21,10 @@ public class BFNetworkService extends BFBaseService implements NetworkInfoServic
 
     @Override
     public Result<Genesis> getNetworkInfo() throws ApiException {
-
         Call<Genesis> genesisCall = ledgerApi.genesis(getProjectId());
-
         try {
             Response<Genesis> response = genesisCall.execute();
-            if(response.isSuccessful())
+            if (response.isSuccessful())
                 return Result.success(response.toString()).withValue(response.body()).code(response.code());
             else
                 return Result.error(response.errorBody().string()).code(response.code());
@@ -38,5 +33,4 @@ public class BFNetworkService extends BFBaseService implements NetworkInfoServic
             throw new ApiException("Error getting genesis info", e);
         }
     }
-
 }

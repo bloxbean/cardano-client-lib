@@ -64,7 +64,7 @@ public class BFEpochService extends BFBaseService implements EpochService {
                 return Result.error(response.errorBody().string()).code(response.code());
 
         } catch (IOException e) {
-            throw new ApiException("Error getting protocol paramters by number : " + epoch, e);
+            throw new ApiException("Error getting protocol parameters by number : " + epoch, e);
         }
     }
 
@@ -72,11 +72,11 @@ public class BFEpochService extends BFBaseService implements EpochService {
     public Result<ProtocolParams> getProtocolParameters() throws ApiException {
         Result<EpochContent> epochContentResult = getLatestEpoch();
         if(!epochContentResult.isSuccessful())
-            throw new ApiException("Unable to get latest epoch info to get protocol paramters");
+            throw new ApiException("Unable to get latest epoch info to get protocol parameters");
 
         EpochContent epochContent = epochContentResult.getValue();
         if(epochContent == null)
-            throw new ApiException("Unable to get latest epoch info to get protocol paramters");
+            throw new ApiException("Unable to get latest epoch info to get protocol parameters");
 
         return getProtocolParameters(epochContent.getEpoch());
     }
