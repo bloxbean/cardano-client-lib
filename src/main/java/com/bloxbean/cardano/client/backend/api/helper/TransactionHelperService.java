@@ -21,8 +21,7 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Arrays;
 import java.util.List;
@@ -31,10 +30,10 @@ import java.util.List;
  * Helper service to build transaction request from high level transaction request apis and submit to the network.
  * To build the final transaction request, this class uses {@link UtxoTransactionBuilder}
  */
+@Slf4j
 public class TransactionHelperService {
-    private Logger LOG = LoggerFactory.getLogger(TransactionHelperService.class);
 
-    private TransactionService transactionService;
+    private final TransactionService transactionService;
     private UtxoTransactionBuilder utxoTransactionBuilder;
     private EpochService epochService;
 
@@ -42,10 +41,11 @@ public class TransactionHelperService {
 
     /**
      * Create a {@link TransactionHelperService} from {@link TransactionService} and {@link UtxoService}
+     *
      * @param transactionService
      * @param utxoService
      */
-    public TransactionHelperService(TransactionService transactionService, EpochService epochService, UtxoService utxoService ) {
+    public TransactionHelperService(TransactionService transactionService, EpochService epochService, UtxoService utxoService) {
         this.transactionService = transactionService;
         this.utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
         this.epochService = epochService;
@@ -53,6 +53,7 @@ public class TransactionHelperService {
 
     /**
      * Create a {@link TransactionHelperService} from {@link TransactionService} and custom {@link UtxoTransactionBuilder} implementation
+     *
      * @param transactionService
      * @param utxoTransactionBuilder
      */
@@ -66,6 +67,7 @@ public class TransactionHelperService {
     /**
      * Create a {@link TransactionHelperService} from {@link TransactionService} and custom {@link UtxoSelectionStrategy}
      * This uses the default implementation of {@link UtxoTransactionBuilder} and set the custom {@link UtxoSelectionStrategy}
+     *
      * @param transactionService
      * @param utxoSelectionStrategy
      */
@@ -76,6 +78,7 @@ public class TransactionHelperService {
 
     /**
      * Get UtxoTransactionBuilder set in this TransactionHelperService
+     *
      * @return
      */
     public UtxoTransactionBuilder getUtxoTransactionBuilder() {
@@ -84,6 +87,7 @@ public class TransactionHelperService {
 
     /**
      * Set a custom UtxoTransactionBuilder
+     *
      * @param utxoTransactionBuilder
      */
     public void setUtxoTransactionBuilder(UtxoTransactionBuilder utxoTransactionBuilder) {
@@ -91,7 +95,6 @@ public class TransactionHelperService {
     }
 
     /**
-     *
      * @param paymentTransaction
      * @param detailsParams
      * @return
@@ -105,7 +108,6 @@ public class TransactionHelperService {
     }
 
     /**
-     *
      * @param paymentTransaction
      * @param detailsParams
      * @return
@@ -119,7 +121,6 @@ public class TransactionHelperService {
     }
 
     /**
-     *
      * @param paymentTransactions
      * @param detailsParams
      * @return
@@ -134,6 +135,7 @@ public class TransactionHelperService {
 
     /**
      * Transfer fund
+     *
      * @param paymentTransactions
      * @param detailsParams
      * @return Result object with transaction id
@@ -149,8 +151,8 @@ public class TransactionHelperService {
 
         Result<String> result = transactionService.submitTransaction(signedTxnBytes);
 
-        if(!result.isSuccessful()) {
-            LOG.error("Trasaction submission failed");
+        if (!result.isSuccessful()) {
+            log.error("Trasaction submission failed");
         }
 
         //Let's build TransactionResult object
@@ -159,6 +161,7 @@ public class TransactionHelperService {
 
     /**
      * Get cbor serialized signed transaction in Hex
+     *
      * @param paymentTransactions
      * @param detailsParams
      * @param metadata
@@ -169,21 +172,21 @@ public class TransactionHelperService {
      */
     public String createSignedTransaction(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, AddressExcepion, CborSerializationException {
-        if(LOG.isDebugEnabled())
-            LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(paymentTransactions));
+        if (log.isDebugEnabled())
+            log.debug("Requests: \n" + JsonUtil.getPrettyJson(paymentTransactions));
 
         Transaction transaction = utxoTransactionBuilder.buildTransaction(paymentTransactions, detailsParams, metadata, getProtocolParams());
         transaction.setValid(true);
 
-        if(LOG.isDebugEnabled())
-            LOG.debug(JsonUtil.getPrettyJson(transaction));
+        if (log.isDebugEnabled())
+            log.debug(JsonUtil.getPrettyJson(transaction));
 
         Transaction finalTxn = transaction;
-        for(PaymentTransaction txn: paymentTransactions) {
+        for (PaymentTransaction txn : paymentTransactions) {
             finalTxn = txn.getSender().sign(finalTxn);
 
-            if(txn.getAdditionalWitnessAccounts() != null) { //Add additional witnesses
-                for(Account additionalWitnessAcc: txn.getAdditionalWitnessAccounts()) {
+            if (txn.getAdditionalWitnessAccounts() != null) { //Add additional witnesses
+                for (Account additionalWitnessAcc : txn.getAdditionalWitnessAccounts()) {
                     finalTxn = additionalWitnessAcc.sign(finalTxn);
                 }
             }
@@ -194,6 +197,7 @@ public class TransactionHelperService {
 
     /**
      * Mint tranaction
+     *
      * @param mintTransaction
      * @param detailsParams
      * @return
@@ -208,6 +212,7 @@ public class TransactionHelperService {
 
     /**
      * Create a token mint transaction, sign and submit to the network
+     *
      * @param mintTransaction
      * @param detailsParams
      * @return Result object with transaction id
@@ -227,6 +232,7 @@ public class TransactionHelperService {
 
     /**
      * Create a mint transaction, sign and return cbor value as hex string
+     *
      * @param mintTransaction
      * @param detailsParams
      * @param metadata
@@ -237,14 +243,14 @@ public class TransactionHelperService {
      */
     public String createSignedMintTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata)
             throws ApiException, AddressExcepion, CborSerializationException {
-        if(LOG.isDebugEnabled())
-            LOG.debug("Requests: \n" + JsonUtil.getPrettyJson(mintTransaction));
+        if (log.isDebugEnabled())
+            log.debug("Requests: \n" + JsonUtil.getPrettyJson(mintTransaction));
 
         Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, metadata, getProtocolParams());
         transaction.setValid(true);
 
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
-        transactionWitnessSet.getNativeScripts().add(mintTransaction.getPolicyScript());
+        transactionWitnessSet.getNativeScripts().add(mintTransaction.getPolicy().getPolicyScript());
         transaction.setWitnessSet(transactionWitnessSet);
 
         //TODO - check probably not required here.
@@ -252,32 +258,33 @@ public class TransactionHelperService {
 //                .metadata(metadata)
 //                .build());
 
-        if(LOG.isDebugEnabled())
-            LOG.debug(JsonUtil.getPrettyJson(transaction));
+        if (log.isDebugEnabled())
+            log.debug(JsonUtil.getPrettyJson(transaction));
 
         Transaction signedTxn = mintTransaction.getSender().sign(transaction);
 
-        if(mintTransaction.getPolicyKeys() != null) {
-            for (SecretKey key : mintTransaction.getPolicyKeys()) {
+        if (mintTransaction.getPolicy().getPolicyKeys() != null) {
+            for (SecretKey key : mintTransaction.getPolicy().getPolicyKeys()) {
                 signedTxn = TransactionSigner.INSTANCE.sign(signedTxn, key);
             }
         }
 
-        if(mintTransaction.getAdditionalWitnessAccounts() != null) {
-            for(Account addWitnessAcc: mintTransaction.getAdditionalWitnessAccounts()) {
+        if (mintTransaction.getAdditionalWitnessAccounts() != null) {
+            for (Account addWitnessAcc : mintTransaction.getAdditionalWitnessAccounts()) {
                 signedTxn = addWitnessAcc.sign(signedTxn);
             }
         }
 
-        if(LOG.isDebugEnabled()) {
-            LOG.debug(signedTxn.toString());
-            LOG.debug(signedTxn.serializeToHex());
+        if (log.isDebugEnabled()) {
+            log.debug(signedTxn.toString());
+            log.debug(signedTxn.serializeToHex());
         }
         return signedTxn.serializeToHex();
     }
 
     /**
      * Set protocolparams. Caller invokes this method to set custom protocol parameters.
+     *
      * @param protocolParams
      */
     public void setProtocolParams(ProtocolParams protocolParams) {
@@ -288,7 +295,7 @@ public class TransactionHelperService {
         TransactionResult transactionResult = new TransactionResult();
         transactionResult.setSignedTxn(signedTxn);
 
-        if(result.isSuccessful()) {
+        if (result.isSuccessful()) {
             transactionResult.setTransactionId(result.getValue());
             return Result.success(result.getResponse()).withValue(transactionResult).code(result.code());
         } else {
@@ -298,15 +305,15 @@ public class TransactionHelperService {
     }
 
     private ProtocolParams getProtocolParams() throws ApiException {
-        if(protocolParams == null) {
+        if (protocolParams == null) {
             Result<ProtocolParams> protocolParamsResult = epochService.getProtocolParameters();
-            if(!protocolParamsResult.isSuccessful())
+            if (!protocolParamsResult.isSuccessful())
                 throw new ApiException("Unable to fetch protocol parameters to build transaction");
 
             protocolParams = protocolParamsResult.getValue();
         }
 
-        if(protocolParams == null)
+        if (protocolParams == null)
             throw new ApiException("Unable to fetch protocol parameters to build transaction");
 
         return protocolParams;

@@ -24,6 +24,7 @@ import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -56,8 +57,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
 
     @Test
     public void testBuildTransaction() throws AddressExcepion, ApiException {
-        String senderMnemonic = senderMnemonic1;
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        Account sender = new Account(Networks.testnet(), senderMnemonic1);
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<PaymentTransaction> paymentTransactionList = Arrays.asList(
@@ -81,8 +81,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
 
     @Test
     public void testBuildTransactionWithUtxos() throws AddressExcepion, ApiException {
-        String senderMnemonic = senderMnemonic1;
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        Account sender = new Account(Networks.testnet(), senderMnemonic1);
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -114,14 +113,13 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
         SecretKey skey = keys.getSkey();
 
         ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
-        String policyId = scriptPubkey.getPolicyId();
+        Policy policy = new Policy(scriptPubkey).addKey(skey);
 
-        String senderMnemonic = senderMnemonic1;
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        Account sender = new Account(Networks.testnet(), senderMnemonic1);
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         MultiAsset multiAsset = new MultiAsset();
-        multiAsset.setPolicyId(policyId);
+        multiAsset.setPolicyId(policy.getPolicyId());
         Asset asset = new Asset("mycoin", BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
@@ -131,8 +129,7 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
                         .fee(BigInteger.valueOf(200000))
-                        .policyScript(scriptPubkey)
-                        .policyKeys(Arrays.asList(skey))
+                        .policy(policy)
                         .build();
 
         List<Utxo> utxos = utxoService.getUtxos(sender.baseAddress(), 20, 1, OrderEnum.desc).getValue();

@@ -2,23 +2,21 @@ package com.bloxbean.cardano.client.cip;
 
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.cip.cip25.NFT;
 import com.bloxbean.cardano.client.cip.cip25.NFTFile;
 import com.bloxbean.cardano.client.cip.cip25.NFTMetadata;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
-import com.bloxbean.cardano.client.crypto.Keys;
-import com.bloxbean.cardano.client.crypto.SecretKey;
-import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
-import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
+import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.util.PolicyUtil;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -30,21 +28,18 @@ import java.util.Random;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-public class CIP25NFTTransaction extends CIPBaseTransactionTest {
+public class CIP25NFTTransactionTest extends CIPBaseTransactionTest {
 
     @Test
     public void mintToken() throws CborSerializationException, ApiException, AddressExcepion {
-        Keys keys = KeyGenUtil.generateKey();
-        VerificationKey vkey = keys.getVkey();
-        SecretKey skey = keys.getSkey();
-
-        ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
-        String policyId = scriptPubkey.getPolicyId();
-
+        long currentSlot = queryTipSlot();
+        assertNotEquals(0,currentSlot);
+        Policy policy = PolicyUtil.createEpochBasedTimeLockedPolicy("CIP25PolicyTimeLockedPolicy",currentSlot,5L);
         String assetName = "NFTTest-" + new Random().nextInt();
         MultiAsset multiAsset = new MultiAsset();
-        multiAsset.setPolicyId(policyId);
+        multiAsset.setPolicyId(policy.getPolicyId());
         Asset asset = new Asset(HexUtil.encodeHexString(assetName.getBytes(StandardCharsets.UTF_8), true), BigInteger.valueOf(1));
         multiAsset.getAssets().add(asset);
 
@@ -72,8 +67,7 @@ public class CIP25NFTTransaction extends CIPBaseTransactionTest {
         //Add some extra attributes
         nft.putNegative("longitude", new BigInteger("-1223787"));
 
-        NFTMetadata nftMetadata = NFTMetadata.create()
-                .addNFT(policyId, nft);
+        NFTMetadata nftMetadata = NFTMetadata.create().addNFT(policy.getPolicyId(), nft);
 
         System.out.println("Metadata: " + nftMetadata.toJson());
 
@@ -82,8 +76,7 @@ public class CIP25NFTTransaction extends CIPBaseTransactionTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptPubkey)
-                        .policyKeys(Arrays.asList(skey))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), nftMetadata);
@@ -102,11 +95,20 @@ public class CIP25NFTTransaction extends CIPBaseTransactionTest {
         waitForTransaction(result);
 
         assertThat(result.isSuccessful(), is(true));
-
         if (result.isSuccessful()) {
             System.out.println("Transaction Id: " + result.getValue().getTransactionId());
-            System.out.println("Policy Id: " + policyId);
+            System.out.println("Policy Id: " + policy.getPolicyId());
             System.out.println("Asset Name: " + assetName);
+        }
+    }
+
+    private long queryTipSlot() throws ApiException {
+        Result<Block> blockResult = blockService.getLastestBlock();
+        if (blockResult.isSuccessful()) {
+            Block block = blockResult.getValue();
+            return block.getSlot();
+        } else {
+            return 0;
         }
     }
 }
