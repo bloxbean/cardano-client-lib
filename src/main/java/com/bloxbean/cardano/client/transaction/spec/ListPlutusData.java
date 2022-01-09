@@ -22,6 +22,9 @@ public class ListPlutusData implements PlutusData {
     @Builder.Default
     private List<PlutusData> plutusDataList = new ArrayList<>();
 
+    @Builder.Default
+    private boolean isChunked = true;
+
     public void add(PlutusData plutusData) {
         if (plutusDataList == null)
             plutusDataList = new ArrayList<>();
@@ -39,7 +42,9 @@ public class ListPlutusData implements PlutusData {
         if (plutusDataList.size() == 0)
             return plutusDataArray;
 
-        plutusDataArray.setChunked(true);
+        if (isChunked)
+            plutusDataArray.setChunked(true);
+
         for (PlutusData plutusData : plutusDataList) {
             DataItem di = plutusData.serialize();
             if (di == null) {
@@ -48,7 +53,9 @@ public class ListPlutusData implements PlutusData {
 
             plutusDataArray.add(di);
         }
-        plutusDataArray.add(Special.BREAK);
+
+        if (isChunked)
+            plutusDataArray.add(Special.BREAK);
 
         return plutusDataArray;
     }
@@ -57,16 +64,22 @@ public class ListPlutusData implements PlutusData {
         if (arrayDI == null)
             return null;
 
+        boolean isChunked = false;
         ListPlutusData listPlutusData = new ListPlutusData();
         for (DataItem di : arrayDI.getDataItems()) {
-            if (di == Special.BREAK)
+            if (di == Special.BREAK) {
+                isChunked = true;
                 break;
+            }
+
             PlutusData plutusData = PlutusData.deserialize(di);
             if (plutusData == null)
                 throw new CborDeserializationException("Null value found during PlutusData de-serialization");
 
             listPlutusData.add(PlutusData.deserialize(di));
         }
+
+        listPlutusData.isChunked = isChunked;
 
         return listPlutusData;
     }
