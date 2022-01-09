@@ -3,12 +3,13 @@ package com.bloxbean.cardano.client.crypto;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Data
+@Slf4j
+@NoArgsConstructor
 public class SecretKey {
-    private static final Logger LOG = LoggerFactory.getLogger(SecretKey.class);
 
     private String type = "PaymentVerificationKeyShelley_ed25519";
     private String description = "Payment Signing Key";
@@ -16,11 +17,6 @@ public class SecretKey {
 
     @JsonIgnore
     private byte[] bytes;
-
-    public SecretKey() {
-        this.type = "PaymentVerificationKeyShelley_ed25519";
-        this.description = "Payment Signing Key";
-    }
 
     public SecretKey(String cborHex) {
         this();
@@ -32,7 +28,7 @@ public class SecretKey {
             try {
                 return KeyGenCborUtil.cborToBytes(cborHex);
             } catch (Exception e) {
-                LOG.error("Cbor decode error", e);
+                log.error("Cbor decode error", e);
                 return null;
             }
         }

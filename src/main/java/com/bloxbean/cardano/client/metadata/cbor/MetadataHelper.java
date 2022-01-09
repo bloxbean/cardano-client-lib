@@ -1,14 +1,13 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
 import co.nstant.in.cbor.model.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 
+@Slf4j
 public class MetadataHelper {
-    private static Logger LOG = LoggerFactory.getLogger(MetadataHelper.class);
 
     public static Object extractActualValue(DataItem dataItem) {
         if (dataItem instanceof UnicodeString) {
@@ -53,7 +52,7 @@ public class MetadataHelper {
 
     public static void checkLength(String str) {
         if (str != null && str.getBytes(StandardCharsets.UTF_8).length > 64)
-            LOG.error("Strings in metadata must be at most 64 bytes when UTF-8 encoded. >> " + str);
+            log.error("Strings in metadata must be at most 64 bytes when UTF-8 encoded. >> " + str);
         //TODO -- throw error ?
     }
 }

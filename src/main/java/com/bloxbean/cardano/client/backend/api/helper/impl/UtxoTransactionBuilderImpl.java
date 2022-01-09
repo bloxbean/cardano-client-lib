@@ -22,8 +22,7 @@ import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.*;
@@ -31,13 +30,14 @@ import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
+@Slf4j
 public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
-    private Logger LOG = LoggerFactory.getLogger(UtxoTransactionBuilderImpl.class);
 
     private UtxoSelectionStrategy utxoSelectionStrategy;
 
     /**
      * Create a {@link UtxoTransactionBuilder} with {@link DefaultUtxoSelectionStrategyImpl}
+     *
      * @param utxoService
      */
     public UtxoTransactionBuilderImpl(UtxoService utxoService) {
@@ -46,6 +46,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     /**
      * Create a {@link UtxoTransactionBuilder} with custom {@link UtxoSelectionStrategy}
+     *
      * @param utxoSelectionStrategy
      */
     public UtxoTransactionBuilderImpl(UtxoSelectionStrategy utxoSelectionStrategy) {
@@ -54,6 +55,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     /**
      * Set a custom UtxoSelectionStrategy
+     *
      * @param utxoSelectionStrategy
      */
     @Override
@@ -63,6 +65,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     /**
      * Get current {@link UtxoSelectionStrategy}
+     *
      * @return
      */
     public UtxoSelectionStrategy getUtxoSelectionStrategy() {
@@ -71,6 +74,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     /**
      * Build Transaction
+     *
      * @param transactions
      * @param detailsParams
      * @return
@@ -92,7 +96,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         //Get sender -> utxos map based on the unit and total qty requirement
         //Assumption: If Utxos are provided as part PaymentTransaction, then all PaymentTransactions will have Utxos list,
         // so we dont need to find utxos
-        if(senderToUtxoMap == null || senderToUtxoMap.size() == 0) {
+        if (senderToUtxoMap.size() == 0) {
             senderToUtxoMap = getSenderToUtxosMap(senderAmountsMap);
         }
 
@@ -100,24 +104,23 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         Map<String, BigInteger> senderMiscCostMap = new HashMap<>(); //Misc cost of sender, mini ada
 
         //Create output for receivers and calculate total fees/cost for each sender
-        for(PaymentTransaction transaction: transactions) {
+        for (PaymentTransaction transaction : transactions) {
             totalFee = createReceiverOutputsAndPopulateCost(transaction, detailsParams, totalFee, transactionOutputs, senderMiscCostMap, protocolParams);
         }
 
         //Check if min cost is there in all selected Utxos
-        for(String sender: senderMiscCostMap.keySet()) {
+        for (String sender : senderMiscCostMap.keySet()) {
             checkAndAddAdditionalUtxosIfMinCostIsNotMet(senderToUtxoMap, senderMiscCostMap, sender);
         }
 
         //Go through sender Utxos, Build Inputs first from Utxos and then change outputs
-        senderToUtxoMap.entrySet().forEach( entry ->{
-            String sender = entry.getKey(); //Sender and it's utxos
-            Set<Utxo> utxoSet = entry.getValue();
+        //Sender and it's utxos
+        senderToUtxoMap.forEach((sender, utxoSet) -> {
             try {
                 buildOuputsForSenderFromUtxos(sender, utxoSet, transactionInputs, transactionOutputs, senderAmountsMap,
                         senderMiscCostMap, detailsParams, protocolParams);
             } catch (ApiException e) {
-                LOG.error("Error builiding transaction outputs", e);
+                log.error("Error building transaction outputs", e);
                 throw new ApiRuntimeException("Error building transaction outputs", e);
             }
         });
@@ -134,16 +137,15 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                 .metadata(metadata)
                 .build();
 
-        Transaction transaction = Transaction.builder()
+        return Transaction.builder()
                 .body(transactionBody)
                 .auxiliaryData(auxiliaryData)
                 .build();
-
-        return transaction;
     }
 
     /**
      * Get Utxos for the address by unit and amount
+     *
      * @param address
      * @param unit
      * @param amount
@@ -160,7 +162,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         String sender = mintTransaction.getSender().baseAddress();
 
         String receiver = mintTransaction.getReceiver();
-        if(receiver == null || receiver.isEmpty())
+        if (receiver == null || receiver.isEmpty())
             receiver = mintTransaction.getSender().baseAddress();
 
         BigInteger minAmount = createDummyOutputAndCalculateMinAdaForTxnOutput(receiver,
@@ -172,7 +174,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         List<Utxo> utxos = mintTransaction.getUtxosToInclude();
 
         //If no utxos found as part of request, then fetch from backend
-        if(utxos == null || utxos.size() == 0) {
+        if (utxos == null || utxos.size() == 0) {
             utxos = getUtxos(sender, LOVELACE, totalCost);
             if (utxos.size() == 0)
                 throw new InsufficientBalanceException("Not enough utxos found to cover balance : " + totalCost + " lovelace");
@@ -192,7 +194,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
         //Keep a flag to make sure fee is already deducted
         boolean feeDeducted = false;
-        for(Utxo utxo: utxos) {
+        for (Utxo utxo : utxos) {
             //create input for this utxo
             TransactionInput transactionInput = new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex());
             inputs.add(transactionInput);
@@ -232,11 +234,11 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                 .build();
         mintedTransactionOutput.setValue(value);
         for (MultiAsset ma : mintTransaction.getMintAssets()) {
-             mintedTransactionOutput.getValue().getMultiAssets().add(ma);
+            mintedTransactionOutput.getValue().getMultiAssets().add(ma);
         }
 
         //Add datum hash. Should be used only for receiver as script address
-        if(mintTransaction.getDatumHash() != null && !mintTransaction.getDatumHash().isEmpty()) {
+        if (mintTransaction.getDatumHash() != null && !mintTransaction.getDatumHash().isEmpty()) {
             mintedTransactionOutput.setDatumHash(HexUtil.decodeHexString(mintTransaction.getDatumHash()));
         }
 
@@ -252,8 +254,8 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                 .mint(mintTransaction.getMintAssets())
                 .build();
 
-        if(LOG.isDebugEnabled())
-            LOG.debug(JsonUtil.getPrettyJson(body));
+        if (log.isDebugEnabled())
+            log.debug(JsonUtil.getPrettyJson(body));
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
                 .metadata(metadata)
@@ -273,24 +275,24 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                 new MinAdaCalculator(protocolParams).calculateMinAda(transactionOutput);
 
         //Create another copy of the list
-        List<Utxo> ignoreUtxoList =  excludeUtxos.stream().map(u -> u).collect(Collectors.toList());
+        List<Utxo> ignoreUtxoList = excludeUtxos.stream().collect(Collectors.toList());
 
-        while(transactionOutput.getValue().getCoin() != null
+        while (transactionOutput.getValue().getCoin() != null
                 && minRequiredLovelaceInOutput.compareTo(transactionOutput.getValue().getCoin()) == 1) {
             //Get utxos
             List<Utxo> additionalUtxos = getUtxos(transactionOutput.getAddress(), LOVELACE, minRequiredLovelaceInOutput,
                     new HashSet(ignoreUtxoList));
 
-            if(additionalUtxos == null || additionalUtxos.size() == 0) {
-                if(LOG.isDebugEnabled()) {
-                    LOG.debug("Not enough utxos found to cover minimum lovelace in an output");
+            if (additionalUtxos == null || additionalUtxos.size() == 0) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Not enough utxos found to cover minimum lovelace in an output");
                 }
                 break;
             }
 
-            if(LOG.isDebugEnabled())
-                LOG.debug("Additional Utoxs found: " + additionalUtxos);
-            for(Utxo addUtxo: additionalUtxos) {
+            if (log.isDebugEnabled())
+                log.debug("Additional Utxos found: " + additionalUtxos);
+            for (Utxo addUtxo : additionalUtxos) {
                 TransactionInput addTxnInput = TransactionInput.builder()
                         .transactionId(addUtxo.getTxHash())
                         .index(addUtxo.getOutputIndex())
@@ -315,12 +317,12 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     private void checkAndAddAdditionalUtxosIfMinCostIsNotMet(Map<String, Set<Utxo>> senderToUtxoMap,
                                                              Map<String, BigInteger> senderMiscCostMap, String sender) throws ApiException {
         BigInteger minCost = senderMiscCostMap.get(sender);
-        Set<Utxo> utxos = senderToUtxoMap.getOrDefault(sender, new HashSet());
+        Set<Utxo> utxos = senderToUtxoMap.getOrDefault(sender, new HashSet<>());
 
         BigInteger totalLoveLace = BigInteger.ZERO;
-        for(Utxo utxo: utxos) {
+        for (Utxo utxo : utxos) {
             Optional<Amount> optional = utxo.getAmount().stream().filter(amt -> LOVELACE.equals(amt.getUnit())).findFirst();
-            if(optional.isPresent()) {
+            if (optional.isPresent()) {
                 totalLoveLace = totalLoveLace.add(optional.get().getQuantity());
             }
         }
@@ -330,7 +332,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         if(minCost != null && totalLoveLace.compareTo(minCost) != 1) {
             BigInteger additionalAmt = minCost.subtract(totalLoveLace).add(BigInteger.ONE); //add one for safer side
             List<Utxo> additionalUtxos = getUtxos(sender, LOVELACE, additionalAmt);
-            if(additionalUtxos == null || additionalUtxos.size() == 0)
+            if (additionalUtxos == null || additionalUtxos.size() == 0)
                 throw new ApiException(String.format("No utxos found for address for additional amount: %s, unit: %s, amount: %s", sender, LOVELACE, additionalAmt));
 
             utxos.addAll(additionalUtxos);
@@ -339,13 +341,12 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     private Map<String, Set<Utxo>> getSenderToUtxosMapFromTransactions(List<PaymentTransaction> transactions) {
         Map<String, Set<Utxo>> senderToUtxoMap = new HashMap<>();
-        for(PaymentTransaction paymentTransaction: transactions) {
-            if(paymentTransaction.getUtxosToInclude() != null && paymentTransaction.getUtxosToInclude().size() > 0) {
+        for (PaymentTransaction paymentTransaction : transactions) {
+            if (paymentTransaction.getUtxosToInclude() != null && paymentTransaction.getUtxosToInclude().size() > 0) {
                 String senderAddress = paymentTransaction.getSender().baseAddress();
                 Set<Utxo> utxos = senderToUtxoMap.get(senderAddress);
-                if(utxos == null) {
-                    utxos = new HashSet<>();
-                    utxos.addAll(paymentTransaction.getUtxosToInclude());
+                if (utxos == null) {
+                    utxos = new HashSet<>(paymentTransaction.getUtxosToInclude());
                     senderToUtxoMap.put(senderAddress, utxos);
                 } else {
                     utxos.addAll(paymentTransaction.getUtxosToInclude());
@@ -358,15 +359,15 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     private Map<String, Set<Utxo>> getSenderToUtxosMap(Multimap<String, Amount> senderAmountsMap) throws ApiException {
         Map<String, Set<Utxo>> senderToUtxoMap = new HashMap<>();
-        for(String sender: senderAmountsMap.keySet()) { //Get all Utxos for all transactions
+        for (String sender : senderAmountsMap.keySet()) { //Get all Utxos for all transactions
             Collection<Amount> amts = senderAmountsMap.get(sender);
-            if(amts == null || amts.size() == 0) continue;
+            if (amts == null || amts.size() == 0) continue;
 
             Set<Utxo> utxoSet = new HashSet<>();
-            for(Amount amt: amts) {
+            for (Amount amt : amts) {
                 //Get utxos
                 List<Utxo> utxos = getUtxos(sender, amt.getUnit(), amt.getQuantity());
-                if(utxos == null || utxos.size() == 0)
+                if (utxos == null || utxos.size() == 0)
                     throw new ApiException("No utxos found for address : " + sender);
                 utxos.forEach(utxo -> {
                     utxoSet.add(utxo);
@@ -411,7 +412,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         totalFee = totalFee.add(transaction.getFee());
 
         //Add datum hash. Should be used only for receiver as script address
-        if(transaction.getDatumHash() != null && !transaction.getDatumHash().isEmpty()) {
+        if (transaction.getDatumHash() != null && !transaction.getDatumHash().isEmpty()) {
             outputBuilder.datumHash(HexUtil.decodeHexString(transaction.getDatumHash()));
         }
 
@@ -426,7 +427,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         //Initial sender txnoutput with negative amount
         senderAmountsMap.get(sender).stream()
                 .forEach(amount -> {
-                    if(LOVELACE.equals(amount.getUnit())) {
+                    if (LOVELACE.equals(amount.getUnit())) {
                         changeOutput.getValue().setCoin(BigInteger.ZERO.subtract(amount.getQuantity()));
                     } else {
                         Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(amount.getUnit());
@@ -447,7 +448,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             copyUtxoValuesToChangeOutput(changeOutput, utxo);
         });
 
-        if((changeOutput.getValue().getCoin() != null && changeOutput.getValue().getCoin().compareTo(BigInteger.ZERO) == 1) ||
+        if ((changeOutput.getValue().getCoin() != null && changeOutput.getValue().getCoin().compareTo(BigInteger.ZERO) == 1) ||
                 (changeOutput.getValue().getMultiAssets().size() > 0)) {
 
             //deduct misc cost (fee + min ada value)
@@ -456,18 +457,18 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             changeOutput.getValue().setCoin(afterMisCost);
 
             //Check if minimum Ada is not met. Topup
-            //Transaction will fail if minimun ada not there. So try to get some additiona utxos
+            //Transaction will fail if minimum ada not there. So try to get some additional utxos
             verifyMinAdaInOutputAndUpdateIfRequired(transactionInputs, changeOutput, detailsParams, utxoSet, protocolParams);
 
-            //If changeoutput value is not zero or there are multi-assets, then add to change output
-            if(BigInteger.ZERO.compareTo(changeOutput.getValue().getCoin()) != 0
+            //If changeOutput value is not zero or there are multi-assets, then add to change output
+            if (BigInteger.ZERO.compareTo(changeOutput.getValue().getCoin()) != 0
                     || (changeOutput.getValue().getMultiAssets() != null && changeOutput.getValue().getMultiAssets().size() > 0)) {
                 transactionOutputs.add(changeOutput);
             }
 
-            if(BigInteger.ZERO.compareTo(changeOutput.getValue().getCoin()) == 0 &&
+            if (BigInteger.ZERO.compareTo(changeOutput.getValue().getCoin()) == 0 &&
                     changeOutput.getValue().getMultiAssets() != null && changeOutput.getValue().getMultiAssets().size() > 0) {
-                LOG.warn("The sender address balance cannot be zero as the sender has {} native token(s).", changeOutput.getValue().getMultiAssets().size());
+                log.warn("The sender address balance cannot be zero as the sender has {} native token(s).", changeOutput.getValue().getMultiAssets().size());
             }
         }
     }
@@ -482,8 +483,8 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             if(additionalUtxos == null || additionalUtxos.size() == 0)
                 throw new InsufficientBalanceException("Not enough utxos found to cover minimum lovelace in an ouput");
 
-            if(LOG.isDebugEnabled())
-                LOG.debug("Additional Utoxs found: " + additionalUtxos);
+            if(log.isDebugEnabled())
+                log.debug("Additional Utxos found: " + additionalUtxos);
             //Add to input
             Utxo utxo = additionalUtxos.get(0);
             TransactionInput transactionInput = TransactionInput.builder()
@@ -533,9 +534,9 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         //Remove any empty MultiAssets
         List<MultiAsset> multiAssets = changeOutput.getValue().getMultiAssets();
         List<MultiAsset> markedForRemoval = new ArrayList<>();
-        if(multiAssets != null && multiAssets.size() > 0) {
+        if (multiAssets != null && multiAssets.size() > 0) {
             multiAssets.forEach(ma -> {
-                if(ma.getAssets() == null || ma.getAssets().size() == 0)
+                if (ma.getAssets() == null || ma.getAssets().size() == 0)
                     markedForRemoval.add(ma);
             });
 
@@ -545,7 +546,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     private Multimap<String, Amount> calculateRequiredBalancesForSenders(List<PaymentTransaction> transactions) {
         Multimap<String, Amount> senderAmountMap = ArrayListMultimap.create();
-        for(PaymentTransaction transaction: transactions) {
+        for (PaymentTransaction transaction : transactions) {
             String sender = transaction.getSender().baseAddress();
             String unit = transaction.getUnit();
             BigInteger amount = transaction.getAmount();
@@ -558,10 +559,10 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     private void addAmountToSenderAmountMap(Multimap<String, Amount> senderAmountMap, String sender, String unit, BigInteger amount) {
         Collection<Amount> amounts = senderAmountMap.get(sender);
-        if(amounts != null && amounts.size() > 0) {
+        if (amounts != null && amounts.size() > 0) {
             Optional<Amount> existingAmtOptional = amounts.stream().filter(amt -> unit.equals(amt.getUnit())).findFirst();
 
-            if(existingAmtOptional.isPresent()) {
+            if (existingAmtOptional.isPresent()) {
                 Amount existingAmt = existingAmtOptional.get();
                 existingAmt.setQuantity(existingAmt.getQuantity().add(amount));
             } else {

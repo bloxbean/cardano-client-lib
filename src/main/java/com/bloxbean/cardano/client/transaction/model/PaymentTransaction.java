@@ -2,20 +2,18 @@ package com.bloxbean.cardano.client.transaction.model;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.model.Utxo;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigInteger;
 import java.util.List;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 /**
  * For payment transaction both in ADA (Lovelace) or Native tokens
  */
+@EqualsAndHashCode(callSuper = true)
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class PaymentTransaction extends TransactionRequest {
     private String unit;
     private BigInteger amount;

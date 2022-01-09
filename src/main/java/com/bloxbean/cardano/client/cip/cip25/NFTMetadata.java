@@ -3,17 +3,12 @@ package com.bloxbean.cardano.client.cip.cip25;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
-import com.bloxbean.cardano.client.metadata.helper.MetadataToJsonNoSchemaConverter;
-import com.bloxbean.cardano.client.util.JsonUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.math.BigInteger;
 
 //Implementation for https://cips.cardano.org/cips/cip25/
 //NFT Metadata Standard
 public class NFTMetadata extends CBORMetadata {
-    private final static Logger LOG = LoggerFactory.getLogger(NFTMetadata.class);
 
     private final static BigInteger LABEL = BigInteger.valueOf(721);
     public static final String VERSION_KEY = "version";

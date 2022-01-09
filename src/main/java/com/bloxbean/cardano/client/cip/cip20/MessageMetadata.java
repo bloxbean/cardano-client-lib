@@ -7,8 +7,7 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -19,15 +18,15 @@ import java.util.List;
 //Implementation for https://cips.cardano.org/cips/cip20/
 //This CIP describes a basic JSON schema to add messages/comments/memos as transaction metadata by using the metadatum label 674.
 //Adding informational text, invoice-numbers or similar to a transaction on the cardano blockchain.
+@Slf4j
 public class MessageMetadata extends CBORMetadata {
-    private final static Logger LOG = LoggerFactory.getLogger(MessageMetadata.class);
 
     private final static int label = 674;
 
     @JsonIgnore
-    private CBORMetadataMap map;
+    private final CBORMetadataMap map;
     @JsonIgnore
-    private CBORMetadataList messageList;
+    private final CBORMetadataList messageList;
 
     private MessageMetadata() {
         super();
@@ -49,8 +48,8 @@ public class MessageMetadata extends CBORMetadata {
 
         int len = message.getBytes(StandardCharsets.UTF_8).length;
         if (len > 64) {
-            if (LOG.isDebugEnabled())
-                LOG.debug("Message : " + message);
+            if (log.isDebugEnabled())
+                log.debug("Message : " + message);
 
             throw new IllegalArgumentException("Each message should have a maximum length of 64 characters. But actual length is : " + len);
         }
