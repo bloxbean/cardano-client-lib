@@ -24,11 +24,11 @@ public class PolicyUtil {
         ScriptPubkey scriptPubkey = ScriptPubkey.create(verificationKey);
         RequireTimeBefore requireTimeBefore = new RequireTimeBefore(currentSlot + SLOTS_PER_EPOCH * epochs);
         ScriptAll scriptAll = new ScriptAll().addScript(requireTimeBefore).addScript(scriptPubkey);
-        return new Policy(name,scriptAll).addKey(keys.getSkey());
+        return new Policy(name, scriptAll).addKey(keys.getSkey());
     }
 
     public static Policy createMultiSigScriptAllPolicy(String name, int numOfSigners) throws CborSerializationException {
-        if (numOfSigners<1) {
+        if (numOfSigners < 1) {
             throw new IllegalArgumentException("Number of policy signers must be larger or equal to 1");
         }
         ScriptAll scriptAll = new ScriptAll();
@@ -38,15 +38,15 @@ public class PolicyUtil {
             scriptAll.addScript(tuple._1);
             policyKeys.add(tuple._2.getSkey());
         }
-        return new Policy(name,scriptAll,policyKeys);
+        return new Policy(name, scriptAll, policyKeys);
     }
 
     public static Policy createMultiSigScriptAtLeastPolicy(String name, int numOfSigners, int required) throws CborSerializationException {
-        if (numOfSigners<1) {
+        if (numOfSigners < 1) {
             throw new IllegalArgumentException("Number of policy signers must be larger or equal to 1");
         }
-        if (required<numOfSigners) {
-            throw new IllegalArgumentException("Number of required signers cannot be less than overall signers");
+        if (required > numOfSigners) {
+            throw new IllegalArgumentException("Number of required signers cannot be higher than overall signers amount");
         }
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(required);
         List<SecretKey> policyKeys = new ArrayList<>();
@@ -55,6 +55,6 @@ public class PolicyUtil {
             scriptAtLeast.addScript(tuple._1);
             policyKeys.add(tuple._2.getSkey());
         }
-        return new Policy(name,scriptAtLeast,policyKeys);
+        return new Policy(name, scriptAtLeast, policyKeys);
     }
 }
