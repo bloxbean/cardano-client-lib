@@ -22,16 +22,10 @@ public class ScriptAtLeast implements NativeScript {
 
     private final ScriptType type = ScriptType.atLeast;
     private int required;
-    private List<NativeScript> scripts;
+    private final List<NativeScript> scripts = new ArrayList<>();
 
     public ScriptAtLeast(int required) {
         this.required = required;
-        this.scripts = new ArrayList<>();
-    }
-
-    public ScriptAtLeast required(int required) {
-        this.required = required;
-        return this;
     }
 
     public ScriptAtLeast addScript(NativeScript script) {

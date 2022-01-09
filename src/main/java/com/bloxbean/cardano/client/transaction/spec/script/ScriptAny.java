@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,14 +17,11 @@ import java.util.List;
  * This script class is for "RequireAny" expression
  */
 @Data
+@NoArgsConstructor
 public class ScriptAny implements NativeScript {
 
     private final ScriptType type = ScriptType.any;
-    private List<NativeScript> scripts;
-
-    public ScriptAny() {
-        this.scripts = new ArrayList<>();
-    }
+    private final List<NativeScript> scripts = new ArrayList<>();
 
     public ScriptAny addScript(NativeScript script) {
         scripts.add(script);

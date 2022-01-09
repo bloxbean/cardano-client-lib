@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,14 +17,11 @@ import java.util.List;
  * This script class is for "RequireAllOf" expression
  */
 @Data
+@NoArgsConstructor
 public class ScriptAll implements NativeScript {
 
     private final ScriptType type = ScriptType.all;
-    private List<NativeScript> scripts;
-
-    public ScriptAll() {
-        this.scripts = new ArrayList<>();
-    }
+    private final List<NativeScript> scripts = new ArrayList<>();
 
     public ScriptAll addScript(NativeScript script) {
         scripts.add(script);

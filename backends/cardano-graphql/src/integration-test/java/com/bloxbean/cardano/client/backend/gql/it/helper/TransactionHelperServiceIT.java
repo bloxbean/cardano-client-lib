@@ -29,12 +29,10 @@ import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.script.*;
-import com.bloxbean.cardano.client.util.AssetUtil;
-import com.bloxbean.cardano.client.util.HexUtil;
-import com.bloxbean.cardano.client.util.JsonUtil;
-import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.client.util.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -89,7 +87,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -160,7 +158,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -219,7 +217,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
         Result<TransactionResult> result = transactionHelperService.transfer(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3),
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -231,12 +229,12 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
     @Test
     void mintToken() throws CborSerializationException, AddressExcepion, ApiException {
-
         Keys keys = KeyGenUtil.generateKey();
         VerificationKey vkey = keys.getVkey();
         SecretKey skey = keys.getSkey();
 
         ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
+        Policy policy = new Policy(scriptPubkey).addKey(skey);
         String policyId = scriptPubkey.getPolicyId();
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
@@ -253,8 +251,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptPubkey)
-                        .policyKeys(Arrays.asList(skey))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -265,7 +262,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(paymentTransaction));
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -279,7 +276,6 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
     void mintTokenWithScriptAtLeast() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey1 = tuple1._1;
-        SecretKey sk1 = tuple1._2.getSkey();
 
         Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey2 = tuple2._1;
@@ -293,6 +289,8 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                 .addScript(scriptPubkey1)
                 .addScript(scriptPubkey2)
                 .addScript(scriptPubkey3);
+
+        Policy policy = new Policy(scriptAtLeast).addKey(sk2).addKey(sk3);
 
         String policyId = scriptAtLeast.getPolicyId();
 
@@ -310,8 +308,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAtLeast)
-                        .policyKeys(Arrays.asList(sk2, sk3))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -323,7 +320,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(paymentTransaction));
         System.out.println(result);
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -336,7 +333,6 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
     void mintTokenWithScriptAtLeastButNotSufficientKeys() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey1 = tuple1._1;
-        SecretKey sk1 = tuple1._2.getSkey();
 
         Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey2 = tuple2._1;
@@ -344,12 +340,13 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey3 = tuple3._1;
-        SecretKey sk3 = tuple3._2.getSkey();
 
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
                 .addScript(scriptPubkey1)
                 .addScript(scriptPubkey2)
                 .addScript(scriptPubkey3);
+
+        Policy policy = new Policy(scriptAtLeast, Arrays.asList(sk2));
 
         String policyId = scriptAtLeast.getPolicyId();
 
@@ -367,8 +364,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAtLeast)
-                        .policyKeys(Arrays.asList(sk2))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -381,7 +377,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -392,33 +388,15 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
     @Test
     void mintTokenWithScriptAll() throws CborSerializationException, AddressExcepion, ApiException {
-        Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
-        ScriptPubkey scriptPubkey1 = tuple1._1;
-        SecretKey sk1 = tuple1._2.getSkey();
-
-        Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
-        ScriptPubkey scriptPubkey2 = tuple2._1;
-        SecretKey sk2 = tuple2._2.getSkey();
-
-        Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
-        ScriptPubkey scriptPubkey3 = tuple3._1;
-        SecretKey sk3 = tuple3._2.getSkey();
-
-        ScriptAll scriptAll = new ScriptAll()
-                .addScript(scriptPubkey1)
-                .addScript(scriptPubkey2)
-                .addScript(scriptPubkey3);
-
-        String policyId = scriptAll.getPolicyId();
-
-        System.out.println(">> Policy Id: " + policyId);
+        Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("ScriptAllPolicy", 3);
+        System.out.println(">> Policy Id: " + policy.getPolicyId());
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         MultiAsset multiAsset = new MultiAsset();
-        multiAsset.setPolicyId(policyId);
+        multiAsset.setPolicyId(policy.getPolicyId());
         Asset asset = new Asset(HexUtil.encodeHexString("selftoken1".getBytes(StandardCharsets.UTF_8)), BigInteger.valueOf(250000));
         multiAsset.getAssets().add(asset);
 
@@ -427,8 +405,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAll)
-                        .policyKeys(Arrays.asList(sk1, sk2, sk3))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -442,7 +419,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
         System.out.println(result);
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -470,6 +447,8 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                 .addScript(scriptPubkey2)
                 .addScript(scriptPubkey3);
 
+        Policy policy = new Policy(scriptAll, Arrays.asList(sk2, sk3));
+
         String policyId = scriptAll.getPolicyId();
 
         System.out.println(">> Policy Id: " + policyId);
@@ -488,8 +467,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAll)
-                        .policyKeys(Arrays.asList(sk2, sk3))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -502,7 +480,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -516,7 +494,6 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
     void mintTokenWithScriptAtLeastBefore() throws CborSerializationException, AddressExcepion, ApiException {
         Tuple<ScriptPubkey, Keys> tuple1 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey1 = tuple1._1;
-        SecretKey sk1 = tuple1._2.getSkey();
 
         Tuple<ScriptPubkey, Keys> tuple2 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey2 = tuple2._1;
@@ -528,13 +505,15 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         long slot = getTtl();
 
-        RequireTimeBefore requireTimeBefore = new RequireTimeBefore((int)slot);
+        RequireTimeBefore requireTimeBefore = new RequireTimeBefore((int) slot);
 
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
                 .addScript(requireTimeBefore)
                 .addScript(scriptPubkey1)
                 .addScript(scriptPubkey2)
                 .addScript(scriptPubkey3);
+
+        Policy policy = new Policy(scriptAtLeast, (Arrays.asList(sk2, sk3)));
 
         String policyId = scriptAtLeast.getPolicyId();
 
@@ -554,8 +533,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAtLeast)
-                        .policyKeys(Arrays.asList(sk2, sk3))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -568,7 +546,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -589,7 +567,6 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         Tuple<ScriptPubkey, Keys> tuple3 = ScriptPubkey.createWithNewKey();
         ScriptPubkey scriptPubkey3 = tuple3._1;
-        SecretKey sk3 = tuple3._2.getSkey();
 
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
                 .addScript(scriptPubkey1)
@@ -604,6 +581,8 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                 .addScript(
                         scriptAtLeast
                 );
+
+        Policy policy = new Policy(scriptAll, Arrays.asList(sk1, sk2));
 
         System.out.println(JsonUtil.getPrettyJson(scriptAll));
 
@@ -625,8 +604,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAll)
-                        .policyKeys(Arrays.asList(sk1, sk2))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -640,7 +618,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
         System.out.println(result);
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -660,7 +638,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
         ScriptAll scriptAll = new ScriptAll()
                 .addScript(requireTimeBefore)
                 .addScript(scriptPubkey);
-
+        Policy policy = new Policy(scriptAll, Arrays.asList(sk));
         System.out.println(JsonUtil.getPrettyJson(scriptAll));
         String policyId = scriptAll.getPolicyId();
 
@@ -680,8 +658,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAll)
-                        .policyKeys(Arrays.asList(sk))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -695,7 +672,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
         System.out.println(result);
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id:- " + result.getValue());
         else
             System.out.println("Transaction failed:- " + result);
@@ -715,7 +692,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
         ScriptAll policyScript = new ScriptAll()
                 .addScript(requireTimeAfter)
                 .addScript(scriptPubkey);
-
+        Policy policy = new Policy(policyScript, Arrays.asList(sk));
         System.out.println(JsonUtil.getPrettyJson(policyScript));
         String policyId = policyScript.getPolicyId();
 
@@ -735,8 +712,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(policyScript)
-                        .policyKeys(Arrays.asList(sk))
+                        .policy(policy)
                         .build();
 
         TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
@@ -754,7 +730,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
         System.out.println(result);
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id:- " + result.getValue());
         else
             System.out.println("Transaction failed:- " + result);
@@ -774,7 +750,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
         ScriptAll policyScript = new ScriptAll()
                 .addScript(requireTimeAfter)
                 .addScript(scriptPubkey);
-
+        Policy policy = new Policy(policyScript, Arrays.asList(sk));
         System.out.println(JsonUtil.getPrettyJson(policyScript));
         String policyId = policyScript.getPolicyId();
 
@@ -794,8 +770,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(policyScript)
-                        .policyKeys(Arrays.asList(sk))
+                        .policy(policy)
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(mintTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -813,7 +788,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         System.out.println("Request:- \n" + JsonUtil.getPrettyJson(mintTransaction));
         System.out.println(result);
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id:- " + result.getValue());
         else
             System.out.println("Transaction failed:- " + result);
@@ -823,14 +798,12 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
     }
 
     @Test
-    void mintTokenWithMetadata()
-            throws CborSerializationException, AddressExcepion, ApiException {
-
+    void mintTokenWithMetadata() throws CborSerializationException, AddressExcepion, ApiException {
         Keys keys = KeyGenUtil.generateKey();
         VerificationKey vkey = keys.getVkey();
         SecretKey skey = keys.getSkey();
-
         ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
+        Policy policy = new Policy(scriptPubkey, Arrays.asList(skey));
         String policyId = scriptPubkey.getPolicyId();
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
@@ -847,8 +820,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                         .sender(sender)
                         .receiver(receiver)
                         .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptPubkey)
-                        .policyKeys(Arrays.asList(skey))
+                        .policy(policy)
                         .build();
 
         Metadata metadata = new CBORMetadata()
@@ -864,7 +836,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
                 TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -887,8 +859,8 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         SecretKey sk = SecretKey.create(prvKeyBytes);
         VerificationKey vkey = VerificationKey.create(pubKeyBytes);
-
         ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
+        Policy policy = new Policy(scriptPubkey, Arrays.asList(sk));
         String policyId = scriptPubkey.getPolicyId();
 
         MultiAsset multiAsset = new MultiAsset();
@@ -899,10 +871,8 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         MintTransaction mintTransaction = MintTransaction.builder()
                 .sender(sender)
-//                .receiver(receiver)
                 .mintAssets(Arrays.asList(multiAsset))
-                .policyScript(scriptPubkey)
-                .policyKeys(Arrays.asList(sk))
+                .policy(policy)
                 .build();
 
         TransactionDetailsParams detailsParams =
@@ -920,7 +890,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         System.out.println(result);
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -940,14 +910,12 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         String scriptAccountMnemonic = "episode same use wreck force already grief spike kiss host magic spoon cry lecture tuition style old detect session creek champion cry service exchange";
         Account scriptAccount = new Account(Networks.testnet(), scriptAccountMnemonic);
-
         byte[] prvKeyBytes = scriptAccount.privateKeyBytes();
         byte[] pubKeyBytes = scriptAccount.publicKeyBytes();
-
         SecretKey sk = SecretKey.create(prvKeyBytes);
         VerificationKey vkey = VerificationKey.create(pubKeyBytes);
-
         ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
+        Policy policy = new Policy(scriptPubkey, Arrays.asList(sk));
         String policyId = scriptPubkey.getPolicyId();
 
         MultiAsset multiAsset = new MultiAsset();
@@ -958,9 +926,8 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         MintTransaction mintTransaction = MintTransaction.builder()
                 .sender(sender)
-//                .receiver(receiver)
                 .mintAssets(Arrays.asList(multiAsset))
-                .policyScript(scriptPubkey)
+                .policy(policy)
                 .additionalWitnessAccounts(Arrays.asList(scriptAccount))
                 .build();
 
@@ -979,7 +946,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         System.out.println(result);
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -998,20 +965,20 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         CBORMetadataMap mm = new CBORMetadataMap()
                 .put(new BigInteger("1978"), "1978value")
-                .put(new BigInteger("197819"),new BigInteger("200001"))
-                .put("203", new byte[] { 11,11,10});
+                .put(new BigInteger("197819"), new BigInteger("200001"))
+                .put("203", new byte[]{11, 11, 10});
 
         CBORMetadataList list = new CBORMetadataList()
                 .add("301value")
                 .add(new BigInteger("300001"))
-                .add(new byte[] { 11,11,10})
+                .add(new byte[]{11, 11, 10})
                 .add(new CBORMetadataMap()
                         .put(new BigInteger("401"), "401str")
                         .put("hello", "hellovalue"));
         Metadata metadata = new CBORMetadata()
                 .put(new BigInteger("197819781978"), "John")
                 .put(new BigInteger("197819781979"), "CA")
-                .put(new BigInteger("1978197819710"), new byte[]{0,11})
+                .put(new BigInteger("1978197819710"), new byte[]{0, 11})
                 .put(new BigInteger("1978197819711"), mm)
                 .put(new BigInteger("1978197819712"), list);
 
@@ -1031,7 +998,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -1065,7 +1032,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -1099,7 +1066,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
 
         Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -1172,7 +1139,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
     private JsonNode loadJsonMetadata(String key) throws IOException {
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode rootNode = objectMapper.readTree(this.getClass().getClassLoader().getResourceAsStream(dataFile));
-        ObjectNode root = (ObjectNode)rootNode;
+        ObjectNode root = (ObjectNode) rootNode;
 
         return root.get(key);
     }
