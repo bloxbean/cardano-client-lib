@@ -37,6 +37,12 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 @Slf4j
 public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
+    /**
+     * This `case` class defines the transaction grouping mechanism for collating
+     * multiple transaction in just one output.
+     * Currently, in Cardano, sender, receive and datum (hash) must be the same in order for
+     * multiple transaction to be collated together.
+     */
     @Data
     @AllArgsConstructor
     private class PaymentTransactionGroupingKey {
