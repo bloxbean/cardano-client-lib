@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.api.helper.impl;
 
+import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.backend.api.helper.UtxoTransactionBuilder;
@@ -20,8 +21,11 @@ import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.google.common.base.Strings;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
@@ -32,6 +36,14 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 @Slf4j
 public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
+
+    @Data
+    @AllArgsConstructor
+    private class PaymentTransactionGroupingKey {
+        private Account sender;
+        private String receiver;
+        private String datumHash;
+    }
 
     private UtxoSelectionStrategy utxoSelectionStrategy;
 
@@ -325,9 +337,9 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             }
         }
 
-        if(totalLoveLace == null) totalLoveLace = BigInteger.ZERO;
+        if (totalLoveLace == null) totalLoveLace = BigInteger.ZERO;
 
-        if(minCost != null && totalLoveLace.compareTo(minCost) != 1) {
+        if (minCost != null && totalLoveLace.compareTo(minCost) != 1) {
             BigInteger additionalAmt = minCost.subtract(totalLoveLace).add(BigInteger.ONE); //add one for safer side
             List<Utxo> additionalUtxos = getUtxos(sender, LOVELACE, additionalAmt);
             if (additionalUtxos == null || additionalUtxos.size() == 0)
@@ -382,7 +394,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
         List<Tuple<TransactionOutput, BigInteger>> outputs = transactions
                 .stream()
-                .collect(Collectors.groupingBy(paymentTransaction -> new Tuple<>(paymentTransaction.getSender(), paymentTransaction.getReceiver())))
+                .collect(Collectors.groupingBy(paymentTransaction -> new PaymentTransactionGroupingKey(paymentTransaction.getSender(), paymentTransaction.getReceiver(), paymentTransaction.getDatumHash())))
                 .entrySet()
                 .stream()
                 .map(entry -> {
@@ -402,7 +414,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                             .reduce(Value.builder().coin(BigInteger.ZERO).build(), Value::plus);
 
                     // TxOut before min ada adjustment
-                    TransactionOutput draftTxOut = TransactionOutput.builder().address(entry.getKey()._2).value(value).build();
+                    TransactionOutput draftTxOut = TransactionOutput.builder().address(entry.getKey().getReceiver()).value(value).build();
 
                     // Calculate required minAda
                     BigInteger minRequiredAda = new MinAdaCalculator(protocolParams).calculateMinAda(draftTxOut);
@@ -417,7 +429,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                     BigInteger fees = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
 
                     // Costs
-                    BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(entry.getKey()._1.baseAddress(), BigInteger.ZERO);
+                    BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(entry.getKey().getSender().baseAddress(), BigInteger.ZERO);
 
                     // Calculating if extra costs are required (diff between minAda and actual ada, and add to costs)
                     BigInteger additionalCost = actualCoin.subtract(draftTxOut.getValue().getCoin());
@@ -427,9 +439,14 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
                     existingMiscCost = existingMiscCost.add(costs);
 
                     // Update costs per (sender) base address
-                    senderMiscCostMap.put(entry.getKey()._1.baseAddress(), existingMiscCost);
+                    senderMiscCostMap.put(entry.getKey().getSender().baseAddress(), existingMiscCost);
 
-                    return new Tuple<>(TransactionOutput.builder().address(entry.getKey()._2).value(finalValue).build(), fees);
+                    byte[] datumHash = null;
+                    if (!Strings.isNullOrEmpty(entry.getKey().getDatumHash())) {
+                        datumHash = HexUtil.decodeHexString(entry.getKey().getDatumHash());
+                    }
+
+                    return new Tuple<>(TransactionOutput.builder().address(entry.getKey().getReceiver()).value(finalValue).datumHash(datumHash).build(), fees);
                 })
                 .collect(Collectors.toList());
 
@@ -444,6 +461,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     /**
      * Deprecated, see createReceiverOutputsAndPopulateCostV2
+     *
      * @param transaction
      * @param detailsParams
      * @param totalFee
