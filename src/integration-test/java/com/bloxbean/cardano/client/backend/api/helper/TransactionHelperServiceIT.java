@@ -1124,6 +1124,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         MintTransaction mintTransaction = MintTransaction.builder()
                 .sender(sender)
                 .mintAssets(Arrays.asList(multiAsset))
+                .policy(policy)
                 .build();
 
         TransactionDetailsParams detailsParams =
