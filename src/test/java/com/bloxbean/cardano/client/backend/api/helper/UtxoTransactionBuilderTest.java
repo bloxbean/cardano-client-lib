@@ -41,6 +41,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
@@ -346,7 +347,7 @@ public class UtxoTransactionBuilderTest {
                 .sender(sender)
                 .fee(BigInteger.valueOf(12000))
                 .unit(LOVELACE)
-                .amount(BigInteger.valueOf(1700000))
+                .amount(BigInteger.valueOf(3000000))
                 .receiver(receiver)
                 .build();
 
@@ -365,13 +366,13 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
         assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
 
-        assertThat(transaction.getBody().getOutputs(), hasSize(3));
+        assertThat(transaction.getBody().getOutputs(), hasSize(2));
         assertThat(transaction.getBody().getOutputs().get(0).getAddress(), is(receiver));
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(greaterThan(ONE_ADA)));
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getValue(), is(BigInteger.valueOf(10000)));
 
-        assertThat(transaction.getBody().getOutputs().get(2).getAddress(), is(sender.baseAddress()));
-        assertThat(transaction.getBody().getOutputs().get(2).getValue().getCoin(), is(greaterThan(ONE_ADA)));
+        assertThat(transaction.getBody().getOutputs().get(1).getAddress(), is(sender.baseAddress()));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(greaterThan(ONE_ADA)));
 
     }
 
@@ -677,7 +678,7 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9"));
 
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(newAmount));
-        assertNull(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets());
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets(), is(empty()));
     }
 
     @Test
