@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.api.helper.impl;
 
+import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.backend.api.helper.UtxoTransactionBuilder;
@@ -20,8 +21,11 @@ import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.google.common.base.Strings;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
@@ -32,6 +36,20 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 @Slf4j
 public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
+
+    /**
+     * This `case` class defines the transaction grouping mechanism for collating
+     * multiple transaction in just one output.
+     * Currently, in Cardano, sender, receive and datum (hash) must be the same in order for
+     * multiple transaction to be collated together.
+     */
+    @Data
+    @AllArgsConstructor
+    private class PaymentTransactionGroupingKey {
+        private Account sender;
+        private String receiver;
+        private String datumHash;
+    }
 
     private UtxoSelectionStrategy utxoSelectionStrategy;
 
@@ -104,9 +122,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         Map<String, BigInteger> senderMiscCostMap = new HashMap<>(); //Misc cost of sender, mini ada
 
         //Create output for receivers and calculate total fees/cost for each sender
-        for (PaymentTransaction transaction : transactions) {
-            totalFee = createReceiverOutputsAndPopulateCost(transaction, detailsParams, totalFee, transactionOutputs, senderMiscCostMap, protocolParams);
-        }
+        totalFee = createReceiverOutputsAndPopulateCostV2(transactions, detailsParams, totalFee, transactionOutputs, senderMiscCostMap, protocolParams);
 
         //Check if min cost is there in all selected Utxos
         for (String sender : senderMiscCostMap.keySet()) {
@@ -327,9 +343,9 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
             }
         }
 
-        if(totalLoveLace == null) totalLoveLace = BigInteger.ZERO;
+        if (totalLoveLace == null) totalLoveLace = BigInteger.ZERO;
 
-        if(minCost != null && totalLoveLace.compareTo(minCost) != 1) {
+        if (minCost != null && totalLoveLace.compareTo(minCost) != 1) {
             BigInteger additionalAmt = minCost.subtract(totalLoveLace).add(BigInteger.ONE); //add one for safer side
             List<Utxo> additionalUtxos = getUtxos(sender, LOVELACE, additionalAmt);
             if (additionalUtxos == null || additionalUtxos.size() == 0)
@@ -379,6 +395,88 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
         return senderToUtxoMap;
     }
 
+    private BigInteger createReceiverOutputsAndPopulateCostV2(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams, BigInteger totalFee,
+                                                              List<TransactionOutput> transactionOutputs, Map<String, BigInteger> senderMiscCostMap, ProtocolParams protocolParams) {
+
+        List<Tuple<TransactionOutput, BigInteger>> outputs = transactions
+                .stream()
+                .collect(Collectors.groupingBy(paymentTransaction -> new PaymentTransactionGroupingKey(paymentTransaction.getSender(), paymentTransaction.getReceiver(), paymentTransaction.getDatumHash())))
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    Value value = entry
+                            .getValue()
+                            .stream()
+                            .map(tx -> {
+                                if (LOVELACE.equals(tx.getUnit())) {
+                                    return Value.builder().coin(tx.getAmount()).multiAssets(Arrays.asList()).build();
+                                } else {
+                                    Tuple<String, String> policyIdAssetName = AssetUtil.getPolicyIdAndAssetName(tx.getUnit());
+                                    Asset asset = new Asset(policyIdAssetName._2, tx.getAmount());
+                                    MultiAsset multiAsset = new MultiAsset(policyIdAssetName._1, Arrays.asList(asset));
+                                    return Value.builder().coin(BigInteger.ZERO).multiAssets(Arrays.asList(multiAsset)).build();
+                                }
+                            })
+                            .reduce(Value.builder().coin(BigInteger.ZERO).build(), Value::plus);
+
+                    // TxOut before min ada adjustment
+                    TransactionOutput draftTxOut = TransactionOutput.builder().address(entry.getKey().getReceiver()).value(value).build();
+
+                    // Calculate required minAda
+                    BigInteger minRequiredAda = new MinAdaCalculator(protocolParams).calculateMinAda(draftTxOut);
+
+                    // Get the max between the minAda and what the user wanted to send
+                    BigInteger actualCoin = minRequiredAda.max(draftTxOut.getValue().getCoin());
+
+                    // The final value to send (value is ada + all multi assets)
+                    Value finalValue = Value.builder().coin(actualCoin).multiAssets(draftTxOut.getValue().getMultiAssets()).build();
+
+                    // Sum user's fee (if specified)
+                    BigInteger fees = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
+
+                    // Costs
+                    BigInteger existingMiscCost = senderMiscCostMap.getOrDefault(entry.getKey().getSender().baseAddress(), BigInteger.ZERO);
+
+                    // Calculating if extra costs are required (diff between minAda and actual ada, and add to costs)
+                    BigInteger additionalCost = actualCoin.subtract(draftTxOut.getValue().getCoin());
+                    existingMiscCost = existingMiscCost.add(additionalCost);
+
+                    BigInteger costs = entry.getValue().stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add);
+                    existingMiscCost = existingMiscCost.add(costs);
+
+                    // Update costs per (sender) base address
+                    senderMiscCostMap.put(entry.getKey().getSender().baseAddress(), existingMiscCost);
+
+                    byte[] datumHash = null;
+                    if (!Strings.isNullOrEmpty(entry.getKey().getDatumHash())) {
+                        datumHash = HexUtil.decodeHexString(entry.getKey().getDatumHash());
+                    }
+
+                    return new Tuple<>(TransactionOutput.builder().address(entry.getKey().getReceiver()).value(finalValue).datumHash(datumHash).build(), fees);
+                })
+                .collect(Collectors.toList());
+
+
+        totalFee = totalFee.add(transactions.stream().map(PaymentTransaction::getFee).reduce(BigInteger.ZERO, BigInteger::add));
+
+        transactionOutputs.addAll(outputs.stream().map(tuple -> tuple._1).collect(Collectors.toList()));
+
+        return totalFee;
+    }
+
+
+    /**
+     * Deprecated, see createReceiverOutputsAndPopulateCostV2
+     *
+     * @param transaction
+     * @param detailsParams
+     * @param totalFee
+     * @param transactionOutputs
+     * @param senderMiscCostMap
+     * @param protocolParams
+     * @return
+     */
+    @Deprecated
     private BigInteger createReceiverOutputsAndPopulateCost(PaymentTransaction transaction, TransactionDetailsParams detailsParams, BigInteger totalFee,
                                                             List<TransactionOutput> transactionOutputs, Map<String, BigInteger> senderMiscCostMap, ProtocolParams protocolParams) {
         //Sender misc cost

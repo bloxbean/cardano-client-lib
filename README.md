@@ -27,6 +27,8 @@ For another platform, please create a request [here](https://github.com/bloxbean
 
 [Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
 
+[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/)
+
 **Features**
 
 #### Address Generation
