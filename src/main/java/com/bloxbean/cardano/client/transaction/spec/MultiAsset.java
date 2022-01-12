@@ -82,7 +82,7 @@ public class MultiAsset {
         if (!getPolicyId().equals(that.getPolicyId())) {
             throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
         }
-        ArrayList<Asset> assets = new ArrayList<Asset>();
+        ArrayList<Asset> assets = new ArrayList<>();
         assets.addAll(getAssets());
         assets.addAll(that.getAssets());
         List<Asset> mergedAssets = assets
@@ -119,4 +119,48 @@ public class MultiAsset {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Subtracts a Multi Asset from another. If an Asset is already present, subtract the amounts.
+     * @param that
+     * @return
+     */
+    private MultiAsset minus(MultiAsset that) {
+        if (!getPolicyId().equals(that.getPolicyId())) {
+            throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
+        }
+        ArrayList<Asset> assets = new ArrayList<>(getAssets());
+        assets.removeAll(that.getAssets());
+        List<Asset> mergedAssets = assets
+                .stream()
+                .collect(Collectors.groupingBy(Asset::getName))
+                .entrySet()
+                .stream()
+                .map(entry -> entry.getValue().stream().reduce(Asset.builder().name(entry.getKey()).value(BigInteger.ZERO).build(), Asset::minus))
+                .collect(Collectors.toList());
+        return MultiAsset.builder().policyId(getPolicyId()).assets(mergedAssets).build();
+    }
+
+    /**
+     * Creates a new list of multi assets from those passed as parameters.
+     * Multi Assets with the same policy id will be aggregated together, and matching assets subtracted.
+     * @param multiAssets1
+     * @param multiAssets2
+     * @return
+     */
+    public static List<MultiAsset> subtractMultiAssetLists(List<MultiAsset> multiAssets1, List<MultiAsset> multiAssets2) {
+        List<MultiAsset> tempMultiAssets = new ArrayList<>();
+        if (multiAssets1 != null) {
+            tempMultiAssets.addAll(multiAssets1);
+        }
+        if (multiAssets2 != null) {
+            tempMultiAssets.removeAll(multiAssets2);
+        }
+        return tempMultiAssets
+                .stream()
+                .collect(Collectors.groupingBy(MultiAsset::getPolicyId))
+                .entrySet()
+                .stream()
+                .map(entry -> entry.getValue().stream().reduce(MultiAsset.builder().policyId(entry.getKey()).assets(Arrays.asList()).build(), MultiAsset::minus))
+                .collect(Collectors.toList());
+    }
 }
