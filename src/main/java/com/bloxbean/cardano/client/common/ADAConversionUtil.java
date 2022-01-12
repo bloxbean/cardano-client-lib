@@ -15,7 +15,7 @@ public class ADAConversionUtil {
     }
 
     public static BigDecimal assetToDecimal(BigInteger amount, long decimals) {
-        if(decimals == 0)
+        if (decimals == 0)
             return new BigDecimal(amount);
 
         double oneUnit = Math.pow(10, decimals);
@@ -27,7 +27,7 @@ public class ADAConversionUtil {
     }
 
     public static BigInteger assetFromDecimal(BigDecimal doubleAmout, long decimals) {
-        if(decimals == 0)
+        if (decimals == 0)
             return doubleAmout.toBigInteger();
 
         double oneUnit = Math.pow(10, decimals);
