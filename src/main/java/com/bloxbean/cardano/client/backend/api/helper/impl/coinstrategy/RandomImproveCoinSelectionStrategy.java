@@ -1,8 +1,13 @@
-package com.bloxbean.cardano.client.backend.api.helper.impl;
+package com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy;
 
 import com.bloxbean.cardano.client.backend.api.helper.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.exception.InputsExhaustedException;
+import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.exception.InputsLimitExceededException;
+import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.exception.base.CoinSelectionException;
+import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.model.SelectionResult;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
+import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
@@ -10,6 +15,7 @@ import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.*;
@@ -18,7 +24,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static java.lang.Math.abs;
 
 /**
- * <h3>Random-Improve</h3>
+ * <h2>Random-Improve</h2>
  * <p>The <strong>Random-Improve</strong> coin selection algorithm works in <em>two phases</em>:</p>
  * <ul>
  * <li><p>In the <strong>first phase</strong>, the algorithm iterates through each of the
@@ -57,16 +63,16 @@ import static java.lang.Math.abs;
  *   <p><strong><em>v</em></strong><sub>change</sub>
  *     ≈ <strong><em>v</em></strong><sub>output</sub></p>
  * </blockquote>
- * <h4 id="motivatingprinciples">Motivating Principles</h4>
+ * <h2 id="motivatingprinciples">Motivating Principles</h2>
  * <p>There are several motivating principles behind the design of the algorithm.</p>
- * <h5 id="principle1dustmanagement">Principle 1: Dust Management</h5>
+ * <h3 id="principle1dustmanagement">Principle 1: Dust Management</h3>
  * <p>The probability that random selection will choose dust entries from a UTxO
  * set <em>increases</em> with the proportion of dust in the set.</p>
  * <p>Therefore, for a UTxO set with a large amount of dust, there's a high
  * probability that a random subset will include a large amount of dust.</p>
  * <p>Over time, selecting entries randomly in this way will tend to <em>limit</em> the
  * amount of dust that accumulates in the UTxO set.</p>
- * <h5 id="principle2changemanagement">Principle 2: Change Management</h5>
+ * <h3 id="principle2changemanagement">Principle 2: Change Management</h3>
  * <p>As mentioned in the <a href="#goals-of-coin-selection-algorithms">Goals</a> section, it is
  * desirable that coin selection algorithms, over time, are able to create UTxO
  * sets that have <em>useful</em> outputs: outputs that will allow us to process future
@@ -86,7 +92,7 @@ import static java.lang.Math.abs;
  *   <p>Over time, her wallet will self-organize to contain multiple coins of around
  *   €1.00, which are useful for the kinds of payments that Alice frequently makes.</p>
  * </blockquote>
- * <h5 id="principle3performancemanagement">Principle 3: Performance Management</h5>
+ * <h3 id="principle3performancemanagement">Principle 3: Performance Management</h3>
  * <p>Searching the UTxO set for additional entries to <em>improve</em> our change outputs
  * is <em>only</em> useful if the UTxO set contains entries that are sufficiently
  * small enough. But it is precisely when the UTxO set contains many small
@@ -185,47 +191,13 @@ import static java.lang.Math.abs;
  * <h3 id="randomimprove-1">Random-Improve</h3>
  * <p>Reference implementations of the <a href="#random-improve">Random-Improve</a> algorithm
  * are available in the following languages:</p>
- * <table>
- * <thead>
- * <tr>
- * <th><em>Language</em></th>
- * <th><em>Documentation</em></th>
- * <th><em>Source</em></th>
- * </tr>
- * </thead>
- * <tbody>
- * <tr>
- * <td><strong>Haskell</strong></td>
- * <td><a href="https://hackage.haskell.org/package/cardano-coin-selection/docs/Cardano-CoinSelection-Algorithm-RandomImprove.html">Documentation</a></td>
- * <td><a href="https://hackage.haskell.org/package/cardano-coin-selection/docs/src/Cardano.CoinSelection.Algorithm.RandomImprove.html">Source</a></td>
- * </tr>
- * </tbody>
- * </table>
- * <h2 id="externalresources">External Resources</h2>
- * <h3 id="selforganisationincoinselection">Self Organisation in Coin Selection</h3>
+ * <ul>
+ *     <li>Language: <strong>Haskell</strong></li>
+ *     <li>Documentation: <a href="https://hackage.haskell.org/package/cardano-coin-selection/docs/Cardano-CoinSelection-Algorithm-RandomImprove.html">Documentation</a></li>
+ *     <li>Source: <a href="https://hackage.haskell.org/package/cardano-coin-selection/docs/src/Cardano.CoinSelection.Algorithm.RandomImprove.html">Source</a></li>
+ * </ul>
+ * <h2 id="externalresources"><a href="https://iohk.io/en/blog/posts/2018/07/03/self-organisation-in-coin-selection/">External Resource</a></h2>
  * <blockquote>
- *   <table>
- *   <thead>
- *   <tr>
- *   <th style="text-align:left;"><strong>Title</strong></th>
- *   <th style="text-align:left;">Self Organisation in Coin Selection</th>
- *   </tr>
- *   </thead>
- *   <tbody>
- *   <tr>
- *   <td style="text-align:left;"><strong>Author</strong></td>
- *   <td style="text-align:left;"><a href="http://www.edsko.net/">Edsko de Vries</a></td>
- *   </tr>
- *   <tr>
- *   <td style="text-align:left;"><strong>Year</strong></td>
- *   <td style="text-align:left;">2018</td>
- *   </tr>
- *   <tr>
- *   <td style="text-align:left;"><strong>Location</strong></td>
- *   <td style="text-align:left;">https://iohk.io/en/blog/posts/2018/07/03/self-organisation-in-coin-selection/</td>
- *   </tr>
- *   </tbody>
- *   </table>
  *   <p>This article introduces the <a href="#random-improve">Random-Improve</a> coin selection
  *   algorithm, invented by <a href="http://www.edsko.net/">Edsko de Vries</a>.</p>
  *   <p>It describes the three principles of self-organisation that inform the
@@ -233,6 +205,7 @@ import static java.lang.Math.abs;
  *   algorithm's effectiveness at maintaining healthy UTxO sets over time.</p>
  * </blockquote>
  */
+@Slf4j
 public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy {
 
     private final ProtocolParams protocolParams;
@@ -251,7 +224,7 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
      * @param limit   - A limit on the number of inputs that can be selected.
      * @return a {@link SelectionResult} with the specified Coin Selection.
      */
-    public SelectionResult randomImprove(List<Utxo> inputs, List<TransactionOutput> outputs, int limit) throws Exception {
+    public Result<SelectionResult> randomImprove(List<Utxo> inputs, List<TransactionOutput> outputs, int limit) {
         UTxOSelection utxoSelection = new UTxOSelection(inputs);
         Value mergedOutputsAmounts = mergeOutputsAmounts(outputs);
 
@@ -261,7 +234,12 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
         // Phase 1: Select enough input
         for (Value splitOutputsAmount : splitOutputsAmounts) {
             createSubSet(utxoSelection, splitOutputsAmount); // Narrow down for NatToken UTxO
-            utxoSelection = select(utxoSelection, splitOutputsAmount, limit);
+            try {
+                utxoSelection = select(utxoSelection, splitOutputsAmount, limit);
+            } catch (CoinSelectionException e) {
+                log.warn(e.getMessage());
+                return Result.error(e.getMessage());
+            }
         }
 
         // Phase 2: Improve
@@ -283,10 +261,15 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
                 // Not enough, add missing amount and run select one last time
                 Value minAda = minAmount.minus(new Value(change.getCoin(), new ArrayList<>())).plus(new Value(utxoSelection.getAmount().getCoin(), new ArrayList<>()));
                 createSubSet(utxoSelection, minAda);
-                utxoSelection = select(utxoSelection, minAda, limit);
+                try {
+                    utxoSelection = select(utxoSelection, minAda, limit);
+                } catch (CoinSelectionException e) {
+                    return Result.error(e.getMessage());
+                }
             }
         }
-        return new SelectionResult(utxoSelection.getSelection(), outputs, utxoSelection.getRemaining(), utxoSelection.getAmount(), utxoSelection.getAmount().minus(mergedOutputsAmounts));
+        return Result.success("Success")
+                .withValue(new SelectionResult(utxoSelection.getSelection(), outputs, utxoSelection.getRemaining(), utxoSelection.getAmount(), utxoSelection.getAmount().minus(mergedOutputsAmounts)));
     }
 
     /**
@@ -330,22 +313,20 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
      * @param outputAmount  - Single compiled output qty requested for payment.
      * @param limit         - A limit on the number of inputs that can be selected.
      * @return UTxOSelection - Successful random utxo selection.
-     * @throws Exception INPUT_LIMIT_EXCEEDED if the number of randomly picked inputs exceed 'limit' parameter.
-     * @throws Exception INPUTS_EXHAUSTED     if all UTxO doesn't hold enough funds to pay for output.
+     * @throws InputsLimitExceededException INPUT_LIMIT_EXCEEDED if the number of randomly picked inputs exceed 'limit' parameter.
+     * @throws InputsLimitExceededException INPUTS_EXHAUSTED     if all UTxO doesn't hold enough funds to pay for output.
      */
-    private UTxOSelection select(UTxOSelection utxoSelection, Value outputAmount, int limit) throws Exception {
+    private UTxOSelection select(UTxOSelection utxoSelection, Value outputAmount, int limit) throws CoinSelectionException {
         try {
             utxoSelection = randomSelect(new UTxOSelection(utxoSelection), // Deep copy in case of fallback needed
                     outputAmount,
                     limit - utxoSelection.getSelection().size()
             );
-        } catch (Exception e) {
-            if (e.getMessage().equals("INPUT_LIMIT_EXCEEDED")) {
-                // Limit reached : Fallback on DescOrdAlgo
-                utxoSelection = descSelect(utxoSelection, outputAmount);
-            } else {
-                throw e;
-            }
+        } catch (InputsExhaustedException e) {
+            // Limit reached : Fallback on DescOrdAlgo
+            utxoSelection = descSelect(utxoSelection, outputAmount);
+        } catch (InputsLimitExceededException e) {
+            throw e;
         }
         return utxoSelection;
     }
@@ -356,17 +337,16 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
      * @param utxoSelection - The set of selected/available inputs.
      * @param outputAmount  - Single compiled output qty requested for payment.
      * @return UTxOSelection - Successful random utxo selection.
-     * @throws Exception INPUTS_EXHAUSTED if all UTxO doesn't hold enough funds to pay for output.
+     * @throws InputsExhaustedException INPUTS_EXHAUSTED if all UTxO doesn't hold enough funds to pay for output.
      */
-    private UTxOSelection descSelect(UTxOSelection utxoSelection, Value outputAmount) throws Exception {
+    private UTxOSelection descSelect(UTxOSelection utxoSelection, Value outputAmount) throws InputsExhaustedException {
         // Sort UTxO subset in DESC order for required output unit type
         utxoSelection.subset.sort((a, b) -> searchAmountValue(outputAmount, b.toValue()).subtract(searchAmountValue(outputAmount, a.toValue())).intValue());
 
         do {
             if (utxoSelection.getSubset().size() <= 0) {
-                throw new Exception("INPUTS_EXHAUSTED");
+                throw new InputsExhaustedException();
             }
-
             utxoSelection.getSubset().remove(0);
             if (utxoSelection.getSubset() != null && !utxoSelection.getSubset().isEmpty()) {
                 Utxo utxo = utxoSelection.getSubset().get(utxoSelection.getSubset().size() - 1);
@@ -411,10 +391,10 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
      * @param outputAmount  - Single compiled output qty requested for payment.
      * @param limit         - A limit on the number of inputs that can be selected.
      * @return uTxOSelection - Successful random utxo selection.
-     * @throws Exception INPUT_LIMIT_EXCEEDED if the number of randomly picked inputs exceed 'limit' parameter.
-     * @throws Exception INPUTS_EXHAUSTED     if all UTxO doesn't hold enough funds to pay for output.
+     * @throws InputsLimitExceededException INPUT_LIMIT_EXCEEDED if the number of randomly picked inputs exceed 'limit' parameter.
+     * @throws InputsExhaustedException INPUTS_EXHAUSTED     if all UTxO doesn't hold enough funds to pay for output.
      */
-    private UTxOSelection randomSelect(UTxOSelection utxoSelection, Value outputAmount, int limit) throws Exception {
+    private UTxOSelection randomSelect(UTxOSelection utxoSelection, Value outputAmount, int limit) throws CoinSelectionException {
         int nbFreeUTxO = utxoSelection.getSubset().size();
         // If quantity is met, return subset into remaining list and exit
         if (isQtyFulfilled(outputAmount, utxoSelection.getAmount(), nbFreeUTxO)) {
@@ -423,10 +403,10 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
             return utxoSelection;
         }
         if (limit <= 0) {
-            throw new Exception("INPUT_LIMIT_EXCEEDED");
+            throw new InputsLimitExceededException();
         }
         if (nbFreeUTxO <= 0) {
-            throw new Exception("INPUTS_EXHAUSTED");
+            throw new InputsExhaustedException();
         }
         utxoSelection.getSubset().remove(Math.floor(Math.random() * nbFreeUTxO));
         Utxo utxo;
@@ -449,7 +429,7 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
     private boolean isQtyFulfilled(Value outputAmount, Value cumulatedAmount, int nbFreeUTxO) {
         Value amount = outputAmount;
 
-        if (outputAmount.getMultiAssets() != null || outputAmount.getMultiAssets().size() <= 0) {
+        if (outputAmount.getMultiAssets() != null || outputAmount.getMultiAssets().isEmpty()) {
             Value minAmount = new Value(minAdaCalculator.calculateMinAda(cumulatedAmount.getMultiAssets()), null);
             // Lovelace min amount to cover assets and number of output need to be met
             Integer comparison = compare(cumulatedAmount, minAmount);
@@ -602,7 +582,7 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
      * @return Value - The compiled set of amounts requested for payment.
      */
     private Value mergeOutputsAmounts(List<TransactionOutput> outputs) {
-        Value mergedOutputsValue = new Value();
+        Value mergedOutputsValue = new Value(BigInteger.ZERO, new ArrayList<>());
         for (TransactionOutput transactionOutput : outputs) {
             mergedOutputsValue.plus(transactionOutput.getValue());
         }
@@ -635,7 +615,7 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
         private List<Utxo> selection = new ArrayList<>();
         private List<Utxo> remaining;
         private List<Utxo> subset = new ArrayList<>();
-        private Value amount = new Value();
+        private Value amount = new Value(BigInteger.ZERO, new ArrayList<>());
 
         public UTxOSelection(List<Utxo> remaining) {
             this.remaining = remaining;

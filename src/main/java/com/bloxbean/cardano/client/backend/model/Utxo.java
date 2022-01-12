@@ -44,14 +44,22 @@ public class Utxo {
         return Objects.hash(txHash, outputIndex);
     }
 
+    // TODO Should be deleted after structure change
     public Value toValue() {
-        Value value = new Value();
-        value.setCoin(getCoin(amount));
+        Value value = new Value(BigInteger.ZERO, new ArrayList<>());
         HashMap<String, HashMap<String, BigInteger>> multiAssetsMap = new HashMap<>();
         for (Amount am : amount) {
-            Tuple<String, String> tuple = AssetUtil.getPolicyIdAndAssetName(am.getUnit());
-            HashMap<String, BigInteger> assets = multiAssetsMap.computeIfAbsent(tuple._1, k -> new HashMap<>());
-            assets.put(tuple._2, am.getQuantity());
+            if (am.getUnit().equals(LOVELACE)) {
+                value.setCoin(value.getCoin().add(am.getQuantity()));
+            } else {
+                Tuple<String, String> tuple = AssetUtil.getPolicyIdAndAssetName(am.getUnit());
+                HashMap<String, BigInteger> assets = multiAssetsMap.get(tuple._1);
+                if (assets == null) {
+                    assets = new HashMap<>();
+                }
+                assets.put(tuple._2, am.getQuantity());
+                multiAssetsMap.put(tuple._1, assets);
+            }
         }
         List<MultiAsset> multiAssetList = new ArrayList<>();
         for (Map.Entry<String,HashMap<String,BigInteger>> entry : multiAssetsMap.entrySet()) {
@@ -63,16 +71,5 @@ public class Utxo {
         }
         value.setMultiAssets(multiAssetList);
         return value;
-    }
-
-    private BigInteger getCoin(List<Amount> amount) {
-        BigInteger coin = BigInteger.ZERO;
-        for (Amount am : amount) {
-            Tuple<String, String> tuple = AssetUtil.getPolicyIdAndAssetName(am.getUnit());
-            if (tuple._2.equals(LOVELACE)) {
-                coin = coin.add(am.getQuantity());
-            }
-        }
-        return coin;
     }
 }

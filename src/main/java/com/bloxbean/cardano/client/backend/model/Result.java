@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.backend.model;
 
 public class Result<T> {
+
     boolean successful;
     String response;
     int code;
@@ -13,6 +14,22 @@ public class Result<T> {
     private Result(boolean successful, String response) {
         this.successful = successful;
         this.response = response;
+    }
+
+    public static Result error() {
+        return new Result<>(false);
+    }
+
+    public static Result error(String response) {
+        return new Result<>(false, response);
+    }
+
+    public static Result create(boolean status, String response) {
+        return new Result<>(status, response);
+    }
+
+    public static Result success(String response) {
+        return new Result<>(true, response);
     }
 
     public boolean isSuccessful() {
@@ -35,28 +52,12 @@ public class Result<T> {
         return value;
     }
 
-    public Result withValue(T value) {
+    public Result<T> withValue(T value) {
         this.value = value;
         return this;
     }
 
-    public static Result error() {
-        return new Result(false);
-    }
-
-    public static Result error(String response) {
-        return new Result(false, response);
-    }
-
-    public static Result create(boolean status, String response) {
-        return new Result(status, response);
-    }
-
-    public static Result success(String response) {
-        return new Result(true, response);
-    }
-
-    public Result code(int code) {
+    public Result<T> code(int code) {
         this.code = code;
         return this;
     }

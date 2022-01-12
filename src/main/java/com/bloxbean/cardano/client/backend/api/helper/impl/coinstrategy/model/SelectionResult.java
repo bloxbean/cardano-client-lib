@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.api.helper.impl;
+package com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.model;
 
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;

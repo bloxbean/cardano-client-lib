@@ -1,4 +1,4 @@
-cd rust
+cd ../rust
 cargo build --all --release
 copy target\release\cardano_jni_wrapper.dll target\release\windows-x86-64_cardano_jni_wrapper.dll
 dir target\release\*

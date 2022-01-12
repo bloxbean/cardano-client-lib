@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.backend.api.helper;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.api.helper.impl.DefaultUtxoSelectionStrategyImpl;
+import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;

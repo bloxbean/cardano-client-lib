@@ -86,7 +86,13 @@ public class Value {
      * @return
      */
     public Value plus(Value that) {
-        BigInteger coin = getCoin().add(that.getCoin());
+        BigInteger thisCoin;
+        if (getCoin()==null) {
+            thisCoin = BigInteger.ZERO;
+        } else {
+            thisCoin = getCoin();
+        }
+        BigInteger coin = thisCoin.add(that.getCoin());
         List<MultiAsset> multiAssets = MultiAsset.mergeMultiAssetLists(getMultiAssets(), that.getMultiAssets());
         return Value.builder().coin(coin).multiAssets(multiAssets).build();
     }
