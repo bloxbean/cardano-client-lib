@@ -17,12 +17,12 @@ public interface Metadata {
      * @return
      * @throws MetadataSerializationException
      */
-    byte[] getMetadataHash() throws MetadataSerializationException;
+    public byte[] getMetadataHash() throws MetadataSerializationException;
 
     /**
      * Serialize to cbor bytes
      * @return
      * @throws MetadataSerializationException
      */
-    byte[] serialize() throws MetadataSerializationException;
+    public byte[] serialize() throws MetadataSerializationException;
 }

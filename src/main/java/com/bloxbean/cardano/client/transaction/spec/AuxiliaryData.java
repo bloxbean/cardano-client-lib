@@ -23,7 +23,6 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class AuxiliaryData {
-
     private Metadata metadata;
 
     @Builder.Default

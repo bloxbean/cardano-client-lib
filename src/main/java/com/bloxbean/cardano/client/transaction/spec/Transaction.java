@@ -19,7 +19,6 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class Transaction {
-
     private TransactionBody body;
     private TransactionWitnessSet witnessSet;
     @Builder.Default

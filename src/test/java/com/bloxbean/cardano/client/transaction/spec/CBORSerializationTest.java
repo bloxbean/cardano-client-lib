@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.crypto.SecretKey;
+import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -26,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class CBORSerializationTest {
 
     @Test
-    public void testSerializeTransactionWithMint() throws CborSerializationException, CborDeserializationException {
+    public void testSerializeTransactionWithMint() throws AddressExcepion, CborSerializationException, CborDeserializationException {
         TransactionBody txnBody = new TransactionBody();
 
         String txId = "73198b7ad003862b9798106b88fbccfca464b1a38afb34958275c4a7d7d8d002";
@@ -270,7 +271,7 @@ public class CBORSerializationTest {
     }
 
     @Test
-    public void testDeserialization() throws CborDeserializationException, CborSerializationException {
+    public void testDeserialization() throws CborDeserializationException, AddressExcepion, CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         long fee = 367965;
@@ -341,7 +342,7 @@ public class CBORSerializationTest {
 
     @Test
     public void testDeserializationWithWitness()
-            throws CborDeserializationException, CborSerializationException {
+            throws CborDeserializationException, AddressExcepion, CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         Account account1 = new Account(Networks.testnet());
@@ -493,7 +494,7 @@ public class CBORSerializationTest {
 
     @Test
     public void testDeserializationWithWitness_whenMetadataPlutusScriptAndNativeScripts()
-            throws CborDeserializationException, CborSerializationException {
+            throws CborDeserializationException, AddressExcepion, CborSerializationException {
         TransactionBody txnBody = new TransactionBody();
 
         Account account1 = new Account(Networks.testnet());
@@ -858,6 +859,8 @@ public class CBORSerializationTest {
         Transaction signedTxn = TransactionSigner.INSTANCE.sign(transaction, new Account().hdKeyPair());
         //clear witness
         signedTxn.setWitnessSet(new TransactionWitnessSet());
-        return signedTxn.serializeToHex();
+
+        String signedTxnHex = signedTxn.serializeToHex();
+        return signedTxnHex;
     }
 }

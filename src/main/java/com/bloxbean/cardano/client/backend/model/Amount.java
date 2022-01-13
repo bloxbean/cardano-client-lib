@@ -12,7 +12,6 @@ import java.math.BigInteger;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Amount {
-
     private String unit;
     private BigInteger quantity;
 }

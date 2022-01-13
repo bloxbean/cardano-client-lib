@@ -12,11 +12,11 @@ public class AssetUtil {
      * Get policy id and asset name in hex from asset id
      * Policy id is returned without hex prefix (0x)
      * Asset name is returned with hex prefix (0x)
-     * @param assetId
+     * @param asssetId
      * @return
      */
-    public static Tuple<String, String> getPolicyIdAndAssetName(String assetId) {
-        byte[] bytes = HexUtil.decodeHexString(assetId);
+    public static Tuple<String, String> getPolicyIdAndAssetName(String asssetId) {
+        byte[] bytes = HexUtil.decodeHexString(asssetId);
         ByteBuffer bb = ByteBuffer.wrap(bytes);
 
         byte[] policyId = new byte[28];
