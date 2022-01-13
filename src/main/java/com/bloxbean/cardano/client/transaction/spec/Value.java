@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 @Data
@@ -24,6 +25,18 @@ public class Value {
     //Policy Id -> Asset
     @Builder.Default
     private List<MultiAsset> multiAssets = new ArrayList<>();
+
+    public HashMap<String, HashMap<String,BigInteger>> toMap() {
+        HashMap<String, HashMap<String,BigInteger>> multiAssetsMap = new HashMap<>();
+        for (MultiAsset multiAsset : multiAssets) {
+            HashMap<String,BigInteger> assets = new HashMap<>();
+            for (Asset asset : multiAsset.getAssets()) {
+                assets.put(asset.getName(),asset.getValue());
+            }
+            multiAssetsMap.put(multiAsset.getPolicyId(),assets);
+        }
+        return multiAssetsMap;
+    }
 
     public Map serialize() throws CborSerializationException {
         Map map = new Map();
@@ -73,9 +86,20 @@ public class Value {
      * @return
      */
     public Value plus(Value that) {
-        BigInteger coin = getCoin().add(that.getCoin());
+        BigInteger thisCoin;
+        if (getCoin()==null) {
+            thisCoin = BigInteger.ZERO;
+        } else {
+            thisCoin = getCoin();
+        }
+        BigInteger coin = thisCoin.add(that.getCoin());
         List<MultiAsset> multiAssets = MultiAsset.mergeMultiAssetLists(getMultiAssets(), that.getMultiAssets());
         return Value.builder().coin(coin).multiAssets(multiAssets).build();
     }
 
+    public Value minus(Value that) {
+        BigInteger coin = getCoin().subtract(that.getCoin());
+        List<MultiAsset> multiAssets = MultiAsset.subtractMultiAssetLists(getMultiAssets(),that.getMultiAssets());
+        return Value.builder().coin(coin).multiAssets(multiAssets).build();
+    }
 }

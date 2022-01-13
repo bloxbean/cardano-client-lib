@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;

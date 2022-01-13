@@ -16,6 +16,7 @@ import java.util.Arrays;
 @NoArgsConstructor
 @Builder
 public class Asset {
+
     private String name;
     private BigInteger value;
 
@@ -59,4 +60,15 @@ public class Asset {
         return Asset.builder().name(getName()).value(getValue().add(that.getValue())).build();
     }
 
+    /**
+     * returns a new asset that is a subtraction of this and that (asset passed as parameter)
+     * @param that
+     * @return a new Asset as subtract of this value and the one passed as parameter
+     */
+    public Asset minus(Asset that) {
+        if (!Arrays.equals(getNameAsBytes(), that.getNameAsBytes())) {
+            throw new IllegalArgumentException("Trying to add Assets with different name");
+        }
+        return Asset.builder().name(getName()).value(getValue().subtract(that.getValue())).build();
+    }
 }
