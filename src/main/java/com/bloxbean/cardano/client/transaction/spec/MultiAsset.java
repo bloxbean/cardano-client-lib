@@ -119,14 +119,15 @@ public class MultiAsset {
                 .collect(Collectors.toList());
     }
 
+    //TODO - Unit tests
     /**
      * Subtracts a Multi Asset from another. If an Asset is already present, subtract the amounts.
      * @param that
      * @return
      */
-    private MultiAsset minus(MultiAsset that) {
+    public MultiAsset minus(MultiAsset that) {
         if (!getPolicyId().equals(that.getPolicyId())) {
-            throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
+            throw new IllegalArgumentException("Trying to minus MultiAssets with different policyId");
         }
         ArrayList<Asset> assets = new ArrayList<>(getAssets());
         assets.removeAll(that.getAssets());
@@ -140,6 +141,7 @@ public class MultiAsset {
         return MultiAsset.builder().policyId(getPolicyId()).assets(mergedAssets).build();
     }
 
+    //TODO -- Unit tests
     /**
      * Creates a new list of multi assets from those passed as parameters.
      * Multi Assets with the same policy id will be aggregated together, and matching assets subtracted.

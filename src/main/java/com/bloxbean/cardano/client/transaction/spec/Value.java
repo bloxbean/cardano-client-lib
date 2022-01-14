@@ -97,6 +97,7 @@ public class Value {
         return Value.builder().coin(coin).multiAssets(multiAssets).build();
     }
 
+    //TODO - Unit tests
     public Value minus(Value that) {
         BigInteger coin = getCoin().subtract(that.getCoin());
         List<MultiAsset> multiAssets = MultiAsset.subtractMultiAssetLists(getMultiAssets(),that.getMultiAssets());

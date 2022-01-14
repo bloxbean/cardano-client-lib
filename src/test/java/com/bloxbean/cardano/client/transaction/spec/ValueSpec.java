@@ -4,10 +4,11 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class ValueSpec {
 
@@ -24,7 +25,7 @@ public class ValueSpec {
         expectedValue.setCoin(BigInteger.valueOf(2500000L));
         expectedValue.setMultiAssets(Arrays.asList());
 
-        assertThat(actualValue, equalTo(expectedValue));
+        assertThat(actualValue).isEqualTo(expectedValue);
 
     }
 
@@ -42,7 +43,7 @@ public class ValueSpec {
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
         expectedValue.setMultiAssets(testMultiAssets);
 
-        assertThat(actualValue, equalTo(expectedValue));
+        assertThat(actualValue).isEqualTo(expectedValue);
 
     }
 
@@ -62,7 +63,7 @@ public class ValueSpec {
 
         expectedValue.setMultiAssets(MultiAsset.mergeMultiAssetLists(testMultiAssets1, testMultiAssets2));
 
-        assertThat(actualValue, equalTo(expectedValue));
+        assertThat(actualValue).isEqualTo(expectedValue);
 
     }
 
@@ -84,7 +85,7 @@ public class ValueSpec {
         List<MultiAsset> testMultiAssets = MultiAsset.mergeMultiAssetLists(testMultiAssets1, testMultiAssets2);
         expectedValue.setMultiAssets(testMultiAssets);
 
-        assertThat(actualValue, equalTo(expectedValue));
+        assertThat(actualValue).isEqualTo(expectedValue);
 
     }
 
@@ -103,10 +104,54 @@ public class ValueSpec {
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
         expectedValue.setMultiAssets(MultiAsset.mergeMultiAssetLists(testMultiAssets1, testMultiAssets2));
 
-        assertThat(actualValue, equalTo(expectedValue));
+        assertThat(actualValue).isEqualTo(expectedValue);
 
 
     }
 
+    @Test
+    public void toMap() {
+        List<MultiAsset> testMultiAssetst = Arrays.asList(
+                MultiAsset.builder().policyId("policy_id1").assets(
+                        Arrays.asList(
+                                Asset.builder().name("asset_name1").value(BigInteger.valueOf(5000000L)).build(),
+                                Asset.builder().name("asset_name2").value(BigInteger.valueOf(2000000L)).build(),
+                                Asset.builder().name("asset_name3").value(BigInteger.valueOf(3000000L)).build()
+                        )
+                ).build(),
+                MultiAsset.builder().policyId("policy_id2").assets(
+                        Arrays.asList(
+                                Asset.builder().name("my_asset_name1").value(BigInteger.valueOf(111)).build(),
+                                Asset.builder().name("asset_name2").value(BigInteger.valueOf(333)).build()
+                        )
+                ).build(),
+                MultiAsset.builder().policyId("policy_id3").assets(
+                        Arrays.asList(
+                                Asset.builder().name("abc").value(BigInteger.valueOf(555)).build()
+                        )
+                ).build()
+        );
+
+        Value value = new Value(BigInteger.valueOf(1000), testMultiAssetst);
+
+        Map<String, HashMap<String, BigInteger>> map = value.toMap();
+
+        //Expected map
+        Map<String, HashMap<String, BigInteger>> expected = new HashMap<>();
+        expected.put("policy_id1", new HashMap<String, BigInteger>() {{
+            put("asset_name1", BigInteger.valueOf(5000000L));
+            put("asset_name2", BigInteger.valueOf(2000000L));
+            put("asset_name3", BigInteger.valueOf(3000000L));
+        }});
+        expected.put("policy_id2", new HashMap<String, BigInteger>() {{
+            put("my_asset_name1", BigInteger.valueOf(111));
+            put("asset_name2", BigInteger.valueOf(333));
+        }});
+        expected.put("policy_id3", new HashMap<String, BigInteger>() {{
+            put("abc", BigInteger.valueOf(555));
+        }});
+
+        assertThat(map).isEqualTo(expected);
+    }
 
 }
