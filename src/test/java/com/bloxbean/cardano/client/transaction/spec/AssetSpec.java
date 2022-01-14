@@ -26,4 +26,20 @@ public class AssetSpec {
         assertThrows(IllegalArgumentException.class, () -> asset1.plus(asset2));
     }
 
+    @Test
+    public void minusSameAsset() {
+        Asset asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(700L)).build();
+        Asset asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
+
+        assertThat(asset1.minus(asset2), equalTo(Asset.builder().name("asset").value(BigInteger.valueOf(500L)).build()));
+    }
+
+    @Test
+    public void minusDifferentAssetThrowsError() {
+        Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
+        Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
+
+        assertThrows(IllegalArgumentException.class, () -> asset1.minus(asset2));
+    }
+
 }
