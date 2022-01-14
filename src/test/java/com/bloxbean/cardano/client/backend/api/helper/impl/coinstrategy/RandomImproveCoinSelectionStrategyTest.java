@@ -52,7 +52,7 @@ class RandomImproveCoinSelectionStrategyTest {
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1))).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2))).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
         RandomImproveCoinSelectionStrategy randomImproveCoinSelectionStrategy = new RandomImproveCoinSelectionStrategy(utxoService,protocolParams);
-        TransactionOutput transactionOutput = TransactionOutput.builder().address(address).value(new Value(ADAConversionUtil.adaToLovelace(BigDecimal.TEN), null)).build();
+        TransactionOutput transactionOutput = TransactionOutput.builder().address(address).value(Value.builder().coin(ADAConversionUtil.adaToLovelace(BigDecimal.TEN)).build()).build();
         Result<SelectionResult> selectionResult = randomImproveCoinSelectionStrategy.randomImprove(address, Set.of(transactionOutput), 40);
         assertTrue(selectionResult.isSuccessful());
         List<String> txnHashList = selectionResult.getValue().getSelection().stream().map(Utxo::getTxHash).collect(Collectors.toList());

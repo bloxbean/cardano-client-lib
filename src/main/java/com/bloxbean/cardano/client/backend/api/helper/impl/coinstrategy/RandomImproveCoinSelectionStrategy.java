@@ -21,7 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.math.BigInteger;
 import java.util.*;
 
-import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static java.lang.Math.abs;
 
 /**
@@ -229,15 +228,15 @@ public class RandomImproveCoinSelectionStrategy {
      * @return a {@link SelectionResult} with the specified Coin Selection.
      */
     public Result<SelectionResult> randomImprove(String address, Set<TransactionOutput> outputs, int limit) {
-        return randomImprove(address,outputs,limit,Collections.emptySet());
+        return randomImprove(address, outputs, limit, Collections.emptySet());
     }
 
     /**
      * Random-Improve coin selection algorithm by excluded Utxos
      *
-     * @param address Sender's account address
-     * @param outputs Set of outputs requested for payment.
-     * @param limit   limit on the number of inputs that can be selected.
+     * @param address      Sender's account address
+     * @param outputs      Set of outputs requested for payment.
+     * @param limit        limit on the number of inputs that can be selected.
      * @param excludeUtxos UTxO List to Exclude from Fetched List
      * @return a {@link SelectionResult} with the specified Coin Selection.
      */
@@ -281,11 +280,11 @@ public class RandomImproveCoinSelectionStrategy {
         if (utxoSelection.getRemaining().size() > 0) {
             Value change = utxoSelection.getAmount().minus(mergedOutputsAmounts);
 
-            Value minAmount = new Value(minAdaCalculator.calculateMinAda(change.getMultiAssets()), null);
+            Value minAmount = Value.builder().coin(minAdaCalculator.calculateMinAda(change.getMultiAssets())).build();
             Integer comparison = compare(change, minAmount);
             if (comparison != null && comparison < 0) {
                 // Not enough, add missing amount and run select one last time
-                Value minAda = minAmount.minus(new Value(change.getCoin(), new ArrayList<>())).plus(new Value(utxoSelection.getAmount().getCoin(), new ArrayList<>()));
+                Value minAda = minAmount.minus(Value.builder().coin(change.getCoin()).build()).plus(Value.builder().coin(utxoSelection.getAmount().getCoin()).build());
                 createSubSet(utxoSelection, minAda);
                 try {
                     utxoSelection = select(utxoSelection, minAda, limit);
@@ -329,11 +328,11 @@ public class RandomImproveCoinSelectionStrategy {
     /**
      * Try to improve selection by increasing input amount in [2x,3x] range.
      *
-     * @param utxoSelection - The set of selected/available inputs.
-     * @param outputAmount  - Single compiled output qty requested for payment.
-     * @param limit         - A limit on the number of inputs that can be selected.
-     * @param rangeIdeal    range - Improvement range target values
-     * @param rangeMaximum  range - Improvement range target values
+     * @param utxoSelection The set of selected/available inputs.
+     * @param outputAmount  Single compiled output qty requested for payment.
+     * @param limit         A limit on the number of inputs that can be selected.
+     * @param rangeIdeal    range  Improvement range target values
+     * @param rangeMaximum  range  Improvement range target values
      */
     private void improve(UTxOSelection utxoSelection, Value outputAmount, int limit, Value rangeIdeal, Value rangeMaximum) {
         int nbFreeUTxO = utxoSelection.getSubset().size();
@@ -363,10 +362,10 @@ public class RandomImproveCoinSelectionStrategy {
     /**
      * Use randomSelect & descSelect algorithm to select enough UTxO to fulfill requested outputs
      *
-     * @param utxoSelection - The set of selected/available inputs.
-     * @param outputAmount  - Single compiled output qty requested for payment.
-     * @param limit         - A limit on the number of inputs that can be selected.
-     * @return UTxOSelection - Successful random utxo selection.
+     * @param utxoSelection The set of selected/available inputs.
+     * @param outputAmount  Single compiled output qty requested for payment.
+     * @param limit         A limit on the number of inputs that can be selected.
+     * @return UTxOSelection  Successful random utxo selection.
      * @throws InputsLimitExceededException INPUT_LIMIT_EXCEEDED if the number of randomly picked inputs exceed 'limit' parameter.
      * @throws InputsLimitExceededException INPUTS_EXHAUSTED     if all UTxO doesn't hold enough funds to pay for output.
      */
@@ -388,9 +387,9 @@ public class RandomImproveCoinSelectionStrategy {
     /**
      * Select enough UTxO in DESC order to fulfill requested outputs
      *
-     * @param utxoSelection - The set of selected/available inputs.
-     * @param outputAmount  - Single compiled output qty requested for payment.
-     * @return UTxOSelection - Successful random utxo selection.
+     * @param utxoSelection The set of selected/available inputs.
+     * @param outputAmount  Single compiled output qty requested for payment.
+     * @return UTxOSelection  Successful random utxo selection.
      * @throws InputsExhaustedException INPUTS_EXHAUSTED if all UTxO doesn't hold enough funds to pay for output.
      */
     private UTxOSelection descSelect(UTxOSelection utxoSelection, Value outputAmount) throws InputsExhaustedException {
@@ -418,8 +417,8 @@ public class RandomImproveCoinSelectionStrategy {
     /**
      * Search & Return BigInt amount value
      *
-     * @param needle   - needle
-     * @param haystack - haystack
+     * @param needle   needle
+     * @param haystack haystack
      * @return BigInteger
      */
     private BigInteger searchAmountValue(Value needle, Value haystack) {
@@ -441,10 +440,10 @@ public class RandomImproveCoinSelectionStrategy {
     /**
      * Randomly select enough UTxO to fulfill requested outputs
      *
-     * @param utxoSelection - The set of selected/available inputs.
-     * @param outputAmount  - Single compiled output qty requested for payment.
-     * @param limit         - A limit on the number of inputs that can be selected.
-     * @return uTxOSelection - Successful random utxo selection.
+     * @param utxoSelection The set of selected/available inputs.
+     * @param outputAmount  Single compiled output qty requested for payment.
+     * @param limit         A limit on the number of inputs that can be selected.
+     * @return uTxOSelection Successful random utxo selection.
      * @throws InputsLimitExceededException INPUT_LIMIT_EXCEEDED if the number of randomly picked inputs exceed 'limit' parameter.
      * @throws InputsExhaustedException     INPUTS_EXHAUSTED     if all UTxO doesn't hold enough funds to pay for output.
      */
@@ -462,7 +461,7 @@ public class RandomImproveCoinSelectionStrategy {
         if (nbFreeUTxO <= 0) {
             throw new InputsExhaustedException();
         }
-        utxoSelection.getSubset().remove(Math.floor(Math.random() * nbFreeUTxO));
+        utxoSelection.getSubset().remove((int) Math.floor(Math.random() * nbFreeUTxO));
         Utxo utxo;
         if (utxoSelection.getSubset() != null && !utxoSelection.getSubset().isEmpty()) {
             utxo = utxoSelection.getSubset().get(utxoSelection.getSubset().size() - 1);
@@ -475,16 +474,16 @@ public class RandomImproveCoinSelectionStrategy {
     /**
      * Is Quantity Fulfilled Condition.
      *
-     * @param outputAmount    - Single compiled output qty requested for payment.
-     * @param cumulatedAmount - Single compiled accumulated UTxO qty.
-     * @param nbFreeUTxO      - Number of free UTxO available.
+     * @param outputAmount    Single compiled output qty requested for payment.
+     * @param cumulatedAmount Single compiled accumulated UTxO qty.
+     * @param nbFreeUTxO      Number of free UTxO available.
      * @return boolean
      */
     private boolean isQtyFulfilled(Value outputAmount, Value cumulatedAmount, int nbFreeUTxO) {
         Value amount = outputAmount;
 
         if (outputAmount.getMultiAssets() != null || outputAmount.getMultiAssets().isEmpty()) {
-            Value minAmount = new Value(minAdaCalculator.calculateMinAda(cumulatedAmount.getMultiAssets()), null);
+            Value minAmount = Value.builder().coin(minAdaCalculator.calculateMinAda(cumulatedAmount.getMultiAssets())).build();
             // Lovelace min amount to cover assets and number of output need to be met
             Integer comparison = compare(cumulatedAmount, minAmount);
             if (comparison != null && comparison < 0) return false;
@@ -493,7 +492,7 @@ public class RandomImproveCoinSelectionStrategy {
             if (nbFreeUTxO > 0) {
                 BigInteger maxFee = BigInteger.valueOf(protocolParams.getMinFeeA()).multiply(BigInteger.valueOf(protocolParams.getMaxTxSize()).add(BigInteger.valueOf(protocolParams.getMinFeeB())));
 
-                Value maxFeeValue = new Value(maxFee, null);
+                Value maxFeeValue = Value.builder().coin(maxFee).build();
 
                 amount = amount.plus(maxFeeValue);
             }
@@ -505,8 +504,8 @@ public class RandomImproveCoinSelectionStrategy {
     /**
      * Narrow down remaining UTxO set in case of native token, useful set for lovelace
      *
-     * @param utxoSelection - The set of selected/available inputs.
-     * @param output        - Single compiled output qty requested for payment.
+     * @param utxoSelection The set of selected/available inputs.
+     * @param output        Single compiled output qty requested for payment.
      */
     private void createSubSet(UTxOSelection utxoSelection, Value output) {
         if (output.getCoin().compareTo(BigInteger.ONE) < 0) {
@@ -529,9 +528,9 @@ public class RandomImproveCoinSelectionStrategy {
     /**
      * Compare a candidate value to the one in a group if present
      *
-     * @param group     - group
-     * @param candidate - candidate
-     * @return {int} - -1 group lower, 0 equal, 1 group higher, undefined if no match
+     * @param group     group
+     * @param candidate candidate
+     * @return {int} -1 group lower, 0 equal, 1 group higher, undefined if no match
      */
     private Integer compare(Value group, Value candidate) {
         BigInteger gQty = group.getCoin();
@@ -560,18 +559,6 @@ public class RandomImproveCoinSelectionStrategy {
         }
     }
 
-    private BigInteger getCoin(HashMap<String, HashMap<String, BigInteger>> map) {
-        BigInteger coin = BigInteger.ZERO;
-        for (HashMap<String, BigInteger> assetsMaps : map.values()) {
-            for (Map.Entry<String, BigInteger> assets : assetsMaps.entrySet()) {
-                if (assets.getKey().equals(LOVELACE)) {
-                    coin = coin.add(assets.getValue());
-                }
-            }
-        }
-        return coin;
-    }
-
     /**
      * Split amounts contained in a single {Value} object in separate {Value} objects
      *
@@ -586,14 +573,14 @@ public class RandomImproveCoinSelectionStrategy {
                 for (Asset asset : multiAsset.getAssets()) {
                     Asset newAsset = new Asset(asset.getName(), asset.getValue());
                     MultiAsset newMultiAsset = new MultiAsset(multiAsset.getPolicyId(), Arrays.asList(newAsset));
-                    Value value = new Value(BigInteger.ZERO, Arrays.asList(newMultiAsset));
+                    Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(Arrays.asList(newMultiAsset)).build();
                     splitAmounts.add(value);
                 }
             }
         }
         // Order assets by qty DESC
         sortAmountList(splitAmounts, OrderEnum.desc);
-        splitAmounts.add(new Value(amounts.getCoin(), new ArrayList<>()));
+        splitAmounts.add(Value.builder().coin(amounts.getCoin()).build());
         return splitAmounts;
     }
 
@@ -638,7 +625,7 @@ public class RandomImproveCoinSelectionStrategy {
      * @return Value - The compiled set of amounts requested for payment.
      */
     private Value mergeOutputsAmounts(Set<TransactionOutput> outputs) {
-        Value mergedOutputsValue = new Value(BigInteger.ZERO, new ArrayList<>());
+        Value mergedOutputsValue = Value.builder().coin(BigInteger.ZERO).build();
         for (TransactionOutput transactionOutput : outputs) {
             mergedOutputsValue.plus(transactionOutput.getValue());
         }
@@ -659,7 +646,7 @@ public class RandomImproveCoinSelectionStrategy {
         private List<Utxo> selection = new ArrayList<>();
         private List<Utxo> remaining;
         private List<Utxo> subset = new ArrayList<>();
-        private Value amount = new Value(BigInteger.ZERO, new ArrayList<>());
+        private Value amount = Value.builder().coin(BigInteger.ZERO).build();
 
         public UTxOSelection(List<Utxo> remaining) {
             this.remaining = remaining;
