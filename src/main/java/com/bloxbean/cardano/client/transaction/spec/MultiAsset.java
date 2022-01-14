@@ -12,6 +12,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Data
@@ -81,16 +82,18 @@ public class MultiAsset {
         if (multiAssets1 != null) {
             tempMultiAssets.addAll(multiAssets1);
         }
-        if (multiAssets2 != null) {
-            tempMultiAssets.removeAll(multiAssets2);
+        List<MultiAsset> multiAssetListResult = new ArrayList<>();
+        java.util.Map<String, MultiAsset> thatMultiAssetsMap = convertListToMap(multiAssets2);
+        for (MultiAsset multiAsset : tempMultiAssets) {
+            if (thatMultiAssetsMap.containsKey(multiAsset.getPolicyId())) {
+                multiAssetListResult.add(multiAsset.minus(thatMultiAssetsMap.get(multiAsset.getPolicyId())));
+            }
         }
-        return tempMultiAssets
-                .stream()
-                .collect(Collectors.groupingBy(MultiAsset::getPolicyId))
-                .entrySet()
-                .stream()
-                .map(entry -> entry.getValue().stream().reduce(MultiAsset.builder().policyId(entry.getKey()).assets(Arrays.asList()).build(), MultiAsset::minus))
-                .collect(Collectors.toList());
+        return multiAssetListResult;
+    }
+
+    private static java.util.Map<String, MultiAsset> convertListToMap(List<MultiAsset> multiAssets) {
+        return multiAssets.stream().collect(Collectors.toMap(MultiAsset::getPolicyId, Function.identity()));
     }
 
     public void serialize(Map multiAssetMap) {
@@ -151,19 +154,21 @@ public class MultiAsset {
      * @param that {@link MultiAsset} to Subtract by
      * @return {@link MultiAsset} as Difference result
      */
-    private MultiAsset minus(MultiAsset that) {
+    public MultiAsset minus(MultiAsset that) {
         if (!getPolicyId().equals(that.getPolicyId())) {
             throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
         }
-        ArrayList<Asset> assetsClone = new ArrayList<>(getAssets());
-        assetsClone.removeAll(that.getAssets());
-        List<Asset> mergedAssets = assetsClone
-                .stream()
-                .collect(Collectors.groupingBy(Asset::getName))
-                .entrySet()
-                .stream()
-                .map(entry -> entry.getValue().stream().reduce(Asset.builder().name(entry.getKey()).value(BigInteger.ZERO).build(), Asset::minus))
-                .collect(Collectors.toList());
-        return MultiAsset.builder().policyId(getPolicyId()).assets(mergedAssets).build();
+        List<Asset> assetsResult = new ArrayList<>();
+        java.util.Map<String,Asset> thatAssetsMap = convertToMap(that.assets);
+        for (Asset asset : getAssets()) {
+            if (thatAssetsMap.containsKey(asset.getName())) {
+                assetsResult.add(asset.minus(thatAssetsMap.get(asset.getName())));
+            }
+        }
+        return MultiAsset.builder().policyId(getPolicyId()).assets(assetsResult).build();
+    }
+
+    public java.util.Map<String,Asset> convertToMap(List<Asset> assets) {
+        return assets.stream().collect(Collectors.toMap(Asset::getName, Function.identity()));
     }
 }
