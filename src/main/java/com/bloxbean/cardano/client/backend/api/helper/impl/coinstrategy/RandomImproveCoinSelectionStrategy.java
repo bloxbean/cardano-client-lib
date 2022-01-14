@@ -1,11 +1,12 @@
 package com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy;
 
-import com.bloxbean.cardano.client.backend.api.helper.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.exception.InputsExhaustedException;
 import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.exception.InputsLimitExceededException;
 import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.exception.base.CoinSelectionException;
 import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.model.SelectionResult;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
+import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
@@ -206,12 +207,15 @@ import static java.lang.Math.abs;
  * </blockquote>
  */
 @Slf4j
-public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy {
+public class RandomImproveCoinSelectionStrategy {
 
+    private final UtxoService utxoService;
     private final ProtocolParams protocolParams;
     private final MinAdaCalculator minAdaCalculator;
+    private int utxoFetchSize = 40;
 
-    public RandomImproveCoinSelectionStrategy(ProtocolParams protocolParams) {
+    public RandomImproveCoinSelectionStrategy(UtxoService utxoService, ProtocolParams protocolParams) {
+        this.utxoService = utxoService;
         this.protocolParams = protocolParams;
         this.minAdaCalculator = new MinAdaCalculator(protocolParams);
     }
@@ -219,12 +223,34 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
     /**
      * Random-Improve coin selection algorithm
      *
-     * @param inputs  - The set of inputs available for selection.
-     * @param outputs - The set of outputs requested for payment.
-     * @param limit   - A limit on the number of inputs that can be selected.
+     * @param address Sender's account address
+     * @param outputs Set of outputs requested for payment.
+     * @param limit   limit on the number of inputs that can be selected.
      * @return a {@link SelectionResult} with the specified Coin Selection.
      */
-    public Result<SelectionResult> randomImprove(List<Utxo> inputs, List<TransactionOutput> outputs, int limit) {
+    public Result<SelectionResult> randomImprove(String address, Set<TransactionOutput> outputs, int limit) {
+        return randomImprove(address,outputs,limit,Collections.emptySet());
+    }
+
+    /**
+     * Random-Improve coin selection algorithm by excluded Utxos
+     *
+     * @param address Sender's account address
+     * @param outputs Set of outputs requested for payment.
+     * @param limit   limit on the number of inputs that can be selected.
+     * @param excludeUtxos UTxO List to Exclude from Fetched List
+     * @return a {@link SelectionResult} with the specified Coin Selection.
+     */
+    public Result<SelectionResult> randomImprove(String address, Set<TransactionOutput> outputs, int limit, Set<Utxo> excludeUtxos) {
+        List<Utxo> inputs;
+        try {
+            inputs = selectUtxos(address, excludeUtxos);
+        } catch (ApiException e) {
+            return Result.error(e.getMessage());
+        }
+        if (inputs == null || inputs.isEmpty()) {
+            return Result.error("NO_INPUTS");
+        }
         UTxOSelection utxoSelection = new UTxOSelection(inputs);
         Value mergedOutputsAmounts = mergeOutputsAmounts(outputs);
 
@@ -243,7 +269,7 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
         }
 
         // Phase 2: Improve
-        splitOutputsAmounts = sortAmountList(splitOutputsAmounts, OrderEnum.asc);
+        sortAmountList(splitOutputsAmounts, OrderEnum.asc);
         for (Value splitOutputsAmount : splitOutputsAmounts) {
             createSubSet(utxoSelection, splitOutputsAmount); // Narrow down for NatToken UTxO
             Value rangeIdeal = splitOutputsAmount.plus(splitOutputsAmount);
@@ -268,8 +294,36 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
                 }
             }
         }
-        return Result.success("Success")
-                .withValue(new SelectionResult(utxoSelection.getSelection(), outputs, utxoSelection.getRemaining(), utxoSelection.getAmount(), utxoSelection.getAmount().minus(mergedOutputsAmounts)));
+        SelectionResult selectionResult = new SelectionResult(utxoSelection.getSelection(), outputs, utxoSelection.getRemaining(), utxoSelection.getAmount(), utxoSelection.getAmount().minus(mergedOutputsAmounts));
+        return Result.success("Success").withValue(selectionResult);
+    }
+
+    /**
+     * Returns Fetch Utxos out of Sender's Account Address after UTxO exclusion.
+     *
+     * @param address      Sender's account address.
+     * @param excludeUtxos List of UTxOs to Exclude from Fetched List.
+     * @return {@link Utxo} List out of Sender's Account Address after UTxO exclusion.
+     * @throws ApiException on Api Fetch issues
+     */
+    public List<Utxo> selectUtxos(String address, Set<Utxo> excludeUtxos) throws ApiException {
+        List<Utxo> utxos = new ArrayList<>();
+        boolean canContinue = true;
+        int page = 1;
+        while (canContinue) {
+            Result<List<Utxo>> result = utxoService.getUtxos(address, getUtxoFetchSize(), page++);
+            if (result.code() == 200) {
+                List<Utxo> data = result.getValue();
+                if (data == null || data.isEmpty())
+                    canContinue = false;
+                else
+                    utxos.addAll(data);
+            } else {
+                throw new ApiException(String.format("Unable to get enough Utxos for address : %s, reason: %s", address, result.getResponse()));
+            }
+        }
+        utxos.removeAll(excludeUtxos);
+        return utxos;
     }
 
     /**
@@ -289,7 +343,7 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
             utxoSelection.getSubset().clear();
             return;
         }
-        utxoSelection.getSubset().remove(Math.floor(Math.random() * nbFreeUTxO));
+        utxoSelection.getSubset().remove((int) Math.floor(Math.random() * nbFreeUTxO));
         Utxo utxo;
         if (utxoSelection.getSubset() != null && !utxoSelection.getSubset().isEmpty()) {
             utxo = utxoSelection.getSubset().get(utxoSelection.getSubset().size() - 1);
@@ -322,13 +376,13 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
                     outputAmount,
                     limit - utxoSelection.getSelection().size()
             );
+            return utxoSelection;
         } catch (InputsExhaustedException e) {
             // Limit reached : Fallback on DescOrdAlgo
-            utxoSelection = descSelect(utxoSelection, outputAmount);
+            return descSelect(utxoSelection, outputAmount);
         } catch (InputsLimitExceededException e) {
             throw e;
         }
-        return utxoSelection;
     }
 
     /**
@@ -392,7 +446,7 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
      * @param limit         - A limit on the number of inputs that can be selected.
      * @return uTxOSelection - Successful random utxo selection.
      * @throws InputsLimitExceededException INPUT_LIMIT_EXCEEDED if the number of randomly picked inputs exceed 'limit' parameter.
-     * @throws InputsExhaustedException INPUTS_EXHAUSTED     if all UTxO doesn't hold enough funds to pay for output.
+     * @throws InputsExhaustedException     INPUTS_EXHAUSTED     if all UTxO doesn't hold enough funds to pay for output.
      */
     private UTxOSelection randomSelect(UTxOSelection utxoSelection, Value outputAmount, int limit) throws CoinSelectionException {
         int nbFreeUTxO = utxoSelection.getSubset().size();
@@ -499,7 +553,11 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
                 return null;
             }
         }
-        return gQty.compareTo(cQty) >= 0 ? (gQty.compareTo(cQty) == 0 ? 0 : 1) : -1;
+        if (gQty.compareTo(cQty) >= 0) {
+            return (gQty.compareTo(cQty) == 0 ? 0 : 1);
+        } else {
+            return -1;
+        }
     }
 
     private BigInteger getCoin(HashMap<String, HashMap<String, BigInteger>> map) {
@@ -526,15 +584,15 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
         if (mA != null && !mA.isEmpty()) {
             for (MultiAsset multiAsset : mA) {
                 for (Asset asset : multiAsset.getAssets()) {
-                    Asset _asset = new Asset(asset.getName(), asset.getValue());
-                    MultiAsset _multiAsset = new MultiAsset(multiAsset.getPolicyId(), Arrays.asList(_asset));
-                    Value _value = new Value(BigInteger.ZERO, Arrays.asList(_multiAsset));
-                    splitAmounts.add(_value);
+                    Asset newAsset = new Asset(asset.getName(), asset.getValue());
+                    MultiAsset newMultiAsset = new MultiAsset(multiAsset.getPolicyId(), Arrays.asList(newAsset));
+                    Value value = new Value(BigInteger.ZERO, Arrays.asList(newMultiAsset));
+                    splitAmounts.add(value);
                 }
             }
         }
         // Order assets by qty DESC
-        splitAmounts = sortAmountList(splitAmounts, OrderEnum.desc);
+        sortAmountList(splitAmounts, OrderEnum.desc);
         splitAmounts.add(new Value(amounts.getCoin(), new ArrayList<>()));
         return splitAmounts;
     }
@@ -544,14 +602,12 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
      *
      * @param amountList - Set of mismatched amounts to be sorted.
      * @param sortOrder  [sortOrder=ASC] - Order
-     * @return {AmountList} - The sorted AmountList
      */
-    private List<Value> sortAmountList(List<Value> amountList, OrderEnum sortOrder) {
+    private void sortAmountList(List<Value> amountList, OrderEnum sortOrder) {
         amountList.sort((a, b) -> {
             BigInteger sortInt = sortOrder == OrderEnum.desc ? BigInteger.valueOf(-1) : BigInteger.valueOf(1);
             return getAmountValue(a).subtract(getAmountValue(b)).multiply(sortInt).intValue();
         });
-        return amountList;
     }
 
     /**
@@ -581,7 +637,7 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
      * @param outputs - The set of outputs requested for payment.
      * @return Value - The compiled set of amounts requested for payment.
      */
-    private Value mergeOutputsAmounts(List<TransactionOutput> outputs) {
+    private Value mergeOutputsAmounts(Set<TransactionOutput> outputs) {
         Value mergedOutputsValue = new Value(BigInteger.ZERO, new ArrayList<>());
         for (TransactionOutput transactionOutput : outputs) {
             mergedOutputsValue.plus(transactionOutput.getValue());
@@ -589,24 +645,12 @@ public class RandomImproveCoinSelectionStrategy implements UtxoSelectionStrategy
         return mergedOutputsValue;
     }
 
-    @Override
-    public List<Utxo> selectUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) {
-        return null;
+    public int getUtxoFetchSize() {
+        return utxoFetchSize;
     }
 
-    @Override
-    public List<Utxo> selectUtxos(String address, String unit, BigInteger amount, String datumHash, Set<Utxo> excludeUtxos) {
-        return null;
-    }
-
-    @Override
-    public boolean ignoreUtxosWithDatumHash() {
-        return false;
-    }
-
-    @Override
-    public void setIgnoreUtxosWithDatumHash(boolean ignoreUtxosWithDatumHash) {
-
+    public void setUtxoFetchSize(int utxoFetchSize) {
+        this.utxoFetchSize = utxoFetchSize;
     }
 
     @Data
