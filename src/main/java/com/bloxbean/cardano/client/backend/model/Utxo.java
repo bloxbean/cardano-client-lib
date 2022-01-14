@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.util.AssetUtil;
-import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -14,9 +13,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
+import static java.util.stream.Collectors.groupingBy;
 
 @Data
 @Builder
@@ -44,32 +46,32 @@ public class Utxo {
         return Objects.hash(txHash, outputIndex);
     }
 
-    // TODO Should be deleted after structure change
     public Value toValue() {
-        Value value = new Value(BigInteger.ZERO, new ArrayList<>());
-        HashMap<String, HashMap<String, BigInteger>> multiAssetsMap = new HashMap<>();
-        for (Amount am : amount) {
-            if (am.getUnit().equals(LOVELACE)) {
-                value.setCoin(value.getCoin().add(am.getQuantity()));
-            } else {
-                Tuple<String, String> tuple = AssetUtil.getPolicyIdAndAssetName(am.getUnit());
-                HashMap<String, BigInteger> assets = multiAssetsMap.get(tuple._1);
-                if (assets == null) {
-                    assets = new HashMap<>();
-                }
-                assets.put(tuple._2, am.getQuantity());
-                multiAssetsMap.put(tuple._1, assets);
-            }
-        }
-        List<MultiAsset> multiAssetList = new ArrayList<>();
-        for (Map.Entry<String,HashMap<String,BigInteger>> entry : multiAssetsMap.entrySet()) {
-            List<Asset> assetList = new ArrayList<>();
-            for (Map.Entry<String,BigInteger> asset : entry.getValue().entrySet()) {
-                assetList.add(new Asset(asset.getKey(),asset.getValue()));
-            }
-            multiAssetList.add(new MultiAsset(entry.getKey(),assetList));
-        }
-        value.setMultiAssets(multiAssetList);
-        return value;
+        //Get lovelace amount
+        Amount loveLaceAmount = amount.stream()
+                .filter(amt -> LOVELACE.equals(amt.getUnit()))
+                .findFirst()
+                .orElse(new Amount(LOVELACE, BigInteger.ZERO)); //TODO throw error
+
+        //Convert non lovelace amount to MultiAsset
+        List<MultiAsset> multiAssets = amount.stream()
+                .filter(amt -> !LOVELACE.equals(amt.getUnit()))
+                .collect(groupingBy(amt -> AssetUtil.getPolicyIdAndAssetName(amt.getUnit())._1))
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    List<Asset> assets = entry.getValue().stream()
+                            .map(amount -> new Asset(AssetUtil.getPolicyIdAndAssetName(amount.getUnit())._2, amount.getQuantity()))
+                            .collect(Collectors.toList());
+
+                    MultiAsset multiAsset = new MultiAsset();
+                    multiAsset.setPolicyId(entry.getKey());
+                    multiAsset.setAssets(assets);
+
+                    return multiAsset;
+                }).collect(Collectors.toList());
+
+        return new Value(loveLaceAmount.getQuantity(), multiAssets);
+
     }
 }
