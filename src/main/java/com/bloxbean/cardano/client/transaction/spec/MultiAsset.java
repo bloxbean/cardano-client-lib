@@ -159,7 +159,7 @@ public class MultiAsset {
             throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
         }
         List<Asset> assetsResult = new ArrayList<>();
-        java.util.Map<String,Asset> thatAssetsMap = convertToMap(that.assets);
+        java.util.Map<String, Asset> thatAssetsMap = convertToMap(that.assets);
         for (Asset asset : getAssets()) {
             if (thatAssetsMap.containsKey(asset.getName())) {
                 assetsResult.add(asset.minus(thatAssetsMap.get(asset.getName())));
@@ -168,7 +168,7 @@ public class MultiAsset {
         return MultiAsset.builder().policyId(getPolicyId()).assets(assetsResult).build();
     }
 
-    public java.util.Map<String,Asset> convertToMap(List<Asset> assets) {
+    public java.util.Map<String, Asset> convertToMap(List<Asset> assets) {
         return assets.stream().collect(Collectors.toMap(Asset::getName, Function.identity()));
     }
 }

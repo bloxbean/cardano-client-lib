@@ -28,11 +28,7 @@ public class MinAdaCalculator {
         if (output.getValue().getMultiAssets() == null || output.getValue().getMultiAssets().size() == 0)
             return adaOnlyMinUtxoValue;
 
-        long sizeB = bundleSize(output);
-
-        long utxoEntrySize = utxoEntrySizeWithoutVal + sizeB; //TODO + dataHashSize (dh)
-
-        return coinsPerUtxoWord.multiply(BigInteger.valueOf(utxoEntrySize));
+        return calculateMinAda(output.getValue().getMultiAssets());
     }
 
     public BigInteger calculateMinAda(List<MultiAsset> multiAssetList) {
@@ -51,33 +47,10 @@ public class MinAdaCalculator {
         int numPIDs = 0;
         long sumAssetNameLengths = 0;
         int pidSize = 28; //Policy id size is currently 28
+
         Set<String> uniqueAssetNames = new HashSet<>();
         //If multi asssets
         for (MultiAsset ma : multiAssetList) {
-            numPIDs++;
-            for (Asset asset : ma.getAssets()) {
-                numAssets++;
-                //the sum of the length of the ByteStrings representing distinct asset names
-                if (!uniqueAssetNames.contains(asset.getName())) {
-                    sumAssetNameLengths += asset.getNameAsBytes().length;
-                    if (asset.getName() != null && !asset.getName().isEmpty()) {
-                        uniqueAssetNames.add(asset.getName());
-                    }
-                }
-            }
-        }
-        return calculateSizeB(numAssets, sumAssetNameLengths, numPIDs, pidSize);
-    }
-
-    private long bundleSize(TransactionOutput output) {
-        int numAssets = 0;
-        int numPIDs = 0;
-        long sumAssetNameLengths = 0;
-        int pidSize = 28; //Policy id size is currently 28
-
-        Set<String> uniqueAssetNames = new HashSet<>();
-        //If multi asssets
-        for (MultiAsset ma : output.getValue().getMultiAssets()) {
             numPIDs++;
             for (Asset asset : ma.getAssets()) {
                 numAssets++;
