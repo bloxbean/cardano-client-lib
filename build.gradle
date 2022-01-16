@@ -36,6 +36,9 @@ dependencies {
     testImplementation 'org.mockito:mockito-junit-jupiter:3.7.7'
     testImplementation('org.assertj:assertj-core:3.21.0')
     testRuntimeOnly 'org.slf4j:slf4j-log4j12:1.7.30'
+
+    testCompileOnly 'org.projectlombok:lombok:1.18.20'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.20'
 }
 
 sourceSets {
@@ -56,9 +59,11 @@ sourceSets {
 
 configurations {
     integrationTestCompile.extendsFrom testCompile
+    integrationTestCompileOnly.extendsFrom testCompileOnly
     integrationTestImplementation.extendsFrom testImplementation
     integrationTestRuntime.extendsFrom testRuntime
     integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+    integreationTestAnnotationProcessor.extendsFrom testAnnotationProcessor
 }
 
 compileJava {
