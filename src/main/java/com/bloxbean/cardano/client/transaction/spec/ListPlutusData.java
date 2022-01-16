@@ -11,6 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Getter
@@ -24,6 +25,37 @@ public class ListPlutusData implements PlutusData {
 
     @Builder.Default
     private boolean isChunked = true;
+
+    public static ListPlutusData of(PlutusData... plutusDataList) {
+        ListPlutusData listPlutusData = new ListPlutusData();
+        Arrays.stream(plutusDataList).forEach(plutusData -> listPlutusData.add(plutusData));
+
+        return listPlutusData;
+    }
+
+    public static ListPlutusData deserialize(Array arrayDI) throws CborDeserializationException {
+        if (arrayDI == null)
+            return null;
+
+        boolean isChunked = false;
+        ListPlutusData listPlutusData = new ListPlutusData();
+        for (DataItem di : arrayDI.getDataItems()) {
+            if (di == Special.BREAK) {
+                isChunked = true;
+                break;
+            }
+
+            PlutusData plutusData = PlutusData.deserialize(di);
+            if (plutusData == null)
+                throw new CborDeserializationException("Null value found during PlutusData de-serialization");
+
+            listPlutusData.add(PlutusData.deserialize(di));
+        }
+
+        listPlutusData.isChunked = isChunked;
+
+        return listPlutusData;
+    }
 
     public void add(PlutusData plutusData) {
         if (plutusDataList == null)
@@ -58,30 +90,6 @@ public class ListPlutusData implements PlutusData {
             plutusDataArray.add(Special.BREAK);
 
         return plutusDataArray;
-    }
-
-    public static ListPlutusData deserialize(Array arrayDI) throws CborDeserializationException {
-        if (arrayDI == null)
-            return null;
-
-        boolean isChunked = false;
-        ListPlutusData listPlutusData = new ListPlutusData();
-        for (DataItem di : arrayDI.getDataItems()) {
-            if (di == Special.BREAK) {
-                isChunked = true;
-                break;
-            }
-
-            PlutusData plutusData = PlutusData.deserialize(di);
-            if (plutusData == null)
-                throw new CborDeserializationException("Null value found during PlutusData de-serialization");
-
-            listPlutusData.add(PlutusData.deserialize(di));
-        }
-
-        listPlutusData.isChunked = isChunked;
-
-        return listPlutusData;
     }
 
 }

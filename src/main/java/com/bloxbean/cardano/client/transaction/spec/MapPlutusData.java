@@ -20,11 +20,29 @@ public class MapPlutusData implements PlutusData {
     @Builder.Default
     private java.util.Map<PlutusData, PlutusData> map = new HashMap<>();
 
-    public void put(PlutusData key, PlutusData value) {
+    public static MapPlutusData deserialize(Map mapDI) throws CborDeserializationException {
+        if (mapDI == null) {
+            return null;
+        }
+
+        MapPlutusData mapPlutusData = new MapPlutusData();
+        for (DataItem keyDI : mapDI.getKeys()) {
+            PlutusData key = PlutusData.deserialize(keyDI);
+            PlutusData value = PlutusData.deserialize(mapDI.get(keyDI));
+
+            mapPlutusData.put(key, value);
+        }
+
+        return mapPlutusData;
+    }
+
+    public MapPlutusData put(PlutusData key, PlutusData value) {
         if (map == null)
             map = new HashMap<>();
 
         map.put(key, value);
+
+        return this;
     }
 
     @Override
@@ -47,21 +65,5 @@ public class MapPlutusData implements PlutusData {
         }
 
         return plutusDataMap;
-    }
-
-    public static MapPlutusData deserialize(Map mapDI) throws CborDeserializationException {
-        if (mapDI == null) {
-            return null;
-        }
-
-        MapPlutusData mapPlutusData = new MapPlutusData();
-        for (DataItem keyDI : mapDI.getKeys()) {
-            PlutusData key = PlutusData.deserialize(keyDI);
-            PlutusData value = PlutusData.deserialize(mapDI.get(keyDI));
-
-            mapPlutusData.put(key, value);
-        }
-
-        return mapPlutusData;
     }
 }

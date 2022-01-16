@@ -9,12 +9,29 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.nio.charset.StandardCharsets;
+
 @Getter
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 public class BytesPlutusData implements PlutusData {
     private byte[] value;
+
+    public static BytesPlutusData deserialize(ByteString valueDI) throws CborDeserializationException {
+        if (valueDI == null)
+            return null;
+
+        return new BytesPlutusData(valueDI.getBytes());
+    }
+
+    public static BytesPlutusData of(byte[] bytes) {
+        return new BytesPlutusData(bytes);
+    }
+
+    public static BytesPlutusData of(String str) {
+        return new BytesPlutusData(str.getBytes(StandardCharsets.UTF_8));
+    }
 
     @Override
     public DataItem serialize() throws CborSerializationException {
@@ -25,12 +42,4 @@ public class BytesPlutusData implements PlutusData {
 
         return di;
     }
-
-    public static BytesPlutusData deserialize(ByteString valueDI) throws CborDeserializationException {
-        if (valueDI == null)
-            return null;
-
-        return new BytesPlutusData(valueDI.getBytes());
-    }
-
 }

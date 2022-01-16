@@ -18,9 +18,6 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class ConstrPlutusData implements PlutusData {
-    private long alternative;
-    private ListPlutusData data;
-
     // see: https://github.com/input-output-hk/plutus/blob/1f31e640e8a258185db01fa899da63f9018c0e85/plutus-core/plutus-core/src/PlutusCore/Data.hs#L61
     // We don't directly serialize the alternative in the tag, instead the scheme is:
     // - Alternatives 0-6 -> tags 121-127, followed by the arguments in a list
@@ -28,26 +25,14 @@ public class ConstrPlutusData implements PlutusData {
     // - Any alternatives, including those that don't fit in the above -> tag 102 followed by a list containing
     //   an unsigned integer for the actual alternative, and then the arguments in a (nested!) list.
     private static final long GENERAL_FORM_TAG = 102;
+    private long alternative;
+    private ListPlutusData data;
 
-    @Override
-    public DataItem serialize() throws CborSerializationException {
-        Long cborTag = alternativeToCompactCborTag(alternative);
-        DataItem dataItem = null;
-
-        if (cborTag != null) {
-            // compact form
-            dataItem = data.serialize();
-            dataItem.setTag(cborTag);
-        } else {
-            //general form
-            Array constrArray = new Array();
-            constrArray.add(new UnsignedInteger(alternative));
-            constrArray.add(data.serialize());
-            dataItem = constrArray;
-            dataItem.setTag(GENERAL_FORM_TAG);
-        }
-
-        return dataItem;
+    public static ConstrPlutusData of(long alternative, PlutusData... plutusDataList) {
+        return ConstrPlutusData.builder()
+                .alternative(alternative)
+                .data(ListPlutusData.of(plutusDataList))
+                .build();
     }
 
     public static ConstrPlutusData deserialize(DataItem di) throws CborDeserializationException {
@@ -92,5 +77,26 @@ public class ConstrPlutusData implements PlutusData {
             return cborTag - 1280 + 7;
         } else
             return null;
+    }
+
+    @Override
+    public DataItem serialize() throws CborSerializationException {
+        Long cborTag = alternativeToCompactCborTag(alternative);
+        DataItem dataItem = null;
+
+        if (cborTag != null) {
+            // compact form
+            dataItem = data.serialize();
+            dataItem.setTag(cborTag);
+        } else {
+            //general form
+            Array constrArray = new Array();
+            constrArray.add(new UnsignedInteger(alternative));
+            constrArray.add(data.serialize());
+            dataItem = constrArray;
+            dataItem.setTag(GENERAL_FORM_TAG);
+        }
+
+        return dataItem;
     }
 }
