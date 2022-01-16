@@ -1162,7 +1162,7 @@ public class ContractTransactionIT extends BFBaseTest {
 
     private Utxo getRandomUtxoForCollateral(String address) throws ApiException {
         ScriptUtxoSelection scriptUtxoSelection = new DefaultScriptUtxoSelection(utxoService);
-        //Find 3 > utxo > 5 ada
+        //Find 5 > utxo > 10 ada
         Utxo utxo = scriptUtxoSelection.findFirst(address, u -> {
             if (u.getAmount().size() == 1
                     && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(5)) == 1
@@ -1192,7 +1192,7 @@ public class ContractTransactionIT extends BFBaseTest {
                 System.out.println("*** Collateral utxo not found");
 
                 //Transfer to self to create collateral utxo
-                BigInteger collateralAmt = BigInteger.valueOf(5000000L);
+                BigInteger collateralAmt = BigInteger.valueOf(8000000L);
                 transferFund(sender, sender.baseAddress(), collateralAmt, null, null, null);
 
                 //Find collateral utxo again
