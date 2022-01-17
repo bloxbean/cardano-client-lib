@@ -26,21 +26,44 @@ public class Value {
     @Builder.Default
     private List<MultiAsset> multiAssets = new ArrayList<>();
 
-    public HashMap<String, HashMap<String,BigInteger>> toMap() {
-        HashMap<String, HashMap<String,BigInteger>> multiAssetsMap = new HashMap<>();
-        for (MultiAsset multiAsset : multiAssets) {
-            HashMap<String,BigInteger> assets = new HashMap<>();
-            for (Asset asset : multiAsset.getAssets()) {
-                assets.put(asset.getName(),asset.getValue());
+    public static Value deserialize(Array valueArray) {
+        //There can be two elements
+        //First one coin
+
+        Value value = new Value();
+        List<DataItem> valueDataItems = valueArray.getDataItems();
+        if (valueDataItems != null && valueDataItems.size() == 2) {
+            DataItem valueDI = valueDataItems.get(0);
+            BigInteger coin = CborSerializationUtil.getBigInteger(valueDI);
+            value.setCoin(coin);
+
+            Map multiAssetsMap = (Map) valueDataItems.get(1);
+            if (multiAssetsMap != null) {
+                for (DataItem key : multiAssetsMap.getKeys()) {
+                    MultiAsset multiAsset = MultiAsset.deserialize(multiAssetsMap, key);
+                    value.getMultiAssets().add(multiAsset);
+                }
             }
-            multiAssetsMap.put(multiAsset.getPolicyId(),assets);
+        }
+
+        return value;
+    }
+
+    public HashMap<String, HashMap<String, BigInteger>> toMap() {
+        HashMap<String, HashMap<String, BigInteger>> multiAssetsMap = new HashMap<>();
+        for (MultiAsset multiAsset : multiAssets) {
+            HashMap<String, BigInteger> assets = new HashMap<>();
+            for (Asset asset : multiAsset.getAssets()) {
+                assets.put(asset.getName(), asset.getValue());
+            }
+            multiAssetsMap.put(multiAsset.getPolicyId(), assets);
         }
         return multiAssetsMap;
     }
 
     public Map serialize() throws CborSerializationException {
         Map map = new Map();
-        if(multiAssets != null) {
+        if (multiAssets != null) {
             for (MultiAsset multiAsset : multiAssets) {
                 multiAsset.serialize(map);
                 /*Map assetsMap = new Map();
@@ -57,50 +80,27 @@ public class Value {
         return map;
     }
 
-    public static Value deserialize(Array valueArray) {
-        //There can be two elements
-        //First one coin
-
-        Value value = new Value();
-        List<DataItem> valueDataItems = valueArray.getDataItems();
-        if(valueDataItems != null && valueDataItems.size() == 2) {
-            DataItem valueDI = valueDataItems.get(0);
-            BigInteger coin = CborSerializationUtil.getBigInteger(valueDI);
-            value.setCoin(coin);
-
-            Map multiAssetsMap = (Map)valueDataItems.get(1);
-            if(multiAssetsMap != null) {
-                for (DataItem key : multiAssetsMap.getKeys()) {
-                    MultiAsset multiAsset = MultiAsset.deserialize(multiAssetsMap, key);
-                    value.getMultiAssets().add(multiAsset);
-                }
-            }
-        }
-
-        return value;
+    /**
+     * Sums arbitrary complex values.
+     *
+     * @param that parameter to sum with
+     * @return {@link Value} of the Sum
+     */
+    public Value plus(Value that) {
+        BigInteger sumCoin = (getCoin() == null ? BigInteger.ZERO.add(that.getCoin()) : getCoin().add(that.getCoin()));
+        List<MultiAsset> sumMultiAssets = MultiAsset.mergeMultiAssetLists(getMultiAssets(), that.getMultiAssets());
+        return Value.builder().coin(sumCoin).multiAssets(sumMultiAssets).build();
     }
 
     /**
-     * Sums arbitrary complex values.
-     * @param that
-     * @return
+     * Subtracts arbitrary complex values.
+     *
+     * @param that parameter to subtract by
+     * @return {@link Value} Difference
      */
-    public Value plus(Value that) {
-        BigInteger thisCoin;
-        if (getCoin()==null) {
-            thisCoin = BigInteger.ZERO;
-        } else {
-            thisCoin = getCoin();
-        }
-        BigInteger coin = thisCoin.add(that.getCoin());
-        List<MultiAsset> multiAssets = MultiAsset.mergeMultiAssetLists(getMultiAssets(), that.getMultiAssets());
-        return Value.builder().coin(coin).multiAssets(multiAssets).build();
-    }
-
-    //TODO - Unit tests
     public Value minus(Value that) {
-        BigInteger coin = getCoin().subtract(that.getCoin());
-        List<MultiAsset> multiAssets = MultiAsset.subtractMultiAssetLists(getMultiAssets(),that.getMultiAssets());
-        return Value.builder().coin(coin).multiAssets(multiAssets).build();
+        BigInteger sumCoin = (getCoin() == null ? BigInteger.ZERO.subtract(that.getCoin()) : getCoin().subtract(that.getCoin()));
+        List<MultiAsset> difMultiAssets = MultiAsset.subtractMultiAssetLists(getMultiAssets(), that.getMultiAssets());
+        return Value.builder().coin(sumCoin).multiAssets(difMultiAssets).build();
     }
 }

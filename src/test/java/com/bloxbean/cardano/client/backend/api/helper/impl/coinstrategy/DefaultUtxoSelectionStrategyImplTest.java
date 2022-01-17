@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.api.helper.impl;
+package com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.DefaultUtxoSelectionStrategyImpl;
