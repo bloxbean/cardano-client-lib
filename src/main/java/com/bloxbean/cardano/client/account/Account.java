@@ -27,7 +27,10 @@ import java.util.stream.Collectors;
 public class Account {
     @JsonIgnore
     private String mnemonic;
+    @JsonIgnore
+    private String secretKey;
     private String baseAddress;
+    private String changeAddress;
     private String enterpriseAddress;
     private String stakeAddress;
     private Network network;
@@ -131,8 +134,27 @@ public class Account {
     public Account(Network network, String mnemonic, DerivationPath derivationPath) {
         this.network = network;
         this.mnemonic = mnemonic;
+        this.secretKey = null;
         this.derivationPath = derivationPath;
         validateMnemonic();
+        baseAddress();
+    }
+
+    /**
+     * Create an account for the network and derivation path from a private key
+     *
+     * @param network
+     * @param derivationPath
+     * @param secretKey is a private key of 192 bytes or 256 bytes (with pubkey and chaincode) encoded in a base64 String
+     */
+    public Account(Network network, DerivationPath derivationPath, String secretKey) {
+        this.network = network;
+        this.mnemonic = null;
+        if (secretKey.length() == 192)
+            this.secretKey = secretKey;
+        else
+            this.secretKey = secretKey.substring(0,128) + secretKey.substring(192,256);
+        this.derivationPath = derivationPath;
         baseAddress();
     }
 
@@ -148,7 +170,7 @@ public class Account {
      */
     public String baseAddress() {
         if (baseAddress == null || baseAddress.isEmpty()) {
-            HdKeyPair paymentKeyPair = getHdKeyPair();
+            HdKeyPair paymentKeyPair = getExternalKeyPair();
             HdKeyPair stakeKeyPair = getStakeKeyPair();
 
             Address address = AddressService.getInstance().getBaseAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
@@ -156,6 +178,21 @@ public class Account {
         }
 
         return baseAddress;
+    }
+
+    /**
+     * @return changeAddress at index
+     */
+    public String changeAddress() {
+        if (changeAddress == null || changeAddress.isEmpty()) {
+            HdKeyPair changeKeyPair = getChangeKeyPair();
+            HdKeyPair stakeKeyPair = getStakeKeyPair();
+
+            Address address = AddressService.getInstance().getBaseAddress(changeKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
+            changeAddress = address.toBech32();
+        }
+
+        return changeAddress;
     }
 
     /**
@@ -248,7 +285,7 @@ public class Account {
      * @return
      */
     public Transaction sign(Transaction transaction) {
-        return TransactionSigner.INSTANCE.sign(transaction, getHdKeyPair());
+        return TransactionSigner.INSTANCE.sign(transaction, getExternalKeyPair());
     }
 
     private void generateNew(Words noOfWords) {
@@ -278,13 +315,50 @@ public class Account {
     }
 
     private HdKeyPair getHdKeyPair() {
-        HdKeyPair hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
+        HdKeyPair hdKeyPair;
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.secretKey, derivationPath);
+        }
+        else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
+        }
+        return hdKeyPair;
+    }
+
+    public HdKeyPair getExternalKeyPair() {
+        HdKeyPair hdKeyPair;
+        DerivationPath externalDerivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.secretKey, externalDerivationPath);
+        }
+        else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, externalDerivationPath);
+        }
+
+        return hdKeyPair;
+    }
+
+    private HdKeyPair getChangeKeyPair() {
+        HdKeyPair hdKeyPair;
+        DerivationPath internalDerivationPath = DerivationPath.createInternalAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.secretKey, internalDerivationPath);
+        }
+        else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, internalDerivationPath);
+        }
+
         return hdKeyPair;
     }
 
     private HdKeyPair getStakeKeyPair() {
+        HdKeyPair hdKeyPair;
         DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
-        HdKeyPair hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.secretKey, stakeDerivationPath);
+        } else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
+        }
 
         return hdKeyPair;
     }

@@ -16,6 +16,15 @@ public class DerivationPath {
       private Segment role;
       private Segment index;
 
+
+    public static DerivationPath createAccountDerivationPath(int index) {
+        return DerivationPath.builder()
+                .purpose(new Segment(1852, true))
+                .coinType(new Segment(1815, true))
+                .account(new Segment(index, true))
+                .build();
+    }
+
     public static DerivationPath createExternalAddressDerivationPath() {
           return createExternalAddressDerivationPath(0);
       }
@@ -30,6 +39,16 @@ public class DerivationPath {
                 .build();
     }
 
+    public static DerivationPath createExternalAddressDerivationPathForAccount(int account) {
+        return DerivationPath.builder()
+                .purpose(new Segment(1852, true))
+                .coinType(new Segment(1815, true))
+                .account(new Segment(account, true))
+                .role(new Segment(0, false))
+                .index(new Segment(0, false))
+                .build();
+    }
+
     public static DerivationPath createInternalAddressDerivationPath(int index) {
         return DerivationPath.builder()
                 .purpose(new Segment(1852, true))
@@ -37,6 +56,16 @@ public class DerivationPath {
                 .account(new Segment(0, true))
                 .role(new Segment(1, false))
                 .index(new Segment(index, false))
+                .build();
+    }
+
+    public static DerivationPath createInternalAddressDerivationPathForAccount(int account) {
+        return DerivationPath.builder()
+                .purpose(new Segment(1852, true))
+                .coinType(new Segment(1815, true))
+                .account(new Segment(account, true))
+                .role(new Segment(1, false))
+                .index(new Segment(0, false))
                 .build();
     }
 
