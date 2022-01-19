@@ -141,20 +141,19 @@ public class Account {
     }
 
     /**
-     * Create an account for the network and derivation path from a private key
+     * Create an account from a private key for a specified network
      *
-     * @param network
-     * @param derivationPath
      * @param secretKey is a private key of 192 bytes or 256 bytes (with pubkey and chaincode) encoded in a base64 String
+     * @param network
      */
-    public Account(Network network, DerivationPath derivationPath, String secretKey) {
+    public Account(String secretKey, Network network) {
         this.network = network;
         this.mnemonic = null;
         if (secretKey.length() == 192)
             this.secretKey = secretKey;
         else
             this.secretKey = secretKey.substring(0,128) + secretKey.substring(192,256);
-        this.derivationPath = derivationPath;
+        this.derivationPath = DerivationPath.createExternalAddressDerivationPath(0);
         baseAddress();
     }
 
@@ -170,7 +169,7 @@ public class Account {
      */
     public String baseAddress() {
         if (baseAddress == null || baseAddress.isEmpty()) {
-            HdKeyPair paymentKeyPair = getExternalKeyPair();
+            HdKeyPair paymentKeyPair = getHdKeyPair();
             HdKeyPair stakeKeyPair = getStakeKeyPair();
 
             Address address = AddressService.getInstance().getBaseAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
@@ -285,7 +284,7 @@ public class Account {
      * @return
      */
     public Transaction sign(Transaction transaction) {
-        return TransactionSigner.INSTANCE.sign(transaction, getExternalKeyPair());
+        return TransactionSigner.INSTANCE.sign(transaction, getHdKeyPair());
     }
 
     private void generateNew(Words noOfWords) {
@@ -322,19 +321,6 @@ public class Account {
         else {
             hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
         }
-        return hdKeyPair;
-    }
-
-    public HdKeyPair getExternalKeyPair() {
-        HdKeyPair hdKeyPair;
-        DerivationPath externalDerivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
-        if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.secretKey, externalDerivationPath);
-        }
-        else {
-            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, externalDerivationPath);
-        }
-
         return hdKeyPair;
     }
 

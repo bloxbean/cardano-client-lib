@@ -80,7 +80,7 @@ public class AccountTest {
         String accountPrivateKey = "a83aa0356397602d3da7648f139ca06be2465caef14ac4d795b17cdf13bd0f4fe9aac037f7e22335cd99495b963d54f21e8dae540112fe56243b287962da366fd4016f4cfb6d6baba1807621b4216d18581c38404c4768fe820204bef98ba706";
         String address0 = "addr_test1qzsaa6czesrzwp45rd5flg86n5hnwhz5setqfyt39natwvsl5mr3vkp82y2kcwxxtu4zjcxvm80ttmx2hyeyjka4v8psa5ns0z";
 
-        Account account = new Account(Networks.testnet(), DerivationPath.createExternalAddressDerivationPath(0), accountPrivateKey);
+        Account account = new Account(accountPrivateKey, Networks.testnet());
 
         assertNotNull(account.baseAddress());
         assertNotNull(account.privateKeyBytes());
@@ -92,7 +92,7 @@ public class AccountTest {
         String accountPrivateKey = "a83aa0356397602d3da7648f139ca06be2465caef14ac4d795b17cdf13bd0f4fe9aac037f7e22335cd99495b963d54f21e8dae540112fe56243b287962da366fd4016f4cfb6d6baba1807621b4216d18581c38404c4768fe820204bef98ba706";
         String changeAddress0 = "addr_test1qpqwpvc7946mqvl0mwwhqgmh6w4a6335mkuypjyg9fd5elsl5mr3vkp82y2kcwxxtu4zjcxvm80ttmx2hyeyjka4v8psy8w5eh";
 
-        Account account = new Account(Networks.testnet(), DerivationPath.createExternalAddressDerivationPath(0), accountPrivateKey);
+        Account account = new Account(accountPrivateKey, Networks.testnet());
 
         assertNotNull(account.changeAddress());
         assertNotNull(account.privateKeyBytes());

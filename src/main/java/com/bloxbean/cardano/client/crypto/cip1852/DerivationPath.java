@@ -17,17 +17,9 @@ public class DerivationPath {
       private Segment index;
 
 
-    public static DerivationPath createAccountDerivationPath(int index) {
-        return DerivationPath.builder()
-                .purpose(new Segment(1852, true))
-                .coinType(new Segment(1815, true))
-                .account(new Segment(index, true))
-                .build();
-    }
-
     public static DerivationPath createExternalAddressDerivationPath() {
           return createExternalAddressDerivationPath(0);
-      }
+    }
 
     public static DerivationPath createExternalAddressDerivationPath(int index) {
         return DerivationPath.builder()
