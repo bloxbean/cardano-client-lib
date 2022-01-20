@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.crypto.bip32.key.HdPrivateKey;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.crypto.bip32.util.Hmac;
+import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.util.HexUtil;
 import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAParameterSpec;
@@ -38,6 +39,17 @@ public class HdKeyGenerator {
 //        xprv[31] &= 0b0001_1111;
 //        xprv[31] |= 0b0100_0000;
 
+        return getKeyPairFromSecretKey(xprv, MASTER_PATH);
+    }
+
+    public HdKeyPair getAccountKeyPairFromSecretKey(byte[] xprv, DerivationPath derivationPath) {
+        String accountPath = getPath(MASTER_PATH, derivationPath.getPurpose().getValue(), derivationPath.getPurpose().isHarden());
+        accountPath = getPath(accountPath, derivationPath.getCoinType().getValue(), derivationPath.getCoinType().isHarden());
+        accountPath = getPath(accountPath, derivationPath.getAccount().getValue(), derivationPath.getAccount().isHarden());
+        return getKeyPairFromSecretKey(xprv, accountPath);
+    }
+
+    private HdKeyPair getKeyPairFromSecretKey(byte[] xprv, String path) {
         byte[] IL = Arrays.copyOfRange(xprv, 0, 64);
         byte[] IR = Arrays.copyOfRange(xprv, 64, 96);
 
@@ -52,7 +64,7 @@ public class HdKeyGenerator {
         publicKey.setKeyData(A);
         publicKey.setChainCode(IR);
 
-        return new HdKeyPair(privateKey, publicKey, "m");
+        return new HdKeyPair(privateKey, publicKey, path);
     }
 
     private byte[] pbkdf2HmacSha512(final char[] password, final byte[] salt, final int iterations,
