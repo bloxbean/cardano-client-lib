@@ -20,6 +20,25 @@ import java.math.BigInteger;
 public class BigIntPlutusData implements PlutusData {
     private BigInteger value;
 
+    public static BigIntPlutusData deserialize(Number numberDI) throws CborDeserializationException {
+        if (numberDI == null)
+            return null;
+
+        return new BigIntPlutusData(numberDI.getValue());
+    }
+
+    public static BigIntPlutusData of(int i) {
+        return new BigIntPlutusData(BigInteger.valueOf(i));
+    }
+
+    public static BigIntPlutusData of(long l) {
+        return new BigIntPlutusData(BigInteger.valueOf(l));
+    }
+
+    public static BigIntPlutusData of(BigInteger b) {
+        return new BigIntPlutusData(b);
+    }
+
     @Override
     public DataItem serialize() throws CborSerializationException {
         DataItem di = null;
@@ -33,12 +52,4 @@ public class BigIntPlutusData implements PlutusData {
 
         return di;
     }
-
-    public static BigIntPlutusData deserialize(Number numberDI) throws CborDeserializationException {
-        if (numberDI == null)
-            return null;
-
-        return new BigIntPlutusData(numberDI.getValue());
-    }
-
 }

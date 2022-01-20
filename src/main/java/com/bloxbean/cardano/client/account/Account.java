@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.account;
 
-import com.bloxbean.cardano.client.address.*;
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.AddressService;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
@@ -9,7 +10,6 @@ import com.bloxbean.cardano.client.crypto.bip39.MnemonicException;
 import com.bloxbean.cardano.client.crypto.bip39.Words;
 import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
-import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -27,7 +27,10 @@ import java.util.stream.Collectors;
 public class Account {
     @JsonIgnore
     private String mnemonic;
+    @JsonIgnore
+    private byte[] accountKey; //Pvt key at account level m/1852'/1815'/x
     private String baseAddress;
+    private String changeAddress;
     private String enterpriseAddress;
     private String stakeAddress;
     private Network network;
@@ -131,8 +134,45 @@ public class Account {
     public Account(Network network, String mnemonic, DerivationPath derivationPath) {
         this.network = network;
         this.mnemonic = mnemonic;
+        this.accountKey = null;
         this.derivationPath = derivationPath;
         validateMnemonic();
+        baseAddress();
+    }
+
+    /**
+     * Create an account from a private key for a specified network for account = 0, index = 0
+     *
+     * @param network
+     * @param accountKey accountKey is a private key of 96 bytes or 128 bytes (with pubkey and chaincode) at account level
+     */
+    public Account(Network network, byte[] accountKey) {
+        this(network, accountKey, 0, 0);
+    }
+
+    /**
+     * Create an account from a private key for a specified network
+     *
+     * @param network
+     * @param accountKey is a private key of 96 bytes or 128 bytes (with pubkey and chaincode) at account level
+     * @param account account
+     * @param index address index
+     */
+    public Account(Network network, byte[] accountKey, int account, int index) {
+        this.network = network;
+        this.mnemonic = null;
+        if (accountKey.length == 96)
+            this.accountKey = accountKey;
+        else if(accountKey.length == 128){
+            byte[] key = new byte[96];
+            System.arraycopy(accountKey, 0, key, 0, 64);
+            System.arraycopy(accountKey, 96, key, 64, 32);
+        } else
+            throw new RuntimeException("Invalid length (Account Private Key): " + accountKey.length);
+
+        this.derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
+        this.derivationPath.getIndex().setValue(index);
+
         baseAddress();
     }
 
@@ -156,6 +196,21 @@ public class Account {
         }
 
         return baseAddress;
+    }
+
+    /**
+     * @return changeAddress at index = 0
+     */
+    public String changeAddress() {
+        if (changeAddress == null || changeAddress.isEmpty()) {
+            HdKeyPair changeKeyPair = getChangeKeyPair();
+            HdKeyPair stakeKeyPair = getStakeKeyPair();
+
+            Address address = AddressService.getInstance().getBaseAddress(changeKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
+            changeAddress = address.toBech32();
+        }
+
+        return changeAddress;
     }
 
     /**
@@ -278,13 +333,37 @@ public class Account {
     }
 
     private HdKeyPair getHdKeyPair() {
-        HdKeyPair hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
+        HdKeyPair hdKeyPair;
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, derivationPath);
+        }
+        else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
+        }
+        return hdKeyPair;
+    }
+
+    private HdKeyPair getChangeKeyPair() {
+        HdKeyPair hdKeyPair;
+        DerivationPath internalDerivationPath = DerivationPath.createInternalAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, internalDerivationPath);
+        }
+        else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, internalDerivationPath);
+        }
+
         return hdKeyPair;
     }
 
     private HdKeyPair getStakeKeyPair() {
+        HdKeyPair hdKeyPair;
         DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
-        HdKeyPair hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, stakeDerivationPath);
+        } else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
+        }
 
         return hdKeyPair;
     }

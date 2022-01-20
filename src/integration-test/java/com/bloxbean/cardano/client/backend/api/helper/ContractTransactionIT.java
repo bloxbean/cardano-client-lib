@@ -13,12 +13,15 @@ import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.model.*;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
+import com.bloxbean.cardano.client.plutus.annotation.Constr;
+import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.plutus.impl.DefaultScriptUtxoSelection;
 import com.bloxbean.cardano.client.plutus.api.ScriptUtxoSelection;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
@@ -489,20 +492,10 @@ public class ContractTransactionIT extends BFBaseTest {
         String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
         System.out.println("Script Address: " + scriptAddress);
 
-        PlutusData plutusData = ConstrPlutusData.builder()
-                .alternative(0)
-                .data(ListPlutusData.builder()
-                        .plutusDataList(Arrays.asList(new BigIntPlutusData(BigInteger.valueOf(42))))
-                        .build())
-                .build();
+        Guess guess = new Guess(Integer.valueOf(42));
 
-
-        PlutusData redeemerData = ConstrPlutusData.builder()
-                .alternative(0)
-                .data(ListPlutusData.builder()
-                        .plutusDataList(Arrays.asList(new BigIntPlutusData(BigInteger.valueOf(42))))
-                        .build())
-                .build();
+        PlutusData plutusData = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(guess);
+        PlutusData redeemerData = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(guess);
 
         System.out.println(HexUtil.encodeHexString(CborSerializationUtil.serialize(plutusData.serialize())));
 
@@ -1169,11 +1162,11 @@ public class ContractTransactionIT extends BFBaseTest {
 
     private Utxo getRandomUtxoForCollateral(String address) throws ApiException {
         ScriptUtxoSelection scriptUtxoSelection = new DefaultScriptUtxoSelection(utxoService);
-        //Find 3 > utxo > 5 ada
+        //Find 5 > utxo > 10 ada
         Utxo utxo = scriptUtxoSelection.findFirst(address, u -> {
             if (u.getAmount().size() == 1
-                    && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(3)) == 1
-                    && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(5.1)) == -1)
+                    && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(5)) == 1
+                    && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(10)) == -1)
                 return true;
             else
                 return false;
@@ -1199,7 +1192,7 @@ public class ContractTransactionIT extends BFBaseTest {
                 System.out.println("*** Collateral utxo not found");
 
                 //Transfer to self to create collateral utxo
-                BigInteger collateralAmt = BigInteger.valueOf(5000000L);
+                BigInteger collateralAmt = BigInteger.valueOf(8000000L);
                 transferFund(sender, sender.baseAddress(), collateralAmt, null, null, null);
 
                 //Find collateral utxo again
@@ -1398,4 +1391,14 @@ public class ContractTransactionIT extends BFBaseTest {
         }
     }
 
+}
+
+@Constr
+class Guess {
+    @PlutusField
+    Integer number;
+
+    public Guess(int number) {
+        this.number = number;
+    }
 }

@@ -4,16 +4,20 @@ import com.bloxbean.cardano.client.crypto.api.SigningProvider;
 import com.bloxbean.cardano.client.crypto.api.impl.DefaultSigningProvider;
 import com.bloxbean.cardano.client.crypto.bip39.DefaultEntropyProviderImpl;
 import com.bloxbean.cardano.client.crypto.bip39.api.EntropyProvider;
+import com.bloxbean.cardano.client.plutus.api.PlutusObjectConverter;
+import com.bloxbean.cardano.client.plutus.impl.DefaultPlutusObjectConverter;
 
 public enum Configuration {
     INSTANCE();
 
     private SigningProvider signingProvider;
     private EntropyProvider entropyProvider;
+    private PlutusObjectConverter plutusObjectConverter;
 
     Configuration() {
         signingProvider = new DefaultSigningProvider();
         entropyProvider = new DefaultEntropyProviderImpl();
+        plutusObjectConverter = new DefaultPlutusObjectConverter();
     }
 
     public SigningProvider getSigningProvider() {
@@ -30,5 +34,13 @@ public enum Configuration {
 
     public void setEntropyProvider(EntropyProvider entropyProvider) {
         this.entropyProvider = entropyProvider;
+    }
+
+    public PlutusObjectConverter getPlutusObjectConverter() {
+        return plutusObjectConverter;
+    }
+
+    public void setPlutusObjectConverter(PlutusObjectConverter plutusObjectConverter) {
+        this.plutusObjectConverter = plutusObjectConverter;
     }
 }

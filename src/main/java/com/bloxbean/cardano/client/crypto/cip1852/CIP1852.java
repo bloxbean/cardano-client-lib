@@ -30,4 +30,14 @@ public class CIP1852 {
         return indexKey;
     }
 
+    public HdKeyPair getKeyPairFromAccountKey(byte[] accountKey, DerivationPath derivationPath) {
+        HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+
+        HdKeyPair accountKeyPair = hdKeyGenerator.getAccountKeyPairFromSecretKey(accountKey,  derivationPath);
+        HdKeyPair roleKey = hdKeyGenerator.getChildKeyPair(accountKeyPair, derivationPath.getRole().getValue(), derivationPath.getRole().isHarden());
+
+        HdKeyPair indexKey = hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
+        return indexKey;
+    }
+
 }
