@@ -46,14 +46,14 @@ class RandomImproveCoinSelectionStrategyTest {
     @Test
     void coinSelection_HappyFlowTest() throws Exception {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
-        Map<String, List<Utxo>> map = objectMapper.readValue(this.getClass().getClassLoader().getResourceAsStream(UTXOS_JSON), new TypeReference<>() {
+        Map<String, List<Utxo>> map = objectMapper.readValue(this.getClass().getClassLoader().getResourceAsStream(UTXOS_JSON), new TypeReference<Map<String, List<Utxo>>>() {
         });
         List<Utxo> utxos = map.getOrDefault(RandomImproveCoinSelectionStrategyTest.LIST_2, Collections.emptyList());
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1))).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2))).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
         RandomImproveCoinSelectionStrategy randomImproveCoinSelectionStrategy = new RandomImproveCoinSelectionStrategy(utxoService,protocolParams);
         TransactionOutput transactionOutput = TransactionOutput.builder().address(address).value(Value.builder().coin(ADAConversionUtil.adaToLovelace(BigDecimal.TEN)).build()).build();
-        Result<SelectionResult> selectionResult = randomImproveCoinSelectionStrategy.randomImprove(address, Set.of(transactionOutput), 40);
+        Result<SelectionResult> selectionResult = randomImproveCoinSelectionStrategy.randomImprove(address, new HashSet<>(Arrays.asList(transactionOutput)), 40);
         assertTrue(selectionResult.isSuccessful());
         List<String> txnHashList = selectionResult.getValue().getSelection().stream().map(Utxo::getTxHash).collect(Collectors.toList());
         assertThat(txnHashList).hasSize(1);

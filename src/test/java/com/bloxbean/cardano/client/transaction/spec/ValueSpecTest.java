@@ -156,16 +156,16 @@ class ValueSpecTest {
 
         //Expected map
         Map<String, HashMap<String, BigInteger>> expected = new HashMap<>();
-        expected.put("policy_id1", new HashMap<>() {{
+        expected.put("policy_id1", new HashMap<String, BigInteger>() {{
             put("asset_name1", BigInteger.valueOf(5000000L));
             put("asset_name2", BigInteger.valueOf(2000000L));
             put("asset_name3", BigInteger.valueOf(3000000L));
         }});
-        expected.put("policy_id2", new HashMap<>() {{
+        expected.put("policy_id2", new HashMap<String, BigInteger>() {{
             put("my_asset_name1", BigInteger.valueOf(111));
             put("asset_name2", BigInteger.valueOf(333));
         }});
-        expected.put("policy_id3", new HashMap<>() {{
+        expected.put("policy_id3", new HashMap<String, BigInteger>() {{
             put("abc", BigInteger.valueOf(555));
         }});
 
