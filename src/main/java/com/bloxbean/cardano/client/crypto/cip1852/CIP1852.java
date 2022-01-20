@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.crypto.CryptoException;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyGenerator;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
-import com.bloxbean.cardano.client.util.HexUtil;
 
 public class CIP1852 {
 
@@ -31,10 +30,10 @@ public class CIP1852 {
         return indexKey;
     }
 
-    public HdKeyPair getKeyPairFromAccountKey(String accountKey, DerivationPath derivationPath) {
+    public HdKeyPair getKeyPairFromAccountKey(byte[] accountKey, DerivationPath derivationPath) {
         HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
 
-        HdKeyPair accountKeyPair = hdKeyGenerator.getAccountKeyPairFromSecretKey(HexUtil.decodeHexString(accountKey),  derivationPath);
+        HdKeyPair accountKeyPair = hdKeyGenerator.getAccountKeyPairFromSecretKey(accountKey,  derivationPath);
         HdKeyPair roleKey = hdKeyGenerator.getChildKeyPair(accountKeyPair, derivationPath.getRole().getValue(), derivationPath.getRole().isHarden());
 
         HdKeyPair indexKey = hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());

@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.account;
 
-import com.bloxbean.cardano.client.address.*;
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.AddressService;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
@@ -9,7 +10,6 @@ import com.bloxbean.cardano.client.crypto.bip39.MnemonicException;
 import com.bloxbean.cardano.client.crypto.bip39.Words;
 import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
-import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -28,7 +28,7 @@ public class Account {
     @JsonIgnore
     private String mnemonic;
     @JsonIgnore
-    private String secretKey;
+    private byte[] accountKey; //Pvt key at account level m/1852'/1815'/x
     private String baseAddress;
     private String changeAddress;
     private String enterpriseAddress;
@@ -134,26 +134,45 @@ public class Account {
     public Account(Network network, String mnemonic, DerivationPath derivationPath) {
         this.network = network;
         this.mnemonic = mnemonic;
-        this.secretKey = null;
+        this.accountKey = null;
         this.derivationPath = derivationPath;
         validateMnemonic();
         baseAddress();
     }
 
     /**
+     * Create an account from a private key for a specified network for account = 0, index = 0
+     *
+     * @param network
+     * @param accountKey accountKey is a private key of 96 bytes or 128 bytes (with pubkey and chaincode) at account level
+     */
+    public Account(Network network, byte[] accountKey) {
+        this(network, accountKey, 0, 0);
+    }
+
+    /**
      * Create an account from a private key for a specified network
      *
-     * @param secretKey is a private key of 192 bytes or 256 bytes (with pubkey and chaincode) encoded in a base64 String
      * @param network
+     * @param accountKey is a private key of 96 bytes or 128 bytes (with pubkey and chaincode) at account level
+     * @param account account
+     * @param index address index
      */
-    public Account(String secretKey, Network network) {
+    public Account(Network network, byte[] accountKey, int account, int index) {
         this.network = network;
         this.mnemonic = null;
-        if (secretKey.length() == 192)
-            this.secretKey = secretKey;
-        else
-            this.secretKey = secretKey.substring(0,128) + secretKey.substring(192,256);
-        this.derivationPath = DerivationPath.createExternalAddressDerivationPath(0);
+        if (accountKey.length == 96)
+            this.accountKey = accountKey;
+        else if(accountKey.length == 128){
+            byte[] key = new byte[96];
+            System.arraycopy(accountKey, 0, key, 0, 64);
+            System.arraycopy(accountKey, 96, key, 64, 32);
+        } else
+            throw new RuntimeException("Invalid length (Account Private Key): " + accountKey.length);
+
+        this.derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
+        this.derivationPath.getIndex().setValue(index);
+
         baseAddress();
     }
 
@@ -180,7 +199,7 @@ public class Account {
     }
 
     /**
-     * @return changeAddress at index
+     * @return changeAddress at index = 0
      */
     public String changeAddress() {
         if (changeAddress == null || changeAddress.isEmpty()) {
@@ -316,7 +335,7 @@ public class Account {
     private HdKeyPair getHdKeyPair() {
         HdKeyPair hdKeyPair;
         if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.secretKey, derivationPath);
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, derivationPath);
         }
         else {
             hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
@@ -328,7 +347,7 @@ public class Account {
         HdKeyPair hdKeyPair;
         DerivationPath internalDerivationPath = DerivationPath.createInternalAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
         if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.secretKey, internalDerivationPath);
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, internalDerivationPath);
         }
         else {
             hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, internalDerivationPath);
@@ -341,7 +360,7 @@ public class Account {
         HdKeyPair hdKeyPair;
         DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
         if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.secretKey, stakeDerivationPath);
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, stakeDerivationPath);
         } else {
             hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
         }
