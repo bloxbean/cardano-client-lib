@@ -4,7 +4,7 @@ import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressService;
 import com.bloxbean.cardano.client.backend.api.*;
-import com.bloxbean.cardano.client.backend.api.helper.impl.DefaultUtxoSelectionStrategyImpl;
+import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;

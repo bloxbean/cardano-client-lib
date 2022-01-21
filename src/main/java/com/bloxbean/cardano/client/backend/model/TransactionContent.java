@@ -22,6 +22,8 @@ public class TransactionContent {
     private Integer blockHeight;
     private Integer slot;
     private Integer index;
+
+    @Builder.Default
     private List<TxOutputAmount> outputAmount = new ArrayList<>();
     private String fees;
     private String deposit;

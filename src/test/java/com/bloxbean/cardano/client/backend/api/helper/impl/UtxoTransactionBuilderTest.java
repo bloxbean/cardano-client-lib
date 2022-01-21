@@ -1,9 +1,9 @@
-package com.bloxbean.cardano.client.backend.api.helper;
+package com.bloxbean.cardano.client.backend.api.helper.impl;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.api.helper.impl.DefaultUtxoSelectionStrategyImpl;
+import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
@@ -40,8 +40,6 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;

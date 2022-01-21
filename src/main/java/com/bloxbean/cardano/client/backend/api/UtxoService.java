@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.backend.model.Utxo;
 import java.util.List;
 
 public interface UtxoService {
+
     /**
      *
      * @param address
