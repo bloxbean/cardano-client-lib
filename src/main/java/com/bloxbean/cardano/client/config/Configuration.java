@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.config;
 
 import com.bloxbean.cardano.client.crypto.api.SigningProvider;
-import com.bloxbean.cardano.client.crypto.api.impl.DefaultSigningProvider;
+import com.bloxbean.cardano.client.crypto.api.impl.EdDSASigningProvider;
 import com.bloxbean.cardano.client.crypto.bip39.DefaultEntropyProviderImpl;
 import com.bloxbean.cardano.client.crypto.bip39.api.EntropyProvider;
 import com.bloxbean.cardano.client.plutus.api.PlutusObjectConverter;
@@ -15,7 +15,7 @@ public enum Configuration {
     private PlutusObjectConverter plutusObjectConverter;
 
     Configuration() {
-        signingProvider = new DefaultSigningProvider();
+        signingProvider = new EdDSASigningProvider();
         entropyProvider = new DefaultEntropyProviderImpl();
         plutusObjectConverter = new DefaultPlutusObjectConverter();
     }
