@@ -9,9 +9,6 @@ repositories {
 }
 
 dependencies {
-    compile group: 'net.java.dev.jna', name: 'jna', version: '5.8.0'
-    compile group: 'net.java.dev.jna', name: 'jna-platform', version: '5.8.0'
-    compile 'info.picocli:picocli:4.6.1'
     implementation group: 'org.bouncycastle', name: 'bcprov-jdk15to18', version: '1.68'
     compile group: 'co.nstant.in', name: 'cbor', version: '0.9'
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'

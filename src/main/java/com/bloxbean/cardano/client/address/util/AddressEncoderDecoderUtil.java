@@ -59,7 +59,7 @@ public class AddressEncoderDecoderUtil {
     }
 
     public static byte getAddressHeader(byte headerKind, Network network, AddressType addressType) {
-        return (byte) (headerKind | network.network_id & 0xF);
+        return (byte) (headerKind | network.getNetworkId() & 0xF);
     }
 
     public static AddressType readAddressType(byte[] addressBytes) {
