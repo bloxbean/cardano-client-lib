@@ -295,8 +295,6 @@ transactionHelperService.getUtxoTransactionBuilder().setUtxoSelectionStrategy(cu
 ```
 git clone https://github.com/bloxbean/cardano-client-lib.git
 
-. script/build-<os>-<arch>.sh
-
 ./gradlew build fatJar
 ```
 

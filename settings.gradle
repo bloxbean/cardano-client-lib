@@ -2,9 +2,6 @@ rootProject.name = 'cardano-client-lib'
 include 'extras'
 include 'cardano-graphql'
 
-// Extra module for Raspberry pi and other platform specific native lib
-project(":extras").name = "cardano-client-lib-extras"
-
 //cardano-graphql backend
 project(':cardano-graphql').projectDir = file('backends/cardano-graphql')
 project(":cardano-graphql").name = "cardano-client-backend-gql"
