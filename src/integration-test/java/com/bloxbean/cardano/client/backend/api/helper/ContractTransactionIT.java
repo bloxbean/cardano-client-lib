@@ -4,13 +4,14 @@ import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressService;
 import com.bloxbean.cardano.client.backend.api.*;
-import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.DefaultUtxoSelectionStrategyImpl;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.model.*;
+import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.config.Configuration;
@@ -22,8 +23,8 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
-import com.bloxbean.cardano.client.plutus.impl.DefaultScriptUtxoSelection;
-import com.bloxbean.cardano.client.plutus.api.ScriptUtxoSelection;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
+import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
@@ -1148,8 +1149,8 @@ public class ContractTransactionIT extends BFBaseTest {
     }
 
     private Utxo getUtxoWithDatumHash(String scriptAddress, String datumHash, String utxoToIgnore) throws ApiException {
-        ScriptUtxoSelection scriptUtxoSelection = new DefaultScriptUtxoSelection(utxoService);
-        Utxo inputUtxo = scriptUtxoSelection.findFirst(scriptAddress, u -> {
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        Utxo inputUtxo = utxoSelector.findFirst(scriptAddress, u -> {
             if (!u.getTxHash().equals(utxoToIgnore)
                     && datumHash.equals(u.getDataHash())
                     && u.getAmount().size() == 1)
@@ -1161,9 +1162,9 @@ public class ContractTransactionIT extends BFBaseTest {
     }
 
     private Utxo getRandomUtxoForCollateral(String address) throws ApiException {
-        ScriptUtxoSelection scriptUtxoSelection = new DefaultScriptUtxoSelection(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
         //Find 5 > utxo > 10 ada
-        Utxo utxo = scriptUtxoSelection.findFirst(address, u -> {
+        Utxo utxo = utxoSelector.findFirst(address, u -> {
             if (u.getAmount().size() == 1
                     && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(5)) == 1
                     && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(10)) == -1)

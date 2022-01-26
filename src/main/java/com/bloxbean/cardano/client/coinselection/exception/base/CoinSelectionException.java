@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.exception.base;
+package com.bloxbean.cardano.client.coinselection.exception.base;
 
 public class CoinSelectionException extends Exception {
 

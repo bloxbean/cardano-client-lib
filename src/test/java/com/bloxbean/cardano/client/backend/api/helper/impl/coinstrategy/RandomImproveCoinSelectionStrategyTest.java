@@ -1,7 +1,8 @@
 package com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.model.SelectionResult;
+import com.bloxbean.cardano.client.coinselection.impl.RandomImproveCoinSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.impl.model.SelectionResult;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;

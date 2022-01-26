@@ -1,7 +1,7 @@
-package com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy;
+package com.bloxbean.cardano.client.coinselection.impl;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.api.helper.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Amount;

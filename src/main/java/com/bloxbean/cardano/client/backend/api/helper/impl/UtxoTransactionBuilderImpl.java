@@ -2,9 +2,9 @@ package com.bloxbean.cardano.client.backend.api.helper.impl;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.api.helper.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.backend.api.helper.UtxoTransactionBuilder;
-import com.bloxbean.cardano.client.backend.api.helper.impl.coinstrategy.DefaultUtxoSelectionStrategyImpl;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;

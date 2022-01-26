@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.List;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -503,7 +502,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
         String policyId = scriptPubkey.getPolicyId();
 
-        Policy policy = new Policy(scriptPubkey, List.of(skey));
+        Policy policy = new Policy(scriptPubkey, Arrays.asList(skey));
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
