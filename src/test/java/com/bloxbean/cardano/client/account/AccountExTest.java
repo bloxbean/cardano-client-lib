@@ -1,19 +1,19 @@
-package com.bloxbean.cardano.client.jna;
+package com.bloxbean.cardano.client.account;
 
-import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.bip39.Words;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
-import com.bloxbean.cardano.client.address.util.AddressUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class AccountTest {
+//TODO -- These tests are from JNA era. Check if these tests are still required. If not, remove.
+public class AccountExTest {
 
     @BeforeAll
     static void setup() {

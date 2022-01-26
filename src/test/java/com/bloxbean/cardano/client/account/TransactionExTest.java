@@ -1,6 +1,5 @@
-package com.bloxbean.cardano.client.jna;
+package com.bloxbean.cardano.client.account;
 
-import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -13,8 +12,8 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
-//TODO -- This test class may not be required any more as we have other tests to cover these scenorios ??
-public class TransactionJNATest {
+//TODO -- These tests are from JNA era. Check if these tests are still required. If not, remove.
+public class TransactionExTest {
 
     @Test
     public void testSignPaymentTransaction() throws AddressExcepion, CborSerializationException {
