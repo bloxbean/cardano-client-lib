@@ -21,7 +21,8 @@ import java.util.List;
 @Builder
 public class Value {
 
-    private BigInteger coin;
+    @Builder.Default
+    private BigInteger coin = BigInteger.ZERO;
     //Policy Id -> Asset
     @Builder.Default
     private List<MultiAsset> multiAssets = new ArrayList<>();

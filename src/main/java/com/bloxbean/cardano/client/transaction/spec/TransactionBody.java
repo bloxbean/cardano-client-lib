@@ -20,8 +20,12 @@ import java.util.List;
 @Builder
 public class TransactionBody {
 
-    private List<TransactionInput> inputs;
-    private List<TransactionOutput> outputs;
+    @Builder.Default
+    private List<TransactionInput> inputs = new ArrayList<>();
+
+    @Builder.Default
+    private List<TransactionOutput> outputs = new ArrayList<>();
+
     private BigInteger fee;
     private long ttl; //Optional
     //certs -- Not implemented
@@ -32,9 +36,15 @@ public class TransactionBody {
 
     @Builder.Default
     private List<MultiAsset> mint = new ArrayList<>();
+
     private byte[] scriptDataHash;
-    private List<TransactionInput> collateral;
-    private List<byte[]> requiredSigners;
+
+    @Builder.Default
+    private List<TransactionInput> collateral = new ArrayList<>();
+
+    @Builder.Default
+    private List<byte[]> requiredSigners = new ArrayList<>();
+
     private NetworkId networkId; // 1 or 0
 
     public Map serialize() throws CborSerializationException, AddressExcepion {
