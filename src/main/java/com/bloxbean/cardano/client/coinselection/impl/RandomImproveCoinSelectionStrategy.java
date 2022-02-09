@@ -24,6 +24,10 @@ import java.util.*;
 import static java.lang.Math.abs;
 
 //TODO - Add comment
+
+/**
+ * This is still in experimental stage. NOT READY for PRODUCTION yet.
+ */
 @Slf4j
 public class RandomImproveCoinSelectionStrategy {
 
@@ -446,7 +450,7 @@ public class RandomImproveCoinSelectionStrategy {
     private Value mergeOutputsAmounts(Set<TransactionOutput> outputs) {
         Value mergedOutputsValue = Value.builder().coin(BigInteger.ZERO).build();
         for (TransactionOutput transactionOutput : outputs) {
-            mergedOutputsValue.plus(transactionOutput.getValue());
+            mergedOutputsValue = mergedOutputsValue.plus(transactionOutput.getValue());
         }
         return mergedOutputsValue;
     }
