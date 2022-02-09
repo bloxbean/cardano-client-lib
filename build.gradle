@@ -63,10 +63,10 @@ configurations {
     integreationTestAnnotationProcessor.extendsFrom testAnnotationProcessor
 }
 
-sourceCompatibility = '1.8'
-targetCompatibility = '1.8'
-
 compileJava {
+    sourceCompatibility = '11'
+    targetCompatibility = '11'
+
     options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
 }
 
