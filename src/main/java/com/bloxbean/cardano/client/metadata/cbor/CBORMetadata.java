@@ -97,6 +97,18 @@ public class CBORMetadata implements Metadata {
         }
     }
 
+    @Override
+    public Metadata merge(Metadata other) {
+        CBORMetadata newMetadata = new CBORMetadata();
+        if (other != null) {
+            Map otherMap = other.getData();
+            otherMap.getKeys().forEach(key -> newMetadata.getData().put(key, otherMap.get(key)));
+        }
+
+        this.map.getKeys().forEach(key -> newMetadata.getData().put(key, this.map.get(key)));
+        return newMetadata;
+    }
+
     public static CBORMetadata deserialize(Map metadataMap) throws MetadataDeSerializationException {
         CBORMetadata cborMetadata = new CBORMetadata();
         Collection<DataItem> keys = metadataMap.getKeys();
