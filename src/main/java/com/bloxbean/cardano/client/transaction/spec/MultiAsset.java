@@ -87,6 +87,8 @@ public class MultiAsset {
         for (MultiAsset multiAsset : tempMultiAssets) {
             if (thatMultiAssetsMap.containsKey(multiAsset.getPolicyId())) {
                 multiAssetListResult.add(multiAsset.minus(thatMultiAssetsMap.get(multiAsset.getPolicyId())));
+            } else {
+                multiAssetListResult.add(multiAsset);
             }
         }
         return multiAssetListResult;
@@ -161,14 +163,16 @@ public class MultiAsset {
         List<Asset> assetsResult = new ArrayList<>();
         java.util.Map<String, Asset> thatAssetsMap = convertToMap(that.assets);
         for (Asset asset : getAssets()) {
-            if (thatAssetsMap.containsKey(asset.getName())) {
-                assetsResult.add(asset.minus(thatAssetsMap.get(asset.getName())));
+            if (thatAssetsMap.containsKey(asset.getNameAsHex())) {
+                assetsResult.add(asset.minus(thatAssetsMap.get(asset.getNameAsHex())));
+            } else {
+                assetsResult.add(asset);
             }
         }
         return MultiAsset.builder().policyId(getPolicyId()).assets(assetsResult).build();
     }
 
-    public java.util.Map<String, Asset> convertToMap(List<Asset> assets) {
-        return assets.stream().collect(Collectors.toMap(Asset::getName, Function.identity()));
+    private java.util.Map<String, Asset> convertToMap(List<Asset> assets) {
+        return assets.stream().collect(Collectors.toMap(Asset::getNameAsHex, Function.identity()));
     }
 }
