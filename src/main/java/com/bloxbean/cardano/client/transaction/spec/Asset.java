@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Objects;
 
 @Data
 @AllArgsConstructor
@@ -34,6 +35,20 @@ public class Asset {
             assetNameBytes = new byte[0];
         }
         return assetNameBytes;
+    }
+
+    /**
+     * Asset name as hex.
+     * When comparing two assets, hex value of the name should be compared.
+     * @return
+     */
+    @JsonIgnore
+    public String getNameAsHex() {
+        byte[] bytes = getNameAsBytes();
+        if (bytes == null)
+            return null;
+        else
+            return HexUtil.encodeHexString(bytes, true);
     }
 
     @Override
@@ -70,5 +85,18 @@ public class Asset {
             throw new IllegalArgumentException("Trying to add Assets with different name");
         }
         return Asset.builder().name(getName()).value(getValue().subtract(that.getValue())).build();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Asset asset = (Asset) o;
+        return Arrays.equals(getNameAsBytes(), asset.getNameAsBytes()) && Objects.equals(value, asset.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, value);
     }
 }
