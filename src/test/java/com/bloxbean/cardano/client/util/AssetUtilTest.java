@@ -1,7 +1,9 @@
 package com.bloxbean.cardano.client.util;
 
+import com.bloxbean.cardano.client.transaction.spec.Asset;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -120,5 +122,37 @@ class AssetUtilTest {
                 AssetUtil.calculateFingerPrint(policyId, "0x" + HexUtil.encodeHexString(assetName.getBytes(StandardCharsets.UTF_8)));
 
         assertEquals("asset1uyuxku60yqe57nusqzjx38aan3f2wq6s93f6ea", fingerPrint);
+    }
+
+    @Test
+    void testGetUnit_whenEmptyAssetName() {
+        String policyId = "0x1e349c9bdea19fd6c147626a5260bc44b71635f398b67c59881df209";
+        Asset asset = new Asset("", BigInteger.valueOf(5));
+
+        String unit = AssetUtil.getUnit(policyId, asset);
+
+        assertEquals(policyId, unit);
+    }
+
+    @Test
+    void testGetUnit_withNonHexAssetName() {
+        String policyId = "8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e32";
+        Asset asset = new Asset("TestAss1", BigInteger.valueOf(5));
+
+        String unit = AssetUtil.getUnit(policyId, asset);
+
+        String expected = "8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e325465737441737331";
+        assertEquals(expected, unit);
+    }
+
+    @Test
+    void testGetUnit_withHexAssetName() {
+        String policyId = "8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e32";
+        Asset asset = new Asset("0x5465737441737331", BigInteger.valueOf(5));
+
+        String unit = AssetUtil.getUnit(policyId, asset);
+
+        String expected = "8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e325465737441737331";
+        assertEquals(expected, unit);
     }
 }

@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.util;
 
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +56,17 @@ public class AssetUtil {
         String hrp = "asset";
 
        return Bech32.encode(hrp, bytes);
+    }
+
+
+    /**
+     * Get unit name from policy id and asset name
+     * @param policyId
+     * @param asset
+     * @return unit name
+     */
+    public static String getUnit(String policyId, Asset asset) {
+        return policyId + HexUtil.encodeHexString(asset.getNameAsBytes());
     }
 
     private static List<Integer> convertBits(byte[] data, int fromWidth, int toWidth, boolean pad) {
