@@ -199,6 +199,18 @@ public class Account {
     }
 
     /**
+     * @return baseAddress at index
+     */
+    public String baseAddressAsBase16() {
+        if (baseAddress == null || baseAddress.isEmpty()) {
+            baseAddress();
+        }
+
+        Address address = new Address(baseAddress);
+        return HexUtil.encodeHexString(address.getBytes());
+    }
+
+    /**
      * @return changeAddress at index = 0
      */
     public String changeAddress() {
@@ -237,6 +249,32 @@ public class Account {
         }
 
         return stakeAddress;
+    }
+
+    /**
+     * @return baseAddress at index
+     */
+    @JsonIgnore
+    public Address getBaseAddress() {
+        if (baseAddress == null || baseAddress.isEmpty()) {
+            baseAddress();
+        }
+
+        Address address = new Address(baseAddress);
+        return address;
+    }
+
+    /**
+     * @return enterpriseAddress at index
+     */
+    @JsonIgnore
+    public Address getEnterpriseAddress() {
+        if (enterpriseAddress == null || enterpriseAddress.isEmpty()) {
+            enterpriseAddress();
+        }
+
+        Address address = new Address(enterpriseAddress);
+        return address;
     }
 
     /**

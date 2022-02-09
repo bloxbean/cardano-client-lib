@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.account;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
@@ -329,5 +330,37 @@ public class AccountTest {
 
         String expected = "xprv1fqxc29k9p4uz5gy4nax8efjaqydr5zz9z33n2lqfkqvz5xaapa8nmr0jgp26np8t65639yjnzf0d690qn2wwacmhyq2fj70sy2n3sr8t94x6l2ecqxllyvzywnjejz5c7cxzvswslzd9g5c95ug2vw7tzgstdx0p";
         assertThat(bech32PrvKey).isEqualTo(expected);
+    }
+
+    @Test
+    public void testGetBaseAddress() {
+        String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+        Account account = new Account(Networks.testnet(), phrase24W);
+
+        Address address = account.getBaseAddress();
+
+        assertThat(address.toBech32()).isEqualTo("addr_test1qzsaa6czesrzwp45rd5flg86n5hnwhz5setqfyt39natwvsl5mr3vkp82y2kcwxxtu4zjcxvm80ttmx2hyeyjka4v8psa5ns0z");
+        assertThat(HexUtil.encodeHexString(address.getBytes())).isEqualTo("00a1deeb02cc062706b41b689fa0fa9d2f375c5486560491712cfab7321fa6c716582751156c38c65f2a2960ccd9deb5eccab932495bb561c3");
+    }
+
+    @Test
+    public void testGetEnterpriseAddress() {
+        String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+        Account account = new Account(Networks.testnet(), phrase24W);
+
+        Address address = account.getEnterpriseAddress();
+
+        assertThat(address.toBech32()).isEqualTo("addr_test1vzsaa6czesrzwp45rd5flg86n5hnwhz5setqfyt39natwvssp226k");
+        assertThat(HexUtil.encodeHexString(address.getBytes())).isEqualTo("60a1deeb02cc062706b41b689fa0fa9d2f375c5486560491712cfab732");
+    }
+
+    @Test
+    public void testBaseAddressAsBase16() {
+        String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
+        Account account = new Account(Networks.testnet(), phrase24W);
+
+        String address = account.baseAddressAsBase16();
+
+        assertThat(address).isEqualTo("00a1deeb02cc062706b41b689fa0fa9d2f375c5486560491712cfab7321fa6c716582751156c38c65f2a2960ccd9deb5eccab932495bb561c3");
     }
 }
