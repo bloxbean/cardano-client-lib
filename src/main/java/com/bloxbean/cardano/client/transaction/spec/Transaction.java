@@ -19,8 +19,12 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class Transaction {
-    private TransactionBody body;
-    private TransactionWitnessSet witnessSet;
+    @Builder.Default
+    private TransactionBody body = new TransactionBody();
+
+    @Builder.Default
+    private TransactionWitnessSet witnessSet = new TransactionWitnessSet();
+
     @Builder.Default
     private boolean isValid = true;
     private AuxiliaryData auxiliaryData;

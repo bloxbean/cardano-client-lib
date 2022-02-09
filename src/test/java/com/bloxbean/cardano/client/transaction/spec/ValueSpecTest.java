@@ -128,6 +128,36 @@ class ValueSpecTest {
     }
 
     @Test
+    void SubtractValuesWithMultiAssetsListWhenFirstListHashExtraAssets() {
+        Asset l1asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
+        Asset l1asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(300L)).build();
+        Asset l1Asset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(500L)).build();
+        Asset l1Asset4 = Asset.builder().name("asset4").value(BigInteger.valueOf(550L)).build();
+
+        MultiAsset l1multiAsset1 = MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(l1asset1, l1asset2)).build();
+        MultiAsset l1multiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(l1asset1, l1Asset3)).build();
+        MultiAsset l1multiAsset3 = MultiAsset.builder().policyId("policy_id3").assets(Arrays.asList(l1Asset4)).build();
+        List<MultiAsset> multiAssetList1 = Arrays.asList(l1multiAsset1, l1multiAsset2, l1multiAsset3);
+
+        Value value1 = Value.builder().coin(BigInteger.valueOf(3000000L)).multiAssets(multiAssetList1).build();
+
+        Asset l2asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
+        Asset l2asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
+        Asset l2moreAsset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(50L)).build();
+        MultiAsset l2multiAsset1 = MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(l2asset1, l2asset2)).build();
+        MultiAsset l2multiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(l2asset1, l2moreAsset2)).build();
+        List<MultiAsset> multiAssetList2 = Arrays.asList(l2multiAsset1, l2multiAsset2);
+
+        Value value2 = Value.builder().coin(BigInteger.valueOf(2000000L)).multiAssets(multiAssetList2).build();
+
+        List<MultiAsset> expectedMultiAssetList = Arrays.asList(l1multiAsset1.minus(l2multiAsset1), l1multiAsset2.minus(l2multiAsset2), l1multiAsset3);
+        Value expectedValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(expectedMultiAssetList).build();
+
+        assertThat(MultiAsset.subtractMultiAssetLists(multiAssetList1, multiAssetList2)).isEqualTo(expectedMultiAssetList);
+        assertThat(value1.minus(value2)).isEqualTo(expectedValue);
+    }
+
+    @Test
     void toMapTest() {
         List<MultiAsset> testMultiAssetst = Arrays.asList(
                 MultiAsset.builder().policyId("policy_id1").assets(
