@@ -5,10 +5,7 @@ import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.plutus.api.PlutusObjectConverter;
 import com.bloxbean.cardano.client.plutus.impl.DefaultPlutusObjectConverter;
-import com.bloxbean.cardano.client.transaction.spec.BigIntPlutusData;
-import com.bloxbean.cardano.client.transaction.spec.BytesPlutusData;
-import com.bloxbean.cardano.client.transaction.spec.ConstrPlutusData;
-import com.bloxbean.cardano.client.transaction.spec.ListPlutusData;
+import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.Builder;
 import lombok.Data;
@@ -33,7 +30,7 @@ class DefaultPlutusObjectConverterTest {
                 .build();
 
         PlutusObjectConverter plutusObjectConverter = new DefaultPlutusObjectConverter();
-        ConstrPlutusData constrPlutusData = plutusObjectConverter.toPlutusData(a);
+        PlutusData constrPlutusData = plutusObjectConverter.toPlutusData(a);
 
         ConstrPlutusData expected = ConstrPlutusData.of(1,
                 BigIntPlutusData.of(100L),
@@ -63,7 +60,7 @@ class DefaultPlutusObjectConverterTest {
                 .build();
 
         PlutusObjectConverter plutusObjectConverter = new DefaultPlutusObjectConverter();
-        ConstrPlutusData constrPlutusData = plutusObjectConverter.toPlutusData(sa);
+        PlutusData constrPlutusData = plutusObjectConverter.toPlutusData(sa);
 
         ConstrPlutusData expected = ConstrPlutusData.of(0,
                 ConstrPlutusData.of(1,

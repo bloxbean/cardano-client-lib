@@ -21,9 +21,21 @@ import java.util.stream.Collectors;
 public class DefaultPlutusObjectConverter implements PlutusObjectConverter {
 
     @Override
-    public ConstrPlutusData toPlutusData(Object obj) {
+    public PlutusData toPlutusData(Object obj) {
         if (Objects.isNull(obj)) {
             throw new PlutusDataConvertionException("Can't convert a null object");
+        }
+
+        if (obj instanceof Integer) {
+            return BigIntPlutusData.of((Integer)obj);
+        } else if (obj instanceof BigInteger) {
+            return BigIntPlutusData.of((BigInteger) obj);
+        } else if (obj instanceof Long) {
+            return BigIntPlutusData.of((Long)obj);
+        } else if (obj instanceof byte[]) {
+            return BytesPlutusData.of((byte[])obj);
+        } else if (obj instanceof String) {
+            return BytesPlutusData.of((String)obj);
         }
 
         Class<?> clazz = obj.getClass();

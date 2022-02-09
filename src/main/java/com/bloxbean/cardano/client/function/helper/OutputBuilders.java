@@ -1,0 +1,148 @@
+package com.bloxbean.cardano.client.function.helper;
+
+import com.bloxbean.cardano.client.function.MinAdaChecker;
+import com.bloxbean.cardano.client.function.Output;
+import com.bloxbean.cardano.client.function.TxBuilderContext;
+import com.bloxbean.cardano.client.function.TxOutputBuilder;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.Value;
+
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
+
+/**
+ * Provides list of helper methods to create {@link TransactionOutput} from {@link Output}
+ */
+public class OutputBuilders {
+
+    public static TxOutputBuilder createFromOutput(Output output) {
+        return createFromOutput(output, false, null);
+    }
+
+    public static TxOutputBuilder createFromMintOutput(Output output) {
+        return createFromOutput(output, true, null);
+    }
+
+    public static TxOutputBuilder createFromOutput(Output output,
+                                                   boolean isMintOutput, MinAdaChecker minAdaChecker) {
+
+        return (context, outputs) -> {
+            Objects.requireNonNull(output);
+            Objects.requireNonNull(output.getAddress());
+
+            if (LOVELACE.equals(output.getAssetName()) && (output.getPolicyId() == null || output.getPolicyId().isEmpty())) {
+                handleLovelaceOutput(output, minAdaChecker, context, outputs);
+            } else {
+                handleMultiAssetOutput(output, minAdaChecker, context, outputs, isMintOutput);
+            }
+        };
+    }
+
+    private static void handleMultiAssetOutput(Output output, MinAdaChecker minAdaChecker, TxBuilderContext tc,
+                                               List<TransactionOutput> outputs, boolean isMintOutput) {
+
+        Asset asset = new Asset(output.getAssetName(), output.getQty());
+        MultiAsset multiAsset = new MultiAsset(output.getPolicyId(), List.of(asset));
+
+        if (isMintOutput) {
+            if (!tc.getMintMultiAssets().contains(multiAsset))
+                tc.addMintMultiAssets(multiAsset);
+        }
+
+        outputs.stream().filter(to -> output.getAddress().equals(to.getAddress()))
+                .findFirst()
+                .ifPresentOrElse(to -> {
+                    Value newValue = to.getValue().plus(new Value(BigInteger.ZERO, List.of(multiAsset)));
+                    to.setValue(newValue);
+
+                    checkIfMinAdaIsThere(tc, to, minAdaChecker);
+                }, () -> {
+                    TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(BigInteger.ZERO, List.of(multiAsset)));
+
+                    checkIfMinAdaIsThere(tc, to, minAdaChecker);
+                    outputs.add(to);
+                });
+    }
+
+    private static void handleLovelaceOutput(Output output, MinAdaChecker minAdaChecker, TxBuilderContext tc,
+                                             List<TransactionOutput> outputs) {
+
+        outputs.stream().filter(to -> output.getAddress().equals(to.getAddress()))
+                .findFirst()
+                .ifPresentOrElse(to -> {
+                            BigInteger newCoinAmt = to.getValue().getCoin().add(output.getQty());
+                            to.getValue().setCoin(newCoinAmt);
+
+                            checkIfMinAdaIsThere(tc, to, minAdaChecker);
+                        },
+                        () -> {
+                            TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(output.getQty(), new ArrayList<>()));
+
+                            checkIfMinAdaIsThere(tc, to, minAdaChecker);
+                            outputs.add(to);
+                        }
+                );
+    }
+
+    private static void checkIfMinAdaIsThere(TxBuilderContext tc, TransactionOutput output, MinAdaChecker minAdaChecker) {
+        BigInteger additionalLovelace;
+        if (minAdaChecker != null) {
+            additionalLovelace = minAdaChecker.apply(tc, output);
+        } else {
+            additionalLovelace = MinAdaCheckers.minAdaChecker().apply(tc, output);
+        }
+
+        if (additionalLovelace != null && additionalLovelace.compareTo(BigInteger.ZERO) == 1) {
+            Value orginalValue = output.getValue();
+            Value newValue = orginalValue.plus(Value.builder().coin(additionalLovelace).build());
+
+            output.setValue(newValue);
+        }
+    }
+
+    public static TxOutputBuilder createFromOutput(String address, Value value) {
+        return createFromOutput(address, value, false, null);
+    }
+
+    public static TxOutputBuilder createFromMintOutput(String address, Value value) {
+        return createFromOutput(address, value, true, null);
+    }
+
+    public static TxOutputBuilder createFromOutput(String address, Value value, boolean isMintOutput, MinAdaChecker minAdaChecker) {
+        return (context, outputs) -> {
+            Objects.requireNonNull(value);
+
+            //If it's a mint output, add it to the context so that, it's not considered during input building
+            if (isMintOutput) {
+                List<MultiAsset> multiAssets = value.getMultiAssets();
+                Objects.requireNonNull(multiAssets);
+
+                for (MultiAsset multiAsset : multiAssets) {
+                    if (!context.getMintMultiAssets().contains(multiAsset))
+                        context.addMintMultiAssets(multiAsset);
+                }
+            }
+
+            outputs.stream().filter(to -> address.equals(to.getAddress()))
+                    .findFirst()
+                    .ifPresentOrElse(to -> {
+                        Value newValue = to.getValue().plus(value);
+                        to.setValue(newValue);
+
+                        checkIfMinAdaIsThere(context, to, minAdaChecker);
+                    }, () -> {
+                        TransactionOutput output = new TransactionOutput(address, value);
+
+                        checkIfMinAdaIsThere(context, output, minAdaChecker);
+                        outputs.add(output);
+                    });
+        };
+    }
+
+}
