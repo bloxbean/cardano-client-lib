@@ -1,5 +1,4 @@
 rootProject.name = 'cardano-client-lib'
-include 'extras'
 include 'cardano-graphql'
 
 //cardano-graphql backend
