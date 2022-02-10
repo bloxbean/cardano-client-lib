@@ -26,7 +26,9 @@ public class DefaultPlutusObjectConverter implements PlutusObjectConverter {
             throw new PlutusDataConvertionException("Can't convert a null object");
         }
 
-        if (obj instanceof Integer) {
+        if (obj instanceof PlutusData) {
+            return (PlutusData) obj;
+        } else if (obj instanceof Integer) {
             return BigIntPlutusData.of((Integer)obj);
         } else if (obj instanceof BigInteger) {
             return BigIntPlutusData.of((BigInteger) obj);
