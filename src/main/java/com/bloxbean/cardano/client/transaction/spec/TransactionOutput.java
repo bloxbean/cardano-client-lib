@@ -1,11 +1,14 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.address.util.AddressUtil;
+import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.address.util.AddressUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +30,17 @@ public class TransactionOutput {
     public TransactionOutput(String address, Value value) {
         this.address = address;
         this.value = value;
+    }
+
+    public void setDatum(Object datum) {
+        if (datum == null)
+            return;
+
+        try {
+            this.datumHash = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHashAsBytes();
+        } catch (CborException | CborSerializationException e) {
+            throw new CborRuntimeException(e);
+        }
     }
 
     public Array serialize() throws CborSerializationException, AddressExcepion {
@@ -126,5 +140,19 @@ public class TransactionOutput {
                 "address='" + address + '\'' +
                 ", value=" + value +
                 '}';
+    }
+
+    public static class TransactionOutputBuilder {
+        public TransactionOutputBuilder datum(Object datum) {
+            if (datum == null)
+                return this;
+
+            try {
+                this.datumHash = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHashAsBytes();
+            } catch (CborException | CborSerializationException e) {
+                throw new CborRuntimeException(e);
+            }
+            return this;
+        }
     }
 }
