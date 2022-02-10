@@ -12,6 +12,11 @@ import java.util.function.Supplier;
  */
 public class AuxDataProviders {
 
+    /**
+     * Function to update metadata in transaction
+     * @param metadata
+     * @return TxBuilder function
+     */
     public static TxBuilder metadataProvider(Metadata metadata) {
 
         return ((context, transaction) -> {
@@ -19,6 +24,11 @@ public class AuxDataProviders {
         });
     }
 
+    /**
+     * Function to update metadata in transaction
+     * @param supplier A supplier function which provides metadata
+     * @return
+     */
     public static TxBuilder metadataProvider(Supplier<Metadata> supplier) {
 
         return ((context, transaction) -> {
