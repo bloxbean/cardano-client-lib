@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.plutus;
 
+import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
@@ -85,6 +86,34 @@ class DefaultPlutusObjectConverterTest {
 
         System.out.println(constrPlutusData.serialize());
         assertThat(constrPlutusData.serialize()).isEqualTo(expected.serialize());
+    }
+
+    @Test
+    void toPlutusData_whenPlutusData() {
+        PlutusData plutusData = BigIntPlutusData.of(100);
+        PlutusObjectConverter plutusObjectConverter = new DefaultPlutusObjectConverter();
+
+        PlutusData actual = plutusObjectConverter.toPlutusData(plutusData);
+
+        assertThat(actual).isEqualTo(plutusData);
+    }
+
+    @Test
+    void toPlutusData_whenInteger() throws CborException, CborSerializationException {
+        PlutusObjectConverter plutusObjectConverter = new DefaultPlutusObjectConverter();
+
+        PlutusData actual = plutusObjectConverter.toPlutusData(100);
+
+        assertThat(actual.getDatumHash()).isEqualTo(BigIntPlutusData.of(100).getDatumHash());
+    }
+
+    @Test
+    void toPlutusData_whenString() throws CborException, CborSerializationException {
+        PlutusObjectConverter plutusObjectConverter = new DefaultPlutusObjectConverter();
+
+        PlutusData actual = plutusObjectConverter.toPlutusData("hello");
+
+        assertThat(actual.getDatumHash()).isEqualTo(BytesPlutusData.of("hello").getDatumHash());
     }
 }
 
