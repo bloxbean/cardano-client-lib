@@ -71,9 +71,9 @@ public class TxBuilderContextTest {
 //                                .build()
                 )).build();
         TxOutputBuilder multiAssetOutputBuilder =
-                OutputBuilders.createFromOutput(
+                OutputBuilders.createFromOutput(new TransactionOutput(
                         "addr_test1qz7g6c8w6lzhr5weyus79rl4alepskc6u2pfuzkr7s5qad30ry2sf3u3vq0hzkyhht4uwqy8p40xfy5qkgc79xswq5msnaucg2",
-                        value2);
+                        value2));
 
         String senderAddress = senderAccount.baseAddress();
         String changeAddress = senderAccount.baseAddress();
@@ -105,7 +105,7 @@ public class TxBuilderContextTest {
 
         String mintReceiver = "addr_test1qzllzd3cxvz53k9gkq3n3mpcm6g7kv7rj5yvs88n7xwm3nmcs8dpnr85lclka6sycwccput39p0cffqegn8kkf6euzks6h9ldv";
         TxOutputBuilder mintAssetOuputBuilder =
-                OutputBuilders.createFromMintOutput(mintReceiver, mintValue);
+                OutputBuilders.createFromMintOutput(new TransactionOutput(mintReceiver, mintValue));
 
         NFT nft = NFT.create()
                 .name("nft-1")
