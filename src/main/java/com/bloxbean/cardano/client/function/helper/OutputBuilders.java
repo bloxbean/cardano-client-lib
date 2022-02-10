@@ -1,9 +1,12 @@
 package com.bloxbean.cardano.client.function.helper;
 
+import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.MinAdaChecker;
 import com.bloxbean.cardano.client.function.Output;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
+import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
@@ -21,14 +24,37 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
  */
 public class OutputBuilders {
 
+    /**
+     * Function to transform {@Output} to {@TransactionOutput}
+     * Also checks min ada required in the output and update transaction output accordingly
+     *
+     * @param output
+     * @return TxOutputBuilder function
+     */
     public static TxOutputBuilder createFromOutput(Output output) {
         return createFromOutput(output, false, null);
     }
 
+    /**
+     * Function to transform {@Output} to {@TransactionOutput} for newly minted asset
+     * Also checks min ada required in the output and update transaction output accordingly
+     *
+     * @param output
+     * @return
+     */
     public static TxOutputBuilder createFromMintOutput(Output output) {
         return createFromOutput(output, true, null);
     }
 
+    /**
+     * Function to transform {@Output} to {@TransactionOutput} for newly minted asset
+     * Also checks min ada required in the output and update transaction output accordingly
+     *
+     * @param output        Output
+     * @param isMintOutput  true if mint transaction, else false
+     * @param minAdaChecker MinAdaChecker function
+     * @return TxOutputBuilder function
+     */
     public static TxOutputBuilder createFromOutput(Output output,
                                                    boolean isMintOutput, MinAdaChecker minAdaChecker) {
 
@@ -41,6 +67,73 @@ public class OutputBuilders {
             } else {
                 handleMultiAssetOutput(output, minAdaChecker, context, outputs, isMintOutput);
             }
+        };
+    }
+
+    /**
+     * Function to create a TransactionOutput from a given TransactionOutput after min required ada checking
+     *
+     * @param txnOutput
+     * @return TxOutputBuilder function
+     */
+    public static TxOutputBuilder createFromOutput(TransactionOutput txnOutput) {
+        return createFromOutput(txnOutput, false, null);
+    }
+
+    /**
+     * Function to create a TransactionOutput from a given mint TransactionOutput after min required ada checking
+     *
+     * @param txnOutput
+     * @return TxOutputBuilder function
+     */
+    public static TxOutputBuilder createFromMintOutput(TransactionOutput txnOutput) {
+        return createFromOutput(txnOutput, true, null);
+    }
+
+    /**
+     * Function to create a TransactionOutput from a given TransactionOutput after min required ada checking
+     *
+     * @param txnOutput
+     * @param isMintOutput  true if mint transaction, else false
+     * @param minAdaChecker MinAdaChecker function
+     * @return TxOutputBuilder function
+     */
+    public static TxOutputBuilder createFromOutput(TransactionOutput txnOutput, boolean isMintOutput, MinAdaChecker minAdaChecker) {
+        return (context, outputs) -> {
+            Objects.requireNonNull(txnOutput);
+            Objects.requireNonNull(txnOutput.getAddress());
+            Objects.requireNonNull(txnOutput.getValue());
+
+            String address = txnOutput.getAddress();
+            Value value = txnOutput.getValue();
+            byte[] datumHash = txnOutput.getDatumHash();
+
+            //If it's a mint output, add it to the context so that, it's not considered during input building
+            if (isMintOutput) {
+                List<MultiAsset> multiAssets = value.getMultiAssets();
+                Objects.requireNonNull(multiAssets);
+
+                multiAssets.stream()
+                        .filter(multiAsset -> !context.getMintMultiAssets().contains(multiAsset))
+                        .forEach(context::addMintMultiAssets);
+            }
+
+            outputs.stream().filter(to -> address.equals(to.getAddress()))
+                    .findFirst()
+                    .ifPresentOrElse(to -> {
+                        Value newValue = to.getValue().plus(value);
+                        to.setValue(newValue);
+
+                        checkIfMinAdaIsThere(context, to, minAdaChecker);
+                    }, () -> {
+                        TransactionOutput output = new TransactionOutput(address, value);
+                        if (datumHash != null && datumHash.length > 0) {
+                            output.setDatumHash(datumHash);
+                        }
+
+                        checkIfMinAdaIsThere(context, output, minAdaChecker);
+                        outputs.add(output);
+                    });
         };
     }
 
@@ -64,6 +157,13 @@ public class OutputBuilders {
                     checkIfMinAdaIsThere(tc, to, minAdaChecker);
                 }, () -> {
                     TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(BigInteger.ZERO, List.of(multiAsset)));
+                    if (output.getDatum() != null) {
+                        try {
+                            to.setDatumHash(output.getDatum().getDatumHashAsBytes());
+                        } catch (CborSerializationException | CborException e) {
+                            throw new TxBuildException("Unable to get dataum hash from plutus data");
+                        }
+                    }
 
                     checkIfMinAdaIsThere(tc, to, minAdaChecker);
                     outputs.add(to);
@@ -83,6 +183,13 @@ public class OutputBuilders {
                         },
                         () -> {
                             TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(output.getQty(), new ArrayList<>()));
+                            if (output.getDatum() != null) {
+                                try {
+                                    to.setDatumHash(output.getDatum().getDatumHashAsBytes());
+                                } catch (CborSerializationException | CborException e) {
+                                    throw new TxBuildException("Unable to get dataum hash from plutus data");
+                                }
+                            }
 
                             checkIfMinAdaIsThere(tc, to, minAdaChecker);
                             outputs.add(to);
@@ -104,45 +211,6 @@ public class OutputBuilders {
 
             output.setValue(newValue);
         }
-    }
-
-    public static TxOutputBuilder createFromOutput(String address, Value value) {
-        return createFromOutput(address, value, false, null);
-    }
-
-    public static TxOutputBuilder createFromMintOutput(String address, Value value) {
-        return createFromOutput(address, value, true, null);
-    }
-
-    public static TxOutputBuilder createFromOutput(String address, Value value, boolean isMintOutput, MinAdaChecker minAdaChecker) {
-        return (context, outputs) -> {
-            Objects.requireNonNull(value);
-
-            //If it's a mint output, add it to the context so that, it's not considered during input building
-            if (isMintOutput) {
-                List<MultiAsset> multiAssets = value.getMultiAssets();
-                Objects.requireNonNull(multiAssets);
-
-                for (MultiAsset multiAsset : multiAssets) {
-                    if (!context.getMintMultiAssets().contains(multiAsset))
-                        context.addMintMultiAssets(multiAsset);
-                }
-            }
-
-            outputs.stream().filter(to -> address.equals(to.getAddress()))
-                    .findFirst()
-                    .ifPresentOrElse(to -> {
-                        Value newValue = to.getValue().plus(value);
-                        to.setValue(newValue);
-
-                        checkIfMinAdaIsThere(context, to, minAdaChecker);
-                    }, () -> {
-                        TransactionOutput output = new TransactionOutput(address, value);
-
-                        checkIfMinAdaIsThere(context, output, minAdaChecker);
-                        outputs.add(output);
-                    });
-        };
     }
 
 }

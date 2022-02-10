@@ -27,4 +27,8 @@ public class Output {
     public TxOutputBuilder outputBuilder() {
         return OutputBuilders.createFromOutput(this);
     }
+
+    public TxOutputBuilder mintOutputBuilder() {
+        return OutputBuilders.createFromMintOutput(this);
+    }
 }
