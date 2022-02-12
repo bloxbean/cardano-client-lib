@@ -25,7 +25,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 public class OutputBuilders {
 
     /**
-     * Function to transform {@Output} to {@TransactionOutput}
+     * Function to transform {@link Output} to {@link TransactionOutput}
      * Also checks min ada required in the output and update transaction output accordingly
      *
      * @param output
@@ -36,7 +36,7 @@ public class OutputBuilders {
     }
 
     /**
-     * Function to transform {@Output} to {@TransactionOutput} for newly minted asset
+     * Function to transform {@link Output} to {@link TransactionOutput} for newly minted asset
      * Also checks min ada required in the output and update transaction output accordingly
      *
      * @param output
@@ -47,7 +47,7 @@ public class OutputBuilders {
     }
 
     /**
-     * Function to transform {@Output} to {@TransactionOutput} for newly minted asset
+     * Function to transform {@link Output} to {@link TransactionOutput} for newly minted asset
      * Also checks min ada required in the output and update transaction output accordingly
      *
      * @param output        Output
