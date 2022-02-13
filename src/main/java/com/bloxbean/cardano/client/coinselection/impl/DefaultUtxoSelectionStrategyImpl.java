@@ -50,8 +50,10 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                 List<Utxo> fetchData = result.getValue();
 
                 List<Utxo> data = filter(fetchData);
-                if(data == null || data.isEmpty())
-                    canContinue = false;
+                if(data == null || data.isEmpty()) {
+                    canContinue = false; //Result code 200, but no utxo returned
+                    throw new ApiException(String.format("Unable to get enough Utxos for address : %s, reason: %s", address, result.getResponse()));
+                }
 
                 for(Utxo utxo: data) {
                     if(excludeUtxos.contains(utxo))
@@ -76,7 +78,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                     if(unitFound)
                         selectedUtxos.add(utxo);
 
-                    if(totalUtxoAmount.compareTo(amount) == 1) {
+                    if(totalUtxoAmount.compareTo(amount) == 1 || totalUtxoAmount.compareTo(amount) == 0) {
                         canContinue = false;
                         break;
                     }
