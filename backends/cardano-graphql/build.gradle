@@ -51,6 +51,11 @@ compileJava {
     options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
 }
 
+javadoc {
+    exclude "com/bloxbean/cardano/gql/**"
+    source = sourceSets.main.allJava
+}
+
 apollo {
     customTypeMapping = [
             "JSON" : "com.fasterxml.jackson.databind.JsonNode"
