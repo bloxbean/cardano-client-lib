@@ -1157,7 +1157,7 @@ public class ContractTransactionIT extends BFBaseTest {
                 return true;
             else
                 return false;
-        });
+        }).get();
         return inputUtxo;
     }
 
@@ -1171,7 +1171,7 @@ public class ContractTransactionIT extends BFBaseTest {
                 return true;
             else
                 return false;
-        });
+        }).get();
         return utxo;
     }
 
