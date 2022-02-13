@@ -11,7 +11,9 @@ import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-//TODO -- Unit tests pending
+/**
+ * Default implementation of UtxoSelector
+ */
 public class DefaultUtxoSelector implements UtxoSelector {
     private UtxoService utxoService;
 
@@ -20,12 +22,12 @@ public class DefaultUtxoSelector implements UtxoSelector {
     }
 
     @Override
-    public Utxo findFirst(String address, Predicate<Utxo> predicate) throws ApiException {
+    public Optional<Utxo> findFirst(String address, Predicate<Utxo> predicate) throws ApiException {
         return findFirst(address, predicate, Collections.EMPTY_SET);
     }
 
     @Override
-    public Utxo findFirst(String address, Predicate<Utxo> predicate, Set<Utxo> excludeUtxos) throws ApiException {
+    public Optional<Utxo> findFirst(String address, Predicate<Utxo> predicate, Set<Utxo> excludeUtxos) throws ApiException {
         boolean canContinue = true;
         int i = 1;
 
@@ -38,23 +40,27 @@ public class DefaultUtxoSelector implements UtxoSelector {
                 List<Utxo> data = (fetchData);
                 if(data == null || data.isEmpty())
                     canContinue = false;
+                else {
+                    Optional<Utxo> optional = data.stream()
+                            .filter(predicate)
+                            .filter(utxo -> !excludeUtxos.contains(utxo))
+                            .findFirst();
 
-                Optional<Utxo> option = data.stream().filter(predicate).findFirst();
-                if (option.isPresent())
-                    return option.get();
+                    if (optional.isPresent() )
+                        return optional;
+                }
 
             } else {
                 canContinue = false;
-                throw new ApiException(String.format("Unable to get enough Utxos for address : %s, reason: %s", address, result.getResponse()));
             }
         }
 
-        return null;
+        return Optional.empty();
     }
 
     @Override
     public List<Utxo> findAll(String address, Predicate<Utxo> predicate) throws ApiException {
-        return findAll(address, predicate);
+        return findAll(address, predicate, Collections.EMPTY_SET);
     }
 
     @Override
@@ -72,24 +78,26 @@ public class DefaultUtxoSelector implements UtxoSelector {
                 List<Utxo> data = (fetchData);
                 if(data == null || data.isEmpty())
                     canContinue = false;
-
-                List<Utxo> filterUtxos = data.stream().filter(predicate).collect(Collectors.toList());
-                utxoList.addAll(filterUtxos);
+                else {
+                    List<Utxo> filterUtxos = data.stream().filter(predicate)
+                            .filter(utxo -> !excludeUtxos.contains(utxo))
+                            .collect(Collectors.toList());
+                    utxoList.addAll(filterUtxos);
+                }
 
             } else {
                 canContinue = false;
-                throw new ApiException(String.format("Unable to get enough Utxos for address : %s, reason: %s", address, result.getResponse()));
             }
         }
 
-        return null;
+        return utxoList;
     }
 
-    private OrderEnum getUtxoFetchOrder() {
+    protected OrderEnum getUtxoFetchOrder() {
         return OrderEnum.asc;
     }
 
-    private int getUtxoFetchSize() {
+    protected int getUtxoFetchSize() {
         return 100;
     }
 

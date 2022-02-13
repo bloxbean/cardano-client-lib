@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
@@ -23,6 +24,7 @@ import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -217,11 +219,10 @@ class FeeCalculationServiceTest extends BaseTest {
                 .ttl(199999)
                 .build();
 
-        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, detailsParams
-                , null, protocolParams);
-
-        System.out.println(fee);
-        assertThat(fee, greaterThan(new BigInteger("1000")));
+        Assertions.assertThrows(ApiRuntimeException.class, () -> {
+            BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, detailsParams
+                    , null, protocolParams);
+        });
     }
 
     @Test

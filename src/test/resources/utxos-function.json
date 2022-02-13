@@ -1,0 +1,454 @@
+{
+  "list1": [
+    {
+      "tx_hash": "735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1407406"
+        },
+        {
+          "unit": "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "2"
+        }
+      ],
+      "block": "656f65cb141fa8a37b50c60da1e9f28a2e45a1ea80e13ac4f9e1323a2ec07557"
+    },
+    {
+      "tx_hash": "88c014d348bf1919c78a5cb87a5beed87729ff3f8a2019be040117a41a83e82e",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "994632035"
+        }
+      ],
+      "block": "1a06a27cfcb9316dfc3a498e96b80a3a9427ad03170077e3a80fd41a43ec3d7b"
+    },
+    {
+      "tx_hash": "6674e44f0f03915b1611ce58aaff5f2e52054e1911fbcd0f17dbc205f44763b6",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1000000000"
+        }
+      ],
+      "block": "eb2043df94b34d1746cb47303446237e6dca7d051100c8f4229795be8c1f5e63"
+    },
+    {
+      "tx_hash": "a712906ae823ecefe6cab76e5cfd427bd0b6144df10c6f89a56fbdf30fa807f4",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "983896105"
+        }
+      ],
+      "block": "c2a5408a54596d52e3b0d7aed546ceb7e4d74a06ce80dca13664acd3afdea3e5"
+    }
+  ],
+  "list2": [
+    {
+      "tx_hash": "735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1407406"
+        },
+        {
+          "unit": "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "2"
+        }
+      ],
+      "block": "656f65cb141fa8a37b50c60da1e9f28a2e45a1ea80e13ac4f9e1323a2ec07557"
+    },
+    {
+      "tx_hash": "1d98fc1aad22af10eec3cfc924d9edb4dcea6181e1d33895588c4d3c60d2af8b",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "995770000"
+        }
+      ],
+      "block": "bc9fe89446040ed06aed488bff69c80ed7e8844309521c09e444f08cc25d72a2"
+    },
+    {
+      "tx_hash": "d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "976666105"
+        }
+      ],
+      "block": "6706daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "983172035"
+        },
+        {
+          "unit": "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e",
+          "quantity": "300000000"
+        }
+      ],
+      "block": "61110e6a4b0a7e74eb65b9325c5480213cbd05626799a72f556b276e8f3a7878"
+    },
+    {
+      "tx_hash": "e755448d0d17651ff308c2a1d218fbbee5f290924482d85b2bb691576aee5105",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "999817955"
+        },
+        {
+          "unit": "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e",
+          "quantity": "5000000000"
+        }
+      ],
+      "block": "108119e75a937f9177beb139fd421f78f6f324d700164849f14b82144488e2ba"
+    }
+  ],
+  "list3-multiassets": [
+    {
+      "tx_hash": "d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "976666105"
+        }
+      ],
+      "block": "6706daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "983172035"
+        },
+        {
+          "unit": "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e",
+          "quantity": "300000000"
+        },
+        {
+          "unit": "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96926174636f766e",
+          "quantity": "700000000"
+        },
+        {
+          "unit": "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "67000"
+        }
+      ],
+      "block": "61110e6a4b0a7e74eb65b9325c5480213cbd05626799a72f556b276e8f3a7878"
+    },
+    {
+      "tx_hash": "3aaaaa41761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "3000000"
+        },
+        {
+          "unit": "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "50000"
+        }
+      ],
+      "block": "61110e6a4b0a7e74eb65b9325c5480213cbd05626799a72f556b276e8f3a7878"
+    }
+  ],
+  "list4-multiassets": [
+    {
+      "tx_hash": "d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "976666105"
+        },
+        {
+          "unit": "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "10"
+        }
+      ],
+      "block": "6706daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "98317"
+        },
+        {
+          "unit": "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e",
+          "quantity": "300000000"
+        },
+        {
+          "unit": "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96926174636f766e",
+          "quantity": "700000000"
+        },
+        {
+          "unit": "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "67000"
+        }
+      ],
+      "block": "61110e6a4b0a7e74eb65b9325c5480213cbd05626799a72f556b276e8f3a7878"
+    }
+  ],
+  "list5-multiassets-insufficientADA": [
+    {
+      "tx_hash": "d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "4000000"
+        },
+        {
+          "unit": "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "10000"
+        }
+      ],
+      "block": "6706daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "4000"
+        },
+        {
+          "unit": "a1777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "10000"
+        }
+      ],
+      "block": "aa06daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1407406"
+        },
+        {
+          "unit": "a1777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        },
+        {
+          "unit": "a2777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        },
+        {
+          "unit": "a3777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        },
+        {
+          "unit": "a4777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        },
+        {
+          "unit": "a5777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        }
+      ],
+      "block": "aa06daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "cccc341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "30000000"
+        }
+      ],
+      "block": "aa06daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "bbbbbc341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "98000000"
+        }
+      ],
+      "block": "bb06daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    }
+  ],
+  "list6-multiassets-insufficientADA_Token_Error": [
+    {
+      "tx_hash": "d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "4000000"
+        },
+        {
+          "unit": "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "10000"
+        }
+      ],
+      "block": "6706daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "4000"
+        },
+        {
+          "unit": "a1777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "10000"
+        }
+      ],
+      "block": "aa06daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1407406"
+        },
+        {
+          "unit": "a1777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        },
+        {
+          "unit": "a2777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        },
+        {
+          "unit": "a3777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        },
+        {
+          "unit": "a4777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        },
+        {
+          "unit": "a5777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7",
+          "quantity": "3000"
+        }
+      ],
+      "block": "aa06daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    },
+    {
+      "tx_hash": "cccc341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "3"
+        }
+      ],
+      "block": "aa06daa7a4e071b899182cc5e51bceb6858f867b404400a7a9557838c5c59eb7"
+    }
+  ],
+  "list7-insufficient-change-amount": [
+    {
+      "tx_hash": "f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1452846"
+        }
+      ],
+      "block": "10974607187afacfeed5e3eaf4342e06bad0f26de438319eca18fa93f6a1541e",
+      "data_hash": null
+    },
+    {
+      "tx_hash": "d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "10000000"
+        }
+      ],
+      "block": "eee6cd082d297f85406cff49f83aa3ebd1083dae3c8997ec03f4a17f49297bf6",
+      "data_hash": null
+    }
+  ],
+  "list8-insufficient-change-amount-with-native-token": [
+    {
+      "tx_hash": "f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1452846"
+        },
+        {
+          "unit": "07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e",
+          "quantity": "56"
+        }
+      ],
+      "block": "10974607187afacfeed5e3eaf4342e06bad0f26de438319eca18fa93f6a1541e",
+      "data_hash": null
+    },
+    {
+      "tx_hash": "d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "10000000"
+        }
+      ],
+      "block": "eee6cd082d297f85406cff49f83aa3ebd1083dae3c8997ec03f4a17f49297bf6",
+      "data_hash": null
+    }
+  ]
+}

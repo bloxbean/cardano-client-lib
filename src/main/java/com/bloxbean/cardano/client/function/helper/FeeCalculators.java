@@ -21,12 +21,28 @@ import java.util.stream.Collectors;
  */
 public class FeeCalculators {
 
+    /**
+     * A function to calculate fee based on noOfSigners. The function then sets fee in <code>{@link Transaction}</code>
+     * and deducts the fee from the change output based on the provided changeAddress.
+     *
+     * @param changeAddress change address to find change output
+     * @param noOfSigners   no of signer to sign the transaction
+     * @return <code>{@link TxBuilder}</code> function
+     */
     public static TxBuilder feeCalculator(String changeAddress, int noOfSigners) {
         return ((transactionContext, transaction) -> {
             execute(transactionContext, transaction, changeAddress, noOfSigners, null);
         });
     }
 
+    /**
+     * A function to calculate fee based on noOfSigners. The function then sets fee in <code>{@link Transaction}</code>
+     * and then invoke <code>{@link UpdateOutputFunction}</code>
+     *
+     * @param noOfSigners             no of signer to sign the transaction
+     * @param updateOutputWithFeeFunc
+     * @return <code>{@link TxBuilder}</code> function
+     */
     public static TxBuilder feeCalculator(int noOfSigners, UpdateOutputFunction updateOutputWithFeeFunc) {
         return ((transactionContext, transaction) -> {
             execute(transactionContext, transaction, null, noOfSigners, updateOutputWithFeeFunc);

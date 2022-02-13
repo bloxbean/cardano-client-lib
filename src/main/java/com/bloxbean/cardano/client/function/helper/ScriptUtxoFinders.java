@@ -9,7 +9,6 @@ import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.transaction.spec.PlutusData;
 
 import java.util.List;
 import java.util.Objects;
@@ -20,43 +19,79 @@ import java.util.Optional;
  */
 public class ScriptUtxoFinders {
 
-    public static <T> Optional<Utxo> findFirstByDatum(UtxoService utxoService, String scriptAddress, T datum) throws ApiException {
+    /**
+     * Find first matching utxo by datum at a script address
+     *
+     * @param utxoService   <code>{@link UtxoService}</code> instance
+     * @param scriptAddress Script address
+     * @param datum         Datum object
+     * @return An optional with matching <code>Utxo</code>
+     * @throws ApiException if error
+     */
+    public static Optional<Utxo> findFirstByDatum(UtxoService utxoService, String scriptAddress, Object datum) throws ApiException {
         Objects.requireNonNull(datum);
         Objects.requireNonNull(utxoService);
 
         String datumHash = getDatumHash(datum);
 
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
-
-        Utxo utxo = utxoSelector.findFirst(scriptAddress, utx -> datumHash.equals(utx.getDataHash()));
-        return Optional.ofNullable(utxo);
+        return findFirstByDatumHash(utxoService, scriptAddress, datumHash);
     }
 
-    public static <T> List<Utxo> findAllByDatum(UtxoService utxoService, String scriptAddress, T datum) throws ApiException {
+    /**
+     * Find first matching utxo by datum hash at a script address
+     *
+     * @param utxoService   <code>{@link UtxoService}</code> instance
+     * @param scriptAddress Script address
+     * @param datumHash     Datum hash
+     * @return An optional with matching <code>Utxo</code>
+     * @throws ApiException if error
+     */
+    public static Optional<Utxo> findFirstByDatumHash(UtxoService utxoService, String scriptAddress, String datumHash) throws ApiException {
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+
+        return utxoSelector.findFirst(scriptAddress, utx -> datumHash.equals(utx.getDataHash()));
+    }
+
+    /**
+     * Find all matching utxos by datum at a script address
+     *
+     * @param utxoService   <code>{@link UtxoService}</code> instance
+     * @param scriptAddress Script address
+     * @param datum         Datum object
+     * @return List of <code>Utxo</code>
+     * @throws ApiException if error
+     */
+    public static List<Utxo> findAllByDatum(UtxoService utxoService, String scriptAddress, Object datum) throws ApiException {
         Objects.requireNonNull(datum);
         Objects.requireNonNull(utxoService);
 
         String datumHash = getDatumHash(datum);
 
+        return findAllByDatumHash(utxoService, scriptAddress, datumHash);
+    }
+
+    /**
+     * Find all matching utxos by datum hash at a script address
+     *
+     * @param utxoService   <code>{@link UtxoService}</code> instance
+     * @param scriptAddress Script address
+     * @param datumHash     datum hash
+     * @return List of <code>Utxo</code>
+     * @throws ApiException if error
+     */
+    public static List<Utxo> findAllByDatumHash(UtxoService utxoService, String scriptAddress, String datumHash) throws ApiException {
         UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
 
         List<Utxo> utxos = utxoSelector.findAll(scriptAddress, utx -> datumHash.equals(utx.getDataHash()));
         return utxos;
     }
 
-    private static <T> String getDatumHash(T datum) {
-        PlutusData datumPlutusData;
-        if (datum instanceof PlutusData)
-            datumPlutusData = (PlutusData) datum;
-        else
-            datumPlutusData = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum);
 
-        String datumHash;
+    private static <T> String getDatumHash(T datum) {
         try {
-            datumHash = datumPlutusData.getDatumHash();
+            return Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHash();
         } catch (CborSerializationException | CborException e) {
             throw new CborRuntimeException(e);
         }
-        return datumHash;
     }
 }

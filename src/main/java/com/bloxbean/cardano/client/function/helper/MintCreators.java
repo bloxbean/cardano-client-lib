@@ -5,11 +5,20 @@ import com.bloxbean.cardano.client.transaction.spec.*;
 
 import java.util.List;
 
+//TODO -- Unit tests pending
+
 /**
  * Provides helper method to transform a {@link Transaction} to add minting related data
  */
 public class MintCreators {
 
+    /**
+     * Function to add mint related data to <code>{@link Transaction}</code>
+     *
+     * @param policy     Policy instance
+     * @param multiAsset MultiAsset to mint
+     * @return <code>{@link TxBuilder}</code> function
+     */
     public static TxBuilder mintCreator(Policy policy, MultiAsset multiAsset) {
 
         return (context, transaction) -> {

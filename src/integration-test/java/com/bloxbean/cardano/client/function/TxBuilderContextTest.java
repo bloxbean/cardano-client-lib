@@ -64,11 +64,6 @@ public class TxBuilderContextTest {
                                 .policyId("8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e32")
                                 .assets(Arrays.asList(new Asset("TestAss1", BigInteger.valueOf(5))))
                                 .build()
-
-//                        MultiAsset.builder()
-//                                .policyId("d11b0562dcac7042636c9dbb44897b38675da0d613d30f98a541a290")
-//                                .assets(Arrays.asList(new Asset("TestCoin", BigInteger.valueOf(1))))
-//                                .build()
                 )).build();
         TxOutputBuilder multiAssetOutputBuilder =
                 OutputBuilders.createFromOutput(new TransactionOutput(
@@ -131,10 +126,10 @@ public class TxBuilderContextTest {
                 .and(output2.outputBuilder())
                 .and(output3.outputBuilder())
                 .and(multiAssetOutputBuilder)
-                .buildInputs(InputBuilders.defaultUtxoSelector(senderAddress, changeAddress))
+                .buildInputs(InputBuilders.createFromSender(senderAddress, changeAddress))
                 .andThen(
                         mintAssetOuputBuilder
-                                .buildInputs(InputBuilders.defaultUtxoSelector(secondSender.baseAddress(), changeAddress))
+                                .buildInputs(InputBuilders.createFromSender(secondSender.baseAddress(), changeAddress))
                 )
                 .andThen(MintCreators.mintCreator(nftPolicy, nftMultiAsset))
                 .andThen(MintCreators.mintCreator(policy, multiAsset))
