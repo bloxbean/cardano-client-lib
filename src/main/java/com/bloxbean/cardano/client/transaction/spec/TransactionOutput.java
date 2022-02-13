@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -139,6 +140,7 @@ public class TransactionOutput {
         return "TransactionOutput{" +
                 "address='" + address + '\'' +
                 ", value=" + value +
+                ", datumHash=" + (datumHash == null? null : HexUtil.encodeHexString(datumHash)) +
                 '}';
     }
 
