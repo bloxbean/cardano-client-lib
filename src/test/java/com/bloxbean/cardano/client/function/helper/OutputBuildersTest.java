@@ -92,24 +92,6 @@ class OutputBuildersTest extends BaseTest {
         given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
 
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("abc-policy", 1);
-//        MultiAsset multiAsset1 = MultiAsset.builder()
-//                .policyId(policy.getPolicyId())
-//                .assets(List.of(
-//                        Asset.builder()
-//                                .name("abc")
-//                                .value(BigInteger.valueOf(100))
-//                                .build()
-//                )).build();
-//
-//        Policy policy2 = PolicyUtil.createMultiSigScriptAllPolicy("xyz-policy", 1);
-//        MultiAsset multiAsset2 = MultiAsset.builder()
-//                .policyId(policy.getPolicyId())
-//                .assets(List.of(
-//                        Asset.builder()
-//                                .name("xyz")
-//                                .value(BigInteger.valueOf(200))
-//                                .build()
-//                )).build();
 
         Output output1 = Output.builder()
                 .address("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c")

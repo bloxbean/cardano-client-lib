@@ -14,6 +14,7 @@ public class AuxDataProviders {
 
     /**
      * Function to update metadata in transaction
+     *
      * @param metadata
      * @return TxBuilder function
      */
@@ -26,6 +27,7 @@ public class AuxDataProviders {
 
     /**
      * Function to update metadata in transaction
+     *
      * @param supplier A supplier function which provides metadata
      * @return
      */

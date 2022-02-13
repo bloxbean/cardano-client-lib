@@ -14,6 +14,8 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.stream.Collectors;
 
+//TODO -- Unit tests pending
+
 /**
  * Provides helper method to add script specific data
  */
@@ -67,14 +69,6 @@ public class ScriptContextProviders {
                 throw new TxBuildException("Error getting scriptDataHash ", e);
             }
             transaction.getBody().setScriptDataHash(scriptDataHash);
-
-            //Add to Auxiliary data
-//            if (transaction.getAuxiliaryData() == null)
-//                transaction.setAuxiliaryData(new AuxiliaryData());
-//            if (transaction.getAuxiliaryData().getPlutusScripts() == null)
-//                transaction.getAuxiliaryData().setPlutusScripts(new ArrayList<>());
-//
-//            transaction.getAuxiliaryData().getPlutusScripts().add(plutusScript);
         };
     }
 
@@ -88,45 +82,5 @@ public class ScriptContextProviders {
         int index = copyInputs.indexOf(new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()));
         return index;
     }
-
-//    public static <T> TransactionBuilder datumProvider(T datum) {
-//        return (context, transaction) -> {
-//            PlutusData plutusData;
-//            if (datum instanceof PlutusData)
-//                plutusData = (PlutusData) datum;
-//            else
-//                plutusData = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum);
-//
-//
-//
-//            if (transaction.getWitnessSet() == null) {
-//                transaction.setWitnessSet(new TransactionWitnessSet());
-//            }
-//
-//            transaction.getWitnessSet().getPlutusDataList().add(plutusData);
-//        };
-//    }
-//
-//    public static <T> TransactionBuilder redeemerProvider(T redeemerData, RedeemerTag tag, int index, ExUnits exUnits) {
-//        return (context, transaction) -> {
-//            PlutusData plutusData;
-//            if (redeemerData instanceof PlutusData)
-//                plutusData = (PlutusData) redeemerData;
-//            else
-//                plutusData = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(redeemerData);
-//
-//            Redeemer redeemer = Redeemer.builder()
-//                    .tag(RedeemerTag.Spend)
-//                    .data(plutusData)
-//                    .index(BigInteger.valueOf(index))
-//                    .exUnits(exUnits).build();
-//
-//            if (transaction.getWitnessSet() == null) {
-//                transaction.setWitnessSet(new TransactionWitnessSet());
-//            }
-//
-//            transaction.getWitnessSet().getRedeemers().add(redeemer);
-//        };
-//    }
 
 }

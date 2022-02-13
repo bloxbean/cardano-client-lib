@@ -122,6 +122,7 @@ public class DefaultPlutusObjectConverter implements PlutusObjectConverter {
 //          log.error("Valid field types: String, byte[], BigInteger, Long, Integer");
 //          throw new PlutusDataConvertionException("Unsupported field type : name: " + field.getName() + ", type: " + field.getType());
         }
+        //TODO -- Handle map field
 
         return plutusData;
 

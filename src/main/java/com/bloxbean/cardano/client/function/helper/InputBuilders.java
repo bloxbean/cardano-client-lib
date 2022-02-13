@@ -1,9 +1,12 @@
 package com.bloxbean.cardano.client.function.helper;
 
+import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.model.Utxo;
-import com.bloxbean.cardano.client.function.TxBuilder;
+import com.bloxbean.cardano.client.config.Configuration;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxInputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
@@ -12,6 +15,7 @@ import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.*;
@@ -21,11 +25,20 @@ import java.util.stream.Collectors;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 /**
- * Provides helper methods to create {@link TxInputBuilder} function to build a list of {@link TransactionInput} from a list of {@link TransactionOutput}
+ * Provides helper methods to create {@link TxInputBuilder} function to build a list of <code>TransactionInput</code> from a list of <code>TransactionOutput</code>
  */
+@Slf4j
 public class InputBuilders {
 
-    public static TxInputBuilder defaultUtxoSelector(String sender, String changeAddress) {
+    /**
+     * Function to create inputs and change output from list of <code>{@link TransactionOutput}</code> for a sender
+     *
+     * @param sender        Address to select utxo from
+     * @param changeAddress change address
+     * @return <code>{@link TxInputBuilder}</code> function
+     * @throws TxBuildException if not enough utxos available at sender address
+     */
+    public static TxInputBuilder createFromSender(String sender, String changeAddress) {
 
         return ((context, outputs) -> {
             if (outputs == null || outputs.size() == 0)
@@ -74,7 +87,7 @@ public class InputBuilders {
 
             }
 
-            return new Tuple<>(_inputs, List.of(changeOutput));
+            return new TxInputBuilder.Result(_inputs, List.of(changeOutput));
 
         });
     }
@@ -114,17 +127,70 @@ public class InputBuilders {
     }
 
 
-    public static TxInputBuilder selectorFromUtxos(List<Utxo> utxos, String changeAddress) {
-        return selectorFromUtxos(utxos, changeAddress, null);
+    /**
+     * Function to create inputs and change output from list of <code>{@link Utxo}</code>
+     *
+     * @param utxos         list of <code>{@link Utxo}</code>
+     * @param changeAddress change address
+     * @return <code>{@link TxInputBuilder}</code> function
+     */
+    public static TxInputBuilder createFromUtxos(List<Utxo> utxos, String changeAddress) {
+        return createFromUtxos(utxos, changeAddress, null);
     }
 
-    public static TxInputBuilder selectorFromUtxos(List<Utxo> utxos, String changeAddress, String datumHash) {
+    /**
+     * Function to create inputs and change output from list of <code>{@link Utxo}</code>
+     *
+     * @param utxos         list of <code>{@link Utxo}</code>
+     * @param changeAddress change address
+     * @param datum         datum object. It can be an instance of <code>{@link PlutusData}</code> or object of a custom class with <code>@{@link com.bloxbean.cardano.client.plutus.annotation.Constr}</code> annotation
+     *                      or one of the supported types <code>Integer, BigInteger, Long, byte[], String</code>
+     * @return <code>{@link TxInputBuilder}</code> function
+     * @throws CborRuntimeException                                                       if error during serialization of datum
+     * @throws com.bloxbean.cardano.client.plutus.exception.PlutusDataConvertionException if datum cannot be converted to PlutusData
+     */
+    public static TxInputBuilder createFromUtxos(List<Utxo> utxos, String changeAddress, Object datum) {
+        if (datum == null) {
+            return createFromUtxos(utxos, changeAddress, null);
+        } else {
+            try {
+                String datumHash = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHash();
+                return createFromUtxos(utxos, changeAddress, datumHash);
+            } catch (CborException | CborSerializationException e) {
+                throw new CborRuntimeException("Cbor serialization exeception ", e);
+            }
+        }
+    }
+
+    /**
+     * Function to create inputs and change output from list of <code>{@link Utxo}</code>
+     *
+     * @param utxos         list of <code>{@link Utxo}</code>
+     * @param changeAddress change address
+     * @param datumHash     datum hash to add to change output
+     * @return <code>{@link TxInputBuilder}</code> function
+     */
+    public static TxInputBuilder createFromUtxos(List<Utxo> utxos, String changeAddress, String datumHash) {
+        return createFromUtxos(() -> utxos, changeAddress, datumHash);
+    }
+
+    /**
+     * Function to create inputs and change output from list of <code>{@link Utxo}</code>
+     *
+     * @param supplier      Supplier function to provide a list of <code>{@link Utxo}</code>
+     * @param changeAddress change address
+     * @param datumHash     datum hash to add to change output
+     * @return <code>{@link TxInputBuilder}</code> function
+     */
+    public static TxInputBuilder createFromUtxos(Supplier<List<Utxo>> supplier, String changeAddress, String datumHash) {
         return (context, outputs) -> {
             //Total value required
             Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
             value = outputs.stream()
                     .map(output -> output.getValue())
                     .reduce(value, (value1, value2) -> value1.plus(value2));
+
+            List<Utxo> utxos = supplier.get();
 
             List<TransactionInput> _inputs = utxos.stream()
                     .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
@@ -149,18 +215,20 @@ public class InputBuilders {
                 }
             }
 
-            return new Tuple<>(_inputs, changeOutputs);
+            return new TxInputBuilder.Result(_inputs, changeOutputs);
         };
     }
 
-    public static TxInputBuilder selectorFromUtxos(List<Utxo> utxos) {
+    /**
+     * Function to create inputs from list of <code>{@link Utxo}</code>
+     *
+     * @param utxos list of <code>{@link Utxo}</code>
+     * @return <code>{@link TxInputBuilder}</code> function
+     */
+    public static TxInputBuilder createFromUtxos(List<Utxo> utxos) {
         return (context, outputs) -> {
-            //checkTransactionBodyForNull(transaction);
-
             List<TransactionInput> inputs = new ArrayList<>();
             utxos.forEach(utxo -> {
-                System.out.println("SCRIPT UTXO --- " + utxo.getTxHash());
-
                 TransactionInput input = TransactionInput.builder()
                         .transactionId(utxo.getTxHash())
                         .index(utxo.getOutputIndex())
@@ -168,14 +236,18 @@ public class InputBuilders {
                 inputs.add(input);
             });
 
-            return new Tuple<>(inputs, Collections.EMPTY_LIST);
+            return new TxInputBuilder.Result(inputs, Collections.EMPTY_LIST);
         };
     }
 
-    public static TxInputBuilder selectorFromUtxos(Supplier<List<Utxo>> supplier) {
+    /**
+     * Function to create inputs from list of <code>{@link Utxo}</code>
+     *
+     * @param supplier Supplier function to provide <code>Utxo</code> list
+     * @return <code>{@link TxInputBuilder}</code> function
+     */
+    public static TxInputBuilder createFromUtxos(Supplier<List<Utxo>> supplier) {
         return (context, outputs) -> {
-            //checkTransactionBodyForNull(transaction);
-
             List<TransactionInput> inputs = new ArrayList<>();
             supplier.get().forEach(utxo -> {
                 TransactionInput input = TransactionInput.builder()
@@ -185,60 +257,7 @@ public class InputBuilders {
                 inputs.add(input);
             });
 
-            return new Tuple<>(inputs, Collections.EMPTY_LIST);
+            return new TxInputBuilder.Result(inputs, Collections.EMPTY_LIST);
         };
     }
-
-    public static TxBuilder collateralFrom(List<Utxo> utxos) {
-        return (context, transaction) -> {
-            checkTransactionBodyForNull(transaction);
-
-            utxos.forEach(utxo -> {
-                TransactionInput input = TransactionInput.builder()
-                        .transactionId(utxo.getTxHash())
-                        .index(utxo.getOutputIndex())
-                        .build();
-                transaction.getBody().getCollateral().add(input);
-            });
-        };
-    }
-
-    public static TxBuilder collateralFrom(Supplier<List<Utxo>> supplier) {
-        return (context, transaction) -> {
-            checkTransactionBodyForNull(transaction);
-
-            supplier.get().forEach(utxo -> {
-                TransactionInput input = TransactionInput.builder()
-                        .transactionId(utxo.getTxHash())
-                        .index(utxo.getOutputIndex())
-                        .build();
-                transaction.getBody().getCollateral().add(input);
-            });
-        };
-    }
-
-    public static TxBuilder collateralFrom(String txHash, int txIndex) {
-        return (context, transaction) -> {
-            checkTransactionBodyForNull(transaction);
-
-            TransactionInput input = TransactionInput.builder()
-                    .transactionId(txHash)
-                    .index(txIndex)
-                    .build();
-            transaction.getBody().getCollateral().add(input);
-
-        };
-    }
-
-    private static void checkTransactionBodyForNull(Transaction transaction) {
-        if (transaction.getBody() == null)
-            transaction.setBody(new TransactionBody());
-
-        if (transaction.getBody().getInputs() == null)
-            transaction.getBody().setInputs(new ArrayList<>());
-
-        if (transaction.getBody().getCollateral() == null)
-            transaction.getBody().setCollateral(new ArrayList<>());
-    }
-
 }

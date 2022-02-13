@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.util.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,16 +31,16 @@ public interface TxOutputBuilder {
             List<TransactionOutput> outputs = new ArrayList<>();
 
             this.accept(context, outputs);
-            Tuple<List<TransactionInput>, List<TransactionOutput>> tuple = after.apply(context, outputs);
+            TxInputBuilder.Result inputBuilderResult = after.apply(context, outputs);
 
             if (inputs.size() > 0)
                 transaction.getBody().getInputs().addAll(inputs);
-            transaction.getBody().getInputs().addAll(tuple._1);
+            transaction.getBody().getInputs().addAll(inputBuilderResult.inputs);
 
             if (outputs.size() > 0)
                 transaction.getBody().getOutputs().addAll(outputs);
-            if (tuple._2 != null && tuple._2.size() > 0)
-                transaction.getBody().getOutputs().addAll(tuple._2);
+            if (inputBuilderResult.changes != null && inputBuilderResult.changes.size() > 0)
+                transaction.getBody().getOutputs().addAll(inputBuilderResult.changes);
 
             //Clear multiasset in the context
             context.clearMintMultiAssets();

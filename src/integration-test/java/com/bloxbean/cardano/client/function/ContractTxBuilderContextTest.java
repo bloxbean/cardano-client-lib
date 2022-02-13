@@ -42,9 +42,8 @@ import java.util.*;
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
+import static com.bloxbean.cardano.client.function.helper.CollateralBuilders.collateralFrom;
 import static com.bloxbean.cardano.client.function.helper.FeeCalculators.feeCalculator;
-import static com.bloxbean.cardano.client.function.helper.InputBuilders.collateralFrom;
-import static com.bloxbean.cardano.client.function.helper.InputBuilders.selectorFromUtxos;
 import static com.bloxbean.cardano.client.function.helper.ScriptContextProviders.scriptContext;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -146,10 +145,10 @@ public class ContractTxBuilderContextTest extends BFBaseTest {
         System.out.println("SENDER ADDRESS >> " + senderAddress);
         TxBuilder builder = sendOutput.outputBuilder()
                 .and(secondSendOutput.outputBuilder())
-                .buildInputs(InputBuilders.defaultUtxoSelector(senderAddress, senderAddress))
+                .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
                 .andThen(
                         scriptOutput.outputBuilder()
-                                .buildInputs(selectorFromUtxos(List.of(scriptUtxo), null, null))
+                                .buildInputs(InputBuilders.createFromUtxos(List.of(scriptUtxo), null, null))
                 )
                 .andThen(collateralFrom(collateral, collateralIndex))
                 .andThen(scriptContext(plutusScript, scriptUtxo, guess, guess, RedeemerTag.Spend, exUnits))
@@ -279,7 +278,7 @@ public class ContractTxBuilderContextTest extends BFBaseTest {
 
         TxBuilder builder = customGuessContractOutput.outputBuilder()
                 .and(sumContractOutput.outputBuilder())
-                .buildInputs(selectorFromUtxos(List.of(customGuessUtxo, sumScriptUtxo)))
+                .buildInputs(InputBuilders.createFromUtxos(List.of(customGuessUtxo, sumScriptUtxo)))
                 .andThen(collateralFrom(collateral, collateralIndex))
                 .andThen((context, t) -> {
                     t.getBody().setTtl(getTtl());
@@ -465,7 +464,7 @@ public class ContractTxBuilderContextTest extends BFBaseTest {
                 return true;
             else
                 return false;
-        });
+        }).get();
         return utxo;
     }
 
