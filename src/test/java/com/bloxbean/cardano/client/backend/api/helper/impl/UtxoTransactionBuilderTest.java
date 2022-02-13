@@ -667,15 +667,19 @@ public class UtxoTransactionBuilderTest {
 
         paymentTransaction.setAmount(newAmount);
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
+        //TODO -- Now not enough exception is thrown instead of continuing silently
+        Assertions.assertThrows(ApiRuntimeException.class, () -> {
+            utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
+        });
 
+        /*
         assertThat(transaction.getBody().getInputs(), hasSize(2));
         assertThat(transaction.getBody().getOutputs(), hasSize(1));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb"));
         assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9"));
 
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(newAmount));
-        assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets(), is(empty()));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets(), is(empty()));*/
     }
 
     @Test
@@ -704,15 +708,18 @@ public class UtxoTransactionBuilderTest {
 
         paymentTransaction.setAmount(newAmount);
 
-        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
+        //TODO -- Now exception is thrown in case not enough utxo
+        Assertions.assertThrows(ApiRuntimeException.class, () -> {
+            Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
+        });
 
-        assertThat(transaction.getBody().getInputs(), hasSize(2));
+        /*assertThat(transaction.getBody().getInputs(), hasSize(2));
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb"));
         assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9"));
 
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(newAmount));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.ZERO));
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().size(), is(1));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().size(), is(1));*/
     }
 }
