@@ -1150,29 +1150,29 @@ public class ContractTransactionIT extends BFBaseTest {
 
     private Utxo getUtxoWithDatumHash(String scriptAddress, String datumHash, String utxoToIgnore) throws ApiException {
         UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
-        Utxo inputUtxo = utxoSelector.findFirst(scriptAddress, u -> {
+        Optional<Utxo> optional = utxoSelector.findFirst(scriptAddress, u -> {
             if (!u.getTxHash().equals(utxoToIgnore)
                     && datumHash.equals(u.getDataHash())
                     && u.getAmount().size() == 1)
                 return true;
             else
                 return false;
-        }).get();
-        return inputUtxo;
+        });
+        return optional.orElse(null);
     }
 
     private Utxo getRandomUtxoForCollateral(String address) throws ApiException {
         UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
         //Find 5 > utxo > 10 ada
-        Utxo utxo = utxoSelector.findFirst(address, u -> {
+        Optional<Utxo> optional = utxoSelector.findFirst(address, u -> {
             if (u.getAmount().size() == 1
                     && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(5)) == 1
                     && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(10)) == -1)
                 return true;
             else
                 return false;
-        }).get();
-        return utxo;
+        });
+        return optional.orElse(null);
     }
 
     private Tuple<String, Integer> checkCollateral(Account sender, final String collateralUtxoHash, final int collateralIndex) throws ApiException, AddressExcepion, CborSerializationException {

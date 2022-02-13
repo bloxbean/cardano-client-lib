@@ -77,7 +77,7 @@ public class ScriptContextProviders {
         List<TransactionInput> copyInputs = transaction.getBody().getInputs()
                 .stream()
                 .collect(Collectors.toList());
-        copyInputs.sort((o1, o2) -> o1.getTransactionId().compareTo(o2.getTransactionId()));
+        copyInputs.sort((o1, o2) -> (o1.getTransactionId() + "#" + o1.getIndex()).compareTo(o2.getTransactionId() + "#" + o2.getIndex()));
 
         int index = copyInputs.indexOf(new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()));
         return index;

@@ -127,8 +127,8 @@ public class ContractTxBuilderContextTest extends BFBaseTest {
                 .build();
 
         ExUnits exUnits = ExUnits.builder()
-                .mem(BigInteger.valueOf(1676948))
-                .steps(BigInteger.valueOf(430892334)).build();
+                .mem(BigInteger.valueOf(4676948))
+                .steps(BigInteger.valueOf(630892334)).build();
 
         Output sendOutput = Output.builder()
                 .address("addr_test1qpg4faaydel7n6cq8e4p5kscg6zahmrhlgeke8c6hn6utespky66rz9quy288xqfwc4k2z3v5h4g7gqxpkr8hn9rngvq00hz02")
@@ -457,15 +457,16 @@ public class ContractTxBuilderContextTest extends BFBaseTest {
     private Utxo getRandomUtxoForCollateral(String address) throws ApiException {
         UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
         //Find 5 > utxo > 10 ada
-        Utxo utxo = utxoSelector.findFirst(address, u -> {
+        Optional<Utxo> optional = utxoSelector.findFirst(address, u -> {
             if (u.getAmount().size() == 1
                     && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(5)) == 1
                     && u.getAmount().get(0).getQuantity().compareTo(adaToLovelace(10)) == -1)
                 return true;
             else
                 return false;
-        }).get();
-        return utxo;
+        });
+
+        return optional.orElse(null);
     }
 
     private void waitForTransaction(Result<String> result) {
