@@ -1,11 +1,13 @@
 package com.bloxbean.cardano.client.util;
 
 import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class AssetUtilTest {
@@ -154,5 +156,37 @@ class AssetUtilTest {
 
         String expected = "8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e325465737441737331";
         assertEquals(expected, unit);
+    }
+
+    @Test
+    void testGetMultiAssetFromUnitAndAmount() {
+        String unit = "8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e325465737441737331";
+        BigInteger qty = BigInteger.valueOf(5000);
+
+        MultiAsset ma = AssetUtil.getMultiAssetFromUnitAndAmount(unit, qty);
+
+        assertThat(ma.getPolicyId()).isEqualTo("8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e32");
+        assertThat(ma.getAssets()).hasSize(1);
+        assertThat(ma.getAssets().get(0)).isEqualTo(Asset.builder()
+            .name("TestAss1")
+                .value(qty)
+                .build()
+        );
+    }
+
+    @Test
+    void testGetMultiAssetFromUnitAndAmount_whenAssetNameIsEmpty() {
+        String unit = "1e349c9bdea19fd6c147626a5260bc44b71635f398b67c59881df209";
+        BigInteger qty = BigInteger.valueOf(7000);
+
+        MultiAsset ma = AssetUtil.getMultiAssetFromUnitAndAmount(unit, qty);
+
+        assertThat(ma.getPolicyId()).isEqualTo("1e349c9bdea19fd6c147626a5260bc44b71635f398b67c59881df209");
+        assertThat(ma.getAssets()).hasSize(1);
+        assertThat(ma.getAssets().get(0)).isEqualTo(Asset.builder()
+                .name("")
+                .value(qty)
+                .build()
+        );
     }
 }

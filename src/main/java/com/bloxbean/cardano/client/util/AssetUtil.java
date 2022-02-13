@@ -1,10 +1,13 @@
 package com.bloxbean.cardano.client.util;
 
 import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash160;
 
@@ -67,6 +70,27 @@ public class AssetUtil {
      */
     public static String getUnit(String policyId, Asset asset) {
         return policyId + HexUtil.encodeHexString(asset.getNameAsBytes());
+    }
+
+    /**
+     * Create a <code>{@link MultiAsset}</code> from unit and qty
+     * @param unit unit of the asset (policy id + asset name)
+     * @param qty value
+     * @return <code>MultiAsset</code>
+     */
+    public static MultiAsset getMultiAssetFromUnitAndAmount(String unit, BigInteger qty) {
+        Objects.requireNonNull(unit);
+
+        Tuple<String, String> tuple = getPolicyIdAndAssetName(unit);
+
+        return MultiAsset.builder()
+                .policyId(tuple._1)
+                .assets(List.of(
+                        Asset.builder()
+                                .name(tuple._2)
+                                .value(qty)
+                                .build()
+                )).build();
     }
 
     private static List<Integer> convertBits(byte[] data, int fromWidth, int toWidth, boolean pad) {
