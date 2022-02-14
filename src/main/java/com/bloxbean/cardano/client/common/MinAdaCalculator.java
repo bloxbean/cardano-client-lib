@@ -28,18 +28,25 @@ public class MinAdaCalculator {
         if (output.getValue().getMultiAssets() == null || output.getValue().getMultiAssets().size() == 0)
             return adaOnlyMinUtxoValue;
 
-        return calculateMinAda(output.getValue().getMultiAssets());
+        return calculateMinAda(output.getValue().getMultiAssets(),
+                output.getDatumHash() != null && output.getDatumHash().length > 0);
     }
 
-    public BigInteger calculateMinAda(List<MultiAsset> multiAssetList) {
+    public BigInteger calculateMinAda(List<MultiAsset> multiAssetList, boolean hasDataHash) {
         if (multiAssetList == null || multiAssetList.size() == 0)
             return adaOnlyMinUtxoValue;
 
         long sizeB = bundleSize(multiAssetList);
+        //According to https://github.com/input-output-hk/cardano-ledger/blob/master/doc/explanations/min-utxo-alonzo.rst
+        long dataHashSize = hasDataHash ? 10 : 0;
 
-        long utxoEntrySize = utxoEntrySizeWithoutVal + sizeB; //TODO + dataHashSize (dh)
+        long utxoEntrySize = utxoEntrySizeWithoutVal + sizeB + dataHashSize;
 
         return coinsPerUtxoWord.multiply(BigInteger.valueOf(utxoEntrySize));
+    }
+
+    public BigInteger calculateMinAda(List<MultiAsset> multiAssetList) {
+        return calculateMinAda(multiAssetList, false);
     }
 
     private long bundleSize(List<MultiAsset> multiAssetList) {
