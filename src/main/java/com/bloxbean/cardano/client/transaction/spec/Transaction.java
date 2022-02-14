@@ -11,12 +11,14 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 @Builder
 public class Transaction {
     @Builder.Default
@@ -28,10 +30,6 @@ public class Transaction {
     @Builder.Default
     private boolean isValid = true;
     private AuxiliaryData auxiliaryData;
-
-    public Transaction() {
-        this.isValid = true;
-    }
 
     /**
      * Set metadata
