@@ -15,9 +15,9 @@ public class MintCreators {
 
     /**
      * Function to add mint related data to <code>{@link Transaction}</code>
-     * <br/>Adds <code>MultiAsset</code> to mint field of <code>TransactionBody</code>.
-     * <br/>Adds policy script to <code>TransactionWitnessSet</code>
-     * <br/>Adds policy script to <code>AuxiliaryData</code>
+     * <br>Adds <code>MultiAsset</code> to mint field of <code>TransactionBody</code>.
+     * <br>Adds policy script to <code>TransactionWitnessSet</code>
+     * <br>Adds policy script to <code>AuxiliaryData</code>
      * @param policy     Policy instance
      * @param multiAsset MultiAsset to mint
      * @return <code>{@link TxBuilder}</code> function
@@ -28,9 +28,9 @@ public class MintCreators {
 
     /**
      * Function to add mint related data to <code>{@link Transaction}</code>
-     * <br/>Adds <code>MultiAsset</code> to mint field of <code>TransactionBody</code>.
-     * <br/>Adds policy script to <code>TransactionWitnessSet</code>
-     * <br/>Adds policy script to <code>AuxiliaryData</code>
+     * <br>Adds <code>MultiAsset</code> to mint field of <code>TransactionBody</code>.
+     * <br>Adds policy script to <code>TransactionWitnessSet</code>
+     * <br>Adds policy script to <code>AuxiliaryData</code>
      * @param policy     Policy instance
      * @param multiAsset MultiAsset to mint
      * @param inclScriptInAuxData Add policy's native script to <code>AuxiliaryData</code> field
