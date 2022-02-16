@@ -17,10 +17,10 @@ public interface TxBuilder {
      *
      * @param context TransactionBuilderContext
      * @param txn     Transaction to transform
-     * @throws TxBuildException
+     * @exception  TxBuildException
      * @throws ApiException
      */
-    void accept(TxBuilderContext context, Transaction txn) throws TxBuildException, ApiException;
+    void accept(TxBuilderContext context, Transaction txn) throws ApiException;
 
     /**
      * Returns a composed function that first applies this function to its input, and then applies the after function to the result.
