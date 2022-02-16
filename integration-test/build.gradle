@@ -1,0 +1,96 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':')
+    implementation project(':cardano-client-backend-gql')
+    implementation project(':cardano-client-backend-koios')
+    implementation project(':cardano-client-backend-ogmios')
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    testImplementation 'org.hamcrest:hamcrest-library:2.2'
+    testImplementation 'org.mockito:mockito-inline:3.7.7'
+    testImplementation 'org.mockito:mockito-junit-jupiter:3.7.7'
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDirs "src/main/resources"
+        }
+    }
+    integrationTest {
+        java {
+            compileClasspath += main.output + test.output + configurations.testCompile
+            runtimeClasspath += main.output + test.output + compileClasspath + configurations.testRuntime
+            srcDir file('src/it/java')
+        }
+        resources.srcDir file('src/it/resources')
+    }
+}
+
+configurations {
+    integrationTestCompile.extendsFrom testCompile
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntime.extendsFrom testRuntime
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+}
+
+compileJava {
+    sourceCompatibility = '11'
+    targetCompatibility = '11'
+    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
+}
+
+javadoc {
+    exclude "com/bloxbean/cardano/gql/**"
+    source = sourceSets.main.allJava
+}
+
+
+task sourceJar(type: Jar) {
+    classifier "sources"
+    from sourceSets.main.allJava
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier "javadoc"
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives jar
+    archives sourceJar
+    archives javadocJar
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        showStandardStreams = true
+    }
+}
+
+task integrationTest(type: Test) {
+    description = 'Runs the integration tests.'
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    outputs.upToDateWhen { false }
+    systemProperty('BF_PROJECT_ID', findProperty("BF_PROJECT_ID"))
+    systemProperty('CARDANO_GRAPHQL_AUTH_KEY', findProperty("CARDANO_GRAPHQL_AUTH_KEY"))
+    testLogging {
+        showStandardStreams = true
+    }
+}
+
+integrationTest {
+    useJUnitPlatform()
+}

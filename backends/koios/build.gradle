@@ -9,39 +9,19 @@ repositories {
 }
 
 dependencies {
-    implementation group: 'org.bouncycastle', name: 'bcprov-jdk15to18', version: '1.68'
-    compile group: 'co.nstant.in', name: 'cbor', version: '0.9'
-    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
-
-    implementation group: 'com.squareup.retrofit2', name: 'retrofit', version: '2.9.0'
-    implementation('com.squareup.retrofit2:converter-jackson:2.9.0') {
-        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-    }
-    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.12.3'
-    implementation group: 'com.google.guava', name: 'guava', version: '30.1.1-jre'
-
-    //ed25519
-    implementation group: 'net.i2p.crypto', name: 'eddsa', version: '0.3.0'
-
-    compileOnly 'org.projectlombok:lombok:1.18.20'
-    annotationProcessor 'org.projectlombok:lombok:1.18.20'
+    implementation project(':')
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
     testImplementation 'org.hamcrest:hamcrest-library:2.2'
     testImplementation 'org.mockito:mockito-inline:3.7.7'
     testImplementation 'org.mockito:mockito-junit-jupiter:3.7.7'
-    testImplementation('org.assertj:assertj-core:3.21.0')
-    testRuntimeOnly 'org.slf4j:slf4j-log4j12:1.7.30'
-
-    testCompileOnly 'org.projectlombok:lombok:1.18.20'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.20'
 }
 
 sourceSets {
     main {
         resources {
-            srcDirs "src/main/resources", "native"
+            srcDirs "src/main/resources"
         }
     }
     integrationTest {
@@ -55,19 +35,16 @@ sourceSets {
 }
 
 configurations {
-    integrationTestCompile.extendsFrom testCompile
-    integrationTestCompileOnly.extendsFrom testCompileOnly
-    integrationTestImplementation.extendsFrom testImplementation
-    integrationTestRuntime.extendsFrom testRuntime
-    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
-    integreationTestAnnotationProcessor.extendsFrom testAnnotationProcessor
 }
 
 compileJava {
     sourceCompatibility = '11'
     targetCompatibility = '11'
-
     options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
+}
+
+javadoc {
+    source = sourceSets.main.allJava
 }
 
 task sourceJar(type: Jar) {
@@ -86,16 +63,6 @@ artifacts {
     archives javadocJar
 }
 
-//create a single Jar with all dependencies
-task fatJar(type: Jar) {
-    manifest {
-        attributes 'Main-Class': 'com.bloxbean.cardano.client.cli.CLIMain'
-    }
-    baseName = project.name + '-all'
-    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
-    with jar
-}
-
 test {
     useJUnitPlatform()
     testLogging {
@@ -109,8 +76,8 @@ task integrationTest(type: Test) {
     testClassesDirs = sourceSets.integrationTest.output.classesDirs
     classpath = sourceSets.integrationTest.runtimeClasspath
     outputs.upToDateWhen { false }
-   // mustRunAfter(tasks.named('test'))
-    systemProperty('BF_PROJECT_ID', findProperty("BF_PROJECT_ID"))
+    // mustRunAfter(tasks.named('test'))
+//    systemProperty('ENV_NAME', findProperty("ENV_NAME"))
     testLogging {
         showStandardStreams = true
     }
@@ -120,6 +87,7 @@ integrationTest {
     useJUnitPlatform()
 }
 
+/** TODO -- Disable publish as the module is not ready for publishing
 publishing {
     publications {
         mavenJava(MavenPublication) {
@@ -131,9 +99,9 @@ publishing {
                 classifier = 'javadoc'
             }
             pom {
-                name = 'Cardano Client Library'
-                description = 'Cardano Client Library for Java'
-                url = 'https://github.com/bloxbean/cardano-client-lib'
+                name = 'Cardano Client Lib - GraphQL Backend'
+                description = 'Cardano Client Library - Koios Backend'
+                url = 'https://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
                 licenses {
                     license {
                         name = 'The MIT License'
@@ -144,12 +112,13 @@ publishing {
                     developer {
                         id = 'satran004'
                         name = 'Satya'
+                        email = 'satran004@gmail.com'
                     }
                 }
                 scm {
-                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-lib.git'
-                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-lib.git'
-                    url = 'https://github.com/bloxbean/cardano-client-lib'
+                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
+                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
+                    url = 'https://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
                 }
             }
         }
@@ -169,7 +138,7 @@ publishing {
             }
         }
     }
-}
+} */
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
@@ -179,4 +148,3 @@ if (isReleaseVersion && !project.hasProperty("skipSigning")) {
         sign publishing.publications
     }
 }
-
