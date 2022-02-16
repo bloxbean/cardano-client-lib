@@ -25,6 +25,7 @@ import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.InputBuilders;
+import com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
@@ -44,7 +45,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static com.bloxbean.cardano.client.function.helper.CollateralBuilders.collateralFrom;
 import static com.bloxbean.cardano.client.function.helper.FeeCalculators.feeCalculator;
-import static com.bloxbean.cardano.client.function.helper.ScriptContextProviders.scriptContext;
+import static com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders.scriptCallContext;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ContractTxBuilderContextTest extends BFBaseTest {
@@ -151,7 +152,7 @@ public class ContractTxBuilderContextTest extends BFBaseTest {
                                 .buildInputs(InputBuilders.createFromUtxos(List.of(scriptUtxo), null, null))
                 )
                 .andThen(collateralFrom(collateral, collateralIndex))
-                .andThen(scriptContext(plutusScript, scriptUtxo, guess, guess, RedeemerTag.Spend, exUnits))
+                .andThen(scriptCallContext(plutusScript, scriptUtxo, guess, guess, RedeemerTag.Spend, exUnits))
                 .andThen(feeCalculator(senderAddress, 1));
 
         Transaction transaction = new Transaction();
@@ -284,8 +285,8 @@ public class ContractTxBuilderContextTest extends BFBaseTest {
                     t.getBody().setTtl(getTtl());
                     t.getBody().setNetworkId(NetworkId.TESTNET);
                 })
-                .andThen(scriptContext(customGuessScript, customGuessUtxo, guess, guess, RedeemerTag.Spend, exUnits))
-                .andThen(scriptContext(sumScript, sumScriptUtxo, sumDatum, sumRedeemer, RedeemerTag.Spend, sumExUnits))
+                .andThen(scriptCallContext(customGuessScript, customGuessUtxo, guess, guess, RedeemerTag.Spend, exUnits))
+                .andThen(scriptCallContext(sumScript, sumScriptUtxo, sumDatum, sumRedeemer, RedeemerTag.Spend, sumExUnits))
                 .andThen(feeCalculator(senderAddress, 1));
 
         Transaction transaction = new Transaction();

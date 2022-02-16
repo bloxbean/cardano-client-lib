@@ -301,7 +301,7 @@ git clone https://github.com/bloxbean/cardano-client-lib.git
 # Run Integration Tests
 ```
 export BF_PROJECT_ID=<Blockfrost Project Id>
-./gradlew integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID} 
+./gradlew :integration-test:integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID}
 ```
 
 # Used by
