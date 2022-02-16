@@ -32,9 +32,9 @@ sourceSets {
         java {
             compileClasspath += main.output + test.output + configurations.testCompile
             runtimeClasspath += main.output + test.output + compileClasspath + configurations.testRuntime
-            srcDir file('src/integration-test/java')
+            srcDir file('src/it/java')
         }
-        resources.srcDir file('src/integration-test/resources')
+        resources.srcDir file('src/it/resources')
     }
 }
 
