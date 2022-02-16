@@ -30,13 +30,13 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-public class CIP25NFTTransactionTest extends CIPBaseTransactionTest {
+public class CIP25NFTTransactionITTest extends CIPBaseTransactionITTest {
 
     @Test
     public void mintToken() throws CborSerializationException, ApiException, AddressExcepion {
         long currentSlot = queryTipSlot();
-        assertNotEquals(0,currentSlot);
-        Policy policy = PolicyUtil.createEpochBasedTimeLockedPolicy("CIP25PolicyTimeLockedPolicy",currentSlot,5L);
+        assertNotEquals(0, currentSlot);
+        Policy policy = PolicyUtil.createEpochBasedTimeLockedPolicy("CIP25PolicyTimeLockedPolicy", currentSlot, 5L);
         String assetName = "NFTTest-" + new Random().nextInt();
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policy.getPolicyId());
@@ -87,7 +87,7 @@ public class CIP25NFTTransactionTest extends CIPBaseTransactionTest {
                 TransactionDetailsParams.builder().ttl(getTtl()).build(), nftMetadata);
 
         System.out.println("Request: \n" + JsonUtil.getPrettyJson(mintTransaction));
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);

@@ -8,9 +8,6 @@ import com.bloxbean.cardano.client.backend.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.backend.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
@@ -25,7 +22,6 @@ import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.InputBuilders;
-import com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
@@ -48,7 +44,7 @@ import static com.bloxbean.cardano.client.function.helper.FeeCalculators.feeCalc
 import static com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders.scriptCallContext;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ContractTxBuilderContextTest extends BFBaseTest {
+public class ContractTxBuilderContextITTest extends BaseITTest {
     BackendService backendService;
     UtxoService utxoService;
     TransactionService transactionService;
@@ -61,7 +57,7 @@ public class ContractTxBuilderContextTest extends BFBaseTest {
 
     @BeforeEach
     public void setup() {
-        backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        backendService = getBackendService();
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();

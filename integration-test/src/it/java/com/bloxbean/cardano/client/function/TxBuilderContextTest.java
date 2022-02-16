@@ -2,9 +2,8 @@ package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.BaseITTest;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
@@ -19,6 +18,7 @@ import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.PolicyUtil;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -29,9 +29,13 @@ import java.util.List;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 
-public class TxBuilderContextTest {
-    BackendService backendService =
-            BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, "SmzYuTWziWPs0fTRON2Qrz9PnGkkhJ2y");
+public class TxBuilderContextTest extends BaseITTest {
+    BackendService backendService;
+
+    @BeforeEach
+    public void setup() {
+        backendService = getBackendService();
+    }
 
     @Test
     void testTransactionBuilding() throws CborSerializationException, ApiException {

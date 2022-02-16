@@ -4,14 +4,13 @@ import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressService;
 import com.bloxbean.cardano.client.backend.api.*;
-import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.model.*;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.UtxoSelector;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.config.Configuration;
@@ -23,8 +22,6 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
-import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
-import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
@@ -47,7 +44,7 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ContractTransactionIT extends BFBaseTest {
+public class ContractTransactionIT extends BaseITTest {
     UtxoService utxoService;
     TransactionService transactionService;
     TransactionHelperService transactionHelperService;
@@ -59,7 +56,7 @@ public class ContractTransactionIT extends BFBaseTest {
 
     @BeforeEach
     public void setup() {
-        BackendService backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        BackendService backendService = getBackendService();//BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();
@@ -73,7 +70,7 @@ public class ContractTransactionIT extends BFBaseTest {
     }
 
     @Test
-    //https://github.com/input-output-hk/cardano-node/blob/28c34d813b8176afc653d6612d59fdd37dfeecfb/plutus-example/src/Cardano/PlutusExample/AlwaysSucceeds.hs#L1
+        //https://github.com/input-output-hk/cardano-node/blob/28c34d813b8176afc653d6612d59fdd37dfeecfb/plutus-example/src/Cardano/PlutusExample/AlwaysSucceeds.hs#L1
     void alwaysSuccessContractCall() throws CborSerializationException, AddressExcepion, ApiException, CborDeserializationException, CborException {
         String collateral = "ab44e0f5faf56154cc33e757c9d98a60666346179d5a7a0b9d77734c23c42082";
         int collateralIndex = 0;
@@ -192,7 +189,7 @@ public class ContractTransactionIT extends BFBaseTest {
         change.getValue().setCoin(changeAmt);
         body.setFee(totalFee);
 
-        System.out.println("-- fee : " + totalFee );
+        System.out.println("-- fee : " + totalFee);
 
         Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
         System.out.println(signTxn);
@@ -255,7 +252,7 @@ public class ContractTransactionIT extends BFBaseTest {
             assertTrue(paymentSuccessful);
         }
 
-        claimAmount = ((Amount)inputUtxo.getAmount().get(0)).getQuantity();
+        claimAmount = ((Amount) inputUtxo.getAmount().get(0)).getQuantity();
         //Find utxos first and then create inputs
         List<TransactionInput> inputs = Arrays.asList(TransactionInput.builder()
                 .transactionId(inputUtxo.getTxHash())
@@ -325,7 +322,7 @@ public class ContractTransactionIT extends BFBaseTest {
         output.getValue().setCoin(changeAmt);
         body.setFee(totalFee);
 
-        System.out.println("-- fee : " + totalFee );
+        System.out.println("-- fee : " + totalFee);
 
         Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
         System.out.println(signTxn);
@@ -383,7 +380,7 @@ public class ContractTransactionIT extends BFBaseTest {
             assertTrue(paymentSuccessful);
         }
 
-        claimAmount = ((Amount)inputUtxo.getAmount().get(0)).getQuantity();
+        claimAmount = ((Amount) inputUtxo.getAmount().get(0)).getQuantity();
         //Find utxos first and then create inputs
         List<TransactionInput> inputs = Arrays.asList(TransactionInput.builder()
                 .transactionId(inputUtxo.getTxHash())
@@ -453,7 +450,7 @@ public class ContractTransactionIT extends BFBaseTest {
         output.getValue().setCoin(changeAmt);
         body.setFee(totalFee);
 
-        System.out.println("-- fee : " + totalFee );
+        System.out.println("-- fee : " + totalFee);
 
         Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
         System.out.println(signTxn);
@@ -465,7 +462,7 @@ public class ContractTransactionIT extends BFBaseTest {
     }
 
     @Test
-    //https://github.com/input-output-hk/cardano-node/blob/28c34d813b8176afc653d6612d59fdd37dfeecfb/plutus-example/src/Cardano/PlutusExample/CustomDatumRedeemerGuess.hs#L1
+        //https://github.com/input-output-hk/cardano-node/blob/28c34d813b8176afc653d6612d59fdd37dfeecfb/plutus-example/src/Cardano/PlutusExample/CustomDatumRedeemerGuess.hs#L1
     void customDatumCustomRedeemerGuessContract() throws CborSerializationException, AddressExcepion, ApiException, CborException {
         String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -518,7 +515,7 @@ public class ContractTransactionIT extends BFBaseTest {
             assertTrue(paymentSuccessful);
         }
 
-        claimAmount = ((Amount)inputUtxo.getAmount().get(0)).getQuantity();
+        claimAmount = ((Amount) inputUtxo.getAmount().get(0)).getQuantity();
         //Find utxos first and then create inputs
         List<TransactionInput> inputs = Arrays.asList(TransactionInput.builder()
                 .transactionId(inputUtxo.getTxHash())
@@ -588,7 +585,7 @@ public class ContractTransactionIT extends BFBaseTest {
         output.getValue().setCoin(changeAmt);
         body.setFee(totalFee);
 
-        System.out.println("-- fee : " + totalFee );
+        System.out.println("-- fee : " + totalFee);
 
         Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
         System.out.println(signTxn);
@@ -600,7 +597,7 @@ public class ContractTransactionIT extends BFBaseTest {
     }
 
     @Test
-    //https://github.com/input-output-hk/cardano-node/blob/28c34d813b8176afc653d6612d59fdd37dfeecfb/plutus-example/src/Cardano/PlutusExample/Loop.hs#L1
+        //https://github.com/input-output-hk/cardano-node/blob/28c34d813b8176afc653d6612d59fdd37dfeecfb/plutus-example/src/Cardano/PlutusExample/Loop.hs#L1
     void loopContract() throws CborSerializationException, AddressExcepion, ApiException, CborException {
         String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -651,7 +648,7 @@ public class ContractTransactionIT extends BFBaseTest {
             assertTrue(paymentSuccessful);
         }
 
-        claimAmount = ((Amount)inputUtxo.getAmount().get(0)).getQuantity();
+        claimAmount = ((Amount) inputUtxo.getAmount().get(0)).getQuantity();
         //Find utxos first and then create inputs
         List<TransactionInput> inputs = Arrays.asList(TransactionInput.builder()
                 .transactionId(inputUtxo.getTxHash())
@@ -721,7 +718,7 @@ public class ContractTransactionIT extends BFBaseTest {
         output.getValue().setCoin(changeAmt);
         body.setFee(totalFee);
 
-        System.out.println("-- fee : " + totalFee );
+        System.out.println("-- fee : " + totalFee);
 
         Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
         System.out.println(signTxn);
@@ -782,7 +779,7 @@ public class ContractTransactionIT extends BFBaseTest {
             assertTrue(paymentSuccessful);
         }
 
-        claimAmount = ((Amount)inputUtxo.getAmount().get(0)).getQuantity();
+        claimAmount = ((Amount) inputUtxo.getAmount().get(0)).getQuantity();
         //Find utxos first and then create inputs
         List<TransactionInput> inputs = Arrays.asList(TransactionInput.builder()
                 .transactionId(inputUtxo.getTxHash())
@@ -852,7 +849,7 @@ public class ContractTransactionIT extends BFBaseTest {
         output.getValue().setCoin(changeAmt);
         body.setFee(totalFee);
 
-        System.out.println("-- fee : " + totalFee );
+        System.out.println("-- fee : " + totalFee);
 
         Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
         System.out.println(signTxn);
@@ -913,7 +910,7 @@ public class ContractTransactionIT extends BFBaseTest {
             assertTrue(paymentSuccessful);
         }
 
-        claimAmount = ((Amount)inputUtxo.getAmount().get(0)).getQuantity();
+        claimAmount = ((Amount) inputUtxo.getAmount().get(0)).getQuantity();
         //Find utxos first and then create inputs
         List<TransactionInput> inputs = Arrays.asList(TransactionInput.builder()
                 .transactionId(inputUtxo.getTxHash())
@@ -983,7 +980,7 @@ public class ContractTransactionIT extends BFBaseTest {
         output.getValue().setCoin(changeAmt);
         body.setFee(totalFee);
 
-        System.out.println("-- fee : " + totalFee );
+        System.out.println("-- fee : " + totalFee);
         System.out.println(signTxnForFeeCalculation);
 
         Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
@@ -996,7 +993,7 @@ public class ContractTransactionIT extends BFBaseTest {
     }
 
     @Test
-    //https://github.com/input-output-hk/cardano-node/blob/28c34d813b8176afc653d6612d59fdd37dfeecfb/plutus-example/src/Cardano/PlutusExample/MintingScript.hs#L1
+        //https://github.com/input-output-hk/cardano-node/blob/28c34d813b8176afc653d6612d59fdd37dfeecfb/plutus-example/src/Cardano/PlutusExample/MintingScript.hs#L1
     void mintingContract() throws CborSerializationException, AddressExcepion, ApiException, CborException {
         String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -1035,7 +1032,7 @@ public class ContractTransactionIT extends BFBaseTest {
         //Find utxos first and then create inputs
         List<TransactionInput> inputs = new ArrayList<>();
 
-        for (Utxo ux: utxos) {
+        for (Utxo ux : utxos) {
             TransactionInput input = TransactionInput.builder()
                     .transactionId(ux.getTxHash())
                     .index(ux.getOutputIndex()).build();
@@ -1052,7 +1049,7 @@ public class ContractTransactionIT extends BFBaseTest {
                 .value(new Value(BigInteger.ZERO, new ArrayList<>()))
                 .build();
 
-        for (Utxo utxo: utxos) { //Copy existing assets in utxos to output
+        for (Utxo utxo : utxos) { //Copy existing assets in utxos to output
             copyUtxoValuesToChangeOutput(change, utxo);
         }
 
@@ -1137,7 +1134,7 @@ public class ContractTransactionIT extends BFBaseTest {
         change.getValue().setCoin(changeAmt);
         body.setFee(totalFee);
 
-        System.out.println("-- fee : " + totalFee );
+        System.out.println("-- fee : " + totalFee);
 
         Transaction signTxn = sender.sign(transaction); //cbor encoded bytes in Hex format
         System.out.println(signTxn);

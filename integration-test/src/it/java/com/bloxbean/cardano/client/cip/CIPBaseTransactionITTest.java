@@ -6,9 +6,6 @@ import com.bloxbean.cardano.client.backend.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.backend.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
@@ -16,7 +13,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 
-public class CIPBaseTransactionTest extends BFBaseTest {
+public class CIPBaseTransactionITTest extends BaseITTest {
     UtxoService utxoService;
     TransactionService transactionService;
     TransactionHelperService transactionHelperService;
@@ -30,7 +27,7 @@ public class CIPBaseTransactionTest extends BFBaseTest {
 
     @BeforeEach
     public void setup() {
-        BackendService backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        BackendService backendService = getBackendService();
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();

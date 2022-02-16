@@ -1,11 +1,7 @@
-package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
+package com.bloxbean.cardano.client.backend.api;
 
-import com.bloxbean.cardano.client.backend.api.AddressService;
-import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
 import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -17,14 +13,14 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class BFAddressServiceIT extends BFBaseTest {
+public class AddressServiceIT extends BaseITTest {
 
     BackendService backendService;
     AddressService addressService;
 
     @BeforeEach
     public void setup() {
-        backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        backendService = getBackendService();
         addressService = backendService.getAddressService();
     }
 
@@ -64,7 +60,7 @@ public class BFAddressServiceIT extends BFBaseTest {
     @Test
     public void testGetTransactionsWithOrder_whenFromAndToBlocksProvided() throws ApiException {
         String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
-        List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc, "3168087", "3168097" ).getValue();
+        List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc, "3168087", "3168097").getValue();
 
         System.out.println(txns);
         assertTrue(txns.size() == 8);
@@ -73,3 +69,4 @@ public class BFAddressServiceIT extends BFBaseTest {
         assertTrue(txns.get(0).getBlockTime() != 0);
     }
 }
+

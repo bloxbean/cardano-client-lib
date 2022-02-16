@@ -1,7 +1,5 @@
-package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
+package com.bloxbean.cardano.client.backend.api;
 
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.MetadataService;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;
@@ -22,14 +20,14 @@ import java.util.stream.Collectors;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class BFMetadataServiceIT extends BFBaseTest {
+public class MetadataServiceIT extends BaseITTest {
 
     BackendService backendService;
     MetadataService metadataService;
 
     @BeforeEach
     public void setup() {
-        backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
         metadataService = backendService.getMetadataService();
     }
 
@@ -84,7 +82,7 @@ public class BFMetadataServiceIT extends BFBaseTest {
 
     @Test
     public void testGetJSONMetadataByLabel() throws ApiException {
-        Result<List<MetadataJSONContent>> result = metadataService.getJSONMetadataByLabel(new BigInteger("1"),  10, 1, OrderEnum.asc);
+        Result<List<MetadataJSONContent>> result = metadataService.getJSONMetadataByLabel(new BigInteger("1"), 10, 1, OrderEnum.asc);
 
         List<MetadataJSONContent> value = result.getValue();
 
@@ -97,7 +95,7 @@ public class BFMetadataServiceIT extends BFBaseTest {
 
     @Test
     public void testGetCBORMetadataByLabel() throws ApiException {
-        Result<List<MetadataCBORContent>> result = metadataService.getCBORMetadataByLabel(new BigInteger("1985"),  10, 1, OrderEnum.asc);
+        Result<List<MetadataCBORContent>> result = metadataService.getCBORMetadataByLabel(new BigInteger("1985"), 10, 1, OrderEnum.asc);
 
         List<MetadataCBORContent> value = result.getValue();
 

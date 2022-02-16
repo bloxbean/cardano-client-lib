@@ -2,9 +2,9 @@ package com.bloxbean.cardano.client.backend.factory;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.BaseITTest;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.common.model.Networks;
@@ -26,13 +26,13 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-public class BackendFactoryIT extends BFBaseTest {
+public class BackendFactoryIT extends BaseITTest {
 
     private BackendService backendService;
 
     @BeforeEach
     public void setup() {
-        backendService = BackendFactory.getBlockfrostBackendService(BLOCKFROST_TESTNET_URL, projectId);
+        backendService = BackendFactory.getBlockfrostBackendService(BLOCKFROST_TESTNET_URL, bfProjectId);
     }
 
     @Test
@@ -63,7 +63,7 @@ public class BackendFactoryIT extends BFBaseTest {
                 .transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(block.getSlot() + 1000).build());
 
         System.out.println(JsonUtil.getPrettyJson(Transaction.deserialize(result.getValue().getSignedTxn())));
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue().getTransactionId());
         else
             System.out.println("Transaction failed: " + result);

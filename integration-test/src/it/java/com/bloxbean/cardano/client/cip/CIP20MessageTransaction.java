@@ -15,7 +15,7 @@ import java.math.BigInteger;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
-public class CIP20MessageTransaction extends CIPBaseTransactionTest {
+public class CIP20MessageTransaction extends CIPBaseTransactionITTest {
 
     @Test
     public void paymentTransactionWithMessage() throws ApiException, AddressExcepion, CborSerializationException {
@@ -37,7 +37,7 @@ public class CIP20MessageTransaction extends CIPBaseTransactionTest {
 
         Result<TransactionResult> result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), messageMetadata);
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);

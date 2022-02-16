@@ -1,8 +1,8 @@
-package com.bloxbean.cardano.client.backend.impl.blockfrost.service;
+package com.bloxbean.cardano.client.backend.api;
 
-import com.bloxbean.cardano.client.backend.api.BlockService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBlockService;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -13,13 +13,13 @@ import java.math.BigInteger;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public class BFBlockServiceIT extends BFBaseTest {
+public class BlockServiceIT extends BaseITTest {
 
     BlockService service;
 
     @BeforeEach
     public void setup() {
-        service = new BFBlockService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        service = new BFBlockService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
     }
 
     @Test

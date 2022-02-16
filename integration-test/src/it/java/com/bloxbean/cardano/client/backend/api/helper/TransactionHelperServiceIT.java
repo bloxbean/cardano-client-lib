@@ -4,9 +4,6 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.*;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
@@ -49,7 +46,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-class TransactionHelperServiceIT extends BFBaseTest {
+class TransactionHelperServiceIT extends BaseITTest {
 
     UtxoService utxoService;
     TransactionService transactionService;
@@ -62,7 +59,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
     @BeforeEach
     public void setup() {
-        BackendService backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, projectId);
+        BackendService backendService = getBackendService();//BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();
@@ -373,7 +370,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         Result<TransactionResult> result = transactionHelperService.transfer(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3, paymentTransaction4),
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -482,7 +479,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
         Result<TransactionResult> result = transactionHelperService.transfer(Arrays.asList(paymentTransaction1, paymentTransaction2a, paymentTransaction2b, paymentTransaction3, paymentTransaction4),
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 
-        if(result.isSuccessful())
+        if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());
         else
             System.out.println("Transaction failed: " + result);
@@ -541,7 +538,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
     @Test
     void mintTokenWithScriptAtLeast() throws CborSerializationException, AddressExcepion, ApiException {
-        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("scriptAtLeast", 3,2);
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("scriptAtLeast", 3, 2);
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account sender = new Account(Networks.testnet(), senderMnemonic);
@@ -696,7 +693,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 .addScript(scriptPubkey2)
                 .addScript(scriptPubkey3);
 
-        Policy policy = new Policy(scriptAll,Arrays.asList(sk2, sk3));
+        Policy policy = new Policy(scriptAll, Arrays.asList(sk2, sk3));
 
         String policyId = scriptAll.getPolicyId();
 
@@ -829,7 +826,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 .addScript(requireTimeBefore)
                 .addScript(scriptAtLeast);
 
-        Policy policy = new Policy(scriptAll,Arrays.asList(sk1, sk2));
+        Policy policy = new Policy(scriptAll, Arrays.asList(sk1, sk2));
 
         String policyId = scriptAll.getPolicyId();
 
@@ -884,7 +881,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 .addScript(requireTimeBefore)
                 .addScript(scriptPubkey);
 
-        Policy policy = new Policy(scriptAll,Arrays.asList(sk));
+        Policy policy = new Policy(scriptAll, Arrays.asList(sk));
 
         String policyId = scriptAll.getPolicyId();
 
@@ -939,7 +936,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 .addScript(requireTimeAfter)
                 .addScript(scriptPubkey);
 
-        Policy policy = new Policy(policyScript,Arrays.asList(sk));
+        Policy policy = new Policy(policyScript, Arrays.asList(sk));
         String policyId = policyScript.getPolicyId();
 
         System.out.println(">> Policy Id: " + policyId);
@@ -997,7 +994,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
                 .addScript(requireTimeAfter)
                 .addScript(scriptPubkey);
 
-        Policy policy = new Policy(policyScript,Arrays.asList(sk));
+        Policy policy = new Policy(policyScript, Arrays.asList(sk));
         String policyId = policyScript.getPolicyId();
 
         System.out.println(">> Policy Id: " + policyId);
@@ -1052,7 +1049,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
 
-        Policy policy = new Policy(scriptPubkey,Arrays.asList(skey));
+        Policy policy = new Policy(scriptPubkey, Arrays.asList(skey));
         String policyId = scriptPubkey.getPolicyId();
 
         String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
@@ -1111,7 +1108,7 @@ class TransactionHelperServiceIT extends BFBaseTest {
 
         ScriptPubkey scriptPubkey = ScriptPubkey.create(vkey);
 
-        Policy policy = new Policy(scriptPubkey,Arrays.asList(sk));
+        Policy policy = new Policy(scriptPubkey, Arrays.asList(sk));
         String policyId = scriptPubkey.getPolicyId();
 
         MultiAsset multiAsset = new MultiAsset();

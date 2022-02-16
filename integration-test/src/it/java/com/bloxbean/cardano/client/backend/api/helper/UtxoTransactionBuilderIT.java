@@ -1,15 +1,11 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.backend.api.BaseITTest;
+import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBaseTest;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFEpochService;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFTransactionService;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFUtxoService;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.common.model.Networks;
@@ -39,20 +35,20 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-class UtxoTransactionBuilderIT extends BFBaseTest {
+class UtxoTransactionBuilderIT extends BaseITTest {
     public static final String senderMnemonic1 = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
 
     UtxoService utxoService;
-    BFTransactionService transactionService;
+    TransactionService transactionService;
     UtxoTransactionBuilder utxoTransactionBuilder;
     ProtocolParams protocolParams;
 
     @BeforeEach
     public void setup() throws ApiException {
-        utxoService = new BFUtxoService(Constants.BLOCKFROST_TESTNET_URL, projectId);
-        transactionService = new BFTransactionService(Constants.BLOCKFROST_TESTNET_URL, projectId);
-        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
-        protocolParams = new BFEpochService(Constants.BLOCKFROST_TESTNET_URL, projectId).getProtocolParameters().getValue();
+        utxoService = getBackendService().getUtxoService();//new BFUtxoService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+        transactionService = getBackendService().getTransactionService();//new BFTransactionService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+        utxoTransactionBuilder = getBackendService().getUtxoTransactionBuilder();//new UtxoTransactionBuilderImpl(utxoService);
+        protocolParams = getBackendService().getEpochService().getProtocolParameters().getValue();//new BFEpochServiceIT(Constants.BLOCKFROST_TESTNET_URL, bfProjectId).getProtocolParameters().getValue();
     }
 
     @Test
@@ -62,12 +58,12 @@ class UtxoTransactionBuilderIT extends BFBaseTest {
 
         List<PaymentTransaction> paymentTransactionList = Arrays.asList(
                 PaymentTransaction.builder()
-                .sender(sender)
-                .receiver(receiver)
-                .amount(BigInteger.valueOf(3000000))
-                .fee(BigInteger.valueOf(230000))
-                .unit("lovelace")
-                .build()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(3000000))
+                        .fee(BigInteger.valueOf(230000))
+                        .unit("lovelace")
+                        .build()
         );
 
         Transaction transaction
