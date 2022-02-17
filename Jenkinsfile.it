@@ -10,7 +10,7 @@ pipeline {
     }
 
     tools {
-        jdk 'jdk-8'
+        jdk 'jdk-11'
     }
 
     environment {
@@ -21,15 +21,13 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                 sh  "chmod +x scripts/download_libs.sh"
-                 sh  "./scripts/download_libs.sh  ${TAG_NAME}"
-                 sh  './gradlew build fatJar -Psigning.password=${SIGNING_PASSWORD} --stacktrace'
+                 sh  './gradlew clean build -Psigning.password=${SIGNING_PASSWORD} --stacktrace'
             }
         }
 
         stage('integrationTest') {
              steps {
-                sh  './gradlew integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID}'
+                sh  './gradlew :integration-test:integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID}'
              }
         }
 
