@@ -47,7 +47,7 @@ class CollateralBuildersTest extends BaseTest {
         Transaction transaction = new Transaction();
 
         CollateralBuilders.collateralFrom(utxos)
-                .accept(context, transaction);
+                .build(context, transaction);
 
         assertThat(transaction.getBody().getCollateral()).hasSize(2);
         assertThat(transaction.getBody().getCollateral()).contains(
@@ -71,7 +71,7 @@ class CollateralBuildersTest extends BaseTest {
         Transaction transaction = new Transaction();
 
         CollateralBuilders.collateralFrom(() -> utxos)
-                .accept(context, transaction);
+                .build(context, transaction);
 
         assertThat(transaction.getBody().getCollateral()).hasSize(2);
         assertThat(transaction.getBody().getCollateral()).contains(
@@ -88,7 +88,7 @@ class CollateralBuildersTest extends BaseTest {
 
         CollateralBuilders.collateralFrom("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85", 1)
                 .andThen(CollateralBuilders.collateralFrom("2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c", 1))
-                .accept(context, transaction);
+                .build(context, transaction);
 
         assertThat(transaction.getBody().getCollateral()).hasSize(2);
         assertThat(transaction.getBody().getCollateral()).contains(

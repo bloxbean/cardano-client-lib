@@ -10,11 +10,8 @@ import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.cip.cip25.NFT;
 import com.bloxbean.cardano.client.cip.cip25.NFTMetadata;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.*;
-import com.bloxbean.cardano.client.metadata.Metadata;
-import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.PolicyUtil;
@@ -22,12 +19,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
+import static com.bloxbean.cardano.client.function.helper.SignerProviders.signerFrom;
 
 public class TxBuilderContextTest extends BaseITTest {
     BackendService backendService;
@@ -119,8 +116,6 @@ public class TxBuilderContextTest extends BaseITTest {
         MessageMetadata metadata = MessageMetadata.create()
                 .add("This is test message !! ---");
 
-        Metadata finalMetadata = metadata.merge(nftMetadata);
-
         //addr_test1qpg4faaydel7n6cq8e4p5kscg6zahmrhlgeke8c6hn6utespky66rz9quy288xqfwc4k2z3v5h4g7gqxpkr8hn9rngvq00hz02
         String secondSenderMnemonic = "reflect robust shy pond spirit hour suffer can million truck final arrow turn lecture worth quarter choose tourist weird lady flee before congress group";
         Account secondSender = new Account(Networks.testnet(), secondSenderMnemonic);
@@ -139,30 +134,16 @@ public class TxBuilderContextTest extends BaseITTest {
                 .andThen(MintCreators.mintCreator(policy, multiAsset))
                 .andThen(AuxDataProviders.metadataProvider(metadata))
                 .andThen(AuxDataProviders.metadataProvider(nftMetadata))
-                .andThen(FeeCalculators.feeCalculator(changeAddress, 2 + policy.getPolicyKeys().size() + policy.getPolicyKeys().size()));
+                .andThen(FeeCalculators.feeCalculator(changeAddress, 2 + policy.getPolicyKeys().size() + policy.getPolicyKeys().size())
+                .andThen(ChangeOutputAdjustments.adjustChangeOutput(changeAddress,
+                        2 + policy.getPolicyKeys().size() + policy.getPolicyKeys().size())) //Incase changeout goes below min ada after fee deduction
+                );
 
+        TxSigner signer = signerFrom(senderAccount, secondSender)
+                .andThen(signerFrom(policy, nftPolicy));
 
-        Transaction transaction = new Transaction();
-        transaction.setBody(TransactionBody.builder()
-                .outputs(new ArrayList<>())
-                .inputs(new ArrayList<>())
-                .build()
-        );
-
-        TxBuilderContext txBuilderContext
-                = new TxBuilderContext(backendService);
-
-        builder.accept(txBuilderContext, transaction);
-
-        Transaction signedTxn = senderAccount.sign(transaction);
-        signedTxn = secondSender.sign(signedTxn);
-        for (SecretKey sk : policy.getPolicyKeys()) {
-            signedTxn = TransactionSigner.INSTANCE.sign(signedTxn, sk);
-        }
-
-        for (SecretKey sk : nftPolicy.getPolicyKeys()) {
-            signedTxn = TransactionSigner.INSTANCE.sign(signedTxn, sk);
-        }
+        Transaction signedTxn = TxBuilderContext.init(backendService)
+                .buildAndSign(builder, signer);
 
         System.out.println(signedTxn);
 

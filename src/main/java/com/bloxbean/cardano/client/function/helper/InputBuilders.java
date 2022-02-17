@@ -37,6 +37,7 @@ public class InputBuilders {
      * @param changeAddress change address
      * @return <code>{@link TxInputBuilder}</code> function
      * @throws TxBuildException if not enough utxos available at sender address
+     * @throws ApiRuntimeException if api error
      */
     public static TxInputBuilder createFromSender(String sender, String changeAddress) {
 
@@ -99,7 +100,7 @@ public class InputBuilders {
         try {
             lovelaceUtxos = context.getUtxoSelectionStrategy().selectUtxos(sender, LOVELACE, value.getCoin(), excludeUtxos);
         } catch (ApiException apiException) {
-            throw new TxBuildException(apiException);
+            throw new ApiRuntimeException(apiException);
         }
 
         List<Utxo> multiAssetUtoxs = value.getMultiAssets().stream()
@@ -115,7 +116,7 @@ public class InputBuilders {
                         else
                             throw new ApiRuntimeException(String.format("No utxo found at address=%s, unit= %s, value=%s", sender, unit, tuple._2.getValue()));
                     } catch (ApiException apiException) {
-                        throw new TxBuildException("Error fetching utxos for qty: " + tuple._2 + ", and asset: " + tuple._2);
+                        throw new ApiRuntimeException("Error fetching utxos for qty: " + tuple._2 + ", and asset: " + tuple._2, apiException);
                     }
                 })
                 .flatMap(list -> list.stream())

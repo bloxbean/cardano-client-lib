@@ -21,8 +21,8 @@ import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.function.helper.InputBuilders;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
+import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
@@ -34,13 +34,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
+import static com.bloxbean.cardano.client.function.helper.ChangeOutputAdjustments.adjustChangeOutput;
 import static com.bloxbean.cardano.client.function.helper.CollateralBuilders.collateralFrom;
 import static com.bloxbean.cardano.client.function.helper.FeeCalculators.feeCalculator;
+import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromSender;
+import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromUtxos;
 import static com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders.scriptCallContext;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -142,29 +148,23 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         System.out.println("SENDER ADDRESS >> " + senderAddress);
         TxBuilder builder = sendOutput.outputBuilder()
                 .and(secondSendOutput.outputBuilder())
-                .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
+                .buildInputs(createFromSender(senderAddress, senderAddress))
                 .andThen(
                         scriptOutput.outputBuilder()
-                                .buildInputs(InputBuilders.createFromUtxos(List.of(scriptUtxo), null, null))
+                                .buildInputs(createFromUtxos(List.of(scriptUtxo), null, null))
                 )
                 .andThen(collateralFrom(collateral, collateralIndex))
                 .andThen(scriptCallContext(plutusScript, scriptUtxo, guess, guess, RedeemerTag.Spend, exUnits))
-                .andThen(feeCalculator(senderAddress, 1));
+                .andThen(feeCalculator(senderAddress, 1))
+                .andThen(adjustChangeOutput(senderAddress)); //Incase change output goes below min ada after fee deduction
 
-        Transaction transaction = new Transaction();
-        transaction.setBody(TransactionBody.builder()
-                .outputs(new ArrayList<>())
-                .inputs(new ArrayList<>())
-                .build()
-        );
+        TxSigner signer = SignerProviders.signerFrom(sender);
 
-        TxBuilderContext txBuilderContext
-                = new TxBuilderContext(backendService);
+        Transaction signedTxn = TxBuilderContext.init(backendService)
+                .buildAndSign(builder, signer);
 
-        builder.accept(txBuilderContext, transaction);
-
-        System.out.println(transaction);
-        Transaction signedTxn = sender.sign(transaction);
+        System.out.println(signedTxn);
+//        Transaction signedTxn = sender.sign(transaction);
 
         Result<String> result = transactionService.submitTransaction(signedTxn.serialize());
         System.out.println(result);
@@ -275,7 +275,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         TxBuilder builder = customGuessContractOutput.outputBuilder()
                 .and(sumContractOutput.outputBuilder())
-                .buildInputs(InputBuilders.createFromUtxos(List.of(customGuessUtxo, sumScriptUtxo)))
+                .buildInputs(createFromUtxos(List.of(customGuessUtxo, sumScriptUtxo)))
                 .andThen(collateralFrom(collateral, collateralIndex))
                 .andThen((context, t) -> {
                     t.getBody().setTtl(getTtl());
@@ -283,24 +283,21 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 })
                 .andThen(scriptCallContext(customGuessScript, customGuessUtxo, guess, guess, RedeemerTag.Spend, exUnits))
                 .andThen(scriptCallContext(sumScript, sumScriptUtxo, sumDatum, sumRedeemer, RedeemerTag.Spend, sumExUnits))
-                .andThen(feeCalculator(senderAddress, 1));
+                .andThen(feeCalculator(senderAddress, 1))
+                .andThen(adjustChangeOutput(senderAddress));
 
-        Transaction transaction = new Transaction();
-        transaction.setBody(TransactionBody.builder()
-                .outputs(new ArrayList<>())
-                .inputs(new ArrayList<>())
-                .build()
-        );
+        TxSigner signer = SignerProviders.signerFrom(sender);
 
-        TxBuilderContext transactionBuilderContext
-                = new TxBuilderContext(backendService);
+        Transaction transaction = TxBuilderContext.init(backendService)
+                .build(builder);
+        Transaction signedTxn = signer.sign(transaction);
 
-        builder.accept(transactionBuilderContext, transaction);
+        //Or build and sign in one call
+        //  Transaction signedTxn = TxBuilderContext.init(backendService)
+        //          .buildAndSign(builder, signer);
 
         System.out.println("Signer: " + senderAddress);
         System.out.println(transaction);
-
-        Transaction signedTxn = sender.sign(transaction);
 
         Result<String> result = transactionService.submitTransaction(signedTxn.serialize());
         System.out.println(result);

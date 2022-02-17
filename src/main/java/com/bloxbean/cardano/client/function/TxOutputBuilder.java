@@ -1,7 +1,5 @@
 package com.bloxbean.cardano.client.function;
 
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 
@@ -14,7 +12,7 @@ import java.util.Objects;
  */
 @FunctionalInterface
 public interface TxOutputBuilder {
-    void accept(TxBuilderContext context, List<TransactionOutput> outputs) throws TxBuildException, ApiException;
+    void accept(TxBuilderContext context, List<TransactionOutput> outputs);
 
     default TxOutputBuilder and(TxOutputBuilder after) {
         Objects.requireNonNull(after);

@@ -41,7 +41,7 @@ class AuxDataProvidersTest {
 
         AuxDataProviders.metadataProvider(metadata1)
                 .andThen(AuxDataProviders.metadataProvider(metadata2))
-                .accept(context, transaction);
+                .build(context, transaction);
 
         CBORMetadata actualMetadata = (CBORMetadata) transaction.getAuxiliaryData().getMetadata();
 
@@ -63,7 +63,7 @@ class AuxDataProvidersTest {
         AuxDataProviders.metadataProvider(() -> {
             return metadata1;
         }).andThen(AuxDataProviders.metadataProvider(metadata2))
-                .accept(context, transaction);
+                .build(context, transaction);
 
         CBORMetadata actualMetadata = (CBORMetadata) transaction.getAuxiliaryData().getMetadata();
 

@@ -27,7 +27,7 @@ public class TxBuilderContext {
     private UtxoSelector utxoSelector;
 
     //Needed to check if the output is for minting
-    //This list is cleared after Input Builder
+    //This list is cleared after each Input Builder
     private List<MultiAsset> mintMultiAssets = new ArrayList<>();
 
     public TxBuilderContext(BackendService backendService) {
@@ -72,15 +72,39 @@ public class TxBuilderContext {
         return new TxBuilderContext(backendService);
     }
 
-    public Transaction build(TxBuilder txBuilder) throws ApiException {
+    /**
+     * Build a <code>{@link Transaction}</code> using given <code>{@link TxBuilder}</code> function
+     * @param txBuilder function to build the transaction
+     * @return <code>Transaction</code>
+     * @throws com.bloxbean.cardano.client.function.exception.TxBuildException if exception during transaction build
+     */
+    public Transaction build(TxBuilder txBuilder) {
         Transaction transaction = new Transaction();
-        txBuilder.accept(this, transaction);
+        txBuilder.build(this, transaction);
 
         return transaction;
     }
 
-    public void build(Transaction transaction, TxBuilder txBuilder) throws ApiException {
-        txBuilder.accept(this, transaction);
+    /**
+     * Build and sign a <code>{@link Transaction}</code> using given <code>{@link TxBuilder}</code> and <code>Signer</code>
+     * @param txBuilder function to build the transaction
+     * @param signer function to sign the transaction
+     * @return signed <code>Transaction</code>
+     * @throws com.bloxbean.cardano.client.function.exception.TxBuildException if exception during transaction build
+     */
+    public Transaction buildAndSign(TxBuilder txBuilder, TxSigner signer) {
+        Transaction transaction = build(txBuilder);
+        return signer.sign(transaction);
+    }
+
+    /**
+     * Transform the given <code>{@link Transaction}</code> using the <code>{@link TxBuilder}</code>
+     * @param transaction transaction to transform
+     * @param txBuilder function to transform the given transaction
+     * @throws com.bloxbean.cardano.client.function.exception.TxBuildException if exception during transaction build
+     */
+    public void build(Transaction transaction, TxBuilder txBuilder) {
+        txBuilder.build(this, transaction);
     }
 
 }

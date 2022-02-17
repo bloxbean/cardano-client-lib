@@ -87,7 +87,7 @@ class ScriptCallContextProvidersTest {
                 .build();
 
         ScriptCallContextProviders.createFromScriptCallContext(sc)
-                .accept(context, transaction);
+                .build(context, transaction);
 
         System.out.println(HexUtil.encodeHexString(transaction.getBody().getScriptDataHash()));
 
@@ -152,7 +152,7 @@ class ScriptCallContextProvidersTest {
                 .build();
 
         ScriptCallContextProviders.createFromScriptCallContext(sc)
-                .accept(context, transaction);
+                .build(context, transaction);
 
         System.out.println(HexUtil.encodeHexString(transaction.getBody().getScriptDataHash()));
 
@@ -209,7 +209,7 @@ class ScriptCallContextProvidersTest {
                 .steps(BigInteger.valueOf(430892334)).build();
 
         ScriptCallContextProviders.scriptCallContext(plutusScript, scriptUtxo, guessDatum, guessRedeemer, RedeemerTag.Spend, exUnits)
-                .accept(context, transaction);
+                .build(context, transaction);
 
         System.out.println(HexUtil.encodeHexString(transaction.getBody().getScriptDataHash()));
 
@@ -286,7 +286,7 @@ class ScriptCallContextProvidersTest {
         ScriptCallContextProviders.scriptCallContext(plutusScript1, scriptUtxo1, guessDatum, guessRedeemer, RedeemerTag.Spend, exUnits1)
                 .andThen(ScriptCallContextProviders.scriptCallContext(plutusScript2, scriptUtxo2, BytesPlutusData.of("datum"), BytesPlutusData.of("redeemer"),
                         RedeemerTag.Spend, exUnits2))
-                .accept(context, transaction);
+                .build(context, transaction);
 
         System.out.println(HexUtil.encodeHexString(transaction.getBody().getScriptDataHash()));
 

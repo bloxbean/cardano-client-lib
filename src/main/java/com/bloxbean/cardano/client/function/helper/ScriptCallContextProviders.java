@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.function.helper;
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.config.Configuration;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
@@ -24,7 +25,8 @@ public class ScriptCallContextProviders {
     /**
      * Function to add plutus script specific data to a <code>{@link Transaction}</code> object
      * @param sc required data as <code>{@link ScriptCallContext}</code>
-     * @return <code>{@link TxBuilder}</code> function
+     * @return <code>TxBuilder</code> function
+     * @throws CborRuntimeException if cbor serialization/de-serialization error
      */
     public static TxBuilder createFromScriptCallContext(ScriptCallContext sc) {
         return scriptCallContext(sc.getScript(), sc.getUtxo(), sc.getDatum(), sc.getRedeemer(), sc.getRedeemerTag(), sc.getExUnits());
@@ -46,7 +48,8 @@ public class ScriptCallContextProviders {
      * @param exUnits Execution Units
      * @param <T> Datum class type
      * @param <K> Redeemer class type
-     * @return
+     * @return <code>TxBuilder</code> function
+     * @throws CborRuntimeException if cbor serialization/de-serialization error
      */
     public static <T, K> TxBuilder scriptCallContext(PlutusScript plutusScript, Utxo utxo, T datum, K redeemerData,
                                                      RedeemerTag tag, ExUnits exUnits) {
@@ -55,7 +58,7 @@ public class ScriptCallContextProviders {
             if (scriptInputIndex == -1)
                 throw new TxBuildException("Script utxo is not found in transaction inputs : " + utxo.getTxHash());
 
-            scriptCallContext(plutusScript, scriptInputIndex, datum, redeemerData, tag, exUnits).accept(context, transaction);
+            scriptCallContext(plutusScript, scriptInputIndex, datum, redeemerData, tag, exUnits).build(context, transaction);
         };
     }
 
@@ -75,7 +78,8 @@ public class ScriptCallContextProviders {
      * @param exUnits Execution Units
      * @param <T> Datum class type
      * @param <K> Redeemer class type
-     * @return
+     * @return <code>TxBuilder</code> function
+     * @throws CborRuntimeException if cbor serialization/de-serialization error
      */
     public static <T, K> TxBuilder scriptCallContext(PlutusScript plutusScript, int scriptInputIndex, T datum, K redeemerData,
                                                      RedeemerTag tag, ExUnits exUnits) {
@@ -123,7 +127,7 @@ public class ScriptCallContextProviders {
                 scriptDataHash = ScriptDataHashGenerator.generate(transaction.getWitnessSet().getRedeemers(),
                         transaction.getWitnessSet().getPlutusDataList(), CostModelConstants.LANGUAGE_VIEWS);
             } catch (CborSerializationException | CborException e) {
-                throw new TxBuildException("Error getting scriptDataHash ", e);
+                throw new CborRuntimeException("Error getting scriptDataHash ", e);
             }
             transaction.getBody().setScriptDataHash(scriptDataHash);
         };

@@ -3,7 +3,10 @@ package com.bloxbean.cardano.client.function.helper;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
@@ -20,6 +23,7 @@ import java.util.stream.Collectors;
  * Provides helper methods to get fee calculation {@link TxBuilder} transformer
  */
 public class FeeCalculators {
+    private static Account dummyAccount;
 
     /**
      * A function to calculate fee based on noOfSigners. The function then sets fee in <code>{@link Transaction}</code>
@@ -28,6 +32,9 @@ public class FeeCalculators {
      * @param changeAddress change address to find change output
      * @param noOfSigners   no of signer to sign the transaction
      * @return <code>{@link TxBuilder}</code> function
+     * @throws TxBuildException
+     * @throws ApiRuntimeException if api error
+     * @throws CborRuntimeException if Cbor serialization/de-serialization error
      */
     public static TxBuilder feeCalculator(String changeAddress, int noOfSigners) {
         return ((transactionContext, transaction) -> {
@@ -42,6 +49,9 @@ public class FeeCalculators {
      * @param noOfSigners             no of signer to sign the transaction
      * @param updateOutputWithFeeFunc
      * @return <code>{@link TxBuilder}</code> function
+     * @throws TxBuildException
+     * @throws ApiRuntimeException if api error
+     * @throws CborRuntimeException if Cbor serialization/de-serialization error
      */
     public static TxBuilder feeCalculator(int noOfSigners, UpdateOutputFunction updateOutputWithFeeFunc) {
         return ((transactionContext, transaction) -> {
@@ -84,15 +94,16 @@ public class FeeCalculators {
                             output.getValue().setCoin(output.getValue().getCoin().subtract(totalFee));
                         }, () -> {
                             Value value = new Value(BigInteger.ZERO.subtract(totalFee), new ArrayList<>());
-                            TransactionOutput output = new TransactionOutput(changeAddress, value); //TODO - Need to calculate fee again
+                            TransactionOutput output = new TransactionOutput(changeAddress, value);
+                            transaction.getBody().getOutputs().add(output); //New change output //Need to calculate fee again
                         });
             } else {
                 updateOutputWithFeeFunc.accept(totalFee, transaction.getBody().getOutputs());
             }
         } catch (ApiException apiException) {
-            throw new TxBuildException("Error in fee calculation", apiException);
+            throw new ApiRuntimeException("Error in fee calculation", apiException);
         } catch (CborSerializationException e) {
-            throw new TxBuildException("Error in fee calculation", e);
+            throw new CborRuntimeException("Error in fee calculation", e);
         }
     }
 
@@ -107,12 +118,12 @@ public class FeeCalculators {
             //reset fee
             transaction.getBody().setFee(orginalFee);
         } catch (CborDeserializationException | CborSerializationException e) {
-            throw new TxBuildException("Error cloning the transaction", e);
+            throw new CborRuntimeException("Error cloning the transaction", e);
         }
 
+        //Dummy account sign
         for (int i = 0; i < noOfSigners; i++) {
-            Account account = new Account();
-            cloneTxn = account.sign(cloneTxn);
+            cloneTxn = getDummyAccount().sign(cloneTxn);
         }
 
         return cloneTxn;
@@ -120,5 +131,17 @@ public class FeeCalculators {
 
     public interface UpdateOutputFunction extends BiConsumer<BigInteger, List<TransactionOutput>> {
         void accept(BigInteger fee, List<TransactionOutput> outputs);
+    }
+
+    private static Account getDummyAccount() {
+        if (dummyAccount == null) {
+            synchronized (FeeCalculators.class) {
+                if (dummyAccount == null) {
+                    dummyAccount = new Account(Networks.testnet());
+                }
+            }
+        }
+
+        return dummyAccount;
     }
 }

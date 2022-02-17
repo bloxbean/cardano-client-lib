@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -14,7 +15,6 @@ import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxInputBuilder;
-import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.transaction.spec.*;
@@ -262,7 +262,7 @@ class InputBuildersTest extends BaseTest {
 
         TxBuilderContext context = new TxBuilderContext(backendService);
 
-        assertThrows(TxBuildException.class, () -> {
+        assertThrows(ApiRuntimeException.class, () -> {
             TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, changeAddress)
                     .apply(context, outputs);
         });
@@ -304,7 +304,7 @@ class InputBuildersTest extends BaseTest {
 
         TxBuilderContext context = new TxBuilderContext(backendService);
 
-        assertThrows(TxBuildException.class, () -> {
+        assertThrows(ApiRuntimeException.class, () -> {
             TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, changeAddress)
                     .apply(context, outputs);
         });

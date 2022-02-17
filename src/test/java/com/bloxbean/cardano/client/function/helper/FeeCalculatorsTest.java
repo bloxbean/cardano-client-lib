@@ -112,7 +112,7 @@ class FeeCalculatorsTest extends BaseTest {
 
         //apply
         TxBuilder txBuilder = FeeCalculators.feeCalculator(sender, 1);
-        txBuilder.accept(context, transaction);
+        txBuilder.build(context, transaction);
 
         //assert
         assertThat(transaction.getBody().getFee()).isEqualTo(expectedFee);
@@ -187,7 +187,7 @@ class FeeCalculatorsTest extends BaseTest {
 
         //apply
         TxBuilder txBuilder = FeeCalculators.feeCalculator(sender, 1);
-        txBuilder.accept(context, transaction);
+        txBuilder.build(context, transaction);
 
         //assert
         assertThat(transaction.getBody().getFee()).isEqualTo(expectedFee.add(scriptFee));

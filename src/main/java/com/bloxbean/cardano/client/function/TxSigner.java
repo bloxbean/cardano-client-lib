@@ -15,7 +15,6 @@ public interface TxSigner {
      *
      * @param transaction
      * @return a signed transaction
-     * @throws ApiException
      */
     Transaction sign(Transaction transaction);
 

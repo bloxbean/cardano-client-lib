@@ -16,7 +16,7 @@ public class AuxDataProviders {
      * Function to update metadata in transaction
      *
      * @param metadata
-     * @return TxBuilder function
+     * @return <code>TxBuilder</code> function
      */
     public static TxBuilder metadataProvider(Metadata metadata) {
 
@@ -29,7 +29,7 @@ public class AuxDataProviders {
      * Function to update metadata in transaction
      *
      * @param supplier A supplier function which provides metadata
-     * @return
+     * @return <code>TxBuilder</code> function
      */
     public static TxBuilder metadataProvider(Supplier<Metadata> supplier) {
 

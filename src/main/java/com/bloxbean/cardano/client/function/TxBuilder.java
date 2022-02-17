@@ -7,7 +7,7 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import java.util.Objects;
 
 /**
- * Represents a consumer function to transform a {@link Transaction} object
+ * Represents a function to transform a {@link Transaction} object
  */
 @FunctionalInterface
 public interface TxBuilder {
@@ -18,9 +18,8 @@ public interface TxBuilder {
      * @param context TransactionBuilderContext
      * @param txn     Transaction to transform
      * @exception  TxBuildException
-     * @throws ApiException
      */
-    void accept(TxBuilderContext context, Transaction txn) throws ApiException;
+    void build(TxBuilderContext context, Transaction txn);
 
     /**
      * Returns a composed function that first applies this function to its input, and then applies the after function to the result.
@@ -33,8 +32,8 @@ public interface TxBuilder {
         Objects.requireNonNull(after);
 
         return (l, r) -> {
-            accept(l, r);
-            after.accept(l, r);
+            build(l, r);
+            after.build(l, r);
         };
     }
 

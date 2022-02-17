@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.function.MinAdaChecker;
@@ -27,6 +28,7 @@ import static com.bloxbean.cardano.client.function.helper.RedeemerUtil.getScript
  */
 @Slf4j
 public class ChangeOutputAdjustments {
+    private final static int MAX_NO_RETRY_TO_ADJUST = 3;
     private static BigInteger changeSelectionBuffer = ONE_ADA.multiply(BigInteger.valueOf(2));
     private static BigInteger DEFAULT_FEE = BigInteger.valueOf(17_000);
 
@@ -45,6 +47,7 @@ public class ChangeOutputAdjustments {
      * @param changeAddress Address for change output selection and to select additional utxos
      * @return <code>TxBuilder</code> function
      * @throws TxBuildException If multiple change outputs with less than min required ada are found for the change address.
+     * @throws ApiRuntimeException If api call error
      */
     public static TxBuilder adjustChangeOutput(String changeAddress) {
         return adjustChangeOutput(changeAddress, changeAddress, 1);
@@ -65,6 +68,7 @@ public class ChangeOutputAdjustments {
      * @param noOfSigners   No of required signers. Required for fee calculation after adjustment
      * @return <code>TxBuilder</code> function
      * @throws TxBuildException If multiple change outputs with less than min required ada are found for the change address.
+     * @throws ApiRuntimeException If api call error
      */
     public static TxBuilder adjustChangeOutput(String changeAddress, int noOfSigners) {
         return adjustChangeOutput(changeAddress, changeAddress, noOfSigners);
@@ -83,6 +87,7 @@ public class ChangeOutputAdjustments {
      * @param noOfSigners   No of required signers. Required for fee calculation after adjustment
      * @return <code>TxBuilder</code> function
      * @throws TxBuildException If multiple change outputs with less than min required ada are found for the change address.
+     * @throws ApiRuntimeException If api call error
      */
     public static TxBuilder adjustChangeOutput(String senderAddress, String changeAddress, int noOfSigners) {
         return (context, transaction) -> {
@@ -106,15 +111,25 @@ public class ChangeOutputAdjustments {
                     throw new TxBuildException("Multiple outputs found with same change address with less than min required ada. Can't balance. Please adjust output first.");
                 }
 
-                //check outputs for minAda and balance if required
-                adjust(context, transaction, outputsWithLessAda.get(0)._1, outputsWithLessAda.get(0)._2, senderAddress, changeAddress);
-                FeeCalculators.feeCalculator(changeAddress, noOfSigners)
-                        .accept(context, transaction);
 
-                counter++;
-                if (counter >= 3) {
+                if (counter >= MAX_NO_RETRY_TO_ADJUST) {
                     throw new TxBuildException("Transaction rebalance failed. Max # of retry reached: " + counter);
                 }
+
+                if (log.isDebugEnabled()) {
+                    log.debug("Trying to adjust the change output. Retry # " + counter);
+                }
+
+                //check outputs for minAda and balance if required
+                try {
+                    adjust(context, transaction, outputsWithLessAda.get(0)._1, outputsWithLessAda.get(0)._2, senderAddress, changeAddress);
+                } catch (ApiException apiException) {
+                    throw new ApiRuntimeException("Error in api call", apiException);
+                }
+                FeeCalculators.feeCalculator(changeAddress, noOfSigners)
+                        .build(context, transaction);
+
+                counter++;
             }
         };
     }
@@ -123,6 +138,9 @@ public class ChangeOutputAdjustments {
                                String senderAddress, String changeAddress) throws ApiException {
         Objects.requireNonNull(context);
         Objects.requireNonNull(transaction);
+
+        if (additionalRequiredAmt.compareTo(BigInteger.ZERO) == 0)
+            return;
 
         List<Tuple<Redeemer, TransactionInput>> originalRedeemerTxnInputList = null;
         //Create a copy of all  redeemer and corresponding inputs
@@ -140,9 +158,6 @@ public class ChangeOutputAdjustments {
                         .txHash(ti.getTransactionId())
                         .outputIndex(ti.getIndex())
                         .build()).collect(Collectors.toSet());
-
-        if (additionalRequiredAmt.compareTo(BigInteger.ZERO) == 0)
-            return;
 
         //Add some buffer
         final BigInteger totalRequiredWithBuffer = additionalRequiredAmt.add(changeSelectionBuffer);

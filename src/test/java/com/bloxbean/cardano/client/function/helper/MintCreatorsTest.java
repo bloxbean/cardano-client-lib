@@ -73,7 +73,7 @@ class MintCreatorsTest {
 
         MintCreators.mintCreator(policy1, multiAsset1)
                 .andThen(MintCreators.mintCreator(policy2, multiAsset2))
-                .accept(context, transaction);
+                .build(context, transaction);
 
 
         //No update to existing inputs & outputs
@@ -126,7 +126,7 @@ class MintCreatorsTest {
 
         MintCreators.mintCreator(policy1, multiAsset1, true)
                 .andThen(MintCreators.mintCreator(policy2, multiAsset2, true))
-                .accept(context, transaction);
+                .build(context, transaction);
 
 
         //No update to existing inputs & outputs
@@ -165,7 +165,7 @@ class MintCreatorsTest {
 
         MintCreators.mintCreator(policy1, multiAsset1, true)
                 .andThen(MintCreators.mintCreator(policy1, multiAsset2, true))
-                .accept(context, transaction);
+                .build(context, transaction);
 
         assertThat(transaction.getBody().getMint()).contains(multiAsset1, multiAsset2);
         assertThat(transaction.getWitnessSet().getNativeScripts()).hasSize(1);
