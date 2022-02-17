@@ -21,6 +21,7 @@ import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
@@ -278,8 +279,12 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 .buildInputs(createFromUtxos(List.of(customGuessUtxo, sumScriptUtxo)))
                 .andThen(collateralFrom(collateral, collateralIndex))
                 .andThen((context, t) -> {
-                    t.getBody().setTtl(getTtl());
-                    t.getBody().setNetworkId(NetworkId.TESTNET);
+                    try {
+                        t.getBody().setTtl(getTtl());
+                        t.getBody().setNetworkId(NetworkId.TESTNET);
+                    } catch (Exception e) {
+                        throw new TxBuildException(e);
+                    }
                 })
                 .andThen(scriptCallContext(customGuessScript, customGuessUtxo, guess, guess, RedeemerTag.Spend, exUnits))
                 .andThen(scriptCallContext(sumScript, sumScriptUtxo, sumDatum, sumRedeemer, RedeemerTag.Spend, sumExUnits))

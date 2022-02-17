@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.function;
 
-import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 
