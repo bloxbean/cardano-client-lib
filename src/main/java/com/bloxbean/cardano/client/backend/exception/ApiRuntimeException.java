@@ -6,6 +6,10 @@ public class ApiRuntimeException extends RuntimeException {
         super(message);
     }
 
+    public ApiRuntimeException(Exception exception) {
+        super(exception);
+    }
+
     public ApiRuntimeException(String message, Exception e) {
         super(message, e);
     }
