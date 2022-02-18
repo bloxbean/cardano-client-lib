@@ -114,8 +114,7 @@ public class OutputBuilders {
                 Objects.requireNonNull(multiAssets);
 
                 multiAssets.stream()
-                        .filter(multiAsset -> !context.getMintMultiAssets().contains(multiAsset))
-                        .forEach(context::addMintMultiAssets);
+                        .forEach(context::addMintMultiAsset);
             }
 
             outputs.stream().filter(to -> address.equals(to.getAddress()))
@@ -144,8 +143,7 @@ public class OutputBuilders {
         MultiAsset multiAsset = new MultiAsset(output.getPolicyId(), List.of(asset));
 
         if (isMintOutput) {
-            if (!tc.getMintMultiAssets().contains(multiAsset))
-                tc.addMintMultiAssets(multiAsset);
+            tc.addMintMultiAsset(multiAsset);
         }
 
         outputs.stream().filter(to -> output.getAddress().equals(to.getAddress()))

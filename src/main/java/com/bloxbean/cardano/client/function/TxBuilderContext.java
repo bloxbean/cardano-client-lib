@@ -56,8 +56,8 @@ public class TxBuilderContext {
         return this.protocolParams;
     }
 
-    public void addMintMultiAssets(MultiAsset multiAsset) {
-        mintMultiAssets.add(multiAsset);
+    public void addMintMultiAsset(MultiAsset multiAsset) {
+        mintMultiAssets = MultiAsset.mergeMultiAssetLists(mintMultiAssets, List.of(multiAsset));
     }
 
     public List<MultiAsset> getMintMultiAssets() {

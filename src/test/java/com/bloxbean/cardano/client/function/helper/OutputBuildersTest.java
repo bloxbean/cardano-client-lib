@@ -147,7 +147,6 @@ class OutputBuildersTest extends BaseTest {
                 .policyId(policy.getPolicyId())
                 .assetName("abc")
                 .qty(BigInteger.valueOf(1000))
-                .isMintOutput(true)
                 .build();
 
         Output output2 = Output.builder()
