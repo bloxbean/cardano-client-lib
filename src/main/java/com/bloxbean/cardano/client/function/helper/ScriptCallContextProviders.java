@@ -54,9 +54,12 @@ public class ScriptCallContextProviders {
     public static <T, K> TxBuilder scriptCallContext(PlutusScript plutusScript, Utxo utxo, T datum, K redeemerData,
                                                      RedeemerTag tag, ExUnits exUnits) {
         return (context, transaction) -> {
-            int scriptInputIndex = getScriptInputIndex(utxo, transaction);
-            if (scriptInputIndex == -1)
-                throw new TxBuildException("Script utxo is not found in transaction inputs : " + utxo.getTxHash());
+            int scriptInputIndex = -1;
+            if (utxo != null) {
+                scriptInputIndex = getScriptInputIndex(utxo, transaction);
+                if (scriptInputIndex == -1)
+                    throw new TxBuildException("Script utxo is not found in transaction inputs : " + utxo.getTxHash());
+            }
 
             scriptCallContext(plutusScript, scriptInputIndex, datum, redeemerData, tag, exUnits).build(context, transaction);
         };
@@ -93,12 +96,17 @@ public class ScriptCallContextProviders {
             }
 
             //Datum
-            PlutusData datumPlutusData;
-            if (datum instanceof PlutusData)
-                datumPlutusData = (PlutusData) datum;
-            else
-                datumPlutusData = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum);
+            if (datum != null) {
+                PlutusData datumPlutusData;
+                if (datum instanceof PlutusData)
+                    datumPlutusData = (PlutusData) datum;
+                else
+                    datumPlutusData = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum);
 
+                transaction.getWitnessSet().getPlutusDataList().add(datumPlutusData);
+            }
+
+            //redeemer
             if (redeemerData != null) {
                 //redeemer
                 PlutusData redeemerPlutusData;
@@ -110,7 +118,7 @@ public class ScriptCallContextProviders {
                 Redeemer redeemer = Redeemer.builder()
                         .tag(tag)
                         .data(redeemerPlutusData)
-                        .index(BigInteger.valueOf(scriptInputIndex)) //TODO -- check
+                        .index(scriptInputIndex != -1? BigInteger.valueOf(scriptInputIndex): BigInteger.ZERO) //TODO -- check
                         .exUnits(exUnits).build();
 
                 transaction.getWitnessSet().getRedeemers().add(redeemer);
@@ -118,8 +126,6 @@ public class ScriptCallContextProviders {
 
             if (!transaction.getWitnessSet().getPlutusScripts().contains(plutusScript)) //To avoid duplicate script in list
                 transaction.getWitnessSet().getPlutusScripts().add(plutusScript);
-
-            transaction.getWitnessSet().getPlutusDataList().add(datumPlutusData);
 
             //Script data hash
             byte[] scriptDataHash;
