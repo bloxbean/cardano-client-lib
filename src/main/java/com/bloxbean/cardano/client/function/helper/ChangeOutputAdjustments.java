@@ -208,10 +208,16 @@ public class ChangeOutputAdjustments {
                 Redeemer redeemer = tuple._1;
                 TransactionInput input = tuple._2;
 
-                int index = getScriptInputIndex(input, transaction);
-                if (index == -1) {
-                    throw new TxBuildException(String.format("Invalid redeemer index: %s, TransactionInput not found %s", index, input));
+                int index = -1;
+                if (redeemer.getTag() == RedeemerTag.Mint) {
+                    index = 0; //For minting redeemer index is always "0"  //TODO -- check later
+                } else {
+                    index = getScriptInputIndex(input, transaction);
+                    if (index == -1) {
+                        throw new TxBuildException(String.format("Invalid redeemer index: %s, TransactionInput not found %s", index, input));
+                    }
                 }
+
                 redeemer.setIndex(BigInteger.valueOf(index));
                 redeemerList.add(redeemer);
             });
