@@ -62,34 +62,38 @@ public class InputBuilders {
                     .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
                     .collect(Collectors.toList());
 
-            //Copy assets to change address
-            TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
-            utxoSet.stream().forEach(utxo -> UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo));
+            if (utxoSet != null && !utxoSet.isEmpty()) {
+                //Copy assets to change address
+                TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
+                utxoSet.stream().forEach(utxo -> UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo));
 
-            //Substract output values from change
-            Value changedValue = changeOutput.getValue().minus(value);
-            changeOutput.setValue(changedValue);
+                //Substract output values from change
+                Value changedValue = changeOutput.getValue().minus(value);
+                changeOutput.setValue(changedValue);
 
-            BigInteger additionalLovelace = MinAdaCheckers.minAdaChecker().apply(context, changeOutput);
+                BigInteger additionalLovelace = MinAdaCheckers.minAdaChecker().apply(context, changeOutput);
 
-            if (additionalLovelace.compareTo(BigInteger.ZERO) == 1) { //Need more inputs
-                Value additionalValue = Value.builder()
-                        .coin(additionalLovelace).build();
+                if (additionalLovelace.compareTo(BigInteger.ZERO) == 1) { //Need more inputs
+                    Value additionalValue = Value.builder()
+                            .coin(additionalLovelace).build();
 
-                Set<Utxo> additionalUtxos = getUtxosForValue(context, sender, additionalValue, utxoSet);
+                    Set<Utxo> additionalUtxos = getUtxosForValue(context, sender, additionalValue, utxoSet);
 
-                List<TransactionInput> additionalInputs = additionalUtxos.stream()
-                        .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
-                        .collect(Collectors.toList());
+                    List<TransactionInput> additionalInputs = additionalUtxos.stream()
+                            .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
+                            .collect(Collectors.toList());
 
-                additionalUtxos.stream().forEach(utxo -> UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo));
+                    additionalUtxos.stream().forEach(utxo -> UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo));
 
-                _inputs.addAll(additionalInputs);
+                    _inputs.addAll(additionalInputs);
+                }
 
+                return new TxInputBuilder.Result(_inputs, List.of(changeOutput));
+            } else {
+                //Something wrong
+                log.warn("Empty input. In normal case, this should not happen.");
+                return new TxInputBuilder.Result(Collections.EMPTY_LIST, Collections.EMPTY_LIST);
             }
-
-            return new TxInputBuilder.Result(_inputs, List.of(changeOutput));
-
         });
     }
 
@@ -98,7 +102,11 @@ public class InputBuilders {
 
         List<Utxo> lovelaceUtxos;
         try {
-            lovelaceUtxos = context.getUtxoSelectionStrategy().selectUtxos(sender, LOVELACE, value.getCoin(), excludeUtxos);
+            if (value.getCoin() != null && !value.getCoin().equals(BigInteger.ZERO)) {
+                lovelaceUtxos = context.getUtxoSelectionStrategy().selectUtxos(sender, LOVELACE, value.getCoin(), excludeUtxos);
+            } else {
+                lovelaceUtxos = Collections.EMPTY_LIST;
+            }
         } catch (ApiException apiException) {
             throw new ApiRuntimeException(apiException);
         }
