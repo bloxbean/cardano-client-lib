@@ -138,8 +138,8 @@ public class TxBuilderContextTest extends BaseITTest {
                         mintAssetOuputBuilder
                                 .buildInputs(InputBuilders.createFromSender(secondSender.baseAddress(), changeAddress))
                 )
-                .andThen(MintCreators.mintCreator(nftPolicy, nftMultiAsset))
-                .andThen(MintCreators.mintCreator(policy, multiAsset))
+                .andThen(MintCreators.mintCreator(nftPolicy.getPolicyScript(), nftMultiAsset))
+                .andThen(MintCreators.mintCreator(policy.getPolicyScript(), multiAsset))
                 .andThen(AuxDataProviders.metadataProvider(metadata))
                 .andThen(AuxDataProviders.metadataProvider(nftMetadata))
                 .andThen(FeeCalculators.feeCalculator(changeAddress, 2 + policy.getPolicyKeys().size() + policy.getPolicyKeys().size())
@@ -239,7 +239,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .and(createFromMintOutput(mintOutput2))
                         .and(createFromMintOutput(output3))
                         .buildInputs(createFromSender(senderAddress, senderAddress))
-                        .andThen(mintCreator(policy, mergeMultiAsset))
+                        .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
                         .andThen(feeCalculator(senderAddress, 2))
                         .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
@@ -337,7 +337,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .and(createFromMintOutput(mintOutput2))
                         .and(createFromMintOutput(output3))
                         .buildInputs(createFromSender(senderAddress, senderAddress))
-                        .andThen(mintCreator(policy, mergeMultiAsset))
+                        .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
                         .andThen(feeCalculator(senderAddress, 2))
                         .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
@@ -452,7 +452,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .and(output21.mintOutputBuilder())
                         .and(createFromMintOutput(output3)) //An alternate way
                         .buildInputs(createFromSender(senderAddress, senderAddress))
-                        .andThen(mintCreator(policy, mergeMultiAsset))
+                        .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
                         .andThen(feeCalculator(senderAddress, 2))
                         .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
