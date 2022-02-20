@@ -1,22 +1,21 @@
 # cardano-client-lib 
 
-A client library for Cardano in Java. 
-For transaction signing, it currently uses a small rust module though JNI. The library
-bundles the platform specific binaries of this rust module. You can check the currently supported operating systems below.
+A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
+
+**Latest Beta**: [0.2.0-beta2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-beta2) (Pure Java)
 
 **Latest Stable Version** : [0.1.5](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.1.5)
 
-**Latest Beta (Alonzo specific changes)**: [0.2.0-beta1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-beta1)
+**Note:** In 0.1.5 or earlier versions, it uses a rust module though JNI. The library
+bundles the platform specific binaries of this rust module. You can check the supported operating systems below.
 
-## Supported Operating Systems
+## Supported Operating Systems (For 0.1.5 or earlier and 0.2.0-beta1)
 The library has been tested on the following Operating Systems. 
 
 - Apple MacOS (Intel and Apple Silicon)
 - Linux (x86_64) (Ubuntu 18.04 and above or compatible ...)
 - Windows 64bits (x86_64)
 - Android (both x86 and ARM in 32-bit and 64-bit)
-
-For another platform, please create a request [here](https://github.com/bloxbean/cardano-client-lib/issues)
 
 **Posts**
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
@@ -27,7 +26,7 @@ For another platform, please create a request [here](https://github.com/bloxbean
 
 [Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
 
-[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/)
+[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0-beta2/index.html)
 
 **Features**
 
@@ -78,7 +77,7 @@ Other backend like Cardano-wallet will be added in future release.
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.1.5</version>
+            <version>0.2.0-beta2</version>
         </dependency>
 ```
 
