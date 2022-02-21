@@ -7,11 +7,12 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
+import lombok.Setter;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Out-of-box implementation of {@link UtxoSelectionStrategy}
@@ -19,98 +20,127 @@ import java.util.Set;
  */
 public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
 
-    private UtxoService utxoService;
-
+    private final UtxoService utxoService;
+    @Setter
     private boolean ignoreUtxosWithDatumHash;
 
     public DefaultUtxoSelectionStrategyImpl(UtxoService utxoService) {
+        this(utxoService, true);
+    }
+
+    public DefaultUtxoSelectionStrategyImpl(UtxoService utxoService, boolean ignoreUtxosWithDatumHash) {
         this.utxoService = utxoService;
-        this.ignoreUtxosWithDatumHash = true;
-    }
-
-    @Override
-    public List<Utxo> selectUtxos(String address, String unit, BigInteger amount, Set<Utxo> excludeUtxos) throws ApiException {
-        return selectUtxos(address, unit, amount, null, excludeUtxos);
-    }
-
-    @Override
-    public List<Utxo> selectUtxos(String address, String unit, BigInteger amount, String datumHash, Set<Utxo> excludeUtxos) throws ApiException {
-        if(amount == null)
-            amount = BigInteger.ZERO;
-
-        BigInteger totalUtxoAmount = BigInteger.valueOf(0);
-        List<Utxo> selectedUtxos = new ArrayList<>();
-        boolean canContinue = true;
-        int i = 1;
-
-        while(canContinue) {
-            Result<List<Utxo>> result = utxoService.getUtxos(address, getUtxoFetchSize(),
-                    i++, getUtxoFetchOrder());
-            if(result.code() == 200) {
-                List<Utxo> fetchData = result.getValue();
-
-                List<Utxo> data = filter(fetchData);
-                if(data == null || data.isEmpty()) {
-                    canContinue = false; //Result code 200, but no utxo returned
-                    throw new ApiException(String.format("Unable to get enough Utxos for address : %s, reason: %s", address, result.getResponse()));
-                }
-
-                for(Utxo utxo: data) {
-                    if(excludeUtxos.contains(utxo))
-                        continue;
-
-                    if(utxo.getDataHash() != null && !utxo.getDataHash().isEmpty() && ignoreUtxosWithDatumHash())
-                        continue;
-
-                    if(datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash()))
-                        continue;
-
-                    List<Amount> utxoAmounts = utxo.getAmount();
-
-                    boolean unitFound = false;
-                    for(Amount amt: utxoAmounts) {
-                        if(unit.equals(amt.getUnit())) {
-                            totalUtxoAmount = totalUtxoAmount.add(amt.getQuantity());
-                            unitFound = true;
-                        }
-                    }
-
-                    if(unitFound)
-                        selectedUtxos.add(utxo);
-
-                    if(totalUtxoAmount.compareTo(amount) == 1 || totalUtxoAmount.compareTo(amount) == 0) {
-                        canContinue = false;
-                        break;
-                    }
-                }
-            } else {
-                canContinue = false;
-                throw new ApiException(String.format("Unable to get enough Utxos for address : %s, reason: %s", address, result.getResponse()));
-            }
-        }
-
-        return selectedUtxos;
-    }
-
-    @Override
-    public boolean ignoreUtxosWithDatumHash() {
-        return ignoreUtxosWithDatumHash;
-    }
-
-    @Override
-    public void setIgnoreUtxosWithDatumHash(boolean ignoreUtxosWithDatumHash) {
         this.ignoreUtxosWithDatumHash = ignoreUtxosWithDatumHash;
     }
 
-    protected List<Utxo> filter(List<Utxo> fetchData) {
-        return fetchData;
+    @Override
+    public Set<Utxo> select(String sender, List<Amount> outputAmounts, String datumHash, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+        if(outputAmounts == null || outputAmounts.isEmpty()){
+            return Collections.emptySet();
+        }
+        try{
+            // loop over utxo's, find matching requested amount
+            Set<Utxo> selectedUtxos = new HashSet<>();
+
+            final Map<String, BigInteger> remaining = new HashMap<>(outputAmounts.stream()
+                    .collect(Collectors.groupingBy(Amount::getUnit,
+                            Collectors.reducing(BigInteger.ZERO,
+                                    Amount::getQuantity,
+                                    BigInteger::add))))
+                    .entrySet().stream()
+                    .filter(entry -> BigInteger.ZERO.compareTo(entry.getValue()) < 0)
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+            int page = 0;
+            final int nrOfItems = 100;
+
+            while(!remaining.isEmpty()){
+                var fetchResult = utxoService.getUtxos(sender, nrOfItems, page + 1, OrderEnum.asc);
+
+                var fetched = fetchResult != null && fetchResult.getValue() != null
+                        ? fetchResult.getValue()
+                                     .stream()
+                                     .sorted(sortByMostMatchingAssets(outputAmounts))
+                                     .collect(Collectors.toList())
+                        : Collections.<Utxo>emptyList();
+
+                page += 1;
+                for(Utxo utxo : fetched) {
+                    if(!accept(utxo)){
+                        continue;
+                    }
+                    if(utxosToExclude != null && utxosToExclude.contains(utxo)){
+                        continue;
+                    }
+                    if(utxo.getDataHash() != null && !utxo.getDataHash().isEmpty() && ignoreUtxosWithDatumHash){
+                        continue;
+                    }
+                    if(datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash())){
+                        continue;
+                    }
+                    if(selectedUtxos.contains(utxo)){
+                        continue;
+                    }
+                    List<Amount> utxoAmounts = utxo.getAmount();
+
+                    boolean utxoSelected = false;
+                    for(Amount amount: utxoAmounts) {
+                        var remainingAmount = remaining.get(amount.getUnit());
+                        if(remainingAmount != null && BigInteger.ZERO.compareTo(remainingAmount) < 0){
+                            utxoSelected = true;
+                            var newRemaining = remainingAmount.subtract(amount.getQuantity());
+                            if(BigInteger.ZERO.compareTo(newRemaining) < 0){
+                                remaining.put(amount.getUnit(), newRemaining);
+                            }else{
+                                remaining.remove(amount.getUnit());
+                            }
+                        }
+                    }
+
+                    if(utxoSelected){
+                        selectedUtxos.add(utxo);
+                        if(!remaining.isEmpty() && selectedUtxos.size() > maxUtxoSelectionLimit){
+                            throw new InputsLimitExceededException("Selection limit of " + maxUtxoSelectionLimit + " utxos reached with " + remaining + " remaining");
+                        }
+                    }
+                }
+                if(fetched.isEmpty()){
+                    break;
+                }
+            }
+
+            return selectedUtxos;
+        }catch(InputsLimitExceededException e){
+            var fallback = fallback();
+            if(fallback != null){
+                return fallback.select(sender, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
+            }
+            throw new IllegalStateException("Input limit exceeded and no fallback provided", e);
+        }catch(ApiException e){
+            throw new IllegalStateException("Unable to fetch UTXOs", e);
+        }
     }
 
-    protected OrderEnum getUtxoFetchOrder() {
-        return OrderEnum.asc;
+    private static Comparator<Utxo> sortByMostMatchingAssets(List<Amount> outputAmounts){
+        // first process utxos which contain most matching assets
+        return (o1, o2) -> Integer.compare(countMatchingAssets(o2.getAmount(), outputAmounts), countMatchingAssets(o1.getAmount(), outputAmounts));
+    }
+    private static int countMatchingAssets(List<Amount> l1, List<Amount> outputAmounts){
+        if(l1 == null || l1.isEmpty() || outputAmounts == null || outputAmounts.isEmpty()){
+            return 0;
+        }
+        return (int) l1.stream()
+                .filter(it1 -> outputAmounts.stream().filter(outputAmount -> it1.getUnit() != null && it1.getUnit().equals(outputAmount.getUnit())).findFirst().isPresent())
+                .map(it -> 1)
+                .count();
     }
 
-    protected int getUtxoFetchSize() {
-        return 40;
+    @Override
+    public UtxoSelectionStrategy fallback() {
+        return null;
+    }
+
+    protected boolean accept(Utxo utxo) {
+        return true;
     }
 }

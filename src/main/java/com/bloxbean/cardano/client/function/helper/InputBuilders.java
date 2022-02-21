@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.function.helper;
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -104,6 +105,9 @@ public class InputBuilders {
         try {
             if (value.getCoin() != null && !value.getCoin().equals(BigInteger.ZERO)) {
                 lovelaceUtxos = context.getUtxoSelectionStrategy().selectUtxos(sender, LOVELACE, value.getCoin(), excludeUtxos);
+                if(lovelaceUtxos == null || lovelaceUtxos.isEmpty()) {
+                    throw new InsufficientBalanceException("Not enough utxos found");
+                }
             } else {
                 lovelaceUtxos = Collections.EMPTY_LIST;
             }

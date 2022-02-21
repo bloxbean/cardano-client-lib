@@ -406,6 +406,10 @@ public class Account {
         return hdKeyPair;
     }
 
+    public Network getNetwork() {
+        return network;
+    }
+
     @Override
     public String toString() {
         try {

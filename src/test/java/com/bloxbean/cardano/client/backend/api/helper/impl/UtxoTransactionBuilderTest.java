@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.backend.api.helper.impl;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
@@ -228,11 +229,22 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(1).getAddress(), is(sender.baseAddress()));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets(), hasSize(2));
 
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets(), hasSize(1));
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets().get(0).getValue(), is(BigInteger.valueOf(37000)));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(1).getAssets(), hasSize(1));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(1).getAssets().get(0).getValue(), is(BigInteger.valueOf(37000)));
 
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(1).getAssets(), hasSize(2));
-//TODO        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(983172035 + 3000000 - 1740739 - paymentTransaction.getFee().longValue())));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets(), hasSize(2));
+
+        var expectedBaseAmount = BigInteger.ZERO;
+        // add utxo-1 base amount
+        expectedBaseAmount = expectedBaseAmount.add(utxos.get(1).getAmount().get(0).getQuantity());
+        // subtract min amount used in output to received
+        expectedBaseAmount = expectedBaseAmount.subtract(transaction.getBody().getOutputs().get(0).getValue().getCoin());
+        // add utxo-2 base amount
+        expectedBaseAmount = expectedBaseAmount.add(utxos.get(2).getAmount().get(0).getQuantity());
+        // subtract fee
+        expectedBaseAmount = expectedBaseAmount.subtract(transaction.getBody().getFee());
+        Assertions.assertEquals(expectedBaseAmount, transaction.getBody().getOutputs().get(1).getValue().getCoin());
+        Assertions.assertEquals(new BigInteger("984849719"), transaction.getBody().getOutputs().get(1).getValue().getCoin());
     }
 
     @Test
@@ -274,16 +286,17 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(1).getAddress(), is(sender.baseAddress()));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets(), hasSize(3));
 
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets(), hasSize(1));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets(), hasSize(2));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(975431106)));
 
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(1).getAssets(), hasSize(2));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(1).getAssets(), hasSize(1));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(2).getAssets(), hasSize(1));
     }
 
     @Test
     public void testBuildTransactionWithMultiplePaymentsAndMultiAssetAndMultipleUtxosWillReturnTrasaction() throws ApiException, IOException, AddressExcepion, CborSerializationException {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
-        String receiver2 = "addr1q9t3947esgd2qcgsc8x2vtfh2u7nnrtz5t6zc0g3wgp924fxlwffgz9jt59vpacm2424hygx8wgc3m3dahssn32w38yqwl6cl2";
+        String receiver2 = "addr_test1vqx5tjj902x5ck0rd2nev0y9j9a27axudjlxag68aj8j9asl0cy3s";
         String unit = "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
         String unit2 = "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e";
 
@@ -360,8 +373,8 @@ public class UtxoTransactionBuilderTest {
 
         assertThat(transaction.getBody().getInputs(), hasSize(3));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
-        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
-        assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
+        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
+        assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
 
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
         assertThat(transaction.getBody().getOutputs().get(0).getAddress(), is(receiver));
@@ -405,7 +418,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Assertions.assertThrows(ApiRuntimeException.class, () -> {
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
             Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction, paymentTransaction2), detailsParams, null, protocolParams);
             System.out.println(JsonUtil.getPrettyJson(transaction));
         });
@@ -448,8 +461,8 @@ public class UtxoTransactionBuilderTest {
 
         assertThat(transaction.getBody().getInputs(), hasSize(3));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
-        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
-        assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
+        assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("bbbbbb341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
+        assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
 
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
     }
@@ -465,7 +478,7 @@ public class UtxoTransactionBuilderTest {
         given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(1))).code(200));
         given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(2))).code(200));
         given(utxoService.getUtxos(any(), anyInt(), eq(3), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(3))).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(4), any())).willReturn(Result.success(utxos.toString()).withValue(Arrays.asList(utxos.get(4))).code(404));
+        given(utxoService.getUtxos(any(), anyInt(), eq(4), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(404));
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
@@ -484,7 +497,7 @@ public class UtxoTransactionBuilderTest {
                 .ttl(199999)
                 .build();
 
-        Assertions.assertThrows(ApiException.class, () -> {
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
             Transaction transaction = utxoTransactionBuilder.buildMintTokenTransaction(mintTransaction, detailsParams, null, protocolParams);
             System.out.println(transaction);
         });
@@ -647,7 +660,7 @@ public class UtxoTransactionBuilderTest {
 
         List<Utxo> utxos = loadUtxos(LIST_7);
         given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+//        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -668,18 +681,17 @@ public class UtxoTransactionBuilderTest {
         paymentTransaction.setAmount(newAmount);
 
         //TODO -- Now not enough exception is thrown instead of continuing silently
-        Assertions.assertThrows(ApiRuntimeException.class, () -> {
-            utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
-        });
+//        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
+//        });
 
-        /*
         assertThat(transaction.getBody().getInputs(), hasSize(2));
         assertThat(transaction.getBody().getOutputs(), hasSize(1));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb"));
         assertThat(transaction.getBody().getInputs().get(1).getTransactionId(), is("f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9"));
 
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(newAmount));
-        assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets(), is(empty()));*/
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets(), is(empty()));
     }
 
     @Test
@@ -709,7 +721,7 @@ public class UtxoTransactionBuilderTest {
         paymentTransaction.setAmount(newAmount);
 
         //TODO -- Now exception is thrown in case not enough utxo
-        Assertions.assertThrows(ApiRuntimeException.class, () -> {
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
             Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
         });
 
