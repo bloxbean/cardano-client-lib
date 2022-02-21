@@ -1,14 +1,13 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
-import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
-import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
-import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
 import lombok.Setter;
 
@@ -119,7 +118,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
             if(fallback != null){
                 return fallback.select(sender, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
             }
-            throw new IllegalStateException("Input limit exceeded and no fallback provided", e);
+            throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
         }catch(ApiException e){
             throw new ApiRuntimeException("Unable to fetch UTXOs", e);
         }

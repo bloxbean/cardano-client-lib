@@ -50,7 +50,7 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
                     .filter(entry -> BigInteger.ZERO.compareTo(entry.getValue()) < 0)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            var fetchResult = fetchAllUtxos(sender);
+            var fetchResult = fetchAllUtxos(sender, this.utxoService);
 
             var allUtxos = fetchResult.stream()
                                                  .sorted(sortLargestFirst(outputAmounts))
@@ -104,19 +104,19 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
             if(fallback != null){
                 return fallback.select(sender, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
             }
-            throw new IllegalStateException("Input limit exceeded and no fallback provided", e);
+            throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
         }catch(ApiException e){
             throw new ApiRuntimeException("Unable to fetch UTXOs", e);
         }
     }
 
-    private List<Utxo> fetchAllUtxos(String address) throws ApiException{
+    static List<Utxo> fetchAllUtxos(String address, UtxoService utxoService) throws ApiException{
         final var nrOfItemsToFetch = 100;
         var pageToFetch = 0;
         var result = new ArrayList<Utxo>();
         // call fetch until result is empty or < nr of items
         while(true){
-            var pageResult = this.utxoService.getUtxos(address, nrOfItemsToFetch, pageToFetch + 1, OrderEnum.asc);
+            var pageResult = utxoService.getUtxos(address, nrOfItemsToFetch, pageToFetch + 1, OrderEnum.asc);
             if(pageResult != null && pageResult.getValue() != null){
                 result.addAll(pageResult.getValue());
             }
