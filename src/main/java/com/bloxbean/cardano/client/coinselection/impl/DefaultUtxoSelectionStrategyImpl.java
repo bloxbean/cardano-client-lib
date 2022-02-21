@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
@@ -108,7 +110,9 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                     break;
                 }
             }
-
+            if(!remaining.isEmpty()){
+                throw new InsufficientBalanceException("Not enough funds for [" + remaining + "]");
+            }
             return selectedUtxos;
         }catch(InputsLimitExceededException e){
             var fallback = fallback();
@@ -117,7 +121,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
             }
             throw new IllegalStateException("Input limit exceeded and no fallback provided", e);
         }catch(ApiException e){
-            throw new IllegalStateException("Unable to fetch UTXOs", e);
+            throw new ApiRuntimeException("Unable to fetch UTXOs", e);
         }
     }
 
@@ -137,7 +141,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
 
     @Override
     public UtxoSelectionStrategy fallback() {
-        return null;
+        return new LargestFirstUtxoSelectionStrategy(this.utxoService, this.ignoreUtxosWithDatumHash);
     }
 
     protected boolean accept(Utxo utxo) {
