@@ -37,4 +37,5 @@ public interface UtxoSelectionStrategy {
 
     UtxoSelectionStrategy fallback();
 
+    void setIgnoreUtxosWithDatumHash(boolean ignoreUtxosWithDatumHash);
 }

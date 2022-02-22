@@ -78,10 +78,8 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     @Override
     public Transaction buildTransaction(List<PaymentTransaction> transactions, TransactionDetailsParams detailsParams,
                                         Metadata metadata, ProtocolParams protocolParams) throws ApiException {
-        NetworkId network = transactions.stream().map(request -> UtxoTransactionBodyBuilder.determineNetwork(request.getSender().baseAddress())).findFirst().orElse(null);
-
         TransactionBody transactionBody = UtxoTransactionBodyBuilder.buildTransferBody(transactions,
-                detailsParams, protocolParams, this.utxoSelectionStrategy, network);
+                detailsParams, protocolParams, this.utxoSelectionStrategy);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
                 .metadata(metadata)
@@ -96,8 +94,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     @Override
     public Transaction buildMintTokenTransaction(MintTransaction mintTransaction, TransactionDetailsParams detailsParams, Metadata metadata, ProtocolParams protocolParams) throws ApiException {
 
-        NetworkId network = UtxoTransactionBodyBuilder.determineNetwork(mintTransaction.getSender().baseAddress());
-        TransactionBody transactionBody = UtxoTransactionBodyBuilder.buildMintBody(mintTransaction, detailsParams, protocolParams, this.utxoSelectionStrategy, network);
+        TransactionBody transactionBody = UtxoTransactionBodyBuilder.buildMintBody(mintTransaction, detailsParams, protocolParams, this.utxoSelectionStrategy);
 
         if (log.isDebugEnabled())
             log.debug(JsonUtil.getPrettyJson(transactionBody));

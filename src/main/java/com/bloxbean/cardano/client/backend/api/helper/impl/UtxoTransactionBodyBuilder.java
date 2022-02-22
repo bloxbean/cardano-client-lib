@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.backend.api.helper.impl;
 
-import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
@@ -8,16 +7,12 @@ import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
-import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.model.TransactionRequest;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.util.AssetUtil;
-import com.bloxbean.cardano.client.util.HexUtil;
-import com.bloxbean.cardano.client.util.Triple;
-import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.client.util.*;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
@@ -34,23 +29,12 @@ public class UtxoTransactionBodyBuilder {
     public static TransactionBody buildMintBody(MintTransaction request,
                                                 TransactionDetailsParams detailsParams,
                                                 ProtocolParams protocolParams,
-                                                UtxoSelectionStrategy selectionStrategy,
-                                                NetworkId networkType) {
+                                                UtxoSelectionStrategy selectionStrategy) {
         String sender = request.getSender().baseAddress();
 
         String receiver = request.getReceiver();
         if (receiver == null){
             receiver = sender;
-        }
-        {
-            var senderNetwork = determineNetwork(sender);
-            var receiverNetwork = determineNetwork(receiver);
-            if(!networkType.equals(senderNetwork)){
-                throw new IllegalArgumentException("Network type for [" + sender + "] invalid. Expected [" + networkType + "] but was [" + senderNetwork + "]");
-            }
-            if(!networkType.equals(receiverNetwork)){
-                throw new IllegalArgumentException("Network type for [" + receiver + "] invalid. Expected [" + networkType + "] but was [" + receiverNetwork + "]");
-            }
         }
 
         var minBaseAmount = new MinAdaCalculator(protocolParams)
@@ -101,27 +85,10 @@ public class UtxoTransactionBodyBuilder {
                 null);  // TODO add network?
     }
 
-    public static NetworkId determineNetwork(String address){
-        return Networks.mainnet().equals(new Address(address).getNetwork()) ? NetworkId.MAINNET : NetworkId.TESTNET;
-    }
-
     public static TransactionBody buildTransferBody(List<PaymentTransaction> requests,
                                                     TransactionDetailsParams detailParams,
                                                     ProtocolParams protocolParams,
-                                                    UtxoSelectionStrategy selectionStrategy,
-                                                    NetworkId networkType){
-        // verify senders and receivers
-        for(var request : requests){
-            var senderNetwork = determineNetwork(request.getSender().baseAddress());
-            var receiverNetwork = determineNetwork(request.getReceiver());
-            if(!networkType.equals(senderNetwork)){
-                throw new IllegalArgumentException("Network type for [" + request.getSender().baseAddress() + "] invalid. Expected [" + networkType + "] but was [" + senderNetwork + "]");
-            }
-            if(!networkType.equals(receiverNetwork)){
-                throw new IllegalArgumentException("Network type for [" + request.getReceiver() + "] invalid. Expected [" + networkType + "] but was [" + receiverNetwork + "]");
-            }
-        }
-
+                                                    UtxoSelectionStrategy selectionStrategy){
         // Create output for receivers and calculate total fees/cost for each sender
         var calculatedOutputs = calculateOutputs(requests, protocolParams);
 
@@ -163,6 +130,7 @@ public class UtxoTransactionBodyBuilder {
             transactionInputs.addAll(calculatedChangeTransactions.getTransactionInputs());
             usedUtxos.addAll(calculatedChangeTransactions.getAdditionalUtxos());
         }
+
         return new TransactionBody(transactionInputs,
                 transactionOutputs,
                 calculatedOutputs.getTotalFee(),
@@ -271,10 +239,8 @@ public class UtxoTransactionBodyBuilder {
 
         // initialize base + multi assets with negative amount (based on what was requested)
         var changeAmount = initChangeAmount(requestedAmounts);
-
         // then add each utxo to negative amounts
         changeAmount = applyUtxoToChangeAmount(changeAmount, usedUtxos);
-
         // now we have the change amounts in baseAmount and multiAssets (for 1 sender)
         if(changeAmount.getBaseAmount().compareTo(BigInteger.ZERO) > 0
                 || !changeAmount.getMultiAssets().isEmpty()) {
@@ -294,7 +260,6 @@ public class UtxoTransactionBodyBuilder {
                     var allUsedUtxos = new HashSet<>(usedUtxos);
                     allUsedUtxos.addAll(additionalUtxos);
                     Set<Utxo> newUtxos = calculateUtxos(sender, Collections.singletonList(new Amount(CardanoConstants.LOVELACE, minRequiredLovelaceInOutput)), allUsedUtxos, selectionStrategy);
-
                     if(newUtxos.isEmpty()) {
                         if(log.isDebugEnabled()) {
                             log.warn("Not enough utxos found to cover minimum lovelace in an output");
@@ -321,7 +286,7 @@ public class UtxoTransactionBodyBuilder {
             }
 
             //If changeoutput value is not zero or there are multi-assets, then add to change output
-            if(BigInteger.ZERO.compareTo(changeAmount.getBaseAmount()) > 0 || !changeAmount.getMultiAssets().isEmpty()) {
+            if(BigInteger.ZERO.compareTo(changeAmount.getBaseAmount()) < 0 || !changeAmount.getMultiAssets().isEmpty()) {
                 transactionOutputs.add(new TransactionOutput(sender, new Value(changeAmount.getBaseAmount(), changeAmount.getMultiAssets())));
             }
 
@@ -438,6 +403,7 @@ public class UtxoTransactionBodyBuilder {
         return actualCoin.subtract(groupedOutputAmount.getBaseAmount())
                          .add(fees);
     }
+
     private static CalculatedOutputs calculateOutputs(List<PaymentTransaction> requests, ProtocolParams protocolParams){
         // group tx by key (sender - receiver - datumhash)
         var grouped = requests
@@ -458,12 +424,10 @@ public class UtxoTransactionBodyBuilder {
                         Collectors.reducing(BigInteger.ZERO,
                                 tuple -> tuple._2,
                                             BigInteger::add)));
-
         var totalFee = requests.stream()
                 .filter(request -> request.getFee() != null)
                 .map(TransactionRequest::getFee)
                 .reduce(BigInteger.ZERO, BigInteger::add);
-
         return new CalculatedOutputs(miscCostsPerSender, outputs, totalFee);
     }
     private static Map<String, Set<Utxo>> getUtxosPerSender(Map<String, List<Amount>> requestedAmountPerSender,

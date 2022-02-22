@@ -1,15 +1,14 @@
 package com.bloxbean.cardano.client.backend.api.helper.impl;
 
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
-import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
+import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
@@ -20,6 +19,7 @@ import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +35,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
@@ -56,11 +58,11 @@ public class UtxoTransactionBuilderTest {
     public static final String LIST_7 = "list7-insufficient-change-amount";
     public static final String LIST_8 = "list8-insufficient-change-amount-with-native-token";
 
-    @Mock
-    UtxoService utxoService;
+    public static final String LIST_9 = "list9-e2e-sender1";
+    public static final String LIST_10 = "list10-e2e-sender2";
 
     @Mock
-    TransactionService transactionService;
+    UtxoService utxoService;
 
     @InjectMocks
     UtxoTransactionBuilderImpl utxoTransactionBuilder;
@@ -733,5 +735,157 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(newAmount));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.ZERO));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().size(), is(1));*/
+    }
+
+    @Test
+    public void testE2ESingleAsset() throws ApiException, IOException{
+        String senderMnemonic2 = "mixture peasant wood unhappy usage hero great elder emotion picnic talent fantasy program clean patch wheel drip disorder bullet cushion bulk infant balance address";
+        Account sender2 = new Account(Networks.testnet(), senderMnemonic2);
+
+        List<Utxo> utxosSender2 = loadUtxos(LIST_10);
+        given(utxoService.getUtxos(eq(sender2.baseAddress()), anyInt(), eq(1), any())).willReturn(Result.success(utxosSender2.toString()).withValue(utxosSender2).code(200));
+
+        String receiver3 = "addr_test1qrp6x6aq2m28xhvxhqzufl0ff7x8gmzjejssrk29mx0q829dsty3hzmrl2k8jhwzghgxuzfjatgxlhg9wtl6ecv0v3cqf92rnh";
+
+        Map<String, BigInteger> requestedAmounts = Map.of(LOVELACE, BigInteger.valueOf(3110000));
+
+        PaymentTransaction paymentTransaction3 =
+                PaymentTransaction.builder()
+                        .sender(sender2)
+                        .receiver(receiver3)
+                        .amount(BigInteger.valueOf(3110000))
+                        .unit(LOVELACE)
+                        .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction3), detailsParams, null, protocolParams);
+
+        System.out.println(JsonUtil.getPrettyJson(transaction));
+
+        // validate input matches output
+        Map<String, BigInteger> inputs = getInputAmounts(utxosSender2, transaction);
+        Map<String, BigInteger> outputs = getOutputAmounts(transaction);
+        Assertions.assertEquals(inputs, outputs);
+
+        // verify requestedAmounts
+        for(Map.Entry<String, BigInteger> entry : requestedAmounts.entrySet()){
+            var output = outputs.get(entry.getKey());
+            var minAmountRequired = entry.getValue();
+            Assertions.assertTrue(output.compareTo(minAmountRequired) >= 0);
+        }
+    }
+
+    @Test
+    public void testE2EMultiAsset() throws ApiException, IOException{
+        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+
+        //addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82
+        String senderMnemonic2 = "mixture peasant wood unhappy usage hero great elder emotion picnic talent fantasy program clean patch wheel drip disorder bullet cushion bulk infant balance address";
+        Account sender2 = new Account(Networks.testnet(), senderMnemonic2);
+
+        List<Utxo> utxosSender1 = loadUtxos(LIST_9);
+        given(utxoService.getUtxos(eq(sender.baseAddress()), anyInt(), eq(1), any())).willReturn(Result.success(utxosSender1.toString()).withValue(utxosSender1).code(200));
+
+        List<Utxo> utxosSender2 = loadUtxos(LIST_10);
+        given(utxoService.getUtxos(eq(sender2.baseAddress()), anyInt(), eq(1), any())).willReturn(Result.success(utxosSender2.toString()).withValue(utxosSender2).code(200));
+
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        String receiver2 = "addr_test1qz7r5eu2jg0hx470mmf79vpgueaggh22pmayry8xrre5grtpyy9s8u2heru58a4r68wysmdw9v40zznttmwrg0a6v9tq36pjak";
+
+        String receiver3 = "addr_test1qrp6x6aq2m28xhvxhqzufl0ff7x8gmzjejssrk29mx0q829dsty3hzmrl2k8jhwzghgxuzfjatgxlhg9wtl6ecv0v3cqf92rnh";
+
+        BigInteger fee = BigInteger.valueOf(248089);
+
+        Map<String, BigInteger> requestedAmounts = Map.of("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e", BigInteger.valueOf(13 + 14),
+                LOVELACE, BigInteger.valueOf(3110000).add(fee));
+
+        PaymentTransaction paymentTransaction1 =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver)
+                        .amount(BigInteger.valueOf(14))
+                        .fee(fee)
+                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                        .build();
+
+        PaymentTransaction paymentTransaction2 =
+                PaymentTransaction.builder()
+                        .sender(sender)
+                        .receiver(receiver2)
+                        .amount(BigInteger.valueOf(33))
+                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                        .build();
+
+        PaymentTransaction paymentTransaction3 =
+                PaymentTransaction.builder()
+                        .sender(sender2)
+                        .receiver(receiver3)
+                        .amount(BigInteger.valueOf(3110000))
+                        .unit(LOVELACE)
+                        .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction1, paymentTransaction2, paymentTransaction3), detailsParams, null, protocolParams);
+
+        // validate input matches output
+        Map<String, BigInteger> inputs = getInputAmounts(Stream.concat(utxosSender1.stream(), utxosSender2.stream()).collect(Collectors.toList()), transaction);
+        Map<String, BigInteger> outputs = getOutputAmounts(transaction);
+
+        Assertions.assertEquals(inputs, outputs);
+
+        // verify requestedAmounts
+        for(Map.Entry<String, BigInteger> entry : requestedAmounts.entrySet()){
+            var output = outputs.get(entry.getKey());
+            var minAmountRequired = entry.getValue();
+            Assertions.assertTrue(output.compareTo(minAmountRequired) >= 0);
+        }
+    }
+
+    public static Map<String, BigInteger> getInputAmounts(List<Utxo> utxos, Transaction transaction){
+        return utxos.stream()
+                .filter(it -> transaction.getBody().getInputs().stream().filter(tx -> tx.getTransactionId().equals(it.getTxHash()) && tx.getIndex() == it.getOutputIndex()).findFirst().isPresent())
+                .flatMap(it -> it.getAmount().stream())
+                .collect(Collectors.groupingBy(Amount::getUnit,
+                        Collectors.reducing(BigInteger.ZERO,
+                                Amount::getQuantity,
+                                BigInteger::add)));
+    }
+    public static Map<String, BigInteger> getOutputAmounts(Transaction transaction){
+        Map<String, BigInteger> outputs = new HashMap<>();
+        outputs.put(LOVELACE, transaction.getBody().getFee());
+        for(var output : transaction.getBody().getOutputs()){
+            var lovelace = output.getValue().getCoin();
+            if(lovelace != null){
+                var existing = outputs.getOrDefault(LOVELACE, BigInteger.ZERO);
+                outputs.put(LOVELACE, existing.add(lovelace));
+            }
+            var other = output.getValue().getMultiAssets().stream()
+                    .flatMap(it -> it.getAssets().stream()
+                            .map(asset -> {
+                                try{
+                                    var name = AssetUtil.getUnit(it.getPolicyId(), asset);
+                                    return new Amount(name, asset.getValue());
+                                }catch(Exception e){
+                                    return new Amount(asset.getName(), asset.getValue());
+                                }
+                            }))
+                    .collect(Collectors.groupingBy(Amount::getUnit,
+                            Collectors.reducing(BigInteger.ZERO,
+                                    Amount::getQuantity,
+                                    BigInteger::add)));
+            for(var entry : other.entrySet()){
+                var existing = outputs.getOrDefault(entry.getKey(), BigInteger.ZERO);
+                outputs.put(entry.getKey(), existing.add(entry.getValue()));
+            }
+        }
+        return outputs;
     }
 }
