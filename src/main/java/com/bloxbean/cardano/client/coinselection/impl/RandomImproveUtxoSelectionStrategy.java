@@ -112,8 +112,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
                 .sorted(Comparator.comparing(Map.Entry::getValue))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, BigInteger::add, TreeMap::new));
         final Set<Utxo> selectedUtxos = new HashSet<>();
-        final Map<String, BigInteger> remainingOutputs = new HashMap<>(outputsToProcess);
-        for(var entry : remainingOutputs.entrySet()){
+        for(var entry : outputsToProcess.entrySet()){
             final List<Utxo> availableUtxos = new ArrayList<>(randomPhaseResult.getAllAvailableUtxos());
             availableUtxos.removeAll(selectedUtxos);
             availableUtxos.removeAll(randomPhaseResult.getSelectedUtxos());
@@ -131,9 +130,12 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
                 // already reached max for asset
                 continue;
             }
+            if(processedAmount.equals(idealTarget)){
+                // ideal target reached
+                continue;
+            }
 
-            while(remainingOutputs.containsKey(entry.getKey())
-                    && BigInteger.ZERO.compareTo(remainingOutputs.get(entry.getKey())) < 0){
+            while(true){
                 var randomUtxo = selectRandomUtxo(requiredAmount.getUnit(), availableUtxos, datumHash, utxosToExclude);
                 if(randomUtxo == null){
                     break;
@@ -141,20 +143,18 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
                 var utxoAmount = randomUtxo.getAmount().stream()
                         .filter(utxo -> isEqualUnit(utxo.getUnit(), requiredAmount.getUnit()))
                         .reduce(new Amount(requiredAmount.getUnit(), BigInteger.ZERO),
-                                (a1, a2) -> add(a1, a2));
+                                RandomImproveUtxoSelectionStrategy::add);
                 var potentiallyNewProcessedAmount = processedAmount.add(utxoAmount.getQuantity());
                 var isImprovement = idealTarget.subtract(potentiallyNewProcessedAmount).abs()
-                        .compareTo(idealTarget.subtract(processedAmount).abs()) < 0
-                        && potentiallyNewProcessedAmount.compareTo(maxTarget) <= 0
-                        && randomPhaseResult.getSelectedUtxos().size() + selectedUtxos.size() < maxUtxoSelectionLimit;
+                                               .compareTo(idealTarget.subtract(processedAmount).abs()) < 0
+                                        && potentiallyNewProcessedAmount.compareTo(maxTarget) <= 0
+                                        && randomPhaseResult.getSelectedUtxos().size() + selectedUtxos.size() < maxUtxoSelectionLimit;
                 if(isImprovement){
                     selectedUtxos.add(randomUtxo);
                     processedAmount = potentiallyNewProcessedAmount;
-                    Amount newRemaining = subtract(requiredAmount, utxoAmount);
-                    if(BigInteger.ZERO.compareTo(newRemaining.getQuantity()) < 0){
-                        remainingOutputs.put(requiredAmount.getUnit(), newRemaining.getQuantity());
-                    }else{
-                        remainingOutputs.remove(requiredAmount.getUnit());
+                    if(processedAmount.equals(idealTarget)){
+                        // ideal target reached exactly
+                        break;
                     }
                 }
                 availableUtxos.remove(randomUtxo);
@@ -177,7 +177,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
                 .sorted((it1, it2) -> it2.getValue().compareTo(it1.getValue()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, BigInteger::add, TreeMap::new));
         final List<Utxo> availableUtxos = new ArrayList<>(allAvailableUtxos);
-        final Map<String, BigInteger> remainingOutputs = new HashMap<>(outputsToProcess);
+        final Map<String, BigInteger> remainingOutputs = new TreeMap<>(outputsToProcess);
         final Set<Utxo> selectedUtxos = new HashSet<>();
 
         for(var entry : new ArrayList<>(remainingOutputs.entrySet())){
@@ -186,30 +186,25 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
                 // calculate required amount
                     // start from entry key - value
                     // then subtract all from selectedUtxos (UTXOs can contain multiple assets)
-                var requiredAmount = selectedUtxos.stream()
-                             .flatMap(utxo -> utxo.getAmount().stream())
-                             .filter(amount -> isEqualUnit(amount.getUnit(), entry.getKey()))
-                             .reduce((a1, a2) -> add(a1, a2))
-                        .map(alreadyAvailable -> subtract(new Amount(entry.getKey(), entry.getValue()), alreadyAvailable))
-                        .orElse(new Amount(entry.getKey(), entry.getValue()));
-                if(BigInteger.ZERO.compareTo(requiredAmount.getQuantity()) >= 0){
-                    remainingOutputs.remove(entry.getKey());
-                    continue;
-                }
-                var randomUtxo = selectRandomUtxo(requiredAmount.getUnit(), new ArrayList<>(availableUtxos), datumHash, utxosToExclude);
+                var requiredUnit = entry.getKey();
+
+                var randomUtxo = selectRandomUtxo(requiredUnit, availableUtxos, datumHash, utxosToExclude);
                 if(randomUtxo == null){
-                    throw new InsufficientBalanceException("Unable to find random UTXO for " + requiredAmount);
+                    throw new InsufficientBalanceException("Unable to find random UTXO for " + requiredUnit);
                 }
                 selectedUtxos.add(randomUtxo);
                 availableUtxos.remove(randomUtxo);
-                Amount newRemaining = subtract(requiredAmount, randomUtxo.getAmount().stream()
-                        .filter(utxoAmount -> isEqualUnit(utxoAmount.getUnit(), requiredAmount.getUnit()))
-                        .reduce(new Amount(requiredAmount.getUnit(), BigInteger.ZERO), (a1, a2) -> add(a1, a2)));
-                if(BigInteger.ZERO.compareTo(newRemaining.getQuantity()) < 0){
-                    remainingOutputs.put(requiredAmount.getUnit(), newRemaining.getQuantity());
-                }else{
-                    remainingOutputs.remove(requiredAmount.getUnit());
+
+                for(var amountToRemove : randomUtxo.getAmount()){
+                    var existing = remainingOutputs.getOrDefault(amountToRemove.getUnit(), BigInteger.ZERO);
+                    var adjusted = existing.subtract(amountToRemove.getQuantity());
+                    if(BigInteger.ZERO.compareTo(adjusted) < 0){
+                        remainingOutputs.put(amountToRemove.getUnit(), adjusted);
+                    }else{
+                        remainingOutputs.remove(amountToRemove.getUnit());
+                    }
                 }
+
                 if(!remainingOutputs.isEmpty() && selectedUtxos.size() > maxUtxoSelectionLimit){
                     throw new InputsLimitExceededException("Selection limit of " + maxUtxoSelectionLimit + " utxos reached with " + remainingOutputs + " remaining");
                 }

@@ -385,7 +385,6 @@ public class UtxoTransactionBuilderTest {
 
         assertThat(transaction.getBody().getOutputs().get(1).getAddress(), is(sender.baseAddress()));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(greaterThan(ONE_ADA)));
-
     }
 
     @Test
@@ -467,6 +466,32 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getInputs().get(2).getTransactionId(), is("aaaaaa341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85"));
 
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
+
+
+        Assertions.assertEquals(sender.baseAddress(), transaction.getBody().getOutputs().get(0).getAddress());
+        Assertions.assertEquals(6, transaction.getBody().getOutputs().get(0).getValue().getMultiAssets().size());
+
+        Assertions.assertEquals(receiver, transaction.getBody().getOutputs().get(1).getAddress());
+        Assertions.assertTrue(transaction.getBody().getOutputs().get(1).getValue().getCoin().compareTo(CardanoConstants.ONE_ADA) > 0);
+        Assertions.assertEquals(BigInteger.valueOf(250000), transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets().get(0).getValue());
+        Assertions.assertEquals("selftoken1", transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets().get(0).getName());
+
+        Assertions.assertEquals(multiAsset, transaction.getBody().getMint().get(0));
+
+        var expectedBaseAmount = BigInteger.ZERO;
+        // add utxo-0 base amount
+        expectedBaseAmount = expectedBaseAmount.add(utxos.get(0).getAmount().get(0).getQuantity());
+        // subtract fee
+        expectedBaseAmount = expectedBaseAmount.subtract(mintTransaction.getFee());
+        // subtract output 2 base amount
+        expectedBaseAmount = expectedBaseAmount.subtract(transaction.getBody().getOutputs().get(1).getValue().getCoin());
+        // add utxo-1 base amount (since base amount is currently less than allowed)
+        expectedBaseAmount = expectedBaseAmount.add(utxos.get(1).getAmount().get(0).getQuantity());
+        // add utxo-2 base amount (since base amount is currently still less than allowed)
+        expectedBaseAmount = expectedBaseAmount.add(utxos.get(2).getAmount().get(0).getQuantity());
+
+        Assertions.assertEquals(expectedBaseAmount, transaction.getBody().getOutputs().get(0).getValue().getCoin());
+        Assertions.assertEquals(BigInteger.valueOf(2282126), transaction.getBody().getOutputs().get(0).getValue().getCoin());
     }
 
     @Test
@@ -860,7 +885,9 @@ public class UtxoTransactionBuilderTest {
     }
     public static Map<String, BigInteger> getOutputAmounts(Transaction transaction){
         Map<String, BigInteger> outputs = new HashMap<>();
-        outputs.put(LOVELACE, transaction.getBody().getFee());
+        if(transaction.getBody().getFee() != null){
+            outputs.put(LOVELACE, transaction.getBody().getFee());
+        }
         for(var output : transaction.getBody().getOutputs()){
             var lovelace = output.getValue().getCoin();
             if(lovelace != null){
@@ -869,14 +896,7 @@ public class UtxoTransactionBuilderTest {
             }
             var other = output.getValue().getMultiAssets().stream()
                     .flatMap(it -> it.getAssets().stream()
-                            .map(asset -> {
-                                try{
-                                    var name = AssetUtil.getUnit(it.getPolicyId(), asset);
-                                    return new Amount(name, asset.getValue());
-                                }catch(Exception e){
-                                    return new Amount(asset.getName(), asset.getValue());
-                                }
-                            }))
+                    .map(asset -> new Amount(AssetUtil.getUnit(it.getPolicyId(), asset), asset.getValue())))
                     .collect(Collectors.groupingBy(Amount::getUnit,
                             Collectors.reducing(BigInteger.ZERO,
                                     Amount::getQuantity,

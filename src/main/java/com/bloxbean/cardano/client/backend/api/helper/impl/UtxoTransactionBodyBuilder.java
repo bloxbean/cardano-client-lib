@@ -12,7 +12,10 @@ import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.model.TransactionRequest;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.util.*;
+import com.bloxbean.cardano.client.util.AssetUtil;
+import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.util.Triple;
+import com.bloxbean.cardano.client.util.Tuple;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
@@ -75,9 +78,9 @@ public class UtxoTransactionBodyBuilder {
         return new TransactionBody(transactionInputs,
                 transactionOutputs,
                 request.getFee(),
-                detailsParams != null ? detailsParams.getTtl() : null,
+                detailsParams != null ? detailsParams.getTtl() : 0L,
                 null,
-                detailsParams != null ? detailsParams.getValidityStartInterval() : null,
+                detailsParams != null ? detailsParams.getValidityStartInterval() : 0L,
                 request.getMintAssets(),
                 null,
                 null,
@@ -134,9 +137,9 @@ public class UtxoTransactionBodyBuilder {
         return new TransactionBody(transactionInputs,
                 transactionOutputs,
                 calculatedOutputs.getTotalFee(),
-                detailParams != null ? detailParams.getTtl() : null,
+                detailParams != null ? detailParams.getTtl() : 0L,
                 null,
-                detailParams != null ? detailParams.getValidityStartInterval() : null,
+                detailParams != null ? detailParams.getValidityStartInterval() : 0L,
                 null,
                 null,
                 null,
@@ -432,9 +435,6 @@ public class UtxoTransactionBodyBuilder {
     }
     private static Map<String, Set<Utxo>> getUtxosPerSender(Map<String, List<Amount>> requestedAmountPerSender,
                                                             UtxoSelectionStrategy selectionStrategy) {
-        // for each sender
-            // get UTXOs
-            // filter UTXOs to only contain requested unit
         return requestedAmountPerSender.entrySet().stream()
                 .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey(),
                                         selectionStrategy.select(entry.getKey(), entry.getValue(), null, Collections.emptySet())))

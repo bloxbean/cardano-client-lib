@@ -85,7 +85,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                     List<Amount> utxoAmounts = utxo.getAmount();
 
                     boolean utxoSelected = false;
-                    for(Amount amount: utxoAmounts) {
+                    for(Amount amount : utxoAmounts) {
                         var remainingAmount = remaining.get(amount.getUnit());
                         if(remainingAmount != null && BigInteger.ZERO.compareTo(remainingAmount) < 0){
                             utxoSelected = true;
