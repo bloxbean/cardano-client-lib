@@ -177,7 +177,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
                 .sorted((it1, it2) -> it2.getValue().compareTo(it1.getValue()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, BigInteger::add, TreeMap::new));
         final List<Utxo> availableUtxos = new ArrayList<>(allAvailableUtxos);
-        final Map<String, BigInteger> remainingOutputs = new TreeMap<>(outputsToProcess);
+        final Map<String, BigInteger> remainingOutputs = new HashMap<>(outputsToProcess);
         final Set<Utxo> selectedUtxos = new HashSet<>();
 
         for(var entry : outputsToProcess.entrySet()){
@@ -254,18 +254,6 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
             throw new IllegalArgumentException("Failed to add [" + a1 + "] and [" + a2 + "] due to unit miss-match");
         }
         return new Amount(a1.getUnit(), a1.getQuantity().add(a2.getQuantity()));
-    }
-    private static Amount subtract(Amount a1, Amount a2){
-        if(a1 == null){
-            return a2;
-        }
-        if(a2 == null){
-            return a1;
-        }
-        if(!isEqualUnit(a1.getUnit(), a2.getUnit())){
-            throw new IllegalArgumentException("Failed to subtract [" + a1 + "] and [" + a2 + "] due to unit miss-match");
-        }
-        return new Amount(a1.getUnit(), a1.getQuantity().subtract(a2.getQuantity()));
     }
 
     private static boolean isEqualUnit(String u1, String u2){
