@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
+import com.bloxbean.cardano.client.common.ADAConversionUtil;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
@@ -33,6 +34,7 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -872,6 +874,34 @@ public class UtxoTransactionBuilderTest {
             var minAmountRequired = entry.getValue();
             Assertions.assertTrue(output.compareTo(minAmountRequired) >= 0);
         }
+    }
+
+    @Test
+    void testSendAll() throws Exception{
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Collections.singletonList(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(ADAConversionUtil.adaToLovelace(new BigDecimal("1.5").subtract(new BigDecimal("0.168317"))))
+                .fee(ADAConversionUtil.adaToLovelace(new BigDecimal("0.168317")))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
+
+        assertThat(transaction.getBody().getInputs(), hasSize(1));
+        assertThat(transaction.getBody().getOutputs(), hasSize(1));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed"));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(ADAConversionUtil.adaToLovelace(new BigDecimal("1.5").subtract(new BigDecimal("0.168317")))));
     }
 
     public static Map<String, BigInteger> getInputAmounts(List<Utxo> utxos, Transaction transaction){
