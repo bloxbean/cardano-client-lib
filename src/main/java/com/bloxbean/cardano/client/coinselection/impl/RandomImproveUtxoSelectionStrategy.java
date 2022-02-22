@@ -180,7 +180,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
         final Map<String, BigInteger> remainingOutputs = new TreeMap<>(outputsToProcess);
         final Set<Utxo> selectedUtxos = new HashSet<>();
 
-        for(var entry : new ArrayList<>(remainingOutputs.entrySet())){
+        for(var entry : outputsToProcess.entrySet()){
             while(remainingOutputs.containsKey(entry.getKey())
                     && BigInteger.ZERO.compareTo(remainingOutputs.get(entry.getKey())) < 0){
                 // calculate required amount
