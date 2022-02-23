@@ -229,7 +229,13 @@ public class UtxoTransactionBodyBuilder {
             }
             //Remove any empty MultiAssets
             multiAssets = multiAssets.stream()
-                    .filter(asset -> asset != null && asset.getAssets() != null && !asset.getAssets().isEmpty())
+                    .map(assets -> new MultiAsset(assets.getPolicyId(),
+                                                  assets.getAssets() != null
+                                                    ? assets.getAssets().stream()
+                                                                            .filter(asset -> asset.getValue() != null && !BigInteger.ZERO.equals(asset.getValue()))
+                                                                            .collect(Collectors.toList())
+                                                    : Collections.emptyList()))
+                    .filter(assets -> assets.getAssets() != null && !assets.getAssets().isEmpty())
                     .collect(Collectors.toList());
         }
         return new OutputAmount(baseAmount, multiAssets);

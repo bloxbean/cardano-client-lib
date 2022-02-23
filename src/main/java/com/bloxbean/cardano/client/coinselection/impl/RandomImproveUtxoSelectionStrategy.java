@@ -102,11 +102,11 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
     }
 
     private Set<Utxo> improve(List<Amount> outputAmounts, RandomPhaseResult randomPhaseResult, String datumHash, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit){
-        final Map<String, BigInteger> outputsToProcess = new HashMap<>(outputAmounts.stream()
+        final Map<String, BigInteger> outputsToProcess = outputAmounts.stream()
                 .collect(Collectors.groupingBy(Amount::getUnit,
                         Collectors.reducing(BigInteger.ZERO,
                                 Amount::getQuantity,
-                                BigInteger::add))))
+                                BigInteger::add)))
                 .entrySet().stream()
                 .filter(entry -> BigInteger.ZERO.compareTo(entry.getValue()) < 0)
                 .sorted(Comparator.comparing(Map.Entry::getValue))
@@ -167,11 +167,11 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
         if(allAvailableUtxos == null || allAvailableUtxos.isEmpty()){
             throw new InsufficientBalanceException("No UTXOs available");
         }
-        final Map<String, BigInteger> outputsToProcess = new HashMap<>(outputAmounts.stream()
+        final Map<String, BigInteger> outputsToProcess = outputAmounts.stream()
                 .collect(Collectors.groupingBy(Amount::getUnit,
                         Collectors.reducing(BigInteger.ZERO,
                                 Amount::getQuantity,
-                                BigInteger::add))))
+                                BigInteger::add)))
                 .entrySet().stream()
                 .filter(entry -> BigInteger.ZERO.compareTo(entry.getValue()) < 0)
                 .sorted((it1, it2) -> it2.getValue().compareTo(it1.getValue()))

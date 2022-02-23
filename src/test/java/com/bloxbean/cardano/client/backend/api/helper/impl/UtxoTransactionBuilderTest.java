@@ -904,6 +904,154 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(ADAConversionUtil.adaToLovelace(new BigDecimal("1.5").subtract(new BigDecimal("0.168317")))));
     }
 
+    @Test
+    void testSendAllMultiAsset() throws Exception{
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
+
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("3")))), null));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(unit)
+                .amount(BigInteger.valueOf(1000))
+                .fee(ADAConversionUtil.adaToLovelace(new BigDecimal("0.168317")))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction), detailsParams, null, protocolParams);
+
+        assertThat(transaction.getBody().getInputs(), hasSize(1));
+        assertThat(transaction.getBody().getOutputs(), hasSize(2));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed"));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(greaterThan(ONE_ADA)));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getValue(), is(BigInteger.valueOf(1000)));
+    }
+
+    @Test
+    void testSendAllMultiAssetExactAmountSameReceiver() throws Exception{
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
+
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(unit)
+                .amount(BigInteger.valueOf(1000))
+                .fee(ADAConversionUtil.adaToLovelace(new BigDecimal("0.168317")))
+                .receiver(receiver)
+                .build();
+        PaymentTransaction paymentTransaction2 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(LOVELACE)
+                .amount(ADAConversionUtil.adaToLovelace(new BigDecimal("1.5").subtract(new BigDecimal("0.168317"))))
+                .fee(null)
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Transaction transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction1, paymentTransaction2), detailsParams, null, protocolParams);
+
+        assertThat(transaction.getBody().getInputs(), hasSize(1));
+        assertThat(transaction.getBody().getOutputs(), hasSize(1));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed"));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(ADAConversionUtil.adaToLovelace(new BigDecimal("1.5").subtract(new BigDecimal("0.168317")))));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getValue(), is(BigInteger.valueOf(1000)));
+    }
+
+    @Test
+    void testSendAllMultiAssetExactAmountDifferentReceiverFails() throws Exception{
+        String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        String receiver2 = "addr_test1qz7r5eu2jg0hx470mmf79vpgueaggh22pmayry8xrre5grtpyy9s8u2heru58a4r68wysmdw9v40zznttmwrg0a6v9tq36pjak";
+
+        String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
+
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(unit)
+                .amount(BigInteger.valueOf(1000))
+                .fee(ADAConversionUtil.adaToLovelace(new BigDecimal("0.168317")))
+                .receiver(receiver1)
+                .build();
+        PaymentTransaction paymentTransaction2 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(LOVELACE)
+                .amount(ADAConversionUtil.adaToLovelace(new BigDecimal("1.5").subtract(new BigDecimal("0.168317"))))
+                .fee(null)
+                .receiver(receiver2)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        // should fail since not enough funds to pay min ada for receiver 1
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
+            utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction1, paymentTransaction2), detailsParams, null, protocolParams);
+        });
+    }
+
+    @Test
+    void testSendAllMultiAssetExactAmountDifferentReceiverWithMinAda() throws Exception{
+        String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        String receiver2 = "addr_test1qz7r5eu2jg0hx470mmf79vpgueaggh22pmayry8xrre5grtpyy9s8u2heru58a4r68wysmdw9v40zznttmwrg0a6v9tq36pjak";
+
+        String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
+
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, BigInteger.valueOf(2478633))), null));
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(unit)
+                .amount(BigInteger.valueOf(1000))
+                .fee(ADAConversionUtil.adaToLovelace(new BigDecimal("0.168317")))
+                .receiver(receiver1)
+                .build();
+        PaymentTransaction paymentTransaction2 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(LOVELACE)
+                .amount(ADAConversionUtil.adaToLovelace(new BigDecimal("2.478633")
+                                                            .subtract(new BigDecimal("0.168317")))
+                                                            .subtract(BigInteger.valueOf(1310316))) // min ada to receive 1
+                .fee(null)
+                .receiver(receiver2)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        // should fail since not enough funds to pay min ada for receiver 1
+        var transaction = utxoTransactionBuilder.buildTransaction(Arrays.asList(paymentTransaction1, paymentTransaction2), detailsParams, null, protocolParams);
+
+        assertThat(transaction.getBody().getInputs(), hasSize(1));
+        assertThat(transaction.getBody().getOutputs(), hasSize(2));
+        assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed"));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(ONE_ADA));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(1310316)));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets().get(0).getValue(), is(BigInteger.valueOf(1000)));
+    }
+
     public static Map<String, BigInteger> getInputAmounts(List<Utxo> utxos, Transaction transaction){
         return utxos.stream()
                 .filter(it -> transaction.getBody().getInputs().stream().filter(tx -> tx.getTransactionId().equals(it.getTxHash()) && tx.getIndex() == it.getOutputIndex()).findFirst().isPresent())
