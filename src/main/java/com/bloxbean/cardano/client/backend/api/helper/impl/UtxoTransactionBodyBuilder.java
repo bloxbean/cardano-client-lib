@@ -85,7 +85,7 @@ public class UtxoTransactionBodyBuilder {
                 null,
                 null,
                 null,
-                null);  // TODO add network?
+                detailsParams != null ? detailsParams.getNetworkId() : null);
     }
 
     public static TransactionBody buildTransferBody(List<PaymentTransaction> requests,
@@ -144,7 +144,7 @@ public class UtxoTransactionBodyBuilder {
                 null,
                 null,
                 null,
-                null); // TODO add network?
+                detailParams != null ? detailParams.getNetworkId() : null);
     }
 
     private static Map<String, List<Amount>> mergeCosts(Map<String, BigInteger> costPerSender, Map<String, List<Amount>> requestedAmountPerSender){
@@ -175,15 +175,25 @@ public class UtxoTransactionBodyBuilder {
 
     // initialize base + multi assets with negative amount (based on what was requested)
     private static OutputAmount initChangeAmount(List<Amount> requestedAmounts){
-        BigInteger baseAmount = BigInteger.ZERO;
-        List<MultiAsset> multiAssets = new ArrayList<>();
-        for(var amount : requestedAmounts){
-            if(CardanoConstants.LOVELACE.equals(amount.getUnit())) {
-                baseAmount = baseAmount.subtract(amount.getQuantity());
-            } else {
-                multiAssets.add(AssetUtil.getMultiAssetFromUnitAndAmount(amount.getUnit(), BigInteger.ZERO.subtract(amount.getQuantity())));
-            }
-        }
+        BigInteger baseAmount = requestedAmounts.stream()
+                .filter(amount -> CardanoConstants.LOVELACE.equals(amount.getUnit()))
+                .map(amount -> amount.getQuantity())
+                .reduce(BigInteger.ZERO, BigInteger::subtract);
+        List<MultiAsset> multiAssets = requestedAmounts.stream()
+                .filter(amount -> !CardanoConstants.LOVELACE.equals(amount.getUnit()))
+                .map(amount -> new Tuple<>(AssetUtil.getPolicyIdAndAssetName(amount.getUnit()), amount.getQuantity()))
+                // group by policy id
+                .collect(Collectors.groupingBy(tuple -> tuple._1._1,
+                         Collectors.groupingBy(tuple -> tuple._1._2,
+                         Collectors.reducing(
+                                 BigInteger.ZERO,
+                                 tuple -> tuple._2,
+                                 BigInteger::add))
+                         )).entrySet().stream()
+                .map(entry -> new MultiAsset(entry.getKey(), entry.getValue().entrySet().stream()
+                        .map(valueEntry -> new Asset(valueEntry.getKey(), valueEntry.getValue().negate()))
+                        .collect(Collectors.toList())))
+                .collect(Collectors.toList());
         return new OutputAmount(baseAmount, multiAssets);
     }
     private static Asset toAsset(Amount amount){
@@ -268,7 +278,7 @@ public class UtxoTransactionBodyBuilder {
                     //Get utxos
                     var allUsedUtxos = new HashSet<>(usedUtxos);
                     allUsedUtxos.addAll(additionalUtxos);
-                    Set<Utxo> newUtxos = calculateUtxos(sender, Collections.singletonList(new Amount(CardanoConstants.LOVELACE, minRequiredLovelaceInOutput)), allUsedUtxos, selectionStrategy);
+                    Set<Utxo> newUtxos = calculateUtxos(sender, Collections.singletonList(new Amount(CardanoConstants.LOVELACE, minRequiredLovelaceInOutput.subtract(changeAmount.getBaseAmount()))), allUsedUtxos, selectionStrategy);
                     if(newUtxos.isEmpty()) {
                         if(log.isDebugEnabled()) {
                             log.warn("Not enough utxos found to cover minimum lovelace in an output");

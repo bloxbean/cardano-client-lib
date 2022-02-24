@@ -680,7 +680,7 @@ public class UtxoTransactionBuilderTest {
 
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
 
-        verify(utxoService, atLeast(2)).getUtxos(any(), anyInt(), anyInt(), any());
+        verify(utxoService, atLeast(1)).getUtxos(any(), anyInt(), anyInt(), any());
     }
 
     @Test

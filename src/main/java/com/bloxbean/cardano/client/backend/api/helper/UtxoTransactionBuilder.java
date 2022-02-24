@@ -44,7 +44,9 @@ public interface UtxoTransactionBuilder {
      * @param amount
      * @return
      * @throws ApiException
+     * @deprecated use {@link UtxoSelectionStrategy} directly
      */
+    @Deprecated
     List<Utxo> getUtxos(String address, String unit, BigInteger amount) throws ApiException;
 
     /**

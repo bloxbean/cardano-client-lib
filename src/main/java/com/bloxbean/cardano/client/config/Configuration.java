@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.config;
 
+import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.crypto.api.SigningProvider;
 import com.bloxbean.cardano.client.crypto.api.impl.EdDSASigningProvider;
 import com.bloxbean.cardano.client.crypto.bip39.DefaultEntropyProviderImpl;
@@ -13,6 +14,7 @@ public enum Configuration {
     private SigningProvider signingProvider;
     private EntropyProvider entropyProvider;
     private PlutusObjectConverter plutusObjectConverter;
+    private int coinSelectionLimit = 20;
 
     Configuration() {
         signingProvider = new EdDSASigningProvider();
@@ -42,5 +44,13 @@ public enum Configuration {
 
     public void setPlutusObjectConverter(PlutusObjectConverter plutusObjectConverter) {
         this.plutusObjectConverter = plutusObjectConverter;
+    }
+
+    public int getCoinSelectionLimit() {
+        return coinSelectionLimit;
+    }
+
+    public void setCoinSelectionLimit(int coinSelectionLimit) {
+        this.coinSelectionLimit = coinSelectionLimit;
     }
 }
