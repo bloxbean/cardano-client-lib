@@ -7,7 +7,7 @@ import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
@@ -219,7 +219,7 @@ class FeeCalculationServiceTest extends BaseTest {
                 .ttl(199999)
                 .build();
 
-        Assertions.assertThrows(ApiRuntimeException.class, () -> {
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
             BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, detailsParams
                     , null, protocolParams);
         });
