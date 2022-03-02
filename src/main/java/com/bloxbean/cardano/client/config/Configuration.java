@@ -16,6 +16,9 @@ public enum Configuration {
     private PlutusObjectConverter plutusObjectConverter;
     private int coinSelectionLimit = 20;
 
+    //Can be used to set isAndroid programmatically.
+    private boolean isAndroid;
+
     Configuration() {
         signingProvider = new EdDSASigningProvider();
         entropyProvider = new DefaultEntropyProviderImpl();
@@ -52,5 +55,13 @@ public enum Configuration {
 
     public void setCoinSelectionLimit(int coinSelectionLimit) {
         this.coinSelectionLimit = coinSelectionLimit;
+    }
+
+    public boolean isAndroid() {
+        return isAndroid;
+    }
+
+    public void setAndroid(boolean android) {
+        isAndroid = android;
     }
 }
