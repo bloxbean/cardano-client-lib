@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
+import com.bloxbean.cardano.client.transaction.util.cbor.SortedMap;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,6 +12,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -99,8 +101,11 @@ public class MultiAsset {
     }
 
     public void serialize(Map multiAssetMap) {
-        Map assetsMap = new Map();
-        for (Asset asset : assets) {
+        Map assetsMap = new SortedMap();
+        List<Asset> cloneAssets = new ArrayList<>(assets);
+        //sorted based on asset name bytes for canonical cbor
+        Collections.sort(cloneAssets, Comparators.assetComparator);
+        for (Asset asset : cloneAssets) {
             ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
 
             if (asset.getValue().compareTo(BigInteger.ZERO) == 0 || asset.getValue().compareTo(BigInteger.ZERO) == 1) {

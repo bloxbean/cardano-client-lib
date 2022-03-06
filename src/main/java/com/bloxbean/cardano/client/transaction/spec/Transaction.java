@@ -1,19 +1,17 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.CborBuilder;
 import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 @Data
@@ -71,9 +69,6 @@ public class Transaction {
                 body.setAuxiliaryDataHash(auxiliaryDataHash);
             }
 
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            CborBuilder cborBuilder = new CborBuilder();
-
             Array array = new Array();
             Map bodyMap = body.serialize();
             array.add(bodyMap);
@@ -99,11 +94,8 @@ public class Transaction {
             } else
                 array.add(SimpleValue.NULL);
 
-            cborBuilder.add(array);
-
-            new CborEncoder(baos).encode(cborBuilder.build());
-            byte[] encodedBytes = baos.toByteArray();
-            return encodedBytes;
+            //Any sorting requirement in Map is handled in that serialization() method if SortedMap is used
+            return CborSerializationUtil.serialize(array);
         } catch (Exception e) {
             throw new CborSerializationException("CBOR Serialization failed", e);
         }

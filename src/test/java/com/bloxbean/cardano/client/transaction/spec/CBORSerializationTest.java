@@ -14,6 +14,7 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import org.junit.jupiter.api.Nested;
@@ -783,6 +784,15 @@ public class CBORSerializationTest {
         assertThat(txnWithBuilder.getMetadata()).isEqualTo(txnWithBuilder.getAuxiliaryData().getMetadata());
     }
 
+    private String fakeSignAndSerializedRemoveWitness(Transaction transaction) throws CborSerializationException, CborDeserializationException {
+        Transaction signedTxn = TransactionSigner.INSTANCE.sign(transaction, new Account().hdKeyPair());
+        //clear witness
+        signedTxn.setWitnessSet(new TransactionWitnessSet());
+
+        String signedTxnHex = signedTxn.serializeToHex();
+        return signedTxnHex;
+    }
+
     @Nested
     class CanonicalOrdering {
 
@@ -855,12 +865,82 @@ public class CBORSerializationTest {
 
     }
 
-    private String fakeSignAndSerializedRemoveWitness(Transaction transaction) throws CborSerializationException, CborDeserializationException {
-        Transaction signedTxn = TransactionSigner.INSTANCE.sign(transaction, new Account().hdKeyPair());
-        //clear witness
-        signedTxn.setWitnessSet(new TransactionWitnessSet());
+    @Nested
+    class NamiCompatibility {
+        @Test
+        public void testCompatibilityWithNamiTxnHex_1() throws Exception {
+            String namiTxnHex = "84a30082825820a149b3c9740b8f8b957415442336bec65bb393dfa93e88473c71a8fb7959c6d005825820297b1e742de3e7dd5f013424f5ff62d82fdf65f9d7194de1eff286a8232a196c00018282583900aff761fc1d70474cfeec6d86a2e428231949ebeb8b71464791256205167590ce95c329c8b4ba3e8e254bcc2d1e8db792dc66aa0117f94047821a0014851ea1581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da143434144194e20825839003175d03902583e82037438cc86732f6e539f803f9a8b2d4ee164b9d0c77e617030631811f60a1f8a8be26d65a57ff71825b336cc6b76361d821a045c5f93a2581c0f39b76d79c90289b42af0a4759f04c2cb0adcc42ae19787ff8084eea14541444d494e01581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da1434341441a23c19850021a0002aaeda0f5f6";
+            Transaction desTxn = Transaction.deserialize(HexUtil.decodeHexString(namiTxnHex));
 
-        String signedTxnHex = signedTxn.serializeToHex();
-        return signedTxnHex;
+            assertThat(desTxn.serializeToHex()).isEqualTo(namiTxnHex);
+        }
+
+        @Test
+        public void testCompatibilityWithNamiTxnHex_2() throws Exception {
+            String namiTxnHex = "84a300838258209f213609a073f632b0f38c8bf0a2b525f6899a0e5ee006117a5734d3bef2585c048258208a1df7d5c860bb63f3b344c03f4ddd8a34a7619ce223fdb8a73f6e8a92d3813b008258201c4859ad2027aa4d8e17f66e266ea83928d575c9dd9e72ca271db9ca1bf11b4f000182825839009cc9fc0f9d97e92ef5c40931bdc9a327be94f6c9d0390d4cbd8b62d16791a7c8e95c53ffb72600ea13051f03854eef6267298760265f5bbb821a1c528901a3581c0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9efa1434f50441a0bebc214581c0f39b76d79c90289b42af0a4759f04c2cb0adcc42ae19787ff8084eea14541444d494e01581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da143434144148258390015cabc8bf1382d2dae1f317c862c3cd3de6400c8db7de092483ce9c91bfb8f3e334b0d42cf6f28e536bcb3151d64484c5c78d47d849d4291821a0014851ea1581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da143434144194e0c021a0002c851a0f5f6";
+
+            Transaction namiTxn = Transaction.deserialize(HexUtil.decodeHexString(namiTxnHex));
+            String finalTxnHex = namiTxn.serializeToHex();
+
+            assertThat(finalTxnHex).isEqualTo(namiTxnHex);
+        }
+
+        @Test
+        public void testMultiAssetsPolicyIdOrdering() throws Exception {
+            MultiAsset ma1 = MultiAsset.builder()
+                    .policyId("ac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03d")
+                    .assets(List.of(Asset.builder()
+                            .name("0x434144")
+                            .value(BigInteger.valueOf(20)).build()
+                    )).build();
+
+            MultiAsset ma2 = MultiAsset.builder()
+                    .policyId("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef")
+                    .assets(List.of(Asset.builder()
+                            .name("0x4f5044")
+                            .value(BigInteger.valueOf(200000020)).build()
+                    )).build();
+
+            MultiAsset ma3 = MultiAsset.builder()
+                    .policyId("0f39b76d79c90289b42af0a4759f04c2cb0adcc42ae19787ff8084ee")
+                    .assets(List.of(Asset.builder()
+                            .name("0x41444d494e")
+                            .value(BigInteger.valueOf(1)).build()
+                    )).build();
+
+            List<MultiAsset> list = List.of(ma1, ma2, ma3);
+
+            Value value = Value.builder()
+                    .coin(BigInteger.valueOf(134567))
+                    .multiAssets(list).build();
+
+            TransactionOutput txnOut = TransactionOutput.builder()
+                    .address("addr_test1qqp6l53xshenlc939a0q74rd09e7dva8lke0fvs3a7ld5f7y7h8vnukjnluapukncvvpxvjgg4nlwu34w3ywvzngw99sy2rpy3")
+                    .value(value).build();
+
+            byte[] serBytes = CborSerializationUtil.serialize(txnOut.serialize());
+            String serHex = HexUtil.encodeHexString(serBytes);
+
+            //expected
+            String expSerLib = "8258390003afd22685f33fe0b12f5e0f546d7973e6b3a7fdb2f4b211efbeda27c4f5cec9f2d29ff9d0f2d3c3181332484567f772357448e60a68714b821a00020da7a3581c0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9efa1434f50441a0bebc214581c0f39b76d79c90289b42af0a4759f04c2cb0adcc42ae19787ff8084eea14541444d494e01581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da14343414414";
+
+            assertThat(serHex).isEqualTo(expSerLib);
+        }
+
+        @Test
+        void testCompatibilityWithNamiWitness() throws Exception {
+            String namiTxnHex = "84a300838258206deb8993fa4b541892b5b698fef4fbb9ea73265395b5837fe45581b37efb3b7a01825820297b1e742de3e7dd5f013424f5ff62d82fdf65f9d7194de1eff286a8232a196c00825820538586beedfbac419ca3a5983c0efa3f486ffddbebf053824abc778a55c06078000182825839005a512f32ebdd33cbb6525d9fe041b0044ecbb24dec402b5c2c8bf98a1bfb8f3e334b0d42cf6f28e536bcb3151d64484c5c78d47d849d4291821a0014851ea1581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da143434144194da8825839003175d03902583e82037438cc86732f6e539f803f9a8b2d4ee164b9d0c77e617030631811f60a1f8a8be26d65a57ff71825b336cc6b76361d821a003040c9a3581c0f39b76d79c90289b42af0a4759f04c2cb0adcc42ae19787ff8084eea14541444d494e01581c869708e97e418f1422e22f8b026559a565aab320184fdd98efff4f4ca14a2142466426544d6d704001581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da14343414414021a0002c8d5a0f5f6";
+            String namiWitness = "a10081825820a5f73966e73d0bb9eadc75c5857eafd054a0202d716ac6dde00303ee9c0019e358402bfb7ba45583f5826e02d1cee544ab37398a72c0db5e01048f88ebd7c97deff7b49492be0f0edabebe67b14cb8b12a3e68c42cbb0b4970ec2e60919c3a5b6b02";
+            String namiMnemonic = "round stomach concert dizzy pluck express inject seminar satoshi vote essence artist pink awful bubble frog bullet horror spoil risk false dolphin limit sock";
+
+            Transaction transaction = Transaction.deserialize(HexUtil.decodeHexString(namiTxnHex));
+            Account namiAcc = new Account(Networks.testnet(), namiMnemonic);
+            Transaction signedTxn = namiAcc.sign(transaction);
+
+            String finalWitnessHex = HexUtil.encodeHexString(CborSerializationUtil.serialize(signedTxn.getWitnessSet().serialize()));
+
+            assertThat(finalWitnessHex).isEqualTo(namiWitness);
+            assertThat(transaction.serializeToHex()).isEqualTo(namiTxnHex);
+        }
     }
 }

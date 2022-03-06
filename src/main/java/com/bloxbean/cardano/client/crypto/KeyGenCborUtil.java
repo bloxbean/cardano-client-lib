@@ -2,28 +2,25 @@ package com.bloxbean.cardano.client.crypto;
 
 import co.nstant.in.cbor.CborBuilder;
 import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.bouncycastle.util.encoders.Hex;
 
-import java.io.ByteArrayOutputStream;
 import java.util.List;
 
 public class KeyGenCborUtil {
 
     public static String bytesToCbor(byte[] bytes) throws CborSerializationException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         CborBuilder cborBuilder = new CborBuilder();
 
         try {
             List<DataItem> dataItems = cborBuilder.add(bytes).build();
-            new CborEncoder(baos).encode(dataItems);
-            byte[] encodedBytes = baos.toByteArray();
+            byte[] encodedBytes = CborSerializationUtil.serialize(dataItems.toArray(new DataItem[0]));
 
             return Hex.toHexString(encodedBytes);
         } catch (CborException e) {
