@@ -21,6 +21,7 @@ The library has been tested on the following Operating Systems.
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
 - [Cardano-client-lib: Transaction with Metadata in Java - Part II](https://medium.com/p/fa34f403b90e)
 - [Cardano-client-lib: Minting a new Native Token in Java - Part III](https://medium.com/p/1a94a21cfeeb)
+- [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
 
 **Examples**
 
@@ -72,6 +73,8 @@ Other backend like Cardano-wallet will be added in future release.
 
 ### Add dependency
 
+#### For release binary
+
 - For Maven, add the following dependency to project's pom.xml
 ```
         <dependency>
@@ -84,7 +87,45 @@ Other backend like Cardano-wallet will be added in future release.
 - For Gradle, add the following dependency to build.gradle
 
 ```
-compile 'com.bloxbean.cardano:cardano-client-lib:0.1.5'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta2'
+```
+
+#### For snapshot binary
+
+- For Maven, add the following dependency and repository to project's pom.xml
+```
+    <dependencies>
+        <dependency>
+            <groupId>com.bloxbean.cardano</groupId>
+            <artifactId>cardano-client-lib</artifactId>
+            <version>0.2.0-beta3-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+    
+    <repositories>
+        <repository>
+            <id>snapshots-repo</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+```
+- For Gradle, add the following dependency and repository to build.gradle
+
+```
+repositories {
+    ...
+    maven {
+        url "https://oss.sonatype.org/content/repositories/snapshots"
+    }
+}
+
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta3-SNAPSHOT'
 ```
 
 ### Account API Usage
@@ -294,7 +335,7 @@ transactionHelperService.getUtxoTransactionBuilder().setUtxoSelectionStrategy(cu
 ```
 git clone https://github.com/bloxbean/cardano-client-lib.git
 
-./gradlew build fatJar
+./gradlew clean build
 ```
 
 # Run Integration Tests
