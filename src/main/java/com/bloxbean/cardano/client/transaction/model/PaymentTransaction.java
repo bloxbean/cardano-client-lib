@@ -18,7 +18,7 @@ public class PaymentTransaction extends TransactionRequest {
     private String unit;
     private BigInteger amount;
 
-    @Builder
+    @Builder(toBuilder = true)
     public PaymentTransaction(Account sender, String receiver, BigInteger fee, List<Account> additionalWitnessAccounts,
                               List<Utxo> utxosToInclude, String unit, BigInteger amount, String datumHash) {
         super(sender, receiver, fee, additionalWitnessAccounts, utxosToInclude, datumHash);
