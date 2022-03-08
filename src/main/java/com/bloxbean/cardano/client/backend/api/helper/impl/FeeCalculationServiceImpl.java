@@ -58,16 +58,19 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
 
         PaymentTransaction clonePaymentTransaction = paymentTransaction.toBuilder().build();
         if(clonePaymentTransaction.getFee() == null || clonePaymentTransaction.getFee().compareTo(DUMMY_FEE) == -1) //Just a dummy fee
-            clonePaymentTransaction.setFee(DUMMY_FEE); //Set a min fee just for calcuation purpose if not set
+            clonePaymentTransaction.setFee(DUMMY_FEE); //Set a min fee just for calculation purpose if not set
 
         String txnCBORHash;
         try {
             //Build transaction
             txnCBORHash = transactionHelperService.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
         } catch (InsufficientBalanceException e) {
-            clonePaymentTransaction.setFee(MIN_DUMMY_FEE);
-            clonePaymentTransaction.setAmount(clonePaymentTransaction.getAmount().subtract(MIN_DUMMY_FEE));
-            txnCBORHash = transactionHelperService.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
+            if (LOVELACE.equals(clonePaymentTransaction.getUnit())) {
+                clonePaymentTransaction.setFee(MIN_DUMMY_FEE);
+                clonePaymentTransaction.setAmount(clonePaymentTransaction.getAmount().subtract(MIN_DUMMY_FEE));
+                txnCBORHash = transactionHelperService.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
+            } else
+                throw e;
         }
 
         //Calculate fee

@@ -377,6 +377,32 @@ class FeeCalculationServiceTest extends BaseTest {
     }
 
     @Test
+    public void testCalculateFeeWhenSendAll_onlyTokens_throwsException() throws Exception {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_5);
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(1000))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
+            feeCalculationService.calculateFee(paymentTransaction, detailsParams, null, protocolParams);
+        });
+    }
+
+    @Test
     public void testCalculateFeeWhenSendAll_loveLaceAndMultipleTokens() throws Exception {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
