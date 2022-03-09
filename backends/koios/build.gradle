@@ -10,6 +10,7 @@ repositories {
 
 dependencies {
     implementation project(':')
+    implementation group: 'io.github.cardano-community', name: 'koios-java-client', version: '1.4'
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
@@ -35,6 +36,10 @@ sourceSets {
 }
 
 configurations {
+    integrationTestCompile.extendsFrom testCompile
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntime.extendsFrom testRuntime
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 compileJava {
