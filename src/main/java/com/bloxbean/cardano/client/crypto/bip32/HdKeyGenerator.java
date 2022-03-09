@@ -6,8 +6,12 @@ import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.crypto.bip32.util.Hmac;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.util.OSUtil;
 import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAParameterSpec;
+import org.bouncycastle.crypto.digests.SHA512Digest;
+import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator;
+import org.bouncycastle.crypto.params.KeyParameter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +19,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
@@ -71,11 +76,17 @@ public class HdKeyGenerator {
                                     final int keyLength) {
 
         try {
-            SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
-            PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, keyLength);
-            SecretKey key = skf.generateSecret(spec);
-            return key.getEncoded();
-
+            if (OSUtil.isAndroid()) {
+                PKCS5S2ParametersGenerator gen = new PKCS5S2ParametersGenerator(new SHA512Digest());
+                gen.init(new String(password).getBytes(StandardCharsets.UTF_8), salt, iterations);
+                byte[] dk = ((KeyParameter) gen.generateDerivedParameters(keyLength)).getKey();
+                return dk;
+            } else {
+                SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+                PBEKeySpec spec = new PBEKeySpec(password, salt, iterations, keyLength);
+                SecretKey key = skf.generateSecret(spec);
+                return key.getEncoded();
+            }
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             throw new RuntimeException(e);
         }

@@ -1,12 +1,12 @@
 package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.CborBuilder;
-import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.MajorType;
 import co.nstant.in.cbor.model.Number;
+import com.bloxbean.cardano.client.transaction.util.cbor.CustomCborEncoder;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
@@ -85,9 +85,9 @@ public class CborSerializationUtil {
         }
 
         if (canonical) {
-            new CborEncoder(baos).encode(cborBuilder.build());
+            new CustomCborEncoder(baos).encode(cborBuilder.build());
         } else {
-            new CborEncoder(baos).nonCanonical().encode(cborBuilder.build());
+            new CustomCborEncoder(baos).nonCanonical().encode(cborBuilder.build());
         }
 
         byte[] encodedBytes = baos.toByteArray();

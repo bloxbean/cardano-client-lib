@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -262,7 +263,7 @@ class InputBuildersTest extends BaseTest {
 
         TxBuilderContext context = new TxBuilderContext(backendService);
 
-        assertThrows(ApiRuntimeException.class, () -> {
+        assertThrows(InsufficientBalanceException.class, () -> {
             TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, changeAddress)
                     .apply(context, outputs);
         });
@@ -304,7 +305,7 @@ class InputBuildersTest extends BaseTest {
 
         TxBuilderContext context = new TxBuilderContext(backendService);
 
-        assertThrows(ApiRuntimeException.class, () -> {
+        assertThrows(InsufficientBalanceException.class, () -> {
             TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, changeAddress)
                     .apply(context, outputs);
         });

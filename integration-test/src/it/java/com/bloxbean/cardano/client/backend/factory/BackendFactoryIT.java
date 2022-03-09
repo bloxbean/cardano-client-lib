@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
@@ -75,5 +76,30 @@ public class BackendFactoryIT extends BaseITTest {
 
         System.out.println(JsonUtil.getPrettyJson(latestBlock));
         assertThat(latestBlock.getValue(), is(notNullValue()));
+
+        waitForTransaction(result);
+    }
+
+    private void waitForTransaction(Result<TransactionResult> result) {
+        try {
+            if (result.isSuccessful()) { //Wait for transaction to be mined
+                int count = 0;
+                while (count < 60) {
+                    Result<TransactionContent> txnResult
+                            = backendService.getTransactionService().getTransaction(result.getValue().getTransactionId());
+                    if (txnResult.isSuccessful()) {
+                        System.out.println(JsonUtil.getPrettyJson(txnResult.getValue()));
+                        break;
+                    } else {
+                        System.out.println("Waiting for transaction to be mined ....");
+                    }
+
+                    count++;
+                    Thread.sleep(2000);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

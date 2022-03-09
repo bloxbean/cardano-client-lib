@@ -1,8 +1,6 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
-import co.nstant.in.cbor.CborBuilder;
 import co.nstant.in.cbor.CborDecoder;
-import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
@@ -10,9 +8,9 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
 import com.bloxbean.cardano.client.metadata.helper.MetadataToJsonNoSchemaConverter;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 
-import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
@@ -83,15 +81,7 @@ public class CBORMetadata implements Metadata {
 
     public byte[] serialize() throws MetadataSerializationException {
         try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            CborBuilder cborBuilder = new CborBuilder();
-
-            cborBuilder.add(map);
-
-            new CborEncoder(baos).encode(cborBuilder.build());
-            byte[] encodedBytes = baos.toByteArray();
-
-            return encodedBytes;
+            return CborSerializationUtil.serialize(map);
         } catch (Exception ex) {
             throw new MetadataSerializationException("CBOR serialization exception ", ex);
         }

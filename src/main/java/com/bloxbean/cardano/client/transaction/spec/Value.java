@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
+import com.bloxbean.cardano.client.transaction.util.cbor.SortedMap;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,6 +13,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 
@@ -63,19 +65,13 @@ public class Value {
     }
 
     public Map serialize() throws CborSerializationException {
-        Map map = new Map();
+        Map map = new SortedMap();
         if (multiAssets != null) {
-            for (MultiAsset multiAsset : multiAssets) {
+            List<MultiAsset> cloneMultiAssets = new ArrayList<>(multiAssets);
+            //sorted based on policy id for canonical cbor
+            Collections.sort(cloneMultiAssets, (m1, m2) -> m1.getPolicyId().compareTo(m2.getPolicyId()));
+            for (MultiAsset multiAsset : cloneMultiAssets) {
                 multiAsset.serialize(map);
-                /*Map assetsMap = new Map();
-                for (Asset asset : multiAsset.getAssets()) {
-                    ByteString assetNameBytes = new ByteString(asset.getNameAsBytes());
-                    UnsignedInteger value = new UnsignedInteger(asset.getValue());
-                    assetsMap.put(assetNameBytes, value);
-                }
-
-                ByteString policyIdByte = new ByteString(HexUtil.decodeHexString(multiAsset.getPolicyId()));
-                map.put(policyIdByte, assetsMap);*/
             }
         }
         return map;

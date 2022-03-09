@@ -89,7 +89,8 @@ public class FeeCalculators {
             if (updateOutputWithFeeFunc == null) {
                 //Update amount in change address
                 tbody.getOutputs().stream().filter(output -> changeAddress.equals(output.getAddress()))
-                        .findFirst()
+                        //Find the output with max lovelace value if multiple outputs for change address. Fee will be deducted from that
+                        .max((to1, to2) -> to1.getValue().getCoin().compareTo(to2.getValue().getCoin()))
                         .ifPresentOrElse(output -> {
                             output.getValue().setCoin(output.getValue().getCoin().subtract(totalFee));
                         }, () -> {

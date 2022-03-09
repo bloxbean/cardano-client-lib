@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.function.helper;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
+import com.bloxbean.cardano.client.transaction.spec.script.Script;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,12 +19,12 @@ public class MintCreators {
      * <br>Adds <code>MultiAsset</code> to mint field of <code>TransactionBody</code>.
      * <br>Adds policy script to <code>TransactionWitnessSet</code>
      * <br>Adds policy script to <code>AuxiliaryData</code>
-     * @param policy     Policy instance
+     * @param script     Script instance
      * @param multiAsset MultiAsset to mint
      * @return <code>{@link TxBuilder}</code> function
      */
-    public static TxBuilder mintCreator(Policy policy, MultiAsset multiAsset) {
-        return mintCreator(policy, multiAsset, false);
+    public static TxBuilder mintCreator(Script script, MultiAsset multiAsset) {
+        return mintCreator(script, multiAsset, false);
     }
 
     /**
@@ -31,13 +32,13 @@ public class MintCreators {
      * <br>Adds <code>MultiAsset</code> to mint field of <code>TransactionBody</code>.
      * <br>Adds policy script to <code>TransactionWitnessSet</code>
      * <br>Adds policy script to <code>AuxiliaryData</code>
-     * @param policy     Policy instance
+     * @param script     Script instance
      * @param multiAsset MultiAsset to mint
      * @param inclScriptInAuxData Add policy's native script to <code>AuxiliaryData</code> field
      * @return <code>{@link TxBuilder}</code> function
      */
-    public static TxBuilder mintCreator(Policy policy, MultiAsset multiAsset, boolean inclScriptInAuxData) {
-        Objects.requireNonNull(policy);
+    public static TxBuilder mintCreator(Script script, MultiAsset multiAsset, boolean inclScriptInAuxData) {
+        Objects.requireNonNull(script);
         Objects.requireNonNull(multiAsset);
 
         return (context, transaction) -> {
@@ -49,15 +50,23 @@ public class MintCreators {
                 transaction.getBody().getMint().add(multiAsset);
             }
 
-            NativeScript script = policy.getPolicyScript();
-
             if (inclScriptInAuxData) {
-                if (!transaction.getAuxiliaryData().getNativeScripts().contains(script))
-                    transaction.getAuxiliaryData().getNativeScripts().add(script);
+                if (script instanceof NativeScript) {
+                    if (!transaction.getAuxiliaryData().getNativeScripts().contains(script))
+                        transaction.getAuxiliaryData().getNativeScripts().add((NativeScript) script);
+                } else if (script instanceof PlutusScript) {
+                    if (!transaction.getAuxiliaryData().getPlutusScripts().contains(script))
+                        transaction.getAuxiliaryData().getPlutusScripts().add((PlutusScript) script);
+                }
             }
 
-            if (!transaction.getWitnessSet().getNativeScripts().contains(script))
-                transaction.getWitnessSet().getNativeScripts().add(script);
+            if (script instanceof NativeScript) {
+                if (!transaction.getWitnessSet().getNativeScripts().contains(script))
+                    transaction.getWitnessSet().getNativeScripts().add((NativeScript) script);
+            } else if (script instanceof PlutusScript) {
+                if (!transaction.getWitnessSet().getPlutusScripts().contains(script))
+                    transaction.getWitnessSet().getPlutusScripts().add((PlutusScript) script);
+            }
         };
     }
 
