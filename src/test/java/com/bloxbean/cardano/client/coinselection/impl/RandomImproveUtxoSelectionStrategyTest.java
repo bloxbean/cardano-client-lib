@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.coinselection.impl;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.model.Amount;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
@@ -63,7 +62,7 @@ class RandomImproveUtxoSelectionStrategyTest {
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(this.utxoService, true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
 
         var requested = new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN));
         Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
@@ -87,7 +86,7 @@ class RandomImproveUtxoSelectionStrategyTest {
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(this.utxoService, true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
 
         var requested = new Amount(CardanoConstants.LOVELACE, BigInteger.valueOf(995770000).add(BigInteger.valueOf(999817955).add(BigInteger.valueOf(983172035))));
 
@@ -104,7 +103,7 @@ class RandomImproveUtxoSelectionStrategyTest {
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(this.utxoService, true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
 
         var requested = new Amount(CardanoConstants.LOVELACE, BigInteger.valueOf(995770000).add(BigInteger.valueOf(999817955).add(BigInteger.valueOf(983172035))).divide(BigInteger.TWO));
 
@@ -143,7 +142,7 @@ class RandomImproveUtxoSelectionStrategyTest {
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(this.utxoService, true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
 
         var requested = new Amount(unit, BigInteger.ONE);
 
@@ -165,7 +164,7 @@ class RandomImproveUtxoSelectionStrategyTest {
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(this.utxoService, true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
         
         var requested = new Amount(unit, BigInteger.valueOf(4000000000L));
 
@@ -188,7 +187,7 @@ class RandomImproveUtxoSelectionStrategyTest {
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(this.utxoService, true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
 
         var requested = new Amount(unit, BigInteger.valueOf(200000000L));
 
@@ -210,7 +209,7 @@ class RandomImproveUtxoSelectionStrategyTest {
         given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
         given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(this.utxoService, true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
         
         Set<Utxo> selectedUtxos1 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, Collections.emptySet(), 40);
         Set<Utxo> selectedUtxos2 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, Collections.emptySet(), 40);

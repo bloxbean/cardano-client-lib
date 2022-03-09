@@ -56,7 +56,7 @@ class LargestFirstUtxoSelectionStrategyImplTest {
         List<Utxo> utxos = loadUtxos(LIST_1);
         given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
 
-        LargestFirstUtxoSelectionStrategy selectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoService);
+        LargestFirstUtxoSelectionStrategy selectionStrategy = new LargestFirstUtxoSelectionStrategy(new DefaultUtxoSupplier(utxoService));
         List<Utxo> selectedUtxos = selectionStrategy.selectUtxos(address, LOVELACE, new BigInteger("7500"), Collections.EMPTY_SET);
 
         List<String> txnHashList = selectedUtxos.stream().map(utxo -> utxo.getTxHash()).collect(Collectors.toList());
@@ -74,7 +74,7 @@ class LargestFirstUtxoSelectionStrategyImplTest {
         List<Utxo> utxos = loadUtxos(LIST_1);
         given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
 
-        LargestFirstUtxoSelectionStrategy selectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoService);
+        LargestFirstUtxoSelectionStrategy selectionStrategy = new LargestFirstUtxoSelectionStrategy(new DefaultUtxoSupplier(utxoService));
         selectionStrategy.setIgnoreUtxosWithDatumHash(false);
 
         List<Utxo> selectedUtxos = selectionStrategy.selectUtxos(address, LOVELACE, new BigInteger("7500"), Collections.EMPTY_SET);

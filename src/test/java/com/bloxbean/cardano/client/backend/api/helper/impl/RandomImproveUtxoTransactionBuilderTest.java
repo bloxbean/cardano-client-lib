@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.impl.RandomImproveUtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.ADAConversionUtil;
 import com.bloxbean.cardano.client.common.CardanoConstants;
@@ -60,7 +61,7 @@ public class RandomImproveUtxoTransactionBuilderTest {
     @BeforeEach
     public void setup() {
         MockitoAnnotations.openMocks(this);
-        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(new RandomImproveUtxoSelectionStrategy(utxoService));
+        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(utxoService)));
         protocolParams = ProtocolParams.builder()
                 .coinsPerUtxoWord("34482")
                 .build();
