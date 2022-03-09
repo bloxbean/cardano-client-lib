@@ -18,7 +18,7 @@ public interface MetadataService {
      * @return
      * @throws ApiException
      */
-    public Result<List<MetadataJSONContent>> getJSONMetadataByTxnHash(String txnHash) throws ApiException;
+    Result<List<MetadataJSONContent>> getJSONMetadataByTxnHash(String txnHash) throws ApiException;
 
     /**
      * Get metadata for a txn in CBOR format
@@ -26,7 +26,7 @@ public interface MetadataService {
      * @return
      * @throws ApiException
      */
-    public Result<List<MetadataCBORContent>> getCBORMetadataByTxnHash(String txnHash) throws ApiException;
+    Result<List<MetadataCBORContent>> getCBORMetadataByTxnHash(String txnHash) throws ApiException;
 
     /**
      * Get all metadata labels
@@ -36,7 +36,7 @@ public interface MetadataService {
      * @return
      * @throws ApiException
      */
-    public Result<List<MetadataLabel>> getMetadataLabels(int count, int page, OrderEnum order) throws ApiException;
+    Result<List<MetadataLabel>> getMetadataLabels(int count, int page, OrderEnum order) throws ApiException;
 
     /**
      * Get list of {@link MetadataJSONContent} by label
@@ -47,7 +47,7 @@ public interface MetadataService {
      * @return
      * @throws ApiException
      */
-    public Result<List<MetadataJSONContent>> getJSONMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) throws ApiException;
+    Result<List<MetadataJSONContent>> getJSONMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) throws ApiException;
 
     /**
      * Get list of {@link MetadataCBORContent} by label
@@ -58,6 +58,6 @@ public interface MetadataService {
      * @return
      * @throws ApiException
      */
-    public Result<List<MetadataCBORContent>> getCBORMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) throws ApiException;
+    Result<List<MetadataCBORContent>> getCBORMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) throws ApiException;
 
 }
