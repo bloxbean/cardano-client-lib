@@ -10,57 +10,66 @@ public interface BackendService {
 
     /**
      * Get AssetService
-     * @return
+     *
+     * @return {@link AssetService}
      */
-    public AssetService getAssetService();
+    AssetService getAssetService();
 
     /**
      * Get BlockService
-     * @return
+     *
+     * @return {@link BlockService}
      */
-    public BlockService getBlockService();
+    BlockService getBlockService();
 
     /**
      * Get NetworkInfoService
-     * @return
+     *
+     * @return {@link NetworkInfoService}
      */
-    public NetworkInfoService getNetworkInfoService();
+    NetworkInfoService getNetworkInfoService();
 
     /**
      * Get Transaction service
-     * @return
+     *
+     * @return {@link TransactionService}
      */
-    public TransactionService getTransactionService();
+    TransactionService getTransactionService();
 
     /**
      * Get UtxoService
-     * @return
+     *
+     * @return {@link UtxoService}
      */
-    public UtxoService getUtxoService();
+    UtxoService getUtxoService();
 
     /**
      * Get AddressService
-     * @return
+     *
+     * @return {@link AddressService}
      */
-    public AddressService getAddressService();
+    AddressService getAddressService();
 
     /**
      * Get EpochService
-     * @return
+     *
+     * @return {@link EpochService}
      */
-    public EpochService getEpochService();
+    EpochService getEpochService();
 
     /**
      * Get MetadataService
-     * @return
+     *
+     * @return {@link MetadataService}
      */
-    public MetadataService getMetadataService();
+    MetadataService getMetadataService();
 
     /**
      * Get TransactionHelperService
-     * @return
+     *
+     * @return {@link TransactionHelperService}
      */
-    default public TransactionHelperService getTransactionHelperService() {
+    default TransactionHelperService getTransactionHelperService() {
         TransactionHelperService transactionHelperService = new TransactionHelperService(getTransactionService(),
                 getEpochService(), getUtxoService());
         return transactionHelperService;
@@ -68,27 +77,30 @@ public interface BackendService {
 
     /**
      * Get UtxoTransactionBuilder
-     * @return
+     *
+     * @return {@link UtxoTransactionBuilder}
      */
-    default public UtxoTransactionBuilder getUtxoTransactionBuilder() {
+    default UtxoTransactionBuilder getUtxoTransactionBuilder() {
         UtxoTransactionBuilder utxoTransactionBuilder = new UtxoTransactionBuilderImpl(getUtxoService());
         return utxoTransactionBuilder;
     }
 
     /**
      * Get FeeCalculationService
-     * @return
+     *
+     * @return {@link FeeCalculationService}
      */
-    default public FeeCalculationService getFeeCalculationService() {
+    default FeeCalculationService getFeeCalculationService() {
         return new FeeCalculationServiceImpl(getTransactionHelperService(), getEpochService());
     }
 
     /**
      * Get FeeCalculationService
+     *
      * @param transactionHelperService TransactionHelperService instance
-     * @return
+     * @return {@link FeeCalculationService}
      */
-    default public FeeCalculationService getFeeCalculationService(TransactionHelperService transactionHelperService) {
+    default FeeCalculationService getFeeCalculationService(TransactionHelperService transactionHelperService) {
         return new FeeCalculationServiceImpl(transactionHelperService, getEpochService());
     }
 }
