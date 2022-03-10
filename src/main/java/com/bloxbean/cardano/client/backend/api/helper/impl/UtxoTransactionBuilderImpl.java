@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.model.MintTransaction;
@@ -32,8 +33,19 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
     /**
      * Create a {@link UtxoTransactionBuilder} with {@link DefaultUtxoSelectionStrategyImpl}
      *
-     * @param utxoService
+     * @param utxoSupplier
      */
+    public UtxoTransactionBuilderImpl(UtxoSupplier utxoSupplier) {
+        this.utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
+    }
+
+    /**
+     * Create a {@link UtxoTransactionBuilder} with {@link DefaultUtxoSelectionStrategyImpl}
+     *
+     * @param utxoService
+     * @deprecated use UtxoSupplier
+     */
+    @Deprecated
     public UtxoTransactionBuilderImpl(UtxoService utxoService) {
         this.utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
     }

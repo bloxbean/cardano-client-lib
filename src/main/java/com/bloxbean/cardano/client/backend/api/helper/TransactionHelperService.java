@@ -10,6 +10,8 @@ import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.UtxoSupplier;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -41,17 +43,27 @@ public class TransactionHelperService {
     private ProtocolParams protocolParams;
 
     /**
-     * Create a {@link TransactionHelperService} from {@link TransactionService} and {@link UtxoService}
+     * Create a {@link TransactionHelperService} from {@link TransactionService} and {@link UtxoSupplier}
+     *
+     * @param transactionService
+     * @param utxoSupplier
+     */
+    public TransactionHelperService(TransactionService transactionService, EpochService epochService, UtxoSupplier utxoSupplier) {
+        this.transactionService = transactionService;
+        this.utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoSupplier);
+        this.epochService = epochService;
+    }
+    /**
+     * Create a {@link TransactionHelperService} from {@link TransactionService} and {@link UtxoSupplier}
      *
      * @param transactionService
      * @param utxoService
+     * @deprecated use UtxoSupplier
      */
+    @Deprecated
     public TransactionHelperService(TransactionService transactionService, EpochService epochService, UtxoService utxoService) {
-        this.transactionService = transactionService;
-        this.utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
-        this.epochService = epochService;
+        this(transactionService, epochService, new DefaultUtxoSupplier(utxoService));
     }
-
     /**
      * Create a {@link TransactionHelperService} from {@link TransactionService} and custom {@link UtxoTransactionBuilder} implementation
      *

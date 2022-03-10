@@ -1,13 +1,11 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.common.OrderEnum;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
 import lombok.Setter;
 
@@ -20,16 +18,16 @@ import java.util.stream.Collectors;
  */
 public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy {
 
-    private final UtxoService utxoService;
+    private final UtxoSupplier utxoSupplier;
     @Setter
     private boolean ignoreUtxosWithDatumHash;
 
-    public LargestFirstUtxoSelectionStrategy(UtxoService utxoService) {
-        this(utxoService, true);
+    public LargestFirstUtxoSelectionStrategy(UtxoSupplier utxoSupplier) {
+        this(utxoSupplier, true);
     }
 
-    public LargestFirstUtxoSelectionStrategy(UtxoService utxoService, boolean ignoreUtxosWithDatumHash) {
-        this.utxoService = utxoService;
+    public LargestFirstUtxoSelectionStrategy(UtxoSupplier utxoSupplier, boolean ignoreUtxosWithDatumHash) {
+        this.utxoSupplier = utxoSupplier;
         this.ignoreUtxosWithDatumHash = ignoreUtxosWithDatumHash;
     }
 
@@ -50,7 +48,7 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
                     .filter(entry -> BigInteger.ZERO.compareTo(entry.getValue()) < 0)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            var fetchResult = fetchAllUtxos(sender, this.utxoService);
+            var fetchResult = this.utxoSupplier.getAll(sender);
 
             var allUtxos = fetchResult.stream()
                                                  .sorted(sortLargestFirst(outputAmounts))
@@ -105,27 +103,7 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
                 return fallback.select(sender, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
             }
             throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
-        }catch(ApiException e){
-            throw new ApiRuntimeException("Unable to fetch UTXOs", e);
         }
-    }
-
-    static List<Utxo> fetchAllUtxos(String address, UtxoService utxoService) throws ApiException{
-        final var nrOfItemsToFetch = 100;
-        var pageToFetch = 0;
-        var result = new ArrayList<Utxo>();
-        // call fetch until result is empty or < nr of items
-        while(true){
-            var pageResult = utxoService.getUtxos(address, nrOfItemsToFetch, pageToFetch + 1, OrderEnum.asc);
-            if(pageResult != null && pageResult.getValue() != null){
-                result.addAll(pageResult.getValue());
-            }
-            if(pageResult == null || pageResult.getValue() == null || pageResult.getValue().isEmpty()){
-                break;
-            }
-            pageToFetch += 1;
-        }
-        return result;
     }
 
     private static Comparator<Utxo> sortLargestFirst(List<Amount> outputAmounts){
