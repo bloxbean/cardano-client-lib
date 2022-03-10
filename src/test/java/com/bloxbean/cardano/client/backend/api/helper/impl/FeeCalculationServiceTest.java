@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,6 +52,10 @@ class FeeCalculationServiceTest extends BaseTest {
 
     public static final String LIST_1 = "list1";
     public static final String LIST_2 = "list2-insufficient-change-amount";
+    public static final String LIST_3 = "list3-send-all-only-lovelace";
+    public static final String LIST_4 = "list4-send-all-not-enough-lovelace";
+    public static final String LIST_5 = "list5-send-all-lovelace-all-tokens";
+    public static final String LIST_6 = "list6-send-all-lovelace-all-multiple-tokens";
 
     @Mock
     UtxoService utxoService;
@@ -281,5 +286,231 @@ class FeeCalculationServiceTest extends BaseTest {
 
         BigInteger fee = feeCalculationService.calculateScriptFee(Arrays.asList(exUnits1, exUnits2));
         assertThat(fee.intValue(), is(296));
+    }
+
+    @Test
+    public void testCalculateFeeWhenSendAll_Lovelace() throws Exception {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_3);
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(adaToLovelace(1.5))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, detailsParams, null, protocolParams);
+
+        System.out.println(fee);
+        assertThat(fee, greaterThan(BigInteger.valueOf(150000)));
+    }
+
+    @Test
+    public void testCalculateFeeWhenSendAll_notEnoughLovelace_throwsException() throws Exception {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_4);
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(adaToLovelace(0.9))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
+            feeCalculationService.calculateFee(paymentTransaction, detailsParams
+                    , null, protocolParams);
+        });
+    }
+
+    @Test
+    public void testCalculateFeeWhenSendAll_bothLoveLaceAndTokens() throws Exception {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_5);
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(adaToLovelace(1.5))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction2 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(1000))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(List.of(paymentTransaction1, paymentTransaction2), detailsParams
+                , null, protocolParams);
+
+        System.out.println(fee);
+        assertThat(fee, greaterThan(BigInteger.valueOf(150000)));
+    }
+
+    @Test
+    public void testCalculateFeeWhenSendAll_onlyTokens_throwsException() throws Exception {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_5);
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(1000))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        Assertions.assertThrows(InsufficientBalanceException.class, () -> {
+            feeCalculationService.calculateFee(paymentTransaction, detailsParams, null, protocolParams);
+        });
+    }
+
+    @Test
+    public void testCalculateFeeWhenSendAll_loveLaceAndMultipleTokens() throws Exception {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_6);
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(adaToLovelace(2))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction2 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("04309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(1000))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction3 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("05309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(2000))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction4 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("06309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(3000))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction5 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(4000))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(List.of(paymentTransaction1, paymentTransaction2,
+                paymentTransaction3, paymentTransaction4, paymentTransaction5), detailsParams
+                , null, protocolParams);
+
+        System.out.println(fee);
+        assertThat(fee, greaterThan(BigInteger.valueOf(170000)));
+    }
+
+    @Test
+    public void testCalculateFeeWhenSendAll_loveLaceAndMultipleTokens_lovelacePaymentTxnIsNotTheFirstOneInList() throws Exception {
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        List<Utxo> utxos = loadUtxos(LIST_6);
+        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
+        Account sender = new Account(Networks.testnet());
+        PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit(CardanoConstants.LOVELACE)
+                .amount(adaToLovelace(2))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction2 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("04309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(1000))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction3 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("05309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(2000))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction4 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("06309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(3000))
+                .receiver(receiver)
+                .build();
+
+        PaymentTransaction paymentTransaction5 = PaymentTransaction.builder()
+                .sender(sender)
+                .unit("07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e")
+                .amount(BigInteger.valueOf(4000))
+                .receiver(receiver)
+                .build();
+
+        TransactionDetailsParams detailsParams = TransactionDetailsParams.builder()
+                .ttl(199999)
+                .build();
+
+        BigInteger fee = feeCalculationService.calculateFee(List.of(paymentTransaction2,
+                paymentTransaction3, paymentTransaction4, paymentTransaction1,  paymentTransaction5), detailsParams
+                , null, protocolParams);
+
+        System.out.println(fee);
+        assertThat(fee, greaterThan(BigInteger.valueOf(170000)));
     }
 }

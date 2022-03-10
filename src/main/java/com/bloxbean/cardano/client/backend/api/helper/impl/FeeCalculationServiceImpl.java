@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.backend.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
@@ -19,11 +20,19 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 public class FeeCalculationServiceImpl implements FeeCalculationService {
+    //A dummy fee which is used during regular fee calculation
+    private final static BigInteger DUMMY_FEE = BigInteger.valueOf(170000);
+
+    //A very minimum fee which is used during retry after InsufficientBalanceException.
+    //Here the goal is to make the fee calculation successful by reducing cost during transaction building.
+    private final static BigInteger MIN_DUMMY_FEE = BigInteger.valueOf(100000);
 
     private TransactionHelperService transactionHelperService;
     private EpochService epochService;
@@ -47,10 +56,22 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
     public BigInteger calculateFee(PaymentTransaction paymentTransaction, TransactionDetailsParams detailsParams,
                                    Metadata metadata, ProtocolParams protocolParams) throws CborSerializationException, AddressExcepion, ApiException {
 
-        if(paymentTransaction.getFee() == null || paymentTransaction.getFee().compareTo(BigInteger.valueOf(170000)) == -1) //Just a dummy fee
-            paymentTransaction.setFee(new BigInteger("170000")); //Set a min fee just for calcuation purpose if not set
-        //Build transaction
-        String txnCBORHash = transactionHelperService.createSignedTransaction(Arrays.asList(paymentTransaction), detailsParams, metadata);
+        PaymentTransaction clonePaymentTransaction = paymentTransaction.toBuilder().build();
+        if(clonePaymentTransaction.getFee() == null || clonePaymentTransaction.getFee().compareTo(DUMMY_FEE) == -1) //Just a dummy fee
+            clonePaymentTransaction.setFee(DUMMY_FEE); //Set a min fee just for calculation purpose if not set
+
+        String txnCBORHash;
+        try {
+            //Build transaction
+            txnCBORHash = transactionHelperService.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
+        } catch (InsufficientBalanceException e) {
+            if (LOVELACE.equals(clonePaymentTransaction.getUnit())) {
+                clonePaymentTransaction.setFee(MIN_DUMMY_FEE);
+                clonePaymentTransaction.setAmount(clonePaymentTransaction.getAmount().subtract(MIN_DUMMY_FEE));
+                txnCBORHash = transactionHelperService.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
+            } else
+                throw e;
+        }
 
         //Calculate fee
         return doFeeCalculationFromTxnSize(HexUtil.decodeHexString(txnCBORHash), protocolParams);
@@ -70,8 +91,8 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
     public BigInteger calculateFee(MintTransaction mintTransaction, TransactionDetailsParams detailsParams,
                                    Metadata metadata, ProtocolParams protocolParams) throws ApiException,
             CborSerializationException, AddressExcepion {
-        if(mintTransaction.getFee() == null || mintTransaction.getFee().compareTo(BigInteger.valueOf(170000)) == -1) //Just a dummy fee
-            mintTransaction.setFee(new BigInteger("170000")); //Set a min fee just for calcuation purpose if not set
+        if(mintTransaction.getFee() == null || mintTransaction.getFee().compareTo(DUMMY_FEE) == -1) //Just a dummy fee
+            mintTransaction.setFee(DUMMY_FEE); //Set a min fee just for calcuation purpose if not set
         //Build transaction
         String txnCBORHash = transactionHelperService.createSignedMintTransaction(mintTransaction, detailsParams, metadata);
 
@@ -91,7 +112,7 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
     @Override
     public BigInteger calculateFee(Transaction transaction, ProtocolParams protocolParams) throws CborSerializationException {
         if(transaction.getBody().getFee() == null) //Just a dummy fee
-            transaction.getBody().setFee(new BigInteger("170000")); //Set a min fee just for calcuation purpose if not set
+            transaction.getBody().setFee(DUMMY_FEE); //Set a min fee just for calcuation purpose if not set
 
         byte[] serializedBytes = transaction.serialize();
         return doFeeCalculationFromTxnSize(serializedBytes, protocolParams);
@@ -124,21 +145,32 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
     @Override
     public BigInteger calculateFee(List<PaymentTransaction> paymentTransactions, TransactionDetailsParams detailsParams,
                                    Metadata metadata, ProtocolParams protocolParams) throws CborSerializationException, AddressExcepion, ApiException {
+        //Clone
+        List<PaymentTransaction> clonePaymentTransactions = paymentTransactions.stream()
+                .map(paymentTransaction -> paymentTransaction.toBuilder().build())
+                .collect(Collectors.toList());
 
-        List<BigInteger> originalFees = new ArrayList<>(); //keep copy of original fee
-        paymentTransactions.forEach(paymentTransaction -> {
-            originalFees.add(paymentTransaction.getFee());
-            if(paymentTransaction.getFee() == null || paymentTransaction.getFee().compareTo(BigInteger.valueOf(170000)) == -1) //Just a dummy fee
-                paymentTransaction.setFee(new BigInteger("170000")); //Set a min fee just for calcuation purpose if not set
+        //Set fee only for the first payment transaction. NULL for others
+        clonePaymentTransactions.get(0).setFee(DUMMY_FEE);
+        clonePaymentTransactions.stream().skip(1).forEach(paymentTransaction -> {
+            paymentTransaction.setFee(null);
         });
 
-
         //Build transaction
-        String txnCBORHash = transactionHelperService.createSignedTransaction(paymentTransactions, detailsParams, metadata);
+        String txnCBORHash;
+        try {
+            txnCBORHash = transactionHelperService.createSignedTransaction(clonePaymentTransactions, detailsParams, metadata);
+        } catch (InsufficientBalanceException exception) {
+            //Update fee in the first payment transaction
+            clonePaymentTransactions.get(0).setFee(MIN_DUMMY_FEE);
+            //substract DUMMY_FEE from lovelace txn
+            clonePaymentTransactions.stream().filter(paymentTransaction -> paymentTransaction.getUnit().equals(LOVELACE))
+                    .findFirst()
+                    .ifPresent(paymentTransaction -> {
+                        paymentTransaction.setAmount(paymentTransaction.getAmount().subtract(MIN_DUMMY_FEE));
+                    });
 
-        //reset to original fee in the input paymentransactions
-        for (int i=0; i < paymentTransactions.size();i++) {
-            paymentTransactions.get(i).setFee(originalFees.get(i));
+            txnCBORHash = transactionHelperService.createSignedTransaction(clonePaymentTransactions, detailsParams, metadata);
         }
 
         //Calculate fee
