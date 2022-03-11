@@ -2,10 +2,7 @@ package com.bloxbean.cardano.client.backend.koios;
 
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.TransactionContent;
-import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
-import com.bloxbean.cardano.client.backend.model.TxOutputAmount;
+import com.bloxbean.cardano.client.backend.model.*;
 import rest.koios.client.backend.api.transactions.TransactionsService;
 import rest.koios.client.backend.api.transactions.model.*;
 
@@ -148,15 +145,39 @@ public class KoiosTransactionService implements TransactionService {
             return convertToTxContentUtxo(txUtxosResult.getValue().get(0));
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
-//        } catch (ParseException e) {
-//            return Result.error("Failed to Parse Tx Timestamp").code(500);
         }
     }
 
     private Result<TxContentUtxo> convertToTxContentUtxo(TxUtxo txUtxo) {
         TxContentUtxo txContentUtxo = new TxContentUtxo();
-//        txContentUtxo.setInputs();
-//        txContentUtxo.setOutputs(); txUtxo.
+        //Inputs
+        List<TxContentUtxoInputs> inputs = new ArrayList<>();
+        for (TxIO txIO : txUtxo.getInputs()) {
+            List<TxContentOutputAmount> txContentOutputAmountList = new ArrayList<>();
+            if (txIO.getValue() != null && !txIO.getValue().isEmpty()) {
+                txContentOutputAmountList.add(new TxContentOutputAmount(LOVELACE, txIO.getValue()));
+            }
+            for (TxAsset txAsset : txIO.getAssetList()) {
+                txContentOutputAmountList.add(new TxContentOutputAmount(txAsset.getPolicyId() + txAsset.getAssetName(), txAsset.getQuantity()));
+            }
+            inputs.add(new TxContentUtxoInputs(txIO.getPaymentAddr().getBech32(), txContentOutputAmountList));
+        }
+        if (!inputs.isEmpty()) {
+            txContentUtxo.setInputs(inputs);
+        }
+        //Outputs
+        List<TxContentUtxoOutputs> outputs = new ArrayList<>();
+        for (TxIO txIO : txUtxo.getOutputs()) {
+            List<TxContentOutputAmount> txContentOutputAmountList = new ArrayList<>();
+            if (txIO.getValue() != null && !txIO.getValue().isEmpty()) {
+                txContentOutputAmountList.add(new TxContentOutputAmount(LOVELACE, txIO.getValue()));
+            }
+            for (TxAsset txAsset : txIO.getAssetList()) {
+                txContentOutputAmountList.add(new TxContentOutputAmount(txAsset.getPolicyId() + txAsset.getAssetName(), txAsset.getQuantity()));
+            }
+            outputs.add(new TxContentUtxoOutputs(txIO.getPaymentAddr().getBech32(), txContentOutputAmountList));
+        }
+        txContentUtxo.setOutputs(outputs);
         return Result.success("OK").withValue(txContentUtxo).code(200);
     }
 }
