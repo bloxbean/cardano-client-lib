@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.backend.koios.it;
 
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.koios.Constants;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
 
 public class KoiosBaseTest {

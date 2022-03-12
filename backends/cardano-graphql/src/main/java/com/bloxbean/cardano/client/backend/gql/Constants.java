@@ -1,5 +1,6 @@
-package com.bloxbean.cardano.client.backend.gql.it;
+package com.bloxbean.cardano.client.backend.gql;
 
-public class Constant {
+public class Constants {
+
     public final static String GQL_URL = "https://graphql-api.testnet.dandelion.link/";
 }

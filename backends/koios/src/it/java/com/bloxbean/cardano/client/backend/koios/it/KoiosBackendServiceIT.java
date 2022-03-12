@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.backend.koios.it;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.NetworkInfoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.koios.Constants;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
 import com.bloxbean.cardano.client.backend.model.Genesis;
 import com.bloxbean.cardano.client.backend.model.Result;

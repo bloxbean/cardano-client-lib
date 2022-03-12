@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.backend.gql.it;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.NetworkInfoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.gql.Constants;
 import com.bloxbean.cardano.client.backend.gql.GqlBackendService;
 import com.bloxbean.cardano.client.backend.gql.adapter.AddHeadersInterceptor;
 import com.bloxbean.cardano.client.backend.model.Genesis;
@@ -22,7 +23,7 @@ public class GqlBackendServiceIT {
 
     @Test
     public void testCreateBackendServiceWithUrl() throws ApiException {
-        BackendService backendService = new GqlBackendService(Constant.GQL_URL);
+        BackendService backendService = new GqlBackendService(Constants.GQL_URL);
         NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
 
         getNetworkInfoAndCompare(networkInfoService);
@@ -34,7 +35,7 @@ public class GqlBackendServiceIT {
         headers.put("AuthKey", "Some Auth key");
         headers.put("CustomHeader", "Some header");
 
-        BackendService backendService = new GqlBackendService(Constant.GQL_URL, headers);
+        BackendService backendService = new GqlBackendService(Constants.GQL_URL, headers);
         NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
 
         getNetworkInfoAndCompare(networkInfoService);
@@ -53,7 +54,7 @@ public class GqlBackendServiceIT {
             okHttpClientBuilder.addInterceptor(new AddHeadersInterceptor(headers));
         }
 
-        BackendService backendService = new GqlBackendService(Constant.GQL_URL, okHttpClientBuilder.build());
+        BackendService backendService = new GqlBackendService(Constants.GQL_URL, okHttpClientBuilder.build());
 
         NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
 
@@ -74,7 +75,7 @@ public class GqlBackendServiceIT {
         }
 
         assertThrows(Exception.class, () -> {
-            BackendService backendService = new GqlBackendService(Constant.GQL_URL, okHttpClientBuilder.build());
+            BackendService backendService = new GqlBackendService(Constants.GQL_URL, okHttpClientBuilder.build());
             NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
             getNetworkInfoAndCompare(networkInfoService);
         });
