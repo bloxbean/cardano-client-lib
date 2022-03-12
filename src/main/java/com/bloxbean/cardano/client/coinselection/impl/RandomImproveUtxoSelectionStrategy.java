@@ -1,12 +1,11 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,16 +25,16 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
 
     private final SecureRandom secureRandom = initRandomGenerator();
 
-    private final UtxoService utxoService;
+    private final UtxoSupplier utxoSupplier;
     @Setter
     private boolean ignoreUtxosWithDatumHash;
 
-    public RandomImproveUtxoSelectionStrategy(UtxoService utxoService) {
-        this(utxoService, true);
+    public RandomImproveUtxoSelectionStrategy(UtxoSupplier utxoSupplier) {
+        this(utxoSupplier, true);
     }
 
-    public RandomImproveUtxoSelectionStrategy(UtxoService utxoService, boolean ignoreUtxosWithDatumHash) {
-        this.utxoService = utxoService;
+    public RandomImproveUtxoSelectionStrategy(UtxoSupplier utxoSupplier, boolean ignoreUtxosWithDatumHash) {
+        this.utxoSupplier = utxoSupplier;
         this.ignoreUtxosWithDatumHash = ignoreUtxosWithDatumHash;
     }
 
@@ -58,7 +57,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
              *
              * If the remaining UTxO set is completely exhausted before all outputs can be processed, the algorithm terminates with an error.
              */
-            var randomPhaseResult = selectRandom(outputAmounts, LargestFirstUtxoSelectionStrategy.fetchAllUtxos(address, this.utxoService), datumHash, utxosToExclude, maxUtxoSelectionLimit);
+            var randomPhaseResult = selectRandom(outputAmounts, this.utxoSupplier.getAll(address), datumHash, utxosToExclude, maxUtxoSelectionLimit);
 
             /*
              * Phase 2: Improvement
@@ -96,8 +95,6 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
                 return fallback.select(address, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
             }
             throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
-        }catch(ApiException e){
-            throw new ApiRuntimeException("Unable to fetch UTXOs", e);
         }
     }
 
@@ -280,7 +277,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
 
     @Override
     public UtxoSelectionStrategy fallback() {
-        return new LargestFirstUtxoSelectionStrategy(this.utxoService, this.ignoreUtxosWithDatumHash);
+        return new LargestFirstUtxoSelectionStrategy(this.utxoSupplier, this.ignoreUtxosWithDatumHash);
     }
 
     @Getter

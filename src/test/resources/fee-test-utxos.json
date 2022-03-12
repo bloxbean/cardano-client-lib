@@ -84,5 +84,85 @@
       "block": "eee6cd082d297f85406cff49f83aa3ebd1083dae3c8997ec03f4a17f49297bf6",
       "data_hash": null
     }
+  ],
+  "list3-send-all-only-lovelace": [
+    {
+      "tx_hash": "f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1500000"
+        }
+      ],
+      "block": "10974607187afacfeed5e3eaf4342e06bad0f26de438319eca18fa93f6a1541e",
+      "data_hash": null
+    }
+  ],
+  "list4-send-all-not-enough-lovelace": [
+    {
+      "tx_hash": "f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "900000"
+        }
+      ],
+      "block": "10974607187afacfeed5e3eaf4342e06bad0f26de438319eca18fa93f6a1541e",
+      "data_hash": null
+    }
+  ],
+  "list5-send-all-lovelace-all-tokens": [
+    {
+      "tx_hash": "f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "1500000"
+        },
+        {
+          "unit": "07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e",
+          "quantity": "1000"
+        }
+      ],
+      "block": "10974607187afacfeed5e3eaf4342e06bad0f26de438319eca18fa93f6a1541e",
+      "data_hash": null
+    }
+  ],
+  "list6-send-all-lovelace-all-multiple-tokens": [
+    {
+      "tx_hash": "f3c464be15a5e29a1a6d322c5cd040c87075d1cfc89d4b397568d14c0ba53cd9",
+      "tx_index": 1,
+      "output_index": 1,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "2000000"
+        },
+        {
+          "unit": "04309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e",
+          "quantity": "1000"
+        },
+        {
+          "unit": "05309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e",
+          "quantity": "2000"
+        },
+        {
+          "unit": "06309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e",
+          "quantity": "3000"
+        },
+        {
+          "unit": "07309ed26f7636932617826b6991c7b6d8a7fa8fea66c5b9f020e6874d59546f6b656e",
+          "quantity": "4000"
+        }
+      ],
+      "block": "10974607187afacfeed5e3eaf4342e06bad0f26de438319eca18fa93f6a1541e",
+      "data_hash": null
+    }
   ]
 }

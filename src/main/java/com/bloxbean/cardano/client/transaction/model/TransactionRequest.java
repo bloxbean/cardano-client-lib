@@ -18,11 +18,11 @@ public abstract class TransactionRequest {
     protected BigInteger fee;
 
     //Optional - parameter for now. Can be used in future to add multiple witness accounts to a transaction
-    private List<Account> additionalWitnessAccounts;
+    protected List<Account> additionalWitnessAccounts;
 
     //Optional - Utxos to include to the transaction
-    private List<Utxo> utxosToInclude;
+    protected List<Utxo> utxosToInclude;
 
     //Datumhash - Required when receiver is a script
-    private String datumHash;
+    protected String datumHash;
 }

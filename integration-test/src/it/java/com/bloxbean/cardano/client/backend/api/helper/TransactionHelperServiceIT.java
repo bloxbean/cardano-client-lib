@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.backend.api.*;
 import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
@@ -33,13 +34,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
+import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -1397,5 +1402,132 @@ class TransactionHelperServiceIT extends BaseITTest {
         ObjectNode root = (ObjectNode) rootNode;
 
         return root.get(key);
+    }
+
+    @Nested
+    class SendAllScenarios {
+
+        @Test
+        void sendAllWhenOnlyLovelace() throws Exception {
+            String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account sender = new Account(Networks.testnet(), senderMnemonic);
+            System.out.println("Sender: " + sender.baseAddress());
+
+            //Create a random receiver
+            Account receiver = new Account(Networks.testnet());
+            String receiverAddress = receiver.baseAddress();
+
+            Amount lovelaceAmount = new Amount(LOVELACE, adaToLovelace(1.5));
+            Result<TransactionResult> result = payTo(sender, receiverAddress, List.of(lovelaceAmount));
+            assertThat(result.isSuccessful(), is(true));
+            waitForTransaction(result);
+
+            //Refund all lovelace from receiver to sender
+            PaymentTransaction paymentTransaction =
+                    PaymentTransaction.builder()
+                            .sender(receiver)
+                            .receiver(sender.baseAddress())
+                            .amount(adaToLovelace(1.5))
+                            .unit(LOVELACE)
+                            .build();
+
+            BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+
+            //Update the amount and fee
+            paymentTransaction.setAmount(paymentTransaction.getAmount().subtract(fee));
+            paymentTransaction.setFee(fee);
+
+            System.out.println(paymentTransaction);
+
+            result = transactionHelperService.transfer(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+            System.out.println(result);
+
+            assertThat(result.isSuccessful(), is(true));
+            waitForTransaction(result);
+        }
+
+        @Test
+        void sendAllWhenLovelaceAndTokens() throws Exception {
+            String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account sender = new Account(Networks.testnet(), senderMnemonic);
+            System.out.println("Sender >>> " + sender.baseAddress());
+
+            //Create a random receiver
+            Account receiver = new Account(Networks.testnet());
+            String receiverAddress = receiver.baseAddress();
+
+            Amount lovelaceAmount = new Amount(LOVELACE, adaToLovelace(1.54));
+            //If it fails.. then check the available token at sender
+            Amount tokenAmount = new Amount("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e", BigInteger.valueOf(5));
+            Result<TransactionResult> result = payTo(sender, receiverAddress, List.of(lovelaceAmount, tokenAmount));
+            assertThat(result.isSuccessful(), is(true));
+            waitForTransaction(result);
+
+            //Refund all lovelace from receiver to sender
+            PaymentTransaction lovelacePayment =
+                    PaymentTransaction.builder()
+                            .sender(receiver)
+                            .receiver(sender.baseAddress())
+                            .amount(lovelaceAmount.getQuantity())
+                            .unit(lovelaceAmount.getUnit())
+                            .build();
+
+            PaymentTransaction tokenPayment =
+                    PaymentTransaction.builder()
+                            .sender(receiver)
+                            .receiver(sender.baseAddress())
+                            .amount(tokenAmount.getQuantity())
+                            .unit(tokenAmount.getUnit())
+                            .build();
+
+            BigInteger fee = feeCalculationService.calculateFee(List.of(lovelacePayment, tokenPayment), TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+
+            //Update the amount and fee
+            lovelacePayment.setAmount(lovelacePayment.getAmount().subtract(fee));
+            lovelacePayment.setFee(fee);
+
+            System.out.println(List.of(lovelaceAmount, tokenPayment));
+
+            result = transactionHelperService.transfer(List.of(lovelacePayment, tokenPayment), TransactionDetailsParams.builder().ttl(getTtl()).build());
+
+            System.out.println(result);
+
+            assertThat(result.isSuccessful(), is(true));
+            waitForTransaction(result);
+        }
+
+        private Result<TransactionResult> payTo(Account sender, String receiverAddress, List<Amount> amounts) throws ApiException, CborSerializationException, AddressExcepion {
+
+            List<PaymentTransaction> payments = new ArrayList<>();
+
+            amounts.forEach( amount -> {
+                        PaymentTransaction paymentTransaction =
+                                PaymentTransaction.builder()
+                                        .sender(sender)
+                                        .receiver(receiverAddress)
+                                        .amount(amount.getQuantity())
+                                        .unit(amount.getUnit())
+                                        .build();
+                        payments.add(paymentTransaction);
+                    });
+
+            Result<TransactionResult> result = null;
+            if (payments.size() == 1) {
+                BigInteger fee = feeCalculationService.calculateFee(payments.get(0), TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+                payments.get(0).setFee(fee);
+                result = transactionHelperService.transfer(payments.get(0), TransactionDetailsParams.builder().ttl(getTtl()).build());
+            } else {
+                BigInteger fee = feeCalculationService.calculateFee(payments, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
+                payments.get(0).setFee(fee);
+                result = transactionHelperService.transfer(payments, TransactionDetailsParams.builder().ttl(getTtl()).build());
+            }
+
+            if (result.isSuccessful())
+                System.out.println("Transaction Id: " + result.getValue());
+            else
+                System.out.println("Transaction failed: " + result);
+            return result;
+        }
     }
 }

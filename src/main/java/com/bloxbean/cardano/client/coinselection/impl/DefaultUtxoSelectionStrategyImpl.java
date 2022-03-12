@@ -2,12 +2,12 @@ package com.bloxbean.cardano.client.coinselection.impl;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
 import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
 import lombok.Setter;
 
@@ -21,16 +21,21 @@ import java.util.stream.Collectors;
  */
 public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
 
-    private final UtxoService utxoService;
+    private final UtxoSupplier utxoSupplier;
     @Setter
     private boolean ignoreUtxosWithDatumHash;
 
+    @Deprecated
     public DefaultUtxoSelectionStrategyImpl(UtxoService utxoService) {
-        this(utxoService, true);
+        this(new DefaultUtxoSupplier(utxoService));
     }
 
-    public DefaultUtxoSelectionStrategyImpl(UtxoService utxoService, boolean ignoreUtxosWithDatumHash) {
-        this.utxoService = utxoService;
+    public DefaultUtxoSelectionStrategyImpl(UtxoSupplier utxoSupplier) {
+        this(utxoSupplier, true);
+    }
+
+    public DefaultUtxoSelectionStrategyImpl(UtxoSupplier utxoSupplier, boolean ignoreUtxosWithDatumHash) {
+        this.utxoSupplier = utxoSupplier;
         this.ignoreUtxosWithDatumHash = ignoreUtxosWithDatumHash;
     }
 
@@ -56,11 +61,10 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
             final int nrOfItems = 100;
 
             while(!remaining.isEmpty()){
-                var fetchResult = utxoService.getUtxos(sender, nrOfItems, page + 1, OrderEnum.asc);
+                var fetchResult = utxoSupplier.getPage(sender, nrOfItems, page, OrderEnum.asc);
 
-                var fetched = fetchResult != null && fetchResult.getValue() != null
-                        ? fetchResult.getValue()
-                                     .stream()
+                var fetched = fetchResult != null
+                        ? fetchResult.stream()
                                      .sorted(sortByMostMatchingAssets(outputAmounts))
                                      .collect(Collectors.toList())
                         : Collections.<Utxo>emptyList();
@@ -119,8 +123,6 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                 return fallback.select(sender, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
             }
             throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
-        }catch(ApiException e){
-            throw new ApiRuntimeException("Unable to fetch UTXOs", e);
         }
     }
 
@@ -140,7 +142,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
 
     @Override
     public UtxoSelectionStrategy fallback() {
-        return new LargestFirstUtxoSelectionStrategy(this.utxoService, this.ignoreUtxosWithDatumHash);
+        return new LargestFirstUtxoSelectionStrategy(this.utxoSupplier, this.ignoreUtxosWithDatumHash);
     }
 
     protected boolean accept(Utxo utxo) {

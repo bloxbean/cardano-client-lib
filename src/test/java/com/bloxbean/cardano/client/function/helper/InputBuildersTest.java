@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.backend.model.Amount;
 import com.bloxbean.cardano.client.backend.model.ProtocolParams;
