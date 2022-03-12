@@ -25,6 +25,7 @@ public class AddressContent {
     private List<TxContentOutputAmount> amount = new ArrayList<>();
     private String stakeAddress;
     private TypeEnum type;
+    private Boolean script;
 
     /**
      * Address era

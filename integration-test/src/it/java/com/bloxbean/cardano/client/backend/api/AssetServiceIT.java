@@ -41,6 +41,17 @@ public class AssetServiceIT extends BaseITTest {
     }
 
     @Test
+    void getAssetToken() throws ApiException {
+        AssetService service = new BFAssetService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+        Result<Asset> result = service.getAsset("34250edd1e9836f5378702fbf9416b709bc140e04f668cc3552085184154414441636f696e");
+
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+        assertTrue(result.isSuccessful());
+        assertEquals(200, result.code());
+        assertNotNull(result.getValue());
+    }
+
+    @Test
     void getAssetAddresses_DESC() throws ApiException {
         AssetService service = new BFAssetService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
         Result<List<AssetAddress>> result = service.getAssetAddresses("5c2171471578441ab237b76531539b2d5bfa4193be4aab0466b817f454657374746f6b656e313233", 100, 1, OrderEnum.desc);

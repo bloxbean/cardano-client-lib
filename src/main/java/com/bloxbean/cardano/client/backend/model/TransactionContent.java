@@ -18,8 +18,11 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class TransactionContent {
+
+    private String hash;
     private String block;
     private Integer blockHeight;
+    private Integer blockTime;
     private Integer slot;
     private Integer index;
 
@@ -32,8 +35,12 @@ public class TransactionContent {
     private String invalidHereafter;
     private Integer utxoCount;
     private Integer withdrawalCount;
+    private Integer mirCertCount;
     private Integer delegationCount;
     private Integer stakeCertCount;
     private Integer poolUpdateCount;
     private Integer poolRetireCount;
+    private Integer assetMintOrBurnCount;
+    private Integer redeemerCount;
+    private Boolean validContract;
 }

@@ -10,6 +10,7 @@ import java.math.BigInteger;
 @AllArgsConstructor
 @EqualsAndHashCode
 public class Amount {
+
     private String unit;
     private BigInteger quantity;
 }

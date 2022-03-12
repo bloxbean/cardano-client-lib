@@ -17,7 +17,7 @@ public interface UtxoService {
      * @return List of Utxos for a address
      * @throws ApiException
      */
-    public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException;
+    Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException;
 
     /**
      *
@@ -28,5 +28,5 @@ public interface UtxoService {
      * @return
      * @throws ApiException
      */
-    public Result<List<Utxo>> getUtxos(String address, int count, int page, OrderEnum order) throws ApiException;
+    Result<List<Utxo>> getUtxos(String address, int count, int page, OrderEnum order) throws ApiException;
 }

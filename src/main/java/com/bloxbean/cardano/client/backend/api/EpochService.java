@@ -12,7 +12,7 @@ public interface EpochService {
      * @return
      * @throws ApiException
      */
-    public Result<EpochContent> getLatestEpoch() throws ApiException;
+    Result<EpochContent> getLatestEpoch() throws ApiException;
 
     /**
      * Get epoch content by number
@@ -20,7 +20,7 @@ public interface EpochService {
      * @return
      * @throws ApiException
      */
-    public Result<EpochContent> getEpoch(Integer epoch) throws ApiException;
+    Result<EpochContent> getEpoch(Integer epoch) throws ApiException;
 
     /**
      * Get protocol parameters at epoch
@@ -28,12 +28,12 @@ public interface EpochService {
      * @return
      * @throws ApiException
      */
-    public Result<ProtocolParams> getProtocolParameters(Integer epoch) throws ApiException;
+    Result<ProtocolParams> getProtocolParameters(Integer epoch) throws ApiException;
 
     /**
      * Get current protocol parameters
      * @return
      * @throws ApiException
      */
-    public Result<ProtocolParams> getProtocolParameters() throws ApiException;
+    Result<ProtocolParams> getProtocolParameters() throws ApiException;
 }

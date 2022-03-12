@@ -17,11 +17,12 @@ public class AssetUtil {
      * Get policy id and asset name in hex from asset id
      * Policy id is returned without hex prefix (0x)
      * Asset name is returned with hex prefix (0x)
-     * @param asssetId
-     * @return
+     *
+     * @param assetId assetId
+     * @return Tuple Of PolicyId and Asset Name
      */
-    public static Tuple<String, String> getPolicyIdAndAssetName(String asssetId) {
-        byte[] bytes = HexUtil.decodeHexString(asssetId);
+    public static Tuple<String, String> getPolicyIdAndAssetName(String assetId) {
+        byte[] bytes = HexUtil.decodeHexString(assetId);
         ByteBuffer bb = ByteBuffer.wrap(bytes);
 
         byte[] policyId = new byte[28];
@@ -36,14 +37,15 @@ public class AssetUtil {
 
     /**
      * Calculate fingerprint from policy id and asset name (CIP-0014)
+     *
      * @param policyIdHex  Policy id
      * @param assetNameHex Asset name in hex
      * @return
      */
     public static String calculateFingerPrint(String policyIdHex, String assetNameHex) {
-        if(assetNameHex.startsWith("0x"))
+        if (assetNameHex.startsWith("0x"))
             assetNameHex = assetNameHex.substring(2);
-        if(policyIdHex.startsWith("0x"))
+        if (policyIdHex.startsWith("0x"))
             policyIdHex = policyIdHex.substring(2);
 
         String assetId = policyIdHex + assetNameHex;
@@ -52,18 +54,19 @@ public class AssetUtil {
         List<Integer> words = convertBits(hashBytes, 8, 5, false);
         byte[] bytes = new byte[words.size()];
 
-        for(int i=0; i < words.size(); i++) {
+        for (int i = 0; i < words.size(); i++) {
             bytes[i] = words.get(i).byteValue();
         }
 
         String hrp = "asset";
 
-       return Bech32.encode(hrp, bytes);
+        return Bech32.encode(hrp, bytes);
     }
 
 
     /**
      * Get unit name from policy id and asset name
+     *
      * @param policyId
      * @param asset
      * @return unit name
@@ -74,8 +77,9 @@ public class AssetUtil {
 
     /**
      * Create a <code>{@link MultiAsset}</code> from unit and qty
+     *
      * @param unit unit of the asset (policy id + asset name)
-     * @param qty value
+     * @param qty  value
      * @return <code>MultiAsset</code>
      */
     public static MultiAsset getMultiAssetFromUnitAndAmount(String unit, BigInteger qty) {

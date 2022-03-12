@@ -18,7 +18,7 @@ public interface AddressService {
      * @param address
      * @return
      */
-    public Result<AddressContent> getAddressInfo(String address) throws ApiException;
+    Result<AddressContent> getAddressInfo(String address) throws ApiException;
 
     /**
      * Get transactions on the address
@@ -28,7 +28,7 @@ public interface AddressService {
      * @return
      * @throws ApiException
      */
-    public Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page) throws ApiException;
+    Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page) throws ApiException;
 
     /**
      * Get transactions on the address
@@ -39,7 +39,7 @@ public interface AddressService {
      * @return
      * @throws ApiException
      */
-    public Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page, OrderEnum order) throws ApiException;
+    Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page, OrderEnum order) throws ApiException;
 
     /**
      * Get transactions on the address
