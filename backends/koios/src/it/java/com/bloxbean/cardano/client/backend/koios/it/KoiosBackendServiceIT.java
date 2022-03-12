@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.backend.koios.it;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.NetworkInfoService;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
-
+import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
 import com.bloxbean.cardano.client.backend.model.Genesis;
 import com.bloxbean.cardano.client.backend.model.Result;
@@ -16,7 +16,7 @@ public class KoiosBackendServiceIT {
 
     @Test
     public void testCreateTestnetBackendServiceWithUrl() throws ApiException {
-        BackendService backendService = new KoiosBackendService(Constant.KOIOS_TESTNET_URL);
+        BackendService backendService = new KoiosBackendService(Constants.KOIOS_TESTNET_URL);
         NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
 
         getNetworkInfoAndCompare(networkInfoService);
