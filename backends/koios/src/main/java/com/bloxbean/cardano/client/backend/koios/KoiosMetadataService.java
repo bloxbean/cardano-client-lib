@@ -16,6 +16,7 @@ import rest.koios.client.backend.factory.options.*;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class KoiosMetadataService implements MetadataService {
@@ -42,7 +43,13 @@ public class KoiosMetadataService implements MetadataService {
 
     private Result<List<MetadataJSONContent>> convertToMetadataJSONContentList(TxMetadata txMetadata) {
         List<MetadataJSONContent> metadataJSONContentList = new ArrayList<>();
-        objectMapper.convertValue(txMetadata.getMetadata(), JsonNode.class);
+        JsonNode metadata = objectMapper.convertValue(txMetadata.getMetadata(), JsonNode.class);
+        String txHash = txMetadata.getTxHash();
+        Iterator<String> labelIterator = metadata.fieldNames();
+        while (labelIterator.hasNext()) {
+            String label = labelIterator.next();
+            metadataJSONContentList.add(new MetadataJSONContent(txHash, label, metadata.get(label)));
+        }
         return Result.success("OK").withValue(metadataJSONContentList).code(200);
     }
 
