@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.backend.gql.it;
 
 import com.bloxbean.cardano.client.backend.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.backend.gql.Constants;
 import com.bloxbean.cardano.client.backend.gql.GqlAddressService;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
 import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
@@ -19,7 +20,7 @@ public class GqlAddressServiceIT {
 
     @BeforeEach
     public void setup() {
-        addressService = new GqlAddressService(Constant.GQL_URL);
+        addressService = new GqlAddressService(Constants.GQL_URL);
     }
 
     @Test

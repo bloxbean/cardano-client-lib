@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.gql.it;
 
+import com.bloxbean.cardano.client.backend.gql.Constants;
 import com.bloxbean.cardano.client.backend.gql.GqlBackendService;
 
 import java.util.HashMap;
@@ -19,6 +20,6 @@ public class GqlBaseTest {
         headers.put("AuthKey", "Some Auth key");
         headers.put("CustomHeader", "Some header");
 
-        backendService = new GqlBackendService(Constant.GQL_URL, headers);
+        backendService = new GqlBackendService(Constants.GQL_URL, headers);
     }
 }
