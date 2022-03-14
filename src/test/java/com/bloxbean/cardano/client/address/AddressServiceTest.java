@@ -153,6 +153,16 @@ class AddressServiceTest {
 
             assertThat(address.toBech32()).isEqualTo("addr_test1wpnlxv2xv9a9ucvnvzqakwepzl9ltx7jzgm53av2e9ncv4sysemm8");
         }
+
+        @Test
+        void getScriptStakeAddress_whenNativeScript() throws CborSerializationException {
+            ScriptAtLeast scriptAtLeast = getMultisigScript();
+
+            Address address = AddressService.getInstance().getRewardAddress(scriptAtLeast, Networks.testnet());
+            System.out.println(address.toBech32());
+
+            assertThat(address.toBech32()).isEqualTo("stake_test17zchaw4vxmmpws44ffh99eqzmlg6wr3swg36pqug8xn20ygxq70wf");
+        }
     }
 
     @Nested

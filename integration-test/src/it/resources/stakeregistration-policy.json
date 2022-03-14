@@ -1,0 +1,22 @@
+{
+  "name" : "some_name",
+  "policyScript" : {
+    "type" : "all",
+    "scripts" : [ {
+      "type" : "sig",
+      "keyHash" : "35cbd0bbeebac25b9168a08930084a691be05c5b5545786fd6c70ec8"
+    }, {
+      "type" : "sig",
+      "keyHash" : "3eed70317d3c243ada8a2458970da7182e79f03cd0a8c3613353c9b1"
+    } ]
+  },
+  "policyKeys" : [ {
+    "type" : "PaymentVerificationKeyShelley_ed25519",
+    "description" : "Payment Signing Key",
+    "cborHex" : "582044f44f3c15f3408f0210873423f42b8af5a45db1f5b2d4cfd7d2877a21ab7af5"
+  }, {
+    "type" : "PaymentVerificationKeyShelley_ed25519",
+    "description" : "Payment Signing Key",
+    "cborHex" : "582015006f05d49bf5d65ecbbc0d1685a5a1be36aa878594605c8bea672a625f9ef3"
+  } ]
+}

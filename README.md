@@ -335,6 +335,7 @@ transactionHelperService.getUtxoTransactionBuilder().setUtxoSelectionStrategy(cu
 ```
 git clone https://github.com/bloxbean/cardano-client-lib.git
 
+export JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
 ./gradlew clean build
 ```
 
