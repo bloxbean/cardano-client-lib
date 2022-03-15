@@ -18,7 +18,9 @@ import java.util.Objects;
 @NoArgsConstructor
 @Builder
 public class Withdrawal {
-    //Bech32 address
+    /**
+     * Bech32 reward address
+     */
     private String rewardAddress;
     private BigInteger coin;
 
@@ -26,7 +28,7 @@ public class Withdrawal {
         Objects.requireNonNull(withdrawalMap);
         Objects.requireNonNull(addrKey);
 
-        String rewardAddress = null;
+        String rewardAddress;
         try {
             rewardAddress = AddressUtil.bytesToAddress(((ByteString) addrKey).getBytes());
         } catch (Exception e) {
