@@ -21,6 +21,10 @@ public class Address {
         this.network = readNetworkType(this.bytes);
     }
 
+    /**
+     * Create Address from a Bech32 address
+     * @param address Bech32 address
+     */
     public Address(String address) {
         if (address == null || address.isEmpty())
             throw new AddressRuntimeException("Address cannot be null or empty");

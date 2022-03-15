@@ -316,6 +316,24 @@ public class Account {
     }
 
     /**
+     * Get Hd key pair for stake address
+     * @return
+     */
+    @JsonIgnore
+    public HdKeyPair stakeHdKeyPair() {
+        return getStakeKeyPair();
+    }
+
+    /**
+     * Get Hd key pair for change address
+     * @return
+     */
+    @JsonIgnore
+    public HdKeyPair changeHdKeyPair() {
+        return getChangeKeyPair();
+    }
+
+    /**
      * @deprecated Use {@link Account#sign(Transaction)}
      * @param txnHex
      * @return
@@ -342,6 +360,15 @@ public class Account {
      */
     public Transaction sign(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getHdKeyPair());
+    }
+
+    /**
+     * Sign a transaction object with stake key
+     * @param transaction
+     * @return Signed Transaction
+     */
+    public Transaction signWithStakeKey(Transaction transaction) {
+        return TransactionSigner.INSTANCE.sign(transaction, getStakeKeyPair());
     }
 
     private void generateNew(Words noOfWords) {

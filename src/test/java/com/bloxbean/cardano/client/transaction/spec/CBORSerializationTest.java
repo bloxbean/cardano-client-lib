@@ -943,4 +943,50 @@ public class CBORSerializationTest {
             assertThat(transaction.serializeToHex()).isEqualTo(namiTxnHex);
         }
     }
+
+    @Nested
+    class WithdrwalTransaction {
+
+        @Test
+        void testSerializeAndDeserializeWithWithdrawal() throws CborSerializationException, CborDeserializationException {
+            TransactionBody txnBody = new TransactionBody();
+
+            long fee = 367965;
+            int ttl = 26194586;
+
+            TransactionInput txnInput = new TransactionInput();
+            txnInput.setTransactionId("73198b7ad003862b9798106b88fbccfca464b1a38afb34958275c4a7d7d8d002"); //989264070
+            txnInput.setIndex(1);
+
+            txnBody.setInputs(Arrays.asList(txnInput));
+
+            //Output 1
+            TransactionOutput txnOutput1 = new TransactionOutput();
+            txnOutput1.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
+            txnOutput1.setValue(new Value(new BigInteger(String.valueOf(40000)), null));
+
+            txnBody.setOutputs(Arrays.asList(txnOutput1));
+            txnBody.setWithdrawals(List.of(
+                    new Withdrawal("stake_test1uqz9t0qhs4fsjzuauul8l7y5galefd4n6342lg289axcj5qe97f84", BigInteger.valueOf(5000)),
+                    new Withdrawal("stake_test1updaungfmrqlw3002699vv6mcsg24eqj3nffd6aqyccjkjc0ltamt", BigInteger.valueOf(9000))));
+            txnBody.setFee(new BigInteger(String.valueOf(fee)));
+            txnBody.setTtl(ttl);
+
+            Transaction transaction = new Transaction();
+            transaction.setBody(txnBody);
+            transaction.setWitnessSet(new TransactionWitnessSet());
+
+            Transaction txnWithBuilder = Transaction.builder()
+                    .body(txnBody)
+                    .witnessSet(new TransactionWitnessSet())
+                    .build();
+
+            byte[] serBytes = txnWithBuilder.serialize();
+
+            Transaction deTransaction = Transaction.deserialize(serBytes);
+
+            assertThat(deTransaction.serializeToHex()).isEqualTo(transaction.serializeToHex());
+            assertThat(deTransaction.getBody().getWithdrawals()).isEqualTo(transaction.getBody().getWithdrawals());
+        }
+    }
 }

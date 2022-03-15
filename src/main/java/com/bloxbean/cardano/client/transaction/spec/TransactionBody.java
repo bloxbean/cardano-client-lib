@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,8 +29,13 @@ public class TransactionBody {
 
     private BigInteger fee;
     private long ttl; //Optional
-    //certs -- Not implemented
-    //withdrawals -- Not implemented
+
+    @Builder.Default
+    private List<Certificate> certs = new ArrayList<>();
+
+    @Builder.Default
+    private List<Withdrawal> withdrawals = new ArrayList<>();
+
     //update -- Not implemented
     private byte[] auxiliaryDataHash; //auxiliary_data_hash
     private long validityStartInterval;
@@ -72,6 +78,23 @@ public class TransactionBody {
 
        if(ttl != 0) {
            bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
+       }
+
+       if (certs != null && certs.size() > 0) { //certs
+           Array certArray = new Array();
+           for (Certificate cert: certs) {
+               certArray.add(cert.serialize());
+           }
+
+           bodyMap.put(new UnsignedInteger(4), certArray);
+       }
+
+       if (withdrawals != null && withdrawals.size() > 0) { //Withdrawals
+           Map withdrawalMap = new Map();
+           for (Withdrawal withdrawal: withdrawals) {
+              withdrawal.serialize(withdrawalMap);
+           }
+           bodyMap.put(new UnsignedInteger(5), withdrawalMap);
        }
 
        if(auxiliaryDataHash != null) {
@@ -155,6 +178,25 @@ public class TransactionBody {
         UnsignedInteger ttlUI = (UnsignedInteger)bodyMap.get(new UnsignedInteger(3));
         if(ttlUI != null) {
             transactionBody.setTtl(ttlUI.getValue().longValue());
+        }
+
+        //certs
+        Array certArray = (Array)bodyMap.get(new UnsignedInteger(4));
+        if (certArray != null && certArray.getDataItems() != null && certArray.getDataItems().size() > 0) {
+            for (DataItem dataItem: certArray.getDataItems()) {
+                Certificate cert = Certificate.deserialize((Array) dataItem);
+                transactionBody.getCerts().add(cert);
+            }
+        }
+
+        //withdrawals
+        Map withdrawalMap = (Map)bodyMap.get(new UnsignedInteger(5));
+        if (withdrawalMap != null && withdrawalMap.getKeys() != null && withdrawalMap.getKeys().size() > 0) {
+            Collection<DataItem> addrKeys = withdrawalMap.getKeys();
+            for (DataItem addrKey: addrKeys) {
+                Withdrawal withdrawal = Withdrawal.deserialize(withdrawalMap, addrKey);
+                transactionBody.getWithdrawals().add(withdrawal);
+            }
         }
 
         ByteString metadataHashBS = (ByteString)bodyMap.get(new UnsignedInteger(7));

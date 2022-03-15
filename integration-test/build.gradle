@@ -18,6 +18,7 @@ dependencies {
     testImplementation 'org.hamcrest:hamcrest-library:2.2'
     testImplementation 'org.mockito:mockito-inline:3.7.7'
     testImplementation 'org.mockito:mockito-junit-jupiter:3.7.7'
+    testImplementation('org.assertj:assertj-core:3.21.0')
 }
 
 sourceSets {
