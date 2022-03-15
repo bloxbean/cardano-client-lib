@@ -47,7 +47,7 @@ public class StakeCredential {
     }
 
     public static StakeCredential fromScriptHash(byte[] scriptHash) {
-        StakeCredential stakeCredential = new StakeCredential(StakeCredType.SCRIPT_HASH, scriptHash);
+        StakeCredential stakeCredential = new StakeCredential(StakeCredType.SCRIPTHASH, scriptHash);
         return stakeCredential;
     }
 
@@ -58,7 +58,7 @@ public class StakeCredential {
      */
     public static StakeCredential fromScript(Script script) {
         try {
-            return new StakeCredential(StakeCredType.SCRIPT_HASH, script.getScriptHash());
+            return new StakeCredential(StakeCredType.SCRIPTHASH, script.getScriptHash());
         } catch (CborSerializationException e) {
             throw new CborRuntimeException("Cbor serialization failed for the script", e);
         }
@@ -88,7 +88,7 @@ public class StakeCredential {
         Array array = new Array();
         if (type == StakeCredType.ADDR_KEYHASH) {
             array.add(new UnsignedInteger(0));
-        } else if (type == StakeCredType.SCRIPT_HASH) {
+        } else if (type == StakeCredType.SCRIPTHASH) {
             array.add(new UnsignedInteger(1));
         } else {
             throw new CborSerializationException("Invalid stake credential type : " + type);
