@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.backend.koios;
 
 import com.bloxbean.cardano.client.backend.api.NetworkInfoService;
 import com.bloxbean.cardano.client.backend.model.Genesis;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import rest.koios.client.backend.api.network.NetworkService;
 
 import java.math.BigDecimal;

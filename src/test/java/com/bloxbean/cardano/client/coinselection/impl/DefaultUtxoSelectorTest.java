@@ -1,11 +1,10 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
 import com.bloxbean.cardano.client.BaseTest;
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,7 +31,7 @@ import static org.mockito.BDDMockito.given;
 class DefaultUtxoSelectorTest extends BaseTest {
 
     @Mock
-    UtxoService utxoService;
+    UtxoSupplier utxoSupplier;
 
     String LIST_1 = "list1";
 
@@ -45,13 +44,13 @@ class DefaultUtxoSelectorTest extends BaseTest {
         utxoJsonFile = "utxos-script-utxo-finders.json";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
     }
 
     @Test
     void findFirst() throws Exception{
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
         Optional<Utxo> optional = utxoSelector.findFirst(address, utxo -> utxo.getAmount().size() == 1
                 && LOVELACE.equals(utxo.getAmount().get(0).getUnit())
@@ -64,7 +63,7 @@ class DefaultUtxoSelectorTest extends BaseTest {
 
     @Test
     void findFirst_whenExcludeSet() throws Exception {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
         Set<Utxo> excludeSet = Set.of(Utxo.builder()
             .txHash("88c014d348bf1919c78a5cb87a5beed87729ff3f8a2019be040117a41a83e82e")
@@ -83,7 +82,7 @@ class DefaultUtxoSelectorTest extends BaseTest {
 
     @Test
     void findFirst_whenAmountNotAvaiable_returnEmpty() throws Exception {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
         Optional<Utxo> optional = utxoSelector.findFirst(address, utxo -> utxo.getAmount().size() == 1
                 && LOVELACE.equals(utxo.getAmount().get(0).getUnit())
@@ -94,7 +93,7 @@ class DefaultUtxoSelectorTest extends BaseTest {
 
     @Test
     void findAll() throws Exception {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
         List<Utxo> utxos = utxoSelector.findAll(address, utxo -> utxo.getAmount().size() == 1
                 && LOVELACE.equals(utxo.getAmount().get(0).getUnit())
@@ -108,7 +107,7 @@ class DefaultUtxoSelectorTest extends BaseTest {
 
     @Test
     void findAll_whenExcludeSet() throws Exception {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
         Set<Utxo> excludeSet = Set.of(Utxo.builder()
                 .txHash("6674e44f0f03915b1611ce58aaff5f2e52054e1911fbcd0f17dbc205f44763b6")
@@ -127,7 +126,7 @@ class DefaultUtxoSelectorTest extends BaseTest {
 
     @Test
     void findAll_whenAmountNotAvaiable_returnEmpty() throws Exception {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
         Set<Utxo> excludeSet = Set.of(Utxo.builder()
                 .txHash("6674e44f0f03915b1611ce58aaff5f2e52054e1911fbcd0f17dbc205f44763b6")
@@ -145,11 +144,11 @@ class DefaultUtxoSelectorTest extends BaseTest {
     @Test
     void findAll_withPagination() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(List.of(utxos.get(0), utxos.get(1))).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(List.of(utxos.get(2), utxos.get(3))).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(3), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(List.of(utxos.get(0), utxos.get(1)));
+        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(List.of(utxos.get(2), utxos.get(3)));
+        given(utxoSupplier.getPage(any(), anyInt(), eq(2), any())).willReturn(Collections.EMPTY_LIST);
 
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService) {
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier) {
             @Override
             protected int getUtxoFetchSize() {
                 return 2;
@@ -169,11 +168,11 @@ class DefaultUtxoSelectorTest extends BaseTest {
     @Test
     void findAll_withPagination_noMatchingUtxoAvailable() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(List.of(utxos.get(0), utxos.get(1))).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(List.of(utxos.get(2), utxos.get(3))).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(3), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.EMPTY_LIST).code(200));
+        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(List.of(utxos.get(0), utxos.get(1)));
+        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(List.of(utxos.get(2), utxos.get(3)));
+        given(utxoSupplier.getPage(any(), anyInt(), eq(2), any())).willReturn(Collections.EMPTY_LIST);
 
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService) {
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier) {
             @Override
             protected int getUtxoFetchSize() {
                 return 2;

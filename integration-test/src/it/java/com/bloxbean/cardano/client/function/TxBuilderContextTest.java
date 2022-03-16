@@ -1,10 +1,13 @@
 package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.BaseITTest;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.cip.cip25.NFT;
@@ -36,10 +39,14 @@ import static com.bloxbean.cardano.client.function.helper.SignerProviders.signer
 
 public class TxBuilderContextTest extends BaseITTest {
     BackendService backendService;
+    UtxoSupplier utxoSupplier;
+    ProtocolParams protocolParams;
 
     @BeforeEach
-    public void setup() {
+    public void setup() throws ApiException {
         backendService = getBackendService();
+        utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        protocolParams = getBackendService().getEpochService().getProtocolParameters().getValue();
     }
 
     @Test
@@ -150,7 +157,7 @@ public class TxBuilderContextTest extends BaseITTest {
         TxSigner signer = signerFrom(senderAccount, secondSender)
                 .andThen(signerFrom(policy, nftPolicy));
 
-        Transaction signedTxn = TxBuilderContext.init(backendService)
+        Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(builder, signer);
 
         System.out.println(signedTxn);
@@ -245,7 +252,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
 
         //Build and sign transaction
-        Transaction signedTransaction = TxBuilderContext.init(backendService)
+        Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -343,7 +350,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
 
         //Build and sign transaction
-        Transaction signedTransaction = TxBuilderContext.init(backendService)
+        Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -458,7 +465,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
 
         //Build and sign transaction
-        Transaction signedTransaction = TxBuilderContext.init(backendService)
+        Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());

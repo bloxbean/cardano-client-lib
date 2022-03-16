@@ -3,9 +3,15 @@ package com.bloxbean.cardano.client.backend.api.helper;
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.*;
-import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.*;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
@@ -52,6 +58,8 @@ public class ContractTransactionIT extends BaseITTest {
     FeeCalculationService feeCalculationService;
     EpochService epochService;
     MetadataService metadataService;
+
+    UtxoSupplier utxoSupplier;
     Account sender;
 
     @BeforeEach
@@ -65,6 +73,7 @@ public class ContractTransactionIT extends BaseITTest {
         epochService = backendService.getEpochService();
         metadataService = backendService.getMetadataService();
 
+        utxoSupplier = new DefaultUtxoSupplier(utxoService);
         String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
         sender = new Account(Networks.testnet(), senderMnemonic);
     }
@@ -103,7 +112,7 @@ public class ContractTransactionIT extends BaseITTest {
         assertTrue(paymentSuccessful);
 
         //Start contract transaction to claim fund
-        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         utxoSelectionStrategy.setIgnoreUtxosWithDatumHash(false);
         List<Utxo> utxos = utxoSelectionStrategy.selectUtxos(scriptAddress, LOVELACE, BigInteger.valueOf(1), datumHash, Collections.EMPTY_SET);
 
@@ -1023,7 +1032,7 @@ public class ContractTransactionIT extends BaseITTest {
 
         PlutusData redeemerData = new BigIntPlutusData(BigInteger.valueOf(4444)); //any redeemer .. doesn't matter
 
-        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         List<Utxo> utxos = utxoSelectionStrategy.selectUtxos(sender.baseAddress(), LOVELACE, adaToLovelace(10), Collections.singleton(collateralUtxo));
 
         if (utxos.size() == 0)
@@ -1146,7 +1155,7 @@ public class ContractTransactionIT extends BaseITTest {
     }
 
     private Utxo getUtxoWithDatumHash(String scriptAddress, String datumHash, String utxoToIgnore) throws ApiException {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
         Optional<Utxo> optional = utxoSelector.findFirst(scriptAddress, u -> {
             if (!u.getTxHash().equals(utxoToIgnore)
                     && datumHash.equals(u.getDataHash())
@@ -1159,7 +1168,7 @@ public class ContractTransactionIT extends BaseITTest {
     }
 
     private Utxo getRandomUtxoForCollateral(String address) throws ApiException {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
         //Find 5 > utxo > 10 ada
         Optional<Utxo> optional = utxoSelector.findFirst(address, u -> {
             if (u.getAmount().size() == 1
@@ -1230,7 +1239,7 @@ public class ContractTransactionIT extends BaseITTest {
             ignoreUtxos.add(collateralUtxo);
         }
 
-        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         List<Utxo> utxos = utxoSelectionStrategy.selectUtxos(sender.baseAddress(), LOVELACE, amount, ignoreUtxos);
 
         PaymentTransaction paymentTransaction =
@@ -1275,7 +1284,7 @@ public class ContractTransactionIT extends BaseITTest {
         Set ignoreUtxos = new HashSet();
         ignoreUtxos.add(collateralUtxo);
 
-        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         List<Utxo> utxos = utxoSelectionStrategy.selectUtxos(sender.baseAddress(), LOVELACE, amount, ignoreUtxos);
 
         PaymentTransaction paymentTransaction =

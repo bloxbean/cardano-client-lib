@@ -1,9 +1,9 @@
 package com.bloxbean.cardano.client.backend.koios;
 
 import com.bloxbean.cardano.client.backend.api.BlockService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Block;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import rest.koios.client.backend.api.block.model.BlockInfo;
 import rest.koios.client.backend.factory.options.Limit;
 import rest.koios.client.backend.factory.options.Options;

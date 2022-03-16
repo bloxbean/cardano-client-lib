@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.backend.gql;
 
 import com.bloxbean.cardano.client.backend.api.EpochService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.EpochContent;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.gql.EpochQuery;
 import com.bloxbean.cardano.gql.LatestEpochQuery;
 import com.bloxbean.cardano.gql.ProtocolParamQuery;

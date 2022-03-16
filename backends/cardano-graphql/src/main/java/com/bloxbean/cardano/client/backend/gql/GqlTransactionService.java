@@ -1,8 +1,9 @@
 package com.bloxbean.cardano.client.backend.gql;
 
 import com.apollographql.apollo.exception.ApolloException;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.gql.SubmitTxMutation;

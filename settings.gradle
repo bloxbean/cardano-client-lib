@@ -1,8 +1,13 @@
 rootProject.name = 'cardano-client-lib'
+include 'backend'
 include 'cardano-graphql'
 include 'koios'
 include 'ogmios'
 include 'integration-test'
+
+//backend
+project(':backend').projectDir = file('backend')
+project(":backend").name = "cardano-client-backend"
 
 //cardano-graphql backend
 project(':cardano-graphql').projectDir = file('backends/cardano-graphql')

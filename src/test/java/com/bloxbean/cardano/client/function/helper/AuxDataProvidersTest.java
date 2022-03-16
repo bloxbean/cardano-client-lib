@@ -1,7 +1,9 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.BaseTest;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
@@ -18,14 +20,19 @@ import java.math.BigInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(MockitoExtension.class)
-class AuxDataProvidersTest {
+class AuxDataProvidersTest extends BaseTest {
 
     @Mock
-    BackendService backendService;
+    UtxoSupplier utxoSupplier;
+
+    ProtocolParams protocolParams;
 
     @BeforeEach
     public void setup() throws IOException {
         MockitoAnnotations.openMocks(this);
+
+        protocolParamJsonFile = "protocol-params.json";
+        protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
     }
 
     @Test
@@ -37,7 +44,7 @@ class AuxDataProvidersTest {
         metadata2.put(BigInteger.valueOf(1001), "value1");
 
         Transaction transaction = new Transaction();
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
 
         AuxDataProviders.metadataProvider(metadata1)
                 .andThen(AuxDataProviders.metadataProvider(metadata2))
@@ -58,7 +65,7 @@ class AuxDataProvidersTest {
         metadata2.put(BigInteger.valueOf(1001), "value1");
 
         Transaction transaction = new Transaction();
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
 
         AuxDataProviders.metadataProvider(() -> {
             return metadata1;

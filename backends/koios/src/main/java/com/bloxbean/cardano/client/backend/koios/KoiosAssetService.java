@@ -1,12 +1,12 @@
 package com.bloxbean.cardano.client.backend.koios;
 
 import com.bloxbean.cardano.client.backend.api.AssetService;
-import com.bloxbean.cardano.client.backend.common.OrderEnum;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.common.OrderEnum;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Asset;
 import com.bloxbean.cardano.client.backend.model.AssetAddress;
 import com.bloxbean.cardano.client.backend.model.PolicyAsset;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.databind.JsonNode;

@@ -1,12 +1,12 @@
 package com.bloxbean.cardano.client.backend.gql;
 
 import com.bloxbean.cardano.client.backend.api.AddressService;
-import com.bloxbean.cardano.client.backend.common.OrderEnum;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.common.OrderEnum;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.gql.util.DateUtil;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
 import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.TxContentOutputAmount;
 import com.bloxbean.cardano.gql.AddressSummaryQuery;
 import com.bloxbean.cardano.gql.AddressTransactionsByInputsQuery;

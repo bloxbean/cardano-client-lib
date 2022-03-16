@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.coinselection;
 
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Utxo;
 
 import java.util.List;
 import java.util.Optional;

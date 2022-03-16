@@ -1,8 +1,7 @@
 package com.bloxbean.cardano.client.backend.api;
 
+import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBackendService;
 
 public class BaseITTest {
 

@@ -3,15 +3,17 @@ package com.bloxbean.cardano.client.function;
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.api.*;
-import com.bloxbean.cardano.client.backend.api.helper.FeeCalculationService;
-import com.bloxbean.cardano.client.backend.api.helper.TransactionHelperService;
-import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
+import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Block;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
@@ -57,11 +59,14 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
     FeeCalculationService feeCalculationService;
     EpochService epochService;
     MetadataService metadataService;
+    ProtocolParams protocolParams;
+    UtxoSupplier utxoSupplier;
+
     Account sender;
     String senderAddress;
 
     @BeforeEach
-    public void setup() {
+    public void setup() throws ApiException {
         backendService = getBackendService();
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
@@ -70,6 +75,9 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         feeCalculationService = backendService.getFeeCalculationService(transactionHelperService);
         epochService = backendService.getEpochService();
         metadataService = backendService.getMetadataService();
+
+        protocolParams = backendService.getEpochService().getProtocolParameters().getValue();
+        utxoSupplier = new DefaultUtxoSupplier(utxoService);
 
         String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
         sender = new Account(Networks.testnet(), senderMnemonic);
@@ -99,13 +107,13 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         Guess guess = new Guess(Integer.valueOf(42));
 
-        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByDatum(backendService.getUtxoService(), scriptAddress, guess);
+        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, scriptAddress, guess);
         //Start contract transaction to claim fund
         if (!utxoOptional.isPresent()) {
             System.out.println("No utxo found...Let's transfer some Ada to script address");
             boolean paymentSuccessful = transferToContractAddress(sender, scriptAddress, adaToLovelace(5),
                     Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(guess).getDatumHash(), collateral, collateralIndex);
-            utxoOptional = ScriptUtxoFinders.findFirstByDatum(backendService.getUtxoService(), scriptAddress, guess);
+            utxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, scriptAddress, guess);
             assertTrue(paymentSuccessful);
         }
 
@@ -154,7 +162,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
-        Transaction signedTxn = TxBuilderContext.init(backendService)
+        Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(builder, signer);
 
         System.out.println(signedTxn);
@@ -190,13 +198,13 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         Guess guess = new Guess(Integer.valueOf(42));
 
-        Optional<Utxo> customGuessUtxoOptional = ScriptUtxoFinders.findFirstByDatum(backendService.getUtxoService(), customGuessScriptAddress, guess);
+        Optional<Utxo> customGuessUtxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, customGuessScriptAddress, guess);
         //Start contract transaction to claim fund
         if (!customGuessUtxoOptional.isPresent()) {
             System.out.println("No utxo found...Let's transfer some Ada to script address");
             boolean paymentSuccessful = transferToContractAddress(sender, customGuessScriptAddress, adaToLovelace(5),
                     Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(guess).getDatumHash(), collateral, collateralIndex);
-            customGuessUtxoOptional = ScriptUtxoFinders.findFirstByDatum(backendService.getUtxoService(), customGuessScriptAddress, guess);
+            customGuessUtxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, customGuessScriptAddress, guess);
             assertTrue(paymentSuccessful);
         }
 
@@ -213,14 +221,14 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         String sumScriptAddress = AddressService.getInstance().getEntAddress(sumScript, Networks.testnet()).getAddress();
         System.out.println("Sum Script Address: " + sumScriptAddress);
 
-        Optional<Utxo> sumUtxoOptional = ScriptUtxoFinders.findFirstByDatum(backendService.getUtxoService(), sumScriptAddress, sumDatum);
+        Optional<Utxo> sumUtxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, sumScriptAddress, sumDatum);
         //Start contract transaction to claim fund
         if (!sumUtxoOptional.isPresent()) {
             System.out.println("No utxo found for sum contract...Let's transfer some Ada to script address");
             System.out.println("Sum Datum hash >>> " + Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(sumDatum).getDatumHash());
             boolean paymentSuccessful = transferToContractAddress(sender, sumScriptAddress, adaToLovelace(6),
                     Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(sumDatum).getDatumHash(), collateral, collateralIndex);
-            sumUtxoOptional = ScriptUtxoFinders.findFirstByDatum(backendService.getUtxoService(), sumScriptAddress, sumDatum);
+            sumUtxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, sumScriptAddress, sumDatum);
             assertTrue(paymentSuccessful);
         }
 
@@ -280,7 +288,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
-        Transaction transaction = TxBuilderContext.init(backendService)
+        Transaction transaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .build(builder);
         Transaction signedTxn = signer.sign(transaction);
 
@@ -357,7 +365,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
-        Transaction signTxn = TxBuilderContext.init(backendService)
+        Transaction signTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signer);
 
         System.out.println(signTxn);
@@ -426,7 +434,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
-        Transaction signTxn = TxBuilderContext.init(backendService)
+        Transaction signTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signer);
 
         System.out.println(signTxn);
@@ -500,7 +508,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
             ignoreUtxos.add(collateralUtxo);
         }
 
-        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         List<Utxo> utxos = utxoSelectionStrategy.selectUtxos(sender.baseAddress(), LOVELACE, amount, ignoreUtxos);
 
         PaymentTransaction paymentTransaction =
@@ -544,7 +552,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         Set ignoreUtxos = new HashSet();
         ignoreUtxos.add(collateralUtxo);
 
-        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         List<Utxo> utxos = utxoSelectionStrategy.selectUtxos(sender.baseAddress(), LOVELACE, amount, ignoreUtxos);
 
         PaymentTransaction paymentTransaction =
@@ -580,7 +588,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
 
     private Utxo getRandomUtxoForCollateral(String address) throws ApiException {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
         //Find 5 > utxo > 10 ada
         Optional<Utxo> optional = utxoSelector.findFirst(address, u -> {
             if (u.getAmount().size() == 1

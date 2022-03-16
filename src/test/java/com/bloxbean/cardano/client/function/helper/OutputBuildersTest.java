@@ -2,11 +2,9 @@ package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.BaseTest;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.EpochService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -30,16 +28,12 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static com.bloxbean.cardano.client.function.helper.OutputBuilders.createFromOutput;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 class OutputBuildersTest extends BaseTest {
 
     @Mock
-    BackendService backendService;
-
-    @Mock
-    EpochService epochService;
+    UtxoSupplier utxoSupplier;
 
     ProtocolParams protocolParams;
 
@@ -53,9 +47,6 @@ class OutputBuildersTest extends BaseTest {
 
     @Test
     void createFromOutput_whenOnlyLovelaceAndWithDatumHash() throws ApiException, CborException, CborSerializationException {
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
-
         Output output1 = Output.builder()
                 .address("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c")
                 .assetName(LOVELACE)
@@ -69,7 +60,7 @@ class OutputBuildersTest extends BaseTest {
                 .qty(ONE_ADA.multiply(BigInteger.valueOf(20)))
                 .build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         List<TransactionOutput> list = new ArrayList<>();
 
         output1.outputBuilder()
@@ -88,9 +79,6 @@ class OutputBuildersTest extends BaseTest {
 
     @Test
     void createFromOutput_whenWithMultiAssetsAndWithDatumHash() throws ApiException, CborException, CborSerializationException {
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
-
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("abc-policy", 1);
 
         Output output1 = Output.builder()
@@ -112,7 +100,7 @@ class OutputBuildersTest extends BaseTest {
                 .qty(ONE_ADA.multiply(BigInteger.valueOf(20)))
                 .build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         List<TransactionOutput> list = new ArrayList<>();
 
         output1.outputBuilder()
@@ -137,9 +125,6 @@ class OutputBuildersTest extends BaseTest {
 
     @Test
     void createFromMintOutput() throws Exception {
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
-
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("abc-policy", 1);
 
         Output output1 = Output.builder()
@@ -155,7 +140,7 @@ class OutputBuildersTest extends BaseTest {
                 .qty(ONE_ADA.multiply(BigInteger.valueOf(20)))
                 .build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         List<TransactionOutput> list = new ArrayList<>();
 
         output1.mintOutputBuilder()
@@ -187,9 +172,6 @@ class OutputBuildersTest extends BaseTest {
 
     @Test
     void testCreateFromOutput_whenCustomMinAdaChecker() throws Exception {
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
-
         Output output1 = Output.builder()
                 .address("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c")
                 .assetName(LOVELACE)
@@ -203,7 +185,7 @@ class OutputBuildersTest extends BaseTest {
                 .qty(ONE_ADA.multiply(BigInteger.valueOf(20)))
                 .build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         List<TransactionOutput> list = new ArrayList<>();
 
         createFromOutput(output1, false, (ctx, tout) -> {
@@ -223,9 +205,6 @@ class OutputBuildersTest extends BaseTest {
 
     @Test
     void testCreateFromOutput_withTransactionOutput()throws Exception {
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
-
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("abc-policy", 1);
         MultiAsset multiAsset1 = MultiAsset.builder()
                 .policyId(policy.getPolicyId())
@@ -265,7 +244,7 @@ class OutputBuildersTest extends BaseTest {
                 .value(Value.builder().coin(ONE_ADA.multiply(BigInteger.valueOf(5))).build())
                 .build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         List<TransactionOutput> list = new ArrayList<>();
 
         //Transform
@@ -288,9 +267,6 @@ class OutputBuildersTest extends BaseTest {
 
     @Test
     void testCreateFromMintOutput_withTransactionOutputAndMintTrue() throws Exception {
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
-
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("abc-policy", 1);
         MultiAsset multiAsset1 = MultiAsset.builder()
                 .policyId(policy.getPolicyId())
@@ -331,7 +307,7 @@ class OutputBuildersTest extends BaseTest {
                 .datumHash("hello".getBytes())
                 .build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         List<TransactionOutput> list = new ArrayList<>();
 
         //Transform
@@ -358,9 +334,6 @@ class OutputBuildersTest extends BaseTest {
 
     @Test
     void testCreateFromOutput2_whenTransactionOutputAndCustomMinAdaChecker() throws Exception{
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
-
         TransactionOutput output1 = TransactionOutput.builder()
                 .address("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c")
                 .value(Value.builder()
@@ -375,7 +348,7 @@ class OutputBuildersTest extends BaseTest {
                 .qty(ONE_ADA.multiply(BigInteger.valueOf(20)))
                 .build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         List<TransactionOutput> list = new ArrayList<>();
 
         OutputBuilders.createFromOutput(output1, false, (ctx, tout) -> BigInteger.valueOf(2000))

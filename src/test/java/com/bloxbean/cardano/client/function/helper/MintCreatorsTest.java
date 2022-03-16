@@ -1,7 +1,9 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.BaseTest;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.PolicyUtil;
@@ -22,14 +24,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class MintCreatorsTest {
+class MintCreatorsTest extends BaseTest {
 
     @Mock
-    BackendService backendService;
+    UtxoSupplier utxoSupplier;
+
+    ProtocolParams protocolParams;
 
     @BeforeEach
     public void setup() throws IOException, ApiException {
         MockitoAnnotations.openMocks(this);
+
+        protocolParamJsonFile = "protocol-params.json";
+        protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
     }
 
     @Test
@@ -55,7 +62,7 @@ class MintCreatorsTest {
                                 .build()
                 )).build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         //Just adding a random input/output
@@ -108,7 +115,7 @@ class MintCreatorsTest {
                                 .build()
                 )).build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         //Just adding a random input/output
@@ -160,7 +167,7 @@ class MintCreatorsTest {
                                 .build()
                 )).build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         MintCreators.mintCreator(policy1.getPolicyScript(), multiAsset1, true)
@@ -204,7 +211,7 @@ class MintCreatorsTest {
                                 .build()
                 )).build();
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         //Just adding a random input/output

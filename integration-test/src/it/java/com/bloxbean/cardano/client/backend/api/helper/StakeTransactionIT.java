@@ -3,11 +3,14 @@ package com.bloxbean.cardano.client.backend.api.helper;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.backend.api.BaseITTest;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
@@ -48,9 +51,11 @@ public class StakeTransactionIT extends BaseITTest {
 
     public static final String STAKEREGISTRATION_POLICY_JSON = "stakeregistration-policy.json";
 
-    @BeforeEach
-    public void setup() {
+    ProtocolParams protocolParams;
 
+    @BeforeEach
+    public void setup() throws ApiException {
+        protocolParams = getBackendService().getEpochService().getProtocolParameters().getValue();
     }
 
     @Test
@@ -65,7 +70,7 @@ public class StakeTransactionIT extends BaseITTest {
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
-        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(getBackendService().getUtxoService());
+        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
         List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
@@ -96,7 +101,8 @@ public class StakeTransactionIT extends BaseITTest {
 
         TxSigner signer = SignerProviders.signerFrom(senderAccount);
 
-        Transaction signedTransaction = TxBuilderContext.init(getBackendService())
+        Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()),
+                new DefaultProtocolParamsSupplier(getBackendService().getEpochService()))
                 .buildAndSign(builder, signer);
 
         Result<String> result = getBackendService().getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -118,7 +124,7 @@ public class StakeTransactionIT extends BaseITTest {
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
-        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(getBackendService().getUtxoService());
+        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
         List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
@@ -150,7 +156,7 @@ public class StakeTransactionIT extends BaseITTest {
         TxSigner signer = SignerProviders.signerFrom(senderAccount)
                 .andThen(transaction -> senderAccount.signWithStakeKey(transaction));
 
-        Transaction signedTransaction = TxBuilderContext.init(getBackendService())
+        Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
 
         Result<String> result = getBackendService().getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -172,7 +178,7 @@ public class StakeTransactionIT extends BaseITTest {
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
-        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(getBackendService().getUtxoService());
+        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
         List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
@@ -204,7 +210,7 @@ public class StakeTransactionIT extends BaseITTest {
         TxSigner signer = SignerProviders.signerFrom(senderAccount)
                 .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, stakeHdKeyPair));
 
-        Transaction signedTransaction = TxBuilderContext.init(getBackendService())
+        Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
 
         Result<String> result = getBackendService().getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -228,7 +234,7 @@ public class StakeTransactionIT extends BaseITTest {
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
-        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(getBackendService().getUtxoService());
+        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
         List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
@@ -260,7 +266,7 @@ public class StakeTransactionIT extends BaseITTest {
         TxSigner signer = SignerProviders.signerFrom(senderAccount)
                 .andThen(transaction -> senderAccount.signWithStakeKey(transaction));
 
-        Transaction signedTransaction = TxBuilderContext.init(getBackendService())
+        Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
 
         Result<String> result = getBackendService().getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -284,7 +290,7 @@ public class StakeTransactionIT extends BaseITTest {
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
-        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(getBackendService().getUtxoService());
+        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
         List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
@@ -315,7 +321,7 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(transaction -> senderAccount.signWithStakeKey(transaction))
                 .andThen(transaction -> senderAccount2.signWithStakeKey(transaction));
 
-        Transaction signedTransaction = TxBuilderContext.init(getBackendService())
+        Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
 
         Result<String> result = getBackendService().getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -337,7 +343,7 @@ public class StakeTransactionIT extends BaseITTest {
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
-        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(getBackendService().getUtxoService());
+        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
         List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
@@ -369,7 +375,7 @@ public class StakeTransactionIT extends BaseITTest {
 
         TxSigner signer = SignerProviders.signerFrom(senderAccount);
 
-        Transaction signedTransaction = TxBuilderContext.init(getBackendService())
+        Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
 
         Result<String> result = getBackendService().getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -402,7 +408,7 @@ public class StakeTransactionIT extends BaseITTest {
         Account delegationFeePaymentAccount = new Account(Networks.testnet(), delegationFeePaymentAccountMnemonic);
         String delegationFeePaymentAddress = delegationFeePaymentAccount.baseAddress();
 
-        List<Utxo> utxos = new DefaultUtxoSelectionStrategyImpl(getBackendService().getUtxoService())
+        List<Utxo> utxos = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()))
                 .selectUtxos(delegationFeePaymentAccount.baseAddress(), LOVELACE, adaToLovelace(2), Collections.EMPTY_SET);
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
@@ -429,7 +435,7 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(0)))
                 .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(1)));
 
-        Transaction signedTransaction = TxBuilderContext.init(getBackendService())
+        Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
 
         Result<String> result = getBackendService().getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -451,7 +457,7 @@ public class StakeTransactionIT extends BaseITTest {
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
-        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(getBackendService().getUtxoService());
+        UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
         List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
@@ -488,7 +494,7 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(0)))
                 .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(1)));
 
-        Transaction signedTransaction = TxBuilderContext.init(getBackendService())
+        Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
 
         Result<String> result = getBackendService().getTransactionService().submitTransaction(signedTransaction.serialize());

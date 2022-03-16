@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.function.MinAdaChecker;
 import com.bloxbean.cardano.client.function.TxBuilder;

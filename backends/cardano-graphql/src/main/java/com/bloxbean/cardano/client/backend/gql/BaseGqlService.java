@@ -8,7 +8,7 @@ import com.apollographql.apollo.api.Response;
 import com.apollographql.apollo.exception.ApolloException;
 import com.bloxbean.cardano.client.backend.gql.adapter.AddHeadersInterceptor;
 import com.bloxbean.cardano.client.backend.gql.adapter.JSONCustomTypeAdapter;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.gql.type.CustomType;
 import okhttp3.OkHttpClient;

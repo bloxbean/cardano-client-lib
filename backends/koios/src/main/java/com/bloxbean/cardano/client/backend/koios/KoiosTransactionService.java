@@ -1,7 +1,8 @@
 package com.bloxbean.cardano.client.backend.koios;
 
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.*;
 import rest.koios.client.backend.api.transactions.TransactionsService;
 import rest.koios.client.backend.api.transactions.model.*;

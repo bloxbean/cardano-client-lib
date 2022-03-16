@@ -1,16 +1,17 @@
 package com.bloxbean.cardano.client.backend.gql.it.helper;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.api.helper.UtxoTransactionBuilder;
-import com.bloxbean.cardano.client.backend.api.helper.impl.UtxoTransactionBuilderImpl;
-import com.bloxbean.cardano.client.backend.common.OrderEnum;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.helper.UtxoTransactionBuilder;
+import com.bloxbean.cardano.client.api.helper.impl.UtxoTransactionBuilderImpl;
+import com.bloxbean.cardano.client.api.common.OrderEnum;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.gql.it.GqlBaseTest;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.Keys;
@@ -52,7 +53,7 @@ class UtxoTransactionBuilderIT extends GqlBaseTest {
     public void setup() throws ApiException {
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
-        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoService);
+        utxoTransactionBuilder = new UtxoTransactionBuilderImpl(new DefaultUtxoSupplier(utxoService));
         epochService = backendService.getEpochService();
         protocolParams = epochService.getProtocolParameters().getValue();
     }

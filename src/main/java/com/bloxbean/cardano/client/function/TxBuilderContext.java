@@ -1,11 +1,14 @@
 package com.bloxbean.cardano.client.function;
 
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.TransactionProcessor;
+import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
+import com.bloxbean.cardano.client.api.helper.impl.FeeCalculationServiceImpl;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -21,19 +24,30 @@ import java.util.List;
  */
 @Data
 public class TxBuilderContext {
-    private BackendService backendService;
+    private UtxoSupplier utxoSupplier;
     private ProtocolParams protocolParams;
     private UtxoSelectionStrategy utxoSelectionStrategy;
     private UtxoSelector utxoSelector;
+    private FeeCalculationService feeCalculationService;
 
     //Needed to check if the output is for minting
     //This list is cleared after each Input Builder
     private List<MultiAsset> mintMultiAssets = new ArrayList<>();
 
-    public TxBuilderContext(BackendService backendService) {
-        this.backendService = backendService;
-        this.utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(backendService.getUtxoService());
-        this.utxoSelector = new DefaultUtxoSelector(backendService.getUtxoService());
+    public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
+        this(utxoSupplier, protocolParamsSupplier.getProtocolParams());
+    }
+
+    public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
+        this.utxoSupplier = utxoSupplier;
+        this.protocolParams = protocolParams;
+        this.utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
+        this.utxoSelector = new DefaultUtxoSelector(utxoSupplier);
+
+        TransactionProcessor transactionProcessor = (cborData) -> { return null;};
+        this.feeCalculationService = new FeeCalculationServiceImpl(
+                new TransactionHelperService(transactionProcessor, this.utxoSelectionStrategy),
+                () -> protocolParams);
     }
 
     public void setUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
@@ -45,14 +59,6 @@ public class TxBuilderContext {
     }
 
     public ProtocolParams getProtocolParams() {
-        if (protocolParams == null) {
-            try {
-                this.protocolParams = backendService.getEpochService().getProtocolParameters().getValue();
-            } catch (ApiException apiException) {
-                throw new ApiRuntimeException("Unable to get protocol parameters", apiException);
-            }
-        }
-
         return this.protocolParams;
     }
 
@@ -68,8 +74,12 @@ public class TxBuilderContext {
         mintMultiAssets.clear();
     }
 
-    public static TxBuilderContext init(BackendService backendService) {
-        return new TxBuilderContext(backendService);
+    public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
+        return new TxBuilderContext(utxoSupplier, protocolParams);
+    }
+
+    public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
+        return new TxBuilderContext(utxoSupplier, protocolParamsSupplier);
     }
 
     /**

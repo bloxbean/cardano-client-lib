@@ -1,13 +1,12 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.common.OrderEnum;
-import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
-import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
-import com.bloxbean.cardano.client.backend.model.Amount;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.common.OrderEnum;
+import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
-import com.bloxbean.cardano.client.coinselection.UtxoSupplier;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
 import lombok.Setter;
 
@@ -24,11 +23,6 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
     private final UtxoSupplier utxoSupplier;
     @Setter
     private boolean ignoreUtxosWithDatumHash;
-
-    @Deprecated
-    public DefaultUtxoSelectionStrategyImpl(UtxoService utxoService) {
-        this(new DefaultUtxoSupplier(utxoService));
-    }
 
     public DefaultUtxoSelectionStrategyImpl(UtxoSupplier utxoSupplier) {
         this(utxoSupplier, true);

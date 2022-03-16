@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.backend.gql;
 
 import com.bloxbean.cardano.client.backend.api.BlockService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.gql.util.DateUtil;
 import com.bloxbean.cardano.client.backend.model.Block;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.gql.BlockByHashQuery;
 import com.bloxbean.cardano.gql.BlockByNumberQuery;
 import com.bloxbean.cardano.gql.RecentBlockQuery;

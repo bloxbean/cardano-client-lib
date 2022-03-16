@@ -1,11 +1,9 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.BaseTest;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.EpochService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.function.MinAdaChecker;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.transaction.spec.*;
@@ -25,17 +23,14 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class MinAdaCheckersTest extends BaseTest {
 
     @Mock
-    BackendService backendService;
+    UtxoSupplier utxoSupplier;
 
-    @Mock
-    EpochService epochService;
     ProtocolParams protocolParams;
 
     @BeforeEach
@@ -44,14 +39,11 @@ class MinAdaCheckersTest extends BaseTest {
 
         protocolParamJsonFile = "protocol-params.json";
         protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
-
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
     }
 
     @Test
     void minAdaChecker() {
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         TransactionOutput output = TransactionOutput.builder()
                 .address("addr_test1qq46hhhpppek6e33hqakqyu2z5xeqwlc4pc0xynwamn34l6vps306wwr475xeh2lnt4hqjm4mfyjqnvla9j5wtc3fxespv67ka")
                 .value(Value.builder().coin(BigInteger.valueOf(1000)).build())
@@ -65,7 +57,7 @@ class MinAdaCheckersTest extends BaseTest {
 
     @Test
     void minAdaChecker_whenNoAdditional() {
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         TransactionOutput output = TransactionOutput.builder()
                 .address("addr_test1qq46hhhpppek6e33hqakqyu2z5xeqwlc4pc0xynwamn34l6vps306wwr475xeh2lnt4hqjm4mfyjqnvla9j5wtc3fxespv67ka")
                 .value(Value.builder().coin(ONE_ADA.multiply(BigInteger.valueOf(5))).build())
@@ -80,7 +72,7 @@ class MinAdaCheckersTest extends BaseTest {
     //TODO -- Uncomment after min ada PR to fix datum hash issue
 //    @Test
     void minAdaChecker_withMultiAsset() throws Exception {
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
 
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("xyz-policy", 1);
         MultiAsset multiAsset = MultiAsset.builder()

@@ -1,11 +1,11 @@
 package com.bloxbean.cardano.client.backend.gql;
 
 import com.bloxbean.cardano.client.backend.api.AssetService;
-import com.bloxbean.cardano.client.backend.common.OrderEnum;
+import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.backend.model.Asset;
 import com.bloxbean.cardano.client.backend.model.AssetAddress;
 import com.bloxbean.cardano.client.backend.model.PolicyAsset;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.gql.AssetQuery;
 import okhttp3.OkHttpClient;
 

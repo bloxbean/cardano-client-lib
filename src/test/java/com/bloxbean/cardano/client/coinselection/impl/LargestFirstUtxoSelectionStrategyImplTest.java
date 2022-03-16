@@ -1,9 +1,8 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,7 +30,7 @@ class LargestFirstUtxoSelectionStrategyImplTest {
 
     private static final String LIST_1 = "list1";
     @Mock
-    UtxoService utxoService;
+    UtxoSupplier utxoSupplier;
 
     ObjectMapper objectMapper = new ObjectMapper();
 
@@ -54,9 +53,9 @@ class LargestFirstUtxoSelectionStrategyImplTest {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        LargestFirstUtxoSelectionStrategy selectionStrategy = new LargestFirstUtxoSelectionStrategy(new DefaultUtxoSupplier(utxoService));
+        LargestFirstUtxoSelectionStrategy selectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoSupplier);
         List<Utxo> selectedUtxos = selectionStrategy.selectUtxos(address, LOVELACE, new BigInteger("7500"), Collections.EMPTY_SET);
 
         List<String> txnHashList = selectedUtxos.stream().map(utxo -> utxo.getTxHash()).collect(Collectors.toList());
@@ -72,9 +71,9 @@ class LargestFirstUtxoSelectionStrategyImplTest {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        LargestFirstUtxoSelectionStrategy selectionStrategy = new LargestFirstUtxoSelectionStrategy(new DefaultUtxoSupplier(utxoService));
+        LargestFirstUtxoSelectionStrategy selectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoSupplier);
         selectionStrategy.setIgnoreUtxosWithDatumHash(false);
 
         List<Utxo> selectedUtxos = selectionStrategy.selectUtxos(address, LOVELACE, new BigInteger("7500"), Collections.EMPTY_SET);

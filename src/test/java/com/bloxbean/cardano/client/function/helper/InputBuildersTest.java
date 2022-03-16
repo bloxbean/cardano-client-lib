@@ -2,15 +2,12 @@ package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.BaseTest;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.EpochService;
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.exception.InsufficientBalanceException;
-import com.bloxbean.cardano.client.backend.model.Amount;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
-import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
@@ -54,12 +51,10 @@ class InputBuildersTest extends BaseTest {
     public static final String LIST_6 = "list6-multiassets-insufficientADA_Error";
     public static final String LIST_7 = "list7-insufficient-change-amount";
     public static final String LIST_8 = "list8-insufficient-change-amount-with-native-token";
+
     @Mock
-    BackendService backendService;
-    @Mock
-    EpochService epochService;
-    @Mock
-    UtxoService utxoService;
+    UtxoSupplier utxoSupplier;
+
     ProtocolParams protocolParams;
 
     String sender;
@@ -81,15 +76,13 @@ class InputBuildersTest extends BaseTest {
     }
 
     void initStubbing() throws ApiException {
-        given(backendService.getUtxoService()).willReturn(utxoService);
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+
     }
 
     @Test
     void createFromSender_whenLovelaceOnlyOutput() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         List<TransactionOutput> outputs = new ArrayList<>();
 
@@ -104,7 +97,7 @@ class InputBuildersTest extends BaseTest {
                 .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
 
         TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, changeAddress)
                 .apply(context, outputs);
@@ -148,7 +141,7 @@ class InputBuildersTest extends BaseTest {
     @Test
     void createFromSender_whenLovelaceAndMultiAsset() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_3);
-        given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         List<TransactionOutput> outputs = new ArrayList<>();
 
@@ -196,7 +189,7 @@ class InputBuildersTest extends BaseTest {
                 .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
 
         TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, changeAddress)
                 .apply(context, outputs);
@@ -241,8 +234,8 @@ class InputBuildersTest extends BaseTest {
     @Test
     void createFromSender_whenInsufficientADA() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_6);
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
 
         List<TransactionOutput> outputs = new ArrayList<>();
 
@@ -260,7 +253,7 @@ class InputBuildersTest extends BaseTest {
                 .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
 
         assertThrows(InsufficientBalanceException.class, () -> {
             TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, changeAddress)
@@ -271,8 +264,8 @@ class InputBuildersTest extends BaseTest {
     @Test
     void createFromSender_whenInsufficientToken() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_6);
-        given(utxoService.getUtxos(any(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(any(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
 
         Tuple<String, String> tuple = AssetUtil.getPolicyIdAndAssetName("777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");//Unit
         String policyId = tuple._1;
@@ -302,7 +295,7 @@ class InputBuildersTest extends BaseTest {
                 .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
 
         assertThrows(InsufficientBalanceException.class, () -> {
             TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, changeAddress)
@@ -362,7 +355,7 @@ class InputBuildersTest extends BaseTest {
                 .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         TxInputBuilder.Result inputResult = InputBuilders.createFromUtxos(utxos, changeAddress)
                 .apply(context, outputs);
 
@@ -421,7 +414,7 @@ class InputBuildersTest extends BaseTest {
                 .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         TxInputBuilder.Result inputResult = InputBuilders.createFromUtxos(() -> utxos, changeAddress, HexUtil.encodeHexString("somedatum_hash".getBytes(StandardCharsets.UTF_8)))
                 .apply(context, outputs);
 
@@ -474,7 +467,7 @@ class InputBuildersTest extends BaseTest {
         datum.name = "John";
         datum.age = 30;
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         TxInputBuilder.Result inputResult = InputBuilders.createFromUtxos(utxos, changeAddress, datum)
                 .apply(context, outputs);
 
@@ -524,7 +517,7 @@ class InputBuildersTest extends BaseTest {
                 .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         TxInputBuilder.Result inputResult = InputBuilders.createFromUtxos(utxos)
                 .apply(context, outputs);
 
@@ -538,14 +531,14 @@ class InputBuildersTest extends BaseTest {
 
     @Test
     void createFromUtxos_whenUtxosFromSupplier() {
-                Utxo utxo = Utxo.builder()
-                        .txHash("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85")
-                        .outputIndex(1)
-                        .amount(List.of(
-                                Amount.builder()
-                                        .unit("lovelace")
-                                        .quantity(BigInteger.valueOf(10000000)).build()
-                        )).build();
+        Utxo utxo = Utxo.builder()
+                .txHash("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85")
+                .outputIndex(1)
+                .amount(List.of(
+                        Amount.builder()
+                                .unit("lovelace")
+                                .quantity(BigInteger.valueOf(10000000)).build()
+                )).build();
 
         List<TransactionOutput> outputs = new ArrayList<>();
 
@@ -562,7 +555,7 @@ class InputBuildersTest extends BaseTest {
                 .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         TxInputBuilder.Result inputResult = InputBuilders.createFromUtxos(() -> List.of(utxo))
                 .apply(context, outputs);
 
