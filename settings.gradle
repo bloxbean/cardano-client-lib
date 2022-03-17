@@ -10,14 +10,14 @@ project(':backend').projectDir = file('backend')
 project(":backend").name = "cardano-client-backend"
 
 //cardano-graphql backend
-project(':cardano-graphql').projectDir = file('backends/cardano-graphql')
+project(':cardano-graphql').projectDir = file('backend-modules/cardano-graphql')
 project(":cardano-graphql").name = "cardano-client-backend-gql"
 
 //Koios backend
-project(':koios').projectDir = file('backends/koios')
+project(':koios').projectDir = file('backend-modules/koios')
 project(":koios").name = "cardano-client-backend-koios"
 
 //Ogmios backend
-project(':ogmios').projectDir = file('backends/ogmios')
+project(':ogmios').projectDir = file('backend-modules/ogmios')
 project(":ogmios").name = "cardano-client-backend-ogmios"
 
