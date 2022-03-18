@@ -104,7 +104,6 @@ integrationTest {
     useJUnitPlatform()
 }
 
-/** TODO -- Disable publish as the module is not ready for publishing
 publishing {
     publications {
         mavenJava(MavenPublication) {
@@ -118,7 +117,7 @@ publishing {
             pom {
                 name = 'Cardano Client Lib - GraphQL Backend'
                 description = 'Cardano Client Library - GraphQL Backend'
-                url = 'https://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
+                url = 'https://github.com/bloxbean/cardano-client-lib'
                 licenses {
                     license {
                         name = 'The MIT License'
@@ -129,13 +128,12 @@ publishing {
                     developer {
                         id = 'satran004'
                         name = 'Satya'
-                        email = 'satran004@gmail.com'
                     }
                 }
                 scm {
-                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
-                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
-                    url = 'https://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
+                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-lib'
+                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-lib'
+                    url = 'https://github.com/bloxbean/cardano-client-lib'
                 }
             }
         }
@@ -155,7 +153,7 @@ publishing {
             }
         }
     }
-} */
+}
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 

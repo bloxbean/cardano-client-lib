@@ -87,8 +87,6 @@ task integrationTest(type: Test) {
     testClassesDirs = sourceSets.integrationTest.output.classesDirs
     classpath = sourceSets.integrationTest.runtimeClasspath
     outputs.upToDateWhen { false }
-    // mustRunAfter(tasks.named('test'))
-//    systemProperty('ENV_NAME', findProperty("ENV_NAME"))
     testLogging {
         showStandardStreams = true
     }
@@ -98,7 +96,6 @@ integrationTest {
     useJUnitPlatform()
 }
 
-/** TODO -- Disable publish as the module is not ready for publishing
 publishing {
     publications {
         mavenJava(MavenPublication) {
@@ -110,9 +107,9 @@ publishing {
                 classifier = 'javadoc'
             }
             pom {
-                name = 'Cardano Client Lib - GraphQL Backend'
-                description = 'Cardano Client Library - Koios Backend'
-                url = 'https://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
+                name = 'Cardano Client Lib Backend'
+                description = 'Cardano Client Library - Backend module (Backend Api + Blockfrost backend support)'
+                url = 'https://github.com/bloxbean/cardano-client-lib'
                 licenses {
                     license {
                         name = 'The MIT License'
@@ -123,13 +120,12 @@ publishing {
                     developer {
                         id = 'satran004'
                         name = 'Satya'
-                        email = 'satran004@gmail.com'
                     }
                 }
                 scm {
-                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
-                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
-                    url = 'https://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
+                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-lib'
+                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-lib'
+                    url = 'https://github.com/bloxbean/cardano-client-lib'
                 }
             }
         }
@@ -149,7 +145,7 @@ publishing {
             }
         }
     }
-} */
+}
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
