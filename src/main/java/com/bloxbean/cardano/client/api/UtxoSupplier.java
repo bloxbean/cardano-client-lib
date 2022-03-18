@@ -6,6 +6,9 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Implement this interface to provide list of {@link Utxo} at an address
+ */
 public interface UtxoSupplier {
     int DEFAULT_NR_OF_ITEMS_TO_FETCH = 100;
 
