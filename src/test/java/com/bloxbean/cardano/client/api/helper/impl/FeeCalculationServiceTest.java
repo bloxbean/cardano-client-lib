@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
+import com.bloxbean.cardano.client.api.helper.TransactionBuilder;
 import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -79,9 +80,9 @@ class FeeCalculationServiceTest extends BaseTest {
 
         ProtocolParamsSupplier protocolParamsSupplier = () -> protocolParams;
         utxoTransactionBuilder = new UtxoTransactionBuilderImpl(utxoSupplier);
-        transactionHelperService = new TransactionHelperService(transactionProcessor,
-                protocolParamsSupplier, utxoSupplier);
-        feeCalculationService = new FeeCalculationServiceImpl(transactionHelperService, protocolParamsSupplier);
+        transactionHelperService = new TransactionHelperService(new TransactionBuilder(utxoSupplier, protocolParamsSupplier)
+                , transactionProcessor);
+        feeCalculationService = new FeeCalculationServiceImpl(utxoSupplier, protocolParamsSupplier);
 
         utxoJsonFile = "fee-test-utxos.json";
         protocolParamJsonFile = "protocol-params.json";

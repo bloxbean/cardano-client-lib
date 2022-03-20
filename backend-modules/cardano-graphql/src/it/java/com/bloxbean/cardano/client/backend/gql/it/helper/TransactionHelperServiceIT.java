@@ -1102,7 +1102,7 @@ public class TransactionHelperServiceIT extends GqlBaseTest {
         paymentTransaction.setFee(fee);
         System.out.println(fee);
 
-        String result = transactionHelperService.createSignedTransaction(Arrays.asList(paymentTransaction),
+        String result = transactionHelperService.getTransactionBuilder().createSignedTransaction(Arrays.asList(paymentTransaction),
                 TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
         Transaction txn = Transaction.deserialize(HexUtil.decodeHexString(result));

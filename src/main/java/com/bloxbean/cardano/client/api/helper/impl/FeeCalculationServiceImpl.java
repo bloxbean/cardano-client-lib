@@ -1,10 +1,11 @@
 package com.bloxbean.cardano.client.api.helper.impl;
 
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
-import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
+import com.bloxbean.cardano.client.api.helper.TransactionBuilder;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -33,12 +34,17 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
     //Here the goal is to make the fee calculation successful by reducing cost during transaction building.
     private final static BigInteger MIN_DUMMY_FEE = BigInteger.valueOf(100000);
 
-    private TransactionHelperService transactionHelperService;
+    private TransactionBuilder transactionBuilder;
     private ProtocolParamsSupplier protocolParamsSupplier;
 
-    public FeeCalculationServiceImpl(TransactionHelperService transactionHelperService, ProtocolParamsSupplier protocolParamsSupplier) {
-        this.transactionHelperService = transactionHelperService;
+    public FeeCalculationServiceImpl(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
+        this.transactionBuilder = new TransactionBuilder(utxoSupplier, protocolParamsSupplier);
         this.protocolParamsSupplier = protocolParamsSupplier;
+    }
+
+    public FeeCalculationServiceImpl(TransactionBuilder transactionBuilder) {
+        this.transactionBuilder = transactionBuilder;
+        this.protocolParamsSupplier = transactionBuilder.getProtocolParamsSupplier();
     }
 
     @Override
@@ -62,12 +68,12 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
         String txnCBORHash;
         try {
             //Build transaction
-            txnCBORHash = transactionHelperService.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
+            txnCBORHash = transactionBuilder.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
         } catch (InsufficientBalanceException e) {
             if (LOVELACE.equals(clonePaymentTransaction.getUnit())) {
                 clonePaymentTransaction.setFee(MIN_DUMMY_FEE);
                 clonePaymentTransaction.setAmount(clonePaymentTransaction.getAmount().subtract(MIN_DUMMY_FEE));
-                txnCBORHash = transactionHelperService.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
+                txnCBORHash = transactionBuilder.createSignedTransaction(Arrays.asList(clonePaymentTransaction), detailsParams, metadata);
             } else
                 throw e;
         }
@@ -93,7 +99,7 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
         if(mintTransaction.getFee() == null || mintTransaction.getFee().compareTo(DUMMY_FEE) == -1) //Just a dummy fee
             mintTransaction.setFee(DUMMY_FEE); //Set a min fee just for calcuation purpose if not set
         //Build transaction
-        String txnCBORHash = transactionHelperService.createSignedMintTransaction(mintTransaction, detailsParams, metadata);
+        String txnCBORHash = transactionBuilder.createSignedMintTransaction(mintTransaction, detailsParams, metadata);
 
         //Calculate fee
         return doFeeCalculationFromTxnSize(HexUtil.decodeHexString(txnCBORHash), protocolParams);
@@ -158,7 +164,7 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
         //Build transaction
         String txnCBORHash;
         try {
-            txnCBORHash = transactionHelperService.createSignedTransaction(clonePaymentTransactions, detailsParams, metadata);
+            txnCBORHash = transactionBuilder.createSignedTransaction(clonePaymentTransactions, detailsParams, metadata);
         } catch (InsufficientBalanceException exception) {
             //Update fee in the first payment transaction
             clonePaymentTransactions.get(0).setFee(MIN_DUMMY_FEE);
@@ -169,7 +175,7 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
                         paymentTransaction.setAmount(paymentTransaction.getAmount().subtract(MIN_DUMMY_FEE));
                     });
 
-            txnCBORHash = transactionHelperService.createSignedTransaction(clonePaymentTransactions, detailsParams, metadata);
+            txnCBORHash = transactionBuilder.createSignedTransaction(clonePaymentTransactions, detailsParams, metadata);
         }
 
         //Calculate fee

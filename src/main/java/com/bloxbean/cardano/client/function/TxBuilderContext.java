@@ -1,14 +1,13 @@
 package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
-import com.bloxbean.cardano.client.api.TransactionProcessor;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
-import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
+import com.bloxbean.cardano.client.api.helper.TransactionBuilder;
 import com.bloxbean.cardano.client.api.helper.impl.FeeCalculationServiceImpl;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
-import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -44,10 +43,8 @@ public class TxBuilderContext {
         this.utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         this.utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
-        TransactionProcessor transactionProcessor = (cborData) -> { return null;};
         this.feeCalculationService = new FeeCalculationServiceImpl(
-                new TransactionHelperService(transactionProcessor, this.utxoSelectionStrategy),
-                () -> protocolParams);
+                new TransactionBuilder(utxoSupplier, () -> protocolParams));
     }
 
     public void setUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {

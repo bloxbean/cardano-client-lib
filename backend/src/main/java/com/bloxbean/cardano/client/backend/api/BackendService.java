@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.backend.api;
 
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.helper.TransactionBuilder;
 import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.api.helper.UtxoTransactionBuilder;
 import com.bloxbean.cardano.client.api.helper.impl.FeeCalculationServiceImpl;
@@ -70,9 +71,9 @@ public interface BackendService {
      * @return {@link TransactionHelperService}
      */
     default TransactionHelperService getTransactionHelperService() {
-        TransactionHelperService transactionHelperService = new TransactionHelperService(new DefaultTransactionProcessor(getTransactionService()),
-                new DefaultProtocolParamsSupplier(getEpochService()),
-                new DefaultUtxoSupplier(getUtxoService()));
+        TransactionHelperService transactionHelperService = new TransactionHelperService(
+                new TransactionBuilder(new DefaultUtxoSupplier(getUtxoService()), new DefaultProtocolParamsSupplier(getEpochService())),
+                new DefaultTransactionProcessor(getTransactionService()));
         return transactionHelperService;
     }
 
@@ -92,7 +93,7 @@ public interface BackendService {
      * @return {@link FeeCalculationService}
      */
     default FeeCalculationService getFeeCalculationService() {
-        return new FeeCalculationServiceImpl(getTransactionHelperService(), new DefaultProtocolParamsSupplier(getEpochService()));
+        return new FeeCalculationServiceImpl(getTransactionHelperService().getTransactionBuilder());
     }
 
     /**
@@ -102,6 +103,6 @@ public interface BackendService {
      * @return {@link FeeCalculationService}
      */
     default FeeCalculationService getFeeCalculationService(TransactionHelperService transactionHelperService) {
-        return new FeeCalculationServiceImpl(transactionHelperService, new DefaultProtocolParamsSupplier(getEpochService()));
+        return new FeeCalculationServiceImpl(transactionHelperService.getTransactionBuilder());
     }
 }
