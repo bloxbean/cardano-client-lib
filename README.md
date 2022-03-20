@@ -100,6 +100,11 @@ implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta2'
             <artifactId>cardano-client-lib</artifactId>
             <version>0.2.0-beta3-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>com.bloxbean.cardano</groupId>
+            <artifactId>cardano-client-backend-blockfrost</artifactId>
+            <version>0.2.0-beta3-SNAPSHOT</version>
+        </dependency>
     </dependencies>
     
     <repositories>

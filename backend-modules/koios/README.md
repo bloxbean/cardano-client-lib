@@ -10,20 +10,20 @@
 <dependency>
      <groupId>com.bloxbean.cardano</groupId>
      <artifactId>cardano-client-lib</artifactId>
-     <version>0.1.5</version>
+     <version>{version}</version>
 </dependency>
 <dependency>
      <groupId>com.bloxbean.cardano</groupId>
      <artifactId>cardano-client-backend-koios</artifactId>
-     <version>0.1.5</version>
+     <version>{version}</version>
 </dependency>
 ```
 
 **Gradle**
 
 ```
-  implementation('com.bloxbean.cardano:cardano-client-lib:0.1.5')
-  implementation('com.bloxbean.cardano:cardano-client-backend-koios:0.1.5')
+  implementation('com.bloxbean.cardano:cardano-client-lib:{version}')
+  implementation('com.bloxbean.cardano:cardano-client-backend-koios:{version}')
 ```
 
 **Get BackendService instance for Cardano Koios backend**
@@ -47,5 +47,5 @@ BackendService backendService = new KoiosBackendService(Constant.KOIOS_TESTNET_U
 From top level project folder (Exp: cd ~/cardano-client-lib)
 
 ```
-$> ./gradlew -p ./backends/cardano-koios/ clean build
+$> ./gradlew -p ./backends-modules/koios/ clean build
 ```
