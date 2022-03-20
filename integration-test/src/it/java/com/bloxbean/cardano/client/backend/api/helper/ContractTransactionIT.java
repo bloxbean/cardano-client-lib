@@ -64,7 +64,7 @@ public class ContractTransactionIT extends BaseITTest {
 
     @BeforeEach
     public void setup() {
-        BackendService backendService = getBackendService();//BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+        BackendService backendService = getBackendService();
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();

@@ -9,8 +9,8 @@ repositories {
 }
 
 dependencies {
-    implementation project(':')
-    implementation project(':cardano-client-backend')
+    compile project(':')
+    compile project(':cardano-client-backend')
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'

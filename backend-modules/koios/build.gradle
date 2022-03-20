@@ -9,8 +9,8 @@ repositories {
 }
 
 dependencies {
-    implementation project(':')
-    implementation project(':cardano-client-backend')
+    compile project(':')
+    compile project(':cardano-client-backend')
 
     implementation group: 'io.github.cardano-community', name: 'koios-java-client', version: '1.5'
 

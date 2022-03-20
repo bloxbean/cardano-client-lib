@@ -1,5 +1,6 @@
 rootProject.name = 'cardano-client-lib'
 include 'backend'
+include 'blockfrost'
 include 'cardano-graphql'
 include 'koios'
 include 'ogmios'
@@ -8,6 +9,10 @@ include 'integration-test'
 //backend
 project(':backend').projectDir = file('backend')
 project(":backend").name = "cardano-client-backend"
+
+//Blockfrost backend
+project(':blockfrost').projectDir = file('backend-modules/blockfrost')
+project(":blockfrost").name = "cardano-client-backend-blockfrost"
 
 //cardano-graphql backend
 project(':cardano-graphql').projectDir = file('backend-modules/cardano-graphql')
