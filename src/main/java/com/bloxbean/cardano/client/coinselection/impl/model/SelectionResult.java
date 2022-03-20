@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.coinselection.impl.model;
 
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import lombok.AllArgsConstructor;

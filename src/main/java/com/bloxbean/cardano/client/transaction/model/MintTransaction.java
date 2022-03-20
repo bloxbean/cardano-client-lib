@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.transaction.model;
 
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Policy;

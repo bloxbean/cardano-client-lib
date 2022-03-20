@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.client.coinselection;
 
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Amount;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.config.Configuration;
 
 import java.math.BigInteger;

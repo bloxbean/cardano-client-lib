@@ -2,12 +2,10 @@ package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.BaseTest;
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.EpochService;
-import com.bloxbean.cardano.client.backend.api.helper.FeeCalculationService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
@@ -39,13 +37,10 @@ import static org.mockito.BDDMockito.given;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class FeeCalculatorsTest extends BaseTest {
     @Mock
-    BackendService backendService;
+    UtxoSupplier utxoSupplier;
 
     @Mock
     FeeCalculationService feeCalculationService;
-
-    @Mock
-    EpochService epochService;
 
     ProtocolParams protocolParams;
 
@@ -56,9 +51,8 @@ class FeeCalculatorsTest extends BaseTest {
         protocolParamJsonFile = "protocol-params.json";
         protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
 
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(backendService.getFeeCalculationService()).willReturn(feeCalculationService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
+        protocolParamJsonFile = "protocol-params.json";
+        protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
     }
 
     @Test
@@ -100,7 +94,9 @@ class FeeCalculatorsTest extends BaseTest {
                         .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+        context.setFeeCalculationService(feeCalculationService); //Mock
+
         Transaction transaction = new Transaction();
         TransactionBody body = TransactionBody.builder()
                 .inputs(inputs)
@@ -162,7 +158,9 @@ class FeeCalculatorsTest extends BaseTest {
                         .build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+        context.setFeeCalculationService(feeCalculationService); //Mock FeeCalculationService
+
         Transaction transaction = new Transaction();
         TransactionBody body = TransactionBody.builder()
                 .inputs(inputs)

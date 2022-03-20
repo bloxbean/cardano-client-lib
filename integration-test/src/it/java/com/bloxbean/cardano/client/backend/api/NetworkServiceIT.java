@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.backend.api;
 
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFNetworkService;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.blockfrost.service.BFNetworkService;
 import com.bloxbean.cardano.client.backend.model.Genesis;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.junit.jupiter.api.Test;
 

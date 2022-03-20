@@ -13,10 +13,6 @@ dependencies {
     compile group: 'co.nstant.in', name: 'cbor', version: '0.9'
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
 
-    implementation group: 'com.squareup.retrofit2', name: 'retrofit', version: '2.9.0'
-    implementation('com.squareup.retrofit2:converter-jackson:2.9.0') {
-        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-    }
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.12.3'
     implementation group: 'com.google.guava', name: 'guava', version: '30.1.1-jre'
 
@@ -68,6 +64,10 @@ compileJava {
     targetCompatibility = '11'
 
     options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
+}
+
+tasks.withType(Javadoc) {
+    options.encoding = 'UTF-8'
 }
 
 task sourceJar(type: Jar) {

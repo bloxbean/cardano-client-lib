@@ -1,9 +1,11 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.BaseTest;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
@@ -31,19 +33,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class ScriptCallContextProvidersTest {
+class ScriptCallContextProvidersTest extends BaseTest {
 
     @Mock
-    BackendService backendService;
+    UtxoSupplier utxoSupplier;
+
+    ProtocolParams protocolParams;
 
     @BeforeEach
     public void setup() throws IOException, ApiException {
         MockitoAnnotations.openMocks(this);
+
+        protocolParamJsonFile = "protocol-params.json";
+        protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
     }
 
     @Test
     void createFromScriptCallContext() throws ApiException, CborException, CborSerializationException {
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         Utxo scriptUtxo = Utxo.builder()
@@ -110,7 +117,7 @@ class ScriptCallContextProvidersTest {
 
     @Test
     void createFromScriptCallContext_whenNullRedeemer() throws ApiException, CborException, CborSerializationException {
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         Utxo scriptUtxo = Utxo.builder()
@@ -172,7 +179,7 @@ class ScriptCallContextProvidersTest {
 
     @Test
     void scriptCallContext_singleScript() throws ApiException, CborException, CborSerializationException {
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         Utxo scriptUtxo = Utxo.builder()
@@ -233,7 +240,7 @@ class ScriptCallContextProvidersTest {
 
     @Test
     void scriptCallContext_multipleScript() throws ApiException, CborException, CborSerializationException {
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         Utxo scriptUtxo1 = Utxo.builder()

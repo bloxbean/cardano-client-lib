@@ -1,9 +1,10 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.BaseTest;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
@@ -25,11 +26,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CollateralBuildersTest extends BaseTest {
     @Mock
-    BackendService backendService;
+    UtxoSupplier utxoSupplier;
+
+    ProtocolParams protocolParams;
 
     @BeforeEach
     public void setup() throws IOException, ApiException {
         MockitoAnnotations.openMocks(this);
+
+        protocolParamJsonFile = "protocol-params.json";
+        protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
     }
 
     @Test
@@ -43,7 +49,7 @@ class CollateralBuildersTest extends BaseTest {
                         .outputIndex(1).build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         CollateralBuilders.collateralFrom(utxos)
@@ -67,7 +73,7 @@ class CollateralBuildersTest extends BaseTest {
                         .outputIndex(1).build()
         );
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         CollateralBuilders.collateralFrom(() -> utxos)
@@ -83,7 +89,7 @@ class CollateralBuildersTest extends BaseTest {
     @Test
     void collateralFrom_whenTxnHashAndIndex() throws ApiException {
 
-        TxBuilderContext context = new TxBuilderContext(backendService);
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         Transaction transaction = new Transaction();
 
         CollateralBuilders.collateralFrom("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85", 1)

@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.Redeemer;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;

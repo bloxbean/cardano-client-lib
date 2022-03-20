@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.backend.api;
 
-import com.bloxbean.cardano.client.backend.common.OrderEnum;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.common.OrderEnum;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataCBORContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataJSONContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataLabel;
@@ -27,7 +27,7 @@ public class MetadataServiceIT extends BaseITTest {
 
     @BeforeEach
     public void setup() {
-        backendService = BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+        backendService = new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
         metadataService = backendService.getMetadataService();
     }
 

@@ -1,8 +1,7 @@
 package com.bloxbean.cardano.client.backend.api;
 
-import com.bloxbean.cardano.client.backend.factory.BackendFactory;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.impl.blockfrost.service.BFBackendService;
+import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 
 public class BaseITTest {
 
@@ -13,12 +12,11 @@ public class BaseITTest {
         if (bfProjectId == null || bfProjectId.isEmpty()) {
             bfProjectId = System.getenv("BF_PROJECT_ID");
         }
-
     }
 
     public BackendService getBackendService() {
         if (bfProjectId != null && !bfProjectId.isEmpty())
-            return BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+            return new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
         else
             return null;
     }

@@ -1,10 +1,9 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.model.Amount;
-import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.common.ADAConversionUtil;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -36,7 +35,7 @@ class RandomImproveUtxoSelectionStrategyTest {
     private static final String UTXOS_JSON = "utxos.json";
     private final ObjectMapper objectMapper = new ObjectMapper();
     @Mock
-    private UtxoService utxoService;
+    private UtxoSupplier utxoSupplier;
 
     @BeforeEach
     public void setup() throws IOException {
@@ -59,10 +58,9 @@ class RandomImproveUtxoSelectionStrategyTest {
 
         List<Utxo> utxos = loadUtxos(LIST_2);
 
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
 
         var requested = new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN));
         Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
@@ -83,10 +81,9 @@ class RandomImproveUtxoSelectionStrategyTest {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
 
         var requested = new Amount(CardanoConstants.LOVELACE, BigInteger.valueOf(995770000).add(BigInteger.valueOf(999817955).add(BigInteger.valueOf(983172035))));
 
@@ -100,10 +97,9 @@ class RandomImproveUtxoSelectionStrategyTest {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
 
         var requested = new Amount(CardanoConstants.LOVELACE, BigInteger.valueOf(995770000).add(BigInteger.valueOf(999817955).add(BigInteger.valueOf(983172035))).divide(BigInteger.TWO));
 
@@ -139,10 +135,9 @@ class RandomImproveUtxoSelectionStrategyTest {
         String unit = "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
 
         var requested = new Amount(unit, BigInteger.ONE);
 
@@ -161,11 +156,10 @@ class RandomImproveUtxoSelectionStrategyTest {
         String unit = "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
-        
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
+
         var requested = new Amount(unit, BigInteger.valueOf(4000000000L));
 
         Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
@@ -184,10 +178,9 @@ class RandomImproveUtxoSelectionStrategyTest {
         String unit = "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
 
         var requested = new Amount(unit, BigInteger.valueOf(200000000L));
 
@@ -206,11 +199,10 @@ class RandomImproveUtxoSelectionStrategyTest {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(1), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
-        given(utxoService.getUtxos(anyString(), anyInt(), eq(2), any())).willReturn(Result.success(utxos.toString()).withValue(Collections.emptyList()).code(200));
+        given(utxoSupplier.getAll(anyString())).willReturn(utxos);
 
-        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(this.utxoService), true);
-        
+        UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
+
         Set<Utxo> selectedUtxos1 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, Collections.emptySet(), 40);
         Set<Utxo> selectedUtxos2 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, Collections.emptySet(), 40);
 

@@ -1,16 +1,14 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.BaseTest;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.EpochService;
-import com.bloxbean.cardano.client.backend.api.helper.FeeCalculationService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Amount;
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
-import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
@@ -42,10 +40,7 @@ import static org.mockito.BDDMockito.given;
 class ChangeOutputAdjustmentsTest extends BaseTest {
 
     @Mock
-    BackendService backendService;
-
-    @Mock
-    EpochService epochService;
+    UtxoSupplier utxoSupplier;
 
     @Mock
     UtxoSelectionStrategy utxoSelectionStrategy;
@@ -64,10 +59,6 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
 
         protocolParamJsonFile = "protocol-params.json";
         protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
-
-        given(backendService.getEpochService()).willReturn(epochService);
-        given(backendService.getFeeCalculationService()).willReturn(feeCalculationService);
-        given(epochService.getProtocolParameters()).willReturn(Result.success(protocolParams.toString()).withValue(protocolParams).code(200));
     }
 
     @Test
@@ -119,8 +110,9 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         TxBuilder txBuilder = ChangeOutputAdjustments.adjustChangeOutput(changeAddress, changeAddress, 1);
 
         //Initialize TxBuilderContext and set mock backendService and utxoSeletor
-        TxBuilderContext txBuilderContext = TxBuilderContext.init(backendService);
+        TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParams);
         txBuilderContext.setUtxoSelector(utxoSelector);
+        txBuilderContext.setFeeCalculationService(feeCalculationService);
 
         //Build txn
         txBuilderContext.build(transaction, txBuilder);
@@ -192,9 +184,10 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         TxBuilder txBuilder = ChangeOutputAdjustments.adjustChangeOutput(changeAddress, changeAddress, 1);
 
         //Initialize TxBuilderContext and set mock backendService and utxoSeletor
-        TxBuilderContext txBuilderContext = TxBuilderContext.init(backendService);
+        TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParams);
         txBuilderContext.setUtxoSelector(utxoSelector);
         txBuilderContext.setUtxoSelectionStrategy(utxoSelectionStrategy);
+        txBuilderContext.setFeeCalculationService(feeCalculationService);
 
         //Build txn
         txBuilderContext.build(transaction, txBuilder);
@@ -263,7 +256,7 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         TxBuilder txBuilder = ChangeOutputAdjustments.adjustChangeOutput(changeAddress, changeAddress, 1);
 
         //Initialize TxBuilderContext and set mock backendService and utxoSeletor
-        TxBuilderContext txBuilderContext = TxBuilderContext.init(backendService);
+        TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParams);
         txBuilderContext.setUtxoSelector(utxoSelector);
 
         assertThrows(TxBuildException.class, () -> {
@@ -321,9 +314,10 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         TxBuilder txBuilder = ChangeOutputAdjustments.adjustChangeOutput(changeAddress, changeAddress, 1);
 
         //Initialize TxBuilderContext and set mock backendService and utxoSeletor
-        TxBuilderContext txBuilderContext = TxBuilderContext.init(backendService);
+        TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParams);
         txBuilderContext.setUtxoSelector(utxoSelector);
         txBuilderContext.setUtxoSelectionStrategy(utxoSelectionStrategy);
+        txBuilderContext.setFeeCalculationService(feeCalculationService);
 
         //Build txn
         txBuilderContext.build(transaction, txBuilder);
@@ -391,9 +385,10 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         TxBuilder txBuilder = ChangeOutputAdjustments.adjustChangeOutput(changeAddress, changeAddress, 1);
 
         //Initialize TxBuilderContext and set mock backendService and utxoSeletor
-        TxBuilderContext txBuilderContext = TxBuilderContext.init(backendService);
+        TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParams);
         txBuilderContext.setUtxoSelector(utxoSelector);
         txBuilderContext.setUtxoSelectionStrategy(utxoSelectionStrategy);
+        txBuilderContext.setFeeCalculationService(feeCalculationService);
 
         assertThrows(TxBuildException.class, () -> {
             //Build txn
@@ -487,7 +482,7 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         TxBuilder txBuilder = ChangeOutputAdjustments.adjustChangeOutput(changeAddress, changeAddress, 1);
 
         //Initialize TxBuilderContext and set mock backendService and utxoSeletor
-        TxBuilderContext txBuilderContext = TxBuilderContext.init(backendService);
+        TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParams);
         txBuilderContext.setUtxoSelector(utxoSelector);
 
         //Build txn
@@ -597,8 +592,9 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         TxBuilder txBuilder = ChangeOutputAdjustments.adjustChangeOutput(changeAddress, changeAddress, 1);
 
         //Initialize TxBuilderContext and set mock backendService and utxoSeletor
-        TxBuilderContext txBuilderContext = TxBuilderContext.init(backendService);
+        TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParams);
         txBuilderContext.setUtxoSelector(utxoSelector);
+        txBuilderContext.setFeeCalculationService(feeCalculationService);
 
         //Build txn
         txBuilderContext.build(transaction, txBuilder);

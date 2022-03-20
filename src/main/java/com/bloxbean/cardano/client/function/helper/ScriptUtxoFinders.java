@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -22,32 +22,32 @@ public class ScriptUtxoFinders {
     /**
      * Find first matching utxo by datum at a script address
      *
-     * @param utxoService   <code>{@link UtxoService}</code> instance
+     * @param utxoSupplier   <code>{@link UtxoSupplier}</code> instance
      * @param scriptAddress Script address
      * @param datum         Datum object
      * @return An optional with matching <code>Utxo</code>
      * @throws ApiException if error
      */
-    public static Optional<Utxo> findFirstByDatum(UtxoService utxoService, String scriptAddress, Object datum) throws ApiException {
+    public static Optional<Utxo> findFirstByDatum(UtxoSupplier utxoSupplier, String scriptAddress, Object datum) throws ApiException {
         Objects.requireNonNull(datum);
-        Objects.requireNonNull(utxoService);
+        Objects.requireNonNull(utxoSupplier);
 
         String datumHash = getDatumHash(datum);
 
-        return findFirstByDatumHash(utxoService, scriptAddress, datumHash);
+        return findFirstByDatumHash(utxoSupplier, scriptAddress, datumHash);
     }
 
     /**
      * Find first matching utxo by datum hash at a script address
      *
-     * @param utxoService   <code>{@link UtxoService}</code> instance
+     * @param utxoSupplier   <code>{@link UtxoSupplier}</code> instance
      * @param scriptAddress Script address
      * @param datumHash     Datum hash
      * @return An optional with matching <code>Utxo</code>
      * @throws ApiException if error
      */
-    public static Optional<Utxo> findFirstByDatumHash(UtxoService utxoService, String scriptAddress, String datumHash) throws ApiException {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+    public static Optional<Utxo> findFirstByDatumHash(UtxoSupplier utxoSupplier, String scriptAddress, String datumHash) throws ApiException {
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
         return utxoSelector.findFirst(scriptAddress, utx -> datumHash.equals(utx.getDataHash()));
     }
@@ -55,32 +55,32 @@ public class ScriptUtxoFinders {
     /**
      * Find all matching utxos by datum at a script address
      *
-     * @param utxoService   <code>{@link UtxoService}</code> instance
+     * @param utxoSupplier   <code>{@link UtxoSupplier}</code> instance
      * @param scriptAddress Script address
      * @param datum         Datum object
      * @return List of <code>Utxo</code>
      * @throws ApiException if error
      */
-    public static List<Utxo> findAllByDatum(UtxoService utxoService, String scriptAddress, Object datum) throws ApiException {
+    public static List<Utxo> findAllByDatum(UtxoSupplier utxoSupplier, String scriptAddress, Object datum) throws ApiException {
         Objects.requireNonNull(datum);
-        Objects.requireNonNull(utxoService);
+        Objects.requireNonNull(utxoSupplier);
 
         String datumHash = getDatumHash(datum);
 
-        return findAllByDatumHash(utxoService, scriptAddress, datumHash);
+        return findAllByDatumHash(utxoSupplier, scriptAddress, datumHash);
     }
 
     /**
      * Find all matching utxos by datum hash at a script address
      *
-     * @param utxoService   <code>{@link UtxoService}</code> instance
+     * @param utxoSupplier   <code>{@link UtxoSupplier}</code> instance
      * @param scriptAddress Script address
      * @param datumHash     datum hash
      * @return List of <code>Utxo</code>
      * @throws ApiException if error
      */
-    public static List<Utxo> findAllByDatumHash(UtxoService utxoService, String scriptAddress, String datumHash) throws ApiException {
-        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoService);
+    public static List<Utxo> findAllByDatumHash(UtxoSupplier utxoSupplier, String scriptAddress, String datumHash) throws ApiException {
+        UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier);
 
         List<Utxo> utxos = utxoSelector.findAll(scriptAddress, utx -> datumHash.equals(utx.getDataHash()));
         return utxos;

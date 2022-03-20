@@ -1,9 +1,8 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
-import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Result;
-import com.bloxbean.cardano.client.backend.model.Utxo;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,8 +22,8 @@ import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,7 +31,7 @@ class DefaultUtxoSelectionStrategyImplTest {
 
     private static final String LIST_1 = "list1";
     @Mock
-    UtxoService utxoService;
+    UtxoSupplier utxoSupplier;
 
     ObjectMapper objectMapper = new ObjectMapper();
 
@@ -55,9 +54,9 @@ class DefaultUtxoSelectionStrategyImplTest {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
-        DefaultUtxoSelectionStrategyImpl selectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        DefaultUtxoSelectionStrategyImpl selectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         List<Utxo> selectedUtxos = selectionStrategy.selectUtxos(address, LOVELACE, new BigInteger("5000"), Collections.EMPTY_SET);
 
         List<String> txnHashList = selectedUtxos.stream().map(utxo -> utxo.getTxHash()).collect(Collectors.toList());
@@ -71,9 +70,9 @@ class DefaultUtxoSelectionStrategyImplTest {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoService.getUtxos(any(), anyInt(), anyInt(), any())).willReturn(Result.success(utxos.toString()).withValue(utxos).code(200));
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
-        DefaultUtxoSelectionStrategyImpl selectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoService);
+        DefaultUtxoSelectionStrategyImpl selectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
         selectionStrategy.setIgnoreUtxosWithDatumHash(false);
 
         List<Utxo> selectedUtxos = selectionStrategy.selectUtxos(address, LOVELACE, new BigInteger("5000"), Collections.EMPTY_SET);

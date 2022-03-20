@@ -1,9 +1,9 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.backend.api.helper.FeeCalculationService;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -61,7 +61,7 @@ public class FeeCalculators {
 
     private static void execute(TxBuilderContext context, Transaction transaction, String changeAddress,
                                 int noOfSigners, UpdateOutputFunction updateOutputWithFeeFunc) {
-        FeeCalculationService feeCalculationService = context.getBackendService().getFeeCalculationService();
+        FeeCalculationService feeCalculationService = context.getFeeCalculationService();
 
         try {
             TransactionBody tbody = transaction.getBody();

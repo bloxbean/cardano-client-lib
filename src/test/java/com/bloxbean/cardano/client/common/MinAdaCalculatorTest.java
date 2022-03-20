@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.common;
 
-import com.bloxbean.cardano.client.backend.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;

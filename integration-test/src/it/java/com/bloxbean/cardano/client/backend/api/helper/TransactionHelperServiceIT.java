@@ -1,12 +1,14 @@
 package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.backend.api.*;
-import com.bloxbean.cardano.client.backend.api.helper.model.TransactionResult;
-import com.bloxbean.cardano.client.backend.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Amount;
+import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
+import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.backend.model.Block;
-import com.bloxbean.cardano.client.backend.model.Result;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
@@ -64,7 +66,7 @@ class TransactionHelperServiceIT extends BaseITTest {
 
     @BeforeEach
     public void setup() {
-        BackendService backendService = getBackendService();//BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+        BackendService backendService = getBackendService();
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();
@@ -1357,7 +1359,7 @@ class TransactionHelperServiceIT extends BaseITTest {
         paymentTransaction.setFee(fee);
         System.out.println(fee);
 
-        String result = transactionHelperService.createSignedTransaction(Arrays.asList(paymentTransaction),
+        String result = transactionHelperService.getTransactionBuilder().createSignedTransaction(Arrays.asList(paymentTransaction),
                 TransactionDetailsParams.builder().ttl(getTtl()).build(), metadata);
 
         Transaction txn = Transaction.deserialize(HexUtil.decodeHexString(result));

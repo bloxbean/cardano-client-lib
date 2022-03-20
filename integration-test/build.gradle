@@ -9,6 +9,8 @@ repositories {
 
 dependencies {
     implementation project(':')
+    implementation project(':cardano-client-backend')
+    implementation project(':cardano-client-backend-blockfrost')
     implementation project(':cardano-client-backend-gql')
     implementation project(':cardano-client-backend-koios')
     implementation project(':cardano-client-backend-ogmios')
