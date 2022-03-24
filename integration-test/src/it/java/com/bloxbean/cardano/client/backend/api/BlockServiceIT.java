@@ -1,8 +1,6 @@
 package com.bloxbean.cardano.client.backend.api;
 
 import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.blockfrost.service.BFBlockService;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -19,7 +17,7 @@ public class BlockServiceIT extends BaseITTest {
 
     @BeforeEach
     public void setup() {
-        service = new BFBlockService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+        service = getBackendService().getBlockService();
     }
 
     @Test

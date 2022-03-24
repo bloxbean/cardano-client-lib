@@ -1,8 +1,6 @@
 package com.bloxbean.cardano.client.backend.api;
 
 import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.blockfrost.service.BFTransactionService;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
@@ -14,11 +12,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class TransactionServiceIT extends BaseITTest {
 
-    BFTransactionService service;
+    TransactionService service;
 
     @BeforeEach
     public void setup() {
-        service = new BFTransactionService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+        service = getBackendService().getTransactionService();
     }
 
     @Test

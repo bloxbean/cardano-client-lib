@@ -3,8 +3,6 @@ package com.bloxbean.cardano.client.backend.api;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
-import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataCBORContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataJSONContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataLabel;
@@ -22,13 +20,11 @@ import static org.hamcrest.Matchers.*;
 
 public class MetadataServiceIT extends BaseITTest {
 
-    BackendService backendService;
     MetadataService metadataService;
 
     @BeforeEach
     public void setup() {
-        backendService = new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
-        metadataService = backendService.getMetadataService();
+        metadataService = getBackendService().getMetadataService();
     }
 
     @Test
