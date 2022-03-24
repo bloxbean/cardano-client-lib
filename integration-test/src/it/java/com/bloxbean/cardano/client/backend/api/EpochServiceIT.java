@@ -3,8 +3,6 @@ package com.bloxbean.cardano.client.backend.api;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
-import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.model.EpochContent;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,13 +13,11 @@ import static org.hamcrest.Matchers.*;
 
 public class EpochServiceIT extends BaseITTest {
 
-    BackendService backendService;
     EpochService epochService;
 
     @BeforeEach
     public void setup() {
-        backendService = new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
-        epochService = backendService.getEpochService();
+        epochService = getBackendService().getEpochService();
     }
 
     @Test
