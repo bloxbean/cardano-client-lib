@@ -12,11 +12,13 @@ dependencies {
     compile project(':')
     compile project(':cardano-client-backend')
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
-    testImplementation 'org.hamcrest:hamcrest-library:2.2'
-    testImplementation 'org.mockito:mockito-inline:3.7.7'
-    testImplementation 'org.mockito:mockito-junit-jupiter:3.7.7'
+    implementation 'org.java-websocket:Java-WebSocket:1.5.2'
+    implementation 'org.junit.jupiter:junit-jupiter:5.7.0'
+
+    compileOnly 'org.projectlombok:lombok:1.18.20'
+    annotationProcessor 'org.projectlombok:lombok:1.18.20'
+
+    testImplementation('org.assertj:assertj-core:3.21.0')
 }
 
 sourceSets {
@@ -36,6 +38,10 @@ sourceSets {
 }
 
 configurations {
+    integrationTestCompile.extendsFrom testCompile
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntime.extendsFrom testRuntime
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 compileJava {
@@ -88,7 +94,6 @@ integrationTest {
     useJUnitPlatform()
 }
 
-/** TODO -- Disable publish as the module is not ready for publishing
 publishing {
     publications {
         mavenJava(MavenPublication) {
@@ -100,9 +105,9 @@ publishing {
                 classifier = 'javadoc'
             }
             pom {
-                name = 'Cardano Client Lib - GraphQL Backend'
-                description = 'Cardano Client Library - Koios Backend'
-                url = 'https://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
+                name = 'Cardano Client Lib - Ogmios Backend'
+                description = 'Cardano Client Library - Ogmios Backend'
+                url = 'https://github.com/bloxbean/cardano-client-lib'
                 licenses {
                     license {
                         name = 'The MIT License'
@@ -113,13 +118,12 @@ publishing {
                     developer {
                         id = 'satran004'
                         name = 'Satya'
-                        email = 'satran004@gmail.com'
                     }
                 }
                 scm {
-                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
-                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
-                    url = 'https://github.com/bloxbean/cardano-client-backend-com.bloxbean.cardano.client.backend.gql'
+                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-lib'
+                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-lib'
+                    url = 'https://github.com/bloxbean/cardano-client-lib'
                 }
             }
         }
@@ -139,7 +143,7 @@ publishing {
             }
         }
     }
-} */
+}
 
 ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
