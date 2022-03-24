@@ -44,7 +44,12 @@ public class KoiosTransactionService implements TransactionService {
             if (!txInfoResult.isSuccessful()) {
                 return Result.error(txInfoResult.getResponse()).code(txInfoResult.getCode());
             }
-            return convertToTransactionContent(txInfoResult.getValue().get(0));
+
+            if (txInfoResult.getValue().size() != 0) {
+                return convertToTransactionContent(txInfoResult.getValue().get(0));
+            } else {
+                return Result.error("Not Found").code(404);
+            }
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         } catch (ParseException e) {
