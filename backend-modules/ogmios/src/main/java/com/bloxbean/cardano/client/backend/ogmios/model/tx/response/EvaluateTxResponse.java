@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.ogmios.model.tx.response;
 
+import com.bloxbean.cardano.client.backend.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.ogmios.model.base.Response;
 import com.bloxbean.cardano.client.transaction.spec.ExUnits;
 import com.bloxbean.cardano.client.transaction.spec.RedeemerTag;

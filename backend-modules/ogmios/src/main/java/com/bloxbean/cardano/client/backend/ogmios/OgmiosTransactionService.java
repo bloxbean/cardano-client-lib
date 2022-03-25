@@ -3,10 +3,10 @@ package com.bloxbean.cardano.client.backend.ogmios;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
+import com.bloxbean.cardano.client.backend.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.response.EvaluateTxResponse;
-import com.bloxbean.cardano.client.backend.ogmios.model.tx.response.EvaluationResult;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.response.SubmitTxResponse;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
@@ -49,6 +49,7 @@ public class OgmiosTransactionService implements TransactionService {
         throw new UnsupportedOperationException("Not supported yet");
     }
 
+    @Override
     public Result<List<EvaluationResult>> evaluateTx(byte[] cborData) throws ApiException {
         EvaluateTxResponse evaluateTxResponse = client.evaluateTx(cborData);
         System.out.println(evaluateTxResponse.toString());

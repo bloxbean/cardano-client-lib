@@ -1,17 +1,20 @@
 package com.bloxbean.cardano.client.backend.blockfrost.service;
 
-import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.blockfrost.service.http.TransactionApi;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.TransactionService;
+import com.bloxbean.cardano.client.backend.blockfrost.service.http.TransactionApi;
+import com.bloxbean.cardano.client.backend.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
+import com.bloxbean.cardano.client.util.HexUtil;
 import okhttp3.MediaType;
 import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Response;
 
 import java.io.IOException;
+import java.util.List;
 
 public class BFTransactionService extends BFBaseService implements TransactionService {
     private TransactionApi transactionApi;
@@ -59,4 +62,20 @@ public class BFTransactionService extends BFBaseService implements TransactionSe
             throw new ApiException("Error getting transaction utxos for id : " + txnHash, e);
         }
     }
+
+    @Override
+    public Result<List<EvaluationResult>> evaluateTx(byte[] cborData) throws ApiException {
+
+        RequestBody requestBody = RequestBody.create(MediaType.parse("application/cbor"), HexUtil.encodeHexString(cborData));
+
+        Call<Object> evalCall = transactionApi.evaluateTx(getProjectId(), requestBody);
+        try {
+            Response<Object> response = evalCall.execute();
+            return OgmiosTxResponseParser.processEvaluateResponse(response);
+
+        } catch (IOException e) {
+            throw new ApiException("Error evaluating script cost for transaction", e);
+        }
+    }
+
 }

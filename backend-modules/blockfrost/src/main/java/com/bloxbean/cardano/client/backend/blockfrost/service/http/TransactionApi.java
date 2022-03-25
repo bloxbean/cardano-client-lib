@@ -16,4 +16,8 @@ public interface TransactionApi {
 
     @GET("txs/{hash}/utxos")
     Call<TxContentUtxo> getTransactionUtxos(@Header("project_id")  String projectId, @Path("hash") String txnHash);
+
+    @Headers("Content-Type: application/cbor")
+    @POST("utils/txs/evaluate")
+    Call<Object> evaluateTx(@Header("project_id") String projectId, @Body RequestBody txn);
 }
