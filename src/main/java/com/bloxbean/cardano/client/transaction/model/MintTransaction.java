@@ -10,6 +10,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,7 +32,19 @@ public class MintTransaction extends TransactionRequest {
                            @Deprecated NativeScript policyScript,
                            @Deprecated List<SecretKey> policyKeys, Policy policy) {
         super(sender, receiver, fee, additionalWitnessAccounts, utxosToInclude, datumHash);
-        this.mintAssets = mintAssets;
+
+        //merge mintAssets if same policyids
+        if (mintAssets != null && mintAssets.size() > 1) {
+            List<MultiAsset> multiAssets = new ArrayList<>();
+            for (MultiAsset ma : mintAssets) {
+                multiAssets = MultiAsset.mergeMultiAssetLists(multiAssets, List.of(ma));
+            }
+
+            this.mintAssets = multiAssets;
+        } else {
+            this.mintAssets = mintAssets;
+        }
+
         if (policy != null) {
             this.policy = policy;
         } else {

@@ -19,7 +19,9 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 public class TransactionBuilder {
@@ -111,14 +113,18 @@ public class TransactionBuilder {
             log.debug(JsonUtil.getPrettyJson(transaction));
 
         Transaction finalTxn = transaction;
-        for (PaymentTransaction txn : paymentTransactions) {
-            finalTxn = txn.getSender().sign(finalTxn);
 
-            if (txn.getAdditionalWitnessAccounts() != null) { //Add additional witnesses
-                for (Account additionalWitnessAcc : txn.getAdditionalWitnessAccounts()) {
-                    finalTxn = additionalWitnessAcc.sign(finalTxn);
-                }
-            }
+        Set<Account> signers = new HashSet<>();
+        paymentTransactions
+                .forEach(paymentTransaction -> {
+                    signers.add(paymentTransaction.getSender());
+                    if (paymentTransaction.getAdditionalWitnessAccounts() != null) {
+                        signers.addAll(paymentTransaction.getAdditionalWitnessAccounts());
+                    }
+                });
+
+        for (Account signer: signers) {
+            finalTxn = signer.sign(finalTxn);
         }
 
         return finalTxn.serializeToHex();

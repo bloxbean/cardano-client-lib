@@ -146,7 +146,7 @@ class FeeCalculationServiceTest extends BaseTest {
                 TransactionDetailsParams.builder().build(), null, protocolParams);
         System.out.println(fee);
 
-        assertThat(fee.longValue(), greaterThan(178000L));
+        assertThat(fee.longValue(), greaterThan(172000L));
         assertThat(fee.longValue(), lessThan(180000L));
         //assert if original fee are there
         assertThat(paymentTransaction1.getFee(), is(BigInteger.valueOf(200)));

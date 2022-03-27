@@ -1367,7 +1367,7 @@ class TransactionHelperServiceIT extends BaseITTest {
         System.out.println(result);
         assertNotNull(result);
         assertNotNull(txn);
-        assertThat(txn.getWitnessSet().getVkeyWitnesses(), hasSize(3));
+        assertThat(txn.getWitnessSet().getVkeyWitnesses(), hasSize(2));
     }
 
     private long getTtl() throws ApiException {
