@@ -98,6 +98,13 @@ public class Value {
     public Value minus(Value that) {
         BigInteger sumCoin = (getCoin() == null ? BigInteger.ZERO.subtract(that.getCoin()) : getCoin().subtract(that.getCoin()));
         List<MultiAsset> difMultiAssets = MultiAsset.subtractMultiAssetLists(getMultiAssets(), that.getMultiAssets());
+
+        //Remove all asset with value == 0
+        difMultiAssets.forEach(multiAsset ->
+                multiAsset.getAssets().removeIf(asset -> BigInteger.ZERO.equals(asset.getValue())));
+        //Remove multiasset if there's no asset
+        difMultiAssets.removeIf(multiAsset -> multiAsset.getAssets() == null || multiAsset.getAssets().isEmpty());
+
         return Value.builder().coin(sumCoin).multiAssets(difMultiAssets).build();
     }
 }

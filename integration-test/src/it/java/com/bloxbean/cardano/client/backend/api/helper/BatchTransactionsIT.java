@@ -152,21 +152,6 @@ public class BatchTransactionsIT extends BaseITTest {
 
         TxBuilder builder = txOutputBuilder
                 .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
-                .andThen((txBuilderContext, transaction) -> {
-                    //Optional --
-                    //In current impl, you can find assets with ZERO value in change output in final txn
-                    //Ideally these should be filtered out in createFromSender(). This will be fixed in the next release
-                    //So in the following code, we are removing all assets with value == ZERO
-                    transaction.getBody().getOutputs().stream()
-                            .forEach(to -> {
-                                to.getValue().getMultiAssets().stream().forEach(multiAsset -> {
-                                    List<Asset> assetList = multiAsset.getAssets().stream()
-                                            .filter(asset -> asset.getValue().compareTo(BigInteger.ZERO) == 1)
-                                            .collect(Collectors.toList());
-                                    multiAsset.setAssets(assetList);
-                                });
-                            });
-                })
                 .andThen(FeeCalculators.feeCalculator(senderAddress, 1))
                 .andThen(ChangeOutputAdjustments.adjustChangeOutput(senderAddress, 1));
 
