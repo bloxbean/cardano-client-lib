@@ -27,9 +27,8 @@ public class KoiosTransactionService implements TransactionService {
     public Result<String> submitTransaction(byte[] cborData) throws ApiException {
         try {
             rest.koios.client.backend.api.base.Result<String> txResult = transactionsService.submitTx(cborData);
-            ;
             if (!txResult.isSuccessful()) {
-                return Result.error(txResult.getResponse()).code(txResult.getCode());
+                return Result.error(txResult.getResponse()).withValue(txResult.getResponse()).code(txResult.getCode());
             }
             return Result.success("OK").withValue(txResult.getValue()).code(200);
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {

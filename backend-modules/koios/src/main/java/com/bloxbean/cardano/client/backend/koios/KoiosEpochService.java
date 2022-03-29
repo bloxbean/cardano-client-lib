@@ -9,6 +9,8 @@ import rest.koios.client.backend.api.epoch.model.EpochInfo;
 import rest.koios.client.backend.api.epoch.model.EpochParams;
 import rest.koios.client.backend.factory.options.Limit;
 import rest.koios.client.backend.factory.options.Options;
+import rest.koios.client.backend.factory.options.Order;
+import rest.koios.client.backend.factory.options.SortType;
 
 import java.math.BigDecimal;
 import java.text.ParseException;
@@ -27,7 +29,9 @@ public class KoiosEpochService implements EpochService {
     @Override
     public Result<EpochContent> getLatestEpoch() throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<List<EpochInfo>> epochInformationResult = epochService.getEpochInformation(Options.builder().option(Limit.of(1)).build());
+            rest.koios.client.backend.api.base.Result<List<EpochInfo>> epochInformationResult = epochService.getEpochInformation(Options.builder()
+                    .option(Limit.of(1))
+                    .option(Order.by("epoch_no", SortType.DESC)).build());
             if (!epochInformationResult.isSuccessful()) {
                 return Result.error(epochInformationResult.getResponse()).code(epochInformationResult.getCode());
             }
@@ -70,7 +74,10 @@ public class KoiosEpochService implements EpochService {
     @Override
     public Result<ProtocolParams> getProtocolParameters() throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<List<EpochParams>> epochParametersResult = epochService.getEpochParameters(Options.builder().option(Limit.of(1)).build());
+            rest.koios.client.backend.api.base.Result<List<EpochParams>> epochParametersResult = epochService.getEpochParameters(Options.builder()
+                    .option(Limit.of(1))
+                    .option(Order.by("epoch_no", SortType.DESC))
+                    .build());
             if (!epochParametersResult.isSuccessful()) {
                 return Result.error(epochParametersResult.getResponse()).code(epochParametersResult.getCode());
             }

@@ -22,7 +22,7 @@ public class GqlBlockServiceIT extends GqlBaseTest {
 
     @Test
     public void testGetLatestBlock() throws ApiException {
-        Result<Block> result = blockService.getLastestBlock();
+        Result<Block> result = blockService.getLatestBlock();
 
         System.out.println(result.getResponse());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));

@@ -480,7 +480,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
     }
 
     private long getTtl() throws ApiException {
-        Block block = blockService.getLastestBlock().getValue();
+        Block block = blockService.getLatestBlock().getValue();
         long slot = block.getSlot();
         return slot + 2000;
     }

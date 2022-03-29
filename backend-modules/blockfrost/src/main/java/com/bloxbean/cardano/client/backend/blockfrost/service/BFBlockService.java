@@ -22,7 +22,7 @@ public class BFBlockService extends BFBaseService implements BlockService {
 
 
     @Override
-    public Result<Block> getLastestBlock() throws ApiException {
+    public Result<Block> getLatestBlock() throws ApiException {
         Call<Block> blockCall = blockApi.getLatestBlock(getProjectId());
 
         try {

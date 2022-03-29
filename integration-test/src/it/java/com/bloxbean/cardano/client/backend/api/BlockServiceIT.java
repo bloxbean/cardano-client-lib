@@ -22,7 +22,7 @@ public class BlockServiceIT extends BaseITTest {
 
     @Test
     public void testGetLatestBlock() throws ApiException {
-        Result<Block> block = service.getLastestBlock();
+        Result<Block> block = service.getLatestBlock();
 
         assertNotNull(block.getValue());
         System.out.println(JsonUtil.getPrettyJson(block.getValue()));

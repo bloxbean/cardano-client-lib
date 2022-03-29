@@ -32,7 +32,6 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
@@ -235,7 +234,7 @@ public class BatchTransactionsIT extends BaseITTest {
     }
 
     public long getTtl() throws ApiException {
-        Block block = blockService.getLastestBlock().getValue();
+        Block block = blockService.getLatestBlock().getValue();
         long slot = block.getSlot();
         return slot + 2000;
     }
