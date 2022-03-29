@@ -5,10 +5,13 @@ import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.bouncycastle.jcajce.provider.digest.Blake2b;
+import org.bouncycastle.pqc.math.linearalgebra.ByteUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -53,18 +56,29 @@ public class TransactionBody {
 
     private NetworkId networkId; // 1 or 0
 
+    public String getHash() throws CborSerializationException {
+        try {
+            Map bodyMap = this.serialize();
+            byte[] bodyHex = CborSerializationUtil.serialize(bodyMap);
+            Blake2b.Blake2b256 digest = new Blake2b.Blake2b256();
+            return ByteUtils.toHexString(digest.digest(bodyHex));
+        } catch (Exception e) {
+            throw new CborSerializationException("CBOR Serialization failed", e);
+        }
+    }
+
     public Map serialize() throws CborSerializationException, AddressExcepion {
         Map bodyMap = new Map();
 
         Array inputsArray = new Array();
-        for(TransactionInput ti: inputs) {
+        for (TransactionInput ti : inputs) {
             Array input = ti.serialize();
             inputsArray.add(input);
         }
         bodyMap.put(new UnsignedInteger(0), inputsArray);
 
         Array outputsArray = new Array();
-        for(TransactionOutput to: outputs) {
+        for (TransactionOutput to : outputs) {
             Array output = to.serialize();
             outputsArray.add(output);
         }
@@ -76,49 +90,49 @@ public class TransactionBody {
             throw new CborSerializationException("Fee cannot be null");
         }
 
-       if(ttl != 0) {
-           bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
-       }
+        if (ttl != 0) {
+            bodyMap.put(new UnsignedInteger(3), new UnsignedInteger(ttl)); //ttl
+        }
 
-       if (certs != null && certs.size() > 0) { //certs
-           Array certArray = new Array();
-           for (Certificate cert: certs) {
-               certArray.add(cert.serialize());
-           }
+        if (certs != null && certs.size() > 0) { //certs
+            Array certArray = new Array();
+            for (Certificate cert : certs) {
+                certArray.add(cert.serialize());
+            }
 
-           bodyMap.put(new UnsignedInteger(4), certArray);
-       }
+            bodyMap.put(new UnsignedInteger(4), certArray);
+        }
 
-       if (withdrawals != null && withdrawals.size() > 0) { //Withdrawals
-           Map withdrawalMap = new Map();
-           for (Withdrawal withdrawal: withdrawals) {
-              withdrawal.serialize(withdrawalMap);
-           }
-           bodyMap.put(new UnsignedInteger(5), withdrawalMap);
-       }
+        if (withdrawals != null && withdrawals.size() > 0) { //Withdrawals
+            Map withdrawalMap = new Map();
+            for (Withdrawal withdrawal : withdrawals) {
+                withdrawal.serialize(withdrawalMap);
+            }
+            bodyMap.put(new UnsignedInteger(5), withdrawalMap);
+        }
 
-       if(auxiliaryDataHash != null) {
-           bodyMap.put(new UnsignedInteger(7), new ByteString(auxiliaryDataHash));
-       }
+        if (auxiliaryDataHash != null) {
+            bodyMap.put(new UnsignedInteger(7), new ByteString(auxiliaryDataHash));
+        }
 
-       if(validityStartInterval != 0) {
-           bodyMap.put(new UnsignedInteger(8), new UnsignedInteger(validityStartInterval)); //validityStartInterval
-       }
+        if (validityStartInterval != 0) {
+            bodyMap.put(new UnsignedInteger(8), new UnsignedInteger(validityStartInterval)); //validityStartInterval
+        }
 
-        if(mint != null && mint.size() > 0) {
+        if (mint != null && mint.size() > 0) {
             Map mintMap = new Map();
-            for(MultiAsset multiAsset: mint) {
+            for (MultiAsset multiAsset : mint) {
                 multiAsset.serialize(mintMap);
             }
             bodyMap.put(new UnsignedInteger(9), mintMap);
         }
 
-        if(scriptDataHash != null) {
+        if (scriptDataHash != null) {
             bodyMap.put(new UnsignedInteger(11), new ByteString(scriptDataHash));
         }
 
         //collateral
-        if(collateral != null && collateral.size() > 0) {
+        if (collateral != null && collateral.size() > 0) {
             Array collateralArray = new Array();
             for (TransactionInput ti : collateral) {
                 Array input = ti.serialize();
@@ -154,64 +168,64 @@ public class TransactionBody {
     public static TransactionBody deserialize(Map bodyMap) throws CborDeserializationException {
         TransactionBody transactionBody = new TransactionBody();
 
-       Array inputArray =  (Array)bodyMap.get(new UnsignedInteger(0));
-       List<TransactionInput> inputs = new ArrayList<>();
-       for(DataItem inputItem: inputArray.getDataItems()) {
-           TransactionInput ti = TransactionInput.deserialize((Array)inputItem);
-           inputs.add(ti);
-       }
-       transactionBody.setInputs(inputs);
+        Array inputArray = (Array) bodyMap.get(new UnsignedInteger(0));
+        List<TransactionInput> inputs = new ArrayList<>();
+        for (DataItem inputItem : inputArray.getDataItems()) {
+            TransactionInput ti = TransactionInput.deserialize((Array) inputItem);
+            inputs.add(ti);
+        }
+        transactionBody.setInputs(inputs);
 
-       Array outputArray =  (Array)bodyMap.get(new UnsignedInteger(1));
+        Array outputArray = (Array) bodyMap.get(new UnsignedInteger(1));
         List<TransactionOutput> outputs = new ArrayList<>();
-        for(DataItem ouptutItem: outputArray.getDataItems()) {
-            TransactionOutput to = TransactionOutput.deserialize((Array)ouptutItem);
+        for (DataItem ouptutItem : outputArray.getDataItems()) {
+            TransactionOutput to = TransactionOutput.deserialize((Array) ouptutItem);
             outputs.add(to);
         }
         transactionBody.setOutputs(outputs);
 
-       UnsignedInteger feeUI = (UnsignedInteger)bodyMap.get(new UnsignedInteger(2));
-       if(feeUI != null) {
+        UnsignedInteger feeUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(2));
+        if (feeUI != null) {
             transactionBody.setFee(feeUI.getValue());
-       }
+        }
 
-        UnsignedInteger ttlUI = (UnsignedInteger)bodyMap.get(new UnsignedInteger(3));
-        if(ttlUI != null) {
+        UnsignedInteger ttlUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(3));
+        if (ttlUI != null) {
             transactionBody.setTtl(ttlUI.getValue().longValue());
         }
 
         //certs
-        Array certArray = (Array)bodyMap.get(new UnsignedInteger(4));
+        Array certArray = (Array) bodyMap.get(new UnsignedInteger(4));
         if (certArray != null && certArray.getDataItems() != null && certArray.getDataItems().size() > 0) {
-            for (DataItem dataItem: certArray.getDataItems()) {
+            for (DataItem dataItem : certArray.getDataItems()) {
                 Certificate cert = Certificate.deserialize((Array) dataItem);
                 transactionBody.getCerts().add(cert);
             }
         }
 
         //withdrawals
-        Map withdrawalMap = (Map)bodyMap.get(new UnsignedInteger(5));
+        Map withdrawalMap = (Map) bodyMap.get(new UnsignedInteger(5));
         if (withdrawalMap != null && withdrawalMap.getKeys() != null && withdrawalMap.getKeys().size() > 0) {
             Collection<DataItem> addrKeys = withdrawalMap.getKeys();
-            for (DataItem addrKey: addrKeys) {
+            for (DataItem addrKey : addrKeys) {
                 Withdrawal withdrawal = Withdrawal.deserialize(withdrawalMap, addrKey);
                 transactionBody.getWithdrawals().add(withdrawal);
             }
         }
 
-        ByteString metadataHashBS = (ByteString)bodyMap.get(new UnsignedInteger(7));
-        if(metadataHashBS != null) {
+        ByteString metadataHashBS = (ByteString) bodyMap.get(new UnsignedInteger(7));
+        if (metadataHashBS != null) {
             transactionBody.setAuxiliaryDataHash(metadataHashBS.getBytes());
         }
 
-        UnsignedInteger validityStartIntervalUI = (UnsignedInteger)bodyMap.get(new UnsignedInteger(8));
-        if(validityStartIntervalUI != null) {
+        UnsignedInteger validityStartIntervalUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(8));
+        if (validityStartIntervalUI != null) {
             transactionBody.setValidityStartInterval(validityStartIntervalUI.getValue().longValue());
         }
 
         //Mint
-        Map mintMap = (Map)bodyMap.get(new UnsignedInteger(9));
-        if(mintMap != null) {
+        Map mintMap = (Map) bodyMap.get(new UnsignedInteger(9));
+        if (mintMap != null) {
             Collection<DataItem> mintDataItems = mintMap.getKeys();
             for (DataItem multiAssetKey : mintDataItems) {
                 MultiAsset ma = MultiAsset.deserialize(mintMap, multiAssetKey);
@@ -220,13 +234,13 @@ public class TransactionBody {
         }
 
         //script_data_hash
-        ByteString scriptDataHashBS = (ByteString)bodyMap.get(new UnsignedInteger(11));
+        ByteString scriptDataHashBS = (ByteString) bodyMap.get(new UnsignedInteger(11));
         if (scriptDataHashBS != null) {
             transactionBody.setScriptDataHash(scriptDataHashBS.getBytes());
         }
 
         //collateral
-        Array collateralArray =  (Array)bodyMap.get(new UnsignedInteger(13));
+        Array collateralArray = (Array) bodyMap.get(new UnsignedInteger(13));
         if (collateralArray != null) {
             List<TransactionInput> collateral = new ArrayList<>();
             for (DataItem inputItem : collateralArray.getDataItems()) {
@@ -237,10 +251,10 @@ public class TransactionBody {
         }
 
         //required_signers
-        Array requiredSignerArray = (Array)bodyMap.get(new UnsignedInteger(14));
+        Array requiredSignerArray = (Array) bodyMap.get(new UnsignedInteger(14));
         if (requiredSignerArray != null) {
             List<byte[]> requiredSigners = new ArrayList<>();
-            for (DataItem requiredSigDI: requiredSignerArray.getDataItems()) {
+            for (DataItem requiredSigDI : requiredSignerArray.getDataItems()) {
                 ByteString requiredSigBS = (ByteString) requiredSigDI;
                 requiredSigners.add(requiredSigBS.getBytes());
             }
@@ -253,7 +267,7 @@ public class TransactionBody {
             int networkIdInt = networkIdUI.getValue().intValue();
             if (networkIdInt == 0) {
                 transactionBody.setNetworkId(NetworkId.TESTNET);
-            }else if (networkIdInt == 1) {
+            } else if (networkIdInt == 1) {
                 transactionBody.setNetworkId(NetworkId.MAINNET);
             } else {
                 throw new CborDeserializationException("Invalid networkId value : " + networkIdInt);
