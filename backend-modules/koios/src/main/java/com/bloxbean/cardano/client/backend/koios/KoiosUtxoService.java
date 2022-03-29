@@ -28,6 +28,9 @@ public class KoiosUtxoService implements UtxoService {
     @Override
     public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException {
         try {
+            if (page!=1) {
+                return Result.success("OK").code(200);
+            }
             rest.koios.client.backend.api.base.Result<AddressInfo> addressInformationResult = addressService.getAddressInformation(address);
             if (!addressInformationResult.isSuccessful()) {
                 return Result.error(addressInformationResult.getResponse()).code(addressInformationResult.getCode());
