@@ -13,6 +13,7 @@ import rest.koios.client.backend.api.address.model.Asset;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
@@ -29,7 +30,7 @@ public class KoiosUtxoService implements UtxoService {
     public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException {
         try {
             if (page!=1) {
-                return Result.success("OK").code(200);
+                return Result.success("OK").withValue(Collections.emptyList()).code(200);
             }
             rest.koios.client.backend.api.base.Result<AddressInfo> addressInformationResult = addressService.getAddressInformation(address);
             if (!addressInformationResult.isSuccessful()) {

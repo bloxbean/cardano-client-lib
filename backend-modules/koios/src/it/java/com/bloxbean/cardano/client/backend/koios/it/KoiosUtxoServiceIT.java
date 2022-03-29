@@ -25,11 +25,23 @@ public class KoiosUtxoServiceIT extends KoiosBaseTest {
     public void testGetUtxos() throws ApiException {
         String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
 
-        Result<List<Utxo>> result = utxoService.getUtxos(address, 40, 0);
+        Result<List<Utxo>> result = utxoService.getUtxos(address, 40, 1);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
         assertTrue(result.code() == 200);
         assertTrue(result.getValue().size() > 0);
+    }
+
+    @Test
+    public void testGetUtxos_emptyResultIfPageIsNotOne() throws ApiException {
+        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
+
+        Result<List<Utxo>> result = utxoService.getUtxos(address, 40, 2);
+
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+        assertTrue(result.isSuccessful());
+        assertTrue(result.code() == 200);
+        assertTrue(result.getValue().size() == 0);
     }
 }
