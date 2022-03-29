@@ -12,9 +12,7 @@ dependencies {
     compile project(':')
     compile project(':cardano-client-backend')
 
-    implementation('io.github.cardano-community:koios-java-client:1.6') {
-        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-    }
+    implementation('io.github.cardano-community:koios-java-client:1.8')
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
