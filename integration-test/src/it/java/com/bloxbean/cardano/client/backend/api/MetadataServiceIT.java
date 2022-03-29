@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.backend.model.metadata.MetadataJSONContent;
 import com.bloxbean.cardano.client.backend.model.metadata.MetadataLabel;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.hamcrest.Matchers;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,6 +31,13 @@ public class MetadataServiceIT extends BaseITTest {
     @Test
     public void testGetCBORMetadataByTxnHash() throws ApiException {
         String txHash = "d55882183427330369f8e5f09ec714257a2fe2d6ffa29f158a7cb9aae056d1ee";
+
+        if (backendType.equals(KOIOS)) {
+            Assertions.assertThrows(UnsupportedOperationException.class, ()-> {
+                metadataService.getCBORMetadataByTxnHash(txHash);
+            });
+            return;
+        }
 
         Result<List<MetadataCBORContent>> result = metadataService.getCBORMetadataByTxnHash(txHash);
 
@@ -78,6 +86,13 @@ public class MetadataServiceIT extends BaseITTest {
 
     @Test
     public void testGetJSONMetadataByLabel() throws ApiException {
+        if (backendType.equals(KOIOS)) {
+            Assertions.assertThrows(UnsupportedOperationException.class, ()-> {
+                metadataService.getJSONMetadataByLabel(new BigInteger("1"), 10, 1, OrderEnum.asc);
+            });
+            return;
+        }
+
         Result<List<MetadataJSONContent>> result = metadataService.getJSONMetadataByLabel(new BigInteger("1"), 10, 1, OrderEnum.asc);
 
         List<MetadataJSONContent> value = result.getValue();
@@ -91,6 +106,13 @@ public class MetadataServiceIT extends BaseITTest {
 
     @Test
     public void testGetCBORMetadataByLabel() throws ApiException {
+        if (backendType.equals(KOIOS)) {
+            Assertions.assertThrows(UnsupportedOperationException.class, ()-> {
+                metadataService.getCBORMetadataByLabel(new BigInteger("1985"), 10, 1, OrderEnum.asc);
+            });
+            return;
+        }
+
         Result<List<MetadataCBORContent>> result = metadataService.getCBORMetadataByLabel(new BigInteger("1985"), 10, 1, OrderEnum.asc);
 
         List<MetadataCBORContent> value = result.getValue();
