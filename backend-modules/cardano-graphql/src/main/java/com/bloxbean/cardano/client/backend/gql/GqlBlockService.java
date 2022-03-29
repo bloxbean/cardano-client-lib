@@ -34,7 +34,7 @@ public class GqlBlockService extends BaseGqlService implements BlockService {
     }
 
     @Override
-    public Result<Block> getLastestBlock() throws ApiException {
+    public Result<Block> getLatestBlock() throws ApiException {
         RecentBlockQuery blockQuery = new RecentBlockQuery();
         RecentBlockQuery.Data data = execute(blockQuery);
         if(data == null)

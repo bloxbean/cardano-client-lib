@@ -41,7 +41,7 @@ public class CIPBaseTransactionITTest extends BaseITTest {
     }
 
     protected long getTtl() throws ApiException {
-        Block block = blockService.getLastestBlock().getValue();
+        Block block = blockService.getLatestBlock().getValue();
         long slot = block.getSlot();
         return slot + 2000;
     }

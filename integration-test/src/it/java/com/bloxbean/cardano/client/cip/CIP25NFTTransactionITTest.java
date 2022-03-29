@@ -103,7 +103,7 @@ public class CIP25NFTTransactionITTest extends CIPBaseTransactionITTest {
     }
 
     private long queryTipSlot() throws ApiException {
-        Result<Block> blockResult = blockService.getLastestBlock();
+        Result<Block> blockResult = blockService.getLatestBlock();
         if (blockResult.isSuccessful()) {
             Block block = blockResult.getValue();
             return block.getSlot();

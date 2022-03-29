@@ -13,7 +13,7 @@ public interface BlockService {
      *
      * @return Get latest block
      */
-    Result<Block> getLastestBlock() throws ApiException;
+    Result<Block> getLatestBlock() throws ApiException;
 
     /**
      * Get Block by Block Hash

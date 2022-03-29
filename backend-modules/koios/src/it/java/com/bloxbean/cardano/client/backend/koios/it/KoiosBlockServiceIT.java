@@ -23,7 +23,7 @@ public class KoiosBlockServiceIT  extends KoiosBaseTest {
 
     @Test
     public void testGetLatestBlock() throws ApiException {
-        Result<Block> block = blockService.getLastestBlock();
+        Result<Block> block = blockService.getLatestBlock();
 
         assertNotNull(block.getValue());
         System.out.println(JsonUtil.getPrettyJson(block.getValue()));
