@@ -1,12 +1,14 @@
 package com.bloxbean.cardano.client.backend.koios;
 
-import com.bloxbean.cardano.client.backend.api.BlockService;
 import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.BlockService;
+import com.bloxbean.cardano.client.backend.model.Block;
 import rest.koios.client.backend.api.block.model.BlockInfo;
 import rest.koios.client.backend.factory.options.Limit;
 import rest.koios.client.backend.factory.options.Options;
+import rest.koios.client.backend.factory.options.Order;
+import rest.koios.client.backend.factory.options.SortType;
 import rest.koios.client.backend.factory.options.filters.Filter;
 import rest.koios.client.backend.factory.options.filters.FilterType;
 
@@ -25,16 +27,20 @@ public class KoiosBlockService implements BlockService {
     }
 
     @Override
-    public Result<Block> getLastestBlock() throws ApiException {
+    public Result<Block> getLatestBlock() throws ApiException {
         try {
             rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.block.model.Block>>
-                    blockList = blockService.getBlockList(Options.builder().option(Limit.of(1)).build());
+                    blockList = blockService.getBlockList(Options.builder()
+                    .option(Limit.of(2))
+                    .build());
             if (!blockList.isSuccessful()) {
                 return Result.error(blockList.getResponse()).code(blockList.getCode());
             }
-            return getBlockByHash(blockList.getValue().get(0).getHash());
+            return convertToBlock(blockList.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
+        } catch (ParseException e) {
+            return Result.error("Failed to Parse System Start Date").code(500);
         }
     }
 
@@ -51,6 +57,22 @@ public class KoiosBlockService implements BlockService {
         } catch (ParseException e) {
             return Result.error("Failed to Parse System Start Date").code(500);
         }
+    }
+
+    private Result<Block> convertToBlock(List<rest.koios.client.backend.api.block.model.Block> blocks) throws ParseException {
+        Block block = new Block();
+        block.setTime(simpleDateFormat.parse(blocks.get(0).getBlockTime()).getTime());
+        block.setHeight(blocks.get(0).getBlockHeight());
+        block.setHash(blocks.get(0).getHash());
+        block.setSlot(blocks.get(0).getAbsSlot());
+        block.setEpoch(blocks.get(0).getEpoch());
+        block.setEpochSlot(blocks.get(0).getEpochSlot());
+        block.setSlotLeader(blocks.get(0).getPool());
+        block.setSize(Math.toIntExact(blocks.get(0).getBlockSize()));
+        block.setTxCount(blocks.get(0).getTxCount());
+        block.setBlockVrf(blocks.get(0).getVrfKey());
+        block.setPreviousBlock(blocks.get(1).getHash());
+        return Result.success("OK").withValue(block).code(200);
     }
 
     private Result<Block> convertToBlock(BlockInfo blockInfo) throws ParseException {

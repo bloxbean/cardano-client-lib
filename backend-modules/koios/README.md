@@ -49,3 +49,6 @@ From top level project folder (Exp: cd ~/cardano-client-lib)
 ```
 $> ./gradlew -p ./backends-modules/koios/ clean build
 ```
+
+###Limitations
+Block Object Received By BlockService::getLatestBlock Endpoint will have null fields for Output Sum, Fees, and Num of Confirmations.  
