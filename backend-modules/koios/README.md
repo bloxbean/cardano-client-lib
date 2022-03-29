@@ -47,7 +47,7 @@ BackendService backendService = new KoiosBackendService(Constant.KOIOS_TESTNET_U
 From top level project folder (Exp: cd ~/cardano-client-lib)
 
 ```
-$> ./gradlew -p ./backends-modules/koios/ clean build
+$> ./gradlew -p ./backend-modules/koios/ clean build
 ```
 
 ###Limitations
