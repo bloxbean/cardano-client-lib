@@ -10,6 +10,7 @@ import rest.koios.client.backend.api.address.AddressService;
 import rest.koios.client.backend.api.address.model.AddressInfo;
 import rest.koios.client.backend.api.address.model.AddressUtxo;
 import rest.koios.client.backend.api.address.model.Asset;
+import rest.koios.client.backend.factory.options.SortType;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -28,18 +29,7 @@ public class KoiosUtxoService implements UtxoService {
 
     @Override
     public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException {
-        try {
-            if (page!=1) {
-                return Result.success("OK").withValue(Collections.emptyList()).code(200);
-            }
-            rest.koios.client.backend.api.base.Result<AddressInfo> addressInformationResult = addressService.getAddressInformation(address);
-            if (!addressInformationResult.isSuccessful()) {
-                return Result.error(addressInformationResult.getResponse()).code(addressInformationResult.getCode());
-            }
-            return convertToUTxOs(addressInformationResult.getValue());
-        } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
-            throw new ApiException(e.getMessage(), e);
-        }
+        return getUtxos(address, count, page, OrderEnum.desc);
     }
 
     private Result<List<Utxo>> convertToUTxOs(AddressInfo addressInfo) {
@@ -63,6 +53,22 @@ public class KoiosUtxoService implements UtxoService {
 
     @Override
     public Result<List<Utxo>> getUtxos(String address, int count, int page, OrderEnum order) throws ApiException {
-        return getUtxos(address, count, page);
+        try {
+            if (page!=1) {
+                return Result.success("OK").withValue(Collections.emptyList()).code(200);
+            }
+            rest.koios.client.backend.api.base.Result<AddressInfo> addressInformationResult;
+            if (order == OrderEnum.asc) {
+                addressInformationResult = addressService.getAddressInformation(address, SortType.ASC);
+            } else {
+                addressInformationResult = addressService.getAddressInformation(address);
+            }
+            if (!addressInformationResult.isSuccessful()) {
+                return Result.error(addressInformationResult.getResponse()).code(addressInformationResult.getCode());
+            }
+            return convertToUTxOs(addressInformationResult.getValue());
+        } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
+            throw new ApiException(e.getMessage(), e);
+        }
     }
 }
