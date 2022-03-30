@@ -27,7 +27,8 @@ public class TransactionBody {
     @Builder.Default
     private List<TransactionOutput> outputs = new ArrayList<>();
 
-    private BigInteger fee;
+    @Builder.Default
+    private BigInteger fee = BigInteger.ZERO;
     private long ttl; //Optional
 
     @Builder.Default
