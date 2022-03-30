@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.util;
+package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.CborBuilder;
 import co.nstant.in.cbor.CborEncoder;
@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
