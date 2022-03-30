@@ -165,7 +165,6 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 .andThen(collateralFrom(collateral, collateralIndex))
                 .andThen(scriptCallContext(plutusScript, scriptUtxo, guess, guess, RedeemerTag.Spend, exUnits))
                 .andThen((context, txn) -> { //Evaluate ExUnits
-                    txn.getBody().setFee(BigInteger.ZERO); //Setting it to 0, otherwise serialization will fail
                     //update estimate ExUnits
                     ExUnits estimatedExUnits;
                     try {
@@ -201,11 +200,18 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
     }
 
     private ExUnits evaluateExUnits(Transaction transaction) throws ApiException, CborSerializationException {
-        Result<List<EvaluationResult>> evalResults = transactionService.evaluateTx(transaction.serialize());
-        if (evalResults.isSuccessful()) {
-            return evalResults.getValue().get(0).getExUnits();
+        if (backendType.equals(BLOCKFROST)) {
+            Result<List<EvaluationResult>> evalResults = transactionService.evaluateTx(transaction.serialize());
+            if (evalResults.isSuccessful()) {
+                return evalResults.getValue().get(0).getExUnits();
+            } else {
+                return null;
+            }
         } else {
-            return null;
+            //Hard coded value for other backend types where evaluateTx is not yet supported
+            return ExUnits.builder()
+                    .mem(BigInteger.valueOf(4676948))
+                    .steps(BigInteger.valueOf(630892334)).build();
         }
     }
 

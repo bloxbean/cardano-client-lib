@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.helper.TransactionBuilder;
 import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.api.model.Result;
@@ -14,6 +15,7 @@ import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.cip.cip25.NFT;
 import com.bloxbean.cardano.client.cip.cip25.NFTFile;
 import com.bloxbean.cardano.client.cip.cip25.NFTMetadata;
+import com.bloxbean.cardano.client.coinselection.impl.LargestFirstUtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.*;
 import com.bloxbean.cardano.client.function.helper.ChangeOutputAdjustments;
@@ -67,16 +69,19 @@ public class BatchTransactionsIT extends BaseITTest {
     public void setup() {
         backendService = getBackendService();
         utxoService = backendService.getUtxoService();
-        transactionService = backendService.getTransactionService();
-        transactionHelperService = backendService.getTransactionHelperService();
-        blockService = backendService.getBlockService();
-        feeCalculationService = backendService.getFeeCalculationService();
         epochService = backendService.getEpochService();
+        blockService = backendService.getBlockService();
+        transactionService = backendService.getTransactionService();
 
         utxoSupplier = new DefaultUtxoSupplier(utxoService);
         protocolParamsSupplier = new DefaultProtocolParamsSupplier(epochService);
 
-        String senderMnemonic = "race fetch slot fragile front fresh siege insane rapid foster gasp often cigar female match feel legend jazz winner advice depart crumble system rough";
+        //Create TransactionHelperService with LargestFirst
+        TransactionBuilder transactionBuilder = new TransactionBuilder(new LargestFirstUtxoSelectionStrategy(utxoSupplier), protocolParamsSupplier);
+        transactionHelperService = new TransactionHelperService(transactionBuilder, new DefaultTransactionProcessor(transactionService));
+        feeCalculationService = backendService.getFeeCalculationService(transactionHelperService);
+
+        String senderMnemonic = "capable venture stove poet great turtle hurdle photo improve tongue light bean orchard negative clog forest page coil never report hammer grid waste cigar";
         sender = new Account(Networks.testnet(), senderMnemonic);
         senderAddress = sender.baseAddress();
 
