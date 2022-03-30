@@ -64,7 +64,7 @@ public class KoiosUtxoService implements UtxoService {
                 addressInformationResult = addressService.getAddressInformation(address);
             }
             if (!addressInformationResult.isSuccessful()) {
-                return Result.error(addressInformationResult.getResponse()).code(addressInformationResult.getCode());
+                return Result.error(addressInformationResult.getResponse()).withValue(Collections.emptyList()).code(addressInformationResult.getCode());
             }
             return convertToUTxOs(addressInformationResult.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
