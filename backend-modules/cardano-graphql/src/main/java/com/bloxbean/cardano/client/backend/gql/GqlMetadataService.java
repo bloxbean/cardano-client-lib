@@ -74,21 +74,21 @@ public class GqlMetadataService extends BaseGqlService implements MetadataServic
 
     @Override
     public Result<List<MetadataCBORContent>> getCBORMetadataByTxnHash(String txnHash) throws ApiException {
-        return null;
+        throw new UnsupportedOperationException("No supported");
     }
 
     @Override
     public Result<List<MetadataLabel>> getMetadataLabels(int count, int page, OrderEnum order) throws ApiException {
-        return null;
+        throw new UnsupportedOperationException("No supported");
     }
 
     @Override
     public Result<List<MetadataJSONContent>> getJSONMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) throws ApiException {
-        return null;
+        throw new UnsupportedOperationException("No supported");
     }
 
     @Override
     public Result<List<MetadataCBORContent>> getCBORMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) throws ApiException {
-        return null;
+        throw new UnsupportedOperationException("No supported");
     }
 }

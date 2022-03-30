@@ -23,7 +23,7 @@ public class GqlBackendServiceIT {
 
     @Test
     public void testCreateBackendServiceWithUrl() throws ApiException {
-        BackendService backendService = new GqlBackendService(Constants.GQL_URL);
+        BackendService backendService = new GqlBackendService(Constants.DANDELION_TESTNET_GQL_URL);
         NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
 
         getNetworkInfoAndCompare(networkInfoService);
@@ -35,7 +35,7 @@ public class GqlBackendServiceIT {
         headers.put("AuthKey", "Some Auth key");
         headers.put("CustomHeader", "Some header");
 
-        BackendService backendService = new GqlBackendService(Constants.GQL_URL, headers);
+        BackendService backendService = new GqlBackendService(Constants.DANDELION_TESTNET_GQL_URL, headers);
         NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
 
         getNetworkInfoAndCompare(networkInfoService);
@@ -54,7 +54,7 @@ public class GqlBackendServiceIT {
             okHttpClientBuilder.addInterceptor(new AddHeadersInterceptor(headers));
         }
 
-        BackendService backendService = new GqlBackendService(Constants.GQL_URL, okHttpClientBuilder.build());
+        BackendService backendService = new GqlBackendService(Constants.DANDELION_TESTNET_GQL_URL, okHttpClientBuilder.build());
 
         NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
 
@@ -75,7 +75,7 @@ public class GqlBackendServiceIT {
         }
 
         assertThrows(Exception.class, () -> {
-            BackendService backendService = new GqlBackendService(Constants.GQL_URL, okHttpClientBuilder.build());
+            BackendService backendService = new GqlBackendService(Constants.DANDELION_TESTNET_GQL_URL, okHttpClientBuilder.build());
             NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
             getNetworkInfoAndCompare(networkInfoService);
         });

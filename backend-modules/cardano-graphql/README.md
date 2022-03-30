@@ -2,6 +2,13 @@
 
 ### Cardano GraphQL Backend implementation for [Cardano Client Lib](https://github.com/bloxbean/cardano-client-lib)
 
+**DEPRECATED**
+
+This backend module has been deprecated. 
+
+Testing scope : Limited
+
+
 ## Dependency
 
 **Maven**
@@ -10,20 +17,20 @@
 <dependency>
      <groupId>com.bloxbean.cardano</groupId>
      <artifactId>cardano-client-lib</artifactId>
-     <version>0.1.4</version>
+     <version>{version}</version>
 </dependency>
 <dependency>
      <groupId>com.bloxbean.cardano</groupId>
      <artifactId>cardano-client-backend-gql</artifactId>
-     <version>0.1.4</version>
+     <version>{version}</version>
 </dependency>
 ```
 
 **Gradle**
 
 ```
-  implementation('com.bloxbean.cardano:cardano-client-lib:0.1.4')
-  implementation('com.bloxbean.cardano:cardano-client-backend-gql:0.1.4')
+  implementation('com.bloxbean.cardano:cardano-client-lib:{version}')
+  implementation('com.bloxbean.cardano:cardano-client-backend-gql:{version}')
 ```
 
 **Get BackendService instance for Cardano GraphQL backend**
@@ -49,12 +56,12 @@ BackendService backendService =
 From top level project folder (Exp: cd ~/cardano-client-lib)
 
 ```
-$> ./gradlew -p ./backends/cardano-graphql/ clean build
+$> ./gradlew -p ./backend-modules/cardano-graphql/ clean build
 ```
 
 **Generate GraphQL classes**
 
 ```
-$> cd backends/cardano-graphql
+$> cd backend-modules/cardano-graphql
 $> sh download_schema.sh 
 ```

@@ -2,11 +2,16 @@ package com.bloxbean.cardano.client.backend.api;
 
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
+import com.bloxbean.cardano.client.backend.gql.GqlBackendService;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
 
 public class BaseITTest {
+    protected String BLOCKFROST = "blockfrost";
+    protected String KOIOS = "koios";
+    protected String CARDANO_GQL = "cardano-gql";
+    protected String OGMIOS = "OGMIOS";
 
-    protected String backendType = "blockfrost";
+    protected String backendType = BLOCKFROST;
     public String bfProjectId;
 
     public BaseITTest() {
@@ -17,10 +22,12 @@ public class BaseITTest {
     }
 
     public BackendService getBackendService() {
-        if ("blockfrost".equals(backendType) && bfProjectId != null && !bfProjectId.isEmpty())
+        if (BLOCKFROST.equals(backendType) && bfProjectId != null && !bfProjectId.isEmpty()) {
             return new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
-        else if ("koios".equals(backendType)) {
+        } else if (KOIOS.equals(backendType)) {
             return new KoiosBackendService(com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_TESTNET_URL);
+        } else if (CARDANO_GQL.equals(backendType)) {
+            return new GqlBackendService(com.bloxbean.cardano.client.backend.gql.Constants.DANDELION_TESTNET_GQL_URL);
         } else
             return null;
     }

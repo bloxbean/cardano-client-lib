@@ -20,7 +20,7 @@ public class GqlAddressServiceIT {
 
     @BeforeEach
     public void setup() {
-        addressService = new GqlAddressService(Constants.GQL_URL);
+        addressService = new GqlAddressService(Constants.DANDELION_TESTNET_GQL_URL);
     }
 
     @Test

@@ -20,6 +20,6 @@ public class GqlBaseTest {
         headers.put("AuthKey", "Some Auth key");
         headers.put("CustomHeader", "Some header");
 
-        backendService = new GqlBackendService(Constants.GQL_URL, headers);
+        backendService = new GqlBackendService(Constants.DANDELION_TESTNET_GQL_URL, headers);
     }
 }
