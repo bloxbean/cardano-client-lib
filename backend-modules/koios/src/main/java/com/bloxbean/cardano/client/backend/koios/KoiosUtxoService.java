@@ -54,7 +54,7 @@ public class KoiosUtxoService implements UtxoService {
     @Override
     public Result<List<Utxo>> getUtxos(String address, int count, int page, OrderEnum order) throws ApiException {
         try {
-            if (page!=1) {
+            if (page != 1) {
                 return Result.success("OK").withValue(Collections.emptyList()).code(200);
             }
             rest.koios.client.backend.api.base.Result<AddressInfo> addressInformationResult;
