@@ -2,20 +2,11 @@
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-**Latest Beta**: [0.2.0-beta2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-beta2) (Pure Java)
+**Latest Beta**: [0.2.0-beta3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-beta3) (Pure Java)
 
-**Latest Stable Version** : [0.1.5](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.1.5)
+**Previous Stable Version** : [0.1.5](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.1.5) (Uses rust lib) 
 
-**Note:** In 0.1.5 or earlier versions, it uses a rust module though JNI. The library
-bundles the platform specific binaries of this rust module. You can check the supported operating systems below.
-
-## Supported Operating Systems (For 0.1.5 or earlier and 0.2.0-beta1)
-The library has been tested on the following Operating Systems.
-
-- Apple MacOS (Intel and Apple Silicon)
-- Linux (x86_64) (Ubuntu 18.04 and above or compatible ...)
-- Windows 64bits (x86_64)
-- Android (both x86 and ARM in 32-bit and 64-bit)
+[v0.1.5 More details](README-0_1_5.md)
 
 **Posts**
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
@@ -27,7 +18,7 @@ The library has been tested on the following Operating Systems.
 
 [Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
 
-[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0-beta2/index.html)
+[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0-beta3/index.html)
 
 **Features**
 
@@ -41,6 +32,20 @@ The library has been tested on the following Operating Systems.
 - CBOR serialization of transaction
 - Transaction signing
 
+### High Level api 
+- To build and submit 
+    -  Payment transaction
+    - Token Minting and token transfer transaction
+    
+### Composable Functions
+- To build and submit
+    - Payment transaction
+    - Token Minting and token transfer
+    - Plutus smart contract call
+    - Token minting with Plutus contract
+    
+[Examples with Composable Functions](https://github.com/bloxbean/cardano-client-examples/tree/main/src/main/java/com/bloxbean/cardano/client/examples/function)
+
 #### Metadata Builder
 - Helper to build Metadata
 - Converter to conver JSON (No Schema) to Metadata format
@@ -51,16 +56,25 @@ The library has been tested on the following Operating Systems.
 - Policy Id generation
 
 #### Backend Integration
-The plugin also provides integration with Cardano node through different backend services.
-Out of box, the library currently supports integration with [Blockfrost](https://blockfrost.io) through the Backend api.
+The library also provides integration with Cardano node through different backend services.
+Out of box, the library currently supports integration with following providers through the Backend api.
 
-For cardano-graphql backend, check [cardano-client-backend-gql](https://github.com/bloxbean/cardano-client-backend-gql) extension.
-
-Other backend like Cardano-wallet will be added in future release.
-
+- [Blockfrost](https://blockfrost.io) 
+    - **Module :** cardano-client-backend-blockfrost [README](backend-modules/blockfrost/README.md)
+    - **Status :** Stable 
+- [Koios](https://www.koios.rest/)
+    - **Module :** cardano-client-backend-koios [README](backend-modules/koios/README.md)
+    - **Status :** Beta
+- [Ogmios](https://ogmios.dev/)
+    - **Module :** cardano-client-backend-koios [README](backend-modules/ogmios/README.md)
+    - **Status :** Experimental
+    - **Supported Apis :** submitTransaction, evaluateTx
+- [cardano-graphql](https://github.com/input-output-hk/cardano-graphql)
+    - **Module :** cardano-client-backend-gql [README](backend-modules/cardano-graphql/README.md)
+    - **Status :** Deprecated
 
 **Following Backend apis are currently available**
-- TransactionService (Submit transaction, Get transaction)
+- TransactionService (Submit transaction, Get transaction, Evaluate ExUnits for Script Txn)
 - AddressService (Get address details)
 - UtxoService (Get utxos for an address)
 - AssetService
@@ -71,28 +85,80 @@ Other backend like Cardano-wallet will be added in future release.
 
 ## Use as a library in a Java Project
 
-### Add dependency
+### For release binaries
 
-#### For release binary
+**For Maven, add the following dependencies to project's pom.xml**
+  
+- Core module
 
-- For Maven, add the following dependency to project's pom.xml
-```
+```xml
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.2.0-beta2</version>
+            <version>0.2.0-beta3</version>
+        </dependency>
+```
+- Backend modules
+    - For backend support, use one of the following supported backend module
+
+```xml
+        <!-- For Blockfrost backend -->
+        <dependency>
+            <groupId>com.bloxbean.cardano</groupId>
+            <artifactId>cardano-client-backend-blockfrost</artifactId>
+            <version>0.2.0-beta3</version>
+        </dependency>
+        
+         <!-- For Koios backend -->
+        <dependency>
+            <groupId>com.bloxbean.cardano</groupId>
+            <artifactId>cardano-client-backend-koios</artifactId>
+            <version>0.2.0-beta3</version>
+        </dependency>
+        
+         <!-- For Ogmios backend -->
+        <dependency>
+            <groupId>com.bloxbean.cardano</groupId>
+            <artifactId>cardano-client-backend-ogmios</artifactId>
+            <version>0.2.0-beta3</version>
+        </dependency>
+
+        <!-- For Cardano Graphql backend -->
+        <dependency>
+            <groupId>com.bloxbean.cardano</groupId>
+            <artifactId>cardano-client-backend-gql</artifactId>
+            <version>0.2.0-beta3</version>
         </dependency>
 ```
 
-- For Gradle, add the following dependency to build.gradle
+**For Gradle, add the following dependencies to build.gradle**
+
+- Core Module
+```
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta3'
+```
+- Backend modules
+    - For backend support, use one of the following supported backend module
+
+```groovy
+//For Blockfrost
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0-beta3'
+
+//For Koios
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.2.0-beta3'
+
+//For Ogmios
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.2.0-beta3'
+
+//For Cardano Graphql
+implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0-beta3'
 
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta2'
-```
 
-#### For snapshot binary
 
-- For Maven, add the following dependency and repository to project's pom.xml
+### For snapshot binaries
+
+- For Maven, add the following dependencies and repository to project's pom.xml
 ```
     <dependencies>
         <dependency>
@@ -120,7 +186,7 @@ implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta2'
         </repository>
     </repositories>
 ```
-- For Gradle, add the following dependency and repository to build.gradle
+- For Gradle, add the following dependencies and repository to build.gradle
 
 ```
 repositories {
@@ -131,6 +197,7 @@ repositories {
 }
 
 implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta3-SNAPSHOT'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0-beta3-SNAPSHOT'
 ```
 
 ### Account API Usage
@@ -165,7 +232,7 @@ Account account = new Account(Networks.testnet(), mnemonic); //Create a Testnet 
 ### Create Blockfrost Backend Service and get other services
 ```
 BackendService backendService =
-                BackendFactory.getBlockfrostBackendService(Constants.BLOCKFROST_TESTNET_URL, "<Blockfrost_Project_id>");
+                new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, <BF_PROJECT_ID>);               
 
 FeeCalculationService feeCalculationService = backendService.getFeeCalculationService();
 TransactionHelperService transactionHelperService = backendService.getTransactionHelperService();
@@ -328,11 +395,18 @@ Result<String> result
 ## UtxoSelectionStrategy
 The utxo selection strategy can be changed by providing a custom implementation of "UtxoSelectionStrategy" interface. By default, the high level api like TransactionHelperService uses a default out-of-box implementation "DefaultUtxoSelectionStrategyImpl". The default strategy is too simple and finds all required utxos sequentially. But it may not be efficient for some usecases.
 
-You can create a custom implementation of UtxoSelectionStrategy to change the default utxo selection behaviour. The custom UtxoSelectionStrategy impl can then be set in the UtxoTransactionBuilder through TransactionHelperService.
+You can use a custom or different implementation of UtxoSelectionStrategy to change the default utxo selection behaviour. 
 
 ```
-UtxoSelectionStrategy customUtxoSelectionStrategy = new CustomUtxoSelectionStrategyImpl(utxoService); //Your custom impl
-transactionHelperService.getUtxoTransactionBuilder().setUtxoSelectionStrategy(customUtxoSelectionStrategy);
+UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(utxoService);
+ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(epochService);
+
+//Create TransactionHelperService with LargestFirst
+TransactionBuilder transactionBuilder = new TransactionBuilder(new LargestFirstUtxoSelectionStrategy(utxoSupplier), protocolParamsSupplier);
+TransactionHelperService transactionHelperService = new TransactionHelperService(transactionBuilder, new DefaultTransactionProcessor(transactionService));
+
+//Get FeeCalculationService using the above TransactionHelperService
+FeeCalculationService feeCalculationService = backendService.getFeeCalculationService(transactionHelperService);
 ```
 
 # Build
