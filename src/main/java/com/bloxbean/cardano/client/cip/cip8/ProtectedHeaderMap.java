@@ -1,25 +1,27 @@
 package com.bloxbean.cardano.client.cip.cip8;
 
-import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.MajorType;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
-import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
-@Data
-@AllArgsConstructor
-public class ProtectedHeaderMap {
-    private byte[] bytes;
+@Getter
+@EqualsAndHashCode
+public class ProtectedHeaderMap implements COSEItem {
+    private final byte[] bytes;
+
+    public ProtectedHeaderMap() {
+        this.bytes = new byte[0];
+    }
+
+    public ProtectedHeaderMap(byte[] bytes) {
+        this.bytes = bytes;
+    }
 
     public ProtectedHeaderMap(HeaderMap headerMap) {
-        try {
-            bytes = CborSerializationUtil.serialize(headerMap.serialize());
-        } catch (CborException e) {
-            throw new CborRuntimeException("HeaderMap serialization error", e);
-        }
+        bytes = headerMap.serializeAsBytes();
     }
 
     public static ProtectedHeaderMap deserialize(DataItem dataItem) {
@@ -37,6 +39,6 @@ public class ProtectedHeaderMap {
         if (bytes != null)
             return new ByteString(bytes);
         else
-            return null;
+            return new ByteString(new byte[0]);
     }
 }

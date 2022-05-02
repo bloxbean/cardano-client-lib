@@ -14,7 +14,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class COSESign1 implements COSEBaseSign {
+public class COSESign1 implements COSEItem {
     private Headers headers;
     private byte[] payload;
     private byte[] signature;

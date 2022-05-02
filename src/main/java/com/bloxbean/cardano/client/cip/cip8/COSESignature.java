@@ -5,16 +5,20 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.MajorType;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.NonNull;
+import lombok.experimental.Accessors;
 
 import java.util.Arrays;
 import java.util.List;
 
+@Accessors(fluent = true)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class COSESignature {
+public class COSESignature implements COSEItem {
     private Headers headers;
     private byte[] signature;
 

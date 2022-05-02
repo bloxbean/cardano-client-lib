@@ -14,10 +14,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.decodeIntOrTextTypeFromDataItem;
+import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.getIntOrTextTypeFromObject;
+
 @Accessors(fluent = true)
 @Data
 @NoArgsConstructor
-public class HeaderMap {
+public class HeaderMap implements COSEItem {
     //INT(1) key type
     private Object algorithmId;
 
@@ -45,7 +48,7 @@ public class HeaderMap {
 
     public static HeaderMap deserialize(@NonNull DataItem dataItem) {
         if (!MajorType.MAP.equals(dataItem.getMajorType())) {
-            throw new CborRuntimeException("De-serialization error. Expected type: Map, Found : " + dataItem.getMajorType());
+            throw new CborRuntimeException("De-serialization error. Expected type: Map, Found : %s" + dataItem.getMajorType());
         }
 
         Map map = (Map) dataItem;
@@ -93,7 +96,7 @@ public class HeaderMap {
                     Array counterSigArray = (Array) valueDI;
 
                     List<DataItem> counterSigDIs = counterSigArray.getDataItems();
-                    if (counterSigDIs.size() > 0 && MajorType.ARRAY.equals(counterSigDIs.get(0))) { // [+ COSESignature]
+                    if (counterSigDIs.size() > 0 && MajorType.ARRAY.equals(counterSigDIs.get(0).getMajorType())) { // [+ COSESignature]
                         headerMap.counterSignature = counterSigDIs.stream()
                                 .map(di -> COSESignature.deserialize(di))
                                 .collect(Collectors.toList());
@@ -108,35 +111,6 @@ public class HeaderMap {
         }
 
         return headerMap;
-    }
-
-    private static DataItem getIntOrTextTypeFromObject(@NonNull Object value) {
-        if (value instanceof Long) {
-            if (((Long) value).longValue() >= 0)
-                return new UnsignedInteger((Long) value);
-            else
-                return new NegativeInteger((Long) value);
-        } else if (value instanceof Integer) {
-            if (((Integer) value).intValue() >= 0)
-                return new UnsignedInteger((Integer) value);
-            else
-                return new NegativeInteger((Integer) value);
-        } else if (value instanceof String) {
-            return new UnicodeString((String) value);
-        } else {
-            throw new CborRuntimeException(String.format("Serialization error. Expected type: long/String, found: %s", value.getClass()));
-        }
-    }
-
-    private static Object decodeIntOrTextTypeFromDataItem(@NonNull DataItem dataItem) {
-        if (MajorType.UNSIGNED_INTEGER.equals(dataItem.getMajorType())) {
-            return ((UnsignedInteger) dataItem).getValue().longValue();
-        } else if (MajorType.NEGATIVE_INTEGER.equals(dataItem.getMajorType())) {
-            return ((NegativeInteger) dataItem).getValue().longValue();
-        } else if (MajorType.UNICODE_STRING.equals(dataItem.getMajorType())) {
-            return ((UnicodeString) dataItem).getString();
-        } else
-            throw new CborRuntimeException(String.format("De-serialization error: Unexpected data type: " + dataItem.getMajorType()));
     }
 
     public HeaderMap algorithmId(long algorithmId) {

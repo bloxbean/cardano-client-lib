@@ -48,4 +48,10 @@ public class Headers {
 
         return dataItems;
     }
+
+    public Headers copy() {
+        return new Headers()
+                ._protected(ProtectedHeaderMap.deserialize(_protected().serialize()))
+                .unprotected(HeaderMap.deserialize(unprotected().serialize()));
+    }
 }

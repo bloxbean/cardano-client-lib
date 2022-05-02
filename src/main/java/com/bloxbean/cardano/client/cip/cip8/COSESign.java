@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class COSESign implements COSEBaseSign {
+public class COSESign implements COSEItem {
     private Headers headers;
     private byte[] payload;
     private List<COSESignature> signatures = new ArrayList<>();
@@ -55,6 +55,11 @@ public class COSESign implements COSEBaseSign {
                 .collect(Collectors.toList()));
 
         return coseSign;
+    }
+
+    public COSESign signature(COSESignature signature) {
+        this.signatures.add(signature);
+        return this;
     }
 
     public Array serialize() {
