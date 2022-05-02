@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.cip.cip8;
 
+import co.nstant.in.cbor.CborDecoder;
+import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import lombok.AllArgsConstructor;
@@ -18,6 +20,15 @@ public class COSESign1 implements COSEItem {
     private Headers headers;
     private byte[] payload;
     private byte[] signature;
+
+    public static COSESign1 deserialize(byte[] bytes) {
+        try {
+            DataItem dataItem = CborDecoder.decode(bytes).get(0);
+            return deserialize(dataItem);
+        } catch (CborException e) {
+            throw new CborRuntimeException("De-serialization error.", e);
+        }
+    }
 
     public static COSESign1 deserialize(DataItem dataItem) {
         if (!MajorType.ARRAY.equals(dataItem.getMajorType()))
@@ -67,4 +78,38 @@ public class COSESign1 implements COSEItem {
         return array;
     }
 
+    /**
+     * For verification, reverse-construct this SigStructure to check the signature against
+     *
+     * @throws IllegalArgumentException, if payload is null
+     * @return SigStructure
+     */
+    public SigStructure signedData() {
+        return signedData(null, null);
+    }
+
+    /**
+     * For verification, reverse-construct this SigStructure to check the signature against
+     *
+     * @param externalAad External application data - see RFC 8152 section 4.3. Set to null if not using this.
+     * @param externalPayload Payload bytes if external payload
+     * @return SigStructure
+     */
+    public SigStructure signedData(byte[] externalAad, byte[] externalPayload) {
+        byte[] _payload;
+
+        if (externalPayload != null) {
+            _payload = externalPayload.clone();
+        } else if (payload != null) {
+            _payload = payload.clone();
+        } else {
+            throw new IllegalArgumentException("Payload is not present and no external payload is supplied.");
+        }
+
+        return new SigStructure()
+                .sigContext(SigContext.Signature1)
+                .bodyProtected(headers._protected())
+                .payload(_payload)
+                .externalAad(externalAad);
+    }
 }
