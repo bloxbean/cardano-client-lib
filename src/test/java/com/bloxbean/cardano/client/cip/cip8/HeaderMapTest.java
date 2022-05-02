@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -112,7 +113,9 @@ class HeaderMapTest extends COSEBaseTest {
     void serDesHeaderMap_multipleSignatures() throws CborException {
         HeaderMap hm = new HeaderMap()
                 .keyId(getBytes(7, 7))
-                .contentType(Long.valueOf(-9));
+                .contentType(Long.valueOf(-9))
+                .addOtherHeader(BigInteger.valueOf(99999999), new UnicodeString("Value1"))
+                .addOtherHeader(200L, new UnsignedInteger(30000));
 
         COSESignature coseSignature1 = new COSESignature()
                 .headers(new Headers()

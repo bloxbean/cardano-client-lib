@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.decodeIntOrTextTypeFromDataItem;
-import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.getIntOrTextTypeFromObject;
+import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.getDataItemFromIntOrTextObject;
 
 @Accessors(fluent = true)
 @Data
@@ -167,19 +167,19 @@ public class HeaderMap implements COSEItem {
         Map map = new Map();
 
         if (algorithmId != null) {
-            map.put(new UnsignedInteger(1), getIntOrTextTypeFromObject(algorithmId));
+            map.put(new UnsignedInteger(1), getDataItemFromIntOrTextObject(algorithmId));
         }
 
         if (criticality != null && criticality.size() > 0) {
             Array valueArray = new Array();
             criticality.stream().forEach(crit -> {
-                valueArray.add(getIntOrTextTypeFromObject(crit));
+                valueArray.add(getDataItemFromIntOrTextObject(crit));
             });
             map.put(new UnsignedInteger(2), valueArray);
         }
 
         if (contentType != null) {
-            map.put(new UnsignedInteger(3), getIntOrTextTypeFromObject(contentType));
+            map.put(new UnsignedInteger(3), getDataItemFromIntOrTextObject(contentType));
         }
 
         if (keyId != null) {
@@ -209,7 +209,7 @@ public class HeaderMap implements COSEItem {
 
         //Other headers
         otherHeaders.forEach((key, value) -> {
-            map.put(getIntOrTextTypeFromObject(key), value);
+            map.put(getDataItemFromIntOrTextObject(key), value);
         });
 
         return map;

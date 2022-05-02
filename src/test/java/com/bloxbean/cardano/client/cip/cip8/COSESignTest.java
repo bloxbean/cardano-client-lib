@@ -34,8 +34,8 @@ class COSESignTest extends COSEBaseTest {
         COSESign coseSign = new COSESign()
                 .headers(headers)
                 .payload(payload)
-                .signature(coseSignature1)
-                .signature(coseSignature2);
+                .addSignature(coseSignature1)
+                .addSignature(coseSignature2);
 
         COSESign deCoseSign = deserializationTest(coseSign, null);
 

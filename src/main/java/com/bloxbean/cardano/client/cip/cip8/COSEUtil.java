@@ -4,9 +4,17 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import lombok.NonNull;
 
+import java.math.BigInteger;
+
 class COSEUtil {
 
-    public static DataItem getIntOrTextTypeFromObject(@NonNull Object value) {
+    /**
+     * Convert a number or String to DataItem
+     *
+     * @param value
+     * @return DataItem
+     */
+    public static DataItem getDataItemFromIntOrTextObject(@NonNull Object value) {
         if (value instanceof Long) {
             if (((Long) value).longValue() >= 0)
                 return new UnsignedInteger((Long) value);
@@ -19,11 +27,23 @@ class COSEUtil {
                 return new NegativeInteger((Integer) value);
         } else if (value instanceof String) {
             return new UnicodeString((String) value);
+        } else if (value instanceof BigInteger) {
+            BigInteger valueBI = (BigInteger) value;
+            if (valueBI.compareTo(BigInteger.ZERO) == 0 || valueBI.compareTo(BigInteger.ZERO) == 1)
+                return new UnsignedInteger(valueBI);
+            else
+                return new NegativeInteger(valueBI);
         } else {
             throw new CborRuntimeException(String.format("Serialization error. Expected type: long/String, found: %s", value.getClass()));
         }
     }
 
+    /**
+     * Convert a DataItem to long or String
+     *
+     * @param dataItem
+     * @return long or String value
+     */
     public static Object decodeIntOrTextTypeFromDataItem(@NonNull DataItem dataItem) {
         if (MajorType.UNSIGNED_INTEGER.equals(dataItem.getMajorType())) {
             return ((UnsignedInteger) dataItem).getValue().longValue();

@@ -57,7 +57,7 @@ public class COSESign implements COSEItem {
         return coseSign;
     }
 
-    public COSESign signature(COSESignature signature) {
+    public COSESign addSignature(COSESignature signature) {
         this.signatures.add(signature);
         return this;
     }
