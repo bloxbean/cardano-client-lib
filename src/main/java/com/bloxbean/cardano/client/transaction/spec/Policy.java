@@ -43,7 +43,6 @@ public class Policy {
         return this;
     }
 
-    @JsonIgnore
     public String getPolicyId() throws CborSerializationException {
         return policyScript.getPolicyId();
     }
