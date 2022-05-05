@@ -39,6 +39,11 @@ public class BFBackendService extends BFBaseService implements BackendService {
     }
 
     @Override
+    public AccountService getAccountService() {
+        return new BFAccountService(getBaseUrl(), getProjectId());
+    }
+
+    @Override
     public EpochService getEpochService() {
         return new BFEpochService(getBaseUrl(), getProjectId());
     }

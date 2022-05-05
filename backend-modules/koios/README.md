@@ -52,4 +52,5 @@ $> ./gradlew -p ./backend-modules/koios/ clean build
 
 **Limitations**
 
-Block Object Received By BlockService::getLatestBlock Endpoint will have null fields for Output Sum, Fees, and Num of Confirmations.  
+* Block Object Received By BlockService::getLatestBlock Endpoint will have null fields for Output Sum, Fees, and Num of Confirmations.  
+* Ordering is not supported for Account Addresses and Account Assets Endpoint.

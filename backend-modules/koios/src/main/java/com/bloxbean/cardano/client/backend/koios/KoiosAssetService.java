@@ -12,7 +12,6 @@ import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import rest.koios.client.backend.api.asset.model.AssetInformation;
-import rest.koios.client.backend.api.asset.model.AssetPolicyInfo;
 import rest.koios.client.backend.factory.options.Limit;
 import rest.koios.client.backend.factory.options.Offset;
 import rest.koios.client.backend.factory.options.Options;
@@ -97,11 +96,11 @@ public class KoiosAssetService implements AssetService {
     @Override
     public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page, OrderEnum order) throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<AssetPolicyInfo> assetPolicyInfoResult = assetService.getAssetPolicyInformation(policyId);
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.asset.model.PolicyAsset>> assetPolicyInfoResult = assetService.getAssetPolicyInformation(policyId);
             if (!assetPolicyInfoResult.isSuccessful()) {
                 return Result.error(assetPolicyInfoResult.getResponse()).code(assetPolicyInfoResult.getCode());
             }
-            return convertToPolicyAssetList(assetPolicyInfoResult.getValue());
+            return convertToPolicyAssetList(policyId, assetPolicyInfoResult.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
@@ -112,12 +111,10 @@ public class KoiosAssetService implements AssetService {
         return getPolicyAssets(policyId, count, page, null);
     }
 
-    private Result<List<PolicyAsset>> convertToPolicyAssetList(AssetPolicyInfo assetPolicyInfo) {
+    private Result<List<PolicyAsset>> convertToPolicyAssetList(String policyId, List<rest.koios.client.backend.api.asset.model.PolicyAsset> policyAssets) {
         List<PolicyAsset> policyAssetList = new ArrayList<>();
-        if (assetPolicyInfo.getAssets() != null) {
-            assetPolicyInfo.getAssets().forEach(policyAsset -> {
-                policyAssetList.add(new PolicyAsset(assetPolicyInfo.getPolicyId() + policyAsset.getAssetName(), policyAsset.getTotalSupply()));
-            });
+        if (policyAssets != null) {
+            policyAssets.forEach(policyAsset -> policyAssetList.add(new PolicyAsset(policyId + policyAsset.getAssetName(), policyAsset.getTotalSupply())));
         }
         return Result.success("OK").withValue(policyAssetList).code(200);
     }

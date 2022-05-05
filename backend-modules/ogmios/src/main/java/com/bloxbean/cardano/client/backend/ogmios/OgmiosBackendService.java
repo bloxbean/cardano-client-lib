@@ -51,6 +51,11 @@ public class OgmiosBackendService implements BackendService {
     }
 
     @Override
+    public AccountService getAccountService() {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
+
+    @Override
     public EpochService getEpochService() {
         throw new UnsupportedOperationException("Not supported yet");
     }

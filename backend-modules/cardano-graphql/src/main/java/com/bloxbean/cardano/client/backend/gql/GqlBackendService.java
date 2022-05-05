@@ -93,6 +93,11 @@ public class GqlBackendService implements BackendService {
     }
 
     @Override
+    public AccountService getAccountService() {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
     public EpochService getEpochService() {
         if(okHttpClient != null) {
             return new GqlEpochService(this.gqlUrl, this.okHttpClient);
