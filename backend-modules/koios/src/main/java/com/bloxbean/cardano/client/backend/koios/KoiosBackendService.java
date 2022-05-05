@@ -42,6 +42,11 @@ public class KoiosBackendService implements BackendService {
     }
 
     @Override
+    public AccountService getAccountService() {
+        return new KoiosAccountService(backendServiceImpl.getAccountService());
+    }
+
+    @Override
     public EpochService getEpochService() {
         return new KoiosEpochService(backendServiceImpl.getEpochService());
     }

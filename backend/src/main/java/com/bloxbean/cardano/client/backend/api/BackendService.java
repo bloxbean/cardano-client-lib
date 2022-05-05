@@ -52,6 +52,13 @@ public interface BackendService {
     AddressService getAddressService();
 
     /**
+     * Get AccountService
+     *
+     * @return {@link AccountService}
+     */
+    AccountService getAccountService();
+
+    /**
      * Get EpochService
      *
      * @return {@link EpochService}
