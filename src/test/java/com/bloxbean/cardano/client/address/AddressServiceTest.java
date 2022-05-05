@@ -363,4 +363,150 @@ class AddressServiceTest {
         return scriptAtLeast;
     }
 
+    @Nested
+    class VerificationTests {
+
+        @Test
+        void verifyBaseAddress_testnet() {
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(Networks.testnet(), mnemonic);
+            String baseAddress = account.baseAddress();
+            Address address = new Address(baseAddress);
+
+            //pub key
+            byte[] publicKey = account.publicKeyBytes();
+            boolean verified = AddressService.getInstance().verifyAddress(address, publicKey);
+
+            assertThat(verified).isTrue();
+        }
+
+        @Test
+        void verifyBaseAddress_mainnet() {
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(mnemonic);
+            String baseAddress = account.baseAddress();
+            Address address = new Address(baseAddress);
+
+            //pub key
+            byte[] publicKey = account.publicKeyBytes();
+            boolean verified = AddressService.getInstance().verifyAddress(address, publicKey);
+
+            assertThat(verified).isTrue();
+        }
+
+        @Test
+        void verifyBaseAddress_invalidPubKey_testnet() {
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(Networks.testnet(), mnemonic);
+            String baseAddress = account.baseAddress();
+            Address address = new Address(baseAddress);
+
+            //pub key
+            byte[] publicKey = new Account(Networks.testnet()).publicKeyBytes(); //Different pub key
+            boolean verified = AddressService.getInstance().verifyAddress(address, publicKey);
+
+            assertThat(verified).isFalse();
+        }
+
+        @Test
+        void verifyBaseAddress_invalidPubKey_mainnet() {
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(mnemonic);
+            String baseAddress = account.baseAddress();
+            Address address = new Address(baseAddress);
+
+            //pub key
+            byte[] publicKey = new Account().publicKeyBytes(); //Different pub key
+            boolean verified = AddressService.getInstance().verifyAddress(address, publicKey);
+
+            assertThat(verified).isFalse();
+        }
+
+        @Test
+        void verifyRewardAddress_testnet() {
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(Networks.testnet(), mnemonic);
+            String stakeAddress = account.stakeAddress();
+            Address address = new Address(stakeAddress);
+
+            //pub key
+            byte[] stakeCredential = account.stakeHdKeyPair().getPublicKey().getKeyData();
+            boolean verified = AddressService.getInstance().verifyAddress(address, stakeCredential);
+
+            assertThat(verified).isTrue();
+        }
+
+        @Test
+        void verifyRewardAddress_invalidPubKey_testnet() {
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(Networks.testnet(), mnemonic);
+            String stakeAddress = account.stakeAddress();
+            Address address = new Address(stakeAddress);
+
+            //pub key
+            byte[] stakeCredential = new Account(Networks.testnet()).stakeHdKeyPair().getPublicKey().getKeyData();
+            boolean verified = AddressService.getInstance().verifyAddress(address, stakeCredential);
+
+            assertThat(verified).isFalse();
+        }
+
+        @Test
+        void verifyEntAddress_testnet() {
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(Networks.testnet(), mnemonic);
+            String entAddress = account.enterpriseAddress();
+            Address address = new Address(entAddress);
+
+            //pub key
+            byte[] publicKey = account.publicKeyBytes();
+            boolean verified = AddressService.getInstance().verifyAddress(address, publicKey);
+
+            assertThat(verified).isTrue();
+        }
+
+        @Test
+        void verifyEntAddress_invalidPubKey_testnet() {
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(Networks.testnet(), mnemonic);
+            String entAddress = account.enterpriseAddress();
+            Address address = new Address(entAddress);
+
+            //pub key
+            byte[] publicKey = new Account(Networks.testnet()).publicKeyBytes();
+            boolean verified = AddressService.getInstance().verifyAddress(address, publicKey);
+
+            assertThat(verified).isFalse();
+        }
+
+        @Test
+        void verifyPtrAddress_testnet() {
+            Pointer pointer = new Pointer(2498243, 27, 3);
+
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(Networks.testnet(), mnemonic);
+            Address pointerAddress = AddressService.getInstance().getPointerAddress(account.hdKeyPair().getPublicKey(), pointer, Networks.testnet());
+
+            //pub key
+            byte[] publicKey = account.publicKeyBytes();
+            boolean verified = AddressService.getInstance().verifyAddress(pointerAddress, publicKey);
+
+            assertThat(verified).isTrue();
+        }
+
+        @Test
+        void verifyPtrAddress_invalidPubKey_testnet() {
+            Pointer pointer = new Pointer(2498243, 27, 3);
+
+            String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+            Account account = new Account(Networks.testnet(), mnemonic);
+            Address pointerAddress = AddressService.getInstance().getPointerAddress(account.hdKeyPair().getPublicKey(), pointer, Networks.testnet());
+
+            //pub key
+            byte[] publicKey = new Account(Networks.testnet()).publicKeyBytes();
+            boolean verified = AddressService.getInstance().verifyAddress(pointerAddress, publicKey);
+
+            assertThat(verified).isFalse();
+        }
+    }
+
 }

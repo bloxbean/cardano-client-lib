@@ -1,8 +1,11 @@
 package com.bloxbean.cardano.client.cip.cip8;
 
+import co.nstant.in.cbor.CborDecoder;
+import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.experimental.Accessors;
 
 import java.math.BigInteger;
@@ -12,8 +15,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.decodeIntOrTextTypeFromDataItem;
-import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.getDataItemFromIntOrTextObject;
+import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem;
+import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.getDataItemFromObject;
 
 @Accessors(fluent = true)
 @Data
@@ -32,6 +35,15 @@ public class COSEKey implements COSEItem {
     //all other headers not listed above
     private LinkedHashMap<Object, DataItem> otherHeaders = new LinkedHashMap<>();
 
+    public static COSEKey deserialize(byte[] bytes) {
+        try {
+            DataItem dataItem = CborDecoder.decode(bytes).get(0);
+            return deserialize(dataItem);
+        } catch (CborException e) {
+            throw new CborRuntimeException("De-serialization error.", e);
+        }
+    }
+
     public static COSEKey deserialize(DataItem dataItem) {
         if (!MajorType.MAP.equals(dataItem.getMajorType())) {
             throw new CborRuntimeException("De-serialization error. Expected type: Map, Found : %s" + dataItem.getMajorType());
@@ -47,18 +59,18 @@ public class COSEKey implements COSEItem {
 
             if (keyDI.equals(new UnsignedInteger(1))) {
                 if (valueDI != null)
-                    coseKey.keyType = decodeIntOrTextTypeFromDataItem(valueDI);
+                    coseKey.keyType = decodeNumberOrTextOrBytesTypeFromDataItem(valueDI);
             } else if (keyDI.equals(new UnsignedInteger(2))) {
                 if (valueDI != null)
                     coseKey.keyId = ((ByteString) valueDI).getBytes();
             } else if (keyDI.equals(new UnsignedInteger(3))) {
                 if (valueDI != null)
-                    coseKey.algorithmId = decodeIntOrTextTypeFromDataItem(valueDI);
+                    coseKey.algorithmId = decodeNumberOrTextOrBytesTypeFromDataItem(valueDI);
             } else if (keyDI.equals(new UnsignedInteger(4))) {
                 if (valueDI != null && valueDI.getMajorType().equals(MajorType.ARRAY)) {
                     Array keyOpsArray = (Array) valueDI;
                     coseKey.keyOps = keyOpsArray.getDataItems().stream()
-                            .map(di -> decodeIntOrTextTypeFromDataItem(di))
+                            .map(di -> decodeNumberOrTextOrBytesTypeFromDataItem(di))
                             .collect(Collectors.toList());
                 }
             } else if (keyDI.equals(new UnsignedInteger(5))) {
@@ -66,7 +78,7 @@ public class COSEKey implements COSEItem {
                     coseKey.baseInitVector = ((ByteString) valueDI).getBytes();
             } else {
                 //other headers
-                coseKey.otherHeaders.put(decodeIntOrTextTypeFromDataItem(keyDI), valueDI);
+                coseKey.otherHeaders.put(decodeNumberOrTextOrBytesTypeFromDataItem(keyDI), valueDI);
             }
         }
 
@@ -118,23 +130,91 @@ public class COSEKey implements COSEItem {
         return this;
     }
 
+    public COSEKey addOtherHeader(long key, BigInteger value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public COSEKey addOtherHeader(String key, BigInteger value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public COSEKey addOtherHeader(long key, long value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public COSEKey addOtherHeader(String key, long value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public COSEKey addOtherHeader(long key, byte[] value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public COSEKey addOtherHeader(String key, String value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public COSEKey addOtherHeader(String key, byte[] value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public COSEKey addOtherHeader(long key, String value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public String otherHeaderAsString(String key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return String.valueOf(COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem));
+    }
+
+    public String otherHeaderAsString(long key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return String.valueOf(COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem));
+    }
+
+    public byte[] otherHeaderAsBytes(String key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return (byte[]) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem);
+    }
+
+    public byte[] otherHeaderAsBytes(long key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return (byte[]) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem);
+    }
+
+    public long otherHeaderAsLong(String key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return (long) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem);
+    }
+
+    public long otherHeaderAsLong(long key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return (long) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem);
+    }
+
+    private COSEKey _addOtherHeader(Object key, @NonNull Object value) {
+        otherHeaders.put(key, getDataItemFromObject(value));
+
+        return this;
+    }
+
     @Override
     public Map serialize() {
         Map map = new Map();
 
         if (keyType != null)
-            map.put(new UnsignedInteger(1), getDataItemFromIntOrTextObject(keyType));
+            map.put(new UnsignedInteger(1), getDataItemFromObject(keyType));
 
         if (keyId != null)
             map.put(new UnsignedInteger(2), new ByteString(keyId));
 
         if (algorithmId != null)
-            map.put(new UnsignedInteger(3), getDataItemFromIntOrTextObject(algorithmId));
+            map.put(new UnsignedInteger(3), getDataItemFromObject(algorithmId));
 
         if (keyOps != null && keyOps.size() > 0) {
             Array valueArray = new Array();
             keyOps.stream().forEach(crit -> {
-                valueArray.add(getDataItemFromIntOrTextObject(crit));
+                valueArray.add(getDataItemFromObject(crit));
             });
             map.put(new UnsignedInteger(4), valueArray);
         }
@@ -144,7 +224,7 @@ public class COSEKey implements COSEItem {
 
         //Other headers
         otherHeaders.forEach((key, value) -> {
-            map.put(getDataItemFromIntOrTextObject(key), value);
+            map.put(getDataItemFromObject(key), value);
         });
 
         return map;

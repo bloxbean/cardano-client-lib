@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.cip.cip8;
 
+import co.nstant.in.cbor.CborDecoder;
+import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.MajorType;
@@ -40,5 +42,17 @@ public class ProtectedHeaderMap implements COSEItem {
             return new ByteString(bytes);
         else
             return new ByteString(new byte[0]);
+    }
+
+    public HeaderMap getAsHeaderMap() {
+        if (bytes == null)
+            return null;
+
+        try {
+            DataItem dataItem = CborDecoder.decode(bytes).get(0);
+            return HeaderMap.deserialize(dataItem);
+        } catch (CborException e) {
+            throw new CborRuntimeException("De-serialization error", e);
+        }
     }
 }

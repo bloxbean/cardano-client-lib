@@ -164,12 +164,12 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0-beta3'
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.2.0-beta3-SNAPSHOT</version>
+            <version>0.2.0-beta4-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.2.0-beta3-SNAPSHOT</version>
+            <version>0.2.0-beta4-SNAPSHOT</version>
         </dependency>
     </dependencies>
     
@@ -196,8 +196,8 @@ repositories {
     }
 }
 
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta3-SNAPSHOT'
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0-beta3-SNAPSHOT'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta4-SNAPSHOT'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0-beta4-SNAPSHOT'
 ```
 
 ### Account API Usage

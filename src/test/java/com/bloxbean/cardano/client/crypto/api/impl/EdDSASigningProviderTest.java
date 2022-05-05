@@ -9,22 +9,12 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
-import net.i2p.crypto.eddsa.EdDSAEngine;
-import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import net.i2p.crypto.eddsa.Utils;
-import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
-import net.i2p.crypto.eddsa.spec.EdDSAParameterSpec;
-import net.i2p.crypto.eddsa.spec.EdDSAPublicKeySpec;
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.PublicKey;
-import java.security.Signature;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -40,7 +30,7 @@ class EdDSASigningProviderTest {
         String pubKey = "9518c18103cbdab9c6e60b58ecc3e2eb439fef6519bb22570f391327381900a8";
 
         SigningProvider signingProvider = new EdDSASigningProvider();
-        byte[] signature = signingProvider.signExtended(msg.getBytes(StandardCharsets.UTF_8), HexUtil.decodeHexString(pvtKey), HexUtil.decodeHexString(pubKey));
+        byte[] signature = signingProvider.signExtended(msg.getBytes(StandardCharsets.UTF_8), HexUtil.decodeHexString(pvtKey));
 
         String signatureHex = HexUtil.encodeHexString(signature);
 
@@ -53,15 +43,10 @@ class EdDSASigningProviderTest {
         byte[] publicKey = Utils.hexToBytes("9518c18103cbdab9c6e60b58ecc3e2eb439fef6519bb22570f391327381900a8");
         byte[] message = "hello".getBytes(StandardCharsets.UTF_8);
 
-        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
-        Signature sgr = new EdDSAEngine(MessageDigest.getInstance(spec.getHashAlgorithm()));
-        EdDSAPublicKeySpec pubKey = new EdDSAPublicKeySpec(publicKey, spec);
-        PublicKey vKey = new EdDSAPublicKey(pubKey);
-        sgr.initVerify(vKey);
-        sgr.setParameter(EdDSAEngine.ONE_SHOT_MODE);
-        sgr.update(message);
+        SigningProvider signingProvider = new EdDSASigningProvider();
+        boolean verified = signingProvider.verify(signature, message, publicKey);
 
-        assertThat(sgr.verify(signature)).isEqualTo(true);
+        assertThat(verified).isEqualTo(true);
     }
 
     @Test
@@ -70,15 +55,10 @@ class EdDSASigningProviderTest {
         byte[] publicKey = Utils.hexToBytes("INVALID103cbdab9c6e60b58ecc3e2eb439fef6519bb22570f391327381900a8");
         byte[] message = "hello".getBytes(StandardCharsets.UTF_8);
 
-        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
-        Signature sgr = new EdDSAEngine(MessageDigest.getInstance(spec.getHashAlgorithm()));
-        EdDSAPublicKeySpec pubKey = new EdDSAPublicKeySpec(publicKey, spec);
-        PublicKey vKey = new EdDSAPublicKey(pubKey);
-        sgr.initVerify(vKey);
-        sgr.setParameter(EdDSAEngine.ONE_SHOT_MODE);
-        sgr.update(message);
+        SigningProvider signingProvider = new EdDSASigningProvider();
+        boolean verified = signingProvider.verify(signature, message, publicKey);
 
-        assertThat(sgr.verify(signature)).isEqualTo(false);
+        assertThat(verified).isEqualTo(false);
     }
 
     @Test
@@ -87,15 +67,10 @@ class EdDSASigningProviderTest {
         byte[] publicKey = Utils.hexToBytes("9518c18103cbdab9c6e60b58ecc3e2eb439fef6519bb22570f391327381900a8");
         byte[] message = "ola".getBytes(StandardCharsets.UTF_8);
 
-        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
-        Signature sgr = new EdDSAEngine(MessageDigest.getInstance(spec.getHashAlgorithm()));
-        EdDSAPublicKeySpec pubKey = new EdDSAPublicKeySpec(publicKey, spec);
-        PublicKey vKey = new EdDSAPublicKey(pubKey);
-        sgr.initVerify(vKey);
-        sgr.setParameter(EdDSAEngine.ONE_SHOT_MODE);
-        sgr.update(message);
+        SigningProvider signingProvider = new EdDSASigningProvider();
+        boolean verified = signingProvider.verify(signature, message, publicKey);
 
-        assertThat(sgr.verify(signature)).isEqualTo(false);
+        assertThat(verified).isEqualTo(false);
     }
 
     @Test
@@ -109,20 +84,15 @@ class EdDSASigningProviderTest {
     }
 
     @Test
-    public void verify() throws Exception {
+    public void verify() {
         byte[] signature = Utils.hexToBytes("94825896c7075c31bcb81f06dba2bdcd9dcf16e79288d4b9f87c248215c8468d475f429f3de3b4a2cf67fe17077ae19686020364d6d4fa7a0174bab4a123ba0f");
         byte[] publicKey = Utils.hexToBytes("3b6a27bcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29");
         byte[] message = "This is a secret message".getBytes(StandardCharsets.UTF_8);
 
-        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
-        Signature sgr = new EdDSAEngine(MessageDigest.getInstance(spec.getHashAlgorithm()));
-        EdDSAPublicKeySpec pubKey = new EdDSAPublicKeySpec(publicKey, spec);
-        PublicKey vKey = new EdDSAPublicKey(pubKey);
-        sgr.initVerify(vKey);
-        sgr.setParameter(EdDSAEngine.ONE_SHOT_MODE);
-        sgr.update(message);
+        SigningProvider signingProvider = new EdDSASigningProvider();
+        boolean verified = signingProvider.verify(signature, message, publicKey);
 
-        assertThat(sgr.verify(signature)).isEqualTo(true);
+        assertThat(verified).isEqualTo(true);
     }
 
     @Test
@@ -131,15 +101,10 @@ class EdDSASigningProviderTest {
         byte[] publicKey = Utils.hexToBytes("INVALIDcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29");
         byte[] message = "This is a secret message".getBytes(StandardCharsets.UTF_8);
 
-        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
-        Signature sgr = new EdDSAEngine(MessageDigest.getInstance(spec.getHashAlgorithm()));
-        EdDSAPublicKeySpec pubKey = new EdDSAPublicKeySpec(publicKey, spec);
-        PublicKey vKey = new EdDSAPublicKey(pubKey);
-        sgr.initVerify(vKey);
-        sgr.setParameter(EdDSAEngine.ONE_SHOT_MODE);
-        sgr.update(message);
+        SigningProvider signingProvider = new EdDSASigningProvider();
+        boolean verified = signingProvider.verify(signature, message, publicKey);
 
-        assertThat(sgr.verify(signature)).isEqualTo(false);
+        assertThat(verified).isEqualTo(false);
     }
 
     @Test
@@ -148,15 +113,10 @@ class EdDSASigningProviderTest {
         byte[] publicKey = Utils.hexToBytes("3b6a27bcceb6a42d62a3a8d02a6f0d73653215771de243a63ac048a18b59da29");
         byte[] message = "This is a modified message".getBytes(StandardCharsets.UTF_8);
 
-        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
-        Signature sgr = new EdDSAEngine(MessageDigest.getInstance(spec.getHashAlgorithm()));
-        EdDSAPublicKeySpec pubKey = new EdDSAPublicKeySpec(publicKey, spec);
-        PublicKey vKey = new EdDSAPublicKey(pubKey);
-        sgr.initVerify(vKey);
-        sgr.setParameter(EdDSAEngine.ONE_SHOT_MODE);
-        sgr.update(message);
+        SigningProvider signingProvider = new EdDSASigningProvider();
+        boolean verified = signingProvider.verify(signature, message, publicKey);
 
-        assertThat(sgr.verify(signature)).isEqualTo(false);
+        assertThat(verified).isEqualTo(false);
     }
 
     @Test
@@ -173,14 +133,9 @@ class EdDSASigningProviderTest {
         assertThat(actualSignature).isEqualTo(expectedSignature);
 
         // verify
-        EdDSAParameterSpec spec = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
-        Signature sgr = new EdDSAEngine(MessageDigest.getInstance(spec.getHashAlgorithm()));
-        EdDSAPublicKeySpec pubKey = new EdDSAPublicKeySpec(publicKey, spec);
-        PublicKey vKey = new EdDSAPublicKey(pubKey);
-        sgr.initVerify(vKey);
-        sgr.setParameter(EdDSAEngine.ONE_SHOT_MODE);
-        sgr.update(msg);
-        assertThat(sgr.verify(signature)).isEqualTo(true);
+        boolean verified = signingProvider.verify(signature, msg, publicKey);
+
+        assertThat(verified).isEqualTo(true);
     }
 
     @Test

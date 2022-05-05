@@ -8,13 +8,17 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.spec.script.Script;
 import com.google.common.primitives.Bytes;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
+import static com.bloxbean.cardano.client.crypto.KeyGenUtil.blake2bHash224;
 
+@Slf4j
 public class AddressService {
 
     private static AddressService instance;
@@ -169,6 +173,12 @@ public class AddressService {
 
         //get header
         byte header = getAddressHeader(headerKind, networkInfo, addressType);
+        byte[] addressArray = getAddressBytes(paymentKeyHash, stakeKeyHash, addressType, header);
+
+        return new Address(prefix, addressArray);
+    }
+
+    private byte[] getAddressBytes(byte[] paymentKeyHash, byte[] stakeKeyHash, AddressType addressType, byte header) {
         //get body
         byte[] addressArray;
         switch (addressType) {
@@ -197,8 +207,69 @@ public class AddressService {
             default:
                 throw new AddressRuntimeException("Unknown address type");
         }
+        return addressArray;
+    }
 
-        return new Address(prefix, addressArray);
+    /**
+     * Verify the provided address with publicKey
+     * Reconstruct the address from public key and then compare it with the provided address
+     * @param address
+     * @param publicKey
+     * @return true or false
+     */
+    public boolean verifyAddress(@NonNull Address address, byte[] publicKey) {
+        String prefix = address.getPrefix();
+        AddressType addressType = address.getAddressType();
+        byte[] addressBytes = address.getBytes();
+        byte header = addressBytes[0];
+
+        byte[] newAddressBytes;
+        Address newAddress;
+        if (AddressType.Reward.equals(addressType)) {
+            byte[] stakeKeyHash = blake2bHash224(publicKey); //Get keyhash from publickey (stake credential)
+            newAddressBytes = getAddressBytes(null, stakeKeyHash, addressType, header);
+        } else {
+            byte[] stakeKeyHash = getStakeKeyHash(address); //Get stakekeyhash from existing address
+            byte[] paymentKeyHash = blake2bHash224(publicKey); //calculate keyhash from public key
+            newAddressBytes = getAddressBytes(paymentKeyHash, stakeKeyHash, addressType, header);
+        }
+
+        newAddress = new Address(prefix, newAddressBytes);
+
+        if (log.isDebugEnabled()) {
+            log.debug("Address to compare : " + address.toBech32());
+            log.debug("Address derived from pub key : " + newAddress.toBech32());
+        }
+
+        return newAddress.toBech32().equals(address.toBech32());
+    }
+
+    private byte[] getStakeKeyHash(Address address) {
+        AddressType addressType = address.getAddressType();
+        byte[] addressBytes = address.getBytes();
+
+        byte[] stakeKeyHash;
+        switch (addressType) {
+            case Base:
+                stakeKeyHash = new byte[28];
+                System.arraycopy(addressBytes, 1 + 28, stakeKeyHash, 0, stakeKeyHash.length);
+                break;
+            case Enterprise:
+                stakeKeyHash = null;
+                break;
+            case Reward:
+                stakeKeyHash = new byte[28];
+                System.arraycopy(addressBytes, 1, stakeKeyHash, 0, stakeKeyHash.length);
+                break;
+            case Ptr:
+                stakeKeyHash = new byte[addressBytes.length - 1 - 28];
+                System.arraycopy(addressBytes, 1 + 28, stakeKeyHash, 0, stakeKeyHash.length);
+                break;
+            default:
+                throw new AddressRuntimeException("StakeKeyHash can't be found for address type : " + addressType);
+        }
+
+        return stakeKeyHash;
     }
 
     private byte[] variableNatEncode(long num) {
