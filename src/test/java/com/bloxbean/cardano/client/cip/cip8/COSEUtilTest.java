@@ -13,41 +13,41 @@ class COSEUtilTest {
 
     @Test
     void getIntOrTextTypeFromObject_forNumbers() {
-        UnsignedInteger di = (UnsignedInteger) COSEUtil.getDataItemFromIntOrTextObject(4);
+        UnsignedInteger di = (UnsignedInteger) COSEUtil.getDataItemFromObject(4);
         assertThat(di.getValue().intValue()).isEqualTo(4);
 
-        NegativeInteger ni = (NegativeInteger) COSEUtil.getDataItemFromIntOrTextObject(-4);
+        NegativeInteger ni = (NegativeInteger) COSEUtil.getDataItemFromObject(-4);
         assertThat(ni.getValue().intValue()).isEqualTo(-4);
 
-        di = (UnsignedInteger) COSEUtil.getDataItemFromIntOrTextObject(Integer.valueOf(500));
+        di = (UnsignedInteger) COSEUtil.getDataItemFromObject(Integer.valueOf(500));
         assertThat(di.getValue().intValue()).isEqualTo(500);
 
-        ni = (NegativeInteger) COSEUtil.getDataItemFromIntOrTextObject(Integer.valueOf(-500));
+        ni = (NegativeInteger) COSEUtil.getDataItemFromObject(Integer.valueOf(-500));
         assertThat(ni.getValue().intValue()).isEqualTo(-500);
 
-        di = (UnsignedInteger) COSEUtil.getDataItemFromIntOrTextObject(60000L);
+        di = (UnsignedInteger) COSEUtil.getDataItemFromObject(60000L);
         assertThat(di.getValue().longValue()).isEqualTo(60000L);
 
-        ni = (NegativeInteger) COSEUtil.getDataItemFromIntOrTextObject(-60000L);
+        ni = (NegativeInteger) COSEUtil.getDataItemFromObject(-60000L);
         assertThat(ni.getValue().longValue()).isEqualTo(-60000L);
 
-        di = (UnsignedInteger) COSEUtil.getDataItemFromIntOrTextObject(BigInteger.valueOf(3000));
+        di = (UnsignedInteger) COSEUtil.getDataItemFromObject(BigInteger.valueOf(3000));
         assertThat(di.getValue()).isEqualTo(BigInteger.valueOf(3000));
 
-        ni = (NegativeInteger) COSEUtil.getDataItemFromIntOrTextObject(BigInteger.valueOf(-3000));
+        ni = (NegativeInteger) COSEUtil.getDataItemFromObject(BigInteger.valueOf(-3000));
         assertThat(ni.getValue()).isEqualTo(BigInteger.valueOf(-3000));
     }
 
     @Test
     void getIntOrTextTypeFromObject_forString() {
-        UnicodeString textDI = (UnicodeString) COSEUtil.getDataItemFromIntOrTextObject("hello");
+        UnicodeString textDI = (UnicodeString) COSEUtil.getDataItemFromObject("hello");
         assertThat(textDI.getString()).isEqualTo("hello");
     }
 
     @Test
     void decodeIntOrTextTypeFromDataItem_whenNumber() {
         UnsignedInteger ui = new UnsignedInteger(5000);
-        long val = (long) COSEUtil.decodeIntOrTextTypeFromDataItem(ui);
+        long val = (long) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(ui);
 
         assertThat(val).isEqualTo(5000L);
     }
@@ -55,7 +55,7 @@ class COSEUtilTest {
     @Test
     void decodeIntOrTextTypeFromDataItem_whenString() {
         UnicodeString us = new UnicodeString("Hello");
-        String val = (String) COSEUtil.decodeIntOrTextTypeFromDataItem(us);
+        String val = (String) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(us);
 
         assertThat(val).isEqualTo("Hello");
     }

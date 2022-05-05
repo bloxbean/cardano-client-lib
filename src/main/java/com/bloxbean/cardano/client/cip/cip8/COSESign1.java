@@ -81,7 +81,7 @@ public class COSESign1 implements COSEItem {
     /**
      * For verification, reverse-construct this SigStructure to check the signature against
      *
-     * @throws IllegalArgumentException, if payload is null
+     * @throws IllegalArgumentException
      * @return SigStructure
      */
     public SigStructure signedData() {
