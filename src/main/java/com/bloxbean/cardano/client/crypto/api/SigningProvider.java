@@ -18,7 +18,25 @@ public interface SigningProvider {
      * @param message
      * @param privateKey
      * @return Signature
+     * @deprecated use {@link #signExtended(byte[], byte[])} instead.
      */
     byte[] signExtended(byte[] message, byte[] privateKey, byte[] publicKey);
+
+    /**
+     * Sign a message with a ed25519 expanded private key
+     * @param message
+     * @param privateKey
+     * @return
+     */
+    byte[] signExtended(byte[] message, byte[] privateKey);
+
+    /**
+     * Verify signature
+     * @param signature
+     * @param message
+     * @param publicKey
+     * @return true if signature verification is successful, otherwise false
+     */
+    boolean verify(byte[] signature, byte[] message, byte[] publicKey);
 
 }
