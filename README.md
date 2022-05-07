@@ -1,4 +1,12 @@
-# cardano-client-lib
+<div align="center">
+    <hr/>
+        <h1 align="center" style="border-bottom: none">Cardano Client Lib</h1>
+
+[![Clean, Build](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml)
+[![CodeQL](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml)
+[![License](https://img.shields.io:/github/license/bloxbean/cardano-client-lib?color=blue&label=license)](https://github.com/bloxbean/cardano-client-lib/blob/master/LICENSE)
+<hr/>
+</div>
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
