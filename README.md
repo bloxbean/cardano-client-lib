@@ -1,4 +1,11 @@
-# cardano-client-lib
+<div align="center">
+        <h1 align="center" style="border-bottom: none">Cardano Client Lib</h1>
+
+[![Clean, Build](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml)
+[![CodeQL](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml)
+[![License](https://img.shields.io:/github/license/bloxbean/cardano-client-lib?color=blue&label=license)](https://github.com/bloxbean/cardano-client-lib/blob/master/LICENSE)
+
+</div>
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
@@ -164,12 +171,12 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0-beta3'
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.2.0-beta3-SNAPSHOT</version>
+            <version>0.2.0-beta4-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.2.0-beta3-SNAPSHOT</version>
+            <version>0.2.0-beta4-SNAPSHOT</version>
         </dependency>
     </dependencies>
     
@@ -196,8 +203,8 @@ repositories {
     }
 }
 
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta3-SNAPSHOT'
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0-beta3-SNAPSHOT'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta4-SNAPSHOT'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0-beta4-SNAPSHOT'
 ```
 
 ### Account API Usage

@@ -14,8 +14,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.decodeIntOrTextTypeFromDataItem;
-import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.getDataItemFromIntOrTextObject;
+import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem;
+import static com.bloxbean.cardano.client.cip.cip8.COSEUtil.getDataItemFromObject;
 
 @Accessors(fluent = true)
 @Data
@@ -61,19 +61,19 @@ public class HeaderMap implements COSEItem {
 
             if (keyDI.equals(new UnsignedInteger(1))) {
                 //algorithm id
-                headerMap.algorithmId = decodeIntOrTextTypeFromDataItem(valueDI);
+                headerMap.algorithmId = decodeNumberOrTextOrBytesTypeFromDataItem(valueDI);
             } else if (keyDI.equals(new UnsignedInteger(2))) {
                 //criticality
                 if (valueDI != null && valueDI.getMajorType().equals(MajorType.ARRAY)) {
                     Array criticalityArray = (Array) valueDI;
                     headerMap.criticality = criticalityArray.getDataItems().stream()
-                            .map(di -> decodeIntOrTextTypeFromDataItem(di))
+                            .map(di -> decodeNumberOrTextOrBytesTypeFromDataItem(di))
                             .collect(Collectors.toList());
                 }
             } else if (keyDI.equals(new UnsignedInteger(3))) {
                 //content type
                 if (valueDI != null) {
-                    headerMap.contentType = decodeIntOrTextTypeFromDataItem(valueDI);
+                    headerMap.contentType = decodeNumberOrTextOrBytesTypeFromDataItem(valueDI);
                 }
             } else if (keyDI.equals(new UnsignedInteger(4))) {
                 //key id
@@ -106,7 +106,7 @@ public class HeaderMap implements COSEItem {
                 }
             } else {
                 //other headers
-                headerMap.otherHeaders.put(decodeIntOrTextTypeFromDataItem(keyDI), valueDI);
+                headerMap.otherHeaders.put(decodeNumberOrTextOrBytesTypeFromDataItem(keyDI), valueDI);
             }
         }
 
@@ -167,19 +167,19 @@ public class HeaderMap implements COSEItem {
         Map map = new Map();
 
         if (algorithmId != null) {
-            map.put(new UnsignedInteger(1), getDataItemFromIntOrTextObject(algorithmId));
+            map.put(new UnsignedInteger(1), getDataItemFromObject(algorithmId));
         }
 
         if (criticality != null && criticality.size() > 0) {
             Array valueArray = new Array();
             criticality.stream().forEach(crit -> {
-                valueArray.add(getDataItemFromIntOrTextObject(crit));
+                valueArray.add(getDataItemFromObject(crit));
             });
             map.put(new UnsignedInteger(2), valueArray);
         }
 
         if (contentType != null) {
-            map.put(new UnsignedInteger(3), getDataItemFromIntOrTextObject(contentType));
+            map.put(new UnsignedInteger(3), getDataItemFromObject(contentType));
         }
 
         if (keyId != null) {
@@ -209,7 +209,7 @@ public class HeaderMap implements COSEItem {
 
         //Other headers
         otherHeaders.forEach((key, value) -> {
-            map.put(getDataItemFromIntOrTextObject(key), value);
+            map.put(getDataItemFromObject(key), value);
         });
 
         return map;
