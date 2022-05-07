@@ -244,6 +244,43 @@ public class AddressService {
         return newAddress.toBech32().equals(address.toBech32());
     }
 
+    /**
+     * Get stake address from a base address
+     * @param address BaseAddress
+     * @return stake address
+     * @throws AddressRuntimeException
+     */
+    public Address getStakeAddress(@NonNull Address address) {
+        if (AddressType.Base != address.getAddressType())
+            throw new AddressRuntimeException(
+                    String.format("Stake address can't be derived. Required address type: Base Address, Found: %s ",
+                            address.getAddressType()));
+
+        byte[] stakeKeyHash = getStakeKeyHash(address);
+        if (stakeKeyHash == null)
+            throw new AddressRuntimeException("StakeKeyHash was not found for the address");
+
+        AddressType addressType = AddressType.Reward; //target type
+        byte[] addressBytes = address.getBytes(); //existing add bytes
+        byte header = addressBytes[0]; //existing header
+        int stakeHeader;
+
+        if ((header & (1 << 5)) > 0) { //Check if 5th bit is set
+            //script hash
+            stakeHeader = 0b1111_0000;
+        } else {
+            //stake key hash
+            stakeHeader = 0b1110_0000;
+        }
+
+        int network = header & 0b0000_1111; //reset everything except network id bits
+        stakeHeader = stakeHeader | network;
+
+        byte[] rewardAddressBytes = getAddressBytes(null, stakeKeyHash, addressType, (byte) stakeHeader);
+
+        return new Address(rewardAddressBytes);
+    }
+
     private byte[] getStakeKeyHash(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();

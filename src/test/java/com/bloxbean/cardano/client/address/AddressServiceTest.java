@@ -8,12 +8,13 @@ import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
+import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.PlutusScript;
 import com.bloxbean.cardano.client.transaction.spec.script.Script;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
-import com.bloxbean.cardano.client.transaction.spec.script.ScriptType;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -509,4 +510,147 @@ class AddressServiceTest {
         }
     }
 
+    @Nested
+    class StakeAddressTests {
+
+        @Test
+        void getStakeAddress_fromBaseAddress() {
+            Address baseAddress = new Address("addr1qxaghr9uhuk73gfuxs5vvdwnanmezqkmc7m265fhjrqczny4l34qz5xuyjzm4nxaju7eduazqtdnay7vzagwc37zyayqrzmr04");
+
+            Address stakeAddress = AddressService.getInstance().getStakeAddress(baseAddress);
+            System.out.println(stakeAddress.toBech32());
+
+            assertThat(stakeAddress.toBech32()).isEqualTo("stake1ux2lc6sp2rwzfpd6enwew0vk7w3q9ke7j0xpw58vglpzwjq7sy7gn");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_testnet() {
+            Address baseAddress = new Address("addr_test1qr2juy0nujzrdh2zm0kxmzxz89eju5pm3dar9t6cuhu8vffndw08djstd55f2k8pxdt2nzha98nh3q3ulr8s4ruj3jlqvltt8m");
+
+            Address stakeAddress = AddressService.getInstance().getStakeAddress(baseAddress);
+            System.out.println(stakeAddress.toBech32());
+
+            assertThat(stakeAddress.toBech32()).isEqualTo("stake_test1uqekh8nkeg9k62y4trsnx44f3t7jnemcsg703nc237fge0surp9uz");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_scriptHashStake() {
+            Address baseAddress = new Address("addr1yx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerkr0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shs2z78ve");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake178phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcccycj5");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_type00_mainnet() {
+            Address baseAddress = new Address("addr1qx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgse35a3x");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake1uyehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gh6ffgw");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_type00_testnet() {
+            Address baseAddress = new Address("addr_test1qz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer3n0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgs68faae");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake_test1uqehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gssrtvn");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_type01_mainnet() {
+            Address baseAddress = new Address("addr1z8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gten0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgs9yc0hh");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake1uyehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gh6ffgw");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_type01_testnet() {
+            Address baseAddress = new Address("addr_test1zrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gten0d3vllmyqwsx5wktcd8cc3sq835lu7drv2xwl2wywfgsxj90mg");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake_test1uqehkck0lajq8gr28t9uxnuvgcqrc6070x3k9r8048z8y5gssrtvn");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_type02_mainnet() { //script stake
+            Address baseAddress = new Address("addr1yx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerkr0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shs2z78ve");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake178phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcccycj5");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_type02_testnet() { //script stake
+            Address baseAddress = new Address("addr_test1yz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerkr0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shsf5r8qx");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake_test17rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcljw6kf");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_type03_mainnet() { //script stake
+            Address baseAddress = new Address("addr1x8phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gt7r0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shskhj42g");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake178phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcccycj5");
+        }
+
+        @Test
+        void getStakeAddress_fromBaseAddress_type03_testnet() { //script stake
+            Address baseAddress = new Address("addr_test1xrphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gt7r0vd4msrxnuwnccdxlhdjar77j6lg0wypcc9uar5d2shs4p04xh");
+            Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+
+            assertThat(stakeAddres.toBech32()).isEqualTo("stake_test17rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtcljw6kf");
+        }
+
+        @Test
+        void getStakeAddress_fromPointerAddress_type04_mainnet() {
+            Assertions.assertThrows(AddressRuntimeException.class, () -> {
+                Address baseAddress = new Address("addr1gx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer5pnz75xxcrzqf96k");
+                Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+            });
+        }
+
+        @Test
+        void getStakeAddress_fromPointerAddress_type04_testnet() {
+            Assertions.assertThrows(AddressRuntimeException.class, () -> {
+                Address baseAddress = new Address("addr_test1gz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzer5pnz75xxcrdw5vky");
+                Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+            });
+        }
+
+        @Test
+        void getStakeAddress_fromPointerAddress_type05_mainnet_script() {
+            Assertions.assertThrows(AddressRuntimeException.class, () -> {
+                Address baseAddress = new Address("addr128phkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtupnz75xxcrtw79hu");
+                Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+            });
+        }
+
+        @Test
+        void getStakeAddress_fromPointerAddress_type05_testnet_script() {
+            Assertions.assertThrows(AddressRuntimeException.class, () -> {
+                Address baseAddress = new Address("addr_test12rphkx6acpnf78fuvxn0mkew3l0fd058hzquvz7w36x4gtupnz75xxcryqrvmw");
+                Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+            });
+        }
+
+        @Test
+        void getStakeAddress_fromEntAddress_type06_mainnet() {
+            Assertions.assertThrows(AddressRuntimeException.class, () -> {
+                Address baseAddress = new Address("addr1vx2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzers66hrl8");
+                Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+            });
+        }
+
+        @Test
+        void getStakeAddress_fromEntAddress_type06_testnet() {
+            Assertions.assertThrows(AddressRuntimeException.class, () -> {
+                Address baseAddress = new Address("addr_test1vz2fxv2umyhttkxyxp8x0dlpdt3k6cwng5pxj3jhsydzerspjrlsz");
+                Address stakeAddres = AddressService.getInstance().getStakeAddress(baseAddress);
+            });
+        }
+    }
 }
