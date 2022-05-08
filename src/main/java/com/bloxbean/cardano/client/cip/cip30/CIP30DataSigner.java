@@ -11,6 +11,11 @@ import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
 
+import static com.bloxbean.cardano.client.cip.cip30.CIP30Constant.*;
+
+/**
+ * CIP30 signData() implementation to create and verify signature
+ */
 public enum CIP30DataSigner {
     INSTANCE();
 
@@ -18,6 +23,14 @@ public enum CIP30DataSigner {
 
     }
 
+    /**
+     * Sign and create DataSignature in CIP30's signData() format
+     * @param addressBytes Address bytes
+     * @param payload payload bytes to sign
+     * @param signer signing account
+     * @return DataSignature
+     * @throws DataSignError
+     */
     public DataSignature signData(@NonNull byte[] addressBytes, @NonNull byte[] payload, @NonNull Account signer)
             throws DataSignError {
         byte[] pvtKey = signer.privateKeyBytes();
@@ -26,13 +39,22 @@ public enum CIP30DataSigner {
         return signData(addressBytes, payload, pvtKey, pubKey);
     }
 
+    /**
+     * Sign and create DataSignature in CIP30's signData() format
+     * @param addressBytes Address bytes
+     * @param payload payload bytes to sign
+     * @param pvtKey  private key bytes
+     * @param pubKey public key bytes to add
+     * @return DataSignature
+     * @throws DataSignError
+     */
     public DataSignature signData(@NonNull byte[] addressBytes, @NonNull byte[] payload, @NonNull byte[] pvtKey, @NonNull byte[] pubKey)
             throws DataSignError {
         try {
             HeaderMap protectedHeaderMap = new HeaderMap()
-                    .algorithmId(-8) //EdDSA
+                    .algorithmId(ALG_EdDSA) //EdDSA
                     .keyId(addressBytes)
-                    .addOtherHeader("address", new ByteString(addressBytes));
+                    .addOtherHeader(ADDRESS_KEY, new ByteString(addressBytes));
 
             Headers headers = new Headers()
                     ._protected(new ProtectedHeaderMap(protectedHeaderMap))
@@ -54,11 +76,11 @@ public enum CIP30DataSigner {
 
             //COSEKey
             COSEKey coseKey = new COSEKey()
-                    .keyType(1) //OKP
+                    .keyType(OKP) //OKP
                     .keyId(addressBytes)
-                    .algorithmId(-8) //EdDSA
-                    .addOtherHeader(-1, new UnsignedInteger(6)) //crv Ed25519
-                    .addOtherHeader(-2, new ByteString(pubKey));  //x pub key used to sign sig_structure
+                    .algorithmId(ALG_EdDSA) //EdDSA
+                    .addOtherHeader(CRV_KEY, new UnsignedInteger(CRV_Ed25519)) //crv Ed25519
+                    .addOtherHeader(X_KEY, new ByteString(pubKey));  //x pub key used to sign sig_structure
 
             return new DataSignature(HexUtil.encodeHexString(coseSign1.serializeAsBytes()),
                     HexUtil.encodeHexString(coseKey.serializeAsBytes()));
@@ -67,11 +89,16 @@ public enum CIP30DataSigner {
         }
     }
 
+    /**
+     * Verify CIP30 signData signature
+     * @param dataSignature
+     * @return true if verification is successful, otherwise false
+     */
     public boolean verify(@NonNull DataSignature dataSignature) {
-        COSESign1 coseSign1 = dataSignature.getCOSESign1();
-        COSEKey coseKey = dataSignature.getCOSEKey();
+        COSESign1 coseSign1 = dataSignature.coseSign1();
+        COSEKey coseKey = dataSignature.coseKey();
 
-        byte[] pubKey = coseKey.otherHeaderAsBytes(-2);
+        byte[] pubKey = coseKey.otherHeaderAsBytes(X_KEY);
         SigStructure sigStructure = coseSign1.signedData();
         byte[] signature = coseSign1.signature();
 
@@ -79,10 +106,9 @@ public enum CIP30DataSigner {
                 .verify(signature, sigStructure.serializeAsBytes(), pubKey);
 
         //Verify address
-        byte[] addressBytes  = ((ByteString)coseSign1.headers()._protected().getAsHeaderMap().otherHeaders().get("address")).getBytes();
+        byte[] addressBytes  =  coseSign1.headers()._protected().getAsHeaderMap().otherHeaderAsBytes(ADDRESS_KEY);
         Address address = new Address(addressBytes);
-        byte[] publicKey = coseKey.otherHeaderAsBytes(-2);
-        boolean addressVerified = AddressService.getInstance().verifyAddress(address, publicKey);
+        boolean addressVerified = AddressService.getInstance().verifyAddress(address, pubKey);
 
         return sigVerified && addressVerified;
     }
