@@ -5,7 +5,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -36,7 +36,7 @@ public class StakeCredential {
     }
 
     public static StakeCredential fromKey(byte[] key) {
-        byte[] keyHash = KeyGenUtil.blake2bHash224(key);
+        byte[] keyHash = Blake2bUtil.blake2bHash224(key);
         StakeCredential stakeCredential = new StakeCredential(StakeCredType.ADDR_KEYHASH, keyHash);
         return stakeCredential;
     }

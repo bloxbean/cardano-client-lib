@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.cert;
 
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -30,8 +30,8 @@ class StakeCredentialTest {
     void fromKeyHash() throws Exception {
         VerificationKey verificationKey = new VerificationKey("582054d685d1c4bcf38eceb69b8c8af28653e0ec92fd6c0c6a40af384960f494b036");
 
-        System.out.println(HexUtil.encodeHexString(KeyGenUtil.blake2bHash224(verificationKey.getBytes())));
-        StakeRegistration stakeRegistration = new StakeRegistration(StakeCredential.fromKeyHash(KeyGenUtil.blake2bHash224(verificationKey.getBytes())));
+        System.out.println(HexUtil.encodeHexString(Blake2bUtil.blake2bHash224(verificationKey.getBytes())));
+        StakeRegistration stakeRegistration = new StakeRegistration(StakeCredential.fromKeyHash(Blake2bUtil.blake2bHash224(verificationKey.getBytes())));
 
         assertThat(stakeRegistration.getCborHex()).isEqualTo("82008200581c75eceaf1013f030e6e03ea6cfa1ebca88ffb60b3e6fe7bb8325af363");
     }

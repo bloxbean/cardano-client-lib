@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.metadata.cbor;
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
@@ -153,7 +153,7 @@ public class CBORMetadata implements Metadata {
     public byte[] getMetadataHash() throws MetadataSerializationException {
         byte[] encodedBytes = serialize();
 
-        return KeyGenUtil.blake2bHash256(encodedBytes);
+        return Blake2bUtil.blake2bHash256(encodedBytes);
     }
 
     /**

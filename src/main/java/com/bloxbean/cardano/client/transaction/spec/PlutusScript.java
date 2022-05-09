@@ -19,7 +19,7 @@ import org.bouncycastle.util.encoders.Hex;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.crypto.KeyGenUtil.blake2bHash224;
+import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash224;
 
 @Data
 @AllArgsConstructor

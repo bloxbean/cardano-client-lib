@@ -5,7 +5,7 @@ import com.bloxbean.cardano.client.cip.cip8.COSESign1;
 import com.bloxbean.cardano.client.cip.cip8.Headers;
 import com.bloxbean.cardano.client.cip.cip8.SigContext;
 import com.bloxbean.cardano.client.cip.cip8.SigStructure;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
@@ -40,7 +40,7 @@ public class COSESign1Builder {
 
         byte[] finalPayload;
         if (hashed) { //blake2b224 hash
-            finalPayload = KeyGenUtil.blake2bHash224(payload);
+            finalPayload = Blake2bUtil.blake2bHash224(payload);
         } else
             finalPayload = payload.clone();
 
