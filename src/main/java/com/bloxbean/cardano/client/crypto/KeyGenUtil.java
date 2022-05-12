@@ -51,20 +51,23 @@ public class KeyGenUtil {
         return publicKeyRebuild.getEncoded();
     }
 
+    /**
+     * @deprecated Use {@link Blake2bUtil#blake2bHash224(byte[])}
+     * @param in
+     * @return
+     */
+    @Deprecated
     public static byte[] blake2bHash224(byte[] in) {
-        final Blake2bDigest hash = new Blake2bDigest(null, 28, null, null);
-        hash.update(in, 0, in.length);
-        final byte[] out = new byte[hash.getDigestSize()];
-        hash.doFinal(out, 0);
-        return out;
+        return Blake2bUtil.blake2bHash224(in);
     }
 
+    /**
+     * @deprecated Use {@link Blake2bUtil#blake2bHash256(byte[])}
+     * @param in
+     * @return
+     */
+    @Deprecated
     public static byte[] blake2bHash256(byte[] in) {
-        final Blake2bDigest hash = new Blake2bDigest(null, 32, null, null);
-        hash.update(in, 0, in.length);
-        final byte[] out = new byte[hash.getDigestSize()];
-        hash.doFinal(out, 0);
-        return out;
+        return Blake2bUtil.blake2bHash256(in);
     }
-
 }

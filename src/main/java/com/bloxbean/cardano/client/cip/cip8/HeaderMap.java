@@ -163,6 +163,75 @@ public class HeaderMap implements COSEItem {
         return this;
     }
 
+    //header helper getter methods
+    public HeaderMap addOtherHeader(long key, BigInteger value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public HeaderMap addOtherHeader(String key, BigInteger value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public HeaderMap addOtherHeader(long key, long value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public HeaderMap addOtherHeader(String key, long value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public HeaderMap addOtherHeader(long key, byte[] value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public HeaderMap addOtherHeader(String key, byte[] value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public HeaderMap addOtherHeader(long key, String value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public HeaderMap addOtherHeader(String key, String value) {
+        return _addOtherHeader(key, value);
+    }
+
+    public String otherHeaderAsString(String key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return String.valueOf(COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem));
+    }
+
+    public String otherHeaderAsString(long key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return String.valueOf(COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem));
+    }
+
+    public byte[] otherHeaderAsBytes(String key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return (byte[]) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem);
+    }
+
+    public byte[] otherHeaderAsBytes(long key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return (byte[]) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem);
+    }
+
+    public long otherHeaderAsLong(String key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return (long) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem);
+    }
+
+    public long otherHeaderAsLong(long key) {
+        DataItem dataItem = otherHeaders.get(key);
+        return (long) COSEUtil.decodeNumberOrTextOrBytesTypeFromDataItem(dataItem);
+    }
+
+    private HeaderMap _addOtherHeader(Object key, @NonNull Object value) {
+        otherHeaders.put(key, getDataItemFromObject(value));
+
+        return this;
+    }
+
     public Map serialize() {
         Map map = new Map();
 

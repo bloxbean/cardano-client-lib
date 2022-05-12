@@ -16,7 +16,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
-import static com.bloxbean.cardano.client.crypto.KeyGenUtil.blake2bHash224;
+import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash224;
 
 @Slf4j
 public class AddressService {

@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.config.Configuration;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
@@ -43,7 +44,7 @@ public enum TransactionSigner {
             throw new CborRuntimeException("Error in Cbor serialization", e);
         }
 
-        byte[] txnBodyHash = KeyGenUtil.blake2bHash256(txnBody);
+        byte[] txnBodyHash = Blake2bUtil.blake2bHash256(txnBody);
 
         SigningProvider signingProvider = Configuration.INSTANCE.getSigningProvider();
         byte[] signature = signingProvider.signExtended(txnBodyHash, hdKeyPair.getPrivateKey().getKeyData(), hdKeyPair.getPublicKey().getKeyData());
@@ -79,7 +80,7 @@ public enum TransactionSigner {
             throw new CborRuntimeException("Error in Cbor serialization", e);
         }
 
-        byte[] txnBodyHash = KeyGenUtil.blake2bHash256(txnBody);
+        byte[] txnBodyHash = Blake2bUtil.blake2bHash256(txnBody);
 
         SigningProvider signingProvider = Configuration.INSTANCE.getSigningProvider();
         VerificationKey verificationKey = null;
