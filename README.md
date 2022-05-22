@@ -444,7 +444,13 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 * [ADAM - ADA Monitor APP](https://play.google.com/store/apps/details?id=com.esodot.andro.monitor)
 * [ISR - Israeli Cardano Community](https://www.cardano-israel.com/)
 * [MusicBox - CNFT Project](https://www.musicboxnft.com/)
----
+
+
+# Sponsors :sparkling_heart:
+<p align="center">
+  <a href="https://github.com/blockfrost"><img src="https://avatars.githubusercontent.com/u/70073210?s=45&v=4" width=45 height=45 /></a>
+  <a href="https://github.com/KtorZ"><img src="https://avatars.githubusercontent.com/u/5680256?s=45&v=4" width=45 height=45 /></a>
+</p>
 
 ##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
 
