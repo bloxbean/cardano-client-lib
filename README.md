@@ -1,6 +1,6 @@
 <div align="center">
-        <h1 align="center" style="border-bottom: none">Cardano Client Lib</h1>
-
+        <img src="static/logo_no_bg.svg" width="600">
+       
 [![Clean, Build](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml)
 [![CodeQL](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml)
 [![License](https://img.shields.io:/github/license/bloxbean/cardano-client-lib?color=blue&label=license)](https://github.com/bloxbean/cardano-client-lib/blob/master/LICENSE)
