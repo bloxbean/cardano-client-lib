@@ -1,6 +1,6 @@
 <div align="center">
-        <h1 align="center" style="border-bottom: none">Cardano Client Lib</h1>
-
+        <img src="static/logo_no_bg.svg" width="600">
+       
 [![Clean, Build](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml)
 [![CodeQL](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml)
 [![License](https://img.shields.io:/github/license/bloxbean/cardano-client-lib?color=blue&label=license)](https://github.com/bloxbean/cardano-client-lib/blob/master/LICENSE)
@@ -21,7 +21,9 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 [Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
 
-[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0-beta3/index.html)
+[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0/index.html)
+
+[Documentation](https://cardano-client.bloxbean.com/)
 
 **Features**
 
@@ -444,10 +446,16 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 * [ADAM - ADA Monitor APP](https://play.google.com/store/apps/details?id=com.esodot.andro.monitor)
 * [ISR - Israeli Cardano Community](https://www.cardano-israel.com/)
 * [MusicBox - CNFT Project](https://www.musicboxnft.com/)
----
+
+
+# Sponsors :sparkling_heart:
+<p align="center">
+  <a href="https://github.com/blockfrost"><img src="https://avatars.githubusercontent.com/u/70073210?s=45&v=4" width=45 height=45 /></a>
+  <a href="https://github.com/KtorZ"><img src="https://avatars.githubusercontent.com/u/5680256?s=45&v=4" width=45 height=45 /></a>
+</p>
 
 ##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
 
 [BLOXB](https://www.bloxbean.com/cardano-staking/)
 
-[Support this project](https://cardano-client.bloxbean.com/support-this-project)
+[Support this project](https://cardano-client.bloxbean.com/#/support-this-project)
