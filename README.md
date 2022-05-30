@@ -21,7 +21,9 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 [Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
 
-[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0-beta3/index.html)
+[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0/index.html)
+
+[Documentation](https://cardano-client.bloxbean.com/)
 
 **Features**
 
@@ -456,4 +458,4 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 
 [BLOXB](https://www.bloxbean.com/cardano-staking/)
 
-[Support this project](https://cardano-client.bloxbean.com/support-this-project)
+[Support this project](https://cardano-client.bloxbean.com/#/support-this-project)
