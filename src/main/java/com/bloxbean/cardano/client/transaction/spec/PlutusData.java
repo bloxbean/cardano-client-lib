@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
@@ -8,6 +9,7 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
+import lombok.NonNull;
 
 public interface PlutusData {
 
@@ -42,6 +44,15 @@ public interface PlutusData {
             return MapPlutusData.deserialize((Map) dataItem);
         } else
             throw new CborDeserializationException("Cbor deserialization failed. Invalid type. " + dataItem);
+    }
+
+    static PlutusData deserialize(@NonNull byte[] serializedBytes) throws CborDeserializationException {
+        try {
+            DataItem dataItem = CborDecoder.decode(serializedBytes).get(0);
+            return deserialize(dataItem);
+        } catch (CborException | CborDeserializationException e) {
+            throw new CborDeserializationException("Cbor de-serialization error", e);
+        }
     }
 
     default String getDatumHash() throws CborSerializationException, CborException {

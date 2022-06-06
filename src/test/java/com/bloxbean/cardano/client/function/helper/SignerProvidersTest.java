@@ -94,7 +94,7 @@ class SignerProvidersTest {
                 .fee(BigInteger.valueOf(17_000)).build();
         transaction.setBody(body);
         transaction.setAuxiliaryData(AuxiliaryData.builder()
-                .plutusScripts(List.of())
+                .plutusV1Scripts(List.of())
                 .build());
 
         return transaction;

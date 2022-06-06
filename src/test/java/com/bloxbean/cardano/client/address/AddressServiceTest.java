@@ -10,7 +10,7 @@ import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.transaction.spec.PlutusScript;
+import com.bloxbean.cardano.client.transaction.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.transaction.spec.script.Script;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
@@ -144,7 +144,7 @@ class AddressServiceTest {
 
         @Test
         void getScriptEntAddress_whenPlutusScript() throws CborSerializationException {
-            PlutusScript plutusScript = PlutusScript.builder()
+            PlutusV1Script plutusScript = PlutusV1Script.builder()
                     .type("PlutusScriptV1")
                     .cborHex("4e4d01000033222220051200120011")
                     .build();
@@ -194,7 +194,12 @@ class AddressServiceTest {
                 }
 
                 @Override
-                public byte[] getScriptHash() throws CborSerializationException { //Provide a dummy impl for script hash
+                public byte[] serializeScriptBody() {
+                    return new byte[0];
+                }
+
+                @Override
+                public byte[] getScriptHash() { //Provide a dummy impl for script hash
                     byte[] serializedBytes = Bech32.decode(scriptKey).data;
                     return serializedBytes;
                 }
@@ -202,6 +207,11 @@ class AddressServiceTest {
                 @Override
                 public String getPolicyId() throws CborSerializationException {
                     return null;
+                }
+
+                @Override
+                public byte[] getScriptTypeBytes() {
+                    return new byte[0];
                 }
             };
         }

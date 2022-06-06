@@ -87,7 +87,10 @@ public class UtxoTransactionBodyBuilder {
                 null,
                 null,
                 null,
-                detailsParams != null ? detailsParams.getNetworkId() : null);
+                detailsParams != null ? detailsParams.getNetworkId() : null,
+                null,
+                null,
+                null);
     }
 
     public static TransactionBody buildTransferBody(List<PaymentTransaction> requests,
@@ -148,7 +151,10 @@ public class UtxoTransactionBodyBuilder {
                 null,
                 null,
                 null,
-                detailParams != null ? detailParams.getNetworkId() : null);
+                detailParams != null ? detailParams.getNetworkId() : null,
+                null,
+                null,
+                null);
     }
 
     private static Map<String, List<Amount>> mergeCosts(Map<String, BigInteger> costPerSender, Map<String, List<Amount>> requestedAmountPerSender){

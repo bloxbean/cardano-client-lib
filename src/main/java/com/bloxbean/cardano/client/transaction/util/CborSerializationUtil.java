@@ -1,12 +1,15 @@
 package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.CborBuilder;
+import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.MajorType;
 import co.nstant.in.cbor.model.Number;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.transaction.util.cbor.CustomCborEncoder;
+import lombok.NonNull;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
@@ -94,5 +97,18 @@ public class CborSerializationUtil {
 
         return encodedBytes;
 
+    }
+
+    /**
+     * Deserialize bytes to DataItem
+     * @param bytes
+     * @return DataItem
+     */
+    public static DataItem deserialize(@NonNull byte[] bytes) {
+        try {
+            return CborDecoder.decode(bytes).get(0);
+        } catch (CborException e) {
+            throw new CborRuntimeException("Cbor de-serialization error", e);
+        }
     }
 }

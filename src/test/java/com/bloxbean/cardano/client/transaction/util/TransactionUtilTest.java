@@ -21,7 +21,7 @@ public class TransactionUtilTest {
     final String address = "addr_test1vrw6vsvwwe9vwupyfkkeweh23ztd6n0vfydwk823esdz6pc4xqcd5";
 
     @Test
-    void calcTxHash() throws Exception {
+    void calcTxHash_Alonzo() throws Exception {
         BigInteger fee = BigInteger.valueOf(200000);
         BigInteger inputAmount = BigInteger.valueOf(99200000);
         var bodyBuilder = TransactionBody.builder()

@@ -51,7 +51,7 @@ public class ScriptCallContextProviders {
      * @return <code>TxBuilder</code> function
      * @throws CborRuntimeException if cbor serialization/de-serialization error
      */
-    public static <T, K> TxBuilder scriptCallContext(PlutusScript plutusScript, Utxo utxo, T datum, K redeemerData,
+    public static <T, K> TxBuilder scriptCallContext(PlutusV1Script plutusScript, Utxo utxo, T datum, K redeemerData,
                                                      RedeemerTag tag, ExUnits exUnits) {
         return (context, transaction) -> {
             int scriptInputIndex = -1;
@@ -84,7 +84,7 @@ public class ScriptCallContextProviders {
      * @return <code>TxBuilder</code> function
      * @throws CborRuntimeException if cbor serialization/de-serialization error
      */
-    public static <T, K> TxBuilder scriptCallContext(PlutusScript plutusScript, int scriptInputIndex, T datum, K redeemerData,
+    public static <T, K> TxBuilder scriptCallContext(PlutusV1Script plutusScript, int scriptInputIndex, T datum, K redeemerData,
                                                      RedeemerTag tag, ExUnits exUnits) {
         Objects.requireNonNull(plutusScript);
         Objects.requireNonNull(tag);
@@ -124,8 +124,8 @@ public class ScriptCallContextProviders {
                 transaction.getWitnessSet().getRedeemers().add(redeemer);
             }
 
-            if (!transaction.getWitnessSet().getPlutusScripts().contains(plutusScript)) //To avoid duplicate script in list
-                transaction.getWitnessSet().getPlutusScripts().add(plutusScript);
+            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+                transaction.getWitnessSet().getPlutusV1Scripts().add(plutusScript);
 
             //Script data hash
             byte[] scriptDataHash;

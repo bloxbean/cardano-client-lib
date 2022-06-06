@@ -566,11 +566,11 @@ public class CBORSerializationTest {
 
         Transaction transaction = new Transaction();
 
-        PlutusScript plutusScript = PlutusScript.builder()
+        PlutusV1Script plutusScript = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4d01000033222220051200120011")
                 .build();
-        PlutusScript plutusScript1 = PlutusScript.builder()
+        PlutusV1Script plutusScript1 = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4d01000033222220051200120011")
                 .build();
@@ -579,7 +579,7 @@ public class CBORSerializationTest {
 
         transaction.setAuxiliaryData(AuxiliaryData.builder()
                 .metadata(metadata)
-                .plutusScripts(Arrays.asList(plutusScript, plutusScript1))
+                .plutusV1Scripts(Arrays.asList(plutusScript, plutusScript1))
                 .nativeScripts(Arrays.asList(scriptPubkey))
                 .build());
 
@@ -628,8 +628,8 @@ public class CBORSerializationTest {
         assertThat(deSeTransaction.getBody().getTtl()).isEqualTo(transaction.getBody().getTtl());
         assertThat(deSeTransaction.getBody().getValidityStartInterval()).isEqualTo(transaction.getBody().getValidityStartInterval());
         assertThat(deSeTransaction.getBody().getAuxiliaryDataHash()).isEqualTo(transaction.getBody().getAuxiliaryDataHash());
-        assertThat(deSeTransaction.getAuxiliaryData().getPlutusScripts()).hasSize(2);
-        assertThat(deSeTransaction.getAuxiliaryData().getPlutusScripts()).hasSameElementsAs(transaction.getAuxiliaryData().getPlutusScripts());
+        assertThat(deSeTransaction.getAuxiliaryData().getPlutusV1Scripts()).hasSize(2);
+        assertThat(deSeTransaction.getAuxiliaryData().getPlutusV1Scripts()).hasSameElementsAs(transaction.getAuxiliaryData().getPlutusV1Scripts());
         assertThat(deSeTransaction.getAuxiliaryData().getNativeScripts()).hasSameElementsAs(transaction.getAuxiliaryData().getNativeScripts());
         assertThat(deSeTransaction.getBody().getMint()).hasSize(3);
         assertThat(deSeTransaction.getBody().getMint().get(0).getAssets()).isEqualTo(transaction.getBody().getMint().get(0).getAssets());
