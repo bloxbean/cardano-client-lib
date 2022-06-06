@@ -1,6 +1,6 @@
 <div align="center">
-        <h1 align="center" style="border-bottom: none">Cardano Client Lib</h1>
-
+        <img src="static/logo_no_bg.svg" width="600">
+       
 [![Clean, Build](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/build.yml)
 [![CodeQL](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml/badge.svg)](https://github.com/bloxbean/cardano-client-lib/actions/workflows/codeql.yml)
 [![License](https://img.shields.io:/github/license/bloxbean/cardano-client-lib?color=blue&label=license)](https://github.com/bloxbean/cardano-client-lib/blob/master/LICENSE)
@@ -9,11 +9,7 @@
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-**Latest Beta**: [0.2.0-beta3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0-beta3) (Pure Java)
-
-**Previous Stable Version** : [0.1.5](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.1.5) (Uses rust lib) 
-
-[v0.1.5 More details](README-0_1_5.md)
+**Latest Stable Version**: [0.2.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0)
 
 **Posts**
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
@@ -25,7 +21,9 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 [Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
 
-[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0-beta3/index.html)
+[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0/index.html)
+
+[Documentation](https://cardano-client.bloxbean.com/)
 
 **Features**
 
@@ -39,19 +37,25 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 - CBOR serialization of transaction
 - Transaction signing
 
-### High Level api 
+#### High Level api 
 - To build and submit 
     -  Payment transaction
     - Token Minting and token transfer transaction
     
-### Composable Functions
+#### Composable Functions
 - To build and submit
     - Payment transaction
     - Token Minting and token transfer
     - Plutus smart contract call
     - Token minting with Plutus contract
-    
+
 [Examples with Composable Functions](https://github.com/bloxbean/cardano-client-examples/tree/main/src/main/java/com/bloxbean/cardano/client/examples/function)
+
+#### CIP Implementations
+- [CIP20 - Transaction Message/Comment metada](https://cips.cardano.org/cips/cip20/)
+- [CIP25 - NFT Metadata Standard](https://cips.cardano.org/cips/cip25/)
+- [CIP8  - Message Signing](https://cips.cardano.org/cips/cip8/)
+- [CIP30  - dApp signData & verify](https://cips.cardano.org/cips/cip30/)
 
 #### Metadata Builder
 - Helper to build Metadata
@@ -102,7 +106,7 @@ Out of box, the library currently supports integration with following providers 
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.2.0-beta3</version>
+            <version>0.2.0</version>
         </dependency>
 ```
 - Backend modules
@@ -113,28 +117,28 @@ Out of box, the library currently supports integration with following providers 
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.2.0-beta3</version>
+            <version>0.2.0</version>
         </dependency>
         
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>0.2.0-beta3</version>
+            <version>0.2.0</version>
         </dependency>
         
          <!-- For Ogmios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>0.2.0-beta3</version>
+            <version>0.2.0</version>
         </dependency>
 
         <!-- For Cardano Graphql backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-gql</artifactId>
-            <version>0.2.0-beta3</version>
+            <version>0.2.0</version>
         </dependency>
 ```
 
@@ -142,28 +146,30 @@ Out of box, the library currently supports integration with following providers 
 
 - Core Module
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta3'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0'
 ```
 - Backend modules
     - For backend support, use one of the following supported backend module
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0-beta3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.2.0-beta3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.2.0'
 
 //For Ogmios
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.2.0-beta3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.2.0'
 
 //For Cardano Graphql
-implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0-beta3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0'
 
 ```
 
 
 ### For snapshot binaries
+
+**SNAPSHOT_VERSION :** 0.3.0-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```
@@ -171,12 +177,12 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0-beta3'
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.2.0-beta4-SNAPSHOT</version>
+            <version>{SNAPSHOT_VERSION}</version>
         </dependency>
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.2.0-beta4-SNAPSHOT</version>
+            <version>{SNAPSHOT_VERSION}</version>
         </dependency>
     </dependencies>
     
@@ -203,8 +209,8 @@ repositories {
     }
 }
 
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0-beta4-SNAPSHOT'
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0-beta4-SNAPSHOT'
+implementation 'com.bloxbean.cardano:cardano-client-lib:{SNAPSHOT_VERSION}'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:{SNAPSHOT_VERSION}'
 ```
 
 ### Account API Usage
@@ -440,10 +446,16 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 * [ADAM - ADA Monitor APP](https://play.google.com/store/apps/details?id=com.esodot.andro.monitor)
 * [ISR - Israeli Cardano Community](https://www.cardano-israel.com/)
 * [MusicBox - CNFT Project](https://www.musicboxnft.com/)
----
+
+
+# Sponsors :sparkling_heart:
+<p align="center">
+  <a href="https://github.com/blockfrost"><img src="https://avatars.githubusercontent.com/u/70073210?s=45&v=4" width=45 height=45 /></a>
+  <a href="https://github.com/KtorZ"><img src="https://avatars.githubusercontent.com/u/5680256?s=45&v=4" width=45 height=45 /></a>
+</p>
 
 ##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
 
 [BLOXB](https://www.bloxbean.com/cardano-staking/)
 
-[Support this project](https://cardano-client.bloxbean.com/support-this-project)
+[Support this project](https://cardano-client.bloxbean.com/#/support-this-project)
