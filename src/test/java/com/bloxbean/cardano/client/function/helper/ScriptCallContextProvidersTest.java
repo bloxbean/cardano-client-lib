@@ -12,7 +12,7 @@ import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.transaction.util.CostModelConstants;
+import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
 import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -172,7 +172,7 @@ class ScriptCallContextProvidersTest extends BaseTest {
                 .isEqualTo(ConstrPlutusData.of(0, BigIntPlutusData.of(50)).getDatumHash());
 
         byte[] scriptHash = ScriptDataHashGenerator.generate(Collections.EMPTY_LIST, transaction.getWitnessSet()
-                .getPlutusDataList(), CostModelConstants.LANGUAGE_VIEWS);
+                .getPlutusDataList(), CostModelUtil.getDefaultLanguageViewsEncoding());
         assertThat(transaction.getBody().getScriptDataHash()).isEqualTo(scriptHash);
 
     }

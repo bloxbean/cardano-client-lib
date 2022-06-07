@@ -9,7 +9,6 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.transaction.util.CostModelConstants;
 import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
 
 import java.math.BigInteger;
@@ -51,7 +50,7 @@ public class ScriptCallContextProviders {
      * @return <code>TxBuilder</code> function
      * @throws CborRuntimeException if cbor serialization/de-serialization error
      */
-    public static <T, K> TxBuilder scriptCallContext(PlutusV1Script plutusScript, Utxo utxo, T datum, K redeemerData,
+    public static <T, K> TxBuilder scriptCallContext(PlutusScript plutusScript, Utxo utxo, T datum, K redeemerData,
                                                      RedeemerTag tag, ExUnits exUnits) {
         return (context, transaction) -> {
             int scriptInputIndex = -1;
@@ -84,7 +83,7 @@ public class ScriptCallContextProviders {
      * @return <code>TxBuilder</code> function
      * @throws CborRuntimeException if cbor serialization/de-serialization error
      */
-    public static <T, K> TxBuilder scriptCallContext(PlutusV1Script plutusScript, int scriptInputIndex, T datum, K redeemerData,
+    public static <T, K> TxBuilder scriptCallContext(PlutusScript plutusScript, int scriptInputIndex, T datum, K redeemerData,
                                                      RedeemerTag tag, ExUnits exUnits) {
         Objects.requireNonNull(plutusScript);
         Objects.requireNonNull(tag);
@@ -124,14 +123,22 @@ public class ScriptCallContextProviders {
                 transaction.getWitnessSet().getRedeemers().add(redeemer);
             }
 
-            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                transaction.getWitnessSet().getPlutusV1Scripts().add(plutusScript);
+            if (plutusScript instanceof PlutusV1Script) {
+                if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+                    transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+            } else if (plutusScript instanceof PlutusV2Script) {
+                if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+                    transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+            }
 
             //Script data hash
             byte[] scriptDataHash;
             try {
+                CostMdls costMdls = context.getCostMdls();
+                byte[] languageViews = costMdls.getLanguageViewEncoding();
+
                 scriptDataHash = ScriptDataHashGenerator.generate(transaction.getWitnessSet().getRedeemers(),
-                        transaction.getWitnessSet().getPlutusDataList(), CostModelConstants.LANGUAGE_VIEWS);
+                        transaction.getWitnessSet().getPlutusDataList(), languageViews);
             } catch (CborSerializationException | CborException e) {
                 throw new CborRuntimeException("Error getting scriptDataHash ", e);
             }

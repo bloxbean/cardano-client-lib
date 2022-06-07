@@ -34,7 +34,7 @@ import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.transaction.util.CostModelConstants;
+import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
 import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
@@ -179,7 +179,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                     byte[] scriptDataHash;
                     try {
                         scriptDataHash = ScriptDataHashGenerator.generate(txn.getWitnessSet().getRedeemers(),
-                                txn.getWitnessSet().getPlutusDataList(), CostModelConstants.LANGUAGE_VIEWS);
+                                txn.getWitnessSet().getPlutusDataList(), CostModelUtil.getDefaultLanguageViewsEncoding());
                     } catch (CborSerializationException | CborException e) {
                         throw new CborRuntimeException("Error getting scriptDataHash ", e);
                     }

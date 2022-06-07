@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 
 import java.util.HashMap;
@@ -21,21 +22,25 @@ public class CostMdls {
         return costMdlsMap.get(language);
     }
 
-    public byte[] getLanguageViewEncoding() throws CborException {
-        Map cborMap = new Map();
-        for (java.util.Map.Entry<Language, CostModel> entry : costMdlsMap.entrySet()) {
-            Language language = entry.getKey();
-            CostModel costModel = entry.getValue();
+    public byte[] getLanguageViewEncoding() {
+        try {
+            Map cborMap = new Map();
+            for (java.util.Map.Entry<Language, CostModel> entry : costMdlsMap.entrySet()) {
+                Language language = entry.getKey();
+                CostModel costModel = entry.getValue();
 
-            if (language == Language.PLUTUS_V1) {
-                serializeV1(cborMap, costModel);
-            } else if (language == Language.PLUTUS_V2) {
-                serializeV2(cborMap, costModel);
-            } else
-                throw new CborException("Invalid language : " + language);
+                if (language == Language.PLUTUS_V1) {
+                    serializeV1(cborMap, costModel);
+                } else if (language == Language.PLUTUS_V2) {
+                    serializeV2(cborMap, costModel);
+                } else
+                    throw new CborException("Invalid language : " + language);
+            }
+
+            return CborSerializationUtil.serialize(cborMap);
+        } catch (CborException ex) {
+            throw new CborRuntimeException("Language views encoding failed", ex);
         }
-
-        return CborSerializationUtil.serialize(cborMap);
     }
 
     private void serializeV2(Map cborMap, CostModel costModel) {

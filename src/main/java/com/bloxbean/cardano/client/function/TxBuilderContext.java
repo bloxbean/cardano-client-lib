@@ -10,8 +10,10 @@ import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
+import com.bloxbean.cardano.client.transaction.spec.CostMdls;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ public class TxBuilderContext {
     private UtxoSelectionStrategy utxoSelectionStrategy;
     private UtxoSelector utxoSelector;
     private FeeCalculationService feeCalculationService;
+    private CostMdls costMdls;
 
     //Needed to check if the output is for minting
     //This list is cleared after each Input Builder
@@ -71,6 +74,13 @@ public class TxBuilderContext {
         mintMultiAssets.clear();
     }
 
+    public CostMdls getCostMdls() {
+        if (costMdls == null)
+            return CostModelUtil.getDefaultCostMdls();
+        else
+            return costMdls;
+    }
+
     public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
         return new TxBuilderContext(utxoSupplier, protocolParams);
     }
@@ -88,7 +98,6 @@ public class TxBuilderContext {
     public Transaction build(TxBuilder txBuilder) {
         Transaction transaction = new Transaction();
         txBuilder.build(this, transaction);
-
         return transaction;
     }
 

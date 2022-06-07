@@ -30,7 +30,7 @@ class ScriptDataHashGeneratorTest {
                         .build()
                 ).build();
 
-        byte[] hashBytes = ScriptDataHashGenerator.generate(Arrays.asList(redeemer), Arrays.asList(plutusData), CostModelConstants.LANGUAGE_VIEWS);
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Arrays.asList(redeemer), Arrays.asList(plutusData), CostModelUtil.getDefaultLanguageViewsEncoding());
         String hash = HexUtil.encodeHexString(hashBytes);
         System.out.println(hash);
 

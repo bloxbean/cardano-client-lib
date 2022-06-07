@@ -57,6 +57,9 @@ public class MintCreators {
                 } else if (script instanceof PlutusV1Script) {
                     if (!transaction.getAuxiliaryData().getPlutusV1Scripts().contains(script))
                         transaction.getAuxiliaryData().getPlutusV1Scripts().add((PlutusV1Script) script);
+                } else if (script instanceof PlutusV2Script) {
+                    if (!transaction.getAuxiliaryData().getPlutusV2Scripts().contains(script))
+                        transaction.getAuxiliaryData().getPlutusV2Scripts().add((PlutusV2Script) script);
                 }
             }
 
@@ -66,6 +69,9 @@ public class MintCreators {
             } else if (script instanceof PlutusV1Script) {
                 if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(script))
                     transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) script);
+            } else if (script instanceof PlutusV2Script) {
+                if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(script))
+                    transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) script);
             }
         };
     }

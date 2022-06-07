@@ -33,7 +33,7 @@ import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
-import com.bloxbean.cardano.client.transaction.util.CostModelConstants;
+import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
 import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -163,7 +163,7 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelConstants.LANGUAGE_VIEWS);
+                Arrays.asList(plutusData), CostModelUtil.getDefaultLanguageViewsEncoding());
         body.setScriptDataHash(scriptDataHash);
 
         CBORMetadata cborMetadata = new CBORMetadata();
@@ -304,7 +304,7 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelConstants.LANGUAGE_VIEWS);
+                Arrays.asList(plutusData), CostModelUtil.getDefaultLanguageViewsEncoding());
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -432,7 +432,7 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelConstants.LANGUAGE_VIEWS);
+                Arrays.asList(plutusData), CostModelUtil.getDefaultLanguageViewsEncoding());
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -567,7 +567,7 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelConstants.LANGUAGE_VIEWS);
+                Arrays.asList(plutusData), CostModelUtil.getDefaultLanguageViewsEncoding());
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -700,7 +700,7 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelConstants.LANGUAGE_VIEWS);
+                Arrays.asList(plutusData), CostModelUtil.getDefaultLanguageViewsEncoding());
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -831,7 +831,7 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelConstants.LANGUAGE_VIEWS);
+                Arrays.asList(plutusData), CostModelUtil.getDefaultLanguageViewsEncoding());
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -962,7 +962,7 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelConstants.LANGUAGE_VIEWS);
+                Arrays.asList(plutusData), CostModelUtil.getDefaultLanguageViewsEncoding());
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -1115,7 +1115,7 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Collections.emptyList(), CostModelConstants.LANGUAGE_VIEWS);
+                Collections.emptyList(), CostModelUtil.getDefaultLanguageViewsEncoding());
 
         body.setScriptDataHash(scriptDataHash);
 
