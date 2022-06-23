@@ -7,11 +7,16 @@ import com.bloxbean.cardano.client.crypto.bip32.util.Hmac;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.OSUtil;
+
+import net.i2p.crypto.eddsa.math.Curve;
+import net.i2p.crypto.eddsa.math.GroupElement;
+import net.i2p.crypto.eddsa.math.FieldElement;
 import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAParameterSpec;
 import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator;
 import org.bouncycastle.crypto.params.KeyParameter;
+import org.bouncycastle.math.ec.custom.djb.Curve25519;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +26,7 @@ import javax.crypto.spec.PBEKeySpec;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 
@@ -204,6 +210,58 @@ public class HdKeyGenerator {
         }
 
         return key;
+    }
+
+    /**
+     * Derive the public child key from HD parent public key
+     *
+     * @param parent     the parent key
+     * @param child      the child index
+     * @return
+     */
+    public HdPublicKey getChildPublicKey(HdPublicKey parent, long child) {
+        HdPublicKey publicKey = new HdPublicKey();
+        byte[] AP = parent.getKeyData();
+
+        byte[] pChain = parent.getChainCode();
+        byte[] childNumber = BytesUtil.ser32(child);
+
+        //prefix 0x02 for child public key
+        byte[] ApLE = serializeUnsignedLE256(parseUnsignedLE(AP));
+        byte[] data = BytesUtil.merge(new byte[]{2}, ApLE, BytesUtil.ser32LE(child));
+        byte[] Z = Hmac.hmac512(data, pChain);
+
+        //prefix 0x03 for child chain code
+        data[0] = 3;
+        byte[] c = Hmac.hmac512(data, parent.getChainCode());
+
+        //truncate to right 32 bytes for child chain code
+        c = Arrays.copyOfRange(c, 32, 64);
+
+        // split into left (28 bytes) /right (for child public key)
+        byte[] ZL = Arrays.copyOfRange(Z, 0, 28);
+//      byte[] ZR = Arrays.copyOfRange(Z, 32, 64);
+
+        //Ai ← AP + [8ZL]B,
+        BigInteger kLiBI = parseUnsignedLE(ZL)
+                .multiply(BigInteger.valueOf(8));
+
+        byte[] kLi = serializeUnsignedLE256(kLiBI);
+
+        GroupElement gp1 = new GroupElement(ED25519SPEC.getCurve(), AP);
+        gp1 = gp1.toCached();
+        GroupElement groupElement = ED25519SPEC.getB().scalarMultiply(kLi).add(gp1);
+        //TODO -- If Ai is the identity point (0, 1), discard the child
+
+        byte[] Ai = groupElement.toByteArray(); //child public key
+
+        publicKey.setVersion(parent.getVersion());
+        publicKey.setDepth(parent.getDepth() + 1);
+        publicKey.setChildNumber(childNumber);
+        publicKey.setChainCode(c);
+        publicKey.setKeyData(Ai);
+
+        return publicKey;
     }
 
     private String getPath(String parentPath, long child, boolean isHardened) {
