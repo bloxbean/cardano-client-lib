@@ -215,7 +215,7 @@ public class HdKeyGenerator {
      * @param child      the child index
      * @return
      */
-    public HdPublicKey getChildPublicKey(HdPublicKey parent, long child) {
+    public HdPublicKey getChildPublicKey(HdPublicKey parent, int child) {
         HdPublicKey publicKey = new HdPublicKey();
         byte[] AP = parent.getKeyData();
 
