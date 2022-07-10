@@ -46,7 +46,7 @@ public class UtxoTransactionBodyBuilder {
         // determine UTXOs for min cost
         var utxos = request.getUtxosToInclude() != null ? new HashSet<>(request.getUtxosToInclude()) : new HashSet<Utxo>();
         if(utxos.isEmpty()){
-            utxos.addAll(selectionStrategy.select(sender, new Amount(CardanoConstants.LOVELACE, totalCost), null, Collections.emptySet()));
+            utxos.addAll(selectionStrategy.select(sender, new Amount(CardanoConstants.LOVELACE, totalCost), Collections.emptySet()));
         }
         if (utxos.isEmpty()){
             throw new InsufficientBalanceException("Not enough utxos found to cover mint balance: " + totalCost + " lovelace");
@@ -343,7 +343,7 @@ public class UtxoTransactionBodyBuilder {
     }
     private static Set<Utxo> calculateUtxos(String sender, List<Amount> required, Set<Utxo> currentUtxos, UtxoSelectionStrategy selectionStrategy){
         // remove already used utxos
-        var newUtxos = selectionStrategy.select(sender, required, null, currentUtxos);
+        var newUtxos = selectionStrategy.select(sender, required, currentUtxos);
 
         if(newUtxos == null || newUtxos.isEmpty()){
             throw new InsufficientBalanceException(String.format("No utxos found for address for additional amount: %s, unit: %s, amount: %s", sender, CardanoConstants.LOVELACE, required));
@@ -463,7 +463,7 @@ public class UtxoTransactionBodyBuilder {
                                                             UtxoSelectionStrategy selectionStrategy) {
         return requestedAmountPerSender.entrySet().stream()
                 .map(entry -> new AbstractMap.SimpleImmutableEntry<>(entry.getKey(),
-                                        selectionStrategy.select(entry.getKey(), entry.getValue(), null, Collections.emptySet())))
+                                        selectionStrategy.select(entry.getKey(), entry.getValue(), Collections.emptySet())))
                 .collect(Collectors.toMap(AbstractMap.SimpleImmutableEntry::getKey, AbstractMap.SimpleImmutableEntry::getValue));
     }
     private static Map<String, List<Amount>> getRequestedAmountPerSender(List<PaymentTransaction> requests) {

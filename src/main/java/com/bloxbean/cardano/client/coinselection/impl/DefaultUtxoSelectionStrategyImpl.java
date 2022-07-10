@@ -1,13 +1,14 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
-import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
+import com.bloxbean.cardano.client.transaction.spec.PlutusData;
 import lombok.Setter;
 
 import java.math.BigInteger;
@@ -34,10 +35,13 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
     }
 
     @Override
-    public Set<Utxo> select(String sender, List<Amount> outputAmounts, String datumHash, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+    public Set<Utxo> select(String sender, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
         if(outputAmounts == null || outputAmounts.isEmpty()){
             return Collections.emptySet();
         }
+
+        //TODO -- Should we throw error if both datumHash and inlineDatum are set ??
+
         try{
             // loop over utxo's, find matching requested amount
             Set<Utxo> selectedUtxos = new HashSet<>();
@@ -77,6 +81,10 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                     if(datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash())){
                         continue;
                     }
+                    //TODO - add tests for this scenario
+                    if(inlineDatum != null && !inlineDatum.serializeToHex().equals(utxo.getInlineDatum())) {
+                        continue;
+                    }
                     if(selectedUtxos.contains(utxo)){
                         continue;
                     }
@@ -114,7 +122,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
         }catch(InputsLimitExceededException e){
             var fallback = fallback();
             if(fallback != null){
-                return fallback.select(sender, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
+                return fallback.select(sender, outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
             }
             throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
         }

@@ -81,6 +81,10 @@ public class TxBuilderContext {
             return costMdls;
     }
 
+    public void setCostMdls(CostMdls costMdls) {
+        this.costMdls = costMdls;
+    }
+
     public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
         return new TxBuilderContext(utxoSupplier, protocolParams);
     }

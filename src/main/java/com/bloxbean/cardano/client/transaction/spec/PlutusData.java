@@ -6,6 +6,7 @@ import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -61,5 +62,13 @@ public interface PlutusData {
 
     default byte[] getDatumHashAsBytes() throws CborSerializationException, CborException {
         return KeyGenUtil.blake2bHash256(CborSerializationUtil.serialize(serialize()));
+    }
+
+    default String serializeToHex()  {
+        try {
+            return HexUtil.encodeHexString(CborSerializationUtil.serialize(serialize()));
+        } catch (Exception e) {
+            throw new CborRuntimeException("Cbor serialization error", e);
+        }
     }
 }

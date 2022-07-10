@@ -7,10 +7,7 @@ import com.bloxbean.cardano.client.function.Output;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.transaction.spec.Asset;
-import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
+import com.bloxbean.cardano.client.transaction.spec.*;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -107,6 +104,8 @@ public class OutputBuilders {
             String address = txnOutput.getAddress();
             Value value = txnOutput.getValue();
             byte[] datumHash = txnOutput.getDatumHash();
+            PlutusData inlineDatum = txnOutput.getInlineDatum();
+            byte[] scriptRef = txnOutput.getScriptRef();
 
             //If it's a mint output, add it to the context so that, it's not considered during input building
             if (isMintOutput) {
@@ -128,6 +127,14 @@ public class OutputBuilders {
                         TransactionOutput output = new TransactionOutput(address, value);
                         if (datumHash != null && datumHash.length > 0) {
                             output.setDatumHash(datumHash);
+                        }
+
+                        if (inlineDatum != null) {
+                            output.setInlineDatum(inlineDatum);
+                        }
+
+                        if (scriptRef != null) {
+                            output.setScriptRef(scriptRef);
                         }
 
                         checkIfMinAdaIsThere(context, output, minAdaChecker);
@@ -156,10 +163,14 @@ public class OutputBuilders {
                 }, () -> {
                     TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(BigInteger.ZERO, List.of(multiAsset)));
                     if (output.getDatum() != null) {
-                        try {
-                            to.setDatumHash(output.getDatum().getDatumHashAsBytes());
-                        } catch (CborSerializationException | CborException e) {
-                            throw new TxBuildException("Unable to get dataum hash from plutus data");
+                        if (output.isInlineDatum()) {
+                            to.setInlineDatum(output.getDatum());
+                        } else {
+                            try {
+                                to.setDatumHash(output.getDatum().getDatumHashAsBytes());
+                            } catch (CborSerializationException | CborException e) {
+                                throw new TxBuildException("Unable to get dataum hash from plutus data");
+                            }
                         }
                     }
 
@@ -182,10 +193,14 @@ public class OutputBuilders {
                         () -> {
                             TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(output.getQty(), new ArrayList<>()));
                             if (output.getDatum() != null) {
-                                try {
-                                    to.setDatumHash(output.getDatum().getDatumHashAsBytes());
-                                } catch (CborSerializationException | CborException e) {
-                                    throw new TxBuildException("Unable to get dataum hash from plutus data");
+                                if (output.isInlineDatum()) {
+                                    to.setInlineDatum(output.getDatum());
+                                } else {
+                                    try {
+                                        to.setDatumHash(output.getDatum().getDatumHashAsBytes());
+                                    } catch (CborSerializationException | CborException e) {
+                                        throw new TxBuildException("Unable to get dataum hash from plutus data");
+                                    }
                                 }
                             }
 
