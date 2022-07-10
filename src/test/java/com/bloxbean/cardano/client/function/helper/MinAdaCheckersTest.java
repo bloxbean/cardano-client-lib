@@ -93,7 +93,7 @@ class MinAdaCheckersTest extends BaseTest {
                         .multiAssets(List.of(multiAsset))
                         .build()
                 )
-                .datum(datum)
+                .datumHash(BigIntPlutusData.of(datum).getDatumHashAsBytes())
                 .build();
 
         MinAdaChecker minAdaChecker = MinAdaCheckers.minAdaChecker();

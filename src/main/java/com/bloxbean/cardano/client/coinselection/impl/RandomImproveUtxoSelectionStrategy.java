@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
+import com.bloxbean.cardano.client.transaction.spec.PlutusData;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -39,7 +40,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
     }
 
     @Override
-    public Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+    public Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
         try{
             /*
              * Phase 1: Random Selection
@@ -57,7 +58,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
              *
              * If the remaining UTxO set is completely exhausted before all outputs can be processed, the algorithm terminates with an error.
              */
-            var randomPhaseResult = selectRandom(outputAmounts, this.utxoSupplier.getAll(address), datumHash, utxosToExclude, maxUtxoSelectionLimit);
+            var randomPhaseResult = selectRandom(outputAmounts, this.utxoSupplier.getAll(address), datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
 
             /*
              * Phase 2: Improvement
@@ -86,19 +87,19 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
              *             - Condition 3: when counting cumulatively across all outputs considered so far, we have not selected more than the maximum number of UTxO entries specified by limit.
              *
              */
-            var improvedResult = improve(outputAmounts, randomPhaseResult, datumHash, utxosToExclude, maxUtxoSelectionLimit);
+            var improvedResult = improve(outputAmounts, randomPhaseResult, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
             return Stream.concat(randomPhaseResult.getSelectedUtxos().stream(),
                                  improvedResult.stream()).collect(Collectors.toSet());
         }catch(InputsLimitExceededException e){
             var fallback = fallback();
             if(fallback != null){
-                return fallback.select(address, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
+                return fallback.select(address, outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
             }
             throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
         }
     }
 
-    private Set<Utxo> improve(List<Amount> outputAmounts, RandomPhaseResult randomPhaseResult, String datumHash, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit){
+    private Set<Utxo> improve(List<Amount> outputAmounts, RandomPhaseResult randomPhaseResult, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit){
         final Map<String, BigInteger> outputsToProcess = outputAmounts.stream()
                 .collect(Collectors.groupingBy(Amount::getUnit,
                         Collectors.reducing(BigInteger.ZERO,
@@ -133,7 +134,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
             }
 
             while(true){
-                var randomUtxo = selectRandomUtxo(requiredAmount.getUnit(), availableUtxos, datumHash, utxosToExclude);
+                var randomUtxo = selectRandomUtxo(requiredAmount.getUnit(), availableUtxos, datumHash, inlineDatum, utxosToExclude);
                 if(randomUtxo == null){
                     break;
                 }
@@ -160,7 +161,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
         return selectedUtxos;
     }
 
-    private RandomPhaseResult selectRandom(List<Amount> outputAmounts, List<Utxo> allAvailableUtxos, String datumHash, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) throws InputsLimitExceededException{
+    private RandomPhaseResult selectRandom(List<Amount> outputAmounts, List<Utxo> allAvailableUtxos, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) throws InputsLimitExceededException{
         if(allAvailableUtxos == null || allAvailableUtxos.isEmpty()){
             throw new InsufficientBalanceException("No UTXOs available");
         }
@@ -185,7 +186,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
                     // then subtract all from selectedUtxos (UTXOs can contain multiple assets)
                 var requiredUnit = entry.getKey();
 
-                var randomUtxo = selectRandomUtxo(requiredUnit, availableUtxos, datumHash, utxosToExclude);
+                var randomUtxo = selectRandomUtxo(requiredUnit, availableUtxos, datumHash, inlineDatum, utxosToExclude);
                 if(randomUtxo == null){
                     throw new InsufficientBalanceException("Unable to find random UTXO for " + requiredUnit);
                 }
@@ -210,7 +211,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
         return new RandomPhaseResult(selectedUtxos, availableUtxos);
     }
 
-    private Utxo selectRandomUtxo(String requiredAsset, List<Utxo> allAvailableUtxos, String datumHash, Set<Utxo> utxosToExclude){
+    private Utxo selectRandomUtxo(String requiredAsset, List<Utxo> allAvailableUtxos, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude){
         if(allAvailableUtxos.isEmpty()){
             return null;
         }
@@ -219,13 +220,15 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
         var randomIndex = secureRandom.nextInt(available.size());
         var utxo = available.get(randomIndex);
 
+        //TODO - add tests to cover inline datum
         if(!accept(utxo)
             || (utxosToExclude != null && utxosToExclude.contains(utxo))
             || (utxo.getDataHash() != null && !utxo.getDataHash().isEmpty() && ignoreUtxosWithDatumHash)
-            || (datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash()))){
+            || (datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash()))
+            || (inlineDatum != null && !inlineDatum.serializeToHex().equals(utxo.getInlineDatum()))){
             // remove from available + try again
             available.remove(randomIndex);
-            return selectRandomUtxo(requiredAsset, available, datumHash, utxosToExclude);
+            return selectRandomUtxo(requiredAsset, available, datumHash, inlineDatum, utxosToExclude);
         }
 
         // The selected entries are then associated with that output, and removed from the remaining UTxO set.
@@ -237,7 +240,7 @@ public class RandomImproveUtxoSelectionStrategy implements UtxoSelectionStrategy
 
         // not found, try again
         available.remove(randomIndex);
-        return selectRandomUtxo(requiredAsset, available, datumHash, utxosToExclude);
+        return selectRandomUtxo(requiredAsset, available, datumHash, inlineDatum, utxosToExclude);
     }
 
     private static Amount add(Amount a1, Amount a2){

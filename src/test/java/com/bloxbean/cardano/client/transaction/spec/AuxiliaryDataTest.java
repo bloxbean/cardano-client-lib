@@ -43,14 +43,14 @@ public class AuxiliaryDataTest {
     }
 
     @Test
-    public void getAuxiliaryDataHash_whenPlutusScript() {
-        PlutusScript plutusScript = PlutusScript.builder()
+    public void getAuxiliaryDataHash_whenPlutusV1Script() {
+        PlutusV1Script plutusScript = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4e4d01000033222220051200120011")
                 .build();
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
-                .plutusScripts(Arrays.asList(plutusScript))
+                .plutusV1Scripts(Arrays.asList(plutusScript))
                 .build();
 
         byte[] auxHashBytes = auxiliaryData.getAuxiliaryDataHash();
@@ -60,8 +60,26 @@ public class AuxiliaryDataTest {
     }
 
     @Test
+    public void getAuxiliaryDataHash_whenPlutusV2Script() {
+        PlutusV2Script plutusScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("4e4d01000033222220051200120011")
+                .build();
+
+        AuxiliaryData auxiliaryData = AuxiliaryData.builder()
+                .plutusV2Scripts(Arrays.asList(plutusScript))
+                .build();
+
+        byte[] auxHashBytes = auxiliaryData.getAuxiliaryDataHash();
+        String auxHash = HexUtil.encodeHexString(auxHashBytes);
+
+        assertThat(auxHash).isEqualTo("bbe94949bec1152ab70f5d4689b9c6242fd4591dbc32ca84ad7140246128263e");
+    }
+
+
+    @Test
     public void getAuxiliaryDataHash_whenPlutusScriptAndMetadata() throws CborSerializationException, CborException {
-        PlutusScript plutusScript = PlutusScript.builder()
+        PlutusV1Script plutusScript = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4e4d01000033222220051200120011")
                 .build();
@@ -75,7 +93,7 @@ public class AuxiliaryDataTest {
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
                 .metadata(cborMetadata)
-                .plutusScripts(Arrays.asList(plutusScript))
+                .plutusV1Scripts(Arrays.asList(plutusScript))
                 .build();
 
         System.out.println(HexUtil.encodeHexString(CborSerializationUtil.serialize(auxiliaryData.serialize())));
@@ -104,12 +122,12 @@ public class AuxiliaryDataTest {
         ScriptPubkey scriptPubkey1 = ScriptPubkey.createWithNewKey()._1;
         ScriptPubkey scriptPubkey2 = ScriptPubkey.createWithNewKey()._1;
 
-        PlutusScript plutusScript1 = PlutusScript.builder()
+        PlutusV1Script plutusScript1 = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4d01000033222220051200120011")
                 .build();
 
-        PlutusScript plutusScript2 = PlutusScript.builder()
+        PlutusV1Script plutusScript2 = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4e4d01000033222220051200120011")
                 .build();
@@ -117,7 +135,7 @@ public class AuxiliaryDataTest {
         AuxiliaryData auxData = AuxiliaryData.builder()
                 .metadata(metadata)
                 .nativeScripts(Arrays.asList(scriptPubkey1, scriptPubkey2))
-                .plutusScripts(Arrays.asList(plutusScript1, plutusScript2))
+                .plutusV1Scripts(Arrays.asList(plutusScript1, plutusScript2))
                 .build();
 
         DataItem dataItem = auxData.serialize();
@@ -129,12 +147,12 @@ public class AuxiliaryDataTest {
 
         //asserts
         assertThat(deAuxData.getNativeScripts()).hasSize(2);
-        assertThat(deAuxData.getPlutusScripts()).hasSize(2);
+        assertThat(deAuxData.getPlutusV1Scripts()).hasSize(2);
 
         assertThat(deMap.get(new UnicodeString("key1"))).isEqualTo(new UnicodeString("value1"));
 
         assertThat(deAuxData.getNativeScripts()).containsExactlyElementsOf(Arrays.asList(scriptPubkey1, scriptPubkey2));
-        assertThat(deAuxData.getPlutusScripts()).containsExactlyElementsOf(Arrays.asList(plutusScript1, plutusScript2));
+        assertThat(deAuxData.getPlutusV1Scripts()).containsExactlyElementsOf(Arrays.asList(plutusScript1, plutusScript2));
     }
 
     @Test
@@ -156,12 +174,12 @@ public class AuxiliaryDataTest {
         ScriptPubkey scriptPubkey1 = ScriptPubkey.createWithNewKey()._1;
         ScriptPubkey scriptPubkey2 = ScriptPubkey.createWithNewKey()._1;
 
-        PlutusScript plutusScript1 = PlutusScript.builder()
+        PlutusV1Script plutusScript1 = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4d01000033222220051200120011")
                 .build();
 
-        PlutusScript plutusScript2 = PlutusScript.builder()
+        PlutusV1Script plutusScript2 = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4e4d01000033222220051200120011")
                 .build();
@@ -169,7 +187,7 @@ public class AuxiliaryDataTest {
         AuxiliaryData auxData = AuxiliaryData.builder()
                 .metadata(metadata)
                 .nativeScripts(Arrays.asList(scriptPubkey1, scriptPubkey2))
-                .plutusScripts(Arrays.asList(plutusScript1, plutusScript2))
+                .plutusV1Scripts(Arrays.asList(plutusScript1, plutusScript2))
                 .build();
 
         DataItem dataItem = auxData.serialize();
@@ -181,12 +199,12 @@ public class AuxiliaryDataTest {
 
         //asserts
         assertThat(deAuxData.getNativeScripts()).hasSize(2);
-        assertThat(deAuxData.getPlutusScripts()).hasSize(2);
+        assertThat(deAuxData.getPlutusV1Scripts()).hasSize(2);
 
         assertThat(deMap.get(new UnicodeString("key1"))).isEqualTo(new UnicodeString("value1"));
 
         assertThat(deAuxData.getNativeScripts()).containsExactlyElementsOf(Arrays.asList(scriptPubkey1, scriptPubkey2));
-        assertThat(deAuxData.getPlutusScripts()).containsExactlyElementsOf(Arrays.asList(plutusScript1, plutusScript2));
+        assertThat(deAuxData.getPlutusV1Scripts()).containsExactlyElementsOf(Arrays.asList(plutusScript1, plutusScript2));
     }
 
     private JsonNode loadJsonMetadata(String key) throws IOException {

@@ -49,6 +49,7 @@ public class Output {
     private String assetName;
     private BigInteger qty;
     private PlutusData datum;
+    private boolean inlineDatum;
 
     public TxOutputBuilder outputBuilder() {
         return OutputBuilders.createFromOutput(this);

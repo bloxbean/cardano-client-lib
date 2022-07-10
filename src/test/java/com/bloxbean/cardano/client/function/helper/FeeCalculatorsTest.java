@@ -168,7 +168,7 @@ class FeeCalculatorsTest extends BaseTest {
                 .ttl(6500000).build();
         transaction.setBody(body);
         transaction.setAuxiliaryData(AuxiliaryData.builder()
-                .plutusScripts(List.of())
+                .plutusV1Scripts(List.of())
                 .build());
         transaction.setWitnessSet(new TransactionWitnessSet());
         Redeemer redeemer = Redeemer.builder()

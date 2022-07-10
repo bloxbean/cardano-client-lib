@@ -63,11 +63,11 @@ class RandomImproveUtxoSelectionStrategyTest {
         UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
 
         var requested = new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN));
-        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
 
         var index = 0;
         while(selectedUtxos.size() != 1){
-            selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+            selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
             if(index > 3){
                 break;
             }
@@ -87,7 +87,7 @@ class RandomImproveUtxoSelectionStrategyTest {
 
         var requested = new Amount(CardanoConstants.LOVELACE, BigInteger.valueOf(995770000).add(BigInteger.valueOf(999817955).add(BigInteger.valueOf(983172035))));
 
-        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
 
         Assertions.assertEquals(5, selectedUtxos.size());
     }
@@ -103,11 +103,11 @@ class RandomImproveUtxoSelectionStrategyTest {
 
         var requested = new Amount(CardanoConstants.LOVELACE, BigInteger.valueOf(995770000).add(BigInteger.valueOf(999817955).add(BigInteger.valueOf(983172035))).divide(BigInteger.TWO));
 
-        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
 
         var index = 0;
         while(selectedUtxos.size() != 4){
-            selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+            selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
             if(index > 3){
                 break;
             }
@@ -119,7 +119,7 @@ class RandomImproveUtxoSelectionStrategyTest {
         var tx = selectedUtxos.stream().map(it -> it.getTxHash()).collect(Collectors.toSet());
         index = 0;
         while(!tx.contains("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9")){
-            selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+            selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
             tx = selectedUtxos.stream().map(it -> it.getTxHash()).collect(Collectors.toSet());
             if(index > 3){
                 break;
@@ -141,7 +141,7 @@ class RandomImproveUtxoSelectionStrategyTest {
 
         var requested = new Amount(unit, BigInteger.ONE);
 
-        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
 
         Assertions.assertEquals(1, selectedUtxos.size());
 
@@ -162,7 +162,7 @@ class RandomImproveUtxoSelectionStrategyTest {
 
         var requested = new Amount(unit, BigInteger.valueOf(4000000000L));
 
-        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
 
         Assertions.assertEquals(2, selectedUtxos.size());
 
@@ -184,7 +184,7 @@ class RandomImproveUtxoSelectionStrategyTest {
 
         var requested = new Amount(unit, BigInteger.valueOf(200000000L));
 
-        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, Collections.emptySet(), 40);
+        Set<Utxo> selectedUtxos = selectionStrategy.select(address, requested, null, null, Collections.emptySet(), 40);
 
         Assertions.assertEquals(1, selectedUtxos.size());
 
@@ -203,14 +203,14 @@ class RandomImproveUtxoSelectionStrategyTest {
 
         UtxoSelectionStrategy selectionStrategy = new RandomImproveUtxoSelectionStrategy(utxoSupplier, true);
 
-        Set<Utxo> selectedUtxos1 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, Collections.emptySet(), 40);
-        Set<Utxo> selectedUtxos2 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, Collections.emptySet(), 40);
+        Set<Utxo> selectedUtxos1 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, null, Collections.emptySet(), 40);
+        Set<Utxo> selectedUtxos2 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, null, Collections.emptySet(), 40);
 
         // since there are only 5 UTXOs we try 3 times (to avoid random failures)
         var index = 0;
         while(selectedUtxos1.equals(selectedUtxos2)){
-            selectedUtxos1 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, Collections.emptySet(), 40);
-            selectedUtxos2 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, Collections.emptySet(), 40);
+            selectedUtxos1 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, null, Collections.emptySet(), 40);
+            selectedUtxos2 = selectionStrategy.select(address, new Amount(CardanoConstants.LOVELACE, ADAConversionUtil.adaToLovelace(BigDecimal.TEN)), null, null, Collections.emptySet(), 40);
             if(index > 3){
                 break;
             }

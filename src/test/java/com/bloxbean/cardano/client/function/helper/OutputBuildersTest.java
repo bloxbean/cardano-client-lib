@@ -236,7 +236,7 @@ class OutputBuildersTest extends BaseTest {
         TransactionOutput output1 = TransactionOutput.builder()
                 .address("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c")
                 .value(value)
-                .datum(datum)
+                .datumHash(BigIntPlutusData.of(datum).getDatumHashAsBytes())
                 .build();
 
         TransactionOutput output2 = TransactionOutput.builder()
@@ -298,7 +298,7 @@ class OutputBuildersTest extends BaseTest {
         TransactionOutput output1 = TransactionOutput.builder()
                 .address("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c")
                 .value(value)
-                .datum(datum)
+                .datumHash(BigIntPlutusData.of(datum).getDatumHashAsBytes())
                 .build();
 
         TransactionOutput output2 = TransactionOutput.builder()
@@ -339,7 +339,7 @@ class OutputBuildersTest extends BaseTest {
                 .value(Value.builder()
                     .coin(BigInteger.valueOf(12000)).build()
                 )
-                .datum("hello")
+                .datumHash(BytesPlutusData.of("hello").getDatumHashAsBytes())
                 .build();
 
         Output output2 = Output.builder()
