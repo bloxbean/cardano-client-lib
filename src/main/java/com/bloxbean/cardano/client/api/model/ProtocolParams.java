@@ -50,5 +50,10 @@ public class ProtocolParams {
     private String maxValSize;
     private BigDecimal collateralPercent;
     private Integer maxCollateralInputs;
+
+    //Cost per UTxO word for Alonzo.
+    //Cost per UTxO byte for Babbage and later.
+    private String coinsPerUtxoSize;
+    @Deprecated
     private String coinsPerUtxoWord;
 }
