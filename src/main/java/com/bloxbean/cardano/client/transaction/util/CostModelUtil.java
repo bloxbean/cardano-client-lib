@@ -19,7 +19,7 @@ public class CostModelUtil {
     public final static CostModel PlutusV2CostModel = new CostModel(Language.PLUTUS_V2, plutusV2Costs);
 
     //TODO - Check if it's required
-    public static CostMdls getDefaultCostMdls() {
+   /** public static CostMdls getDefaultCostMdls() {
         CostMdls costMdls = new CostMdls();
         costMdls.add(PlutusV1CostModel);
         costMdls.add(PlutusV2CostModel);
@@ -29,7 +29,7 @@ public class CostModelUtil {
 
     public static byte[] getDefaultLanguageViewsEncoding() {
         return getDefaultCostMdls().getLanguageViewEncoding();
-    }
+    }**/
 
     public static byte[] getLanguageViewsEncoding(CostModel... costModels) {
         CostMdls costMdls = new CostMdls();

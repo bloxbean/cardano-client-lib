@@ -49,6 +49,7 @@ import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFr
 import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromUtxos;
 import static com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders.scriptCallContext;
 import static com.bloxbean.cardano.client.function.helper.SignerProviders.signerFrom;
+import static com.bloxbean.cardano.client.transaction.util.CostModelUtil.PlutusV2CostModel;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ContractV2TxBuilderContextITTest extends BaseITTest {
@@ -87,7 +88,92 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
     }
 
     @Test
-    void alwaysSuccessContractCallInlineDatum_lowlevel() throws CborSerializationException, AddressExcepion, ApiException, CborDeserializationException, CborException {
+    void alwaysSuccessContractCall_inlineDatum_functions() throws CborSerializationException, AddressExcepion, ApiException, CborDeserializationException, CborException {
+        PlutusV2Script plutusScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+
+        BigInteger scriptAmt = new BigInteger("2479280");
+        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+
+        Random rand = new Random();
+        int randInt = rand.nextInt();
+        BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+        PlutusData redeemerData = new BigIntPlutusData(BigInteger.valueOf(4544)); //any number doesn't matter
+
+        //Transfer fund to script address
+        boolean paymentSuccessful = transferFund(sender, scriptAddress, scriptAmt, plutusData, null, null);
+        assertTrue(paymentSuccessful);
+
+        String collateral = "265d8a13536c20af5529ceabaf1a6123cb9c31d0bd6540cf4e59e85aa1fb09d4";
+        int collateralIndex = 0;
+
+        Tuple<String, Integer> collateralTuple = checkCollateral(sender, collateral, collateralIndex);
+        if (collateralTuple == null) {
+            System.out.println("Collateral cannot be found or created. " + collateral);
+            return;
+        }
+
+        collateral = collateralTuple._1;
+        collateralIndex = collateralTuple._2;
+
+        System.out.println("script address: " + scriptAddress);
+        System.out.println("randInt >> " + plutusData.getValue());
+
+        //Start contract transaction to claim fund
+        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
+        utxoSelectionStrategy.setIgnoreUtxosWithDatumHash(false);
+        Utxo collateralUtxo = Utxo.builder()
+                .txHash(collateral)
+                .outputIndex(collateralIndex)
+                .build();
+        Set<Utxo> utxos = utxoSelectionStrategy.selectByInlineDatum(scriptAddress, new Amount(LOVELACE, BigInteger.valueOf(1)), plutusData, Set.of(collateralUtxo));
+
+        assertTrue(utxos.size() != 0, "No script utxo found for inlineDatum(hex) : " + plutusData.serializeToHex());
+        Utxo scriptUtxo = utxos.iterator().next();
+
+        Output output = Output.builder()
+                .address(sender.baseAddress())
+                .assetName(LOVELACE)
+                .qty(scriptAmt)
+                .build();
+
+        //Mem and steps are set to 0, as we are going to evaluate those in this test
+        ExUnits exUnits = ExUnits.builder()
+                .mem(BigInteger.valueOf(0))
+                .steps(BigInteger.valueOf(0)).build();
+
+        TxBuilder txBuilder = output.outputBuilder()
+                .buildInputs(createFromUtxos(Arrays.asList(scriptUtxo)))
+                .andThen(collateralFrom(collateral, collateralIndex))
+                .andThen(scriptCallContext(plutusScript, scriptUtxo, null, redeemerData, RedeemerTag.Spend, exUnits))
+                .andThen((context, txn) -> { //Evaluate ExUnits
+                    //update estimate ExUnits
+                    ExUnits estimatedExUnits;
+                    try {
+                        estimatedExUnits = evaluateExUnits(txn);
+                        txn.getWitnessSet().getRedeemers().get(0).setExUnits(estimatedExUnits);
+                    } catch (Exception e) {
+                        throw new ApiRuntimeException("Script cost evaluation failed", e);
+                    }
+                })
+                .andThen(feeCalculator(senderAddress, 1))
+                .andThen(adjustChangeOutput(senderAddress)); //Incase change output goes below min ada after fee deduction
+
+        TxSigner signer = SignerProviders.signerFrom(sender);
+
+        Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .buildAndSign(txBuilder, signer);
+
+        Result<String> result = transactionService.submitTransaction(signedTxn.serialize());
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+    }
+
+    @Test
+    void alwaysSuccessContractCall_inlineDatum_lowlevel() throws CborSerializationException, AddressExcepion, ApiException, CborDeserializationException, CborException {
         PlutusV2Script plutusScript = PlutusV2Script.builder()
                 .type("PlutusScriptV2")
                 .cborHex("49480100002221200101")
@@ -175,7 +261,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Collections.emptyList(), CostModelUtil.getLanguageViewsEncoding(CostModelUtil.PlutusV2CostModel));
+                Collections.emptyList(), CostModelUtil.getLanguageViewsEncoding(PlutusV2CostModel));
         body.setScriptDataHash(scriptDataHash);
 
         MessageMetadata metadata = MessageMetadata.create()
@@ -213,102 +299,6 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         System.out.printf(signTxn.serializeToHex());
 
         Result<String> result = transactionService.submitTransaction(signTxn.serialize());
-        System.out.println(result);
-        assertTrue(result.isSuccessful());
-        waitForTransaction(result);
-    }
-
-    @Test
-    void alwaysSuccessContractCallInlineDatum_functions() throws CborSerializationException, AddressExcepion, ApiException, CborDeserializationException, CborException {
-        PlutusV2Script plutusScript = PlutusV2Script.builder()
-                .type("PlutusScriptV2")
-                .cborHex("49480100002221200101")
-                .build();
-
-        BigInteger scriptAmt = new BigInteger("2479280");
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
-
-        Random rand = new Random();
-        int randInt = rand.nextInt();
-        BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
-        PlutusData redeemerData = new BigIntPlutusData(BigInteger.valueOf(4544)); //any number doesn't matter
-
-        //Transfer fund to script address
-        boolean paymentSuccessful = transferFund(sender, scriptAddress, scriptAmt, plutusData, null, null);
-        assertTrue(paymentSuccessful);
-
-        String collateral = "265d8a13536c20af5529ceabaf1a6123cb9c31d0bd6540cf4e59e85aa1fb09d4";
-        int collateralIndex = 0;
-
-        Tuple<String, Integer> collateralTuple = checkCollateral(sender, collateral, collateralIndex);
-        if (collateralTuple == null) {
-            System.out.println("Collateral cannot be found or created. " + collateral);
-            return;
-        }
-
-        collateral = collateralTuple._1;
-        collateralIndex = collateralTuple._2;
-
-        System.out.println("script address: " + scriptAddress);
-        System.out.println("randInt >> " + plutusData.getValue());
-
-        //Start contract transaction to claim fund
-        UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
-        utxoSelectionStrategy.setIgnoreUtxosWithDatumHash(false);
-        Utxo collateralUtxo = Utxo.builder()
-                .txHash(collateral)
-                .outputIndex(collateralIndex)
-                .build();
-        Set<Utxo> utxos = utxoSelectionStrategy.selectByInlineDatum(scriptAddress, new Amount(LOVELACE, BigInteger.valueOf(1)), plutusData, Set.of(collateralUtxo));
-
-        assertTrue(utxos.size() != 0, "No script utxo found for inlineDatum(hex) : " + plutusData.serializeToHex());
-        Utxo scriptUtxo = utxos.iterator().next();
-
-        Output output = Output.builder()
-                .address(sender.baseAddress())
-                .assetName(LOVELACE)
-                .qty(scriptAmt)
-                .build();
-
-        //Mem and steps are set to 0, as we are going to evaluate those in this test
-        ExUnits exUnits = ExUnits.builder()
-                .mem(BigInteger.valueOf(0))
-                .steps(BigInteger.valueOf(0)).build();
-
-        TxBuilder txBuilder = output.outputBuilder()
-                .buildInputs(createFromUtxos(Arrays.asList(scriptUtxo)))
-                .andThen(collateralFrom(collateral, collateralIndex))
-                .andThen(scriptCallContext(plutusScript, scriptUtxo, null, redeemerData, RedeemerTag.Spend, exUnits))
-                .andThen((context, txn) -> { //Evaluate ExUnits
-                    //update estimate ExUnits
-                    ExUnits estimatedExUnits;
-                    try {
-                        estimatedExUnits = evaluateExUnits(txn);
-                        txn.getWitnessSet().getRedeemers().get(0).setExUnits(estimatedExUnits);
-                    } catch (Exception e) {
-                        throw new ApiRuntimeException("Script cost evaluation failed", e);
-                    }
-
-                    //Need to update script hash as ExUnits changed
-                    //Script data hash
-                    byte[] scriptDataHash;
-                    try {
-                        scriptDataHash = ScriptDataHashGenerator.generate(txn.getWitnessSet().getRedeemers(),
-                                txn.getWitnessSet().getPlutusDataList(), CostModelUtil.getDefaultLanguageViewsEncoding());
-                    } catch (CborSerializationException | CborException e) {
-                        throw new CborRuntimeException("Error getting scriptDataHash ", e);
-                    }
-                    txn.getBody().setScriptDataHash(scriptDataHash);
-                })
-                .andThen(feeCalculator(senderAddress, 1))
-                .andThen(adjustChangeOutput(senderAddress)); //Incase change output goes below min ada after fee deduction
-
-        TxSigner signer = SignerProviders.signerFrom(sender);
-
-        Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
-                .buildAndSign(txBuilder, signer);
-
-        Result<String> result = transactionService.submitTransaction(signedTxn.serialize());
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);

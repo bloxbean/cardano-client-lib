@@ -25,7 +25,6 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
-import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.*;
@@ -34,8 +33,6 @@ import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
-import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import org.junit.jupiter.api.BeforeEach;
@@ -173,17 +170,6 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                     } catch (Exception e) {
                         throw new ApiRuntimeException("Script cost evaluation failed", e);
                     }
-
-                    //Need to update script hash as ExUnits changed
-                    //Script data hash
-                    byte[] scriptDataHash;
-                    try {
-                        scriptDataHash = ScriptDataHashGenerator.generate(txn.getWitnessSet().getRedeemers(),
-                                txn.getWitnessSet().getPlutusDataList(), CostModelUtil.getDefaultLanguageViewsEncoding());
-                    } catch (CborSerializationException | CborException e) {
-                        throw new CborRuntimeException("Error getting scriptDataHash ", e);
-                    }
-                    txn.getBody().setScriptDataHash(scriptDataHash);
                 })
                 .andThen(feeCalculator(senderAddress, 1))
                 .andThen(adjustChangeOutput(senderAddress)); //Incase change output goes below min ada after fee deduction
