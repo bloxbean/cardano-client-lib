@@ -69,7 +69,7 @@ class OutputBuildersTest extends BaseTest {
 
         assertThat(list).hasSize(2);
         assertThat(list.get(0).getAddress()).isEqualTo(output1.getAddress());
-        assertThat(list.get(0).getValue().getCoin()).isEqualTo(ONE_ADA);
+        assertThat(list.get(0).getValue().getCoin()).isGreaterThan(BigInteger.valueOf(900000)); //approx min ada value
         assertThat(list.get(0).getDatumHash()).isEqualTo(new BytesPlutusData("hello".getBytes()).getDatumHashAsBytes());
 
         assertThat(list.get(1).getAddress()).isEqualTo(output2.getAddress());

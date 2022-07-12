@@ -22,7 +22,7 @@ import java.util.List;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@Builder
+@Builder(toBuilder=true)
 public class TransactionOutput {
     private String address;
     private Value value;

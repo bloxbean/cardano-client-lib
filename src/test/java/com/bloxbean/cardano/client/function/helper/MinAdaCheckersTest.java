@@ -52,7 +52,7 @@ class MinAdaCheckersTest extends BaseTest {
         MinAdaChecker minAdaChecker = MinAdaCheckers.minAdaChecker();
         BigInteger additionalAda = minAdaChecker.apply(context, output);
 
-        assertThat(additionalAda).isEqualTo(ONE_ADA.subtract(BigInteger.valueOf(1000)));
+        assertThat(additionalAda).isEqualTo(BigInteger.valueOf(969750).subtract(BigInteger.valueOf(1000)));
     }
 
     @Test
