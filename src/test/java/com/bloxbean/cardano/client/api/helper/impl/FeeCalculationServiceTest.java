@@ -321,7 +321,7 @@ class FeeCalculationServiceTest extends BaseTest {
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                 .sender(sender)
                 .unit(CardanoConstants.LOVELACE)
-                .amount(adaToLovelace(0.9))
+                .amount(adaToLovelace(0.91))
                 .receiver(receiver)
                 .build();
 

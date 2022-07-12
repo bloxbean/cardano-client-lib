@@ -63,6 +63,8 @@ public class FeeCalculators {
                                 int noOfSigners, UpdateOutputFunction updateOutputWithFeeFunc) {
         FeeCalculationService feeCalculationService = context.getFeeCalculationService();
 
+        //Calculate script data hash before fee calculation
+        ScriptDataHashCalculator.calculateScriptDataHash(context, transaction);
         try {
             TransactionBody tbody = transaction.getBody();
 

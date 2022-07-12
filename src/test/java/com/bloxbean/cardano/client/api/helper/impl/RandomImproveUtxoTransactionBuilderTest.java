@@ -61,6 +61,7 @@ public class RandomImproveUtxoTransactionBuilderTest {
         utxoTransactionBuilder = new UtxoTransactionBuilderImpl(new RandomImproveUtxoSelectionStrategy(utxoSupplier));
         protocolParams = ProtocolParams.builder()
                 .coinsPerUtxoWord("34482")
+                .coinsPerUtxoSize("4310")
                 .build();
     }
 
@@ -171,7 +172,6 @@ public class RandomImproveUtxoTransactionBuilderTest {
         // validate input matches output
         Map<String, BigInteger> inputs = UtxoTransactionBuilderTest.getInputAmounts(Stream.concat(utxosSender1.stream(), utxosSender2.stream()).collect(Collectors.toList()), transaction);
         Map<String, BigInteger> outputs = UtxoTransactionBuilderTest.getOutputAmounts(transaction);
-
         Assertions.assertEquals(inputs, outputs);
 
         // verify requestedAmounts

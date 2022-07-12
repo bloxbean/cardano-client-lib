@@ -13,7 +13,6 @@ import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.transaction.spec.CostMdls;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -72,13 +71,6 @@ public class TxBuilderContext {
 
     public void clearMintMultiAssets() {
         mintMultiAssets.clear();
-    }
-
-    public CostMdls getCostMdls() {
-        if (costMdls == null)
-            return CostModelUtil.getDefaultCostMdls();
-        else
-            return costMdls;
     }
 
     public void setCostMdls(CostMdls costMdls) {

@@ -1,15 +1,12 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
 
 import java.math.BigInteger;
 import java.util.Objects;
@@ -130,19 +127,6 @@ public class ScriptCallContextProviders {
                 if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
                     transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
             }
-
-            //Script data hash
-            byte[] scriptDataHash;
-            try {
-                CostMdls costMdls = context.getCostMdls();
-                byte[] languageViews = costMdls.getLanguageViewEncoding();
-
-                scriptDataHash = ScriptDataHashGenerator.generate(transaction.getWitnessSet().getRedeemers(),
-                        transaction.getWitnessSet().getPlutusDataList(), languageViews);
-            } catch (CborSerializationException | CborException e) {
-                throw new CborRuntimeException("Error getting scriptDataHash ", e);
-            }
-            transaction.getBody().setScriptDataHash(scriptDataHash);
         };
     }
 

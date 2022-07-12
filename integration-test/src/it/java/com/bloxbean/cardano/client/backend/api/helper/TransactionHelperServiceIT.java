@@ -85,7 +85,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                 PaymentTransaction.builder()
                         .sender(sender)
                         .receiver(receiver)
-                        .amount(BigInteger.valueOf(1500000))
+                        .amount(BigInteger.valueOf(969750)) //Min ada
                         .unit("lovelace")
                         .build();
 
@@ -146,6 +146,7 @@ class TransactionHelperServiceIT extends BaseITTest {
         String additionalAccMnemonic = "plate swamp urge edit avoid discover sibling raven awkward tell science increase fame practice bike caught taxi never critic ski north slogan fuel kitten";
         Account additioinalAccount = new Account(Networks.testnet(), additionalAccMnemonic);
 
+        System.out.printf("sender: " + sender.baseAddress());
         PaymentTransaction paymentTransaction =
                 PaymentTransaction.builder()
                         .sender(sender)
@@ -180,6 +181,7 @@ class TransactionHelperServiceIT extends BaseITTest {
         Account sender = new Account(Networks.testnet(), senderMnemonic);
         String receiver = "addr_test1qqukflcjxrph0ff8vpd3mpvdnk40srgfjkx0p2q9jcdwp7q70l3jd6rdppxmttlj272jr8l7pudacze588wt8m2kts3qkuqv9j";
 
+        System.out.println(sender.baseAddress());
         PaymentTransaction paymentTransaction =
                 PaymentTransaction.builder()
                         .sender(sender)
