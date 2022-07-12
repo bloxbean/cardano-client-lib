@@ -169,7 +169,7 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0'
 
 ### For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.3.0-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+**SNAPSHOT_VERSION :** 0.3.0-beta1-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```
