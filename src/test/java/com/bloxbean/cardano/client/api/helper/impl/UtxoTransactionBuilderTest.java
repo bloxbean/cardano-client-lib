@@ -25,7 +25,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -49,9 +48,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
-//TODO - remove disable tests
 @ExtendWith(MockitoExtension.class)
-@Disabled
 public class UtxoTransactionBuilderTest {
 
     public static final String LIST_2 = "list2";
@@ -251,7 +248,7 @@ public class UtxoTransactionBuilderTest {
         // subtract fee
         expectedBaseAmount = expectedBaseAmount.subtract(transaction.getBody().getFee());
         Assertions.assertEquals(expectedBaseAmount, transaction.getBody().getOutputs().get(1).getValue().getCoin());
-        Assertions.assertEquals(new BigInteger("984849719"), transaction.getBody().getOutputs().get(1).getValue().getCoin());
+        Assertions.assertEquals(new BigInteger("985022195"), transaction.getBody().getOutputs().get(1).getValue().getCoin());
     }
 
     @Test
@@ -294,7 +291,7 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets(), hasSize(3));
 
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets(), hasSize(2));
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(975431106)));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(975612202)));
 
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(1).getAssets(), hasSize(1));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(2).getAssets(), hasSize(1));
@@ -496,7 +493,7 @@ public class UtxoTransactionBuilderTest {
         expectedBaseAmount = expectedBaseAmount.add(utxos.get(2).getAmount().get(0).getQuantity());
 
         Assertions.assertEquals(expectedBaseAmount, transaction.getBody().getOutputs().get(0).getValue().getCoin());
-        Assertions.assertEquals(BigInteger.valueOf(2282126), transaction.getBody().getOutputs().get(0).getValue().getCoin());
+        Assertions.assertEquals(BigInteger.valueOf(1980466), transaction.getBody().getOutputs().get(0).getValue().getCoin());
     }
 
     @Test
@@ -1034,7 +1031,7 @@ public class UtxoTransactionBuilderTest {
                 .unit(LOVELACE)
                 .amount(ADAConversionUtil.adaToLovelace(new BigDecimal("2.478633")
                                                             .subtract(new BigDecimal("0.168317")))
-                                                            .subtract(BigInteger.valueOf(1310316))) // min ada to receive 1
+                                                            .subtract(BigInteger.valueOf(1129220))) // min ada to receive 1
                 .fee(null)
                 .receiver(receiver2)
                 .build();
@@ -1049,8 +1046,8 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getInputs(), hasSize(1));
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed"));
-        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(ONE_ADA));
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(1310316)));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(BigInteger.valueOf(1181096)));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(1129220)));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets().get(0).getValue(), is(BigInteger.valueOf(1000)));
     }
 
