@@ -213,6 +213,11 @@ class AddressServiceTest {
                 public byte[] getScriptTypeBytes() {
                     return new byte[0];
                 }
+
+                @Override
+                public int getScriptType() {
+                    return 0;
+                }
             };
         }
 

@@ -53,7 +53,11 @@ public interface NativeScript extends Script {
     }
 
     default byte[] getScriptTypeBytes() {
-        return new byte[]{0};
+        return new byte[]{(byte) getScriptType()};
+    }
+
+    default int getScriptType() {
+        return 0;
     }
 
     static NativeScript deserializeJson(String jsonContent) throws CborDeserializationException, JsonProcessingException {
