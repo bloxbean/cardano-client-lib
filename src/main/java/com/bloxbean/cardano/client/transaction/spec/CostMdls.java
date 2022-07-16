@@ -43,6 +43,10 @@ public class CostMdls {
         }
     }
 
+    public boolean isEmpty() {
+        return costMdlsMap.isEmpty();
+    }
+
     private void serializeV2(Map cborMap, CostModel costModel) {
         UnsignedInteger key = new UnsignedInteger(costModel.getLanguage().getKey());
         Array valueArr = new Array();

@@ -97,7 +97,7 @@ class TransactionOutputTest {
         String doubleSerHex = HexUtil.encodeHexString(CborSerializationUtil.serialize(deTxOut.serialize()));
 
         assertThat(doubleSerHex).isEqualTo(serHex);
-        assertThat(serHex).isEqualTo("a300581d60dda6418e764ac770244dad9766ea8896dd4dec491aeb1d51cc1a2d0701821a47868c00a1581c0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9efa14a61737365745f6e616d651a0001e24003d8184f014d01000033222220051200120011");
+        assertThat(serHex).isEqualTo("a300581d60dda6418e764ac770244dad9766ea8896dd4dec491aeb1d51cc1a2d0701821a47868c00a1581c0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9efa14a61737365745f6e616d651a0001e24003d8185182014e4d01000033222220051200120011");
     }
 
 }

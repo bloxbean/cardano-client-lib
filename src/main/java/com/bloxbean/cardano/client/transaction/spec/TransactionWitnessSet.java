@@ -251,11 +251,15 @@ public class TransactionWitnessSet {
             transactionWitnessSet.setPlutusV2Scripts(null);
         }
 
+        //Check if all fields are null, then return null
         if(transactionWitnessSet.getVkeyWitnesses() == null
                 && transactionWitnessSet.getNativeScripts() == null
                 && transactionWitnessSet.getBootstrapWitnesses() == null
                 && transactionWitnessSet.getPlutusV1Scripts() == null
-                && transactionWitnessSet.getPlutusV2Scripts() == null) {
+                && transactionWitnessSet.getPlutusV2Scripts() == null
+                && transactionWitnessSet.getPlutusDataList() == null
+                && transactionWitnessSet.getRedeemers() == null
+        ) {
             return null;
         } else {
             return transactionWitnessSet;
