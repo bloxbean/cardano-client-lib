@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.function.helper.OutputBuilders;
 import com.bloxbean.cardano.client.transaction.spec.PlutusData;
+import com.bloxbean.cardano.client.transaction.spec.script.Script;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -50,6 +51,7 @@ public class Output {
     private BigInteger qty;
     private PlutusData datum;
     private boolean inlineDatum;
+    private Script scriptRef;
 
     public TxOutputBuilder outputBuilder() {
         return OutputBuilders.createFromOutput(this);

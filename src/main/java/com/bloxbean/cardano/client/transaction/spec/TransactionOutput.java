@@ -54,7 +54,7 @@ public class TransactionOutput {
             return;
 
         try {
-            this.scriptRef = script.serialize();
+            this.scriptRef = script.scriptRefBytes();
         } catch (CborSerializationException e) {
             throw new CborRuntimeException(e);
         }
@@ -331,10 +331,11 @@ public class TransactionOutput {
                 return this;
 
             try {
-                this.scriptRef = script.serialize();
+                this.scriptRef = script.scriptRefBytes();
             } catch (CborSerializationException e) {
                 throw new CborRuntimeException(e);
             }
+
             return this;
         }
     }

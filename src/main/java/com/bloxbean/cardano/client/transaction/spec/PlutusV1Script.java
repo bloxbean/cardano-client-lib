@@ -33,6 +33,11 @@ public class PlutusV1Script extends PlutusScript {
 
     @Override
     public byte[] getScriptTypeBytes() {
-        return new byte[]{01};
+        return new byte[]{(byte) getScriptType()};
+    }
+
+    @Override
+    public int getScriptType() {
+        return 1;
     }
 }

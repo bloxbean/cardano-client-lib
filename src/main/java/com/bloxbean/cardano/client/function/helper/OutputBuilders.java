@@ -174,6 +174,10 @@ public class OutputBuilders {
                         }
                     }
 
+                    if (output.getScriptRef() != null) {
+                        to.setScriptRef(output.getScriptRef());
+                    }
+
                     checkIfMinAdaIsThere(tc, to, minAdaChecker);
                     outputs.add(to);
                 });
@@ -202,6 +206,11 @@ public class OutputBuilders {
                                         throw new TxBuildException("Unable to get dataum hash from plutus data");
                                     }
                                 }
+                            }
+
+                            //TODO - unit test pending
+                            if (output.getScriptRef() != null) {
+                                to.setScriptRef(output.getScriptRef());
                             }
 
                             checkIfMinAdaIsThere(tc, to, minAdaChecker);

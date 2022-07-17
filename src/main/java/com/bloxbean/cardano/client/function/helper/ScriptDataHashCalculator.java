@@ -22,24 +22,40 @@ public class ScriptDataHashCalculator {
     }
 
     public static void calculateScriptDataHash(TxBuilderContext ctx, Transaction transaction) {
-        boolean plutusScriptExists = false;
+        boolean containsPlutusScript = false;
+        //check if plutusscript exists
+        if ((transaction.getWitnessSet().getPlutusV1Scripts() != null
+                && transaction.getWitnessSet().getPlutusV1Scripts().size() > 0)
+                || (transaction.getWitnessSet().getPlutusV2Scripts() != null
+                && transaction.getWitnessSet().getPlutusV2Scripts().size() > 0)
+                || (transaction.getWitnessSet().getRedeemers() != null
+                && transaction.getWitnessSet().getRedeemers().size() > 0)
+        ) {
+            containsPlutusScript = true;
+        }
+
         CostMdls costMdls = ctx.getCostMdls();
         if (costMdls == null) {
             costMdls = new CostMdls();
             if (transaction.getWitnessSet().getPlutusV1Scripts() != null
                     && transaction.getWitnessSet().getPlutusV1Scripts().size() > 0) {
                 costMdls.add(PlutusV1CostModel);
-                plutusScriptExists = true;
             }
 
             if (transaction.getWitnessSet().getPlutusV2Scripts() != null
                     && transaction.getWitnessSet().getPlutusV2Scripts().size() > 0) {
                 costMdls.add(PlutusV2CostModel);
-                plutusScriptExists = true;
+            }
+
+            if (costMdls.isEmpty()) { //Check if costmodel can be decided from other fields
+                if (transaction.getBody().getReferenceInputs() != null
+                        && transaction.getBody().getReferenceInputs().size() > 0) { //If reference input is there, then plutus v2
+                    costMdls.add(PlutusV2CostModel);
+                }
             }
         }
 
-        if (plutusScriptExists) {
+        if (containsPlutusScript) {
             //Script dataHash
             byte[] scriptDataHash;
             try {
