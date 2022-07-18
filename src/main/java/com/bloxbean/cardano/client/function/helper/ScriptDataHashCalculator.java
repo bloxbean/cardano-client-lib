@@ -12,7 +12,6 @@ import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
 import static com.bloxbean.cardano.client.transaction.util.CostModelUtil.PlutusV1CostModel;
 import static com.bloxbean.cardano.client.transaction.util.CostModelUtil.PlutusV2CostModel;
 
-//TODO tests pending
 public class ScriptDataHashCalculator {
 
     public static TxBuilder calculateScriptDataHash() {
