@@ -57,7 +57,7 @@ public class ScriptCallContextProviders {
                     throw new TxBuildException("Script utxo is not found in transaction inputs : " + utxo.getTxHash());
             }
 
-            scriptCallContext(plutusScript, scriptInputIndex, datum, redeemerData, tag, exUnits).build(context, transaction);
+            scriptCallContext(plutusScript, scriptInputIndex, datum, redeemerData, tag, exUnits).apply(context, transaction);
         };
     }
 

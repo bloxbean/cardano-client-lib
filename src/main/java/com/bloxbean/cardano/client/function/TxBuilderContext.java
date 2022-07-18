@@ -93,7 +93,7 @@ public class TxBuilderContext {
      */
     public Transaction build(TxBuilder txBuilder) {
         Transaction transaction = new Transaction();
-        txBuilder.build(this, transaction);
+        txBuilder.apply(this, transaction);
         return transaction;
     }
 
@@ -116,7 +116,7 @@ public class TxBuilderContext {
      * @throws com.bloxbean.cardano.client.function.exception.TxBuildException if exception during transaction build
      */
     public void build(Transaction transaction, TxBuilder txBuilder) {
-        txBuilder.build(this, transaction);
+        txBuilder.apply(this, transaction);
     }
 
 }

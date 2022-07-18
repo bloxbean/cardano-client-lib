@@ -289,9 +289,9 @@ public class TransactionBody {
         }
 
         //collateral return
-        Array collateralReturnArray = (Array) bodyMap.get(new UnsignedInteger(16));
-        if (collateralReturnArray != null) {
-            TransactionOutput collateralReturn = TransactionOutput.deserialize(collateralReturnArray);
+        DataItem collateralReturnDI = bodyMap.get(new UnsignedInteger(16));
+        if (collateralReturnDI != null) {
+            TransactionOutput collateralReturn = TransactionOutput.deserialize(collateralReturnDI);
             transactionBody.setCollateralReturn(collateralReturn);
         }
 

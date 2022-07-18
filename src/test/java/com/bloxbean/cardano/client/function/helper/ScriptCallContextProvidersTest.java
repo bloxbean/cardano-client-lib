@@ -12,8 +12,6 @@ import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
-import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,7 +24,6 @@ import org.mockito.quality.Strictness;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -115,7 +112,7 @@ class ScriptCallContextProvidersTest extends BaseTest {
                 .build();
 
         ScriptCallContextProviders.createFromScriptCallContext(sc)
-                .build(context, transaction);
+                .apply(context, transaction);
 
         System.out.println(HexUtil.encodeHexString(transaction.getBody().getScriptDataHash()));
 
@@ -180,7 +177,7 @@ class ScriptCallContextProvidersTest extends BaseTest {
                 .build();
 
         ScriptCallContextProviders.createFromScriptCallContext(sc)
-                .build(context, transaction);
+                .apply(context, transaction);
 
         System.out.println(HexUtil.encodeHexString(transaction.getBody().getScriptDataHash()));
 
@@ -241,7 +238,7 @@ class ScriptCallContextProvidersTest extends BaseTest {
                 .steps(BigInteger.valueOf(430892334)).build();
 
         ScriptCallContextProviders.scriptCallContext(plutusScript, scriptUtxo, guessDatum, guessRedeemer, RedeemerTag.Spend, exUnits)
-                .build(context, transaction);
+                .apply(context, transaction);
 
         System.out.println(HexUtil.encodeHexString(transaction.getBody().getScriptDataHash()));
 
@@ -318,7 +315,7 @@ class ScriptCallContextProvidersTest extends BaseTest {
         ScriptCallContextProviders.scriptCallContext(plutusScript1, scriptUtxo1, guessDatum, guessRedeemer, RedeemerTag.Spend, exUnits1)
                 .andThen(ScriptCallContextProviders.scriptCallContext(plutusScript2, scriptUtxo2, BytesPlutusData.of("datum"), BytesPlutusData.of("redeemer"),
                         RedeemerTag.Spend, exUnits2))
-                .build(context, transaction);
+                .apply(context, transaction);
 
         System.out.println(HexUtil.encodeHexString(transaction.getBody().getScriptDataHash()));
 

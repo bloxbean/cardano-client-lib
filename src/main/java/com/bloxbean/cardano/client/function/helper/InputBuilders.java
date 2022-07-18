@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxInputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
@@ -269,4 +270,56 @@ public class InputBuilders {
             return new TxInputBuilder.Result(inputs, Collections.EMPTY_LIST);
         };
     }
+
+    /**
+     * Function to populate reference inputs using a supplier function
+     * @param supplier - Supplier function to provide Utxo list
+     * @return <code>{@link TxBuilder}</code> function
+     */
+    public static TxBuilder referenceInputsFromUtxos(Supplier<List<Utxo>> supplier) {
+        return (context, transaction) -> {
+            referenceInputsFromUtxos(supplier.get()).apply(context, transaction);
+        };
+    }
+
+    /**
+     * Function to populate reference inputs from list of utxos
+     * @param utxos List of utxos for reference inputs
+     * @return <code>{@link TxBuilder}</code> function
+     */
+    public static TxBuilder referenceInputsFromUtxos(List<Utxo> utxos) {
+        return (context, transaction) -> {
+            if (utxos == null || utxos.isEmpty())
+                return;
+
+            List<TransactionInput> referenceInputs = new ArrayList<>();
+            utxos.forEach(utxo -> {
+                TransactionInput input = TransactionInput.builder()
+                        .transactionId(utxo.getTxHash())
+                        .index(utxo.getOutputIndex())
+                        .build();
+                referenceInputs.add(input);
+            });
+
+            if (transaction.getBody().getReferenceInputs() == null)
+                transaction.getBody().setReferenceInputs(referenceInputs);
+            else
+                transaction.getBody().getReferenceInputs().addAll(referenceInputs);
+        };
+    }
+
+    /**
+     * Function to populate reference inputs
+     * @param referenceInputs List of inputs
+     * @return <code>{@link TxBuilder}</code> function
+     */
+    public static TxBuilder referenceInputsFrom(List<TransactionInput> referenceInputs) {
+        return (context, transaction) -> {
+            if (transaction.getBody().getReferenceInputs() == null)
+                transaction.getBody().setReferenceInputs(referenceInputs);
+            else
+                transaction.getBody().getReferenceInputs().addAll(referenceInputs);
+        };
+    }
+
 }
