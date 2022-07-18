@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxInputBuilder;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
@@ -19,6 +20,7 @@ import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -33,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -567,7 +570,6 @@ class InputBuildersTest extends BaseTest {
         assertThat(inputResult.getChanges()).hasSize(0);
     }
 
-
     @Test
     void testSelectorFromUtxos2() {
     }
@@ -591,5 +593,103 @@ class InputBuildersTest extends BaseTest {
 
         @PlutusField
         int age;
+    }
+
+    @Nested
+    class ReferenceInputTests {
+
+        @Test
+        void referenceInputsFrom_utxos() {
+            List<Utxo> utxos = getUtxos();
+
+            TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+
+            Transaction transaction = new Transaction();
+            TxBuilder txBuilder = InputBuilders.referenceInputsFromUtxos(utxos);
+            txBuilder.apply(context, transaction);
+
+            assertThat(transaction.getBody().getReferenceInputs()).hasSize(2);
+            assertThat(transaction.getBody().getReferenceInputs()).hasSameElementsAs(
+                    List.of(
+                            new TransactionInput("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85", 1),
+                            new TransactionInput("2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c", 1)
+                    )
+            );
+        }
+
+        @Test
+        void referenceInputsFrom_withSupplierParam() {
+            Supplier<List<Utxo>> refInputsSupplier = new Supplier<List<Utxo>>() {
+                @Override
+                public List<Utxo> get() {
+                    return getUtxos();
+                }
+            };
+
+            TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+
+            Transaction transaction = new Transaction();
+            TxBuilder txBuilder = InputBuilders.referenceInputsFromUtxos(refInputsSupplier);
+            txBuilder.apply(context, transaction);
+
+            assertThat(transaction.getBody().getReferenceInputs()).hasSize(2);
+            assertThat(transaction.getBody().getReferenceInputs()).hasSameElementsAs(
+                    List.of(
+                            new TransactionInput("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85", 1),
+                            new TransactionInput("2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c", 1)
+                    )
+            );
+        }
+
+        @Test
+        void referenceInputsFromTxInputs() {
+            List<TransactionInput> txInputs = List.of(
+                    new TransactionInput("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85", 1),
+                    new TransactionInput("2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c", 1)
+            );
+
+            TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+
+            Transaction transaction = new Transaction();
+            TxBuilder txBuilder = InputBuilders.referenceInputsFrom(txInputs);
+            txBuilder.apply(context, transaction);
+
+            assertThat(transaction.getBody().getReferenceInputs()).hasSize(2);
+            assertThat(transaction.getBody().getReferenceInputs()).hasSameElementsAs(
+                    List.of(
+                            new TransactionInput("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85", 1),
+                            new TransactionInput("2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c", 1)
+                    )
+            );
+        }
+
+        private List<Utxo> getUtxos() {
+            List<Utxo> utxos = List.of(
+                    Utxo.builder()
+                            .txHash("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85")
+                            .outputIndex(1)
+                            .amount(List.of(
+                                    Amount.builder()
+                                            .unit("lovelace")
+                                            .quantity(BigInteger.valueOf(10000000)).build(),
+                                    Amount.builder()
+                                            .unit("777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7")
+                                            .quantity(BigInteger.valueOf(5000)).build()
+                            )).build(),
+                    Utxo.builder()
+                            .txHash("2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c")
+                            .outputIndex(1)
+                            .amount(List.of(
+                                    Amount.builder()
+                                            .unit("lovelace")
+                                            .quantity(BigInteger.valueOf(5000000)).build(),
+                                    Amount.builder()
+                                            .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                                            .quantity(BigInteger.valueOf(10000)).build()
+
+                            )).build()
+            );
+            return utxos;
+        }
     }
 }
