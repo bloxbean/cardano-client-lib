@@ -6,6 +6,7 @@ plugins {
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
 dependencies {
@@ -18,6 +19,8 @@ dependencies {
 
     //ed25519
     implementation group: 'net.i2p.crypto', name: 'eddsa', version: '0.3.0'
+
+    compile 'com.muquit.libsodiumjna:libsodium-jna:1.1.0-IOG-SNAPSHOT'
 
     compileOnly 'org.projectlombok:lombok:1.18.20'
     annotationProcessor 'org.projectlombok:lombok:1.18.20'
