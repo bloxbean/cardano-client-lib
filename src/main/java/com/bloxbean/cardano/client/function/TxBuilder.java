@@ -17,8 +17,21 @@ public interface TxBuilder {
      * @param context TransactionBuilderContext
      * @param txn     Transaction to transform
      * @exception  TxBuildException
+     * @deprecated Use {@link TxBuilder#apply(TxBuilderContext, Transaction)}
      */
-    void build(TxBuilderContext context, Transaction txn);
+    @Deprecated
+    default void build(TxBuilderContext context, Transaction txn) {
+        apply(context, txn);
+    }
+
+    /**
+     * Transform the transaction object
+     *
+     * @param context TransactionBuilderContext
+     * @param txn     Transaction to transform
+     * @exception  TxBuildException
+     */
+    void apply(TxBuilderContext context, Transaction txn);
 
     /**
      * Returns a composed function that first applies this function to its input, and then applies the after function to the result.
@@ -30,9 +43,9 @@ public interface TxBuilder {
     default TxBuilder andThen(TxBuilder after) {
         Objects.requireNonNull(after);
 
-        return (l, r) -> {
-            build(l, r);
-            after.build(l, r);
+        return (ctx, txn) -> {
+            apply(ctx, txn);
+            after.apply(ctx, txn);
         };
     }
 
