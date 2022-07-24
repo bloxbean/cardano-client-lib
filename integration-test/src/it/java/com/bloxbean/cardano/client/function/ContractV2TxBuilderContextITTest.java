@@ -25,7 +25,6 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
@@ -42,10 +41,9 @@ import java.util.*;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
-import static com.bloxbean.cardano.client.function.helper.ChangeOutputAdjustments.adjustChangeOutput;
+import static com.bloxbean.cardano.client.function.helper.BalanceTxBuilders.balanceTx;
 import static com.bloxbean.cardano.client.function.helper.CollateralBuilders.collateralFrom;
 import static com.bloxbean.cardano.client.function.helper.CollateralBuilders.collateralOutputs;
-import static com.bloxbean.cardano.client.function.helper.FeeCalculators.feeCalculator;
 import static com.bloxbean.cardano.client.function.helper.InputBuilders.*;
 import static com.bloxbean.cardano.client.function.helper.OutputBuilders.createFromOutput;
 import static com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders.scriptCallContext;
@@ -152,8 +150,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                         throw new ApiRuntimeException("Script cost evaluation failed", e);
                     }
                 })
-                .andThen(feeCalculator(senderAddress, 1))
-                .andThen(adjustChangeOutput(senderAddress)); //Incase change output goes below min ada after fee deduction
+                .andThen(balanceTx(senderAddress, 1));
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
@@ -367,8 +364,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                     //TODO - handle this in composable function
                     txn.getWitnessSet().getPlutusV2Scripts().clear();
                 })
-                .andThen(feeCalculator(senderAddress, 1))
-                .andThen(adjustChangeOutput(senderAddress)); //Incase change output goes below min ada after fee deduction
+                .andThen(balanceTx(senderAddress, 1));
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
@@ -592,12 +588,9 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                     //TODO - handle this in composable function
                     txn.getWitnessSet().getPlutusV2Scripts().clear();
                 })
-                .andThen(feeCalculator(senderAddress, 1))
-                .andThen(CollateralBuilders.balanceCollateralOutputs())
-                .andThen(adjustChangeOutput(senderAddress)); //Incase change output goes below min ada after fee deduction
+                .andThen(balanceTx(senderAddress, 1));
 
         TxSigner signer = SignerProviders.signerFrom(sender);
-
         Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signer);
 
@@ -702,8 +695,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
 
         TxBuilder txBuilder = output.outputBuilder()
                 .buildInputs(createFromSender(senderAddress, senderAddress))
-                .andThen(feeCalculator(senderAddress, 1))
-                .andThen(adjustChangeOutput(senderAddress, 1));
+                .andThen(balanceTx(senderAddress, 1));
 
         Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender));
@@ -727,8 +719,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
 
         TxBuilder txBuilder = createFromOutput(output)
                 .buildInputs(createFromSender(senderAddress, senderAddress))
-                .andThen(feeCalculator(senderAddress, 1))
-                .andThen(adjustChangeOutput(senderAddress, 1));
+                .andThen(balanceTx(senderAddress, 1));
 
         Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender));

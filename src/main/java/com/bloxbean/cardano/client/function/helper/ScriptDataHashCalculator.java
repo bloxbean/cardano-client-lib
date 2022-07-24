@@ -6,8 +6,13 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.transaction.spec.CostMdls;
+import com.bloxbean.cardano.client.transaction.spec.CostModel;
+import com.bloxbean.cardano.client.transaction.spec.Language;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
 import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
+
+import java.util.Optional;
 
 import static com.bloxbean.cardano.client.transaction.util.CostModelUtil.PlutusV1CostModel;
 import static com.bloxbean.cardano.client.transaction.util.CostModelUtil.PlutusV2CostModel;
@@ -38,18 +43,21 @@ public class ScriptDataHashCalculator {
             costMdls = new CostMdls();
             if (transaction.getWitnessSet().getPlutusV1Scripts() != null
                     && transaction.getWitnessSet().getPlutusV1Scripts().size() > 0) {
-                costMdls.add(PlutusV1CostModel);
+                Optional<CostModel>  costModel = CostModelUtil.getCostModelFromProtocolParams(ctx.getProtocolParams(), Language.PLUTUS_V1);
+                costMdls.add(costModel.orElse(PlutusV1CostModel));
             }
 
             if (transaction.getWitnessSet().getPlutusV2Scripts() != null
                     && transaction.getWitnessSet().getPlutusV2Scripts().size() > 0) {
-                costMdls.add(PlutusV2CostModel);
+                Optional<CostModel>  costModel = CostModelUtil.getCostModelFromProtocolParams(ctx.getProtocolParams(), Language.PLUTUS_V2);
+                costMdls.add(costModel.orElse(PlutusV2CostModel));
             }
 
             if (costMdls.isEmpty()) { //Check if costmodel can be decided from other fields
                 if (transaction.getBody().getReferenceInputs() != null
                         && transaction.getBody().getReferenceInputs().size() > 0) { //If reference input is there, then plutus v2
-                    costMdls.add(PlutusV2CostModel);
+                    Optional<CostModel> costModel = CostModelUtil.getCostModelFromProtocolParams(ctx.getProtocolParams(), Language.PLUTUS_V2);
+                    costMdls.add(costModel.orElse(PlutusV2CostModel));
                 }
             }
         }
