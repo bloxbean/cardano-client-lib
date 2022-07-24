@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.transaction.spec.Language;
 
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Optional;
 
 public class CostModelUtil {
 
@@ -361,6 +362,11 @@ public class CostModelUtil {
     public final static CostModel PlutusV1CostModel = new CostModel(Language.PLUTUS_V1, plutusV1Costs);
     public final static CostModel PlutusV2CostModel = new CostModel(Language.PLUTUS_V2, plutusV2Costs);
 
+    /**
+     * Get language view encoding for costmodels
+     * @param costModels
+     * @return Language view encoding in bytes
+     */
     public static byte[] getLanguageViewsEncoding(CostModel... costModels) {
         CostMdls costMdls = new CostMdls();
         for (CostModel cm : costModels) {
@@ -370,7 +376,13 @@ public class CostModelUtil {
         return costMdls.getLanguageViewEncoding();
     }
 
-    public static CostModel getCostModelFromProtocolParams(ProtocolParams protocolParams, Language language) {
+    /**
+     * Get costmodel for a language from protocol parameters.
+     * @param protocolParams
+     * @param language
+     * @return Optional with costmodel if found, otherwise Optional.empty()
+     */
+    public static Optional<CostModel> getCostModelFromProtocolParams(ProtocolParams protocolParams, Language language) {
         String languageKey = null;
         if (language == Language.PLUTUS_V1) {
             languageKey = "PlutusV1";
@@ -379,12 +391,12 @@ public class CostModelUtil {
         }
 
         if (protocolParams.getCostModels() == null)
-            return null;
+            return Optional.empty();
 
         Map<String, Map<String, Long>> costModels = protocolParams.getCostModels();
         Map<String, Long> costModelMap = costModels.get(languageKey);
         if (costModelMap == null)
-            return null;
+            return Optional.empty();
 
         long[] costModel = costModelMap.entrySet().stream()
                 .sorted(Comparator.comparing(Map.Entry::getKey))
@@ -392,6 +404,6 @@ public class CostModelUtil {
                 .mapToLong(x -> x)
                 .toArray();
 
-        return new CostModel(language, costModel);
+        return Optional.of(new CostModel(language, costModel));
     }
 }
