@@ -2,9 +2,9 @@ package com.bloxbean.cardano.client.backend.koios;
 
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
 import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
-import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.TxContentOutputAmount;
 import rest.koios.client.backend.api.TxHash;
 import rest.koios.client.backend.api.address.AddressService;
@@ -16,13 +16,11 @@ import rest.koios.client.backend.factory.options.filters.Filter;
 import rest.koios.client.backend.factory.options.filters.FilterType;
 
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class KoiosAddressService implements com.bloxbean.cardano.client.backend.api.AddressService {
 
     private final AddressService addressService;
-    private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 
     public KoiosAddressService(AddressService addressService) {
         this.addressService = addressService;
@@ -114,7 +112,7 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
             addressTransactionContent.setTxHash(txHash.getTxHash());
 //            addressTransactionContent.setTxIndex(); TODO
             addressTransactionContent.setBlockHeight(txHash.getBlockHeight());
-            addressTransactionContent.setBlockTime(simpleDateFormat.parse(txHash.getBlockTime()).getTime() / 1000);
+            addressTransactionContent.setBlockTime(Long.parseLong(txHash.getBlockTime().split("\\.")[0]));
             addressTransactionContents.add(addressTransactionContent);
         }
         return Result.success("OK").withValue(addressTransactionContents).code(200);

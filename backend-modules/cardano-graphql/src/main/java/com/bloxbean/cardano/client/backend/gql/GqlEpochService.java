@@ -96,7 +96,7 @@ public class GqlEpochService extends BaseGqlService implements EpochService {
         protocolParams.setA0(new BigDecimal(epochProtocolParams.a0()));
         protocolParams.setDecentralisationParam(new BigDecimal(epochProtocolParams.decentralisationParam()));
         protocolParams.setEMax(epochProtocolParams.eMax());
-        protocolParams.setExtraEntropy(epochProtocolParams.extraEntropy());
+        protocolParams.setExtraEntropy(epochProtocolParams.extraEntropy().toString());
         protocolParams.setKeyDeposit(String.valueOf(epochProtocolParams.keyDeposit()));
         protocolParams.setMaxBlockHeaderSize(epochProtocolParams.maxBlockHeaderSize());
         protocolParams.setMaxBlockSize(epochProtocolParams.maxBlockBodySize());

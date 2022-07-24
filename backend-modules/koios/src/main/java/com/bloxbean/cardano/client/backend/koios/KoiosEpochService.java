@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.backend.koios;
 
-import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.EpochContent;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.EpochService;
+import com.bloxbean.cardano.client.backend.model.EpochContent;
 import rest.koios.client.backend.api.epoch.model.EpochInfo;
 import rest.koios.client.backend.api.epoch.model.EpochParams;
 import rest.koios.client.backend.factory.options.Limit;
@@ -13,13 +13,10 @@ import rest.koios.client.backend.factory.options.Order;
 import rest.koios.client.backend.factory.options.SortType;
 
 import java.math.BigDecimal;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.List;
 
 public class KoiosEpochService implements EpochService {
 
-    private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
     private final rest.koios.client.backend.api.epoch.EpochService epochService;
 
     public KoiosEpochService(rest.koios.client.backend.api.epoch.EpochService epochService) {
@@ -38,8 +35,6 @@ public class KoiosEpochService implements EpochService {
             return convertToEpochContent(epochInformationResult.getValue().get(0));
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
-        } catch (ParseException e) {
-            throw new ApiException("Failed to Parse Date: " + e.getMessage(), e);
         }
     }
 
@@ -53,8 +48,6 @@ public class KoiosEpochService implements EpochService {
             return convertToEpochContent(epochInformationResult.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
-        } catch (ParseException e) {
-            throw new ApiException("Failed to Parse Date: " + e.getMessage(), e);
         }
     }
 
@@ -87,13 +80,13 @@ public class KoiosEpochService implements EpochService {
         }
     }
 
-    private Result<EpochContent> convertToEpochContent(EpochInfo epochInfo) throws ParseException {
+    private Result<EpochContent> convertToEpochContent(EpochInfo epochInfo) {
         EpochContent epochContent = new EpochContent();
         epochContent.setEpoch(Math.toIntExact(epochInfo.getEpochNo()));
-        epochContent.setStartTime(simpleDateFormat.parse(epochInfo.getStartTime()).getTime() / 1000);
-        epochContent.setEndTime(simpleDateFormat.parse(epochInfo.getEndTime()).getTime() / 1000);
-        epochContent.setFirstBlockTime(simpleDateFormat.parse(epochInfo.getFirstBlockTime()).getTime() / 1000);
-        epochContent.setLastBlockTime(simpleDateFormat.parse(epochInfo.getLastBlockTime()).getTime() / 1000);
+        epochContent.setStartTime(Long.parseLong(epochInfo.getStartTime().split("\\.")[0]));
+        epochContent.setEndTime(Long.parseLong(epochInfo.getEndTime().split("\\.")[0]));
+        epochContent.setFirstBlockTime(Long.parseLong(epochInfo.getFirstBlockTime().split("\\.")[0]));
+        epochContent.setLastBlockTime(Long.parseLong(epochInfo.getLastBlockTime().split("\\.")[0]));
         epochContent.setBlockCount(epochInfo.getBlkCount());
         epochContent.setTxCount(Math.toIntExact(epochInfo.getTxCount()));
         epochContent.setOutput(String.valueOf(epochInfo.getOutSum()));
@@ -117,7 +110,7 @@ public class KoiosEpochService implements EpochService {
         protocolParams.setRho(BigDecimal.valueOf(epochInfo.getMonetaryExpandRate()));
         protocolParams.setTau(BigDecimal.valueOf(epochInfo.getTreasuryGrowthRate()));
         protocolParams.setDecentralisationParam(BigDecimal.valueOf(epochInfo.getDecentralisation()));
-        protocolParams.setExtraEntropy(epochInfo.getEntropy());
+        protocolParams.setExtraEntropy(epochInfo.getExtraEntropy());
         protocolParams.setProtocolMajorVer(epochInfo.getProtocolMajor());
         protocolParams.setProtocolMinorVer(epochInfo.getProtocolMinor());
         protocolParams.setMinUtxo(String.valueOf(epochInfo.getMinUtxoValue()));
@@ -147,8 +140,11 @@ public class KoiosEpochService implements EpochService {
         if (epochInfo.getMaxCollateralInputs() != null) {
             protocolParams.setMaxCollateralInputs(epochInfo.getMaxCollateralInputs());
         }
-        if (epochInfo.getCoinsPerUtxoWord() != null) {
-            protocolParams.setCoinsPerUtxoWord(String.valueOf(epochInfo.getCoinsPerUtxoWord()));
+        if (epochInfo.getCostModels() != null) {
+            // TODO
+        }
+        if (epochInfo.getCoinsPerUtxoSize() != null) {
+            protocolParams.setCoinsPerUtxoSize(String.valueOf(epochInfo.getCoinsPerUtxoSize()));
         }
         return Result.success("OK").withValue(protocolParams).code(200);
     }
