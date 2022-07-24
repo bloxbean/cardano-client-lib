@@ -7,20 +7,16 @@ import com.bloxbean.cardano.client.backend.model.Block;
 import rest.koios.client.backend.api.block.model.BlockInfo;
 import rest.koios.client.backend.factory.options.Limit;
 import rest.koios.client.backend.factory.options.Options;
-import rest.koios.client.backend.factory.options.Order;
-import rest.koios.client.backend.factory.options.SortType;
 import rest.koios.client.backend.factory.options.filters.Filter;
 import rest.koios.client.backend.factory.options.filters.FilterType;
 
 import java.math.BigInteger;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.List;
 
 public class KoiosBlockService implements BlockService {
 
     private final rest.koios.client.backend.api.block.BlockService blockService;
-    private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 
     public KoiosBlockService(rest.koios.client.backend.api.block.BlockService blockService) {
         this.blockService = blockService;
@@ -39,8 +35,6 @@ public class KoiosBlockService implements BlockService {
             return convertToBlock(blockList.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
-        } catch (ParseException e) {
-            return Result.error("Failed to Parse System Start Date").code(500);
         }
     }
 
@@ -59,9 +53,9 @@ public class KoiosBlockService implements BlockService {
         }
     }
 
-    private Result<Block> convertToBlock(List<rest.koios.client.backend.api.block.model.Block> blocks) throws ParseException {
+    private Result<Block> convertToBlock(List<rest.koios.client.backend.api.block.model.Block> blocks) {
         Block block = new Block();
-        block.setTime(simpleDateFormat.parse(blocks.get(0).getBlockTime()).getTime());
+        block.setTime(Long.parseLong(blocks.get(0).getBlockTime().split("\\.")[0]));
         block.setHeight(blocks.get(0).getBlockHeight());
         block.setHash(blocks.get(0).getHash());
         block.setSlot(blocks.get(0).getAbsSlot());
@@ -77,7 +71,7 @@ public class KoiosBlockService implements BlockService {
 
     private Result<Block> convertToBlock(BlockInfo blockInfo) throws ParseException {
         Block block = new Block();
-        block.setTime(simpleDateFormat.parse(blockInfo.getBlockTime()).getTime());
+        block.setTime(Long.parseLong(blockInfo.getBlockTime().split("\\.")[0]));
         block.setHeight(blockInfo.getBlockHeight());
         block.setHash(blockInfo.getHash());
         block.setSlot(blockInfo.getAbsSlot());
