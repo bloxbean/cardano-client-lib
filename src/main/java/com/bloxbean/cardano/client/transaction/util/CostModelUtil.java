@@ -1,8 +1,12 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.transaction.spec.CostMdls;
 import com.bloxbean.cardano.client.transaction.spec.CostModel;
 import com.bloxbean.cardano.client.transaction.spec.Language;
+
+import java.util.Comparator;
+import java.util.Map;
 
 public class CostModelUtil {
 
@@ -364,5 +368,30 @@ public class CostModelUtil {
         }
 
         return costMdls.getLanguageViewEncoding();
+    }
+
+    public static CostModel getCostModelFromProtocolParams(ProtocolParams protocolParams, Language language) {
+        String languageKey = null;
+        if (language == Language.PLUTUS_V1) {
+            languageKey = "PlutusV1";
+        } else if (language == Language.PLUTUS_V2) {
+            languageKey = "PlutusV2";
+        }
+
+        if (protocolParams.getCostModels() == null)
+            return null;
+
+        Map<String, Map<String, Long>> costModels = protocolParams.getCostModels();
+        Map<String, Long> costModelMap = costModels.get(languageKey);
+        if (costModelMap == null)
+            return null;
+
+        long[] costModel = costModelMap.entrySet().stream()
+                .sorted(Comparator.comparing(Map.Entry::getKey))
+                .map(e -> e.getValue())
+                .mapToLong(x -> x)
+                .toArray();
+
+        return new CostModel(language, costModel);
     }
 }
