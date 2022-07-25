@@ -1,14 +1,12 @@
 package com.bloxbean.cardano.client.backend.koios;
 
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
-import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.*;
 import rest.koios.client.backend.api.transactions.TransactionsService;
 import rest.koios.client.backend.api.transactions.model.*;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,7 +15,6 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 public class KoiosTransactionService implements TransactionService {
 
     private final TransactionsService transactionsService;
-    private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 
     public KoiosTransactionService(TransactionsService transactionsService) {
         this.transactionsService = transactionsService;
@@ -51,18 +48,15 @@ public class KoiosTransactionService implements TransactionService {
             }
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
-        } catch (ParseException e) {
-            return Result.error("Failed to Parse Tx Timestamp").code(500);
         }
     }
 
-    private Result<TransactionContent> convertToTransactionContent(TxInfo txInfo) throws ParseException {
+    private Result<TransactionContent> convertToTransactionContent(TxInfo txInfo) {
         TransactionContent transactionContent = new TransactionContent();
         transactionContent.setHash(txInfo.getTxHash());
         transactionContent.setBlock(txInfo.getBlockHash());
         transactionContent.setBlockHeight(txInfo.getBlockHeight());
-        long blockTime = simpleDateFormat.parse(txInfo.getTxTimestamp()).getTime() / 1000;
-        transactionContent.setBlockTime((int) blockTime);
+        transactionContent.setBlockTime(Integer.parseInt(txInfo.getTxTimestamp().split("\\.")[0]));
         transactionContent.setSlot(txInfo.getAbsoluteSlot());
         transactionContent.setIndex(txInfo.getTxBlockIndex());
         List<TxOutputAmount> txOutputAmountList = new ArrayList<>();

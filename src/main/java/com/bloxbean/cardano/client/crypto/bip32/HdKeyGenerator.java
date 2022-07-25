@@ -238,7 +238,7 @@ public class HdKeyGenerator {
         byte[] ZL = Arrays.copyOfRange(Z, 0, 28);
 //      byte[] ZR = Arrays.copyOfRange(Z, 32, 64);
 
-        //Ai ← AP + [8ZL]B,
+        //Ai <- AP + [8ZL]B,
         BigInteger kLiBI = parseUnsignedLE(ZL)
                 .multiply(BigInteger.valueOf(8));
 
