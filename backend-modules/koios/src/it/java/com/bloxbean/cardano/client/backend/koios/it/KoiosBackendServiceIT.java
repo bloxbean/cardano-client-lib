@@ -23,9 +23,9 @@ public class KoiosBackendServiceIT {
     }
 
     public void getNetworkInfoAndCompare(NetworkInfoService networkInfoService) throws ApiException {
-        Result<Genesis> gensisResult = networkInfoService.getNetworkInfo();
+        Result<Genesis> genesisResult = networkInfoService.getNetworkInfo();
 
-        Genesis genesis = gensisResult.getValue();
+        Genesis genesis = genesisResult.getValue();
         assertNotNull(genesis);
         assertEquals(0.05,genesis.getActiveSlotsCoefficient().doubleValue());
         assertEquals(432000,genesis.getEpochLength());

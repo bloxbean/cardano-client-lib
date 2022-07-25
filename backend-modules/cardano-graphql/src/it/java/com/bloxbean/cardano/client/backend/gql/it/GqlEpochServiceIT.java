@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class GlqEpochServiceIT extends GqlBaseTest{
+public class GqlEpochServiceIT extends GqlBaseTest{
     EpochService epochService;
 
     @BeforeEach

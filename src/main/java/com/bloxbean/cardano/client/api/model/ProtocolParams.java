@@ -34,7 +34,7 @@ public class ProtocolParams {
     private BigDecimal rho;
     private BigDecimal tau;
     private BigDecimal decentralisationParam;
-    private Object extraEntropy;
+    private String extraEntropy;
     private Integer protocolMajorVer;
     private Integer protocolMinorVer;
     private String minUtxo;
