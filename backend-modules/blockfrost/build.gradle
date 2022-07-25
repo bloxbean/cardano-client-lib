@@ -12,10 +12,13 @@ dependencies {
     compile project(':')
     compile project(':cardano-client-backend')
 
-    implementation group: 'com.squareup.retrofit2', name: 'retrofit', version: '2.9.0'
+    implementation('com.squareup.retrofit2:retrofit:2.9.0') {
+        exclude group: 'com.squareup.okhttp3', module: 'okhttp'
+    }
     implementation('com.squareup.retrofit2:converter-jackson:2.9.0') {
         exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     }
+    implementation 'com.squareup.okhttp3:okhttp:4.10.0'
 
     compileOnly 'org.projectlombok:lombok:1.18.20'
     annotationProcessor 'org.projectlombok:lombok:1.18.20'
