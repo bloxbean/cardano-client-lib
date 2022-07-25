@@ -47,7 +47,7 @@ class ScriptUtxoFindersTest extends BaseTest {
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datum = "hello";
 
-        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, scriptAddress, datum);
+        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, scriptAddress, datum);
 
         assertThat(utxoOptional.get().getTxHash()).isEqualTo("88c014d348bf1919c78a5cb87a5beed87729ff3f8a2019be040117a41a83e82e");
         assertThat(utxoOptional.get().getOutputIndex()).isEqualTo(1);
@@ -79,7 +79,7 @@ class ScriptUtxoFindersTest extends BaseTest {
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datum = "hello";
 
-        List<Utxo> list = ScriptUtxoFinders.findAllByDatum(utxoSupplier, scriptAddress, datum);
+        List<Utxo> list = ScriptUtxoFinders.findAllByDatumHashUsingDatum(utxoSupplier, scriptAddress, datum);
 
         assertThat(list).hasSize(2);
         assertThat(list.get(0).getTxHash()).isEqualTo("88c014d348bf1919c78a5cb87a5beed87729ff3f8a2019be040117a41a83e82e");
@@ -121,7 +121,7 @@ class ScriptUtxoFindersTest extends BaseTest {
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datum = "hello111";
 
-        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, scriptAddress, datum);
+        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, scriptAddress, datum);
 
         assertThat(utxoOptional.isPresent()).isEqualTo(false);
     }
@@ -139,5 +139,63 @@ class ScriptUtxoFindersTest extends BaseTest {
 
         assertThat(list).hasSize(0);
     }
+
+    @Test
+    void findFirstByInlineDatum() throws IOException, ApiException {
+        List<Utxo> utxos = loadUtxos(LIST_1);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+
+        String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
+        Integer datum = Integer.valueOf(-179132674);
+
+        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, datum);
+
+        assertThat(utxoOptional.orElse(new Utxo()).getTxHash()).isEqualTo("9999e44f0f03915b1611ce58aaff5f2e52054e1911fbcd0f17dbc205f44763b6");
+    }
+
+    @Test
+    void findAllByInlineDatum() throws IOException, ApiException {
+        List<Utxo> utxos = loadUtxos(LIST_1);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+
+        String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
+        Integer datum = Integer.valueOf(-179132674);
+
+        List<Utxo> list = ScriptUtxoFinders.findAllByInlineDatum(utxoSupplier, scriptAddress, datum);
+
+        assertThat(list).hasSize(3);
+        assertThat(list.get(0).getTxHash()).isEqualTo("9999e44f0f03915b1611ce58aaff5f2e52054e1911fbcd0f17dbc205f44763b6");
+        assertThat(list.get(1).getTxHash()).isEqualTo("111e44f0f03915b1611ce58aaff5f2e52054e1911fbcd0f17dbc205f44763b6");
+        assertThat(list.get(2).getTxHash()).isEqualTo("222e44f0f03915b1611ce58aaff5f2e52054e1911fbcd0f17dbc205f44763b6");
+    }
+
+    @Test
+    void findFirstByInlineDatum_whenNoUtxoAvailable() throws IOException, ApiException {
+        List<Utxo> utxos = loadUtxos(LIST_1);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+
+        String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
+        Integer datum = Integer.valueOf(-479132674);
+
+        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, datum);
+        assertThat(utxoOptional.isPresent()).isFalse();
+    }
+
+    @Test
+    void findAllByInlineDatum_whenNoUtxoAvailable() throws IOException, ApiException {
+        List<Utxo> utxos = loadUtxos(LIST_1);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+
+        String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
+        Integer datum = Integer.valueOf(-1791326745);
+
+        List<Utxo> list = ScriptUtxoFinders.findAllByInlineDatum(utxoSupplier, scriptAddress, datum);
+
+        assertThat(list).hasSize(0);
+     }
 
 }
