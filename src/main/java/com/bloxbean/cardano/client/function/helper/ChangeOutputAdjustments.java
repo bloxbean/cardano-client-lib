@@ -127,7 +127,7 @@ public class ChangeOutputAdjustments {
                     throw new ApiRuntimeException("Error in api call", apiException);
                 }
                 FeeCalculators.feeCalculator(changeAddress, noOfSigners)
-                        .build(context, transaction);
+                        .apply(context, transaction);
 
                 counter++;
             }

@@ -1,22 +1,19 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
+import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.transaction.util.NativeScriptDeserializer;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import org.bouncycastle.util.encoders.Hex;
 
-import java.nio.ByteBuffer;
 import java.util.List;
-
-import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash224;
 
 @JsonDeserialize(using = NativeScriptDeserializer.class)
 public interface NativeScript extends Script {
@@ -45,28 +42,22 @@ public interface NativeScript extends Script {
         }
     }
 
-    @JsonIgnore
-    default String getPolicyId() throws CborSerializationException {
-        byte[] first = new byte[]{0};
-        byte[] serializedBytes = this.serialize();
-        byte[] finalBytes = ByteBuffer.allocate(first.length + serializedBytes.length)
-                .put(first)
-                .put(serializedBytes)
-                .array();
+    default byte[] serializeScriptBody() throws CborSerializationException {
+        DataItem di = serializeAsDataItem();
 
-        return Hex.toHexString(blake2bHash224(finalBytes));
+        try {
+            return CborSerializationUtil.serialize(di);
+        } catch (CborException e) {
+            throw new CborSerializationException("Cbor serializaion error", e);
+        }
     }
 
-    @JsonIgnore
-    default byte[] getScriptHash() throws CborSerializationException {
-        byte[] first = new byte[]{0};
-        byte[] serializedBytes = this.serialize();
-        byte[] finalBytes = ByteBuffer.allocate(first.length + serializedBytes.length)
-                .put(first)
-                .put(serializedBytes)
-                .array();
+    default byte[] getScriptTypeBytes() {
+        return new byte[]{(byte) getScriptType()};
+    }
 
-        return blake2bHash224(finalBytes);
+    default int getScriptType() {
+        return 0;
     }
 
     static NativeScript deserializeJson(String jsonContent) throws CborDeserializationException, JsonProcessingException {

@@ -80,6 +80,7 @@ public class UtxoTransactionBuilderTest {
         utxoTransactionBuilder = new UtxoTransactionBuilderImpl(new DefaultUtxoSelectionStrategyImpl(utxoSupplier));
         protocolParams = ProtocolParams.builder()
                 .coinsPerUtxoWord("34482")
+                .coinsPerUtxoSize("4310")
                 .build();
     }
 
@@ -247,7 +248,7 @@ public class UtxoTransactionBuilderTest {
         // subtract fee
         expectedBaseAmount = expectedBaseAmount.subtract(transaction.getBody().getFee());
         Assertions.assertEquals(expectedBaseAmount, transaction.getBody().getOutputs().get(1).getValue().getCoin());
-        Assertions.assertEquals(new BigInteger("984849719"), transaction.getBody().getOutputs().get(1).getValue().getCoin());
+        Assertions.assertEquals(new BigInteger("985022195"), transaction.getBody().getOutputs().get(1).getValue().getCoin());
     }
 
     @Test
@@ -290,7 +291,7 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets(), hasSize(3));
 
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets(), hasSize(2));
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(975431106)));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(975612202)));
 
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(1).getAssets(), hasSize(1));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(2).getAssets(), hasSize(1));
@@ -492,7 +493,7 @@ public class UtxoTransactionBuilderTest {
         expectedBaseAmount = expectedBaseAmount.add(utxos.get(2).getAmount().get(0).getQuantity());
 
         Assertions.assertEquals(expectedBaseAmount, transaction.getBody().getOutputs().get(0).getValue().getCoin());
-        Assertions.assertEquals(BigInteger.valueOf(2282126), transaction.getBody().getOutputs().get(0).getValue().getCoin());
+        Assertions.assertEquals(BigInteger.valueOf(1980466), transaction.getBody().getOutputs().get(0).getValue().getCoin());
     }
 
     @Test
@@ -878,7 +879,7 @@ public class UtxoTransactionBuilderTest {
     void testSendAll() throws Exception{
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Collections.singletonList(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Collections.singletonList(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
@@ -908,7 +909,7 @@ public class UtxoTransactionBuilderTest {
 
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("3")))), null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("3")))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
@@ -939,7 +940,7 @@ public class UtxoTransactionBuilderTest {
 
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
@@ -978,7 +979,7 @@ public class UtxoTransactionBuilderTest {
 
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
@@ -1014,7 +1015,7 @@ public class UtxoTransactionBuilderTest {
 
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, BigInteger.valueOf(2478633))), null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, BigInteger.valueOf(2478633))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
@@ -1030,7 +1031,7 @@ public class UtxoTransactionBuilderTest {
                 .unit(LOVELACE)
                 .amount(ADAConversionUtil.adaToLovelace(new BigDecimal("2.478633")
                                                             .subtract(new BigDecimal("0.168317")))
-                                                            .subtract(BigInteger.valueOf(1310316))) // min ada to receive 1
+                                                            .subtract(BigInteger.valueOf(1129220))) // min ada to receive 1
                 .fee(null)
                 .receiver(receiver2)
                 .build();
@@ -1045,8 +1046,8 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getInputs(), hasSize(1));
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
         assertThat(transaction.getBody().getInputs().get(0).getTransactionId(), is("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed"));
-        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(ONE_ADA));
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(1310316)));
+        assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(BigInteger.valueOf(1181096)));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(1129220)));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets().get(0).getAssets().get(0).getValue(), is(BigInteger.valueOf(1000)));
     }
 

@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.Redeemer;
@@ -13,7 +13,12 @@ import java.util.List;
 
 public class ScriptDataHashGenerator {
 
-    public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, String languageViewsEncoded)
+    public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, String languageViewsHex)
+            throws CborException, CborSerializationException {
+        return generate(redeemers, datums, HexUtil.decodeHexString(languageViewsHex));
+    }
+
+    public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, byte[] langViewsBytes)
             throws CborSerializationException, CborException {
 
         Array redeemerArray = new Array();
@@ -44,9 +49,7 @@ public class ScriptDataHashGenerator {
             plutusDataBytes = new byte[0];
         }
 
-        byte[] langViewsBytes = HexUtil.decodeHexString(languageViewsEncoded);
-
         byte[] encodedBytes = Bytes.concat(redeemerBytes, plutusDataBytes, langViewsBytes);
-        return KeyGenUtil.blake2bHash256(encodedBytes);
+        return Blake2bUtil.blake2bHash256(encodedBytes);
     }
 }

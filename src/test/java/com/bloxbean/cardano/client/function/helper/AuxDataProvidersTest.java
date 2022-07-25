@@ -48,7 +48,7 @@ class AuxDataProvidersTest extends BaseTest {
 
         AuxDataProviders.metadataProvider(metadata1)
                 .andThen(AuxDataProviders.metadataProvider(metadata2))
-                .build(context, transaction);
+                .apply(context, transaction);
 
         CBORMetadata actualMetadata = (CBORMetadata) transaction.getAuxiliaryData().getMetadata();
 
@@ -70,7 +70,7 @@ class AuxDataProvidersTest extends BaseTest {
         AuxDataProviders.metadataProvider(() -> {
             return metadata1;
         }).andThen(AuxDataProviders.metadataProvider(metadata2))
-                .build(context, transaction);
+                .apply(context, transaction);
 
         CBORMetadata actualMetadata = (CBORMetadata) transaction.getAuxiliaryData().getMetadata();
 

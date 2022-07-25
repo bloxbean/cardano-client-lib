@@ -112,7 +112,7 @@ public class UtxoTransactionBuilderImpl implements UtxoTransactionBuilder {
 
     @Override
     public List<Utxo> getUtxos(String address, String unit, BigInteger amount) throws ApiException {
-        Set<Utxo> selected = this.utxoSelectionStrategy.select(address, new Amount(unit, amount), null, Collections.emptySet());
+        Set<Utxo> selected = this.utxoSelectionStrategy.select(address, new Amount(unit, amount), Collections.emptySet());
         return selected != null ? new ArrayList<>(selected) : Collections.emptyList();
     }
 }

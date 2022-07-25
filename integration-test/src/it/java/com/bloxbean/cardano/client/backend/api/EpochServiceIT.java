@@ -74,7 +74,7 @@ public class EpochServiceIT extends BaseITTest {
         assertThat(protocolParams, notNullValue());
         assertThat(protocolParams, notNullValue());
         assertThat(protocolParams.getPoolDeposit(), is("500000000"));
-        assertThat(protocolParams.getCoinsPerUtxoWord(), is("34482"));
+        assertThat(protocolParams.getCoinsPerUtxoSize(), is("4310"));
         assertThat(protocolParams.getEMax(), notNullValue());
         assertThat(protocolParams.getNOpt(), notNullValue());
     }

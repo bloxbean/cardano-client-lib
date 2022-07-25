@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
+import com.bloxbean.cardano.client.transaction.spec.CostMdls;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import lombok.Data;
@@ -28,6 +29,7 @@ public class TxBuilderContext {
     private UtxoSelectionStrategy utxoSelectionStrategy;
     private UtxoSelector utxoSelector;
     private FeeCalculationService feeCalculationService;
+    private CostMdls costMdls;
 
     //Needed to check if the output is for minting
     //This list is cleared after each Input Builder
@@ -71,6 +73,10 @@ public class TxBuilderContext {
         mintMultiAssets.clear();
     }
 
+    public void setCostMdls(CostMdls costMdls) {
+        this.costMdls = costMdls;
+    }
+
     public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
         return new TxBuilderContext(utxoSupplier, protocolParams);
     }
@@ -87,8 +93,7 @@ public class TxBuilderContext {
      */
     public Transaction build(TxBuilder txBuilder) {
         Transaction transaction = new Transaction();
-        txBuilder.build(this, transaction);
-
+        txBuilder.apply(this, transaction);
         return transaction;
     }
 
@@ -111,7 +116,7 @@ public class TxBuilderContext {
      * @throws com.bloxbean.cardano.client.function.exception.TxBuildException if exception during transaction build
      */
     public void build(Transaction transaction, TxBuilder txBuilder) {
-        txBuilder.build(this, transaction);
+        txBuilder.apply(this, transaction);
     }
 
 }

@@ -29,13 +29,16 @@ public class TransactionWitnessSet {
 
     //Alonzo
     @Builder.Default
-    private List<PlutusScript> plutusScripts = new ArrayList<>();
+    private List<PlutusV1Script> plutusV1Scripts = new ArrayList<>();
 
     @Builder.Default
     private List<PlutusData> plutusDataList = new ArrayList<>();
 
     @Builder.Default
     private List<Redeemer> redeemers = new ArrayList<>();
+
+    @Builder.Default
+    private List<PlutusV2Script> plutusV2Scripts = new ArrayList<>();
 
     public Map serialize() throws CborSerializationException {
         //Array
@@ -71,9 +74,9 @@ public class TransactionWitnessSet {
             witnessMap.put(new UnsignedInteger(2), bootstrapWitnessArray);
         }
 
-        if(plutusScripts != null && plutusScripts.size() > 0) {
+        if(plutusV1Scripts != null && plutusV1Scripts.size() > 0) {
             Array plutusScriptArray = new Array();
-            for(PlutusScript plutusScript: plutusScripts) {
+            for(PlutusV1Script plutusScript: plutusV1Scripts) {
                 plutusScriptArray.add(plutusScript.serializeAsDataItem());
             }
 
@@ -98,6 +101,16 @@ public class TransactionWitnessSet {
             witnessMap.put(new UnsignedInteger(5), redeemerArray);
         }
 
+        //Plutus v2 script -- Babbage era
+        if(plutusV2Scripts != null && plutusV2Scripts.size() > 0) {
+            Array plutusV2ScriptArray = new Array();
+            for(PlutusV2Script plutusV2Script: plutusV2Scripts) {
+                plutusV2ScriptArray.add(plutusV2Script.serializeAsDataItem());
+            }
+
+            witnessMap.put(new UnsignedInteger(6), plutusV2ScriptArray);
+        }
+
         return witnessMap;
     }
 
@@ -105,9 +118,10 @@ public class TransactionWitnessSet {
 //    { ? 0: [* vkeywitness ]
 //  , ? 1: [* native_script ]
 //  , ? 2: [* bootstrap_witness ]
-//        ; In the future, new kinds of witnesses can be added like this:
-//        ; , ? 4: [* foo_script ]
-//        ; , ? 5: [* plutus_script ]
+//  , ? 3: [* plutus_v1_script ]
+//  , ? 4: [* plutus_data ]
+//  , ? 5: [* redeemer ]
+//  , ? 6: [* plutus_v2_script ] ; New
 //    }
     public static TransactionWitnessSet deserialize(Map witnessMap) throws CborDeserializationException {
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
@@ -118,7 +132,7 @@ public class TransactionWitnessSet {
         DataItem plutusScriptArray = witnessMap.get(new UnsignedInteger(3));
         DataItem plutusDataArray = witnessMap.get(new UnsignedInteger(4));
         DataItem redeemerArray = witnessMap.get(new UnsignedInteger(5));
-
+        DataItem plutusV2ScriptArray = witnessMap.get(new UnsignedInteger(6));
 
         if(vkWitnessesArray != null) { //vkwitnesses
             List<DataItem> vkeyWitnessesDIList = ((Array) vkWitnessesArray).getDataItems();
@@ -169,22 +183,22 @@ public class TransactionWitnessSet {
             transactionWitnessSet.setBootstrapWitnesses(null);
         }
 
-        //plutus_script
+        //plutus_v1_script
         if(plutusScriptArray != null) {
-            List<DataItem> plutusScriptDIList = ((Array)plutusScriptArray).getDataItems();
-            List<PlutusScript> plutusScripts = new ArrayList<>();
+            List<DataItem> plutusV1ScriptDIList = ((Array)plutusScriptArray).getDataItems();
+            List<PlutusV1Script> plutusV1Scripts = new ArrayList<>();
 
-            for(DataItem plutusScriptDI: plutusScriptDIList) {
-                PlutusScript plutusScript = PlutusScript.deserialize((ByteString) plutusScriptDI);
-                if(plutusScript != null)
-                    plutusScripts.add(plutusScript);
+            for(DataItem plutusV1ScriptDI: plutusV1ScriptDIList) {
+                PlutusV1Script plutusV1Script = PlutusV1Script.deserialize((ByteString) plutusV1ScriptDI);
+                if(plutusV1Script != null)
+                    plutusV1Scripts.add(plutusV1Script);
             }
 
-            if(plutusScripts.size() > 0) {
-                transactionWitnessSet.setPlutusScripts(plutusScripts);
+            if(plutusV1Scripts.size() > 0) {
+                transactionWitnessSet.setPlutusV1Scripts(plutusV1Scripts);
             }
         } else {
-            transactionWitnessSet.setPlutusScripts(null);
+            transactionWitnessSet.setPlutusV1Scripts(null);
         }
 
         //plutus_data
@@ -219,11 +233,33 @@ public class TransactionWitnessSet {
             transactionWitnessSet.setRedeemers(null);
         }
 
+        //plutus_v2_script (Babbage era or Post Alonzo)
+        if(plutusV2ScriptArray != null) {
+            List<DataItem> plutusV2ScriptDIList = ((Array)plutusV2ScriptArray).getDataItems();
+            List<PlutusV2Script> plutusV2Scripts = new ArrayList<>();
 
+            for(DataItem plutusV2ScriptDI: plutusV2ScriptDIList) {
+                PlutusV2Script plutusV2Script = PlutusV2Script.deserialize((ByteString) plutusV2ScriptDI);
+                if(plutusV2Script != null)
+                    plutusV2Scripts.add(plutusV2Script);
+            }
+
+            if(plutusV2Scripts.size() > 0) {
+                transactionWitnessSet.setPlutusV2Scripts(plutusV2Scripts);
+            }
+        } else {
+            transactionWitnessSet.setPlutusV2Scripts(null);
+        }
+
+        //Check if all fields are null, then return null
         if(transactionWitnessSet.getVkeyWitnesses() == null
                 && transactionWitnessSet.getNativeScripts() == null
                 && transactionWitnessSet.getBootstrapWitnesses() == null
-                && transactionWitnessSet.getPlutusScripts() == null) {
+                && transactionWitnessSet.getPlutusV1Scripts() == null
+                && transactionWitnessSet.getPlutusV2Scripts() == null
+                && transactionWitnessSet.getPlutusDataList() == null
+                && transactionWitnessSet.getRedeemers() == null
+        ) {
             return null;
         } else {
             return transactionWitnessSet;

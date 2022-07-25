@@ -12,7 +12,7 @@ dependencies {
     compile project(':')
     compile project(':cardano-client-backend')
 
-    implementation('io.github.cardano-community:koios-java-client:1.10')
+    implementation('io.github.cardano-community:koios-java-client:1.12')
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'

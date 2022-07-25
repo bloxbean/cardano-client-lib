@@ -1,13 +1,16 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
+import lombok.NonNull;
 
 public interface PlutusData {
 
@@ -44,11 +47,28 @@ public interface PlutusData {
             throw new CborDeserializationException("Cbor deserialization failed. Invalid type. " + dataItem);
     }
 
+    static PlutusData deserialize(@NonNull byte[] serializedBytes) throws CborDeserializationException {
+        try {
+            DataItem dataItem = CborDecoder.decode(serializedBytes).get(0);
+            return deserialize(dataItem);
+        } catch (CborException | CborDeserializationException e) {
+            throw new CborDeserializationException("Cbor de-serialization error", e);
+        }
+    }
+
     default String getDatumHash() throws CborSerializationException, CborException {
         return HexUtil.encodeHexString(getDatumHashAsBytes());
     }
 
     default byte[] getDatumHashAsBytes() throws CborSerializationException, CborException {
         return KeyGenUtil.blake2bHash256(CborSerializationUtil.serialize(serialize()));
+    }
+
+    default String serializeToHex()  {
+        try {
+            return HexUtil.encodeHexString(CborSerializationUtil.serialize(serialize()));
+        } catch (Exception e) {
+            throw new CborRuntimeException("Cbor serialization error", e);
+        }
     }
 }

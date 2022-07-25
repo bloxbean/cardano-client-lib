@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
+import com.bloxbean.cardano.client.transaction.spec.PlutusData;
 import lombok.Setter;
 
 import java.math.BigInteger;
@@ -32,7 +33,7 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
     }
 
     @Override
-    public Set<Utxo> select(String sender, List<Amount> outputAmounts, String datumHash, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+    public Set<Utxo> select(String sender, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
         if(outputAmounts == null || outputAmounts.isEmpty()){
             return Collections.emptySet();
         }
@@ -65,6 +66,9 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
                     continue;
                 }
                 if(datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash())){
+                    continue;
+                }
+                if(inlineDatum != null && !inlineDatum.serializeToHex().equals(utxo.getInlineDatum())) {
                     continue;
                 }
                 if(selectedUtxos.contains(utxo)){
@@ -100,7 +104,7 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
         }catch(InputsLimitExceededException e){
             var fallback = fallback();
             if(fallback != null){
-                return fallback.select(sender, outputAmounts, datumHash, utxosToExclude, maxUtxoSelectionLimit);
+                return fallback.select(sender, outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
             }
             throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
         }

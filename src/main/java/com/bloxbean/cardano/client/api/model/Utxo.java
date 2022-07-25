@@ -32,6 +32,8 @@ public class Utxo {
     private int outputIndex;
     private List<Amount> amount;
     private String dataHash;
+    private String inlineDatum;
+    private String referenceScriptHash;
 
     @Override
     public boolean equals(Object o) {

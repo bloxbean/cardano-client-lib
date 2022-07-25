@@ -1,86 +1,94 @@
 package com.bloxbean.cardano.client.common;
 
+import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
-import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.exception.AddressExcepion;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.Value;
+import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 
 import java.math.BigInteger;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-
-import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 
 public class MinAdaCalculator {
+    //Dummy ada value for txout
+    public static final BigInteger DUMMY_COIN_VAL = BigInteger.valueOf(1000000);
+    //Dummy address
+    public static final String DUMMY_ADDRESS = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
 
-    private final BigInteger adaOnlyMinUtxoValue = ONE_ADA;
-    private final int utxoEntrySizeWithoutVal = 27;
-    private BigInteger coinsPerUtxoWord; //protocol parameter
+    private BigInteger coinsPerUtxoSize;
 
     public MinAdaCalculator(ProtocolParams protocolParams) {
-        if (protocolParams.getCoinsPerUtxoWord() != null && !protocolParams.getCoinsPerUtxoWord().isEmpty()) {
-            this.coinsPerUtxoWord = new BigInteger(protocolParams.getCoinsPerUtxoWord());
+        if (protocolParams.getCoinsPerUtxoSize() != null && !protocolParams.getCoinsPerUtxoSize().isEmpty()) {
+            this.coinsPerUtxoSize = new BigInteger(protocolParams.getCoinsPerUtxoSize());
         }
     }
 
+    /**
+     * Calculate min required ada in {@link TransactionOutput}
+     *
+     * @param output
+     * @return Min required ada (lovelace)
+     */
     public BigInteger calculateMinAda(TransactionOutput output) {
-        if (output.getValue().getMultiAssets() == null || output.getValue().getMultiAssets().size() == 0)
-            return adaOnlyMinUtxoValue;
-
-        return calculateMinAda(output.getValue().getMultiAssets(),
-                output.getDatumHash() != null && output.getDatumHash().length > 0);
-    }
-
-    public BigInteger calculateMinAda(List<MultiAsset> multiAssetList, boolean hasDataHash) {
-        if (multiAssetList == null || multiAssetList.size() == 0)
-            return adaOnlyMinUtxoValue;
-
-        long sizeB = bundleSize(multiAssetList);
-        //According to https://github.com/input-output-hk/cardano-ledger/blob/master/doc/explanations/min-utxo-alonzo.rst
-        long dataHashSize = hasDataHash ? 10 : 0;
-
-        long utxoEntrySize = utxoEntrySizeWithoutVal + sizeB + dataHashSize;
-
-        return coinsPerUtxoWord.multiply(BigInteger.valueOf(utxoEntrySize));
-    }
-
-    public BigInteger calculateMinAda(List<MultiAsset> multiAssetList) {
-        return calculateMinAda(multiAssetList, false);
-    }
-
-    private long bundleSize(List<MultiAsset> multiAssetList) {
-        int numAssets = 0;
-        int numPIDs = 0;
-        long sumAssetNameLengths = 0;
-        int pidSize = 28; //Policy id size is currently 28
-
-        Set<String> uniqueAssetNames = new HashSet<>();
-        //If multi asssets
-        for (MultiAsset ma : multiAssetList) {
-            numPIDs++;
-            for (Asset asset : ma.getAssets()) {
-                numAssets++;
-
-                //the sum of the length of the ByteStrings representing distinct asset names
-                if (!uniqueAssetNames.contains(asset.getName())) {
-                    sumAssetNameLengths += asset.getNameAsBytes().length;
-                    if (asset.getName() != null && !asset.getName().isEmpty()) {
-                        uniqueAssetNames.add(asset.getName());
-                    }
-                }
-            }
+        //according to https://hydra.iohk.io/build/15339994/download/1/babbage-changes.pdf
+        //See on the page 9 getValue txout
+        //getValue txout ≥ inject ( (serSize txout + 160) ∗ coinsPerUTxOByte pp )
+        TransactionOutput cloneOutput = output.toBuilder().build();
+        if (cloneOutput.getValue().getCoin() == null || cloneOutput.getValue().getCoin().equals(BigInteger.ZERO)
+                || cloneOutput.getValue().getCoin().compareTo(BigInteger.valueOf(100000)) == -1) {
+            //Workaround
+            //If coin == 0, set a dummy value, so that size is calculated properly.
+            //As when coin == 0, size calculation is not correct
+            Value updatedValue = Value.builder()
+                    .coin(DUMMY_COIN_VAL)
+                    .multiAssets(output.getValue().getMultiAssets()).build();
+            cloneOutput.setValue(updatedValue);
         }
+        //Incase a caller invokes this method with address "null"
+        if (cloneOutput.getAddress() == null)
+            cloneOutput.setAddress(DUMMY_ADDRESS);
 
-        return calculateSizeB(numAssets, sumAssetNameLengths, numPIDs, pidSize);
+        try {
+            byte[] serBytes = CborSerializationUtil.serialize(cloneOutput.serialize());
+            int serSize = serBytes.length;
+            return coinsPerUtxoSize.multiply(BigInteger.valueOf(serSize + 160));
+        } catch (CborException | CborSerializationException | AddressExcepion e) {
+            throw new CborRuntimeException("Cbor serialization error", e);
+        }
     }
 
-    private long calculateSizeB(long numAssets, long sumAssetNameLengths, int numPIDs, int pidSize) {
-        long totalBytes = (numAssets * 12) + sumAssetNameLengths + ((long) numPIDs * pidSize);
-        return 6 + roundupBytesToWords(totalBytes);
+    /**
+     * This method is deprecated
+     * Use {@link MinAdaCalculator#calculateMinAda(List)} instead
+     *
+     * @param multiAssetList
+     * @param hasDataHash
+     * @return Min required ada (lovelace)
+     */
+    @Deprecated
+    public BigInteger calculateMinAda(List<MultiAsset> multiAssetList, boolean hasDataHash) {
+        return calculateMinAda(multiAssetList);
     }
 
-    private long roundupBytesToWords(long noOfBytes) {
-        return (noOfBytes + 7) / 8;
+    /**
+     * Calculate min required ada for a TransactionOutput with given multiassets
+     *
+     * @param multiAssetList
+     * @return Min required ada (lovelace)
+     */
+    public BigInteger calculateMinAda(List<MultiAsset> multiAssetList) {
+        //Build dummy transaction output with multiassetList
+        Value value = Value.builder()
+                .coin(DUMMY_COIN_VAL)
+                .multiAssets(multiAssetList).build();
+        TransactionOutput txOut = TransactionOutput.builder()
+                .address(DUMMY_ADDRESS)
+                .value(value).build();
+
+        return calculateMinAda(txOut);
     }
 }

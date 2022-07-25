@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -11,9 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 @Data
 @AllArgsConstructor
@@ -54,6 +53,14 @@ public class TransactionBody {
 
     private NetworkId networkId; // 1 or 0
 
+    //babbage fields
+    private TransactionOutput collateralReturn; //?16
+
+    private BigInteger totalCollateral; //? 17
+
+    @Builder.Default
+    private List<TransactionInput> referenceInputs = new ArrayList<>(); // ? 18
+
     public Map serialize() throws CborSerializationException, AddressExcepion {
         Map bodyMap = new Map();
 
@@ -66,7 +73,7 @@ public class TransactionBody {
 
         Array outputsArray = new Array();
         for(TransactionOutput to: outputs) {
-            Array output = to.serialize();
+            DataItem output = to.serialize();
             outputsArray.add(output);
         }
         bodyMap.put(new UnsignedInteger(1), outputsArray);
@@ -149,6 +156,26 @@ public class TransactionBody {
             }
         }
 
+        //collateral return
+        if (collateralReturn != null) {
+            bodyMap.put(new UnsignedInteger(16), collateralReturn.serialize());
+        }
+
+        //total collateral
+        if (totalCollateral != null) {
+            bodyMap.put(new UnsignedInteger(17), new UnsignedInteger(totalCollateral));
+        }
+
+        //reference inputs
+        if(referenceInputs != null && referenceInputs.size() > 0) {
+            Array referenceInputsArray = new Array();
+            for (TransactionInput ti : referenceInputs) {
+                Array input = ti.serialize();
+                referenceInputsArray.add(input);
+            }
+            bodyMap.put(new UnsignedInteger(18), referenceInputsArray);
+        }
+
         return bodyMap;
     }
 
@@ -166,7 +193,7 @@ public class TransactionBody {
        Array outputArray =  (Array)bodyMap.get(new UnsignedInteger(1));
         List<TransactionOutput> outputs = new ArrayList<>();
         for(DataItem ouptutItem: outputArray.getDataItems()) {
-            TransactionOutput to = TransactionOutput.deserialize((Array)ouptutItem);
+            TransactionOutput to = TransactionOutput.deserialize(ouptutItem);
             outputs.add(to);
         }
         transactionBody.setOutputs(outputs);
@@ -259,6 +286,30 @@ public class TransactionBody {
             } else {
                 throw new CborDeserializationException("Invalid networkId value : " + networkIdInt);
             }
+        }
+
+        //collateral return
+        DataItem collateralReturnDI = bodyMap.get(new UnsignedInteger(16));
+        if (collateralReturnDI != null) {
+            TransactionOutput collateralReturn = TransactionOutput.deserialize(collateralReturnDI);
+            transactionBody.setCollateralReturn(collateralReturn);
+        }
+
+        //total collateral
+        UnsignedInteger totalCollateralUI = (UnsignedInteger) bodyMap.get(new UnsignedInteger(17));
+        if (totalCollateralUI != null) {
+            transactionBody.setTotalCollateral(totalCollateralUI.getValue());
+        }
+
+        //reference inputs
+        Array referenceInputsArray =  (Array)bodyMap.get(new UnsignedInteger(18));
+        if (referenceInputsArray != null) {
+            List<TransactionInput> referenceInputs = new ArrayList<>();
+            for (DataItem inputItem : referenceInputsArray.getDataItems()) {
+                TransactionInput ti = TransactionInput.deserialize((Array) inputItem);
+                referenceInputs.add(ti);
+            }
+            transactionBody.setReferenceInputs(referenceInputs);
         }
 
         return transactionBody;

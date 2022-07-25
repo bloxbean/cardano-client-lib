@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.util.PolicyUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -22,13 +23,14 @@ import static org.hamcrest.Matchers.is;
 
 public class MinAdaCalculatorTest {
 
-    private final BigInteger MIN_UTXO_VALUE = BigInteger.valueOf(1000000);
     private MinAdaCalculator minAdaCalculator;
 
     @BeforeEach
     public void setup() {
         ProtocolParams protocolParams = ProtocolParams.builder()
-                .coinsPerUtxoWord("34482").build();
+                .coinsPerUtxoWord("34482")
+                .coinsPerUtxoSize("4310")
+                .build();
         minAdaCalculator = new MinAdaCalculator(protocolParams);
     }
 
@@ -40,7 +42,7 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(MIN_UTXO_VALUE));
+        assertThat(minAda, is(BigInteger.valueOf(969750)));
     }
 
     @Test
@@ -55,7 +57,7 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(1310316)));
+        assertThat(minAda, is(BigInteger.valueOf(1129220)));
     }
 
     @Test
@@ -71,7 +73,7 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(1344798)));
+        assertThat(minAda, is(BigInteger.valueOf(1133530)));
     }
 
     @Test
@@ -92,18 +94,18 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(1448244)));
+        assertThat(minAda, is(BigInteger.valueOf(1176630)));
     }
 
     @Test
-    public void testCalculateMinAdaWhen2xPolicyIdAnd1x0CharsAssetName() {
+    public void testCalculateMinAdaWhen2xPolicyIdAnd1x0CharsAssetName() throws CborSerializationException {
         TransactionOutput output =  new TransactionOutput();
         output.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
 
         List<MultiAsset> multiAssets = new ArrayList<>();
         for(int i=0; i< 2;i++) {
             MultiAsset multiAsset = new MultiAsset();
-            multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
+            multiAsset.setPolicyId(PolicyUtil.createMultiSigScriptAllPolicy("test", 1).getPolicyId());
             multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(new byte[0], true), BigInteger.valueOf(4000))));
             multiAssets.add(multiAsset);
         }
@@ -112,29 +114,30 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(1482726)));
+        assertThat(minAda, is(BigInteger.valueOf(1280070)));
     }
 
     @Test
-    public void testCalculateMinAdaWhen2xPolicyIdAnd1x1CharsAssetName() {
+    public void testCalculateMinAdaWhen2xPolicyIdAnd1x1CharsAssetName() throws CborSerializationException {
         TransactionOutput output =  new TransactionOutput();
         output.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
 
         List<MultiAsset> multiAssets = new ArrayList<>();
         for(int i=0; i< 2;i++) {
-            MultiAsset multiAsset = new MultiAsset();
-            multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
+           MultiAsset multiAsset = new MultiAsset();
+            multiAsset.setPolicyId(PolicyUtil.createMultiSigScriptAllPolicy("test", 1).getPolicyId());
             multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(getRandomBytes(1), true), BigInteger.valueOf(4000))));
             multiAssets.add(multiAsset);
         }
 
-        output.setValue(new Value(new BigInteger(String.valueOf(40000)), multiAssets));
+        output.setValue(new Value(new BigInteger(String.valueOf(4000000)), multiAssets));
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(1517208)));
+        assertThat(minAda, is(BigInteger.valueOf(1288690)));
     }
 
+    //TODO - reverify with other impl. Other tests are already verified
     @Test
     public void testCalculateMinAdaWhen3xPolicyIdAnd96x1CharsAssetName() throws CborSerializationException {
         TransactionOutput output =  new TransactionOutput();
@@ -164,7 +167,7 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(6896400)));
+        assertThat(minAda, is(BigInteger.valueOf(3460930)));
     }
 
     //TODO - Test cases with datum hash
@@ -188,18 +191,18 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(22137444)));
+        assertThat(minAda, is(BigInteger.valueOf(18657990)));
     }
 
     @Test
-    public void testCalculateMinAdaWhen60xPolicyIdAnd1x32CharsAssetName() {
+    public void testCalculateMinAdaWhen60xPolicyIdAnd1x32CharsAssetName() throws CborSerializationException {
         TransactionOutput output =  new TransactionOutput();
         output.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
 
         List<MultiAsset> multiAssets = new ArrayList<>();
         for(int i=0; i<60; i++) {
             MultiAsset multiAsset = new MultiAsset();
-            multiAsset.setPolicyId("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96");
+            multiAsset.setPolicyId(PolicyUtil.createMultiSigScriptAllPolicy("test", 1).getPolicyId());
             multiAsset.setAssets(Arrays.asList(new Asset(HexUtil.encodeHexString(getRandomBytes(32), true), BigInteger.valueOf(4000))));
             multiAssets.add(multiAsset);
         }
@@ -208,10 +211,11 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(19758186)));
+        assertThat(minAda, is(BigInteger.valueOf(18567480)));
     }
 
     //Tests with few same asset names
+    //TODO - reverify with other impl. Other tests are already verified
     @Test
     public void testCalculateMinAdaWhen3xPolicyIdAnd96x1CharsAssetNameWithFewSameAssetNames() throws CborSerializationException {
         TransactionOutput output =  new TransactionOutput();
@@ -248,7 +252,7 @@ public class MinAdaCalculatorTest {
 
         BigInteger minAda = minAdaCalculator.calculateMinAda(output);
         System.out.println(minAda);
-        assertThat(minAda, is(BigInteger.valueOf(6861918)));
+        assertThat(minAda, is(BigInteger.valueOf(3353180)));
     }
 
     private byte[] getRandomBytes(int size) {

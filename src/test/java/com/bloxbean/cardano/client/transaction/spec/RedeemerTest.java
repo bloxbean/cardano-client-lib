@@ -22,12 +22,19 @@ class RedeemerTest {
                         .mem(BigInteger.valueOf(1700))
                         .steps(BigInteger.valueOf(476468)).build()
                 ).build();
+        Array seArray = redeemer.serialize();
 
-        Array array = redeemer.serialize();
+        Redeemer deRedeemer = Redeemer.deserialize(seArray);
+        Array deArray = deRedeemer.serialize();
 
-        Redeemer deRedeemer = Redeemer.deserialize(array);
+        //ser, deser test
+        assertThat(deArray).isEqualTo(seArray);
 
-        assertThat(deRedeemer).isEqualTo(deRedeemer);
+        //check each individual value (probably unnecessary)
+        assertThat(deRedeemer.getTag()).isEqualTo(RedeemerTag.Spend);
+        assertThat(deRedeemer.getIndex()).isEqualTo(BigInteger.ZERO);
+        assertThat(deRedeemer.getExUnits().getMem()).isEqualTo(BigInteger.valueOf(1700));
+        assertThat(deRedeemer.getExUnits().getSteps()).isEqualTo(BigInteger.valueOf(476468));
+        assertThat(((BigIntPlutusData) deRedeemer.getData()).getValue()).isEqualTo(new BigInteger("2021"));
     }
-
 }

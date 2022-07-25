@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 @Data
 @Builder
@@ -33,7 +34,7 @@ public class ProtocolParams {
     private BigDecimal rho;
     private BigDecimal tau;
     private BigDecimal decentralisationParam;
-    private Object extraEntropy;
+    private String extraEntropy;
     private Integer protocolMajorVer;
     private Integer protocolMinorVer;
     private String minUtxo;
@@ -41,6 +42,7 @@ public class ProtocolParams {
     private String nonce;
 
     //Alonzo changes
+    private Map<String, Map<String, Long>> costModels;
     private BigDecimal priceMem;
     private BigDecimal priceStep;
     private String maxTxExMem;
@@ -50,5 +52,10 @@ public class ProtocolParams {
     private String maxValSize;
     private BigDecimal collateralPercent;
     private Integer maxCollateralInputs;
+
+    //Cost per UTxO word for Alonzo.
+    //Cost per UTxO byte for Babbage and later.
+    private String coinsPerUtxoSize;
+    @Deprecated
     private String coinsPerUtxoWord;
 }

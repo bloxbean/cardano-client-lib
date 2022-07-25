@@ -54,18 +54,24 @@ public class MintCreators {
                 if (script instanceof NativeScript) {
                     if (!transaction.getAuxiliaryData().getNativeScripts().contains(script))
                         transaction.getAuxiliaryData().getNativeScripts().add((NativeScript) script);
-                } else if (script instanceof PlutusScript) {
-                    if (!transaction.getAuxiliaryData().getPlutusScripts().contains(script))
-                        transaction.getAuxiliaryData().getPlutusScripts().add((PlutusScript) script);
+                } else if (script instanceof PlutusV1Script) {
+                    if (!transaction.getAuxiliaryData().getPlutusV1Scripts().contains(script))
+                        transaction.getAuxiliaryData().getPlutusV1Scripts().add((PlutusV1Script) script);
+                } else if (script instanceof PlutusV2Script) {
+                    if (!transaction.getAuxiliaryData().getPlutusV2Scripts().contains(script))
+                        transaction.getAuxiliaryData().getPlutusV2Scripts().add((PlutusV2Script) script);
                 }
             }
 
             if (script instanceof NativeScript) {
                 if (!transaction.getWitnessSet().getNativeScripts().contains(script))
                     transaction.getWitnessSet().getNativeScripts().add((NativeScript) script);
-            } else if (script instanceof PlutusScript) {
-                if (!transaction.getWitnessSet().getPlutusScripts().contains(script))
-                    transaction.getWitnessSet().getPlutusScripts().add((PlutusScript) script);
+            } else if (script instanceof PlutusV1Script) {
+                if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(script))
+                    transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) script);
+            } else if (script instanceof PlutusV2Script) {
+                if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(script))
+                    transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) script);
             }
         };
     }
