@@ -44,9 +44,8 @@ import java.util.*;
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
-import static com.bloxbean.cardano.client.function.helper.ChangeOutputAdjustments.adjustChangeOutput;
+import static com.bloxbean.cardano.client.function.helper.BalanceTxBuilders.balanceTx;
 import static com.bloxbean.cardano.client.function.helper.CollateralBuilders.collateralFrom;
-import static com.bloxbean.cardano.client.function.helper.FeeCalculators.feeCalculator;
 import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromSender;
 import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromUtxos;
 import static com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders.scriptCallContext;
@@ -171,8 +170,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                         throw new ApiRuntimeException("Script cost evaluation failed", e);
                     }
                 })
-                .andThen(feeCalculator(senderAddress, 1))
-                .andThen(adjustChangeOutput(senderAddress)); //Incase change output goes below min ada after fee deduction
+                .andThen(balanceTx(senderAddress, 1));
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
@@ -310,8 +308,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 })
                 .andThen(scriptCallContext(customGuessScript, customGuessUtxo, guess, guess, RedeemerTag.Spend, exUnits))
                 .andThen(scriptCallContext(sumScript, sumScriptUtxo, sumDatum, sumRedeemer, RedeemerTag.Spend, sumExUnits))
-                .andThen(feeCalculator(senderAddress, 1))
-                .andThen(adjustChangeOutput(senderAddress));
+                .andThen(balanceTx(senderAddress, 1));
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
@@ -387,8 +384,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 .andThen(MintCreators.mintCreator(mintScript, multiAsset))
                 .andThen(ScriptCallContextProviders.scriptCallContext(mintScript, null, null, redeemerData, RedeemerTag.Mint, exUnits))
                 .andThen(AuxDataProviders.metadataProvider(metadata))
-                .andThen(FeeCalculators.feeCalculator(senderAddress, 1))
-                .andThen(ChangeOutputAdjustments.adjustChangeOutput(senderAddress, 1));
+                .andThen(BalanceTxBuilders.balanceTx(senderAddress, 1));
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
@@ -456,8 +452,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 .andThen(MintCreators.mintCreator(mintScript, multiAsset))
                 .andThen(ScriptCallContextProviders.scriptCallContext(mintScript, null, null, redeemerData, RedeemerTag.Mint, exUnits))
                 .andThen(AuxDataProviders.metadataProvider(metadata))
-                .andThen(FeeCalculators.feeCalculator(senderAddress, 1))
-                .andThen(ChangeOutputAdjustments.adjustChangeOutput(senderAddress, 1));
+                .andThen(BalanceTxBuilders.balanceTx(senderAddress, 1));
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 

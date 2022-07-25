@@ -1,8 +1,13 @@
 package com.bloxbean.cardano.client.transaction.util;
 
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.transaction.spec.CostMdls;
 import com.bloxbean.cardano.client.transaction.spec.CostModel;
 import com.bloxbean.cardano.client.transaction.spec.Language;
+
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Optional;
 
 public class CostModelUtil {
 
@@ -357,6 +362,11 @@ public class CostModelUtil {
     public final static CostModel PlutusV1CostModel = new CostModel(Language.PLUTUS_V1, plutusV1Costs);
     public final static CostModel PlutusV2CostModel = new CostModel(Language.PLUTUS_V2, plutusV2Costs);
 
+    /**
+     * Get language view encoding for costmodels
+     * @param costModels
+     * @return Language view encoding in bytes
+     */
     public static byte[] getLanguageViewsEncoding(CostModel... costModels) {
         CostMdls costMdls = new CostMdls();
         for (CostModel cm : costModels) {
@@ -364,5 +374,36 @@ public class CostModelUtil {
         }
 
         return costMdls.getLanguageViewEncoding();
+    }
+
+    /**
+     * Get costmodel for a language from protocol parameters.
+     * @param protocolParams
+     * @param language
+     * @return Optional with costmodel if found, otherwise Optional.empty()
+     */
+    public static Optional<CostModel> getCostModelFromProtocolParams(ProtocolParams protocolParams, Language language) {
+        String languageKey = null;
+        if (language == Language.PLUTUS_V1) {
+            languageKey = "PlutusV1";
+        } else if (language == Language.PLUTUS_V2) {
+            languageKey = "PlutusV2";
+        }
+
+        if (protocolParams.getCostModels() == null)
+            return Optional.empty();
+
+        Map<String, Map<String, Long>> costModels = protocolParams.getCostModels();
+        Map<String, Long> costModelMap = costModels.get(languageKey);
+        if (costModelMap == null)
+            return Optional.empty();
+
+        long[] costModel = costModelMap.entrySet().stream()
+                .sorted(Comparator.comparing(Map.Entry::getKey))
+                .map(e -> e.getValue())
+                .mapToLong(x -> x)
+                .toArray();
+
+        return Optional.of(new CostModel(language, costModel));
     }
 }

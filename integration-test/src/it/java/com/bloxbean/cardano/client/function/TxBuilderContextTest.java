@@ -2,11 +2,11 @@ package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.BaseITTest;
-import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
@@ -35,8 +35,7 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static com.bloxbean.cardano.client.function.helper.AuxDataProviders.metadataProvider;
-import static com.bloxbean.cardano.client.function.helper.ChangeOutputAdjustments.adjustChangeOutput;
-import static com.bloxbean.cardano.client.function.helper.FeeCalculators.feeCalculator;
+import static com.bloxbean.cardano.client.function.helper.BalanceTxBuilders.balanceTx;
 import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromSender;
 import static com.bloxbean.cardano.client.function.helper.MintCreators.mintCreator;
 import static com.bloxbean.cardano.client.function.helper.OutputBuilders.createFromMintOutput;
@@ -254,8 +253,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .buildInputs(createFromSender(senderAddress, senderAddress))
                         .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
-                        .andThen(feeCalculator(senderAddress, 2))
-                        .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
+                        .andThen(balanceTx(senderAddress, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
@@ -352,8 +350,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .buildInputs(createFromSender(senderAddress, senderAddress))
                         .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
-                        .andThen(feeCalculator(senderAddress, 2))
-                        .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
+                        .andThen(balanceTx(senderAddress, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
@@ -467,8 +464,7 @@ public class TxBuilderContextTest extends BaseITTest {
                         .buildInputs(createFromSender(senderAddress, senderAddress))
                         .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
-                        .andThen(feeCalculator(senderAddress, 2))
-                        .andThen(adjustChangeOutput(senderAddress, 2)); //any adjustment in change output
+                        .andThen(balanceTx(senderAddress, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
@@ -527,8 +523,7 @@ public class TxBuilderContextTest extends BaseITTest {
                 .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
                 .andThen(MintCreators.mintCreator(policy.getPolicyScript(), multiAsset))
                 .andThen(AuxDataProviders.metadataProvider(metadata))
-                .andThen(FeeCalculators.feeCalculator(senderAddress, 2))
-                .andThen(ChangeOutputAdjustments.adjustChangeOutput(senderAddress, 2));
+                .andThen(BalanceTxBuilders.balanceTx(senderAddress, 2));
 
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
