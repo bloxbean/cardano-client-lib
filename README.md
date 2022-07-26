@@ -11,6 +11,8 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 **Latest Stable Version**: [0.2.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0)
 
+**Latest Beta Version**: [0.3.0-beta2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.3.0-beta2) (Vasil HF support. **TESTNET** compatible)
+
 **Posts**
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
 - [Cardano-client-lib: Transaction with Metadata in Java - Part II](https://medium.com/p/fa34f403b90e)
@@ -169,7 +171,7 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0'
 
 ### For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.3.0-beta1-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+**SNAPSHOT_VERSION :** 0.3.0-beta3-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```
