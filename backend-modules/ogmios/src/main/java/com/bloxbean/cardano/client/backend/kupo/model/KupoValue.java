@@ -18,6 +18,6 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class KupoValue {
-    private BigInteger coin;
+    private BigInteger coins;
     private Map<String, BigInteger> assets;
 }

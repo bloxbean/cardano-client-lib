@@ -9,6 +9,6 @@ import java.util.List;
 
 public interface MatchesApi {
 
-    @GET("v1/matches/{pattern}")
-    Call<List<KupoUtxo>> getMatches(@Path("pattern") String pattern);
+    @GET("v1/matches/{pattern}?unspent")
+    Call<List<KupoUtxo>> getUnspentMatches(@Path("pattern") String pattern);
 }

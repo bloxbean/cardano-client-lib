@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.backend.api.*;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.concurrent.TimeUnit;
 
 public class OgmiosBackendService implements BackendService {
     String url;
@@ -14,9 +15,11 @@ public class OgmiosBackendService implements BackendService {
         this.url = url;
         try {
             wsClient = new OgmiosWSClient(new URI(url));
-            wsClient.connect();
+            wsClient.connectBlocking(20, TimeUnit.SECONDS);
         } catch (URISyntaxException e) {
             throw new ApiRuntimeException("Invalid Ogmios url : ", e);
+        } catch (InterruptedException e) {
+            throw new ApiRuntimeException(e);
         }
     }
 
@@ -57,7 +60,7 @@ public class OgmiosBackendService implements BackendService {
 
     @Override
     public EpochService getEpochService() {
-        throw new UnsupportedOperationException("Not supported yet");
+        return new OgmiosEpochService(wsClient);
     }
 
     @Override

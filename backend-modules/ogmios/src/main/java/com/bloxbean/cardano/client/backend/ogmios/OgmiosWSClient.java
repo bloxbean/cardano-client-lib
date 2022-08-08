@@ -3,7 +3,10 @@ package com.bloxbean.cardano.client.backend.ogmios;
 import com.bloxbean.cardano.client.backend.ogmios.model.base.Message;
 import com.bloxbean.cardano.client.backend.ogmios.model.base.Request;
 import com.bloxbean.cardano.client.backend.ogmios.model.base.Response;
+import com.bloxbean.cardano.client.backend.ogmios.model.base.iface.LocalStateQuery;
 import com.bloxbean.cardano.client.backend.ogmios.model.base.iface.LocalTxSubmission;
+import com.bloxbean.cardano.client.backend.ogmios.model.query.request.CurrentProtocolParametersRequest;
+import com.bloxbean.cardano.client.backend.ogmios.model.query.response.CurrentProtocolParameters;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.request.EvaluateTxRequest;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.request.SubmitTxRequest;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.response.EvaluateTxResponse;
@@ -21,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-class OgmiosWSClient extends WebSocketClient implements LocalTxSubmission {
+class OgmiosWSClient extends WebSocketClient implements LocalTxSubmission, LocalStateQuery {
 
     private static final long TIMEOUT = 5; // Sec
     private final AtomicLong msgId = new AtomicLong();
@@ -98,5 +101,10 @@ class OgmiosWSClient extends WebSocketClient implements LocalTxSubmission {
             return (EvaluateTxResponse) response;
         else
             throw new RuntimeException(response.toString());
+    }
+
+    @Override
+    public CurrentProtocolParameters currentProtocolParameters() {
+        return (CurrentProtocolParameters) send(new CurrentProtocolParametersRequest());
     }
 }

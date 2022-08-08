@@ -43,7 +43,7 @@ public class KupoUtxoService extends KupoBaseService implements UtxoService {
         if (page != 1)
             return Result.success("OK").withValue(Collections.emptyList()).code(200);
 
-        Call<List<KupoUtxo>> utxosCall = matchesApi.getMatches(address);
+        Call<List<KupoUtxo>> utxosCall = matchesApi.getUnspentMatches(address);
 
         try {
             Response<List<KupoUtxo>> response = utxosCall.execute();
@@ -56,11 +56,14 @@ public class KupoUtxoService extends KupoBaseService implements UtxoService {
                     utxo.setTxHash(kupoUtxo.getTransactionId());
                     utxo.setOutputIndex(kupoUtxo.getOutputIndex());
                     utxo.setDataHash(kupoUtxo.getDataHash());
+                    utxo.setReferenceScriptHash(kupoUtxo.getScriptHash());
                     List<Amount> amountList = new ArrayList<>();
-                    amountList.add(new Amount(LOVELACE, kupoUtxo.getValue().getCoin()));
+                    amountList.add(new Amount(LOVELACE, kupoUtxo.getValue().getCoins()));
 
                     Map<String, BigInteger> assets = kupoUtxo.getValue().getAssets();
                     assets.forEach((unit, value) -> {
+                        //replace . in kupo utxo
+                        unit = unit.replace(".", "");
                         Amount amount = new Amount(unit, value);
                         amountList.add(amount);
                     });

@@ -20,4 +20,5 @@ public class KupoUtxo {
     private String address;
     private KupoValue value;
     private String dataHash;
+    private String scriptHash;
 }

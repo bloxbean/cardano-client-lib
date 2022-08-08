@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.backend.ogmios.model.base;
 
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
+import com.bloxbean.cardano.client.backend.ogmios.model.query.request.QueryType;
+import com.bloxbean.cardano.client.backend.ogmios.model.query.response.QueryResponse;
 import com.bloxbean.cardano.client.backend.ogmios.util.JsonHelper;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.response.EvaluateTxResponse;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.response.SubmitTxResponse;
@@ -43,6 +45,10 @@ public class Message {
                         return SubmitTxResponse.deserialize(msgId, rawResponse.getResult());
                     case EVALUATE_TX:
                         return EvaluateTxResponse.deserialize(msgId, rawResponse.getResult());
+                    case QUERY: {
+                        QueryType queryType = QueryType.convert(rawResponse.getReflection().get("object").asText());
+                        return QueryResponse.parse(queryType, msgId, rawResponse.getResult());
+                    }
                 }
             }
 

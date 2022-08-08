@@ -8,7 +8,7 @@ import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.response.EvaluateTxResponse;
 import com.bloxbean.cardano.client.backend.ogmios.model.tx.response.SubmitTxResponse;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -27,7 +27,7 @@ public class OgmiosTransactionService implements TransactionService {
     }
 
     @Override
-    public Result<String> submitTransaction(byte[] cborData) throws ApiException {
+    public Result<String> submitTransaction(byte[] cborData) {
         SubmitTxResponse submitTxResponse = client.submitTx(cborData);
 
         if (submitTxResponse.getSubmitFail() == null) {
@@ -52,7 +52,6 @@ public class OgmiosTransactionService implements TransactionService {
     @Override
     public Result<List<EvaluationResult>> evaluateTx(byte[] cborData) throws ApiException {
         EvaluateTxResponse evaluateTxResponse = client.evaluateTx(cborData);
-        System.out.println(evaluateTxResponse.toString());
 
         if (evaluateTxResponse.getEvaluationFailure() == null) {
             return Result.success("OK").withValue(evaluateTxResponse.getEvaluationResults()).code(200);
@@ -67,7 +66,7 @@ public class OgmiosTransactionService implements TransactionService {
         try {
             Transaction transaction = Transaction.deserialize(cbor);
             String txHash = HexUtil.encodeHexString(
-                    KeyGenUtil.blake2bHash256(CborSerializationUtil.serialize(transaction.getBody().serialize())));
+                    Blake2bUtil.blake2bHash256(CborSerializationUtil.serialize(transaction.getBody().serialize())));
 
             return txHash;
         } catch (Exception e) {
