@@ -108,14 +108,13 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         System.out.println("Script Address: " + scriptAddress);
 
         Guess guess = new Guess(Integer.valueOf(42));
-
-        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, scriptAddress, guess);
+        Optional<Utxo> utxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, scriptAddress, guess);
         //Start contract transaction to claim fund
         if (!utxoOptional.isPresent()) {
             System.out.println("No utxo found...Let's transfer some Ada to script address");
             boolean paymentSuccessful = transferToContractAddress(sender, scriptAddress, adaToLovelace(5),
                     Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(guess).getDatumHash(), collateral, collateralIndex);
-            utxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, scriptAddress, guess);
+            utxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, scriptAddress, guess);
             assertTrue(paymentSuccessful);
         }
 
@@ -223,13 +222,13 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         Guess guess = new Guess(Integer.valueOf(42));
 
-        Optional<Utxo> customGuessUtxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, customGuessScriptAddress, guess);
+        Optional<Utxo> customGuessUtxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, customGuessScriptAddress, guess);
         //Start contract transaction to claim fund
         if (!customGuessUtxoOptional.isPresent()) {
             System.out.println("No utxo found...Let's transfer some Ada to script address");
             boolean paymentSuccessful = transferToContractAddress(sender, customGuessScriptAddress, adaToLovelace(5),
                     Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(guess).getDatumHash(), collateral, collateralIndex);
-            customGuessUtxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, customGuessScriptAddress, guess);
+            customGuessUtxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, customGuessScriptAddress, guess);
             assertTrue(paymentSuccessful);
         }
 
@@ -246,14 +245,14 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         String sumScriptAddress = AddressService.getInstance().getEntAddress(sumScript, Networks.testnet()).getAddress();
         System.out.println("Sum Script Address: " + sumScriptAddress);
 
-        Optional<Utxo> sumUtxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, sumScriptAddress, sumDatum);
+        Optional<Utxo> sumUtxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, sumScriptAddress, sumDatum);
         //Start contract transaction to claim fund
         if (!sumUtxoOptional.isPresent()) {
             System.out.println("No utxo found for sum contract...Let's transfer some Ada to script address");
             System.out.println("Sum Datum hash >>> " + Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(sumDatum).getDatumHash());
             boolean paymentSuccessful = transferToContractAddress(sender, sumScriptAddress, adaToLovelace(6),
                     Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(sumDatum).getDatumHash(), collateral, collateralIndex);
-            sumUtxoOptional = ScriptUtxoFinders.findFirstByDatum(utxoSupplier, sumScriptAddress, sumDatum);
+            sumUtxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, sumScriptAddress, sumDatum);
             assertTrue(paymentSuccessful);
         }
 
