@@ -2,7 +2,8 @@ package com.bloxbean.cardano.client.backend.ogmios.model.base;
 
 public enum MethodType {
     SUBMIT_TX("SubmitTx"),
-    EVALUATE_TX("EvaluateTx");
+    EVALUATE_TX("EvaluateTx"),
+    QUERY("Query");
 
     private final String value;
 

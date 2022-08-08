@@ -17,7 +17,7 @@ public class OgmiosTransactionServiceIT extends OgmiosBaseTest {
 
     @BeforeEach
     public void setup() {
-        transactionService = (OgmiosTransactionService) backendService.getTransactionService();
+        transactionService = (OgmiosTransactionService) ogmiosBackendService.getTransactionService();
     }
 
     @Test
