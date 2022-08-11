@@ -2,22 +2,26 @@ package com.bloxbean.cardano.client.backend.ogmios;
 
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.api.*;
+import io.adabox.client.OgmiosWSClient;
 
+import javax.net.ssl.SSLSocketFactory;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 
 public class OgmiosBackendService implements BackendService {
-    String url;
-    private OgmiosWSClient wsClient;
+
+    private final OgmiosWSClient wsClient;
 
     public OgmiosBackendService(String url) {
-        this.url = url;
         try {
             wsClient = new OgmiosWSClient(new URI(url));
+            if (url.startsWith("wss://")) {
+                wsClient.setSocketFactory(SSLSocketFactory.getDefault());
+            }
             wsClient.connectBlocking(20, TimeUnit.SECONDS);
         } catch (URISyntaxException e) {
-            throw new ApiRuntimeException("Invalid Ogmios url : ", e);
+            throw new ApiRuntimeException("Invalid Ogmios URL: ", e);
         } catch (InterruptedException e) {
             throw new ApiRuntimeException(e);
         }
