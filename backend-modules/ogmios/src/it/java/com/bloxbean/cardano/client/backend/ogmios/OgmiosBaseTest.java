@@ -7,7 +7,7 @@ public class OgmiosBaseTest {
     protected KupoUtxoService kupoUtxoService;
 
     public OgmiosBaseTest() {
-        this.ogmiosBackendService = new OgmiosBackendService("ws://192.168.0.228:1337");
+        this.ogmiosBackendService = new OgmiosBackendService(Constants.OGMIOS_DANDELION_TESTNET_URL);
         this.kupoUtxoService = new KupoUtxoService("http://192.168.0.228:1442");
     }
 }
