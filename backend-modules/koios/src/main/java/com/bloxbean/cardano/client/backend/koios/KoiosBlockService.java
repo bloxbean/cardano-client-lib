@@ -61,14 +61,14 @@ public class KoiosBlockService implements BlockService {
 
     private Result<Block> convertToBlock(List<rest.koios.client.backend.api.block.model.Block> blocks) {
         Block block = new Block();
-        block.setTime(Long.parseLong(blocks.get(0).getBlockTime().split("\\.")[0]));
+        block.setTime(blocks.get(0).getBlockTime());
         block.setHeight(blocks.get(0).getBlockHeight());
         block.setHash(blocks.get(0).getHash());
         block.setSlot(blocks.get(0).getAbsSlot());
         block.setEpoch(blocks.get(0).getEpoch());
         block.setEpochSlot(blocks.get(0).getEpochSlot());
         block.setSlotLeader(blocks.get(0).getPool());
-        block.setSize(Math.toIntExact(blocks.get(0).getBlockSize()));
+        block.setSize(blocks.get(0).getBlockSize());
         block.setTxCount(blocks.get(0).getTxCount());
         block.setBlockVrf(blocks.get(0).getVrfKey());
         block.setPreviousBlock(blocks.get(1).getHash());
@@ -77,21 +77,21 @@ public class KoiosBlockService implements BlockService {
 
     private Result<Block> convertToBlock(BlockInfo blockInfo) throws ParseException {
         Block block = new Block();
-        block.setTime(Long.parseLong(blockInfo.getBlockTime().split("\\.")[0]));
+        block.setTime(blockInfo.getBlockTime());
         block.setHeight(blockInfo.getBlockHeight());
         block.setHash(blockInfo.getHash());
         block.setSlot(blockInfo.getAbsSlot());
         block.setEpoch(blockInfo.getEpochNo());
         block.setEpochSlot(blockInfo.getEpochSlot());
         block.setSlotLeader(blockInfo.getPool());
-        block.setSize(Math.toIntExact(blockInfo.getBlockSize()));
+        block.setSize(blockInfo.getBlockSize());
         block.setTxCount(blockInfo.getTxCount());
         block.setOutput(blockInfo.getTotalOutput());
         block.setFees(blockInfo.getTotalFees());
         block.setBlockVrf(blockInfo.getVrfKey());
         block.setPreviousBlock(blockInfo.getParentHash());
         block.setNextBlock(blockInfo.getChildHash());
-        block.setConfirmations(Math.toIntExact(blockInfo.getNumConfirmations()));
+        block.setConfirmations(blockInfo.getNumConfirmations());
         return Result.success("OK").withValue(block).code(200);
     }
 

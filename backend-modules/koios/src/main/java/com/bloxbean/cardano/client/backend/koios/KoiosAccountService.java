@@ -85,7 +85,7 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
         if (accountRewardsList != null) {
             accountRewardsList.forEach(accountRewards -> {
                 AccountRewardsHistory accountRewardsHistory = new AccountRewardsHistory();
-                accountRewardsHistory.setEpoch(Math.toIntExact(accountRewards.getEarnedEpoch()));
+                accountRewardsHistory.setEpoch(accountRewards.getEarnedEpoch());
                 accountRewardsHistory.setPoolId(accountRewards.getPoolId());
                 accountRewardsHistory.setType(accountRewards.getType());
                 accountRewardsHistory.setAmount(accountRewards.getAmount());

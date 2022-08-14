@@ -118,7 +118,7 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
             addressTransactionContent.setTxHash(txHash.getTxHash());
 //            addressTransactionContent.setTxIndex(); TODO
             addressTransactionContent.setBlockHeight(txHash.getBlockHeight());
-            addressTransactionContent.setBlockTime(Long.parseLong(txHash.getBlockTime().split("\\.")[0]));
+            addressTransactionContent.setBlockTime(txHash.getBlockTime());
             addressTransactionContents.add(addressTransactionContent);
         }
         return Result.success("OK").withValue(addressTransactionContents).code(200);
