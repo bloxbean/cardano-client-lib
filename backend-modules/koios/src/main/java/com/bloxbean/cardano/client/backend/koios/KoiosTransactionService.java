@@ -12,8 +12,14 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
+/**
+ * Koios Transaction Service
+ */
 public class KoiosTransactionService implements TransactionService {
 
+    /**
+     * Transaction Service
+     */
     private final TransactionsService transactionsService;
 
     public KoiosTransactionService(TransactionsService transactionsService) {

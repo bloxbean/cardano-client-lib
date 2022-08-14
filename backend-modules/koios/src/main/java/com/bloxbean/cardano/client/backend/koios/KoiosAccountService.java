@@ -14,8 +14,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Koios Account Service
+ */
 public class KoiosAccountService implements com.bloxbean.cardano.client.backend.api.AccountService {
 
+    /**
+     * Account Service
+     */
     private final AccountService accountService;
 
     public KoiosAccountService(AccountService accountService) {

@@ -14,8 +14,14 @@ import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.List;
 
+/**
+ * Koios Block Service
+ */
 public class KoiosBlockService implements BlockService {
 
+    /**
+     * Block Service
+     */
     private final rest.koios.client.backend.api.block.BlockService blockService;
 
     public KoiosBlockService(rest.koios.client.backend.api.block.BlockService blockService) {

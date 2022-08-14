@@ -7,8 +7,14 @@ import rest.koios.client.backend.api.network.NetworkService;
 
 import java.math.BigDecimal;
 
+/**
+ * Koios Network Service
+ */
 public class KoiosNetworkService implements NetworkInfoService {
 
+    /**
+     * Network Service
+     */
     private final NetworkService networkService;
 
     public KoiosNetworkService(NetworkService networkService) {

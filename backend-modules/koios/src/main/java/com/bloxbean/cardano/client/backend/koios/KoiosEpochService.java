@@ -15,10 +15,20 @@ import rest.koios.client.backend.factory.options.SortType;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Koios Epoch Service
+ */
 public class KoiosEpochService implements EpochService {
 
+    /**
+     * Epoch Service
+     */
     private final rest.koios.client.backend.api.epoch.EpochService epochService;
 
+    /**
+     * Koios Service Constructor
+     * @param epochService Koios Epoch Service
+     */
     public KoiosEpochService(rest.koios.client.backend.api.epoch.EpochService epochService) {
         this.epochService = epochService;
     }

@@ -19,8 +19,14 @@ import rest.koios.client.backend.factory.options.Options;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Koios Asset Service
+ */
 public class KoiosAssetService implements AssetService {
 
+    /**
+     * Object Mapper
+     */
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final rest.koios.client.backend.api.asset.AssetService assetService;
 

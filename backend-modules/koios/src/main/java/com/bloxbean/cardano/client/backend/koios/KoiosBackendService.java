@@ -3,8 +3,14 @@ package com.bloxbean.cardano.client.backend.koios;
 import com.bloxbean.cardano.client.backend.api.*;
 import rest.koios.client.backend.factory.impl.BackendServiceImpl;
 
+/**
+ * Koios Backend Service
+ */
 public class KoiosBackendService implements BackendService {
 
+    /**
+     * Koios Backend Service Implementation
+     */
     private final BackendServiceImpl backendServiceImpl;
 
     public KoiosBackendService(String baseUrl) {

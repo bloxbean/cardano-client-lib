@@ -19,9 +19,19 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Koios Metadata Service
+ */
 public class KoiosMetadataService implements MetadataService {
 
+    /**
+     * Object Mapper
+     */
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * Transaction Service
+     */
     private final TransactionsService transactionsService;
 
     public KoiosMetadataService(TransactionsService transactionsService) {
