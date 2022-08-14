@@ -20,6 +20,7 @@ public interface SigningProvider {
      * @return Signature
      * @deprecated use {@link #signExtended(byte[], byte[])} instead.
      */
+    @Deprecated
     byte[] signExtended(byte[] message, byte[] privateKey, byte[] publicKey);
 
     /**
