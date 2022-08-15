@@ -19,8 +19,14 @@ import rest.koios.client.backend.factory.options.Options;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Koios Asset Service
+ */
 public class KoiosAssetService implements AssetService {
 
+    /**
+     * Object Mapper
+     */
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final rest.koios.client.backend.api.asset.AssetService assetService;
 
@@ -51,8 +57,8 @@ public class KoiosAssetService implements AssetService {
         asset.setQuantity(assetInformation.getTotalSupply());
         asset.setInitialMintTxHash(assetInformation.getMintingTxHash());
         asset.setMintOrBurnCount(assetInformation.getMintCnt() + assetInformation.getBurnCnt());
-        if (assetInformation.getMintingTxMetadata() != null) {
-            JsonNode jsonNode = objectMapper.convertValue(assetInformation.getMintingTxMetadata().getJson(), JsonNode.class);
+        if (assetInformation.getMintingTxMetadata() != null && !assetInformation.getMintingTxMetadata().isEmpty()) {
+            JsonNode jsonNode = assetInformation.getMintingTxMetadata().get(0).getJson();
             if (jsonNode.get(assetInformation.getPolicyId()) != null && jsonNode.get(assetInformation.getPolicyId()).get(assetInformation.getAssetNameAscii()) != null) {
                 asset.setOnchainMetadata(jsonNode.get(assetInformation.getPolicyId()).get(assetInformation.getAssetNameAscii()));
             }

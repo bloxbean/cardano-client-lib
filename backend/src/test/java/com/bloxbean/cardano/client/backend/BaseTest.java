@@ -17,8 +17,7 @@ public class BaseTest {
     protected String protocolParamJsonFile;
 
     protected List<Utxo> loadUtxos(String key) throws IOException {
-        TypeReference<HashMap<String, List<Utxo>>> typeRef
-                = new TypeReference<HashMap<String, List<Utxo>>>() {};
+        TypeReference<HashMap<String, List<Utxo>>> typeRef = new TypeReference<>() {};
         Map<String, List<Utxo>> map = objectMapper.readValue(this.getClass().getClassLoader().getResourceAsStream(utxoJsonFile), typeRef);
         return map.getOrDefault(key, Collections.emptyList());
     }

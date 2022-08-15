@@ -7,8 +7,14 @@ import rest.koios.client.backend.api.network.NetworkService;
 
 import java.math.BigDecimal;
 
+/**
+ * Koios Network Service
+ */
 public class KoiosNetworkService implements NetworkInfoService {
 
+    /**
+     * Network Service
+     */
     private final NetworkService networkService;
 
     public KoiosNetworkService(NetworkService networkService) {
@@ -29,7 +35,7 @@ public class KoiosNetworkService implements NetworkInfoService {
             genesis.setMaxLovelaceSupply(gen.getMaxlovelacesupply());
             genesis.setNetworkMagic(Integer.valueOf(gen.getNetworkmagic()));
             genesis.setEpochLength(Integer.valueOf(gen.getEpochlength()));
-            genesis.setSystemStart(Integer.parseInt(gen.getSystemstart().split("\\.")[0]));
+            genesis.setSystemStart(gen.getSystemstart());
             genesis.setSlotsPerKesPeriod(Integer.valueOf(gen.getSlotsperkesperiod()));
             genesis.setSlotLength(Integer.valueOf(gen.getSlotlength()));
             genesis.setMaxKesEvolutions(Integer.valueOf(gen.getMaxkesrevolutions()));

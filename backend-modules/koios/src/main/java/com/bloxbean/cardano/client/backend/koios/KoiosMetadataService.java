@@ -19,9 +19,19 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Koios Metadata Service
+ */
 public class KoiosMetadataService implements MetadataService {
 
+    /**
+     * Object Mapper
+     */
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * Transaction Service
+     */
     private final TransactionsService transactionsService;
 
     public KoiosMetadataService(TransactionsService transactionsService) {
@@ -62,7 +72,7 @@ public class KoiosMetadataService implements MetadataService {
     public Result<List<MetadataLabel>> getMetadataLabels(int count, int page, OrderEnum order) throws ApiException {
         try {
             Options options = Options.builder().option(Limit.of(count)).option(Offset.of((long) (page - 1) * count))
-                    .option(Order.by("metalabel", order == OrderEnum.desc ? SortType.DESC : SortType.ASC)).build();
+                    .option(Order.by("key", order == OrderEnum.desc ? SortType.DESC : SortType.ASC)).build();
             rest.koios.client.backend.api.base.Result<List<TxMetadataLabels>> txMetadataLabelsResult =
                     transactionsService.getTransactionMetadataLabels(options);
             if (!txMetadataLabelsResult.isSuccessful()) {
@@ -76,7 +86,7 @@ public class KoiosMetadataService implements MetadataService {
 
     private Result<List<MetadataLabel>> convertToMetadataLabels(List<TxMetadataLabels> txMetadataLabels) {
         List<MetadataLabel> metadataLabels = new ArrayList<>();
-        txMetadataLabels.forEach(txMetadataLabel -> metadataLabels.add(new MetadataLabel(txMetadataLabel.getMetalabel().toString(), null, null)));
+        txMetadataLabels.forEach(txMetadataLabel -> metadataLabels.add(new MetadataLabel(txMetadataLabel.getKey(), null, null)));
         return Result.success("OK").withValue(metadataLabels).code(200);
     }
 

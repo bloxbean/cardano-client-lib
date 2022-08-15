@@ -12,8 +12,14 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
+/**
+ * Koios Transaction Service
+ */
 public class KoiosTransactionService implements TransactionService {
 
+    /**
+     * Transaction Service
+     */
     private final TransactionsService transactionsService;
 
     public KoiosTransactionService(TransactionsService transactionsService) {
@@ -56,7 +62,7 @@ public class KoiosTransactionService implements TransactionService {
         transactionContent.setHash(txInfo.getTxHash());
         transactionContent.setBlock(txInfo.getBlockHash());
         transactionContent.setBlockHeight(txInfo.getBlockHeight());
-        transactionContent.setBlockTime(Integer.parseInt(txInfo.getTxTimestamp().split("\\.")[0]));
+        transactionContent.setBlockTime(txInfo.getTxTimestamp());
         transactionContent.setSlot(txInfo.getAbsoluteSlot());
         transactionContent.setIndex(txInfo.getTxBlockIndex());
         List<TxOutputAmount> txOutputAmountList = new ArrayList<>();
@@ -67,8 +73,8 @@ public class KoiosTransactionService implements TransactionService {
             }
         }
         transactionContent.setOutputAmount(txOutputAmountList);
-        transactionContent.setFees(String.valueOf(txInfo.getFee()));
-        transactionContent.setDeposit(String.valueOf(txInfo.getDeposit()));
+        transactionContent.setFees(txInfo.getFee());
+        transactionContent.setDeposit(txInfo.getDeposit());
         transactionContent.setSize(txInfo.getTxSize());
         if (txInfo.getInvalidBefore() != null) {
             transactionContent.setInvalidBefore(String.valueOf(txInfo.getInvalidBefore()));

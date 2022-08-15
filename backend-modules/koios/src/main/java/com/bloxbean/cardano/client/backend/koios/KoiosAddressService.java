@@ -18,8 +18,14 @@ import rest.koios.client.backend.factory.options.filters.FilterType;
 import java.text.ParseException;
 import java.util.*;
 
+/**
+ * Koios Address Service
+ */
 public class KoiosAddressService implements com.bloxbean.cardano.client.backend.api.AddressService {
 
+    /**
+     * Address Service
+     */
     private final AddressService addressService;
 
     public KoiosAddressService(AddressService addressService) {
@@ -112,7 +118,7 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
             addressTransactionContent.setTxHash(txHash.getTxHash());
 //            addressTransactionContent.setTxIndex(); TODO
             addressTransactionContent.setBlockHeight(txHash.getBlockHeight());
-            addressTransactionContent.setBlockTime(Long.parseLong(txHash.getBlockTime().split("\\.")[0]));
+            addressTransactionContent.setBlockTime(txHash.getBlockTime());
             addressTransactionContents.add(addressTransactionContent);
         }
         return Result.success("OK").withValue(addressTransactionContents).code(200);

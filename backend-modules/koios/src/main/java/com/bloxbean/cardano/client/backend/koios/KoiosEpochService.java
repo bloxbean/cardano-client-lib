@@ -15,10 +15,20 @@ import rest.koios.client.backend.factory.options.SortType;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Koios Epoch Service
+ */
 public class KoiosEpochService implements EpochService {
 
+    /**
+     * Epoch Service
+     */
     private final rest.koios.client.backend.api.epoch.EpochService epochService;
 
+    /**
+     * Koios Service Constructor
+     * @param epochService Koios Epoch Service
+     */
     public KoiosEpochService(rest.koios.client.backend.api.epoch.EpochService epochService) {
         this.epochService = epochService;
     }
@@ -41,7 +51,7 @@ public class KoiosEpochService implements EpochService {
     @Override
     public Result<EpochContent> getEpoch(Integer epoch) throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<EpochInfo> epochInformationResult = epochService.getEpochInformationByEpoch(Long.valueOf(epoch));
+            rest.koios.client.backend.api.base.Result<EpochInfo> epochInformationResult = epochService.getEpochInformationByEpoch(epoch);
             if (!epochInformationResult.isSuccessful()) {
                 return Result.error(epochInformationResult.getResponse()).code(epochInformationResult.getCode());
             }
@@ -54,7 +64,7 @@ public class KoiosEpochService implements EpochService {
     @Override
     public Result<ProtocolParams> getProtocolParameters(Integer epoch) throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<EpochParams> epochParametersResult = epochService.getEpochParametersByEpoch(Long.valueOf(epoch));
+            rest.koios.client.backend.api.base.Result<EpochParams> epochParametersResult = epochService.getEpochParametersByEpoch(epoch);
             if (!epochParametersResult.isSuccessful()) {
                 return Result.error(epochParametersResult.getResponse()).code(epochParametersResult.getCode());
             }
@@ -82,69 +92,75 @@ public class KoiosEpochService implements EpochService {
 
     private Result<EpochContent> convertToEpochContent(EpochInfo epochInfo) {
         EpochContent epochContent = new EpochContent();
-        epochContent.setEpoch(Math.toIntExact(epochInfo.getEpochNo()));
-        epochContent.setStartTime(Long.parseLong(epochInfo.getStartTime().split("\\.")[0]));
-        epochContent.setEndTime(Long.parseLong(epochInfo.getEndTime().split("\\.")[0]));
-        epochContent.setFirstBlockTime(Long.parseLong(epochInfo.getFirstBlockTime().split("\\.")[0]));
-        epochContent.setLastBlockTime(Long.parseLong(epochInfo.getLastBlockTime().split("\\.")[0]));
+        epochContent.setEpoch(epochInfo.getEpochNo());
+        epochContent.setStartTime(epochInfo.getStartTime());
+        epochContent.setEndTime(epochInfo.getEndTime());
+        epochContent.setFirstBlockTime(epochInfo.getFirstBlockTime());
+        epochContent.setLastBlockTime(epochInfo.getLastBlockTime());
         epochContent.setBlockCount(epochInfo.getBlkCount());
-        epochContent.setTxCount(Math.toIntExact(epochInfo.getTxCount()));
-        epochContent.setOutput(String.valueOf(epochInfo.getOutSum()));
-        epochContent.setFees(String.valueOf(epochInfo.getFees()));
-        epochContent.setActiveStake(String.valueOf(epochInfo.getActiveStake()));
+        epochContent.setTxCount(epochInfo.getTxCount());
+        epochContent.setOutput(epochInfo.getOutSum());
+        epochContent.setFees(epochInfo.getFees());
+        epochContent.setActiveStake(epochInfo.getActiveStake());
         return Result.success("OK").withValue(epochContent).code(200);
     }
 
-    private Result<ProtocolParams> convertToProtocolParams(EpochParams epochInfo) {
+    private Result<ProtocolParams> convertToProtocolParams(EpochParams epochParams) {
         ProtocolParams protocolParams = new ProtocolParams();
-        protocolParams.setMinFeeA(epochInfo.getMinFeeA());
-        protocolParams.setMinFeeB(epochInfo.getMinFeeB());
-        protocolParams.setMaxBlockSize(epochInfo.getMaxBlockSize());
-        protocolParams.setMaxTxSize(epochInfo.getMaxTxSize());
-        protocolParams.setMaxBlockHeaderSize(epochInfo.getMaxBhSize());
-        protocolParams.setKeyDeposit(String.valueOf(epochInfo.getKeyDeposit()));
-        protocolParams.setPoolDeposit(String.valueOf(epochInfo.getPoolDeposit()));
-        protocolParams.setEMax(epochInfo.getMaxEpoch());
-        protocolParams.setNOpt(epochInfo.getOptimalPoolCount());
-        protocolParams.setA0(BigDecimal.valueOf(epochInfo.getInfluence()));
-        protocolParams.setRho(BigDecimal.valueOf(epochInfo.getMonetaryExpandRate()));
-        protocolParams.setTau(BigDecimal.valueOf(epochInfo.getTreasuryGrowthRate()));
-        protocolParams.setDecentralisationParam(BigDecimal.valueOf(epochInfo.getDecentralisation()));
-        protocolParams.setExtraEntropy(epochInfo.getExtraEntropy());
-        protocolParams.setProtocolMajorVer(epochInfo.getProtocolMajor());
-        protocolParams.setProtocolMinorVer(epochInfo.getProtocolMinor());
-        protocolParams.setMinUtxo(String.valueOf(epochInfo.getMinUtxoValue()));
-        protocolParams.setMinPoolCost(String.valueOf(epochInfo.getMinPoolCost()));
-        protocolParams.setNonce(epochInfo.getNonce());
-        if (epochInfo.getPriceMem() != null) {
-            protocolParams.setPriceMem(BigDecimal.valueOf(epochInfo.getPriceMem()));
+        protocolParams.setMinFeeA(epochParams.getMinFeeA());
+        protocolParams.setMinFeeB(epochParams.getMinFeeB());
+        protocolParams.setMaxBlockSize(epochParams.getMaxBlockSize());
+        protocolParams.setMaxTxSize(epochParams.getMaxTxSize());
+        protocolParams.setMaxBlockHeaderSize(epochParams.getMaxBhSize());
+        protocolParams.setKeyDeposit(epochParams.getKeyDeposit());
+        protocolParams.setPoolDeposit(epochParams.getPoolDeposit());
+        protocolParams.setEMax(epochParams.getMaxEpoch());
+        protocolParams.setNOpt(epochParams.getOptimalPoolCount());
+        protocolParams.setA0(epochParams.getInfluence());
+        protocolParams.setRho(epochParams.getMonetaryExpandRate());
+        protocolParams.setTau(epochParams.getTreasuryGrowthRate());
+        protocolParams.setDecentralisationParam(epochParams.getDecentralisation());
+        protocolParams.setExtraEntropy(epochParams.getExtraEntropy());
+        protocolParams.setProtocolMajorVer(epochParams.getProtocolMajor());
+        protocolParams.setProtocolMinorVer(epochParams.getProtocolMinor());
+        protocolParams.setMinUtxo(epochParams.getMinUtxoValue());
+        protocolParams.setMinPoolCost(epochParams.getMinPoolCost());
+        protocolParams.setNonce(epochParams.getNonce());
+        if (epochParams.getPriceMem() != null) {
+            protocolParams.setPriceMem(epochParams.getPriceMem());
         }
-        if (epochInfo.getPriceStep() != null) {
-            protocolParams.setPriceStep(BigDecimal.valueOf(epochInfo.getPriceStep()));
+        if (epochParams.getPriceStep() != null) {
+            protocolParams.setPriceStep(epochParams.getPriceStep());
         }
-        if (epochInfo.getMaxTxExMem() != null) {
-            protocolParams.setMaxTxExMem(String.valueOf(epochInfo.getMaxTxExMem()));
+        if (epochParams.getMaxTxExMem() != null) {
+            protocolParams.setMaxTxExMem(epochParams.getMaxTxExMem());
         }
-        if (epochInfo.getMaxTxExSteps() != null) {
-            protocolParams.setMaxTxExSteps(String.valueOf(epochInfo.getMaxTxExSteps()));
+        if (epochParams.getMaxTxExSteps() != null) {
+            protocolParams.setMaxTxExSteps(epochParams.getMaxTxExSteps());
         }
-        if (epochInfo.getMaxBlockExMem() != null) {
-            protocolParams.setMaxBlockExMem(String.valueOf(epochInfo.getMaxBlockExMem()));
+        if (epochParams.getMaxBlockExMem() != null) {
+            protocolParams.setMaxBlockExMem(epochParams.getMaxBlockExMem());
         }
-        if (epochInfo.getMaxBlockExSteps() != null) {
-            protocolParams.setMaxBlockExSteps(String.valueOf(epochInfo.getMaxBlockExSteps()));
+        if (epochParams.getMaxBlockExSteps() != null) {
+            protocolParams.setMaxBlockExSteps(epochParams.getMaxBlockExSteps());
         }
-        if (epochInfo.getCollateralPercent() != null) {
-            protocolParams.setCollateralPercent(BigDecimal.valueOf(epochInfo.getCollateralPercent()));
+        if (epochParams.getMaxValSize() != null) {
+            protocolParams.setMaxValSize(epochParams.getMaxValSize());
         }
-        if (epochInfo.getMaxCollateralInputs() != null) {
-            protocolParams.setMaxCollateralInputs(epochInfo.getMaxCollateralInputs());
+        if (epochParams.getCollateralPercent() != null) {
+            protocolParams.setCollateralPercent(BigDecimal.valueOf(epochParams.getCollateralPercent()));
         }
-        if (epochInfo.getCostModels() != null) {
-            // TODO
+        if (epochParams.getMaxCollateralInputs() != null) {
+            protocolParams.setMaxCollateralInputs(epochParams.getMaxCollateralInputs());
         }
-        if (epochInfo.getCoinsPerUtxoSize() != null) {
-            protocolParams.setCoinsPerUtxoSize(String.valueOf(epochInfo.getCoinsPerUtxoSize()));
+        if (epochParams.getCostModels() != null) {
+            protocolParams.setCostModels(epochParams.getCostModels());
+        }
+        if (epochParams.getCoinsPerUtxoWord() != null) {
+            protocolParams.setCoinsPerUtxoWord(epochParams.getCoinsPerUtxoWord());
+        }
+        if (epochParams.getCoinsPerUtxoSize() != null) {
+            protocolParams.setCoinsPerUtxoSize(epochParams.getCoinsPerUtxoSize());
         }
         return Result.success("OK").withValue(protocolParams).code(200);
     }

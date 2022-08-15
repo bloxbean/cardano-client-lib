@@ -19,8 +19,14 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
+/**
+ * Koios Utxo Service
+ */
 public class KoiosUtxoService implements UtxoService {
 
+    /**
+     * Address Service
+     */
     private final AddressService addressService;
 
     public KoiosUtxoService(AddressService addressService) {
