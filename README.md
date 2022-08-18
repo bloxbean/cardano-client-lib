@@ -51,7 +51,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
     - Plutus smart contract call
     - Token minting with Plutus contract
 
-[Examples with Composable Functions](https://github.com/bloxbean/cardano-client-examples/tree/main/src/main/java/com/bloxbean/cardano/client/examples/function)
+[Examples with Composable Functions](https://github.com/bloxbean/cardano-client-examples/tree/main/src/test/java/com/bloxbean/cardano/client/example/function)
 
 #### CIP Implementations
 - [CIP20 - Transaction Message/Comment metada](https://cips.cardano.org/cips/cip20/)
