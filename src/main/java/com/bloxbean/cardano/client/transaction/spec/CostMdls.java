@@ -2,7 +2,9 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 
 import java.util.HashMap;
@@ -24,7 +26,21 @@ public class CostMdls {
 
     public byte[] getLanguageViewEncoding() {
         try {
-            Map cborMap = new Map();
+            Map cborMap = serialize();
+
+            return CborSerializationUtil.serialize(cborMap);
+        } catch (Exception ex) {
+            throw new CborRuntimeException("Language views encoding failed", ex);
+        }
+    }
+
+    public boolean isEmpty() {
+        return costMdlsMap.isEmpty();
+    }
+
+    public Map serialize() throws CborSerializationException {
+        Map cborMap = new Map();
+        try {
             for (java.util.Map.Entry<Language, CostModel> entry : costMdlsMap.entrySet()) {
                 Language language = entry.getKey();
                 CostModel costModel = entry.getValue();
@@ -34,17 +50,12 @@ public class CostMdls {
                 } else if (language == Language.PLUTUS_V2) {
                     serializeV2(cborMap, costModel);
                 } else
-                    throw new CborException("Invalid language : " + language);
+                    throw new CborSerializationException("Invalid language : " + language);
             }
-
-            return CborSerializationUtil.serialize(cborMap);
-        } catch (CborException ex) {
-            throw new CborRuntimeException("Language views encoding failed", ex);
+        } catch (Exception e) {
+            throw new CborSerializationException("Costmdls serialization error", e);
         }
-    }
-
-    public boolean isEmpty() {
-        return costMdlsMap.isEmpty();
+        return cborMap;
     }
 
     private void serializeV2(Map cborMap, CostModel costModel) {
@@ -81,5 +92,51 @@ public class CostMdls {
         ByteString valueBS = new ByteString(CborSerializationUtil.serialize(valueArr));
 
         cborMap.put(keyByteStr, valueBS);
+    }
+
+    //Only handles deserialization according to Babbage Era
+    public static CostMdls deserialize(DataItem di) throws CborDeserializationException {
+        Map map = (Map)di;
+
+        CostMdls costMdls = new CostMdls();
+        for (DataItem key: map.getKeys()) {
+            Array costModelArr;
+            int langKey;
+            if (key.getMajorType() == MajorType.BYTE_STRING ) { //Looks like Plutus V1 old format. Plz refer to serializationV1 method
+                UnsignedInteger intKey = (UnsignedInteger) CborSerializationUtil.deserialize(((ByteString)key).getBytes());
+                langKey = intKey.getValue().intValue();
+                ByteString valueBS = (ByteString) map.get(key);
+                costModelArr = (Array) CborSerializationUtil.deserialize(valueBS.getBytes());
+            } else {
+                langKey = ((UnsignedInteger)key).getValue().intValue();
+                costModelArr = (Array) map.get(key);
+            }
+
+            long[] costs = new long[costModelArr.getDataItems().size()];
+            int index = 0;
+            //iterate to build costmodel arr
+            for (DataItem costItem: costModelArr.getDataItems()) {
+                long cost = 0;
+                if (costItem instanceof UnsignedInteger) {
+                    cost = ((UnsignedInteger)costItem).getValue().longValue();
+                } else if (costItem instanceof NegativeInteger) {
+                    cost = ((NegativeInteger)costItem).getValue().longValue(); //TODO -- Check for negative value
+                }
+                costs[index++] = cost;
+            }
+
+            Language language;
+            if (langKey == 0)
+                language = Language.PLUTUS_V1;
+            else if (langKey == 1)
+                language = Language.PLUTUS_V2;
+            else
+                throw new CborDeserializationException("De-serialization failed. Invalid language key : " + langKey);
+
+            CostModel costModel = new CostModel(language, costs);
+            costMdls.add(costModel);
+        }
+
+        return costMdls;
     }
 }

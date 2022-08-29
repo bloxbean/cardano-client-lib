@@ -3,12 +3,13 @@ package com.bloxbean.cardano.client.transaction.util;
 import co.nstant.in.cbor.CborBuilder;
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.MajorType;
+import co.nstant.in.cbor.model.*;
 import co.nstant.in.cbor.model.Number;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.transaction.spec.Rational;
+import com.bloxbean.cardano.client.transaction.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.util.cbor.CustomCborEncoder;
+import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
 
 import java.io.ByteArrayOutputStream;
@@ -36,6 +37,82 @@ public class CborSerializationUtil {
         }
 
         return value;
+    }
+
+    /**
+     * Convert a BigInteger to {@link Number}
+     * @param bi
+     * @return
+     */
+    public static Number bigIntegerToDataItem(BigInteger bi) {
+        if (bi.compareTo(BigInteger.ZERO) == -1) {
+            return new NegativeInteger(bi);
+        } else {
+            return new UnsignedInteger(bi);
+        }
+    }
+
+    /**
+     * Convert a CBOR DataItem to long
+     * @param valueItem
+     * @return
+     */
+    public static long toLong(DataItem valueItem) {
+        return getBigInteger(valueItem).longValue();
+    }
+
+    /**
+     * Convert a CBOR DataItem to int
+     * @param valueItem
+     * @return
+     */
+    public static int toInt(DataItem valueItem) {
+        return getBigInteger(valueItem).intValue();
+    }
+
+    /**
+     * Convert a ByteString dataitem to Hex value
+     * @param di
+     * @return
+     */
+    public static String toHex(DataItem di) {
+        return HexUtil.encodeHexString(((ByteString)di).getBytes());
+    }
+
+    /**
+     * Convert a ByteString dataitem to byte[]
+     * @param di
+     * @return
+     */
+    public static byte[] toBytes(DataItem di) {
+        return ((ByteString)di).getBytes();
+    }
+
+    /**
+     * Convert a UnicodeString dataitem to String
+     * @param di
+     * @return
+     */
+    public static String toUnicodeString(DataItem di) {
+        return ((UnicodeString)di).getString();
+    }
+
+    /**
+     * Convert a RationalNumber to {@link Rational}
+     * @param rn
+     * @return
+     */
+    public static Rational toRational(RationalNumber rn) {
+        return new Rational(getBigInteger(rn.getNumerator()), getBigInteger(rn.getDenominator()));
+    }
+
+    /**
+     * Convert a RationalNumber to {@link UnitInterval}
+     * @param rn
+     * @return
+     */
+    public static UnitInterval toUnitInterval(RationalNumber rn) {
+        return new UnitInterval(getBigInteger(rn.getNumerator()), getBigInteger(rn.getDenominator()));
     }
 
     /**
