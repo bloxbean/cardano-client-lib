@@ -138,6 +138,7 @@ public class TransactionWitnessSet {
             List<DataItem> vkeyWitnessesDIList = ((Array) vkWitnessesArray).getDataItems();
             List<VkeyWitness> vkeyWitnesses = new ArrayList<>();
             for(DataItem vkWitness: vkeyWitnessesDIList) {
+                if (vkWitness == SimpleValue.BREAK) continue;
                 VkeyWitness vkeyWitness = VkeyWitness.deserialize((Array) vkWitness);
                 vkeyWitnesses.add(vkeyWitness);
             }
@@ -154,6 +155,7 @@ public class TransactionWitnessSet {
             List<NativeScript> nativeScripts = new ArrayList<>();
 
             for(DataItem nativeScriptDI: nativeScriptsDIList) {
+                if (nativeScriptDI == SimpleValue.BREAK) continue;
                 NativeScript nativeScript = NativeScript.deserialize((Array)nativeScriptDI);
                 if(nativeScript != null)
                     nativeScripts.add(nativeScript);
@@ -171,6 +173,7 @@ public class TransactionWitnessSet {
             List<BootstrapWitness> bootstrapWitnesses = new ArrayList<>();
 
             for(DataItem bootstrapWitnessDI: bootstrapWitnessDIList) {
+                if (bootstrapWitnessDI == SimpleValue.BREAK) continue;
                 BootstrapWitness bootstrapWitness = BootstrapWitness.deserialize((Array) bootstrapWitnessDI);
                 if(bootstrapWitness != null)
                     bootstrapWitnesses.add(bootstrapWitness);
@@ -189,6 +192,7 @@ public class TransactionWitnessSet {
             List<PlutusV1Script> plutusV1Scripts = new ArrayList<>();
 
             for(DataItem plutusV1ScriptDI: plutusV1ScriptDIList) {
+                if (plutusV1ScriptDI == SimpleValue.BREAK) continue;
                 PlutusV1Script plutusV1Script = PlutusV1Script.deserialize((ByteString) plutusV1ScriptDI);
                 if(plutusV1Script != null)
                     plutusV1Scripts.add(plutusV1Script);
@@ -207,6 +211,7 @@ public class TransactionWitnessSet {
             List<PlutusData> plutusDataList = new ArrayList<>();
 
             for(DataItem plutusDataDI: plutusDataDIList) {
+                if (plutusDataDI == SimpleValue.BREAK) continue;
                 plutusDataList.add(PlutusData.deserialize(plutusDataDI));
             }
 
@@ -223,6 +228,7 @@ public class TransactionWitnessSet {
             List<Redeemer> redeemers = new ArrayList<>();
 
             for(DataItem redeemerDI: redeemerDIList) {
+                if (redeemerDI == SimpleValue.BREAK) continue;
                 redeemers.add(Redeemer.deserialize((Array) redeemerDI));
             }
 
@@ -239,6 +245,7 @@ public class TransactionWitnessSet {
             List<PlutusV2Script> plutusV2Scripts = new ArrayList<>();
 
             for(DataItem plutusV2ScriptDI: plutusV2ScriptDIList) {
+                if (plutusV2ScriptDI == SimpleValue.BREAK) continue;
                 PlutusV2Script plutusV2Script = PlutusV2Script.deserialize((ByteString) plutusV2ScriptDI);
                 if(plutusV2Script != null)
                     plutusV2Scripts.add(plutusV2Script);

@@ -185,6 +185,7 @@ public class TransactionBody {
        Array inputArray =  (Array)bodyMap.get(new UnsignedInteger(0));
        List<TransactionInput> inputs = new ArrayList<>();
        for(DataItem inputItem: inputArray.getDataItems()) {
+           if (inputItem == SimpleValue.BREAK) continue;
            TransactionInput ti = TransactionInput.deserialize((Array)inputItem);
            inputs.add(ti);
        }
@@ -193,6 +194,7 @@ public class TransactionBody {
        Array outputArray =  (Array)bodyMap.get(new UnsignedInteger(1));
         List<TransactionOutput> outputs = new ArrayList<>();
         for(DataItem ouptutItem: outputArray.getDataItems()) {
+            if (ouptutItem == SimpleValue.BREAK) continue;
             TransactionOutput to = TransactionOutput.deserialize(ouptutItem);
             outputs.add(to);
         }
@@ -212,6 +214,7 @@ public class TransactionBody {
         Array certArray = (Array)bodyMap.get(new UnsignedInteger(4));
         if (certArray != null && certArray.getDataItems() != null && certArray.getDataItems().size() > 0) {
             for (DataItem dataItem: certArray.getDataItems()) {
+                if (dataItem == SimpleValue.BREAK) continue;
                 Certificate cert = Certificate.deserialize((Array) dataItem);
                 transactionBody.getCerts().add(cert);
             }
@@ -258,6 +261,7 @@ public class TransactionBody {
         if (collateralArray != null) {
             List<TransactionInput> collateral = new ArrayList<>();
             for (DataItem inputItem : collateralArray.getDataItems()) {
+                if (inputItem == SimpleValue.BREAK) continue;
                 TransactionInput ti = TransactionInput.deserialize((Array) inputItem);
                 collateral.add(ti);
             }
@@ -269,6 +273,7 @@ public class TransactionBody {
         if (requiredSignerArray != null) {
             List<byte[]> requiredSigners = new ArrayList<>();
             for (DataItem requiredSigDI: requiredSignerArray.getDataItems()) {
+                if (requiredSigDI == SimpleValue.BREAK) continue;
                 ByteString requiredSigBS = (ByteString) requiredSigDI;
                 requiredSigners.add(requiredSigBS.getBytes());
             }
@@ -306,6 +311,7 @@ public class TransactionBody {
         if (referenceInputsArray != null) {
             List<TransactionInput> referenceInputs = new ArrayList<>();
             for (DataItem inputItem : referenceInputsArray.getDataItems()) {
+                if (inputItem == SimpleValue.BREAK) continue;
                 TransactionInput ti = TransactionInput.deserialize((Array) inputItem);
                 referenceInputs.add(ti);
             }
