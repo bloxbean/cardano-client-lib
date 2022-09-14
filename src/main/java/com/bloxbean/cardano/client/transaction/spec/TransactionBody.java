@@ -36,7 +36,8 @@ public class TransactionBody {
     @Builder.Default
     private List<Withdrawal> withdrawals = new ArrayList<>();
 
-    //update -- Not implemented
+    private Update update;
+
     private byte[] auxiliaryDataHash; //auxiliary_data_hash
     private long validityStartInterval;
 
@@ -103,6 +104,10 @@ public class TransactionBody {
               withdrawal.serialize(withdrawalMap);
            }
            bodyMap.put(new UnsignedInteger(5), withdrawalMap);
+       }
+
+       if (update != null) {
+           bodyMap.put(new UnsignedInteger(6), update.serialize());
        }
 
        if(auxiliaryDataHash != null) {
@@ -228,6 +233,13 @@ public class TransactionBody {
                 Withdrawal withdrawal = Withdrawal.deserialize(withdrawalMap, addrKey);
                 transactionBody.getWithdrawals().add(withdrawal);
             }
+        }
+
+        //update
+        DataItem updateDI = bodyMap.get(new UnsignedInteger(6));
+        if (updateDI != null) {
+            Update update = Update.deserialize(updateDI);
+            transactionBody.setUpdate(update);
         }
 
         ByteString metadataHashBS = (ByteString)bodyMap.get(new UnsignedInteger(7));

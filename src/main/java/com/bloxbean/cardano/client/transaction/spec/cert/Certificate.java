@@ -14,12 +14,6 @@ import java.util.Objects;
 
 public interface Certificate {
 
-    //TODO -- Following certificates are not yet implemented
-    // pool_registration
-    // pool_retirement
-    // genesis_key_delegation
-    // move_instantaneous_rewards_cert
-
     static Certificate deserialize(Array certArray) throws CborDeserializationException {
         Objects.requireNonNull(certArray);
 
@@ -42,6 +36,18 @@ public interface Certificate {
                 break;
             case 2:
                 certificate = StakeDelegation.deserialize(certArray);
+                break;
+            case 3:
+                certificate = PoolRegistration.deserialize(certArray);
+                break;
+            case 4:
+                certificate = PoolRetirement.deserialize(certArray);
+                break;
+            case 5:
+                certificate = GenesisKeyDelegation.deserialize(certArray);
+                break;
+            case 6:
+                certificate = MoveInstataneous.deserialize(certArray);
                 break;
             default:
                 throw new CborDeserializationException("Certificate deserialization failed. Unknown type : " + type);
