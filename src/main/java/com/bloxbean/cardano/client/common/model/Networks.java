@@ -10,4 +10,14 @@ public class Networks {
         Network testnet = new Network(0b0000, 1097911063);
         return testnet;
     }
+
+    public static Network preprod() {
+        Network testnet = new Network(0b0000, 1);
+        return testnet;
+    }
+
+    public static Network preview() {
+        Network testnet = new Network(0b0000, 2);
+        return testnet;
+    }
 }
