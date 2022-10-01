@@ -10,6 +10,7 @@ import rest.koios.client.backend.api.address.AddressService;
 import rest.koios.client.backend.api.address.model.AddressInfo;
 import rest.koios.client.backend.api.address.model.AddressUtxo;
 import rest.koios.client.backend.api.address.model.Asset;
+import rest.koios.client.backend.factory.options.Options;
 import rest.koios.client.backend.factory.options.SortType;
 
 import java.math.BigInteger;
@@ -45,6 +46,8 @@ public class KoiosUtxoService implements UtxoService {
             utxo.setTxHash(addressUtxo.getTxHash());
             utxo.setOutputIndex(addressUtxo.getTxIndex());
             utxo.setDataHash(addressUtxo.getDatumHash());
+            utxo.setInlineDatum(addressUtxo.getInlineDatum().getBytes());
+            utxo.setReferenceScriptHash(addressUtxo.getReferenceScript().getHash());
             List<Amount> amountList = new ArrayList<>();
             amountList.add(new Amount(LOVELACE, new BigInteger(addressUtxo.getValue())));
             for (Asset asset : addressUtxo.getAssetList()) {
@@ -65,7 +68,7 @@ public class KoiosUtxoService implements UtxoService {
             }
             rest.koios.client.backend.api.base.Result<AddressInfo> addressInformationResult;
             if (order == OrderEnum.asc) {
-                addressInformationResult = addressService.getAddressInformation(address, SortType.ASC);
+                addressInformationResult = addressService.getAddressInformation(List.of(address), SortType.ASC, Options.EMPTY);
             } else {
                 addressInformationResult = addressService.getAddressInformation(address);
             }

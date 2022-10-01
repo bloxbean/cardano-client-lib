@@ -6,7 +6,9 @@ import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import rest.koios.client.backend.api.account.AccountService;
+import rest.koios.client.backend.api.account.model.AccountHistoryInner;
 import rest.koios.client.backend.api.account.model.AccountInfo;
+import rest.koios.client.backend.api.account.model.AccountReward;
 import rest.koios.client.backend.api.account.model.AccountRewards;
 import rest.koios.client.backend.factory.options.*;
 
@@ -31,11 +33,14 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
     @Override
     public Result<AccountInformation> getAccountInformation(String stakeAddress) throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<AccountInfo> accountInformationResult = accountService.getAccountInformation(stakeAddress);
+            rest.koios.client.backend.api.base.Result<List<AccountInfo>> accountInformationResult = accountService.getAccountInformation(List.of(stakeAddress), Options.EMPTY);
             if (!accountInformationResult.isSuccessful()) {
                 return Result.error(accountInformationResult.getResponse()).code(accountInformationResult.getCode());
             }
-            return convertToAccountInformation(accountInformationResult.getValue());
+            if (accountInformationResult.getValue().isEmpty()) {
+                return Result.error("Not Found").code(404);
+            }
+            return convertToAccountInformation(accountInformationResult.getValue().get(0));
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
@@ -70,17 +75,20 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                     .option(Limit.of(count))
                     .option(Offset.of((long) (page - 1) * count))
                     .option(ordering).build();
-            rest.koios.client.backend.api.base.Result<List<AccountRewards>> accountRewardsResult = accountService.getAccountRewards(stakeAddress, options);
+            rest.koios.client.backend.api.base.Result<List<AccountRewards>> accountRewardsResult = accountService.getAccountRewards(List.of(stakeAddress), null, options);
             if (!accountRewardsResult.isSuccessful()) {
                 return Result.error(accountRewardsResult.getResponse()).code(accountRewardsResult.getCode());
             }
-            return convertToAccountRewards(accountRewardsResult.getValue());
+            if (accountRewardsResult.getValue().isEmpty()) {
+                return Result.error("Not Found").code(404);
+            }
+            return convertToAccountRewards(accountRewardsResult.getValue().get(0).getRewards());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private Result<List<AccountRewardsHistory>> convertToAccountRewards(List<AccountRewards> accountRewardsList) {
+    private Result<List<AccountRewardsHistory>> convertToAccountRewards(List<AccountReward> accountRewardsList) {
         List<AccountRewardsHistory> accountRewardsHistories = new ArrayList<>();
         if (accountRewardsList != null) {
             accountRewardsList.forEach(accountRewards -> {
@@ -111,17 +119,20 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                     .option(Limit.of(count))
                     .option(Offset.of((long) (page - 1) * count))
                     .option(ordering).build();
-            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountHistory>> accountHistoriesResult = accountService.getAccountHistory(stakeAddress, options);
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountHistory>> accountHistoriesResult = accountService.getAccountHistory(List.of(stakeAddress), null, options);
             if (!accountHistoriesResult.isSuccessful()) {
                 return Result.error(accountHistoriesResult.getResponse()).code(accountHistoriesResult.getCode());
             }
-            return convertToAccountHistories(accountHistoriesResult.getValue());
+            if (accountHistoriesResult.getValue().isEmpty()) {
+                return Result.error("Not Found").code(404);
+            }
+            return convertToAccountHistories(accountHistoriesResult.getValue().get(0).getHistory());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private Result<List<AccountHistory>> convertToAccountHistories(List<rest.koios.client.backend.api.account.model.AccountHistory> accountHistories) {
+    private Result<List<AccountHistory>> convertToAccountHistories(List<AccountHistoryInner> accountHistories) {
         List<AccountHistory> accountHistoryList = new ArrayList<>();
         if (accountHistories != null) {
             accountHistories.forEach(accountHistory -> {
@@ -147,20 +158,23 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                     .option(Limit.of(count))
                     .option(Offset.of((long) (page - 1) * count))
                     .build();
-            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountAddress>> accountAddressesResult = accountService.getAccountAddresses(stakeAddress, options);
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountAddress>> accountAddressesResult = accountService.getAccountAddresses(List.of(stakeAddress), null, options);
             if (!accountAddressesResult.isSuccessful()) {
                 return Result.error(accountAddressesResult.getResponse()).code(accountAddressesResult.getCode());
             }
-            return convertToAccountAddresses(accountAddressesResult.getValue());
+            if (accountAddressesResult.getValue().isEmpty()) {
+                return Result.error("Not Found").code(404);
+            }
+            return convertToAccountAddresses(accountAddressesResult.getValue().get(0).getAddresses());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private Result<List<AccountAddress>> convertToAccountAddresses(List<rest.koios.client.backend.api.account.model.AccountAddress> accountAddressList) {
+    private Result<List<AccountAddress>> convertToAccountAddresses(List<String> accountAddressList) {
         List<AccountAddress> accountAddresses = new ArrayList<>();
         if (accountAddressList != null) {
-            accountAddressList.forEach(accountAddress -> accountAddresses.add(new AccountAddress(accountAddress.getAddress())));
+            accountAddressList.forEach(accountAddress -> accountAddresses.add(new AccountAddress(accountAddress)));
         }
         return Result.success("OK").withValue(accountAddresses).code(200);
     }
@@ -177,11 +191,14 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                     .option(Limit.of(count))
                     .option(Offset.of((long) (page - 1) * count))
                     .build();
-            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountAsset>> accountAssetsResult = accountService.getAccountAssets(stakeAddress, options);
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountAssets>> accountAssetsResult = accountService.getAccountAssets(List.of(stakeAddress), null, options);
             if (!accountAssetsResult.isSuccessful()) {
                 return Result.error(accountAssetsResult.getResponse()).code(accountAssetsResult.getCode());
             }
-            return convertToAccountAssets(accountAssetsResult.getValue());
+            if (accountAssetsResult.getValue().isEmpty()) {
+                return Result.error("Not Found").code(404);
+            }
+            return convertToAccountAssets(accountAssetsResult.getValue().get(0).getAssets());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
@@ -191,10 +208,13 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
         List<AccountAsset> accountAssets = new ArrayList<>();
         if (accountAssetList!=null) {
             accountAssetList.forEach(accountAsset -> {
-                AccountAsset accountAsset1 = new AccountAsset();
-                accountAsset1.setUnit(accountAsset.getAssetPolicy() + HexUtil.encodeHexString(accountAsset.getAssetName().getBytes(StandardCharsets.UTF_8)));
-                accountAsset1.setQuantity(accountAsset.getQuantity());
-                accountAssets.add(accountAsset1);
+                accountAsset.getAssets().forEach(assetInner -> {
+                    AccountAsset accountAsset1 = new AccountAsset();
+                    accountAsset1.setUnit(accountAsset.getPolicyId() + HexUtil.encodeHexString(assetInner.getAssetName().getBytes(StandardCharsets.UTF_8)));
+                    accountAsset1.setQuantity(assetInner.getBalance());
+                    accountAssets.add(accountAsset1);
+
+                });
             });
         }
         return Result.success("OK").withValue(accountAssets).code(200);

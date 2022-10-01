@@ -69,6 +69,7 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
         txContentOutputAmountList.add(0, new TxContentOutputAmount("lovelace", addressInfo.getBalance()));
         addressContent.setAmount(txContentOutputAmountList);
         addressContent.setScript(addressInfo.getScriptAddress());
+
         return Result.success("OK").withValue(addressContent).code(200);
     }
 
