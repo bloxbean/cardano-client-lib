@@ -46,8 +46,12 @@ public class KoiosUtxoService implements UtxoService {
             utxo.setTxHash(addressUtxo.getTxHash());
             utxo.setOutputIndex(addressUtxo.getTxIndex());
             utxo.setDataHash(addressUtxo.getDatumHash());
-            utxo.setInlineDatum(addressUtxo.getInlineDatum().getBytes());
-            utxo.setReferenceScriptHash(addressUtxo.getReferenceScript().getHash());
+            if (addressUtxo.getInlineDatum() != null) {
+                utxo.setInlineDatum(addressUtxo.getInlineDatum().getBytes());
+            }
+            if (addressUtxo.getReferenceScript() != null) {
+                utxo.setReferenceScriptHash(addressUtxo.getReferenceScript().getHash());
+            }
             List<Amount> amountList = new ArrayList<>();
             amountList.add(new Amount(LOVELACE, new BigInteger(addressUtxo.getValue())));
             for (Asset asset : addressUtxo.getAssetList()) {

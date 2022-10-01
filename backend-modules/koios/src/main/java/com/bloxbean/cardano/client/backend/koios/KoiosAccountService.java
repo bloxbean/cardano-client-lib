@@ -14,6 +14,8 @@ import rest.koios.client.backend.factory.options.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -67,28 +69,23 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
     @Override
     public Result<List<AccountRewardsHistory>> getAccountRewardsHistory(String stakeAddress, int count, int page, OrderEnum order) throws ApiException {
         try {
-            Option ordering = Order.by("earned_epoch", SortType.ASC);
-            if (order == OrderEnum.desc) {
-                ordering = Order.by("earned_epoch", SortType.DESC);
+            if (page != 1) {
+                return Result.success("OK").withValue(Collections.emptyList()).code(200);
             }
-            Options options = Options.builder()
-                    .option(Limit.of(count))
-                    .option(Offset.of((long) (page - 1) * count))
-                    .option(ordering).build();
-            rest.koios.client.backend.api.base.Result<List<AccountRewards>> accountRewardsResult = accountService.getAccountRewards(List.of(stakeAddress), null, options);
+            rest.koios.client.backend.api.base.Result<List<AccountRewards>> accountRewardsResult = accountService.getAccountRewards(List.of(stakeAddress), null, Options.EMPTY);
             if (!accountRewardsResult.isSuccessful()) {
                 return Result.error(accountRewardsResult.getResponse()).code(accountRewardsResult.getCode());
             }
             if (accountRewardsResult.getValue().isEmpty()) {
                 return Result.error("Not Found").code(404);
             }
-            return convertToAccountRewards(accountRewardsResult.getValue().get(0).getRewards());
+            return convertToAccountRewards(accountRewardsResult.getValue().get(0).getRewards(), order);
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private Result<List<AccountRewardsHistory>> convertToAccountRewards(List<AccountReward> accountRewardsList) {
+    private Result<List<AccountRewardsHistory>> convertToAccountRewards(List<AccountReward> accountRewardsList, OrderEnum order) {
         List<AccountRewardsHistory> accountRewardsHistories = new ArrayList<>();
         if (accountRewardsList != null) {
             accountRewardsList.forEach(accountRewards -> {
@@ -99,6 +96,11 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                 accountRewardsHistory.setAmount(accountRewards.getAmount());
                 accountRewardsHistories.add(accountRewardsHistory);
             });
+        }
+        if (order==OrderEnum.asc) {
+            accountRewardsHistories.sort(Comparator.comparing(AccountRewardsHistory::getEpoch));
+        } else {
+            accountRewardsHistories.sort(Comparator.comparing(AccountRewardsHistory::getEpoch).reversed());
         }
         return Result.success("OK").withValue(accountRewardsHistories).code(200);
     }
@@ -111,28 +113,23 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
     @Override
     public Result<List<AccountHistory>> getAccountHistory(String stakeAddress, int count, int page, OrderEnum order) throws ApiException {
         try {
-            Option ordering = Order.by("epoch_no", SortType.ASC);
-            if (order == OrderEnum.desc) {
-                ordering = Order.by("epoch_no", SortType.DESC);
+            if (page != 1) {
+                return Result.success("OK").withValue(Collections.emptyList()).code(200);
             }
-            Options options = Options.builder()
-                    .option(Limit.of(count))
-                    .option(Offset.of((long) (page - 1) * count))
-                    .option(ordering).build();
-            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountHistory>> accountHistoriesResult = accountService.getAccountHistory(List.of(stakeAddress), null, options);
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountHistory>> accountHistoriesResult = accountService.getAccountHistory(List.of(stakeAddress), null, Options.EMPTY);
             if (!accountHistoriesResult.isSuccessful()) {
                 return Result.error(accountHistoriesResult.getResponse()).code(accountHistoriesResult.getCode());
             }
             if (accountHistoriesResult.getValue().isEmpty()) {
                 return Result.error("Not Found").code(404);
             }
-            return convertToAccountHistories(accountHistoriesResult.getValue().get(0).getHistory());
+            return convertToAccountHistories(accountHistoriesResult.getValue().get(0).getHistory(), order);
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private Result<List<AccountHistory>> convertToAccountHistories(List<AccountHistoryInner> accountHistories) {
+    private Result<List<AccountHistory>> convertToAccountHistories(List<AccountHistoryInner> accountHistories, OrderEnum order) {
         List<AccountHistory> accountHistoryList = new ArrayList<>();
         if (accountHistories != null) {
             accountHistories.forEach(accountHistory -> {
@@ -142,6 +139,11 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                 accountHist.setPoolId(accountHistory.getPoolId());
                 accountHistoryList.add(accountHist);
             });
+        }
+        if (order==OrderEnum.asc) {
+            accountHistoryList.sort(Comparator.comparing(AccountHistory::getActiveEpoch));
+        } else {
+            accountHistoryList.sort(Comparator.comparing(AccountHistory::getActiveEpoch).reversed());
         }
         return Result.success("OK").withValue(accountHistoryList).code(200);
     }
