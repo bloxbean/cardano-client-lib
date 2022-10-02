@@ -91,12 +91,12 @@ public class KoiosMetadataService implements MetadataService {
     }
 
     @Override
-    public Result<List<MetadataJSONContent>> getJSONMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) throws ApiException {
+    public Result<List<MetadataJSONContent>> getJSONMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Result<List<MetadataCBORContent>> getCBORMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) throws ApiException {
+    public Result<List<MetadataCBORContent>> getCBORMetadataByLabel(BigInteger label, int count, int page, OrderEnum order) {
         throw new UnsupportedOperationException();
     }
 }
