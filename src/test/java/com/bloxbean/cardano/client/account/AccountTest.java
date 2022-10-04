@@ -50,6 +50,20 @@ public class AccountTest {
     }
 
     @Test
+    public void testBaseAddressHasSamePrefixForAllTestnets() {
+        String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account testnetAccount = new Account(Networks.testnet(), mnemonic);
+        Account previewAccount = new Account(Networks.preview(), mnemonic);
+        Account preprodAccount = new Account(Networks.preprod(), mnemonic);
+
+
+        String testnetPrefix="addr_test";
+        assertTrue(testnetAccount.baseAddress().startsWith(testnetPrefix));
+        assertTrue(previewAccount.baseAddress().startsWith(testnetPrefix));
+        assertTrue(preprodAccount.baseAddress().startsWith(testnetPrefix));
+    }
+
+    @Test
     void getBaseAddressFromMnemonic() {
         String phrase24W = "coconut you order found animal inform tent anxiety pepper aisle web horse source indicate eyebrow viable lawsuit speak dragon scheme among animal slogan exchange";
         String address0 = "addr1qxsaa6czesrzwp45rd5flg86n5hnwhz5setqfyt39natwvsl5mr3vkp82y2kcwxxtu4zjcxvm80ttmx2hyeyjka4v8ps7zwsra";

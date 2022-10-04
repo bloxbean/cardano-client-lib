@@ -34,8 +34,6 @@ public class AddressEncoderDecoderUtil {
         String prefixTail;
         switch (network) {
             case TESTNET:
-            case PREVIEW:
-            case PREPROD:
                 prefixTail = "_test";
                 break;
             case MAINNET:
@@ -55,9 +53,9 @@ public class AddressEncoderDecoderUtil {
         } else if (Networks.testnet().equals(networkInfo)) {
             network = NetworkId.TESTNET;
         } else if (Networks.preview().equals(networkInfo)) {
-            network = NetworkId.PREVIEW;
+            network = NetworkId.TESTNET;
         } else if (Networks.preprod().equals(networkInfo)) {
-            network = NetworkId.PREPROD;
+            network = NetworkId.TESTNET;
         } else {
             throw new AddressRuntimeException("Unknown network type - " + networkInfo);
         }

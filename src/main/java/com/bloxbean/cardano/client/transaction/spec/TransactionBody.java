@@ -155,14 +155,6 @@ public class TransactionBody {
                 case TESTNET:
                     bodyMap.put(new UnsignedInteger(15), new UnsignedInteger(0));
                     break;
-                case PREVIEW:
-                    bodyMap.put(new UnsignedInteger(15), new UnsignedInteger(2));
-                    break;
-
-                case PREPROD:
-                    bodyMap.put(new UnsignedInteger(15), new UnsignedInteger(3));
-                    break;
-
                 case MAINNET:
                     bodyMap.put(new UnsignedInteger(15), new UnsignedInteger(1));
                     break;
@@ -307,13 +299,6 @@ public class TransactionBody {
             if (networkIdInt == 0) {
                 transactionBody.setNetworkId(NetworkId.TESTNET);
             }
-            if (networkIdInt == 2) {
-                transactionBody.setNetworkId(NetworkId.PREVIEW);
-            }
-            if (networkIdInt == 3) {
-                transactionBody.setNetworkId(NetworkId.PREPROD);
-            }
-
             else if (networkIdInt == 1) {
                 transactionBody.setNetworkId(NetworkId.MAINNET);
             } else {

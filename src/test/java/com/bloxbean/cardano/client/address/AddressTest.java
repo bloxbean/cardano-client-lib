@@ -22,6 +22,31 @@ public class AddressTest {
     }
 
     @Test
+    public void testBaseAddress_whenPreview() {
+        String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account account = new Account(Networks.preview(), mnemonic);
+
+        Address address = new Address(account.baseAddress());
+
+        assertThat(address.getAddressType()).isEqualTo(AddressType.Base);
+        assertThat(address.getPrefix()).isEqualTo("addr_test");
+
+    }
+    @Test
+    public void testBaseAddress_whenPreprod() {
+        String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account account = new Account(Networks.preprod(), mnemonic);
+
+        Address address = new Address(account.baseAddress());
+
+        assertThat(address.getAddressType()).isEqualTo(AddressType.Base);
+        assertThat(address.getPrefix()).isEqualTo("addr_test");
+
+    }
+
+
+
+    @Test
     public void testBaseAddress_whenTestnet() {
         String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
         Account account = new Account(Networks.testnet(), mnemonic);

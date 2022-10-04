@@ -12,12 +12,12 @@ public class Networks {
     }
 
     public static Network preprod() {
-        Network testnet = new Network(0b0000, 1);
-        return testnet;
+        Network preprod = new Network(0b0000, 1);
+        return preprod;
     }
 
     public static Network preview() {
-        Network testnet = new Network(0b0000, 2);
-        return testnet;
+        Network preview = new Network(0b0000, 2);
+        return preview;
     }
 }
