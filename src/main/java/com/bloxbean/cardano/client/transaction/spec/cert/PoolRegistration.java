@@ -28,17 +28,48 @@ import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil
 public class PoolRegistration implements Certificate {
     private final CertificateType type = CertificateType.POOL_REGISTRATION;
 
+    /**
+     * 28 bytes pool key hash (verification key hash)
+     * Example:
+     *  HexUtil.decodeHexString(KeyGenUtil.getKeyHash(poolVerificationKey))
+     */
     private byte[] operator;
+
+    /**
+     * VRF verification key hash (32 bytes)
+     * Example:
+     *  String vrfVkeyCbor = "58404682ed74c2ae...";
+     *  Blake2bUtil.blake2bHash256(KeyGenCborUtil.cborToBytes(vrfVkeyCbor))
+     */
     private byte[] vrfKeyHash;
+
     private BigInteger pledge;
     private BigInteger cost;
     private UnitInterval margin;
-    private String rewardAccount; //In hex
-    private Set<String> poolOwners; //addr keyhash
+
+    /**
+     * Reward address in hex
+     * Example:
+     *  HexUtil.encodeHexString(stakeAddress.getBytes())
+     */
+    private String rewardAccount;
+
+    /**
+     * poolowners addr keyhash (28 bytes)
+     * Example:
+     *  Set.of(HexUtil.encodeHexString(account.stakeHdKeyPair().getPublicKey().getKeyHash()))
+     */
+    private Set<String> poolOwners;
     private List<Relay> relays;
 
-    //pool_metadata
+    /**
+     * Pool metadata url
+     */
     private String poolMetadataUrl;
+
+    /**
+     * Pool metadata hash (32 bytes)
+     */
     private String poolMetadataHash;
 
     @Override
