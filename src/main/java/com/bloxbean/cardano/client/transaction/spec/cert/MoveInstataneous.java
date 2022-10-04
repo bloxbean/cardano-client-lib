@@ -21,7 +21,10 @@ import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil
 @EqualsAndHashCode
 @ToString
 @Builder
+//TODO -- Integration tests pending
 public class MoveInstataneous implements Certificate {
+    private final CertificateType type = CertificateType.MOVE_INSTATENEOUS_REWARDS_CERT;
+
     //determines where the funds are drawn from
     private MirPot pot;
 

@@ -18,7 +18,10 @@ import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil
 @EqualsAndHashCode
 @ToString
 @Builder
+//TODO -- Unit & Integration tests pending
 public class GenesisKeyDelegation implements Certificate {
+    private final CertificateType type = CertificateType.GENESIS_KEY_DELEGATION;
+
     private byte[] genesisHash;
     private byte[] genesisDelegateHash;
     private byte[] vrfKeyHash;
