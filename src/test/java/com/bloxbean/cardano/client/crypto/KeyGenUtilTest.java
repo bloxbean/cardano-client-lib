@@ -55,6 +55,17 @@ public class KeyGenUtilTest {
     }
 
     @Test
+    public void testGetKeyHashFromBytes() throws CborSerializationException {
+        String cborText = "582037abc7f86d3f53cbedd38835cd4dbcf0ff7d2bf5a5c12ec77c6851bf5295ae63";
+        VerificationKey vkey = KeyGenUtil.getPublicKeyFromPrivateKey(new SecretKey(cborText));
+
+        System.out.println(JsonUtil.getPrettyJson(vkey));
+        String keyHash = KeyGenUtil.getKeyHash(vkey.getBytes());
+
+        assertThat(keyHash, is("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884"));
+    }
+
+    @Test
     public void testGetScriptPubkey() throws CborSerializationException {
         String cborText = "582037abc7f86d3f53cbedd38835cd4dbcf0ff7d2bf5a5c12ec77c6851bf5295ae63";
         VerificationKey vkey = KeyGenUtil.getPublicKeyFromPrivateKey(new SecretKey(cborText));

@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.crypto.SecretKey;
+import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
@@ -59,6 +60,23 @@ public class SignerProviders {
                 for (SecretKey sk : policy.getPolicyKeys()) {
                     outputTxn = TransactionSigner.INSTANCE.sign(outputTxn, sk);
                 }
+            }
+
+            return outputTxn;
+        };
+    }
+
+    /**
+     * Function to sign a transaction with one or more {@link HdKeyPair}
+     * @param hdKeyPairs
+     * @return
+     */
+    public static TxSigner signerFrom(HdKeyPair... hdKeyPairs) {
+
+        return transaction -> {
+            Transaction outputTxn = transaction;
+            for (HdKeyPair hdKeyPair : hdKeyPairs) {
+                outputTxn = TransactionSigner.INSTANCE.sign(outputTxn, hdKeyPair);
             }
 
             return outputTxn;
