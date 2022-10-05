@@ -48,13 +48,9 @@ public class AddressEncoderDecoderUtil {
 
     public static NetworkId getNetworkId(Network networkInfo) {
         NetworkId network;
-        if (Networks.mainnet().equals(networkInfo)) {
+        if (Networks.mainnet().getNetworkId() == networkInfo.getNetworkId()) {
             network = NetworkId.MAINNET;
-        } else if (Networks.testnet().equals(networkInfo)) {
-            network = NetworkId.TESTNET;
-        } else if (Networks.preview().equals(networkInfo)) {
-            network = NetworkId.TESTNET;
-        } else if (Networks.preprod().equals(networkInfo)) {
+        } else if (Networks.testnet().getNetworkId() == networkInfo.getNetworkId()) {
             network = NetworkId.TESTNET;
         } else {
             throw new AddressRuntimeException("Unknown network type - " + networkInfo);
