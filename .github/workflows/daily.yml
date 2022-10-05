@@ -1,8 +1,9 @@
 name: Daily Push to SNAPSHOT repo
 
 on:
-  schedule:
-    - cron: '0 2 * * *' # run at 2 AM UTC
+  push:
+    branches:
+      - ci_fix
 
 jobs:
   commit-build:
