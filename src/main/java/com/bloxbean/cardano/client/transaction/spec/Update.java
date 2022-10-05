@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 
 @Getter
@@ -17,6 +18,8 @@ public class Update {
     private int epoch;
 
     public void addProtocolParameterUpdate(String genesisHash, ProtocolParamUpdate protocolParamUpdate) {
+        if (protocolParamUpdates == null)
+            this.protocolParamUpdates = new HashMap<>();
         protocolParamUpdates.put(genesisHash, protocolParamUpdate);
     }
 

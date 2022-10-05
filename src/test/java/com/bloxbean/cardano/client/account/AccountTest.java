@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
+import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
@@ -47,6 +48,33 @@ public class AccountTest {
         assertNotNull(mnemonic);
         assertTrue(address.startsWith("addr_test"));
         assertEquals(24, mnemonic.split(" ").length );
+    }
+
+    @Test
+    public void testBaseAddressHasSamePrefixForAllTestnets() {
+        String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account testnetAccount = new Account(Networks.testnet(), mnemonic);
+        Account previewAccount = new Account(Networks.preview(), mnemonic);
+        Account preprodAccount = new Account(Networks.preprod(), mnemonic);
+
+
+        String testnetPrefix="addr_test";
+        assertTrue(testnetAccount.baseAddress().startsWith(testnetPrefix));
+        assertTrue(previewAccount.baseAddress().startsWith(testnetPrefix));
+        assertTrue(preprodAccount.baseAddress().startsWith(testnetPrefix));
+    }
+
+    @Test
+    public void testBaseAddressHasTestnetPrefixForRandomTestnet() {
+        String mnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        Account testnetAccount = new Account(Networks.testnet(), mnemonic);
+
+        Network customTestnet = new Network(NetworkId.TESTNET.ordinal(), 42);
+        Account customTestnetAccount = new Account(customTestnet, mnemonic);
+
+        String testnetPrefix="addr_test";
+        assertTrue(customTestnetAccount.baseAddress().startsWith(testnetPrefix));
+        assertTrue(testnetAccount.baseAddress().equals(customTestnetAccount.baseAddress()));
     }
 
     @Test

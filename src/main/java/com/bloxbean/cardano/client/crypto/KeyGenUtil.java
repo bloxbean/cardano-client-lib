@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.crypto;
 import com.bloxbean.cardano.client.crypto.exception.KeyException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
-import org.bouncycastle.crypto.digests.Blake2bDigest;
+import lombok.NonNull;
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 
@@ -33,12 +33,31 @@ public class KeyGenUtil {
         return VerificationKey.create(pubKeyBytes);
     }
 
+    /**
+     * Generate a 28 bytes hash using blake2b from a verification key
+     * @param vkey
+     * @return hash
+     */
     public static String getKeyHash(VerificationKey vkey) {
         if(vkey == null)
             throw new KeyException("Verification key can't be null");
 
         try {
             byte[] hashBytes = blake2bHash224(vkey.getBytes());
+            return HexUtil.encodeHexString(hashBytes);
+        } catch (Exception e) {
+            throw new KeyException("Key hash generation failed", e);
+        }
+    }
+
+    /**
+     * Generate a 28 bytes hash using blake2b from key bytes
+     * @param bytes
+     * @return hash
+     */
+    public static String getKeyHash(@NonNull byte[] bytes) {
+        try {
+            byte[] hashBytes = blake2bHash224(bytes);
             return HexUtil.encodeHexString(hashBytes);
         } catch (Exception e) {
             throw new KeyException("Key hash generation failed", e);
