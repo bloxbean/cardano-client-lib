@@ -52,6 +52,10 @@ public class AddressEncoderDecoderUtil {
             network = NetworkId.MAINNET;
         } else if (Networks.testnet().equals(networkInfo)) {
             network = NetworkId.TESTNET;
+        } else if (Networks.preview().equals(networkInfo)) {
+            network = NetworkId.TESTNET;
+        } else if (Networks.preprod().equals(networkInfo)) {
+            network = NetworkId.TESTNET;
         } else {
             throw new AddressRuntimeException("Unknown network type - " + networkInfo);
         }
