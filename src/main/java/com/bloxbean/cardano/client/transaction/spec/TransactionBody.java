@@ -298,8 +298,7 @@ public class TransactionBody {
             int networkIdInt = networkIdUI.getValue().intValue();
             if (networkIdInt == 0) {
                 transactionBody.setNetworkId(NetworkId.TESTNET);
-            }
-            else if (networkIdInt == 1) {
+            }else if (networkIdInt == 1) {
                 transactionBody.setNetworkId(NetworkId.MAINNET);
             } else {
                 throw new CborDeserializationException("Invalid networkId value : " + networkIdInt);
