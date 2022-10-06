@@ -116,7 +116,7 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                 }
             }
             if(!remaining.isEmpty()){
-                throw new InsufficientBalanceException("Not enough funds for [" + remaining + "]");
+                throw new InsufficientBalanceException("Not enough funds for [" + remaining + "], address: " + sender);
             }
             return selectedUtxos;
         }catch(InputsLimitExceededException e){
