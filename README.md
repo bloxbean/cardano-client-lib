@@ -9,9 +9,7 @@
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-**Latest Stable Version**: [0.2.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.2.0)
-
-**Latest Beta Version**: [0.3.0-beta2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.3.0-beta2) (Vasil HF support. **TESTNET** compatible)
+**Latest Stable Version**: [0.3.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.3.0) (Compatible with Babbage Era)
 
 **Posts**
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
@@ -23,7 +21,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 [Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
 
-[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.2.0/index.html)
+[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.3.0/index.html)
 
 [Documentation](https://cardano-client.bloxbean.com/)
 
@@ -80,11 +78,8 @@ Out of box, the library currently supports integration with following providers 
     - **Status :** Beta
 - [Ogmios](https://ogmios.dev/)
     - **Module :** cardano-client-backend-koios [README](backend-modules/ogmios/README.md)
-    - **Status :** Experimental
-    - **Supported Apis :** submitTransaction, evaluateTx
-- [cardano-graphql](https://github.com/input-output-hk/cardano-graphql)
-    - **Module :** cardano-client-backend-gql [README](backend-modules/cardano-graphql/README.md)
-    - **Status :** Deprecated
+    - **Status :** Beta
+    - **Supported Apis :** submitTransaction, evaluateTx, Kupo support (UtxoService)
 
 **Following Backend apis are currently available**
 - TransactionService (Submit transaction, Get transaction, Evaluate ExUnits for Script Txn)
@@ -108,7 +103,7 @@ Out of box, the library currently supports integration with following providers 
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.2.0</version>
+            <version>0.3.0</version>
         </dependency>
 ```
 - Backend modules
@@ -119,28 +114,21 @@ Out of box, the library currently supports integration with following providers 
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.2.0</version>
+            <version>0.3.0</version>
         </dependency>
         
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>0.2.0</version>
+            <version>0.3.0</version>
         </dependency>
         
          <!-- For Ogmios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>0.2.0</version>
-        </dependency>
-
-        <!-- For Cardano Graphql backend -->
-        <dependency>
-            <groupId>com.bloxbean.cardano</groupId>
-            <artifactId>cardano-client-backend-gql</artifactId>
-            <version>0.2.0</version>
+            <version>0.3.0</version>
         </dependency>
 ```
 
@@ -148,30 +136,27 @@ Out of box, the library currently supports integration with following providers 
 
 - Core Module
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.2.0'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.3.0'
 ```
 - Backend modules
     - For backend support, use one of the following supported backend module
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.2.0'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.3.0'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.2.0'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.3.0'
 
 //For Ogmios
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.2.0'
-
-//For Cardano Graphql
-implementation 'com.bloxbean.cardano:cardano-client-backend-gql:0.2.0'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.3.0'
 
 ```
 
 
 ### For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.3.0-beta3-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+**SNAPSHOT_VERSION :** 0.3.1-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```

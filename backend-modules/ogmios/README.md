@@ -32,9 +32,6 @@ ProtocolParams protocolParams = backendService.getEpochService().getProtocolPara
 **Note:** If you want to query other data from Ogmios server, you can use [ogmios-java-client](https://github.com/adabox-aio/ogmios-java-client)
  library. (Maintained by [adabox-aio](https://adabox.io/))
 
-<em>Some of the classes in Ogmios backend module were originally written for [ogmios-java-client](https://github.com/adabox-aio/ogmios-java-client), 
-but copied to this module to provide only minimum required apis.</em>
-
 ## Kupo 
 
 - KupoUtxoService
