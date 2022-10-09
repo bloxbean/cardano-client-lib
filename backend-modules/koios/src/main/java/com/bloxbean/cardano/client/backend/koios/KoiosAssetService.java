@@ -58,10 +58,7 @@ public class KoiosAssetService implements AssetService {
         asset.setInitialMintTxHash(assetInformation.getMintingTxHash());
         asset.setMintOrBurnCount(assetInformation.getMintCnt() + assetInformation.getBurnCnt());
         if (assetInformation.getMintingTxMetadata() != null) {
-            JsonNode jsonNode = assetInformation.getMintingTxMetadata().getJson();
-            if (jsonNode.get(assetInformation.getPolicyId()) != null && jsonNode.get(assetInformation.getPolicyId()).get(assetInformation.getAssetNameAscii()) != null) {
-                asset.setOnchainMetadata(jsonNode.get(assetInformation.getPolicyId()).get(assetInformation.getAssetNameAscii()));
-            }
+            asset.setOnchainMetadata(assetInformation.getMintingTxMetadata());
         }
         if (assetInformation.getTokenRegistryMetadata() != null) {
             asset.setMetadata(objectMapper.convertValue(assetInformation.getTokenRegistryMetadata(), JsonNode.class));

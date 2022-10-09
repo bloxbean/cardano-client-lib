@@ -65,7 +65,7 @@ public class KoiosBlockService implements BlockService {
         block.setHeight(blocks.get(0).getBlockHeight());
         block.setHash(blocks.get(0).getHash());
         block.setSlot(blocks.get(0).getAbsSlot());
-        block.setEpoch(blocks.get(0).getEpoch());
+        block.setEpoch(blocks.get(0).getEpochNo());
         block.setEpochSlot(blocks.get(0).getEpochSlot());
         block.setSlotLeader(blocks.get(0).getPool());
         block.setSize(blocks.get(0).getBlockSize());
