@@ -438,11 +438,14 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 # Sponsors :sparkling_heart:
 <p align="center">
   <a href="https://github.com/blockfrost"><img src="https://avatars.githubusercontent.com/u/70073210?s=45&v=4" width=45 height=45 /></a>
+  &nbsp;
   <a href="https://github.com/KtorZ"><img src="https://avatars.githubusercontent.com/u/5680256?s=45&v=4" width=45 height=45 /></a>
+  &nbsp;
+  <a href="https://github.com/djcyr"><img src="https://avatars.githubusercontent.com/u/9329514?s=70&v=4" width="45" height="45" /></a>
 </p>
 
 ##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
 
 [BLOXB](https://www.bloxbean.com/cardano-staking/)
 
-[Support this project](https://cardano-client.bloxbean.com/#/support-this-project)
+[Support this project](https://cardano-client.bloxbean.com/docs/support-this-project)

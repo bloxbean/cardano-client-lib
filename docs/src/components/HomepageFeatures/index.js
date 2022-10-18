@@ -8,7 +8,7 @@ const FeatureList = [
     Svg: require('@site/static/img/software-svgrepo-com.svg').default,
     description: (
       <>
-        Address generation, transfer, token minting, Plutus contract call and many more..
+        Address generation, transfer, token minting, Plutus contract call and more..
       </>
     ),
   },
