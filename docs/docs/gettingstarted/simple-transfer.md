@@ -1,36 +1,56 @@
 ---
 sidebar_label: Simple Transfer
-sidebar_position: 2
+sidebar_position: 4
+
 ---
+# Simple Transfer
 
-# Overview
-In this section, we will go through the steps required to do a simple Ada transfer from a 
-sender account to a receiver account. 
+[Simple Transfer Using Composable Function](https://github.com/bloxbean/cardano-client-examples/blob/main/src/test/java/com/bloxbean/cardano/client/example/function/TransferTransactionTest.java)
 
-## Select a Network and Provider
+[//]: # (# Overview)
 
-First we need to select a network for our transaction. You can choose one of the available
-public test network. 
-Similarly, choose a backend provider to interact with Cardano blockchain. To start with, you 
+[//]: # (In this section, we will go through the steps required to do a simple Ada transfer from a )
 
+[//]: # (sender account to a receiver account. )
 
-## Create Sender and Receiver accounts
+[//]: # ()
+[//]: # (## Select a Network and Provider)
 
-We need two accounts for this example, a sender account and a receiver account.
+[//]: # ()
+[//]: # (First we need to select a network for our transaction. You can choose one of the available)
 
-```java
+[//]: # (public test network. )
 
-```
+[//]: # (Similarly, choose a backend provider to interact with Cardano blockchain. To start with, you )
 
+[//]: # ()
+[//]: # ()
+[//]: # (## Create Sender and Receiver accounts)
 
-## Topup sender account with test Ada
+[//]: # ()
+[//]: # (We need two accounts for this example, a sender account and a receiver account.)
 
+[//]: # ()
+[//]: # (```java)
 
-## Simple Transfer - Using Composable Functions
+[//]: # ()
+[//]: # (```)
 
+[//]: # ()
+[//]: # ()
+[//]: # (## Topup sender account with test Ada)
 
-## Simple Transfer - Using High Level Api
+[//]: # ()
+[//]: # ()
+[//]: # (## Simple Transfer - Using Composable Functions)
 
-sdfsd
-## Simple Transfer - Using Low Level Api
-sdfsf
+[//]: # ()
+[//]: # ()
+[//]: # (## Simple Transfer - Using High Level Api)
+
+[//]: # ()
+[//]: # (//TODO)
+
+[//]: # (## Simple Transfer - Using Low Level Api)
+
+[//]: # (//TODO)

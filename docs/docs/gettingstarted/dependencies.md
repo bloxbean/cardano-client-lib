@@ -4,13 +4,11 @@ sidebar_position: 2
 
 # Dependencies
 
-## Use as a library in a Java Project
-
-### For release binaries
+## For release binaries
 
 **For Maven, add the following dependencies to project's pom.xml**
 
-- Core module
+- **Core module**
 
 ```xml
         <dependency>
@@ -19,7 +17,8 @@ sidebar_position: 2
             <version>0.3.0</version>
         </dependency>
 ```
-- Backend modules
+- **Backend modules**
+
     - For backend support, use one of the following supported backend module
 
 ```xml
@@ -47,11 +46,13 @@ sidebar_position: 2
 
 **For Gradle, add the following dependencies to build.gradle**
 
-- Core Module
+- **Core Module**
+
 ```
 implementation 'com.bloxbean.cardano:cardano-client-lib:0.3.0'
 ```
-- Backend modules
+- **Backend modules**
+
     - For backend support, use one of the following supported backend module
 
 ```groovy
@@ -67,9 +68,13 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.3.0'
 ```
 
 
-### For snapshot binaries
+## For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.3.1-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+:::info
+
+**SNAPSHOT_VERSION :** 0.3.1-SNAPSHOT (Please verify the latest snapshot version in **gradle.properties**)
+
+:::
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```

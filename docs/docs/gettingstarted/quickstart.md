@@ -1,13 +1,13 @@
 ---
 sidebar_label: Quick Start
-sidebar_position: 2
+sidebar_position: 3
 ---
 
 # Quick Start
 
-### Account API Usage
+## Account API Usage
 
-- Create a New Account
+### Create a New Account
 
 ```
 Account account = new Account();   //Create a Mainnet account
@@ -16,7 +16,7 @@ Account account = new Account(Networks.mainnet());   //Create a Mainnet account
 
 Account account = new Account(Networks.testnet());  //Create a Testnet account
 ```
-- Get base address, enterprise address, mnemonic
+### Get base address, enterprise address, mnemonic
 ```
 String baseAddress = account.baseAddress();  //Base address at index=0
 
@@ -25,7 +25,7 @@ String enterpriseAddress = account.account.enterpriseAddress();  //Enterprise ad
 String mnemonic = account.mnemonic();  //Get Mnemonic
 ```
 
-- Get Account from Mnemonic
+### Get Account from Mnemonic
 
 ```
 String mnemonic = "...";
@@ -34,7 +34,7 @@ Account account = new Account(mnemonic);  //Create a Mainnet account from Mnemon
 Account account = new Account(Networks.testnet(), mnemonic); //Create a Testnet account from Mnemonic
 ```
 
-### Create Blockfrost Backend Service and get other services
+## Create Blockfrost Backend Service and get other services
 ```
 BackendService backendService =
                 new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, <BF_PROJECT_ID>);               
@@ -50,7 +50,7 @@ EpochService epochService = backendService.getEpochService();
 AddressService addressService = backendService.getAddressService();
 ```
 
-### Simple ADA Payment transaction
+## Simple ADA Payment transaction
 ```
   PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                                             .sender(sender)
@@ -77,7 +77,7 @@ AddressService addressService = backendService.getAddressService();
   if(result.isSuccessful())
       System.out.println("Transaction Id: " + result.getValue());
 ```
-### Native Token transfer
+## Native Token transfer
 ```
  PaymentTransaction paymentTransaction =
                 PaymentTransaction.builder()
@@ -105,7 +105,7 @@ AddressService addressService = backendService.getAddressService();
      System.out.println("Transaction Id: " + result.getValue());
 ```
 
-### ScriptHash
+## ScriptHash
 ```
 Example: 1
 
@@ -131,7 +131,7 @@ ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
 String policyId = scriptAtLeast.getPolicyId();
 
 ```
-### Token Minting transaction
+## Token Minting transaction
 ```
 MultiAsset multiAsset = new MultiAsset();
 multiAsset.setPolicyId(policyId);
@@ -162,7 +162,7 @@ mintTransaction.setFee(fee);
 Result<String> result = transactionHelperService.mintToken(mintTransaction,
                 TransactionDetailsParams.builder().ttl(getTtl()).build());
 ```
-### Metadata
+## Metadata
 ```
 CBORMetadataMap productDetailsMap
                 = new CBORMetadataMap()

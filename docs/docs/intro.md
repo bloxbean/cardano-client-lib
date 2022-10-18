@@ -6,15 +6,19 @@ sidebar_position: 1
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-**Latest Stable Version**: [0.3.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.3.0) (Compatible with Babbage Era)
+:::info
 
-**Posts**
+**Latest Stable Version**: [0.3.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.3.0) (Compatible with **Babbage** Era)
+
+:::
+
+### Posts
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
 - [Cardano-client-lib: Transaction with Metadata in Java - Part II](https://medium.com/p/fa34f403b90e)
 - [Cardano-client-lib: Minting a new Native Token in Java - Part III](https://medium.com/p/1a94a21cfeeb)
 - [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
 
-**Examples**
+### Examples
 
 [Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
 
@@ -22,7 +26,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 [Documentation](https://cardano-client.bloxbean.com/)
 
-**Features**
+### Features
 
 #### Address Generation
 
@@ -68,13 +72,13 @@ The library also provides integration with Cardano node through different backen
 Out of box, the library currently supports integration with following providers through the Backend api.
 
 - [Blockfrost](https://blockfrost.io)
-    - **Module :** cardano-client-backend-blockfrost [README](backend-modules/blockfrost/README.md)
+    - **Module :** cardano-client-backend-blockfrost [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/blockfrost/README.md)
     - **Status :** Stable
 - [Koios](https://www.koios.rest/)
-    - **Module :** cardano-client-backend-koios [README](backend-modules/koios/README.md)
+    - **Module :** cardano-client-backend-koios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/koios/README.md)
     - **Status :** Beta
 - [Ogmios](https://ogmios.dev/)
-    - **Module :** cardano-client-backend-koios [README](backend-modules/ogmios/README.md)
+    - **Module :** cardano-client-backend-koios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/ogmios/README.md)
     - **Status :** Beta
     - **Supported Apis :** submitTransaction, evaluateTx, Kupo support (UtxoService)
 
