@@ -1,9 +1,9 @@
 ---
-sidebar_label: Quick Start
-sidebar_position: 3
+sidebar_label: Key Apis
+sidebar_position: 4
 ---
 
-# Quick Start
+# Key Apis
 
 ## Account API Usage
 
@@ -50,7 +50,43 @@ EpochService epochService = backendService.getEpochService();
 AddressService addressService = backendService.getAddressService();
 ```
 
-## Simple ADA Payment transaction
+## Simple ADA Payment (Composable functions)
+```java
+//Define expected outputs
+Output output1 = Output.builder()
+        .address(receiverAddress1)
+        .assetName(LOVELACE)
+        .qty(adaToLovelace(10))
+        .build();
+
+ Output output2 = Output.builder()
+        .address(receiverAddress2)
+        .assetName(LOVELACE)
+        .qty(adaToLovelace(20))
+        .build();
+
+ // Create a CIP20 message metadata
+ MessageMetadata metadata = MessageMetadata.create()
+                    .add("First transfer transaction");
+
+ // Define TxBuilder
+ TxBuilder txBuilder = output1.outputBuilder()
+        .and(output2.outputBuilder())
+        .buildInputs(createFromSender(senderAddress, senderAddress))
+        .andThen(metadataProvider(metadata))
+        .andThen(balanceTx(senderAddress, 1));
+
+ UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+ ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+
+ //Build and sign the transaction
+ Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier)
+                            .buildAndSign(txBuilder, signerFrom(senderAccount));
+ //Submit the transaction
+ Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+```
+
+## Simple ADA Payment transaction (High Level Api)
 ```
   PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                                             .sender(sender)
