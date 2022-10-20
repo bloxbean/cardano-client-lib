@@ -17,7 +17,7 @@ const FeatureList = [
     Svg: require('@site/static/img/cloud-computing-svgrepo-com.svg').default,
     description: (
       <>
-        Backend providers for Blockfrost, Koios, Ogmios
+        Blockfrost, Koios, Ogmios
       </>
     ),
   },
