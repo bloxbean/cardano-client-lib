@@ -1,4 +1,5 @@
 ---
+description: Smart contract call example 
 sidebar_position: 2
 ---
 
