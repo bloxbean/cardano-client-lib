@@ -383,7 +383,7 @@ public class MultiSigTransfer {
         String scriptAddress = AddressService.getInstance().getEntAddress(scriptAtLeast, Networks.testnet()).toBech32();
 
         // For Blockfrost
-        String bf_projectId = "preprod5tChlvcwf6BD7xpotfUNuWE8546oiVve";
+        String bf_projectId = "preprod...";
         BackendService backendService = new BFBackendService(Constants.BLOCKFROST_PREPOD_URL, bf_projectId);
         // For Koios
         //BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
