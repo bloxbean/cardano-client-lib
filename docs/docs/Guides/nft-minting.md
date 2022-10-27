@@ -1,4 +1,5 @@
 ---
+description: NFT minting example
 sidebar_position: 1
 ---
 

@@ -1,4 +1,5 @@
 ---
+description: Maven and Gradle dependencies
 sidebar_position: 2
 ---
 
