@@ -23,7 +23,6 @@ import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil
 @AllArgsConstructor
 @NoArgsConstructor
 @EqualsAndHashCode
-@ToString
 @Builder
 public class PoolRegistration implements Certificate {
     private final CertificateType type = CertificateType.POOL_REGISTRATION;
