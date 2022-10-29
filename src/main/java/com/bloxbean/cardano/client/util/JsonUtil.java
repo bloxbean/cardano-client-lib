@@ -6,7 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
 public class JsonUtil {
-    protected final static ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);;
+
+    protected static final ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
 
     public static String getPrettyJson(Object obj) {
         if(obj == null) return null;
@@ -31,5 +32,9 @@ public class JsonUtil {
 
     public static JsonNode parseJson(String jsonContent) throws JsonProcessingException {
         return mapper.readTree(jsonContent);
+    }
+
+    public static String[] usingSplitMethod(String text, int n) {
+        return text.split("(?<=\\G.{" + n + "})");
     }
 }

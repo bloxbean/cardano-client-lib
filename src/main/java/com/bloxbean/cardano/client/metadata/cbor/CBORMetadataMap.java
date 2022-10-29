@@ -72,8 +72,13 @@ public class CBORMetadataMap {
     }
 
     public CBORMetadataMap put(String key, String value) {
-        checkLength(value);
-        map.put(new UnicodeString(key), new UnicodeString(value));
+        if (checkLength(value) > 64) {
+            CBORMetadataList cborMetadataList = new CBORMetadataList();
+            cborMetadataList.addAll(JsonUtil.usingSplitMethod(value, 64));
+            map.put(new UnicodeString(key), cborMetadataList.getArray());
+        } else {
+            map.put(new UnicodeString(key), new UnicodeString(value));
+        }
         return this;
     }
 
