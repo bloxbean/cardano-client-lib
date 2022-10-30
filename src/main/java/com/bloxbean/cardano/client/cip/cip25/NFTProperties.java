@@ -13,7 +13,7 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.metadata.cbor.MetadataHelper.extractActualValue;
 
-class NFTProperties extends CBORMetadataMap {
+public class NFTProperties extends CBORMetadataMap {
 
     public NFTProperties() {
         super();
@@ -47,9 +47,7 @@ class NFTProperties extends CBORMetadataMap {
     public NFTProperties property(String name, java.util.Map<String, String> values) {
         CBORMetadataMap map = new CBORMetadataMap();
 
-        values.entrySet().stream().forEach(entry -> {
-            map.put(entry.getKey(), entry.getValue());
-        });
+        values.entrySet().stream().forEach(entry -> map.put(entry.getKey(), entry.getValue()));
 
         put(name, map);
         return this;
@@ -68,7 +66,7 @@ class NFTProperties extends CBORMetadataMap {
         Map map = cborMap.getMap();
 
         Collection<DataItem> dataItems = map.getKeys();
-        if (dataItems == null || dataItems.size() == 0)
+        if (dataItems == null || dataItems.isEmpty())
             return null;
 
         java.util.Map output = new HashMap();
@@ -90,7 +88,7 @@ class NFTProperties extends CBORMetadataMap {
             return this;
 
         CBORMetadataList list = new CBORMetadataList();
-        values.forEach(value -> list.add(value));
+        values.forEach(list::add);
         put(name, list);
 
         return this;

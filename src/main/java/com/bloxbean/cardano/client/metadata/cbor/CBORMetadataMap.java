@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.metadata.helper.MetadataToJsonNoSchemaConverter;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.util.StringUtils;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -72,8 +73,13 @@ public class CBORMetadataMap {
     }
 
     public CBORMetadataMap put(String key, String value) {
-        checkLength(value);
-        map.put(new UnicodeString(key), new UnicodeString(value));
+        if (checkLength(value) > 64) {
+            CBORMetadataList cborMetadataList = new CBORMetadataList();
+            cborMetadataList.addAll(StringUtils.splitStringEveryNCharacters(value, 64));
+            map.put(new UnicodeString(key), cborMetadataList.getArray());
+        } else {
+            map.put(new UnicodeString(key), new UnicodeString(value));
+        }
         return this;
     }
 

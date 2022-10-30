@@ -36,6 +36,14 @@ public class CBORMetadataList {
         return this;
     }
 
+    public CBORMetadataList addAll(String[] value) {
+        for (String str : value) {
+            checkLength(str);
+            array.add(new UnicodeString(str));
+        }
+        return this;
+    }
+
     public CBORMetadataList add(byte[] value) {
         array.add(new ByteString(value));
         return this;
