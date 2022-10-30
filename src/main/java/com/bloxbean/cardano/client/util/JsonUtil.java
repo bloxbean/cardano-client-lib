@@ -33,8 +33,4 @@ public class JsonUtil {
     public static JsonNode parseJson(String jsonContent) throws JsonProcessingException {
         return mapper.readTree(jsonContent);
     }
-
-    public static String[] usingSplitMethod(String text, int n) {
-        return text.split("(?<=\\G.{" + n + "})");
-    }
 }

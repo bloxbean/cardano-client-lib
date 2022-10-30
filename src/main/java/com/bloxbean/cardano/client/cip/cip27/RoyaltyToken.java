@@ -44,6 +44,9 @@ public class RoyaltyToken extends NFTProperties {
      * @return {@link RoyaltyToken}
      */
     public RoyaltyToken rate(Double rate) {
+        if (rate < 0.0 || rate > 1.0) {
+           throw new IllegalArgumentException("Royalty Rate is Outside of Legal Range (0.0-1.0)");
+        }
         put(RATE_KEY, rate.toString());
         return this;
     }
