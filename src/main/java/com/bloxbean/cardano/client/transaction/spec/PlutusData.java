@@ -24,9 +24,11 @@ public interface PlutusData {
 //    big_int = int / big_uint / big_nint ; New
 //    big_uint = #6.2(bounded_bytes) ; New
 //    big_nint = #6.3(bounded_bytes) ; New
-    
+
     static PlutusData unit() {
-        return ConstrPlutusData.builder().build();
+        return ConstrPlutusData.builder()
+                .data(ListPlutusData.of())
+                .build();
     }
 
     DataItem serialize() throws CborSerializationException;

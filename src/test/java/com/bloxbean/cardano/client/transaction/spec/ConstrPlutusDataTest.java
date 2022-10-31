@@ -183,4 +183,13 @@ class ConstrPlutusDataTest {
         assertThat(deConstData.getData().getPlutusDataList().size()).isEqualTo(1);
     }
 
+    @Test
+    void unitPlutusDataSerialization() {
+        PlutusData plutusData = PlutusData.unit();
+        String hex = plutusData.serializeToHex();
+
+        assertThat(hex).isNotNull();
+        assertThat(((ConstrPlutusData)plutusData).getData().getPlutusDataList()).hasSize(0);
+    }
+
 }
