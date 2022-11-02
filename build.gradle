@@ -13,7 +13,7 @@ dependencies {
     compile group: 'co.nstant.in', name: 'cbor', version: '0.9'
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
 
-    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.13.4'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.13.4.2'
     implementation group: 'com.google.guava', name: 'guava', version: '31.1-jre'
 
     //ed25519
