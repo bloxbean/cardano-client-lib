@@ -435,6 +435,11 @@ export BF_PROJECT_ID=<Blockfrost Project Id>
 * [MusicBox - CNFT Project](https://www.musicboxnft.com/)
 * [Realfi.info - Portfolio Viewer](https://realfi.info)
 
+# Any questions, ideas or issues ?
+
+- Create a Github [Discussion](https://github.com/bloxbean/cardano-client-lib/discussions)
+- Create a Github [Issue](https://github.com/bloxbean/cardano-client-lib/issues)
+- [Discord Server](https://discord.gg/JtQ54MSw6p)
 
 # Sponsors :sparkling_heart:
 <p align="center">
