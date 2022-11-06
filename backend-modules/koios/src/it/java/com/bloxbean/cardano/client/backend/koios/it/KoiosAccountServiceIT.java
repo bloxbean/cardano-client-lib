@@ -60,7 +60,7 @@ public class KoiosAccountServiceIT extends KoiosBaseTest {
         String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
         Result<List<AccountAsset>> result = accountService.getAccountAssets(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
-        List<AccountAsset> accountRewardsHistories = result.getValue();
-        System.out.println(JsonUtil.getPrettyJson(accountRewardsHistories));
+        List<AccountAsset> accountAssetList = result.getValue();
+        System.out.println(JsonUtil.getPrettyJson(accountAssetList));
     }
 }

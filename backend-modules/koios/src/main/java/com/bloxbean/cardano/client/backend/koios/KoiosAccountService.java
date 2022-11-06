@@ -4,15 +4,19 @@ import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.*;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import rest.koios.client.backend.api.account.AccountService;
 import rest.koios.client.backend.api.account.model.AccountHistoryInner;
 import rest.koios.client.backend.api.account.model.AccountInfo;
 import rest.koios.client.backend.api.account.model.AccountReward;
 import rest.koios.client.backend.api.account.model.AccountRewards;
-import rest.koios.client.backend.factory.options.*;
+import rest.koios.client.backend.factory.options.Limit;
+import rest.koios.client.backend.factory.options.Offset;
+import rest.koios.client.backend.factory.options.Options;
 
-import java.nio.charset.StandardCharsets;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -209,15 +213,13 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
     private Result<List<AccountAsset>> convertToAccountAssets(List<rest.koios.client.backend.api.account.model.AccountAsset> accountAssetList) {
         List<AccountAsset> accountAssets = new ArrayList<>();
         if (accountAssetList!=null) {
-            accountAssetList.forEach(accountAsset -> {
-                accountAsset.getAssets().forEach(assetInner -> {
-                    AccountAsset accountAsset1 = new AccountAsset();
-                    accountAsset1.setUnit(accountAsset.getPolicyId() + HexUtil.encodeHexString(assetInner.getAssetName().getBytes(StandardCharsets.UTF_8)));
-                    accountAsset1.setQuantity(assetInner.getBalance());
-                    accountAssets.add(accountAsset1);
-
-                });
-            });
+            accountAssetList.forEach(accountAsset -> accountAsset.getAssets().forEach(assetInner -> {
+                AccountAsset accountAsset1 = new AccountAsset();
+                accountAsset1.setUnit(AssetUtil.getUnit(accountAsset.getPolicyId(), Asset.builder().name(new String(HexUtil.decodeHexString(assetInner.getAssetName())))
+                        .value(new BigInteger(assetInner.getBalance())).build()));
+                accountAsset1.setQuantity(assetInner.getBalance());
+                accountAssets.add(accountAsset1);
+            }));
         }
         return Result.success("OK").withValue(accountAssets).code(200);
     }
