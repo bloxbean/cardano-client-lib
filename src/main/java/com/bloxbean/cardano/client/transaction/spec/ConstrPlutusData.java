@@ -6,10 +6,11 @@ import co.nstant.in.cbor.model.Tag;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import com.bloxbean.cardano.client.transaction.spec.serializers.ConstrDataJsonDeserializer;
+import com.bloxbean.cardano.client.transaction.spec.serializers.ConstrDataJsonSerializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import lombok.*;
 
 import java.util.List;
 
@@ -17,6 +18,9 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@EqualsAndHashCode
+@JsonSerialize(using = ConstrDataJsonSerializer.class)
+@JsonDeserialize(using = ConstrDataJsonDeserializer.class)
 public class ConstrPlutusData implements PlutusData {
     // see: https://github.com/input-output-hk/plutus/blob/1f31e640e8a258185db01fa899da63f9018c0e85/plutus-core/plutus-core/src/PlutusCore/Data.hs#L61
     // We don't directly serialize the alternative in the tag, instead the scheme is:
