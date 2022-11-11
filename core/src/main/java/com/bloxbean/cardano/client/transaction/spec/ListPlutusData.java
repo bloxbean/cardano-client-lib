@@ -5,10 +5,11 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Special;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import com.bloxbean.cardano.client.transaction.spec.serializers.ListDataJsonDeserializer;
+import com.bloxbean.cardano.client.transaction.spec.serializers.ListDataJsonSerializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import lombok.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,6 +19,9 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@EqualsAndHashCode
+@JsonSerialize(using = ListDataJsonSerializer.class)
+@JsonDeserialize(using = ListDataJsonDeserializer.class)
 public class ListPlutusData implements PlutusData {
 
     @Builder.Default
@@ -91,5 +95,4 @@ public class ListPlutusData implements PlutusData {
 
         return plutusDataArray;
     }
-
 }

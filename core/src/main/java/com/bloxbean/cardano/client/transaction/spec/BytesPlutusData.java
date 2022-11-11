@@ -4,6 +4,10 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.spec.serializers.BytesDataJsonDeserializer;
+import com.bloxbean.cardano.client.transaction.spec.serializers.BytesDataJsonSerializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
 import java.nio.charset.StandardCharsets;
@@ -13,6 +17,8 @@ import java.nio.charset.StandardCharsets;
 @NoArgsConstructor
 @Builder
 @EqualsAndHashCode
+@JsonSerialize(using = BytesDataJsonSerializer.class)
+@JsonDeserialize(using = BytesDataJsonDeserializer.class)
 public class BytesPlutusData implements PlutusData {
     private byte[] value;
 

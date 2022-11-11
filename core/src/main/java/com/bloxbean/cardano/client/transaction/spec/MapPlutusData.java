@@ -4,10 +4,11 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import com.bloxbean.cardano.client.transaction.spec.serializers.MapDataJsonDeserializer;
+import com.bloxbean.cardano.client.transaction.spec.serializers.MapDataJsonSerializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import lombok.*;
 
 import java.util.HashMap;
 
@@ -15,6 +16,9 @@ import java.util.HashMap;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@EqualsAndHashCode
+@JsonSerialize(using = MapDataJsonSerializer.class)
+@JsonDeserialize(using = MapDataJsonDeserializer.class)
 public class MapPlutusData implements PlutusData {
 
     @Builder.Default

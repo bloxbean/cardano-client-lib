@@ -6,6 +6,10 @@ import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.transaction.spec.serializers.BigIntDataJsonDeserializer;
+import com.bloxbean.cardano.client.transaction.spec.serializers.BigIntDataJsonSerializer;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
 import java.math.BigInteger;
@@ -15,6 +19,8 @@ import java.math.BigInteger;
 @NoArgsConstructor
 @Builder
 @EqualsAndHashCode
+@JsonSerialize(using = BigIntDataJsonSerializer.class)
+@JsonDeserialize(using = BigIntDataJsonDeserializer.class)
 public class BigIntPlutusData implements PlutusData {
     private BigInteger value;
 

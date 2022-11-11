@@ -4,12 +4,13 @@ import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.NonNull;
 
 public interface PlutusData {
@@ -62,12 +63,14 @@ public interface PlutusData {
         }
     }
 
+    @JsonIgnore
     default String getDatumHash() throws CborSerializationException, CborException {
         return HexUtil.encodeHexString(getDatumHashAsBytes());
     }
 
+    @JsonIgnore
     default byte[] getDatumHashAsBytes() throws CborSerializationException, CborException {
-        return KeyGenUtil.blake2bHash256(CborSerializationUtil.serialize(serialize()));
+        return Blake2bUtil.blake2bHash256(CborSerializationUtil.serialize(serialize()));
     }
 
     default String serializeToHex()  {
