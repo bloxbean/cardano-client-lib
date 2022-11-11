@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
-import com.bloxbean.cardano.client.backend.kupo.KupoUtxoService;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.cip.cip25.NFT;
 import com.bloxbean.cardano.client.cip.cip25.NFTFile;

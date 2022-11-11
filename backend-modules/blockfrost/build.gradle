@@ -9,7 +9,7 @@ repositories {
 }
 
 dependencies {
-    compile project(':')
+    compile project(':cardano-client-core')
     compile project(':cardano-client-backend')
 
     implementation('com.squareup.retrofit2:retrofit:2.9.0') {

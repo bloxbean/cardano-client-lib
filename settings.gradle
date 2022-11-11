@@ -1,10 +1,22 @@
 rootProject.name = 'cardano-client-lib'
+include 'core'
+include 'function'
+include 'cip'
 include 'backend'
 include 'blockfrost'
 //include 'cardano-graphql'
 include 'koios'
 include 'ogmios'
 include 'integration-test'
+
+project(':core').projectDir = file('core')
+project(":core").name = "cardano-client-core"
+
+project(':function').projectDir = file('function')
+project(":function").name = "cardano-client-function"
+
+project(':cip').projectDir = file('cip')
+project(":cip").name = "cardano-client-cip"
 
 //backend
 project(':backend').projectDir = file('backend')
