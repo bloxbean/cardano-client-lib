@@ -9,7 +9,7 @@ repositories {
 }
 
 dependencies {
-    implementation project(':')
+    implementation project(':cardano-client-core')
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
     compileOnly 'org.projectlombok:lombok:1.18.20'
     annotationProcessor 'org.projectlombok:lombok:1.18.20'

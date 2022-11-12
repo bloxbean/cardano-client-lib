@@ -9,7 +9,9 @@ repositories {
 }
 
 dependencies {
-    compile project(':')
+    compile project(':cardano-client-core')
+    compile project(':cardano-client-function')
+    compile project(':cardano-client-cip')
     compile project(':cardano-client-backend')
 
     compile 'io.adabox:ogmios-java-client:1.0.0'

@@ -9,55 +9,9 @@ repositories {
 }
 
 dependencies {
-    implementation group: 'org.bouncycastle', name: 'bcprov-jdk15to18', version: '1.71'
-    compile group: 'co.nstant.in', name: 'cbor', version: '0.9'
-    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
-
-    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.13.4.2'
-    implementation group: 'com.google.guava', name: 'guava', version: '31.1-jre'
-
-    //ed25519
-    implementation group: 'net.i2p.crypto', name: 'eddsa', version: '0.3.0'
-
-    compileOnly 'org.projectlombok:lombok:1.18.24'
-    annotationProcessor 'org.projectlombok:lombok:1.18.24'
-
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params'
-    testImplementation 'org.hamcrest:hamcrest-library:2.2'
-    testImplementation 'org.mockito:mockito-inline:4.6.1'
-    testImplementation 'org.mockito:mockito-junit-jupiter:4.6.1'
-    testImplementation('org.assertj:assertj-core:3.23.1')
-    testRuntimeOnly 'org.slf4j:slf4j-log4j12:1.7.36'
-
-    testCompileOnly 'org.projectlombok:lombok:1.18.24'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.24'
-}
-
-sourceSets {
-    main {
-        resources {
-            srcDirs "src/main/resources", "native"
-        }
-    }
-    integrationTest {
-        java {
-            compileClasspath += main.output + test.output + configurations.testCompile
-            runtimeClasspath += main.output + test.output + compileClasspath + configurations.testRuntime
-            srcDir file('src/it/java')
-        }
-        resources.srcDir file('src/it/resources')
-    }
-}
-
-configurations {
-    integrationTestCompile.extendsFrom testCompile
-    integrationTestCompileOnly.extendsFrom testCompileOnly
-    integrationTestImplementation.extendsFrom testImplementation
-    integrationTestRuntime.extendsFrom testRuntime
-    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
-    integreationTestAnnotationProcessor.extendsFrom testAnnotationProcessor
+    compile project(':cardano-client-core')
+    compile project(':cardano-client-function')
+    compile project(':cardano-client-cip')
 }
 
 compileJava {
@@ -87,38 +41,11 @@ artifacts {
     archives javadocJar
 }
 
-//create a single Jar with all dependencies
-task fatJar(type: Jar) {
-    manifest {
-        attributes 'Main-Class': 'com.bloxbean.cardano.client.cli.CLIMain'
-    }
-    baseName = project.name + '-all'
-    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
-    with jar
-}
-
 test {
     useJUnitPlatform()
     testLogging {
         showStandardStreams = true
     }
-}
-
-task integrationTest(type: Test) {
-    description = 'Runs the integration tests.'
-    group = LifecycleBasePlugin.VERIFICATION_GROUP
-    testClassesDirs = sourceSets.integrationTest.output.classesDirs
-    classpath = sourceSets.integrationTest.runtimeClasspath
-    outputs.upToDateWhen { false }
-   // mustRunAfter(tasks.named('test'))
-    systemProperty('BF_PROJECT_ID', findProperty("BF_PROJECT_ID"))
-    testLogging {
-        showStandardStreams = true
-    }
-}
-
-integrationTest {
-    useJUnitPlatform()
 }
 
 publishing {
@@ -176,7 +103,6 @@ ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
 
 if (isReleaseVersion && !project.hasProperty("skipSigning")) {
     signing {
-//        sign configurations.archives
         sign publishing.publications
     }
 }
