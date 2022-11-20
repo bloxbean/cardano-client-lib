@@ -20,21 +20,13 @@ public class ScriptDataHashGenerator {
 
     public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, byte[] langViewsBytes)
             throws CborSerializationException, CborException {
-
-        Array redeemerArray = new Array();
-        if (redeemers != null && redeemers.size() > 0) {
-            for (Redeemer redeemer : redeemers) {
-                redeemerArray.add(redeemer.serialize());
-            }
-        }
-
-        byte[] redeemerBytes = null;
-        if (redeemerArray.getDataItems().size() != 0) {
-            redeemerBytes = CborSerializationUtil.serialize(redeemerArray);
-        } else {
-            redeemerBytes = new byte[0];
-        }
-
+        /**
+         ; script data format:
+         ; [ redeemers | datums | language views ]
+         ; The redeemers are exactly the data present in the transaction witness set.
+         ; Similarly for the datums, if present. If no datums are provided, the middle
+         ; field is an empty string.
+         **/
         Array datumArray = new Array();
         if (datums != null && datums.size() > 0) {
             for (PlutusData datum : datums) {
@@ -42,14 +34,31 @@ public class ScriptDataHashGenerator {
             }
         }
 
-        byte[] plutusDataBytes = null;
+        byte[] plutusDataBytes;
         if (datumArray.getDataItems().size() != 0) {
             plutusDataBytes = CborSerializationUtil.serialize(datumArray);
         } else {
             plutusDataBytes = new byte[0];
         }
 
-        byte[] encodedBytes = Bytes.concat(redeemerBytes, plutusDataBytes, langViewsBytes);
+        byte[] encodedBytes;
+        if (redeemers != null && redeemers.size() > 0) {
+            Array redeemerArray = new Array();
+            for (Redeemer redeemer : redeemers) {
+                redeemerArray.add(redeemer.serialize());
+            }
+            byte[] redeemerBytes = CborSerializationUtil.serialize(redeemerArray);
+            encodedBytes = Bytes.concat(redeemerBytes, plutusDataBytes, langViewsBytes);
+        } else {
+            /**
+             ; Finally, note that in the case that a transaction includes datums but does not
+             ; include any redeemers, the script data format becomes (in hex):
+             ; [ 80 | datums | A0 ]
+             ; corresponding to a CBOR empty list and an empty map.
+             **/
+            encodedBytes = Bytes.concat(HexUtil.decodeHexString("0x80"), plutusDataBytes, HexUtil.decodeHexString("0xA0"));
+        }
+
         return Blake2bUtil.blake2bHash256(encodedBytes);
     }
 }
