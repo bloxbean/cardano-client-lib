@@ -1,4 +1,8 @@
 rootProject.name = 'cardano-client-lib'
+include 'common'
+include 'crypto'
+include 'transaction-common'
+include 'address'
 include 'core'
 include 'function'
 include 'cip'
@@ -8,6 +12,18 @@ include 'blockfrost'
 include 'koios'
 include 'ogmios'
 include 'integration-test'
+
+project(':common').projectDir = file('common')
+project(":common").name = "cardano-client-common"
+
+project(':crypto').projectDir = file('crypto')
+project(":crypto").name = "cardano-client-crypto"
+
+project(':transaction-common').projectDir = file('transaction-common')
+project(":transaction-common").name = "cardano-client-transaction-common"
+
+project(':address').projectDir = file('address')
+project(":address").name = "cardano-client-address"
 
 project(':core').projectDir = file('core')
 project(":core").name = "cardano-client-core"

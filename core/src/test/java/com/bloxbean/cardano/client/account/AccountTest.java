@@ -4,6 +4,9 @@ import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.bip32.HdKeyGenerator;
+import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
+import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -390,5 +393,29 @@ public class AccountTest {
         String address = account.baseAddressAsBase16();
 
         assertThat(address).isEqualTo("00a1deeb02cc062706b41b689fa0fa9d2f375c5486560491712cfab7321fa6c716582751156c38c65f2a2960ccd9deb5eccab932495bb561c3");
+    }
+
+    @Test
+    void testGPublicKey() {
+        Account account = new Account(2);
+        HdKeyPair hdKeyPair = account.hdKeyPair();
+
+        byte[] derivePubKey = HdKeyGenerator.getPublicKey(hdKeyPair.getPrivateKey().getKeyData());
+
+        assertThat(derivePubKey).isEqualTo(hdKeyPair.getPublicKey().getKeyData());
+    }
+
+    @Test
+    void testPubKeyFromParentPubKey() {
+        String mnemonicPhrase = "indicate traffic belt syrup chief accident put upset present short drink bus glide warm roof";
+
+        Account account = new Account(mnemonicPhrase,2);
+        HdKeyPair hdKeyPair = account.hdKeyPair();
+        HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+        HdKeyPair childHdKeyPair = hdKeyGenerator.getChildKeyPair(hdKeyPair, 1, false);
+
+        HdPublicKey publicKey = hdKeyGenerator.getChildPublicKey(hdKeyPair.getPublicKey(), 1);
+
+        assertThat(publicKey.getKeyData()).isEqualTo(childHdKeyPair.getPublicKey().getKeyData());
     }
 }

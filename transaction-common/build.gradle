@@ -1,0 +1,15 @@
+dependencies {
+    api project(':cardano-client-common')
+    api project(':cardano-client-crypto')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Transaction Common'
+                description = 'Cardano Client Lib - Common transaction classes used in other modules'
+            }
+        }
+    }
+}

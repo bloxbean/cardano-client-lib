@@ -1,0 +1,16 @@
+[libraries]
+koios-java = "io.github.cardano-community:koios-java-client:1.15.2"
+ogmios-java = "io.adabox:ogmios-java-client:1.0.0"
+
+slf4j-api = "org.slf4j:slf4j-api:1.7.36"
+
+bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk15to18:1.71"
+guava = "com.google.guava:guava:31.1-jre"
+co-nstant-in-cbor = "co.nstant.in:cbor:0.9"
+i2p-crypto-eddsa = "net.i2p.crypto:eddsa:0.3.0"
+
+jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.13.4.2"
+retrofit2 = "com.squareup.retrofit2:retrofit:2.9.0"
+retrofit2-converter-jackson = "com.squareup.retrofit2:converter-jackson:2.9.0"
+okhttp = "com.squareup.okhttp3:okhttp:4.10.0"
+

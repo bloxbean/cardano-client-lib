@@ -1,15 +1,21 @@
 package com.bloxbean.cardano.client.transaction;
 
+import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.transaction.spec.VkeyWitness;
+import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
+import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
+
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,5 +41,61 @@ class TransactionSignerTest {
 
         assertThat(vkeyHex).isEqualTo("60209269377f220cdecdc6d5ad42d9b04e58ce74b349efb396ee46adaeb956f3");
         assertThat(signatureHex).isEqualTo("cd9f8e70a09f24328ee6c14053a38a6a654d31e9e58a9c6c44848e4592265237ce3604eda0cb1812028c3e6b04c66ccc64a1d2685d98e0567477cbc33a4c2f0f");
+    }
+
+    @Test
+    public void sign_checkSerialized() throws CborDeserializationException, CborSerializationException, CborException {
+        TransactionBody txnBody = new TransactionBody();
+
+        TransactionInput txnInput = new TransactionInput();
+
+        txnInput.setTransactionId("dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d");
+        txnInput.setIndex(1);
+
+        List<TransactionInput> inputList = new ArrayList<>();
+        inputList.add(txnInput);
+        txnBody.setInputs(inputList);
+
+        //Total : 994632035
+        TransactionOutput txnOutput =  new TransactionOutput();
+        txnOutput.setAddress("addr_test1qqy3df0763vfmygxjxu94h0kprwwaexe6cx5exjd92f9qfkry2djz2a8a7ry8nv00cudvfunxmtp5sxj9zcrdaq0amtqmflh6v");
+        txnOutput.setValue(new Value(new BigInteger("5000000"), null));
+
+        TransactionOutput changeOutput =  new TransactionOutput();
+        changeOutput.setAddress("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
+        changeOutput.setValue(new Value(new BigInteger("989264070"), null));
+
+        List<TransactionOutput> outputs = new ArrayList<>();
+        outputs.add(txnOutput);
+        outputs.add(changeOutput);
+
+        txnBody.setOutputs(outputs);
+
+        txnBody.setFee(new BigInteger("367965"));
+        txnBody.setTtl(26194586);
+
+        Transaction transaction = new Transaction();
+        transaction.setBody(txnBody);
+
+        CBORMetadata metadata = new CBORMetadata();
+
+        metadata.putNegative(BigInteger.valueOf(1022222222), BigInteger.valueOf(-1481433243434L));
+
+        AuxiliaryData data = AuxiliaryData.builder()
+                .metadata(metadata)
+                .build();
+        transaction.setAuxiliaryData(data);
+
+        Account account = new Account();
+
+        Transaction signedTxn1 = account.sign(transaction);
+        //Sign again
+        Transaction signTxn2 = account.sign(transaction);
+
+        assertThat(signedTxn1.serializeToHex()).isEqualTo(signTxn2.serializeToHex());
+
+        //Clear witness and check with original txn
+        signTxn2.setWitnessSet(new TransactionWitnessSet());
+        assertThat(signTxn2.serializeToHex()).isEqualTo(transaction.serializeToHex());
     }
 }

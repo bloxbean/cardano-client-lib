@@ -10,6 +10,8 @@ import java.math.BigInteger;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil.*;
+import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toRational;
+import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
 
 @Getter
 @AllArgsConstructor

@@ -1,165 +1,27 @@
-plugins {
-    id 'java'
-    id 'maven-publish'
-    id 'signing'
-}
-
-repositories {
-    mavenCentral()
-}
-
 dependencies {
-    compile project(':cardano-client-core')
-    compile project(':cardano-client-function')
-    compile project(':cardano-client-cip')
-    compile project(':cardano-client-backend')
+    api project(':cardano-client-core')
+    api project(':cardano-client-function')
+    api project(':cardano-client-cip')
+    api project(':cardano-client-backend')
 
-    compile 'io.adabox:ogmios-java-client:1.0.0'
+    api (libs.ogmios.java)
 
-    implementation('com.squareup.retrofit2:retrofit:2.9.0') {
+    implementation(libs.retrofit2) {
         exclude group: 'com.squareup.okhttp3', module: 'okhttp'
     }
-    implementation('com.squareup.retrofit2:converter-jackson:2.9.0') {
+    implementation(libs.retrofit2.converter.jackson) {
         exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     }
-    implementation 'com.squareup.okhttp3:okhttp:4.10.0'
-
-    compileOnly 'org.projectlombok:lombok:1.18.24'
-    annotationProcessor 'org.projectlombok:lombok:1.18.24'
-
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.0'
-    testImplementation('org.assertj:assertj-core:3.23.1')
-}
-
-sourceSets {
-    main {
-        resources {
-            srcDirs "src/main/resources"
-        }
-    }
-    integrationTest {
-        java {
-            compileClasspath += main.output + test.output + configurations.testCompile
-            runtimeClasspath += main.output + test.output + compileClasspath + configurations.testRuntime
-            srcDir file('src/it/java')
-        }
-        resources.srcDir file('src/it/resources')
-    }
-}
-
-configurations {
-    integrationTestCompile.extendsFrom testCompile
-    integrationTestImplementation.extendsFrom testImplementation
-    integrationTestRuntime.extendsFrom testRuntime
-    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
-}
-
-compileJava {
-    sourceCompatibility = '11'
-    targetCompatibility = '11'
-    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
-}
-
-javadoc {
-    source = sourceSets.main.allJava
-}
-
-task sourceJar(type: Jar) {
-    classifier "sources"
-    from sourceSets.main.allJava
-}
-
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier "javadoc"
-    from javadoc.destinationDir
-}
-
-artifacts {
-    archives jar
-    archives sourceJar
-    archives javadocJar
-}
-
-test {
-    useJUnitPlatform()
-    testLogging {
-        showStandardStreams = true
-    }
-}
-
-task integrationTest(type: Test) {
-    description = 'Runs the integration tests.'
-    group = LifecycleBasePlugin.VERIFICATION_GROUP
-    testClassesDirs = sourceSets.integrationTest.output.classesDirs
-    classpath = sourceSets.integrationTest.runtimeClasspath
-    outputs.upToDateWhen { false }
-    // mustRunAfter(tasks.named('test'))
-//    systemProperty('ENV_NAME', findProperty("ENV_NAME"))
-    testLogging {
-        showStandardStreams = true
-    }
-}
-
-integrationTest {
-    useJUnitPlatform()
+    implementation(libs.okhttp)
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            from components.java
-            artifact(sourceJar) {
-                classifier = 'sources'
-            }
-            artifact(javadocJar) {
-                classifier = 'javadoc'
-            }
             pom {
-                name = 'Cardano Client Lib - Ogmios Backend'
-                description = 'Cardano Client Library - Ogmios Backend'
-                url = 'https://github.com/bloxbean/cardano-client-lib'
-                licenses {
-                    license {
-                        name = 'The MIT License'
-                        url = 'https://opensource.org/licenses/mit-license.php'
-                    }
-                }
-                developers {
-                    developer {
-                        id = 'satran004'
-                        name = 'Satya'
-                    }
-                }
-                scm {
-                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-lib'
-                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-lib'
-                    url = 'https://github.com/bloxbean/cardano-client-lib'
-                }
+                name = 'Cardano Client Ogmios Backend'
+                description = 'Cardano Client Lib - Ogmios Backend Module'
             }
         }
-    }
-
-    repositories {
-        String ossrhUsername = System.getenv('MAVEN_USERNAME')
-        String ossrhPassword = System.getenv('MAVEN_PASSWORD')
-
-        maven {
-            def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
-            def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            credentials {
-                username ossrhUsername
-                password ossrhPassword
-            }
-        }
-    }
-}
-
-ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
-
-if (isReleaseVersion && !project.hasProperty("skipSigning")) {
-    signing {
-//        sign configurations.archives
-        sign publishing.publications
     }
 }

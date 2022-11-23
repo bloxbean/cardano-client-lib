@@ -1,0 +1,18 @@
+dependencies {
+    api project(":cardano-client-common")
+
+    implementation(libs.bouncycastle.bcprov)
+    implementation(libs.i2p.crypto.eddsa)
+    implementation(libs.guava)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Crypto'
+                description = 'Cardano Client Lib - Crypto Implementations'
+            }
+        }
+    }
+}

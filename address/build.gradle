@@ -1,0 +1,18 @@
+dependencies {
+    api project(':cardano-client-common')
+    api project(':cardano-client-crypto')
+    api project(':cardano-client-transaction-common')
+
+    implementation(libs.guava)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Lib Address'
+                description = 'Address generation for Cardano blockchain'
+            }
+        }
+    }
+}
