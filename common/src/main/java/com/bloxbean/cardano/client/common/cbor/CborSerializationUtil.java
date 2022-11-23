@@ -5,7 +5,7 @@ import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
-import com.bloxbean.cardano.client.common.cbor.cbor.CustomCborEncoder;
+import com.bloxbean.cardano.client.common.cbor.custom.CustomCborEncoder;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;

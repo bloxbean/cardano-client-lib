@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.common.cbor.cbor;
+package com.bloxbean.cardano.client.common.cbor.custom;
 
 import co.nstant.in.cbor.model.Map;
 

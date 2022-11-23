@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
-import com.bloxbean.cardano.client.common.cbor.cbor.SortedMap;
+import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import lombok.AllArgsConstructor;
