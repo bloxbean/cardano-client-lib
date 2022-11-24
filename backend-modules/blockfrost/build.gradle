@@ -1,6 +1,6 @@
 dependencies {
-    api project(':cardano-client-core')
-    api project(':cardano-client-backend')
+    api project(':core')
+    api project(':backend')
 
     implementation(libs.retrofit2) {
         exclude group: 'com.squareup.okhttp3', module: 'okhttp'

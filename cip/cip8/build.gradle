@@ -1,0 +1,19 @@
+dependencies {
+    api project(':common')
+    api project(':crypto')
+    api(libs.co.nstant.in.cbor)
+
+    //core dependency is just for test. Don't move it to main dependency if not required
+    testImplementation project(':core')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client CIP8'
+                description = 'Cardano Client Lib - CIP8 Implementation'
+            }
+        }
+    }
+}

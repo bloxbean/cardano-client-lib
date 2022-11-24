@@ -1,8 +1,8 @@
 dependencies {
     implementation project(':')
-    implementation project(':cardano-client-backend')
-    implementation project(':cardano-client-backend-blockfrost')
-    implementation project(':cardano-client-backend-koios')
-    implementation project(':cardano-client-backend-ogmios')
+    implementation project(':backend')
+    implementation project(':backend-modules:blockfrost')
+    implementation project(':backend-modules:koios')
+    implementation project(':backend-modules:ogmios')
 }
 

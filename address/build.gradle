@@ -1,7 +1,7 @@
 dependencies {
-    api project(':cardano-client-common')
-    api project(':cardano-client-crypto')
-    api project(':cardano-client-transaction-common')
+    api project(':common')
+    api project(':crypto')
+    api project(':transaction-common')
 
     implementation(libs.guava)
 }

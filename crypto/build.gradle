@@ -1,5 +1,5 @@
 dependencies {
-    api project(":cardano-client-common")
+    api project(":common")
 
     implementation(libs.bouncycastle.bcprov)
     implementation(libs.i2p.crypto.eddsa)

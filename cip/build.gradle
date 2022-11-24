@@ -1,5 +1,9 @@
 dependencies {
-    implementation project(':cardano-client-core')
+    api project(':cip:cip8')
+    api project(':cip:cip20')
+    api project(':cip:cip25')
+    api project(':cip:cip27')
+    api project(':cip:cip30')
 }
 
 publishing {

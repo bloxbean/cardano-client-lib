@@ -1,5 +1,5 @@
 dependencies {
-    api project(':cardano-client-core')
+    api project(':core')
     api(libs.slf4j.api)
 }
 

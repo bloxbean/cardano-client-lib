@@ -1,8 +1,7 @@
 dependencies {
-    api project(':cardano-client-core')
-    api project(':cardano-client-function')
-    api project(':cardano-client-cip')
-    api project(':cardano-client-backend')
+    api project(':core')
+    api project(':function')
+    api project(':backend')
 
     api (libs.ogmios.java)
 

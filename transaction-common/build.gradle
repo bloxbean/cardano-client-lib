@@ -1,6 +1,6 @@
 dependencies {
-    api project(':cardano-client-common')
-    api project(':cardano-client-crypto')
+    api project(':common')
+    api project(':crypto')
 }
 
 publishing {

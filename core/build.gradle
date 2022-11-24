@@ -1,7 +1,9 @@
 dependencies {
-    api project(':cardano-client-common')
-    api project(':cardano-client-crypto')
-    api project(":cardano-client-address")
+    api project(':common')
+    api project(':crypto')
+    api project(':transaction-common')
+    api project(":address")
+    api project(':metadata')
 
     implementation(libs.guava)
     implementation(libs.bouncycastle.bcprov)

@@ -1,5 +1,5 @@
 dependencies {
-    implementation project(':cardano-client-core')
+    implementation project(':core')
 }
 
 publishing {

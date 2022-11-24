@@ -9,13 +9,9 @@ repositories {
 }
 
 dependencies {
-    api project(':cardano-client-common')
-    api project(':cardano-client-transaction-common')
-    api project(':cardano-client-crypto')
-    api project(':cardano-client-address')
-    api project(':cardano-client-core')
-    api project(':cardano-client-function')
-    api project(':cardano-client-cip')
+    api project(':core')
+    api project(':function')
+    api project(':cip')
 
 }
 
@@ -30,20 +26,8 @@ tasks.withType(Javadoc) {
     options.encoding = 'UTF-8'
 }
 
-task sourceJar(type: Jar) {
-    classifier "sources"
-    from sourceSets.main.allJava
-}
-
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier "javadoc"
-    from javadoc.destinationDir
-}
-
 artifacts {
     archives jar
-    archives sourceJar
-    archives javadocJar
 }
 
 test {
@@ -57,12 +41,6 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
-            artifact(sourceJar) {
-                classifier = 'sources'
-            }
-            artifact(javadocJar) {
-                classifier = 'javadoc'
-            }
             pom {
                 name = 'Cardano Client Library'
                 description = 'Cardano Client Library for Java'
@@ -121,6 +99,9 @@ subprojects {
         mavenCentral()
     }
 
+    //Jars are with cardano-client prefix
+    archivesBaseName = 'cardano-client-' + project.name
+
     dependencies {
         api(libs.slf4j.api)
 
@@ -157,6 +138,7 @@ subprojects {
     }
 
     task javadocJar(type: Jar, dependsOn: javadoc) {
+
         classifier "javadoc"
         from javadoc.destinationDir
     }
@@ -167,11 +149,41 @@ subprojects {
         archives javadocJar
     }
 
-    test {
-        useJUnitPlatform()
-        testLogging {
-            showStandardStreams = true
+    testing {
+        suites {
+            test {
+                useJUnitJupiter()
+            }
+
+            integrationTest(JvmTestSuite) {
+                sources {
+                    java {
+                        srcDirs = ['src/it/java']
+                    }
+                    resources {
+                        srcDirs = ['src/it/resources']
+                    }
+                }
+
+                dependencies {
+                    implementation project
+                }
+
+                targets {
+                    all {
+                        testTask.configure {
+                            // set a system property for the test JVM(s)
+                            systemProperty('BF_PROJECT_ID', findProperty("BF_PROJECT_ID"))
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    configurations {
+        integrationTestImplementation.extendsFrom testImplementation
+        integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
     }
 
     if (!name.equalsIgnoreCase("integration-test")) {
@@ -185,6 +197,7 @@ subprojects {
                     artifact(javadocJar) {
                         classifier = 'javadoc'
                     }
+                    artifactId 'cardano-client-' + project.name
                     pom {
 //                    name = publish_name
 //                    description = publish_desc

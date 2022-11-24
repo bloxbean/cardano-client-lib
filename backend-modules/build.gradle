@@ -1,0 +1,27 @@
+dependencies {
+    api project(':backend-modules:blockfrost')
+    api project(':backend-modules:koios')
+    api project(':backend-modules:ogmios')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Backend Modules'
+                description = 'Cardano Client Lib - Backend Modules (Blockfrost, Koios, Ogmios)'
+            }
+        }
+    }
+}
+
+subprojects {
+    archivesBaseName = 'cardano-client-backend-' + project.name
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                artifactId 'cardano-client-backend-' + project.name
+            }
+        }
+    }
+}

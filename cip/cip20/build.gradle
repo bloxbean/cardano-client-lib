@@ -1,0 +1,16 @@
+dependencies {
+    api project(':metadata')
+    api(libs.co.nstant.in.cbor)
+    api(libs.jackson.databind)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client CIP20'
+                description = 'Cardano Client Lib - CIP20 Implementation'
+            }
+        }
+    }
+}
