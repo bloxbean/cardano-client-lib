@@ -1,132 +1,14 @@
-plugins {
-    id 'java'
-    id 'maven-publish'
-    id 'signing'
-}
-
-repositories {
-    mavenCentral()
-}
-
 dependencies {
-    implementation project(':cardano-client-core')
-
-    compileOnly 'org.projectlombok:lombok:1.18.24'
-    annotationProcessor 'org.projectlombok:lombok:1.18.24'
-
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params'
-    testImplementation 'org.hamcrest:hamcrest-library:2.2'
-    testImplementation 'org.mockito:mockito-inline:4.6.1'
-    testImplementation 'org.mockito:mockito-junit-jupiter:4.6.1'
-    testImplementation('org.assertj:assertj-core:3.23.1')
-    testRuntimeOnly 'org.slf4j:slf4j-log4j12:1.7.36'
-
-    testCompileOnly 'org.projectlombok:lombok:1.18.24'
-    testAnnotationProcessor 'org.projectlombok:lombok:1.18.24'
-}
-
-sourceSets {
-    main {
-        resources {
-            srcDirs "src/main/resources"
-        }
-    }
-}
-
-configurations {
-}
-
-compileJava {
-    sourceCompatibility = '11'
-    targetCompatibility = '11'
-    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
-}
-
-javadoc {
-    source = sourceSets.main.allJava
-}
-
-task sourceJar(type: Jar) {
-    classifier "sources"
-    from sourceSets.main.allJava
-}
-
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier "javadoc"
-    from javadoc.destinationDir
-}
-
-artifacts {
-    archives jar
-    archives sourceJar
-    archives javadocJar
-}
-
-test {
-    useJUnitPlatform()
-    testLogging {
-        showStandardStreams = true
-    }
+    implementation project(':core')
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            from components.java
-            artifact(sourceJar) {
-                classifier = 'sources'
-            }
-            artifact(javadocJar) {
-                classifier = 'javadoc'
-            }
             pom {
-                name = 'Cardano Client Lib Functions'
-                description = 'Cardano Client Library - Composable functions module'
-                url = 'https://github.com/bloxbean/cardano-client-lib'
-                licenses {
-                    license {
-                        name = 'The MIT License'
-                        url = 'http://www.opensource.org/licenses/mit-license.php'
-                    }
-                }
-                developers {
-                    developer {
-                        id = 'satran004'
-                        name = 'Satya'
-                    }
-                }
-                scm {
-                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-lib'
-                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-lib'
-                    url = 'https://github.com/bloxbean/cardano-client-lib'
-                }
-            }
-        }
-    }
-
-    repositories {
-        String ossrhUsername = System.getenv('MAVEN_USERNAME')
-        String ossrhPassword = System.getenv('MAVEN_PASSWORD')
-
-        maven {
-            def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
-            def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            credentials {
-                username ossrhUsername
-                password ossrhPassword
+                name = 'Cardano Client Functions'
+                description = 'Cardano Client Lib - Composable Functions'
             }
         }
     }
 }
-
-ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
-
-if (isReleaseVersion && !project.hasProperty("skipSigning")) {
-    signing {
-        sign publishing.publications
-    }
-}
-

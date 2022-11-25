@@ -1,0 +1,15 @@
+dependencies {
+    api(libs.co.nstant.in.cbor)
+    api(libs.jackson.databind)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Common'
+                description = 'Cardano Client Lib - Common Module'
+            }
+        }
+    }
+}

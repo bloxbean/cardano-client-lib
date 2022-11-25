@@ -1,40 +1,28 @@
 rootProject.name = 'cardano-client-lib'
+//Main Modules
+include 'common'
+include 'crypto'
+include 'transaction-common'
+include 'address'
+include 'metadata'
 include 'core'
 include 'function'
+
+//CIPs
 include 'cip'
+include 'cip:cip20'
+include 'cip:cip25'
+include 'cip:cip8'
+include 'cip:cip27'
+include 'cip:cip30'
+
+//Backend modules
 include 'backend'
-include 'blockfrost'
-//include 'cardano-graphql'
-include 'koios'
-include 'ogmios'
+include 'backend-modules'
+include 'backend-modules:blockfrost'
+include 'backend-modules:koios'
+include 'backend-modules:ogmios'
 include 'integration-test'
 
-project(':core').projectDir = file('core')
-project(":core").name = "cardano-client-core"
 
-project(':function').projectDir = file('function')
-project(":function").name = "cardano-client-function"
-
-project(':cip').projectDir = file('cip')
-project(":cip").name = "cardano-client-cip"
-
-//backend
-project(':backend').projectDir = file('backend')
-project(":backend").name = "cardano-client-backend"
-
-//Blockfrost backend
-project(':blockfrost').projectDir = file('backend-modules/blockfrost')
-project(":blockfrost").name = "cardano-client-backend-blockfrost"
-
-//cardano-graphql backend
-//project(':cardano-graphql').projectDir = file('backend-modules/cardano-graphql')
-//project(":cardano-graphql").name = "cardano-client-backend-gql"
-
-//Koios backend
-project(':koios').projectDir = file('backend-modules/koios')
-project(":koios").name = "cardano-client-backend-koios"
-
-//Ogmios backend
-project(':ogmios').projectDir = file('backend-modules/ogmios')
-project(":ogmios").name = "cardano-client-backend-ogmios"
 

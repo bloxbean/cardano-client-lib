@@ -1,0 +1,16 @@
+dependencies {
+    api project(':cip:cip8')
+    api project(':core')
+    api(libs.co.nstant.in.cbor)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client CIP30'
+                description = 'Cardano Client Lib - CIP30 Implementation'
+            }
+        }
+    }
+}

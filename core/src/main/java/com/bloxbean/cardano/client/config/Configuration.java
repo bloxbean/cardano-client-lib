@@ -1,18 +1,14 @@
 package com.bloxbean.cardano.client.config;
 
-import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.crypto.api.SigningProvider;
-import com.bloxbean.cardano.client.crypto.api.impl.EdDSASigningProvider;
-import com.bloxbean.cardano.client.crypto.bip39.DefaultEntropyProviderImpl;
 import com.bloxbean.cardano.client.crypto.bip39.api.EntropyProvider;
+import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.client.plutus.api.PlutusObjectConverter;
 import com.bloxbean.cardano.client.plutus.impl.DefaultPlutusObjectConverter;
 
 public enum Configuration {
     INSTANCE();
 
-    private SigningProvider signingProvider;
-    private EntropyProvider entropyProvider;
     private PlutusObjectConverter plutusObjectConverter;
     private int coinSelectionLimit = 20;
 
@@ -20,25 +16,23 @@ public enum Configuration {
     private boolean isAndroid;
 
     Configuration() {
-        signingProvider = new EdDSASigningProvider();
-        entropyProvider = new DefaultEntropyProviderImpl();
         plutusObjectConverter = new DefaultPlutusObjectConverter();
     }
 
     public SigningProvider getSigningProvider() {
-        return signingProvider;
+        return CryptoConfiguration.INSTANCE.getSigningProvider();
     }
 
     public void setSigningProvider(SigningProvider signingProvider) {
-        this.signingProvider = signingProvider;
+        CryptoConfiguration.INSTANCE.setSigningProvider(signingProvider);
     }
 
     public EntropyProvider getEntropyProvider() {
-        return entropyProvider;
+        return CryptoConfiguration.INSTANCE.getEntropyProvider();
     }
 
     public void setEntropyProvider(EntropyProvider entropyProvider) {
-        this.entropyProvider = entropyProvider;
+        CryptoConfiguration.INSTANCE.setEntropyProvider(entropyProvider);
     }
 
     public PlutusObjectConverter getPlutusObjectConverter() {

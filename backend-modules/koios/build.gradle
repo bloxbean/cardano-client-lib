@@ -1,155 +1,18 @@
-plugins {
-    id 'java'
-    id 'maven-publish'
-    id 'signing'
-}
-
-repositories {
-    mavenCentral()
-}
-
 dependencies {
-    compile project(':cardano-client-core')
-    compile project(':cardano-client-backend')
+    api project(':core')
+    api project(':backend')
 
-    compile ('io.github.cardano-community:koios-java-client:1.15.2')
-
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
-    testImplementation 'org.hamcrest:hamcrest-library:2.2'
-    testImplementation 'org.mockito:mockito-inline:4.6.1'
-    testImplementation 'org.mockito:mockito-junit-jupiter:4.6.1'
-}
-
-sourceSets {
-    main {
-        resources {
-            srcDirs "src/main/resources"
-        }
-    }
-    integrationTest {
-        java {
-            compileClasspath += main.output + test.output + configurations.testCompile
-            runtimeClasspath += main.output + test.output + compileClasspath + configurations.testRuntime
-            srcDir file('src/it/java')
-        }
-        resources.srcDir file('src/it/resources')
-    }
-}
-
-configurations {
-    integrationTestCompile.extendsFrom testCompile
-    integrationTestImplementation.extendsFrom testImplementation
-    integrationTestRuntime.extendsFrom testRuntime
-    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
-}
-
-compileJava {
-    sourceCompatibility = '11'
-    targetCompatibility = '11'
-    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
-}
-
-javadoc {
-    source = sourceSets.main.allJava
-}
-
-task sourceJar(type: Jar) {
-    classifier "sources"
-    from sourceSets.main.allJava
-}
-
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier "javadoc"
-    from javadoc.destinationDir
-}
-
-artifacts {
-    archives jar
-    archives sourceJar
-    archives javadocJar
-}
-
-test {
-    useJUnitPlatform()
-    testLogging {
-        showStandardStreams = true
-    }
-}
-
-task integrationTest(type: Test) {
-    description = 'Runs the integration tests.'
-    group = LifecycleBasePlugin.VERIFICATION_GROUP
-    testClassesDirs = sourceSets.integrationTest.output.classesDirs
-    classpath = sourceSets.integrationTest.runtimeClasspath
-    outputs.upToDateWhen { false }
-    // mustRunAfter(tasks.named('test'))
-//    systemProperty('ENV_NAME', findProperty("ENV_NAME"))
-    testLogging {
-        showStandardStreams = true
-    }
-}
-
-integrationTest {
-    useJUnitPlatform()
+    api (libs.koios.java)
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            from components.java
-            artifact(sourceJar) {
-                classifier = 'sources'
-            }
-            artifact(javadocJar) {
-                classifier = 'javadoc'
-            }
             pom {
-                name = 'Cardano Client Lib - Koios Backend'
-                description = 'Cardano Client Library - Koios Backend'
-                url = 'https://github.com/bloxbean/cardano-client-lib'
-                licenses {
-                    license {
-                        name = 'The MIT License'
-                        url = 'https://opensource.org/licenses/mit-license.php'
-                    }
-                }
-                developers {
-                    developer {
-                        id = 'satran004'
-                        name = 'Satya'
-                    }
-                }
-                scm {
-                    connection = 'scm:git:git://github.com/bloxbean/cardano-client-lib'
-                    developerConnection = 'scm:git:ssh://git@github.com/bloxbean/cardano-client-lib'
-                    url = 'https://github.com/bloxbean/cardano-client-lib'
-                }
-            }
-        }
-    }
-
-    repositories {
-        String ossrhUsername = System.getenv('MAVEN_USERNAME')
-        String ossrhPassword = System.getenv('MAVEN_PASSWORD')
-
-        maven {
-            def releasesRepoUrl = "https://oss.sonatype.org/service/local/staging/deploy/maven2"
-            def snapshotsRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots/"
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            credentials {
-                username ossrhUsername
-                password ossrhPassword
+                name = 'Cardano Client Koios Backend'
+                description = 'Cardano Client Lib - Koios Backend Module'
             }
         }
     }
 }
 
-ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
-
-if (isReleaseVersion && !project.hasProperty("skipSigning")) {
-    signing {
-//        sign configurations.archives
-        sign publishing.publications
-    }
-}

@@ -1,0 +1,15 @@
+dependencies {
+    implementation project(':common')
+    implementation project(':crypto')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Metadata'
+                description = 'Cardano Client Lib - Metadata Core Apis'
+            }
+        }
+    }
+}
