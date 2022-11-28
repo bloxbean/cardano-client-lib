@@ -11,7 +11,7 @@ sidebar_position: 3
 
 First we need to select a network for our transaction. You can choose one of the available public test network.
 
-- **Prepod**
+- **Preprod**
 - **Preview**
 
 Similarly, choose a backend provider to interact with Cardano blockchain. You can select either Koios or Blockfrost as
@@ -48,7 +48,7 @@ Account account = new Account(Networks.testnet(), mnemonic);
 
 Two types of address can be generated, mainnet address or testnet address.
 
-To generate a test network address, you can use any of the network constant ``Networks.testnet()``, ``Networks.prepod()`` or
+To generate a test network address, you can use any of the network constant ``Networks.testnet()``, ``Networks.preprod()`` or
 ``Networks.preview()``. The generated testnet address can be used on any of the test network.
 **(The address generation depends on the NetworkId in Network object not protocol magic. These public test networks have same network id (0))**
 
@@ -71,9 +71,9 @@ https://docs.cardano.org/cardano-testnet/tools/faucet
 Use the correct Blockfrost url for the selected network and project id to create an instance of BackendService.
 
 ```java
-String bfProjectId = "prepod...";
+String bfProjectId = "preprod...";
 BackendService backendService =
-        new BFBackendService(Constants.BLOCKFROST_PREPOD_URL, bfProjectId);
+        new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bfProjectId);
 ```
 **Note:** You can find Blockfrost urls for the supported networks in ``com.bloxbean.cardano.client.backend.blockfrost.common.Constants``.
 

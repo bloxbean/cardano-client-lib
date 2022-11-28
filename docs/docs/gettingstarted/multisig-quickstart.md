@@ -191,7 +191,7 @@ String scriptAddress = AddressService.getInstance().getEntAddress(scriptAtLeast,
 
 ## Topup script address with test Ada
 
-Based on your selected network (**prepod** / **preview**), get some test Ada from the below faucet. You need to provide ``scriptAddress``
+Based on your selected network (**preprod** / **preview**), get some test Ada from the below faucet. You need to provide ``scriptAddress``
 generated in the previous section to get some test Ada.
 
 https://docs.cardano.org/cardano-testnet/tools/faucet
@@ -384,7 +384,7 @@ public class MultiSigTransfer {
 
         // For Blockfrost
         String bf_projectId = "preprod...";
-        BackendService backendService = new BFBackendService(Constants.BLOCKFROST_PREPOD_URL, bf_projectId);
+        BackendService backendService = new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bf_projectId);
         // For Koios
         //BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
 
