@@ -12,6 +12,10 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     }
     implementation(libs.okhttp)
+
+    //test dependencies
+    testImplementation project(':cip:cip25')
+    testImplementation project(':cip:cip20')
 }
 
 publishing {
