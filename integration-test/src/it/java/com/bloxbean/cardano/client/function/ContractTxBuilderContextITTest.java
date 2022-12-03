@@ -80,6 +80,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         protocolParams = backendService.getEpochService().getProtocolParameters().getValue();
         utxoSupplier = new DefaultUtxoSupplier(utxoService);
 
+        //addr_test1qpkcp26l47j2fp4crdl9n83zmnw84qrp64sd5w6fwesqt6g8sd9mcktl67rn2t0cth25ryflz59yfxlx636csng7hawstfp400
         String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
         sender = new Account(Networks.testnet(), senderMnemonic);
         senderAddress = sender.baseAddress();
