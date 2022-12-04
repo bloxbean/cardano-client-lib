@@ -200,21 +200,21 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
             if (accountAssetsResult.getValue().isEmpty()) {
                 return Result.error("Not Found").code(404);
             }
-            return convertToAccountAssets(accountAssetsResult.getValue().get(0).getAssets());
+            return convertToAccountAssets(accountAssetsResult.getValue().get(0).getAssetList());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private Result<List<AccountAsset>> convertToAccountAssets(List<rest.koios.client.backend.api.account.model.AccountAsset> accountAssetList) {
+    private Result<List<AccountAsset>> convertToAccountAssets(List<rest.koios.client.backend.api.common.Asset> accountAssetList) {
         List<AccountAsset> accountAssets = new ArrayList<>();
         if (accountAssetList!=null) {
-            accountAssetList.forEach(accountAsset -> accountAsset.getAssets().forEach(assetInner -> {
+            accountAssetList.forEach(accountAsset -> {
                 AccountAsset accountAsset1 = new AccountAsset();
-                accountAsset1.setUnit(accountAsset.getPolicyId()+assetInner.getAssetName());
-                accountAsset1.setQuantity(assetInner.getBalance());
+                accountAsset1.setUnit(accountAsset.getPolicyId()+accountAsset.getAssetName());
+                accountAsset1.setQuantity(accountAsset.getQuantity());
                 accountAssets.add(accountAsset1);
-            }));
+            });
         }
         return Result.success("OK").withValue(accountAssets).code(200);
     }

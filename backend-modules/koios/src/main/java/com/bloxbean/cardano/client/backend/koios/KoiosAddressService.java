@@ -9,7 +9,7 @@ import com.bloxbean.cardano.client.backend.model.TxContentOutputAmount;
 import rest.koios.client.backend.api.address.AddressService;
 import rest.koios.client.backend.api.address.model.AddressInfo;
 import rest.koios.client.backend.api.address.model.AddressUtxo;
-import rest.koios.client.backend.api.address.model.Asset;
+import rest.koios.client.backend.api.common.Asset;
 import rest.koios.client.backend.api.common.TxHash;
 import rest.koios.client.backend.factory.options.*;
 import rest.koios.client.backend.factory.options.filters.Filter;

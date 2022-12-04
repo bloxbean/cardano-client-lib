@@ -8,6 +8,6 @@ public class KoiosBaseTest {
     protected KoiosBackendService backendService;
 
     public KoiosBaseTest() {
-        backendService = new KoiosBackendService(Constants.KOIOS_TESTNET_URL);
+        backendService = new KoiosBackendService(Constants.KOIOS_PREPROD_URL);
     }
 }

@@ -6,17 +6,22 @@ package com.bloxbean.cardano.client.backend.koios;
 public class Constants {
 
     /**
-     * Koios Mainnet URL
+     * Koios Preview URL
      */
-    public final static String KOIOS_MAINNET_URL = "https://api.koios.rest/api/v0/";
+    public static final String KOIOS_PREVIEW_URL = "https://preview.koios.rest/api/v0/";
 
     /**
-     * Koios Testnet URL
+     * Koios Preprod URL
      */
-    public final static String KOIOS_TESTNET_URL = "https://testnet.koios.rest/api/v0/";
+    public static final String KOIOS_PREPROD_URL = "https://preprod.koios.rest/api/v0/";
+
+    /**
+     * Koios Mainnet URL
+     */
+    public static final String KOIOS_MAINNET_URL = "https://api.koios.rest/api/v0/";
 
     /**
      * Koios Guildnet URL
      */
-    public final static String KOIOS_GUILDNET_URL = "https://guild.koios.rest/api/v0/";
+    public static final String KOIOS_GUILDNET_URL = "https://guild.koios.rest/api/v0/";
 }

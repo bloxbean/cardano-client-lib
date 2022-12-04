@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public class KoiosNetworkServiceIT extends KoiosBaseTest {
+class KoiosNetworkServiceIT extends KoiosBaseTest {
 
     private NetworkInfoService networkInfoService;
 
@@ -20,18 +20,17 @@ public class KoiosNetworkServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void getNetworkInfo() throws ApiException {
-        Result<Genesis> gensisResult = networkInfoService.getNetworkInfo();
-
-        Genesis genesis = gensisResult.getValue();
+    void getNetworkInfo() throws ApiException {
+        Result<Genesis> genesisResult = networkInfoService.getNetworkInfo();
+        Genesis genesis = genesisResult.getValue();
         assertNotNull(genesis);
-        assertEquals(genesis.getActiveSlotsCoefficient().doubleValue(), 0.05);
-        assertEquals(genesis.getEpochLength(), 432000);
-        assertEquals(genesis.getMaxKesEvolutions(), 62);
-        assertEquals(genesis.getMaxLovelaceSupply(), "45000000000000000");
-        assertEquals(genesis.getNetworkMagic(), 1097911063);
-        assertEquals(genesis.getSecurityParam(), 2160);
-        assertEquals(genesis.getSlotLength(), 1);
-        assertEquals(genesis.getSlotsPerKesPeriod(), 129600);
+        assertEquals(0.05, genesis.getActiveSlotsCoefficient().doubleValue());
+        assertEquals(432000, genesis.getEpochLength());
+        assertEquals(62, genesis.getMaxKesEvolutions());
+        assertEquals("45000000000000000", genesis.getMaxLovelaceSupply());
+        assertEquals(1, genesis.getNetworkMagic());
+        assertEquals(2160, genesis.getSecurityParam());
+        assertEquals(1, genesis.getSlotLength());
+        assertEquals(129600, genesis.getSlotsPerKesPeriod());
     }
 }

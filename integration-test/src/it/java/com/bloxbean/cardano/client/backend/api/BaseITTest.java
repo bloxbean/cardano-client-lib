@@ -21,7 +21,7 @@ public class BaseITTest {
             }
             return new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
         } else if (KOIOS.equals(backendType)) {
-            return new KoiosBackendService(com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_TESTNET_URL);
+            return new KoiosBackendService(com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_PREPROD_URL);
         } else if (OGMIOS.equals(backendType)) {
             return new OgmiosBackendService(com.bloxbean.cardano.client.backend.ogmios.Constants.OGMIOS_DANDELION_TESTNET_URL);
 //        } else if (CARDANO_GQL.equals(backendType)) {

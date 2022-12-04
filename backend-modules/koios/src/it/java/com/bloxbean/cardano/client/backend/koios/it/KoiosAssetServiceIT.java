@@ -14,7 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class KoiosAssetServiceIT extends KoiosBaseTest {
+class KoiosAssetServiceIT extends KoiosBaseTest {
 
     private AssetService assetService;
 
@@ -25,7 +25,7 @@ public class KoiosAssetServiceIT extends KoiosBaseTest {
 
     @Test
     void getAsset() throws ApiException {
-        Result<Asset> result = assetService.getAsset("7d14d344fd85ece5a874b931af0813b57f7496aa61ba1ab7d9097646526566726573684e46545465737431");
+        Result<Asset> result = assetService.getAsset("80de4ee0ffde8ba05726707f2adba0e65963eff5aaba164af358e71b53746162696c697479506f6f6c5f54657374");
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -36,7 +36,7 @@ public class KoiosAssetServiceIT extends KoiosBaseTest {
 
     @Test
     void getAsset1() throws ApiException {
-        Result<Asset> result = assetService.getAsset("5c2171471578441ab237b76531539b2d5bfa4193be4aab0466b817f454657374746f6b656e313233");
+        Result<Asset> result = assetService.getAsset("80de4ee0ffde8ba05726707f2adba0e65963eff5aaba164af358e71b53746162696c697479506f6f6c5f54657374");
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -46,7 +46,7 @@ public class KoiosAssetServiceIT extends KoiosBaseTest {
 
     @Test
     void getAssetToken() throws ApiException {
-        Result<Asset> result = assetService.getAsset("34250edd1e9836f5378702fbf9416b709bc140e04f668cc3552085184154414441636f696e");
+        Result<Asset> result = assetService.getAsset("80de4ee0ffde8ba05726707f2adba0e65963eff5aaba164af358e71b53746162696c697479506f6f6c5f54657374");
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -56,7 +56,7 @@ public class KoiosAssetServiceIT extends KoiosBaseTest {
 
     @Test
     void getAssetAddresses() throws ApiException {
-        Result<List<AssetAddress>> result = assetService.getAssetAddresses("5c2171471578441ab237b76531539b2d5bfa4193be4aab0466b817f454657374746f6b656e313233", 100, 1);
+        Result<List<AssetAddress>> result = assetService.getAssetAddresses("80de4ee0ffde8ba05726707f2adba0e65963eff5aaba164af358e71b53746162696c697479506f6f6c5f54657374", 100, 1);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -66,7 +66,7 @@ public class KoiosAssetServiceIT extends KoiosBaseTest {
 
     @Test
     void getPolicyAssets() throws ApiException {
-        Result<List<PolicyAsset>> result = assetService.getPolicyAssets("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96", 100, 1);
+        Result<List<PolicyAsset>> result = assetService.getPolicyAssets("80de4ee0ffde8ba05726707f2adba0e65963eff5aaba164af358e71b", 100, 1);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
