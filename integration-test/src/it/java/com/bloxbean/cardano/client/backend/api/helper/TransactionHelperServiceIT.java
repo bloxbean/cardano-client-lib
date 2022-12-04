@@ -187,7 +187,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(12))
-                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                        .unit("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef54657374313233")
                         .build();
 
         BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, TransactionDetailsParams.builder().ttl(getTtl()).build(), null);
@@ -228,7 +228,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                         .sender(sender)
                         .receiver(receiver)
                         .amount(BigInteger.valueOf(14))
-                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                        .unit("b3723bcb8a451492c839fbcd322de2403a6c53d0e74006de39cb6ff04954546f6b656e33")
                         .build();
 
         PaymentTransaction paymentTransaction2 =
@@ -236,7 +236,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                         .sender(sender)
                         .receiver(receiver2)
                         .amount(BigInteger.valueOf(33))
-                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                        .unit("b3723bcb8a451492c839fbcd322de2403a6c53d0e74006de39cb6ff04954546f6b656e33")
                         .build();
 
         PaymentTransaction paymentTransaction3 =
@@ -348,7 +348,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                 PaymentTransaction.builder()
                         .sender(sender)
                         .receiver(receiver2)
-                        .unit("6b248bf1bbfac692610ca7e9873f988dc5e358b9229be8d6363aedd34d59546f6b656e")
+                        .unit("c48f707fea6f08af67a8c06c9bea5b3ec847f5901dc08420cd7f8ade546869732069732061206c6f6e6720746f6b656e206e616d6520616e64")
                         .amount(BigInteger.valueOf(15))
                         .build();
 
@@ -357,7 +357,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                         .sender(sender)
                         .receiver(receiver3)
                         .amount(BigInteger.valueOf(4))
-                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                        .unit("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef54657374313233")
                         .build();
 
         PaymentTransaction paymentTransaction4 =
@@ -365,7 +365,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                         .sender(sender)
                         .receiver(receiver4)
                         .amount(BigInteger.valueOf(2))
-                        .unit("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313696e746a")
+                        .unit("b3723bcb8a451492c839fbcd322de2403a6c53d0e74006de39cb6ff04954546f6b656e32")
                         .build();
 
         //Calculate total fee for all 4 payment transactions and set in one of the payment transaction
@@ -457,7 +457,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                 PaymentTransaction.builder()
                         .sender(sender)
                         .receiver(receiver2)
-                        .unit("6b248bf1bbfac692610ca7e9873f988dc5e358b9229be8d6363aedd34d59546f6b656e")
+                        .unit("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef4954546f6b656e")
                         .amount(BigInteger.valueOf(15))
                         .build();
 
@@ -466,7 +466,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                         .sender(sender)
                         .receiver(receiver3)
                         .amount(BigInteger.valueOf(4))
-                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
+                        .unit("c48f707fea6f08af67a8c06c9bea5b3ec847f5901dc08420cd7f8ade546869732069732061206c6f6e6720746f6b656e206e616d6520616e64")
                         .build();
 
         PaymentTransaction paymentTransaction4 =
@@ -474,7 +474,7 @@ class TransactionHelperServiceIT extends BaseITTest {
                         .sender(sender)
                         .receiver(receiver4)
                         .amount(BigInteger.valueOf(2))
-                        .unit("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313696e746a")
+                        .unit("b3723bcb8a451492c839fbcd322de2403a6c53d0e74006de39cb6ff04954546f6b656e33")
                         .build();
 
         //Calculate total fee for all 4 payment transactions and set in one of the payment transaction
@@ -1463,7 +1463,7 @@ class TransactionHelperServiceIT extends BaseITTest {
 
             Amount lovelaceAmount = new Amount(LOVELACE, adaToLovelace(1.54));
             //If it fails.. then check the available token at sender
-            Amount tokenAmount = new Amount("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e", BigInteger.valueOf(5));
+            Amount tokenAmount = new Amount("b3723bcb8a451492c839fbcd322de2403a6c53d0e74006de39cb6ff049545465737434", BigInteger.valueOf(5));
             Result<TransactionResult> result = payTo(sender, receiverAddress, List.of(lovelaceAmount, tokenAmount));
             assertThat(result.isSuccessful(), is(true));
             waitForTransaction(result);

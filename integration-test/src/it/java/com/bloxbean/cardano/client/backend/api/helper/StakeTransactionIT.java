@@ -135,7 +135,7 @@ public class StakeTransactionIT extends BaseITTest {
         byte[] stakePublicKey = stakeHdKeyPair.getPublicKey().getKeyData();
 
         //-- Stake key delegation
-        StakePoolId stakePoolId = StakePoolId.fromBech32PoolId("pool18yslg3q320jex6gsmetukxvzm7a20qd90wsll9anlkrfua38flr");
+        StakePoolId stakePoolId = StakePoolId.fromBech32PoolId("pool1z22x50lqsrwent6en0llzzs9e577rx7n3mv9kfw7udwa2rf42fa");
         StakeDelegation stakeDelegation = new StakeDelegation(StakeCredential.fromKey(stakePublicKey), stakePoolId);
         Metadata metadata = MessageMetadata.create()
                 .add("Stake Delegation using cardano-client-lib")
@@ -229,6 +229,7 @@ public class StakeTransactionIT extends BaseITTest {
 
         Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
         String senderAddr = senderAccount.baseAddress();
+        System.out.println(senderAddr);
 
         //protocol params
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
@@ -245,7 +246,7 @@ public class StakeTransactionIT extends BaseITTest {
         byte[] stakePublicKey = stakeHdKeyPair.getPublicKey().getKeyData();
 
         //-- Stake key delegation
-        StakePoolId stakePoolId = StakePoolId.fromBech32PoolId("pool18yslg3q320jex6gsmetukxvzm7a20qd90wsll9anlkrfua38flr");
+        StakePoolId stakePoolId = StakePoolId.fromBech32PoolId("pool1z22x50lqsrwent6en0llzzs9e577rx7n3mv9kfw7udwa2rf42fa");
         StakeDelegation stakeDelegation = new StakeDelegation(StakeCredential.fromKey(stakePublicKey), stakePoolId);
         Metadata metadata = MessageMetadata.create()
                 .add("Stake Delegation using cardano-client-lib")
@@ -350,7 +351,7 @@ public class StakeTransactionIT extends BaseITTest {
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
 
-        Policy policy = loadJsonPolicyScript("stakeregistration-policy.json");
+        Policy policy = loadJsonPolicyScript(STAKEREGISTRATION_POLICY_JSON);
 
         System.out.println(JsonUtil.getPrettyJson(policy));
 
@@ -414,7 +415,7 @@ public class StakeTransactionIT extends BaseITTest {
             throw new RuntimeException("No utxo found");
 
         //-- Stake key delegation
-        StakePoolId stakePoolId = StakePoolId.fromBech32PoolId("pool1frevxe70aqw2ce58c0muyesnahl88nfjjsp25h85jwakzgd2g2l");
+        StakePoolId stakePoolId = StakePoolId.fromBech32PoolId("pool1z22x50lqsrwent6en0llzzs9e577rx7n3mv9kfw7udwa2rf42fa");
         StakeDelegation scriptStakeDelegation = new StakeDelegation(StakeCredential.fromScript(policy.getPolicyScript()), stakePoolId);
 
         TxOutputBuilder txOutBuilder = (context, outputs) -> {
