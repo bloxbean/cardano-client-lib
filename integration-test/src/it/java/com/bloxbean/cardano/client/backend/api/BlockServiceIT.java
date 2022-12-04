@@ -30,7 +30,7 @@ public class BlockServiceIT extends BaseITTest {
 
     @Test
     public void testGetBlockByHash() throws ApiException {
-        Result<Block> block = service.getBlockByHash("adc25b348d96f18e7d075f7b284d8934fafa4cd4bb2383751a1ab2161ee9ecde");
+        Result<Block> block = service.getBlockByHash("4f6bdb5f5de8ab3f9712af8627587c0521b2fb029125f4cce1ec7bee5efe4d39");
 
         assertNotNull(block.getValue());
         System.out.println(JsonUtil.getPrettyJson(block.getValue()));
@@ -38,7 +38,7 @@ public class BlockServiceIT extends BaseITTest {
 
     @Test
     public void testGetBlockByNumber() throws ApiException {
-        Result<Block> block = service.getBlockByNumber(new BigInteger("2590132"));
+        Result<Block> block = service.getBlockByNumber(new BigInteger("357982"));
 
         assertNotNull(block.getValue());
         System.out.println(JsonUtil.getPrettyJson(block.getValue()));

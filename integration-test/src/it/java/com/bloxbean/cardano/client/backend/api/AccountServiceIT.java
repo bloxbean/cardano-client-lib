@@ -24,14 +24,14 @@ public class AccountServiceIT extends BaseITTest {
 
     @Test
     public void testGetAccountInfo() throws ApiException {
-        Result<AccountInformation> result = accountService.getAccountInformation("stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z");
+        Result<AccountInformation> result = accountService.getAccountInformation("stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm");
         assertTrue(result.isSuccessful());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
     }
 
     @Test
     public void testGetAccountRewardsHistory() throws ApiException {
-        String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
+        String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
         Result<List<AccountRewardsHistory>> result = accountService.getAccountRewardsHistory(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountRewardsHistory> accountRewardsHistories = result.getValue();
@@ -40,7 +40,7 @@ public class AccountServiceIT extends BaseITTest {
 
     @Test
     public void testGetAccountHistory() throws ApiException {
-        String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
+        String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
         Result<List<AccountHistory>> result = accountService.getAccountHistory(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountHistory> accountRewardsHistories = result.getValue();
@@ -49,7 +49,7 @@ public class AccountServiceIT extends BaseITTest {
 
     @Test
     public void testGetAccountAddresses() throws ApiException {
-        String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
+        String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
         Result<List<AccountAddress>> result = accountService.getAccountAddresses(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountAddress> accountRewardsHistories = result.getValue();
@@ -58,7 +58,7 @@ public class AccountServiceIT extends BaseITTest {
 
     @Test
     public void testGetAccountAssets() throws ApiException {
-        String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
+        String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
         Result<List<AccountAsset>> result = accountService.getAccountAssets(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountAsset> accountRewardsHistories = result.getValue();

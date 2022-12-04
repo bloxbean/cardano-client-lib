@@ -36,7 +36,7 @@ public class EpochServiceIT extends BaseITTest {
 
     @Test
     public void testGetLatestEpochByNumber() throws ApiException {
-        Result<EpochContent> result = epochService.getEpoch(130);
+        Result<EpochContent> result = epochService.getEpoch(32);
 
         EpochContent epochContent = result.getValue();
 
@@ -44,13 +44,13 @@ public class EpochServiceIT extends BaseITTest {
         System.out.println(JsonUtil.getPrettyJson(epochContent));
 
         assertThat(result.isSuccessful(), is(true));
-        assertThat(epochContent.getEpoch(), is(130));
+        assertThat(epochContent.getEpoch(), is(32));
         assertThat(epochContent.getBlockCount(), greaterThan(0));
     }
 
     @Test
     public void testGetProtocolParameters() throws ApiException {
-        Result<ProtocolParams> result = epochService.getProtocolParameters(130);
+        Result<ProtocolParams> result = epochService.getProtocolParameters(8);
 
         System.out.println(result);
 
@@ -58,7 +58,7 @@ public class EpochServiceIT extends BaseITTest {
         System.out.println(JsonUtil.getPrettyJson(protocolParams));
 
         assertThat(protocolParams, notNullValue());
-        assertThat(protocolParams.getMinUtxo(), is("1000000"));
+        assertThat(protocolParams.getMinUtxo(), is("34482"));
         assertThat(protocolParams.getPoolDeposit(), is("500000000"));
     }
 

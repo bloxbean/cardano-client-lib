@@ -18,7 +18,7 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getAsset() throws ApiException {
         AssetService service = getBackendService().getAssetService();
-        Result<Asset> result = service.getAsset("7d14d344fd85ece5a874b931af0813b57f7496aa61ba1ab7d9097646526566726573684e46545465737431");
+        Result<Asset> result = service.getAsset("fbaec8dd4d4405a4a42aec11ce5a0160c01e488f3918b082ccbab705b2fc4b2e41d6f8b04048e9748d1c2a376c81d6b10e6d0b299403ffec6b22a126");
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -30,7 +30,7 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getAsset1() throws ApiException {
         AssetService service = getBackendService().getAssetService();
-        Result<Asset> result = service.getAsset("5c2171471578441ab237b76531539b2d5bfa4193be4aab0466b817f454657374746f6b656e313233");
+        Result<Asset> result = service.getAsset("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef4954546f6b656e");
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -41,7 +41,7 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getAssetToken() throws ApiException {
         AssetService service = getBackendService().getAssetService();
-        Result<Asset> result = service.getAsset("34250edd1e9836f5378702fbf9416b709bc140e04f668cc3552085184154414441636f696e");
+        Result<Asset> result = service.getAsset("cdc891fb6e0bbef48e335447a496a97c36a1064dc908a2aa94bee0cf546573744e46542d32");
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -52,7 +52,7 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getAssetAddresses_DESC() throws ApiException {
         AssetService service = getBackendService().getAssetService();
-        Result<List<AssetAddress>> result = service.getAssetAddresses("5c2171471578441ab237b76531539b2d5bfa4193be4aab0466b817f454657374746f6b656e313233", 100, 1, OrderEnum.desc);
+        Result<List<AssetAddress>> result = service.getAssetAddresses("fb2b3a629a09014e28d0a54fc06499af12127c79b0bc1c39478da1dd7449534b59", 100, 1, OrderEnum.desc);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -63,7 +63,7 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getAssetAddresses_ASC() throws ApiException {
         AssetService service = getBackendService().getAssetService();
-        Result<List<AssetAddress>> result = service.getAssetAddresses("5c2171471578441ab237b76531539b2d5bfa4193be4aab0466b817f454657374746f6b656e313233", 100, 1);
+        Result<List<AssetAddress>> result = service.getAssetAddresses("fb2b3a629a09014e28d0a54fc06499af12127c79b0bc1c39478da1dd7449534b59", 100, 1);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -74,7 +74,7 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getPolicyAssets_DESC() throws ApiException {
         AssetService service = getBackendService().getAssetService();
-        Result<List<PolicyAsset>> result = service.getPolicyAssets("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96", 100, 1, OrderEnum.desc);
+        Result<List<PolicyAsset>> result = service.getPolicyAssets("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef", 100, 1, OrderEnum.desc);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
@@ -85,7 +85,7 @@ public class AssetServiceIT extends BaseITTest {
     @Test
     void getPolicyAssets_ASC() throws ApiException {
         AssetService service = getBackendService().getAssetService();
-        Result<List<PolicyAsset>> result = service.getPolicyAssets("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96", 100, 1, OrderEnum.asc);
+        Result<List<PolicyAsset>> result = service.getPolicyAssets("b3723bcb8a451492c839fbcd322de2403a6c53d0e74006de39cb6ff0", 100, 1, OrderEnum.asc);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
