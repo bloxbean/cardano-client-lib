@@ -37,7 +37,7 @@ public class TransactionServiceIT extends BaseITTest {
 
     @Test
     public void testGetTransaction() throws Exception {
-        String txnHash = "6176b7f77a756005d5afb0724df1294f68ac473e30633101872162161a7342e4";
+        String txnHash = "fb77161efb9788f78d13e815e7c0bfde192cbdfb18a8e502c7a3d3171c1e5688";
         Result<TransactionContent> result = service.getTransaction(txnHash);
 
         assertNotNull(result.getValue());
@@ -46,7 +46,7 @@ public class TransactionServiceIT extends BaseITTest {
 
     @Test
     public void testGetTransactionUtxos() throws Exception {
-        String txnHash = "2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c";
+        String txnHash = "ac2f821fda7b2488e9f9da05b9013134cfe2958ed210466d44e66136f1b3ca94";
         Result<TxContentUtxo> result = service.getTransactionUtxos(txnHash);
 
         assertNotNull(result.getValue());

@@ -30,7 +30,7 @@ public class MetadataServiceIT extends BaseITTest {
 
     @Test
     public void testGetCBORMetadataByTxnHash() throws ApiException {
-        String txHash = "d55882183427330369f8e5f09ec714257a2fe2d6ffa29f158a7cb9aae056d1ee";
+        String txHash = "8607a5f2744eca46cfc2d93edf595ac9a8a1243a9d960ca8b78643cc0c78a6ce";
 
         if (backendType.equals(KOIOS)) {
             Assertions.assertThrows(UnsupportedOperationException.class, ()-> {
@@ -49,15 +49,15 @@ public class MetadataServiceIT extends BaseITTest {
         List<String> cborMetadata = value.stream().map(v -> v.getCborMetadata()).collect(Collectors.toList());
 
         assertThat(value, Matchers.notNullValue());
-        assertThat(value, hasSize(5));
-        assertThat(labels, hasItem("197819781978"));
-        assertThat(cborMetadata, hasItem("\\xa11b0000002e0efa535a644a6f686e"));
+        assertThat(value, hasSize(4));
+        assertThat(labels, hasItem("700"));
+        assertThat(cborMetadata, hasItem("\\xa11902586f5465737420537472696e6720363030"));
     }
 
 
     @Test
     public void testGetJSONMetadataByTxnHash() throws ApiException {
-        String txHash = "d55882183427330369f8e5f09ec714257a2fe2d6ffa29f158a7cb9aae056d1ee";
+        String txHash = "8607a5f2744eca46cfc2d93edf595ac9a8a1243a9d960ca8b78643cc0c78a6ce";
 
         Result<List<MetadataJSONContent>> result = metadataService.getJSONMetadataByTxnHash(txHash);
 
@@ -68,8 +68,8 @@ public class MetadataServiceIT extends BaseITTest {
         List<String> labels = value.stream().map(v -> v.getLabel()).collect(Collectors.toList());
 
         assertThat(value, Matchers.notNullValue());
-        assertThat(value, hasSize(5));
-        assertThat(labels, hasItem("197819781978"));
+        assertThat(value, hasSize(4));
+        assertThat(labels, hasItem("600"));
     }
 
     @Test
@@ -101,7 +101,7 @@ public class MetadataServiceIT extends BaseITTest {
 
         assertThat(value, Matchers.notNullValue());
         assertThat(value, hasSize(10));
-        assertThat(value.get(0).getTxHash(), is("1c8997f9f0debde5b15fe29f0f18839a64e51c19ccdbe89e2811930d777c9b68"));
+        assertThat(value.get(0).getTxHash(), is("77cb8608db0a84f512e277ba923341775013241401c768ba5214ad2ac004b153"));
     }
 
     @Test
@@ -120,8 +120,8 @@ public class MetadataServiceIT extends BaseITTest {
         System.out.println(JsonUtil.getPrettyJson(value));
 
         assertThat(value, Matchers.notNullValue());
-        assertThat(value, hasSize(10));
-        assertThat(value.get(0).getTxHash(), is("c13c61a6e4da17482d1e79cb2eeed3e8c54a3edd23aad8722ad003be2d51d6e3"));
+        assertThat(value, hasSize(2));
+        assertThat(value.get(0).getTxHash(), is("2b8e9615dc496128803f69047eabe9c3244e576bd236aff49dcb5177abef3e3f"));
     }
 
 }

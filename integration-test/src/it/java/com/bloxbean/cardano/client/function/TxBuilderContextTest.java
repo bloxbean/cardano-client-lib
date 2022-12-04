@@ -56,6 +56,7 @@ public class TxBuilderContextTest extends BaseITTest {
 
     @Test
     void testTransactionBuilding() throws CborSerializationException, ApiException {
+        //addr_test1qrynkm9vzsl7vrufzn6y4zvl2v55x0xwc02nwg00x59qlkxtsu6q93e6mrernam0k4vmkn3melezkvgtq84d608zqhnsn48axp
         String senderMnemonic = "stone decade great marine meadow merge boss ahead again rapid detect cover vital estate web silly copper estate wisdom empty speed salute oak car";
 
         Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
@@ -74,16 +75,16 @@ public class TxBuilderContextTest extends BaseITTest {
 
         Output output3 = Output.builder()
                 .address("addr_test1qq46hhhpppek6e33hqakqyu2z5xeqwlc4pc0xynwamn34l6vps306wwr475xeh2lnt4hqjm4mfyjqnvla9j5wtc3fxespv67ka")
-                .policyId("8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e32")
-                .assetName("TestAss1")
+                .policyId("c48f707fea6f08af67a8c06c9bea5b3ec847f5901dc08420cd7f8ade")
+                .assetName("OgmiosIT")
                 .qty(BigInteger.valueOf(8))
                 .build();
 
         Value value2 = Value.builder()
                 .multiAssets(Arrays.asList(
                         MultiAsset.builder()
-                                .policyId("8bb9f400ee6ec7c81c5afa2c656945c1ab06785b9751993653441e32")
-                                .assets(Arrays.asList(new Asset("TestAss1", BigInteger.valueOf(5))))
+                                .policyId("c48f707fea6f08af67a8c06c9bea5b3ec847f5901dc08420cd7f8ade")
+                                .assets(Arrays.asList(new Asset("OgmiosIT", BigInteger.valueOf(5))))
                                 .build()
                 )).build();
         TxOutputBuilder multiAssetOutputBuilder =

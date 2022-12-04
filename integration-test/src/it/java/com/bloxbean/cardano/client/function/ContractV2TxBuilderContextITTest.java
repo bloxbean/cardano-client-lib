@@ -81,6 +81,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         utxoSupplier = new DefaultUtxoSupplier(utxoService);
 
 //        String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
+        //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
         String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
         sender = new Account(Networks.testnet(), senderMnemonic);
         senderAddress = sender.baseAddress();
@@ -299,10 +300,10 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
 
         //Uncomment to create a script reference
-        //createScriptReferenceOutput(sender, scriptAddress, plutusScript);
+//        createScriptReferenceOutput(sender, scriptAddress, plutusScript);
 
         TransactionInput refScriptInput = TransactionInput.builder()
-                .transactionId("b126c71859f49acb0e66c752d230bfaefa17ba911651d0c381dc06fb45c83f7a")
+                .transactionId("a6a46e2776b74a1356541ab587ffc10cb7a1ad55e845f2b11190174db3727123")
                 .index(0).build();
 
         Random rand = new Random();
@@ -391,10 +392,10 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript1, Networks.testnet()).getAddress();
 
         //Uncomment to create a script reference
-        //createScriptReferenceOutput(sender, scriptAddress, plutusScript);
+        //createScriptReferenceOutput(sender, scriptAddress, plutusScript1);
 
         TransactionInput refScriptInput = TransactionInput.builder()
-                .transactionId("b126c71859f49acb0e66c752d230bfaefa17ba911651d0c381dc06fb45c83f7a")
+                .transactionId("a6a46e2776b74a1356541ab587ffc10cb7a1ad55e845f2b11190174db3727123")
                 .index(0).build();
 
         Random rand = new Random();
@@ -522,10 +523,10 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
 
         //Uncomment to create a script reference
-        //createScriptReferenceOutput(sender, scriptAddress, plutusScript);
+//        createScriptReferenceOutput(sender, scriptAddress, plutusScript);
 
         TransactionInput refScriptInput = TransactionInput.builder()
-                .transactionId("b126c71859f49acb0e66c752d230bfaefa17ba911651d0c381dc06fb45c83f7a")
+                .transactionId("a6a46e2776b74a1356541ab587ffc10cb7a1ad55e845f2b11190174db3727123")
                 .index(0).build();
 
         Random rand = new Random();
