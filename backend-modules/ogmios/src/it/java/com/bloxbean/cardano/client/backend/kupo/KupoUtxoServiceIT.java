@@ -18,7 +18,7 @@ public class KupoUtxoServiceIT {
 
     @BeforeEach
     public void setup() {
-        utxoService = new KupoUtxoService("http://192.168.0.228:1442");
+        utxoService = new KupoUtxoService("http://kupo-preprod:1442");
     }
 
     @Test
