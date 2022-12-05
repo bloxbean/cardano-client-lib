@@ -23,6 +23,5 @@ include 'backend-modules:blockfrost'
 include 'backend-modules:koios'
 include 'backend-modules:ogmios'
 include 'integration-test'
-
-
+include 'extra-suppliers'
 

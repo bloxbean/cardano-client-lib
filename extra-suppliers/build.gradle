@@ -1,0 +1,15 @@
+dependencies {
+    implementation project(':core')
+    implementation('com.bloxbean.cardano:yaci:0.1.1')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Extra Suppliers'
+                description = 'Cardano Client Lib - Extra Suppliers module for backend providers'
+            }
+        }
+    }
+}
