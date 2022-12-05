@@ -420,7 +420,7 @@ export JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
 
 # Run Integration Tests
 ```
-export BF_PROJECT_ID=<Blockfrost Project Id>
+export BF_PROJECT_ID=<Blockfrost Preprod network Project Id>
 ./gradlew :integration-test:integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID}
 ```
 

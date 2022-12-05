@@ -19,7 +19,7 @@ public class BaseITTest {
             if (bfProjectId == null || bfProjectId.isEmpty()) {
                 bfProjectId = System.getenv("BF_PROJECT_ID");
             }
-            return new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, bfProjectId);
+            return new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bfProjectId);
         } else if (KOIOS.equals(backendType)) {
             return new KoiosBackendService(com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_PREPROD_URL);
         } else if (OGMIOS.equals(backendType)) {
