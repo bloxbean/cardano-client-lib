@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class KoiosEpochServiceIT extends KoiosBaseTest {
+class KoiosEpochServiceIT extends KoiosBaseTest {
 
     private EpochService epochService;
 
@@ -22,7 +22,7 @@ public class KoiosEpochServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetLatestEpoch() throws ApiException {
+    void testGetLatestEpoch() throws ApiException {
         Result<EpochContent> result = epochService.getLatestEpoch();
 
         EpochContent epochContent = result.getValue();
@@ -36,8 +36,8 @@ public class KoiosEpochServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetLatestEpochByNumber() throws ApiException {
-        Result<EpochContent> result = epochService.getEpoch(130);
+    void testGetLatestEpochByNumber() throws ApiException {
+        Result<EpochContent> result = epochService.getEpoch(37);
 
         EpochContent epochContent = result.getValue();
 
@@ -45,13 +45,13 @@ public class KoiosEpochServiceIT extends KoiosBaseTest {
         System.out.println(JsonUtil.getPrettyJson(epochContent));
 
         assertThat(result.isSuccessful(), is(true));
-        assertThat(epochContent.getEpoch(), is(130));
+        assertThat(epochContent.getEpoch(), is(37));
         assertThat(epochContent.getBlockCount(), greaterThan(0));
     }
 
     @Test
-    public void testGetProtocolParameters() throws ApiException {
-        Result<ProtocolParams> result = epochService.getProtocolParameters(130);
+    void testGetProtocolParameters() throws ApiException {
+        Result<ProtocolParams> result = epochService.getProtocolParameters(37);
 
         System.out.println(result);
 
@@ -59,12 +59,12 @@ public class KoiosEpochServiceIT extends KoiosBaseTest {
         System.out.println(JsonUtil.getPrettyJson(protocolParams));
 
         assertThat(protocolParams, notNullValue());
-        assertThat(protocolParams.getMinUtxo(), is("1000000"));
+        assertThat(protocolParams.getMinUtxo(), is("4310"));
         assertThat(protocolParams.getPoolDeposit(), is("500000000"));
     }
 
     @Test
-    public void testGetLatestProtocolParameters() throws ApiException {
+    void testGetLatestProtocolParameters() throws ApiException {
         Result<ProtocolParams> result = epochService.getProtocolParameters();
 
         System.out.println(result);

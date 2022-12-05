@@ -14,7 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class KoiosAddressServiceIT extends KoiosBaseTest {
+class KoiosAddressServiceIT extends KoiosBaseTest {
 
     private AddressService addressService;
 
@@ -24,8 +24,8 @@ public class KoiosAddressServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetAddressInfo() throws ApiException {
-        Result<AddressContent> result = addressService.getAddressInfo("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
+    void testGetAddressInfo() throws ApiException {
+        Result<AddressContent> result = addressService.getAddressInfo("addr_test1qzr0g2kvyknzhyez3aatyjwpaw5z5n65cwfxc5ctcqq28ed3hcc035r9r76tkxehlr9wdla9twe02dpv843nru6czj6qycpamy");
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
 
         assertTrue(result.isSuccessful());
@@ -33,37 +33,37 @@ public class KoiosAddressServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetTransactions() throws ApiException {
-        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
+    void testGetTransactions() throws ApiException {
+        String address = "addr_test1qzr0g2kvyknzhyez3aatyjwpaw5z5n65cwfxc5ctcqq28ed3hcc035r9r76tkxehlr9wdla9twe02dpv843nru6czj6qycpamy";
         List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1).getValue();
 
         System.out.println(txns);
         assertTrue(txns.size() > 2);
-        assertEquals("4123d70f66414cc921f6ffc29a899aafc7137a99a0fd453d6b200863ef5702d6", txns.get(0).getTxHash());
+        assertEquals("119a69ae496b03936335ed22416116c454a26c00c5c59b22f34535851ba3aa42", txns.get(0).getTxHash());
         assertTrue(txns.get(0).getBlockHeight() != 0);
         assertTrue(txns.get(0).getBlockTime() != 0);
     }
 
     @Test
-    public void testGetTransactionsWithOrder() throws ApiException {
-        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
+    void testGetTransactionsWithOrder() throws ApiException {
+        String address = "addr_test1qzr0g2kvyknzhyez3aatyjwpaw5z5n65cwfxc5ctcqq28ed3hcc035r9r76tkxehlr9wdla9twe02dpv843nru6czj6qycpamy";
         List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc).getValue();
 
         System.out.println(txns);
         assertTrue(txns.size() > 2);
-        assertNotEquals("4123d70f66414cc921f6ffc29a899aafc7137a99a0fd453d6b200863ef5702d6", txns.get(0).getTxHash());
+        assertNotEquals("119a69ae496b03936335ed22416116c454a26c00c5c59b22f34535851ba3aa42", txns.get(0).getTxHash());
         assertTrue(txns.get(0).getBlockHeight() != 0);
         assertTrue(txns.get(0).getBlockTime() != 0);
     }
 
     @Test
-    public void testGetTransactionsWithOrder_whenFromAndToBlocksProvided() throws ApiException {
-        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
-        List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc, "3168087", "3168097").getValue();
+    void testGetTransactionsWithOrder_whenFromAndToBlocksProvided() throws ApiException {
+        String address = "addr_test1qzr0g2kvyknzhyez3aatyjwpaw5z5n65cwfxc5ctcqq28ed3hcc035r9r76tkxehlr9wdla9twe02dpv843nru6czj6qycpamy";
+        List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc, "267756", "353403").getValue();
 
         System.out.println(txns);
-        assertTrue(txns.size() == 8);
-        assertEquals("389867cb7a962b370764c1c255c54e72abc9073983e9b17d5aabcb3fe043b8c3", txns.get(0).getTxHash());
+        assertEquals(49, txns.size());
+        assertEquals("a41125d2fcba854491e01d4ed0deba9094d88b947b0c753252799b3087bf3f50", txns.get(0).getTxHash());
         assertTrue(txns.get(0).getBlockHeight() != 0);
         assertTrue(txns.get(0).getBlockTime() != 0);
     }

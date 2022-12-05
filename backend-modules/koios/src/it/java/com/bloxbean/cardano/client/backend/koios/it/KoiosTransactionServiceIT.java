@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class KoiosTransactionServiceIT extends KoiosBaseTest {
+class KoiosTransactionServiceIT extends KoiosBaseTest {
 
     private TransactionService transactionService;
 
@@ -21,7 +21,7 @@ public class KoiosTransactionServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testSubmitInvalidTransaction() throws ApiException {
+    void testSubmitInvalidTransaction() throws ApiException {
 
         Result<String> result = transactionService.submitTransaction(new byte[0]);
 
@@ -31,8 +31,8 @@ public class KoiosTransactionServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetTransaction() throws Exception {
-        String txnHash = "6176b7f77a756005d5afb0724df1294f68ac473e30633101872162161a7342e4";
+    void testGetTransaction() throws Exception {
+        String txnHash = "83b9df2741b964ecd96e44f062e65fad451d22e2ac6ce70a58c56339feda525e";
         Result<TransactionContent> result = transactionService.getTransaction(txnHash);
 
         assertNotNull(result.getValue());
@@ -40,8 +40,8 @@ public class KoiosTransactionServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetTransactionUtxos() throws Exception {
-        String txnHash = "2a95e941761fa6187d0eaeec3ea0a8f68f439ec806ebb0e4550e640e8e0d189c";
+    void testGetTransactionUtxos() throws Exception {
+        String txnHash = "83b9df2741b964ecd96e44f062e65fad451d22e2ac6ce70a58c56339feda525e";
         Result<TxContentUtxo> result = transactionService.getTransactionUtxos(txnHash);
 
         assertNotNull(result.getValue());

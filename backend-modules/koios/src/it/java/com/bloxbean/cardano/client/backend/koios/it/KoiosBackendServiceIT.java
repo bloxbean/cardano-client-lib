@@ -12,11 +12,11 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public class KoiosBackendServiceIT {
+class KoiosBackendServiceIT {
 
     @Test
-    public void testCreateTestnetBackendServiceWithUrl() throws ApiException {
-        BackendService backendService = new KoiosBackendService(Constants.KOIOS_TESTNET_URL);
+    void testCreatePreprodBackendServiceWithUrl() throws ApiException {
+        BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREPROD_URL);
         NetworkInfoService networkInfoService = backendService.getNetworkInfoService();
 
         getNetworkInfoAndCompare(networkInfoService);
@@ -31,7 +31,7 @@ public class KoiosBackendServiceIT {
         assertEquals(432000,genesis.getEpochLength());
         assertEquals(62, genesis.getMaxKesEvolutions());
         assertEquals("45000000000000000", genesis.getMaxLovelaceSupply());
-        assertEquals(1097911063, genesis.getNetworkMagic());
+        assertEquals(1, genesis.getNetworkMagic());
         assertEquals(2160, genesis.getSecurityParam());
         assertEquals(1, genesis.getSlotLength());
         assertEquals(129600, genesis.getSlotsPerKesPeriod());

@@ -10,9 +10,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class KoiosUtxoServiceIT extends KoiosBaseTest {
+class KoiosUtxoServiceIT extends KoiosBaseTest {
 
     private UtxoService utxoService;
 
@@ -22,26 +23,26 @@ public class KoiosUtxoServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetUtxos() throws ApiException {
-        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
+    void testGetUtxos() throws ApiException {
+        String address = "addr_test1vzpwq95z3xyum8vqndgdd9mdnmafh3djcxnc6jemlgdmswcve6tkw";
 
         Result<List<Utxo>> result = utxoService.getUtxos(address, 40, 1);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
-        assertTrue(result.code() == 200);
+        assertEquals(200, result.code());
         assertTrue(result.getValue().size() > 0);
     }
 
     @Test
-    public void testGetUtxos_emptyResultIfPageIsNotOne() throws ApiException {
-        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
+    void testGetUtxos_emptyResultIfPageIsNotOne() throws ApiException {
+        String address = "addr_test1vzpwq95z3xyum8vqndgdd9mdnmafh3djcxnc6jemlgdmswcve6tkw";
 
         Result<List<Utxo>> result = utxoService.getUtxos(address, 40, 2);
 
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
-        assertTrue(result.code() == 200);
-        assertTrue(result.getValue().size() == 0);
+        assertEquals(200, result.code());
+        assertEquals(0, result.getValue().size());
     }
 }

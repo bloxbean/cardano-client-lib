@@ -18,7 +18,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
-public class KoiosMetadataServiceIT extends KoiosBaseTest {
+class KoiosMetadataServiceIT extends KoiosBaseTest {
 
     private MetadataService metadataService;
 
@@ -28,8 +28,8 @@ public class KoiosMetadataServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetJSONMetadataByTxnHash() throws ApiException {
-        String txHash = "d55882183427330369f8e5f09ec714257a2fe2d6ffa29f158a7cb9aae056d1ee";
+    void testGetJSONMetadataByTxnHash() throws ApiException {
+        String txHash = "83b9df2741b964ecd96e44f062e65fad451d22e2ac6ce70a58c56339feda525e";
 
         Result<List<MetadataJSONContent>> result = metadataService.getJSONMetadataByTxnHash(txHash);
 
@@ -37,15 +37,15 @@ public class KoiosMetadataServiceIT extends KoiosBaseTest {
 
         System.out.println(JsonUtil.getPrettyJson(value));
 
-        List<String> labels = value.stream().map(v -> v.getLabel()).collect(Collectors.toList());
+        List<String> labels = value.stream().map(MetadataJSONContent::getLabel).collect(Collectors.toList());
 
         assertThat(value, Matchers.notNullValue());
-        assertThat(value, hasSize(5));
-        assertThat(labels, hasItem("197819781978"));
+        assertThat(value, hasSize(1));
+        assertThat(labels, hasItem("721"));
     }
 
     @Test
-    public void testGetMetadataLabels() throws ApiException {
+    void testGetMetadataLabels() throws ApiException {
         Result<List<MetadataLabel>> result = metadataService.getMetadataLabels(20, 1, OrderEnum.asc);
 
         List<MetadataLabel> value = result.getValue();

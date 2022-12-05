@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.model.*;
+import rest.koios.client.backend.api.common.Asset;
 import rest.koios.client.backend.api.transactions.TransactionsService;
 import rest.koios.client.backend.api.transactions.model.*;
 
@@ -68,7 +69,7 @@ public class KoiosTransactionService implements TransactionService {
         List<TxOutputAmount> txOutputAmountList = new ArrayList<>();
         txOutputAmountList.add(new TxOutputAmount(LOVELACE, txInfo.getTotalOutput()));
         for (TxIO txIO : txInfo.getOutputs()) {
-            for (TxAsset txAsset : txIO.getAssetList()) {
+            for (Asset txAsset : txIO.getAssetList()) {
                 txOutputAmountList.add(new TxOutputAmount(txAsset.getPolicyId() + txAsset.getAssetName(), txAsset.getQuantity()));
             }
         }
@@ -119,7 +120,7 @@ public class KoiosTransactionService implements TransactionService {
 
         int assetMintBurnCount = 0;
         if (!txInfo.getAssetsMinted().isEmpty()) {
-            for (TxAsset txAsset : txInfo.getAssetsMinted()) {
+            for (Asset txAsset : txInfo.getAssetsMinted()) {
                 assetMintBurnCount += Integer.parseInt(txAsset.getQuantity().replace("-", ""));
             }
         }
@@ -162,7 +163,7 @@ public class KoiosTransactionService implements TransactionService {
             if (txIO.getValue() != null && !txIO.getValue().isEmpty()) {
                 txContentOutputAmountList.add(new TxContentOutputAmount(LOVELACE, txIO.getValue()));
             }
-            for (TxAsset txAsset : txIO.getAssetList()) {
+            for (Asset txAsset : txIO.getAssetList()) {
                 txContentOutputAmountList.add(new TxContentOutputAmount(txAsset.getPolicyId() + txAsset.getAssetName(), txAsset.getQuantity()));
             }
             inputs.add(new TxContentUtxoInputs(txIO.getPaymentAddr().getBech32(), txContentOutputAmountList));
@@ -177,7 +178,7 @@ public class KoiosTransactionService implements TransactionService {
             if (txIO.getValue() != null && !txIO.getValue().isEmpty()) {
                 txContentOutputAmountList.add(new TxContentOutputAmount(LOVELACE, txIO.getValue()));
             }
-            for (TxAsset txAsset : txIO.getAssetList()) {
+            for (Asset txAsset : txIO.getAssetList()) {
                 txContentOutputAmountList.add(new TxContentOutputAmount(txAsset.getPolicyId() + txAsset.getAssetName(), txAsset.getQuantity()));
             }
             outputs.add(new TxContentUtxoOutputs(txIO.getPaymentAddr().getBech32(), txContentOutputAmountList));

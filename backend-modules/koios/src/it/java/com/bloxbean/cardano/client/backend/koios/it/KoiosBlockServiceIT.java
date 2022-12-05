@@ -12,7 +12,7 @@ import java.math.BigInteger;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-public class KoiosBlockServiceIT  extends KoiosBaseTest {
+class KoiosBlockServiceIT  extends KoiosBaseTest {
 
     private BlockService blockService;
 
@@ -22,7 +22,7 @@ public class KoiosBlockServiceIT  extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetLatestBlock() throws ApiException {
+    void testGetLatestBlock() throws ApiException {
         Result<Block> block = blockService.getLatestBlock();
 
         assertNotNull(block.getValue());
@@ -30,16 +30,16 @@ public class KoiosBlockServiceIT  extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetBlockByHash() throws ApiException {
-        Result<Block> block = blockService.getBlockByHash("adc25b348d96f18e7d075f7b284d8934fafa4cd4bb2383751a1ab2161ee9ecde");
+    void testGetBlockByHash() throws ApiException {
+        Result<Block> block = blockService.getBlockByHash("065b9f0a52b3d3897160a065a7fe2bcb64b2bf635937294ade457de6a7bfd2a4");
 
         assertNotNull(block.getValue());
         System.out.println(JsonUtil.getPrettyJson(block.getValue()));
     }
 
     @Test
-    public void testGetBlockByNumber() throws ApiException {
-        Result<Block> block = blockService.getBlockByNumber(new BigInteger("2590132"));
+    void testGetBlockByNumber() throws ApiException {
+        Result<Block> block = blockService.getBlockByNumber(new BigInteger("300112"));
 
         assertNotNull(block.getValue());
         System.out.println(JsonUtil.getPrettyJson(block.getValue()));

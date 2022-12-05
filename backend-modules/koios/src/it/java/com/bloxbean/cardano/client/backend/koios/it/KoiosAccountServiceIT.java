@@ -12,7 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class KoiosAccountServiceIT extends KoiosBaseTest {
+class KoiosAccountServiceIT extends KoiosBaseTest {
 
     private AccountService accountService;
 
@@ -22,15 +22,15 @@ public class KoiosAccountServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetAccountInfo() throws ApiException {
-        Result<AccountInformation> result = accountService.getAccountInformation("stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z");
+    void testGetAccountInfo() throws ApiException {
+        Result<AccountInformation> result = accountService.getAccountInformation("stake_test1uzcmuv8c6pj3ld9mrvml3jhxl7j4hvh4xskr6ce37dvpfdqjmdvh8");
         assertTrue(result.isSuccessful());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
     }
 
     @Test
-    public void testGetAccountRewardsHistory() throws ApiException {
-        String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
+    void testGetAccountRewardsHistory() throws ApiException {
+        String stakeAddress = "stake_test1uzcmuv8c6pj3ld9mrvml3jhxl7j4hvh4xskr6ce37dvpfdqjmdvh8";
         Result<List<AccountRewardsHistory>> result = accountService.getAccountRewardsHistory(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountRewardsHistory> accountRewardsHistories = result.getValue();
@@ -38,8 +38,8 @@ public class KoiosAccountServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetAccountHistory() throws ApiException {
-        String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
+    void testGetAccountHistory() throws ApiException {
+        String stakeAddress = "stake_test1uzcmuv8c6pj3ld9mrvml3jhxl7j4hvh4xskr6ce37dvpfdqjmdvh8";
         Result<List<AccountHistory>> result = accountService.getAccountHistory(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountHistory> accountRewardsHistories = result.getValue();
@@ -47,8 +47,8 @@ public class KoiosAccountServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetAccountAddresses() throws ApiException {
-        String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
+    void testGetAccountAddresses() throws ApiException {
+        String stakeAddress = "stake_test1uzcmuv8c6pj3ld9mrvml3jhxl7j4hvh4xskr6ce37dvpfdqjmdvh8";
         Result<List<AccountAddress>> result = accountService.getAccountAddresses(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountAddress> accountRewardsHistories = result.getValue();
@@ -56,8 +56,8 @@ public class KoiosAccountServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    public void testGetAccountAssets() throws ApiException {
-        String stakeAddress = "stake_test1uq02x8kk9kcee2uhlw69srl78s2rdu83z6tgjcxceufd7asvp5p2z";
+    void testGetAccountAssets() throws ApiException {
+        String stakeAddress = "stake_test1uzcmuv8c6pj3ld9mrvml3jhxl7j4hvh4xskr6ce37dvpfdqjmdvh8";
         Result<List<AccountAsset>> result = accountService.getAccountAssets(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
         List<AccountAsset> accountAssetList = result.getValue();
