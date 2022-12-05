@@ -3,7 +3,9 @@ dependencies {
     api project(':function')
     api project(':backend')
 
-    api (libs.ogmios.java)
+    api (libs.ogmios.java) {
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    }
 
     implementation(libs.retrofit2) {
         exclude group: 'com.squareup.okhttp3', module: 'okhttp'

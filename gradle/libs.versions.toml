@@ -9,7 +9,7 @@ guava = "com.google.guava:guava:31.1-jre"
 co-nstant-in-cbor = "co.nstant.in:cbor:0.9"
 i2p-crypto-eddsa = "net.i2p.crypto:eddsa:0.3.0"
 
-jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.13.4.2"
+jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.14.1"
 retrofit2 = "com.squareup.retrofit2:retrofit:2.9.0"
 retrofit2-converter-jackson = "com.squareup.retrofit2:converter-jackson:2.9.0"
 okhttp = "com.squareup.okhttp3:okhttp:4.10.0"
