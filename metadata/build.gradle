@@ -1,6 +1,6 @@
 dependencies {
-    implementation project(':common')
-    implementation project(':crypto')
+    api project(':common')
+    api project(':crypto')
 }
 
 publishing {
