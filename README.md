@@ -19,6 +19,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 ### **Posts**
 - [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
+- [Call Plutus V2 contract from off-chain Java code](https://satran004.medium.com/call-plutus-v2-contract-from-off-chain-java-code-using-cardano-client-lib-e2b7e1b27c4)
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
 - [Cardano-client-lib: Transaction with Metadata in Java - Part II](https://medium.com/p/fa34f403b90e)
 - [Cardano-client-lib: Minting a new Native Token in Java - Part III](https://medium.com/p/1a94a21cfeeb)
