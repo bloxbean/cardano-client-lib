@@ -1,7 +1,7 @@
 ---
 description: Example :- Multi-signature transfer with native script
 sidebar_label: Multi-sig transfer with Native script
-sidebar_position: 5
+sidebar_position: 6
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 description: Account & Backend Provider Setup
 sidebar_label: Account & Backend Provider Setup
-sidebar_position: 3
+sidebar_position: 4
 
 ---
 

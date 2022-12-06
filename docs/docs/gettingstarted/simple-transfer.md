@@ -1,7 +1,7 @@
 ---
 description: A simple ada transfer example.
 sidebar_label: Simple Ada Transfer
-sidebar_position: 4
+sidebar_position: 5
 
 ---
 # Simple Ada Transfer 
