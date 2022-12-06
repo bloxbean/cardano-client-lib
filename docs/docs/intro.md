@@ -8,21 +8,21 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 :::info
 
-**Latest Stable Version**: [0.3.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.3.0) (Compatible with **Babbage** Era)
+**Latest Stable Version**: [0.4.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.4.0)
 
 :::
 
 ### Posts
+- [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
 - [Cardano-client-lib: Transaction with Metadata in Java - Part II](https://medium.com/p/fa34f403b90e)
 - [Cardano-client-lib: Minting a new Native Token in Java - Part III](https://medium.com/p/1a94a21cfeeb)
-- [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
 
 ### Examples
 
-[Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/)
+[Cardano-client-lib examples repository](https://github.com/bloxbean/cardano-client-examples/tree/main/src/test/java/com/bloxbean/cardano/client/example)
 
-[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.3.0/index.html)
+[JavaDoc](https://javadoc.io/doc/com.bloxbean.cardano/cardano-client-lib/0.4.0/index.html)
 
 [Documentation](https://cardano-client.bloxbean.com/)
 
@@ -57,6 +57,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 - [CIP25 - NFT Metadata Standard](https://cips.cardano.org/cips/cip25/)
 - [CIP8  - Message Signing](https://cips.cardano.org/cips/cip8/)
 - [CIP30  - dApp signData & verify](https://cips.cardano.org/cips/cip30/)
+- [CIP27  - CNFT Community Royalties Standard](https://cips.cardano.org/cips/cip27/)
 
 #### Metadata Builder
 - Helper to build Metadata
