@@ -51,8 +51,18 @@ class KoiosAccountServiceIT extends KoiosBaseTest {
         String stakeAddress = "stake_test1uzcmuv8c6pj3ld9mrvml3jhxl7j4hvh4xskr6ce37dvpfdqjmdvh8";
         Result<List<AccountAddress>> result = accountService.getAccountAddresses(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
-        List<AccountAddress> accountRewardsHistories = result.getValue();
-        System.out.println(JsonUtil.getPrettyJson(accountRewardsHistories));
+        List<AccountAddress> accountAddresses = result.getValue();
+        System.out.println(JsonUtil.getPrettyJson(accountAddresses));
+    }
+
+    @Test
+    void testGetAllAccountAddresses() throws ApiException {
+        String stakeAddress = "stake_test1uzcmuv8c6pj3ld9mrvml3jhxl7j4hvh4xskr6ce37dvpfdqjmdvh8";
+        Result<List<AccountAddress>> result = accountService.getAllAccountAddresses(stakeAddress);
+        assertTrue(result.isSuccessful());
+        List<AccountAddress> accountAddresses = result.getValue();
+        System.out.println(JsonUtil.getPrettyJson(accountAddresses));
+        //TODO Find account with more than 1000 addresses
     }
 
     @Test
@@ -62,5 +72,15 @@ class KoiosAccountServiceIT extends KoiosBaseTest {
         assertTrue(result.isSuccessful());
         List<AccountAsset> accountAssetList = result.getValue();
         System.out.println(JsonUtil.getPrettyJson(accountAssetList));
+    }
+
+    @Test
+    void testGetAllAccountAssets() throws ApiException {
+        String stakeAddress = "stake_test1upxeg0r67z4wca682l28ghg69jxaxgswdmpvnher7at697qmhymyp";
+        Result<List<AccountAsset>> result = accountService.getAllAccountAssets(stakeAddress);
+        assertTrue(result.isSuccessful());
+        List<AccountAsset> accountAssets = result.getValue();
+        System.out.println(JsonUtil.getPrettyJson(accountAssets));
+        //TODO Find account with more than 1000 assets
     }
 }

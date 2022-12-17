@@ -25,10 +25,19 @@ public interface AssetService {
      * List of addresses containing a specific asset
      *
      * @param asset Concatenation of the policy_id and hex-encoded asset_name (required)
+     * @return List of {@link AssetAddress}
+     */
+    Result<List<AssetAddress>> getAllAssetAddresses(String asset) throws ApiException;
+
+    /**
+     * Asset addresses
+     * List of addresses containing a specific asset
+     *
+     * @param asset Concatenation of the policy_id and hex-encoded asset_name (required)
      * @param count The number of results displayed on one page. (&lt;=100).
      * @param page  The page number for listing the results.
      * @param order The ordering of items from the point of view of the blockchain, not the page listing itself. By default, we return oldest first, newest last
-     * @return List&lt;AssetAddress&gt;
+     * @return List of {@link AssetAddress}
      */
     Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page, OrderEnum order) throws ApiException;
 
@@ -42,6 +51,15 @@ public interface AssetService {
      * @return List&lt;AssetAddress&gt;
      */
     Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page) throws ApiException;
+
+    /**
+     * Assets of a specific policy
+     * List of asset minted under a specific policy
+     *
+     * @param policyId Specific policy_id (required)
+     * @return List of {@link PolicyAsset}
+     */
+    Result<List<PolicyAsset>> getAllPolicyAssets(String policyId) throws ApiException;
 
     /**
      * Assets of a specific policy

@@ -12,6 +12,7 @@ import retrofit2.Call;
 import retrofit2.Response;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class BFAssetService extends BFBaseService implements AssetService {
@@ -31,6 +32,28 @@ public class BFAssetService extends BFBaseService implements AssetService {
             return processResponse(response);
         } catch (IOException e) {
             throw new ApiException("Error getting asset info", e);
+        }
+    }
+
+    @Override
+    public Result<List<AssetAddress>> getAllAssetAddresses(String asset) throws ApiException {
+        validateAsset(asset);
+        List<AssetAddress> assetAddresses = new ArrayList<>();
+        int page = 1;
+        Result<List<AssetAddress>> assetAddressesResult = getAssetAddresses(asset, 100, page);
+        while (assetAddressesResult.isSuccessful()) {
+            assetAddresses.addAll(assetAddressesResult.getValue());
+            if (assetAddressesResult.getValue().size() != 100) {
+                break;
+            } else {
+                page++;
+                assetAddressesResult = getAssetAddresses(asset, 100, page);
+            }
+        }
+        if (!assetAddressesResult.isSuccessful()) {
+            return assetAddressesResult;
+        } else {
+            return Result.success(assetAddressesResult.toString()).withValue(assetAddresses).code(assetAddressesResult.code());
         }
     }
 
@@ -55,6 +78,27 @@ public class BFAssetService extends BFBaseService implements AssetService {
     @Override
     public Result<List<AssetAddress>> getAssetAddresses(String asset, int count, int page) throws ApiException {
         return getAssetAddresses(asset, count, page, OrderEnum.asc);
+    }
+
+    @Override
+    public Result<List<PolicyAsset>> getAllPolicyAssets(String policyId) throws ApiException {
+        List<PolicyAsset> policyAssets = new ArrayList<>();
+        int page = 1;
+        Result<List<PolicyAsset>> policyAssetsResult = getPolicyAssets(policyId, 100, page);
+        while (policyAssetsResult.isSuccessful()) {
+            policyAssets.addAll(policyAssetsResult.getValue());
+            if (policyAssetsResult.getValue().size() != 100) {
+                break;
+            } else {
+                page++;
+                policyAssetsResult = getPolicyAssets(policyId, 100, page);
+            }
+        }
+        if (!policyAssetsResult.isSuccessful()) {
+            return policyAssetsResult;
+        } else {
+            return Result.success(policyAssetsResult.toString()).withValue(policyAssets).code(policyAssetsResult.code());
+        }
     }
 
     @Override

@@ -72,6 +72,18 @@ public class AssetServiceIT extends BaseITTest {
     }
 
     @Test
+    void getAllAssetAddresses() throws ApiException {
+        AssetService service = getBackendService().getAssetService();
+        Result<List<AssetAddress>> result = service.getAllAssetAddresses("fb2b3a629a09014e28d0a54fc06499af12127c79b0bc1c39478da1dd7449534b59");
+
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+        assertTrue(result.isSuccessful());
+        assertEquals(200, result.code());
+        assertNotNull(result.getValue());
+        //TODO Find Asset with more than 100 Addresses
+    }
+
+    @Test
     void getPolicyAssets_DESC() throws ApiException {
         AssetService service = getBackendService().getAssetService();
         Result<List<PolicyAsset>> result = service.getPolicyAssets("0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9ef", 100, 1, OrderEnum.desc);
@@ -90,6 +102,18 @@ public class AssetServiceIT extends BaseITTest {
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
         assertTrue(result.isSuccessful());
         assertEquals(200, result.code());
+        assertNotNull(result.getValue());
+    }
+
+    @Test
+    void getAllPolicyAssets() throws ApiException {
+        AssetService service = getBackendService().getAssetService();
+        Result<List<PolicyAsset>> result = service.getAllPolicyAssets("d611714cf0a96bfc6e0eeb9e8b6b04a1f3653cf9290dae604e4757e8");
+
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+        assertTrue(result.isSuccessful());
+        assertEquals(200, result.code());
+        assertTrue(result.getValue().size() > 100);
         assertNotNull(result.getValue());
     }
 }
