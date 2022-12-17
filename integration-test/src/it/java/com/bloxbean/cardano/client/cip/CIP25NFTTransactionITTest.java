@@ -21,10 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +40,7 @@ public class CIP25NFTTransactionITTest extends CIPBaseTransactionITTest {
         Asset asset = new Asset(HexUtil.encodeHexString(assetName.getBytes(StandardCharsets.UTF_8), true), BigInteger.valueOf(1));
         multiAsset.getAssets().add(asset);
 
-        Map<String, String> datePropsMap = new HashMap<>();
+        Map<String, Object> datePropsMap = new HashMap<>();
         datePropsMap.put("year", "2021");
         datePropsMap.put("month", "Dec");
 

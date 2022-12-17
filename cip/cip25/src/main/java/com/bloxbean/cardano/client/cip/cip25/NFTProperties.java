@@ -44,22 +44,30 @@ public class NFTProperties extends CBORMetadataMap {
         return (String) get(name);
     }
 
-    public NFTProperties property(String name, java.util.Map<String, String> values) {
+    public NFTProperties property(String name, java.util.Map<String, Object> values) {
         CBORMetadataMap map = new CBORMetadataMap();
-
-        values.entrySet().stream().forEach(entry -> map.put(entry.getKey(), entry.getValue()));
-
+        values.entrySet().forEach(entry -> {
+            if (entry.getValue() instanceof String) {
+                map.put(entry.getKey(), (String) entry.getValue());
+            } else if (entry.getValue() instanceof List<?>) {
+                CBORMetadataList cborMetadataList = new CBORMetadataList();
+                List<String> list = (List<String>) entry.getValue();
+                list.forEach(cborMetadataList::add);
+                map.put(entry.getKey(), cborMetadataList);
+            }
+        });
         put(name, map);
         return this;
     }
 
     /**
      * Return value as Map for
+     *
      * @param name
      * @return
      */
-    public java.util.Map<String, String> getMapProperty(String name) {
-        CBORMetadataMap cborMap = (CBORMetadataMap)get(name);
+    public java.util.Map<String, Object> getMapProperty(String name) {
+        CBORMetadataMap cborMap = (CBORMetadataMap) get(name);
         if (cborMap == null)
             return null;
 
@@ -69,9 +77,9 @@ public class NFTProperties extends CBORMetadataMap {
         if (dataItems == null || dataItems.isEmpty())
             return null;
 
-        java.util.Map output = new HashMap();
-        for (DataItem di: dataItems) {
-            output.put(extractActualValue(di), extractActualValue(map.get(di)));
+        java.util.Map<String, Object> output = new HashMap<>();
+        for (DataItem di : dataItems) {
+            output.put((String) extractActualValue(di), extractActualValue(map.get(di)));
         }
 
         return output;
@@ -79,6 +87,7 @@ public class NFTProperties extends CBORMetadataMap {
 
     /**
      * Add a list property
+     *
      * @param name
      * @param values
      * @return NFT
@@ -96,6 +105,7 @@ public class NFTProperties extends CBORMetadataMap {
 
     /**
      * Get a list property
+     *
      * @param name
      * @return
      */
@@ -107,8 +117,8 @@ public class NFTProperties extends CBORMetadataMap {
         Array array = cborList.getArray();
 
         List<String> output = new ArrayList<>();
-        for (DataItem di: array.getDataItems()) {
-            output.add((String)extractActualValue(di));
+        for (DataItem di : array.getDataItems()) {
+            output.add((String) extractActualValue(di));
         }
 
         return output;
