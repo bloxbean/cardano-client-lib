@@ -1,7 +1,7 @@
 ---
 description: Key apis of Cardano Client Lib
 sidebar_label: Key Apis
-sidebar_position: 10
+sidebar_position: 8
 ---
 
 # Key Apis
