@@ -46,11 +46,11 @@ public class NFTProperties extends CBORMetadataMap {
 
     /**
      * Add Additional Key-Value Property Map
-     * of type <String, String>
+     * of type &lt;String, String&gt;
      * or
-     * of Type <String, List<String>>
+     * of Type &lt;String, List&lt;String&gt;&gt;
      * @param name Property key name
-     * @param values Map<String, String> or Map<String, List<String>
+     * @param values Map&lt;String, String&gt; or Map&lt;String, List&lt;String&gt;&gt;
      * @return {@link NFTProperties}
      */
     public NFTProperties property(String name, java.util.Map<String, Object> values) {
