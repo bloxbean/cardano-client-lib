@@ -878,11 +878,12 @@ public class UtxoTransactionBuilderTest {
     @Test
     void testSendAll() throws Exception{
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        Account sender = new Account(Networks.testnet());
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Collections.singletonList(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Collections.singletonList(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
-        Account sender = new Account(Networks.testnet());
+
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                 .sender(sender)
                 .unit(CardanoConstants.LOVELACE)
@@ -906,13 +907,13 @@ public class UtxoTransactionBuilderTest {
     @Test
     void testSendAllMultiAsset() throws Exception{
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        Account sender = new Account(Networks.testnet());
 
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("3")))), null, null, null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("3")))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
-        Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                 .sender(sender)
                 .unit(unit)
@@ -937,13 +938,14 @@ public class UtxoTransactionBuilderTest {
     @Test
     void testSendAllMultiAssetExactAmountSameReceiver() throws Exception{
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        Account sender = new Account(Networks.testnet());
 
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
-        Account sender = new Account(Networks.testnet());
+
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
                 .sender(sender)
                 .unit(unit)
@@ -976,13 +978,13 @@ public class UtxoTransactionBuilderTest {
     void testSendAllMultiAssetExactAmountDifferentReceiverFails() throws Exception{
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String receiver2 = "addr_test1qz7r5eu2jg0hx470mmf79vpgueaggh22pmayry8xrre5grtpyy9s8u2heru58a4r68wysmdw9v40zznttmwrg0a6v9tq36pjak";
+        Account sender = new Account(Networks.testnet());
 
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
-        Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
                 .sender(sender)
                 .unit(unit)
@@ -1012,13 +1014,13 @@ public class UtxoTransactionBuilderTest {
     void testSendAllMultiAssetExactAmountDifferentReceiverWithMinAda() throws Exception{
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String receiver2 = "addr_test1qz7r5eu2jg0hx470mmf79vpgueaggh22pmayry8xrre5grtpyy9s8u2heru58a4r68wysmdw9v40zznttmwrg0a6v9tq36pjak";
+        Account sender = new Account(Networks.testnet());
 
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
-        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, BigInteger.valueOf(2478633))), null, null, null));
+        List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, BigInteger.valueOf(2478633))), null, null, null));
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
 
-        Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
                 .sender(sender)
                 .unit(unit)
