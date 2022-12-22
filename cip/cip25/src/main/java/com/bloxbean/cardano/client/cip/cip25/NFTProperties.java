@@ -44,16 +44,27 @@ public class NFTProperties extends CBORMetadataMap {
         return (String) get(name);
     }
 
+    /**
+     * Add Additional Key-Value Property Map
+     * of type <String, String>
+     * or
+     * of Type <String, List<String>>
+     * @param name Property key name
+     * @param values Map<String, String> or Map<String, List<String>
+     * @return {@link NFTProperties}
+     */
     public NFTProperties property(String name, java.util.Map<String, Object> values) {
         CBORMetadataMap map = new CBORMetadataMap();
-        values.entrySet().forEach(entry -> {
-            if (entry.getValue() instanceof String) {
-                map.put(entry.getKey(), (String) entry.getValue());
-            } else if (entry.getValue() instanceof List<?>) {
+        values.forEach((key, value) -> {
+            if (value instanceof String) {
+                map.put(key, (String) value);
+            } else if (value instanceof List<?>) {
                 CBORMetadataList cborMetadataList = new CBORMetadataList();
-                List<String> list = (List<String>) entry.getValue();
+                List<String> list = (List<String>) value;
                 list.forEach(cborMetadataList::add);
-                map.put(entry.getKey(), cborMetadataList);
+                map.put(key, cborMetadataList);
+            } else {
+                throw new IllegalStateException("No Support for " + value.getClass() + " Type of Property");
             }
         });
         put(name, map);
