@@ -117,7 +117,7 @@ public class Value {
         for (MultiAsset multiAsset : getMultiAssets()) {
             String policyId = multiAsset.getPolicyId();
             for (com.bloxbean.cardano.client.transaction.spec.Asset asset : multiAsset.getAssets()) {
-                amounts.add(new Amount(policyId+asset.getNameAsHex(), asset.getValue()));
+                amounts.add(new Amount(policyId+asset.getNameAsHex().replace("0x",""), asset.getValue()));
             }
         }
         return amounts;
