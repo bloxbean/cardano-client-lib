@@ -25,7 +25,7 @@ public class CIP30UtxoSupplier implements UtxoSupplier {
      */
     public CIP30UtxoSupplier(List<String> hexEncodedCborUtxos) throws CborDeserializationException {
         for (String cbor : hexEncodedCborUtxos) {
-            utxos.add(Utxo.deserialize(HexUtil.decodeHexString(cbor)));
+            utxos.add(CIP30UtxoDeserializer.deserialize(HexUtil.decodeHexString(cbor)));
         }
     }
 
