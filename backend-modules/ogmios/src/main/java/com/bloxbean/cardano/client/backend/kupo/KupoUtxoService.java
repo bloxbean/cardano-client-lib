@@ -55,6 +55,7 @@ public class KupoUtxoService extends KupoBaseService implements UtxoService {
                     Utxo utxo = new Utxo();
                     utxo.setTxHash(kupoUtxo.getTransactionId());
                     utxo.setOutputIndex(kupoUtxo.getOutputIndex());
+                    utxo.setAddress(kupoUtxo.getAddress());
                     utxo.setDataHash(kupoUtxo.getDataHash());
                     utxo.setReferenceScriptHash(kupoUtxo.getScriptHash());
                     List<Amount> amountList = new ArrayList<>();
