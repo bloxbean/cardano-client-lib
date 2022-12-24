@@ -223,7 +223,7 @@ public class NFT extends NFTProperties {
      * @return
      */
     @Override
-    public NFT property(String name, java.util.Map<String, String> values) {
+    public NFT property(String name, java.util.Map<String, Object> values) {
         return (NFT) super.property(name, values);
     }
 

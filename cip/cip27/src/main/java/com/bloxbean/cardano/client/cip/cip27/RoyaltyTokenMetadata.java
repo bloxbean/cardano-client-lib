@@ -22,6 +22,7 @@ public class RoyaltyTokenMetadata extends CBORMetadata {
 
     /**
      * Create an instance of NFTMetadata
+     *
      * @return {@link RoyaltyTokenMetadata}
      */
     public static RoyaltyTokenMetadata create() {
@@ -30,6 +31,7 @@ public class RoyaltyTokenMetadata extends CBORMetadata {
 
     /**
      * Create an instance of NFTMetadata from cbor bytes
+     *
      * @param cborBytes cborBytes
      * @return {@link RoyaltyTokenMetadata}
      */
@@ -40,6 +42,7 @@ public class RoyaltyTokenMetadata extends CBORMetadata {
 
     /**
      * Get Royalty Token
+     *
      * @return {@link RoyaltyToken}
      */
     public RoyaltyToken getRoyaltyToken() {
@@ -52,6 +55,7 @@ public class RoyaltyTokenMetadata extends CBORMetadata {
 
     /**
      * Set RoyaltyToken
+     *
      * @param royaltyToken royaltyToken
      * @return {@link RoyaltyTokenMetadata}
      */

@@ -290,11 +290,14 @@ class NFTMetadataTest {
     void addMapAndListProperty() {
         String policyId_1 = "1e80fa1859c59b18ff4895a2c481cced459c6b4fcd6c445b5e907a92";
 
-        java.util.Map<String, String> propsMap = new HashMap<>();
+        java.util.Map<String, Object> propsMap = new HashMap<>();
         propsMap.put("key1", "value1");
         propsMap.put("key2", "value2");
 
-        java.util.Map<String, String> filePropsMap = new HashMap<>();
+        java.util.Map<String, Object> props5Map = new HashMap<>();
+        props5Map.put("key1", List.of("a", "b", "c"));
+
+        java.util.Map<String, Object> filePropsMap = new HashMap<>();
         filePropsMap.put("keya", "valuea");
         filePropsMap.put("keyb", "valueb");
 
@@ -308,6 +311,7 @@ class NFTMetadataTest {
                 .property("prop2", "propValue2")
                 .property("prop3", propsMap)
                 .property("prop4", Arrays.asList("listprop1", "listprop2", "listprop3"))
+                .property("prop5", props5Map)
                 .addFile(NFTFile.create()
                         .name("nft1-file1")
                         .mediaType("plain/text")

@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.Map;
+import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
@@ -16,6 +17,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+
+import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 @Data
 @AllArgsConstructor
@@ -106,5 +109,17 @@ public class Value {
         difMultiAssets.removeIf(multiAsset -> multiAsset.getAssets() == null || multiAsset.getAssets().isEmpty());
 
         return Value.builder().coin(sumCoin).multiAssets(difMultiAssets).build();
+    }
+
+    public List<Amount> toAmountList() {
+        List<Amount> amounts = new ArrayList<>();
+        amounts.add(new Amount(LOVELACE, getCoin()));
+        for (MultiAsset multiAsset : getMultiAssets()) {
+            String policyId = multiAsset.getPolicyId();
+            for (com.bloxbean.cardano.client.transaction.spec.Asset asset : multiAsset.getAssets()) {
+                amounts.add(new Amount(policyId+asset.getNameAsHex().replace("0x",""), asset.getValue()));
+            }
+        }
+        return amounts;
     }
 }

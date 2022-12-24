@@ -145,7 +145,7 @@ public class NFTFile extends NFTProperties {
      * @return
      */
     @Override
-    public NFTFile property(String name, java.util.Map<String, String> values) {
+    public NFTFile property(String name, java.util.Map<String, Object> values) {
         return (NFTFile) super.property(name, values);
     }
 

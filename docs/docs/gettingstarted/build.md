@@ -1,5 +1,6 @@
 ---
 description: How to build from source ?
+sidebar_position: 9
 ---
 
 # Build

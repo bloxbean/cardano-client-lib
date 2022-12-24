@@ -1,5 +1,5 @@
 [libraries]
-koios-java = "io.github.cardano-community:koios-java-client:1.16.0"
+koios-java = "io.github.cardano-community:koios-java-client:1.16.1"
 ogmios-java = "io.adabox:ogmios-java-client:1.0.0"
 
 slf4j-api = "org.slf4j:slf4j-api:1.7.36"

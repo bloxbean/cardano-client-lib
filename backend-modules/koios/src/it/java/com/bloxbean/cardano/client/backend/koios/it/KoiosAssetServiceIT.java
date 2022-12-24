@@ -65,6 +65,17 @@ class KoiosAssetServiceIT extends KoiosBaseTest {
     }
 
     @Test
+    void getAllAssetAddresses() throws ApiException {
+        Result<List<AssetAddress>> result = assetService.getAllAssetAddresses("80de4ee0ffde8ba05726707f2adba0e65963eff5aaba164af358e71b53746162696c697479506f6f6c5f54657374");
+
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+        assertTrue(result.isSuccessful());
+        assertEquals(200, result.code());
+        assertNotNull(result.getValue());
+        //TODO Find Asset with more than 1000 Addresses
+    }
+
+    @Test
     void getPolicyAssets() throws ApiException {
         Result<List<PolicyAsset>> result = assetService.getPolicyAssets("80de4ee0ffde8ba05726707f2adba0e65963eff5aaba164af358e71b", 100, 1);
 
@@ -72,5 +83,16 @@ class KoiosAssetServiceIT extends KoiosBaseTest {
         assertTrue(result.isSuccessful());
         assertEquals(200, result.code());
         assertNotNull(result.getValue());
+    }
+
+    @Test
+    void getAllPolicyAssets() throws ApiException {
+        Result<List<PolicyAsset>> result = assetService.getAllPolicyAssets("d611714cf0a96bfc6e0eeb9e8b6b04a1f3653cf9290dae604e4757e8");
+
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+        assertTrue(result.isSuccessful());
+        assertEquals(200, result.code());
+        assertNotNull(result.getValue());
+        //TODO Find Policy with more than 1000 assets
     }
 }

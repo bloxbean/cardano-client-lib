@@ -67,6 +67,28 @@ public class KoiosAssetService implements AssetService {
     }
 
     @Override
+    public Result<List<AssetAddress>> getAllAssetAddresses(String asset) throws ApiException {
+        validateAsset(asset);
+        List<AssetAddress> assetAddresses = new ArrayList<>();
+        int page = 1;
+        Result<List<AssetAddress>> assetAddressesResult = getAssetAddresses(asset, 1000, page);
+        while (assetAddressesResult.isSuccessful()) {
+            assetAddresses.addAll(assetAddressesResult.getValue());
+            if (assetAddressesResult.getValue().size() != 1000) {
+                break;
+            } else {
+                page++;
+                assetAddressesResult = getAssetAddresses(asset, 1000, page);
+            }
+        }
+        if (!assetAddressesResult.isSuccessful()) {
+            return assetAddressesResult;
+        } else {
+            return Result.success(assetAddressesResult.toString()).withValue(assetAddresses).code(assetAddressesResult.code());
+        }
+    }
+
+    @Override
     public Result<List<AssetAddress>> getAssetAddresses(String unit, int count, int page, OrderEnum order) throws ApiException {
         try {
             Tuple<String, String> assetTuple = AssetUtil.getPolicyIdAndAssetName(unit);
@@ -97,6 +119,27 @@ public class KoiosAssetService implements AssetService {
     }
 
     @Override
+    public Result<List<PolicyAsset>> getAllPolicyAssets(String policyId) throws ApiException {
+        List<PolicyAsset> policyAssets = new ArrayList<>();
+        int page = 1;
+        Result<List<PolicyAsset>> policyAssetsResult = getPolicyAssets(policyId, 1000, page);
+        while (policyAssetsResult.isSuccessful()) {
+            policyAssets.addAll(policyAssetsResult.getValue());
+            if (policyAssetsResult.getValue().size() != 1000) {
+                break;
+            } else {
+                page++;
+                policyAssetsResult = getPolicyAssets(policyId, 1000, page);
+            }
+        }
+        if (!policyAssetsResult.isSuccessful()) {
+            return policyAssetsResult;
+        } else {
+            return Result.success(policyAssetsResult.toString()).withValue(policyAssets).code(policyAssetsResult.code());
+        }
+    }
+
+    @Override
     public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page, OrderEnum order) throws ApiException {
         try {
             rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.asset.model.PolicyAsset>> assetPolicyInfoResult = assetService.getAssetPolicyInformation(policyId);
@@ -120,5 +163,11 @@ public class KoiosAssetService implements AssetService {
             policyAssets.forEach(policyAsset -> policyAssetList.add(new PolicyAsset(policyId + policyAsset.getAssetName(), policyAsset.getTotalSupply())));
         }
         return Result.success("OK").withValue(policyAssetList).code(200);
+    }
+
+    private void validateAsset(String asset) throws ApiException {
+        if (asset == null || asset.equals("")) {
+            throw new ApiException("Asset cannot be null or empty");
+        }
     }
 }

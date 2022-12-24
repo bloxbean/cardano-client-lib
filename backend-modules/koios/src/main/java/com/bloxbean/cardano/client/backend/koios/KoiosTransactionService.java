@@ -48,7 +48,7 @@ public class KoiosTransactionService implements TransactionService {
                 return Result.error(txInfoResult.getResponse()).code(txInfoResult.getCode());
             }
 
-            if (txInfoResult.getValue().size() != 0) {
+            if (!txInfoResult.getValue().isEmpty()) {
                 return convertToTransactionContent(txInfoResult.getValue().get(0));
             } else {
                 return Result.error("Not Found").code(404);
@@ -78,12 +78,11 @@ public class KoiosTransactionService implements TransactionService {
         transactionContent.setDeposit(txInfo.getDeposit());
         transactionContent.setSize(txInfo.getTxSize());
         if (txInfo.getInvalidBefore() != null) {
-            transactionContent.setInvalidBefore(String.valueOf(txInfo.getInvalidBefore()));
+            transactionContent.setInvalidBefore(txInfo.getInvalidBefore());
         }
         if (txInfo.getInvalidAfter() != null) {
-            transactionContent.setInvalidHereafter(String.valueOf(txInfo.getInvalidAfter()));
+            transactionContent.setInvalidHereafter(txInfo.getInvalidAfter());
         }
-
         transactionContent.setUtxoCount(txInfo.getOutputs().size() + txInfo.getInputs().size());
         transactionContent.setWithdrawalCount(txInfo.getWithdrawals().size());
         int mirCerts = 0;
@@ -106,9 +105,12 @@ public class KoiosTransactionService implements TransactionService {
                         break;
                     case "pool_update":
                         poolUpdateCerts++;
+                        break;
                     case "stake_registration":
                     case "stake_deregistration":
                         stakeCerts++;
+                        break;
+                    default:
                 }
             }
         }

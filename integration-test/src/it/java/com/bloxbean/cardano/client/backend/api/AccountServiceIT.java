@@ -11,7 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class AccountServiceIT extends BaseITTest {
+class AccountServiceIT extends BaseITTest {
 
     BackendService backendService;
     AccountService accountService;
@@ -23,14 +23,14 @@ public class AccountServiceIT extends BaseITTest {
     }
 
     @Test
-    public void testGetAccountInfo() throws ApiException {
+    void testGetAccountInfo() throws ApiException {
         Result<AccountInformation> result = accountService.getAccountInformation("stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm");
         assertTrue(result.isSuccessful());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
     }
 
     @Test
-    public void testGetAccountRewardsHistory() throws ApiException {
+    void testGetAccountRewardsHistory() throws ApiException {
         String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
         Result<List<AccountRewardsHistory>> result = accountService.getAccountRewardsHistory(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
@@ -39,7 +39,7 @@ public class AccountServiceIT extends BaseITTest {
     }
 
     @Test
-    public void testGetAccountHistory() throws ApiException {
+    void testGetAccountHistory() throws ApiException {
         String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
         Result<List<AccountHistory>> result = accountService.getAccountHistory(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
@@ -48,21 +48,41 @@ public class AccountServiceIT extends BaseITTest {
     }
 
     @Test
-    public void testGetAccountAddresses() throws ApiException {
+    void testGetAccountAddresses() throws ApiException {
         String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
         Result<List<AccountAddress>> result = accountService.getAccountAddresses(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
-        List<AccountAddress> accountRewardsHistories = result.getValue();
-        System.out.println(JsonUtil.getPrettyJson(accountRewardsHistories));
+        List<AccountAddress> accountAddresses = result.getValue();
+        System.out.println(JsonUtil.getPrettyJson(accountAddresses));
     }
 
     @Test
-    public void testGetAccountAssets() throws ApiException {
+    void testGetAllAccountAddresses() throws ApiException {
         String stakeAddress = "stake_test1up340au593kkqx8tdvwgg367dvydxc8laxuhujxwwwq78sgjpw2sm";
+        Result<List<AccountAddress>> result = accountService.getAllAccountAddresses(stakeAddress);
+        assertTrue(result.isSuccessful());
+        List<AccountAddress> accountAddresses = result.getValue();
+        System.out.println(JsonUtil.getPrettyJson(accountAddresses));
+        //TODO Find account with more than 100 addresses
+    }
+
+    @Test
+    void testGetAccountAssets() throws ApiException {
+        String stakeAddress = "stake_test1upxeg0r67z4wca682l28ghg69jxaxgswdmpvnher7at697qmhymyp";
         Result<List<AccountAsset>> result = accountService.getAccountAssets(stakeAddress, 50, 1);
         assertTrue(result.isSuccessful());
-        List<AccountAsset> accountRewardsHistories = result.getValue();
-        System.out.println(JsonUtil.getPrettyJson(accountRewardsHistories));
+        List<AccountAsset> accountAssets = result.getValue();
+        System.out.println(JsonUtil.getPrettyJson(accountAssets));
+    }
+
+    @Test
+    void testGetAllAccountAssets() throws ApiException {
+        String stakeAddress = "stake_test1upxeg0r67z4wca682l28ghg69jxaxgswdmpvnher7at697qmhymyp";
+        Result<List<AccountAsset>> result = accountService.getAllAccountAssets(stakeAddress);
+        assertTrue(result.isSuccessful());
+        List<AccountAsset> accountAssets = result.getValue();
+        System.out.println(JsonUtil.getPrettyJson(accountAssets));
+        //TODO Find account with more than 100 assets
     }
 }
 

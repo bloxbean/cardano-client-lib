@@ -18,6 +18,7 @@ public class RoyaltyToken extends NFTProperties {
 
     /**
      * Create an instance of RoyaltyToken
+     *
      * @return {@link RoyaltyToken}
      */
     public static RoyaltyToken create() {
@@ -30,6 +31,7 @@ public class RoyaltyToken extends NFTProperties {
 
     /**
      * Set Royalty Address
+     *
      * @param address bech32 payment address
      * @return {@link RoyaltyToken}
      */
@@ -40,12 +42,13 @@ public class RoyaltyToken extends NFTProperties {
 
     /**
      * Set Royalty Rate
+     *
      * @param rate rate
      * @return {@link RoyaltyToken}
      */
     public RoyaltyToken rate(Double rate) {
         if (rate < 0.0 || rate > 1.0) {
-           throw new IllegalArgumentException("Royalty Rate is Outside of Legal Range (0.0-1.0)");
+            throw new IllegalArgumentException("Royalty Rate is Outside of Legal Range (0.0-1.0)");
         }
         put(RATE_KEY, rate.toString());
         return this;
@@ -53,6 +56,7 @@ public class RoyaltyToken extends NFTProperties {
 
     /**
      * Get Royalty Address
+     *
      * @return Bech32 Payment Address
      */
     public String getAddress() {
@@ -69,6 +73,7 @@ public class RoyaltyToken extends NFTProperties {
 
     /**
      * Get Royalty Rate
+     *
      * @return Rate
      */
     public Double getRate() {
