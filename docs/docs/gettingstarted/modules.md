@@ -5,7 +5,7 @@ sidebar_position: 3
 
 # Modules
 
-In 0.4.0, the library has been divided into smaller modules. These modules can be added to a project based on requirement.
+In 0.4.0 and later, the library has been divided into smaller modules. These modules can be added to a project based on requirement.
 
 **Group Id:** com.bloxbean.cardano
 
