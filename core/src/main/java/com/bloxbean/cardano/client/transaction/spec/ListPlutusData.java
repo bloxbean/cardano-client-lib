@@ -53,7 +53,7 @@ public class ListPlutusData implements PlutusData {
             if (plutusData == null)
                 throw new CborDeserializationException("Null value found during PlutusData de-serialization");
 
-            listPlutusData.add(PlutusData.deserialize(di));
+            listPlutusData.add(plutusData);
         }
 
         listPlutusData.isChunked = isChunked;
