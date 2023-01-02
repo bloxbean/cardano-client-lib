@@ -20,7 +20,7 @@ class CIP30UtxoDeserializer {
     /**
      * Deserialize cbor from CIP30's wallet.getUtxos() method
      * @param bytes utxo cbor bytes from wallet.getUtxos()
-     * @return Utxo
+     * @return {@link Utxo}
      *
      */
     public static Utxo deserialize(byte[] bytes) throws CborDeserializationException {
