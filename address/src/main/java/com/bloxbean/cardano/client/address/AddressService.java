@@ -303,7 +303,7 @@ public class AddressService {
                 stakeKeyHash = new byte[28];
                 System.arraycopy(addressBytes, 1, stakeKeyHash, 0, stakeKeyHash.length);
                 break;
-            case Ptr:
+            case Ptr: //TODO -- Remove if not required
                 stakeKeyHash = new byte[addressBytes.length - 1 - 28];
                 System.arraycopy(addressBytes, 1 + 28, stakeKeyHash, 0, stakeKeyHash.length);
                 break;
