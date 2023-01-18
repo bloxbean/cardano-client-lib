@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
 import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash224;
@@ -229,7 +230,7 @@ public class AddressService {
             byte[] stakeKeyHash = blake2bHash224(publicKey); //Get keyhash from publickey (stake credential)
             newAddressBytes = getAddressBytes(null, stakeKeyHash, addressType, header);
         } else {
-            byte[] stakeKeyHash = getStakeKeyHash(address); //Get stakekeyhash from existing address
+            byte[] stakeKeyHash = getStakeKeyHash(address).orElse(null); //Get stakekeyhash from existing address
             byte[] paymentKeyHash = blake2bHash224(publicKey); //calculate keyhash from public key
             newAddressBytes = getAddressBytes(paymentKeyHash, stakeKeyHash, addressType, header);
         }
@@ -256,9 +257,8 @@ public class AddressService {
                     String.format("Stake address can't be derived. Required address type: Base Address, Found: %s ",
                             address.getAddressType()));
 
-        byte[] stakeKeyHash = getStakeKeyHash(address);
-        if (stakeKeyHash == null)
-            throw new AddressRuntimeException("StakeKeyHash was not found for the address");
+        byte[] stakeKeyHash = getStakeKeyHash(address)
+                .orElseThrow(() -> new AddressRuntimeException("StakeKeyHash was not found for the address"));
 
         AddressType addressType = AddressType.Reward; //target type
         byte[] addressBytes = address.getBytes(); //existing add bytes
@@ -281,7 +281,12 @@ public class AddressService {
         return new Address(rewardAddressBytes);
     }
 
-    private byte[] getStakeKeyHash(Address address) {
+    /**
+     * Get StakeKeyHash from {@link Address}
+     * @param address
+     * @return stake key hash
+     */
+    public Optional<byte[]> getStakeKeyHash(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
 
@@ -298,7 +303,7 @@ public class AddressService {
                 stakeKeyHash = new byte[28];
                 System.arraycopy(addressBytes, 1, stakeKeyHash, 0, stakeKeyHash.length);
                 break;
-            case Ptr:
+            case Ptr: //TODO -- Remove if not required
                 stakeKeyHash = new byte[addressBytes.length - 1 - 28];
                 System.arraycopy(addressBytes, 1 + 28, stakeKeyHash, 0, stakeKeyHash.length);
                 break;
@@ -306,7 +311,33 @@ public class AddressService {
                 throw new AddressRuntimeException("StakeKeyHash can't be found for address type : " + addressType);
         }
 
-        return stakeKeyHash;
+        return Optional.ofNullable(stakeKeyHash);
+    }
+
+    /**
+     * Get PaymentKeyHash from {@link Address}
+     * @param address
+     * @return payment key hash
+     */
+    public Optional<byte[]> getPaymentKeyHash(Address address) {
+        AddressType addressType = address.getAddressType();
+        byte[] addressBytes = address.getBytes();
+
+        byte[] paymentKeyHash;
+        switch (addressType) {
+            case Base:
+            case Enterprise:
+                paymentKeyHash = new byte[28];
+                System.arraycopy(addressBytes, 1, paymentKeyHash, 0, paymentKeyHash.length);
+                break;
+            case Reward:
+                paymentKeyHash = null;
+                break;
+            default: {
+                throw new AddressRuntimeException("Unable to get payment key hash for address type: " + addressType);
+            }
+        }
+        return Optional.ofNullable(paymentKeyHash);
     }
 
     private byte[] variableNatEncode(long num) {
