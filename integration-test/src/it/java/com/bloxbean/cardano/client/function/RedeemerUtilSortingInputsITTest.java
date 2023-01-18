@@ -5,8 +5,6 @@ import com.bloxbean.cardano.client.address.AddressService;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
-import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
-import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
@@ -42,11 +40,6 @@ public class RedeemerUtilSortingInputsITTest extends BaseITTest {
     BackendService backendService;
     UtxoService utxoService;
     TransactionService transactionService;
-    TransactionHelperService transactionHelperService;
-    BlockService blockService;
-    FeeCalculationService feeCalculationService;
-    EpochService epochService;
-    MetadataService metadataService;
     ProtocolParams protocolParams;
     UtxoSupplier utxoSupplier;
 
@@ -58,12 +51,6 @@ public class RedeemerUtilSortingInputsITTest extends BaseITTest {
         backendService = getBackendService();
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
-        transactionHelperService = backendService.getTransactionHelperService();
-        blockService = backendService.getBlockService();
-        feeCalculationService = backendService.getFeeCalculationService(transactionHelperService);
-        epochService = backendService.getEpochService();
-        metadataService = backendService.getMetadataService();
-
         protocolParams = backendService.getEpochService().getProtocolParameters().getValue();
         utxoSupplier = new DefaultUtxoSupplier(utxoService);
 
