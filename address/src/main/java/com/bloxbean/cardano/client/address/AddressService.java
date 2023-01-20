@@ -284,7 +284,7 @@ public class AddressService {
     /**
      * Get StakeKeyHash from {@link Address}
      * @param address
-     * @return stake key hash
+     * @return stake key hash. For Pointer address, delegationPointerHash
      */
     public Optional<byte[]> getStakeKeyHash(Address address) {
         AddressType addressType = address.getAddressType();
@@ -327,6 +327,7 @@ public class AddressService {
         switch (addressType) {
             case Base:
             case Enterprise:
+            case Ptr:
                 paymentKeyHash = new byte[28];
                 System.arraycopy(addressBytes, 1, paymentKeyHash, 0, paymentKeyHash.length);
                 break;
@@ -334,7 +335,7 @@ public class AddressService {
                 paymentKeyHash = null;
                 break;
             default: {
-                throw new AddressRuntimeException("Unable to get payment key hash for address type: " + addressType);
+                throw new AddressRuntimeException("Unable to get payment key hash for address type: " + addressType + ", address=" + address.getAddress());
             }
         }
         return Optional.ofNullable(paymentKeyHash);

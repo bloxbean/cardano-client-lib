@@ -727,6 +727,25 @@ class AddressServiceTest {
     }
 
     @Test
+    void getStakeKeyHash_fromPointerAddress_testnet() {
+        String pointerAddress = "addr_test1grl9uzketqym52kqyjrxplslh3t5zlm65vmlvgzmnycg7m48kw8hvqqqt5mz03";
+        Address address = new Address(pointerAddress);
+
+        byte[] stakeKeyHash = AddressService.getInstance().getStakeKeyHash(address).get();
+        assertThat(HexUtil.encodeHexString(stakeKeyHash)).isEqualTo("a7b38f760000");
+    }
+
+    @Test
+    void getStakeKeyHash_fromPointerAddress_mainnet() {
+        String pointerAddress = "addr1g9ekml92qyvzrjmawxkh64r2w5xr6mg9ngfmxh2khsmdrcudevsft64mf887333adamant";
+        Address address = new Address(pointerAddress);
+
+        byte[] stakeKeyHash = AddressService.getInstance().getStakeKeyHash(address).get();
+        assertThat(HexUtil.encodeHexString(stakeKeyHash)).isEqualTo("8dcb2095eabb49cfe8c63d");
+    }
+
+
+    @Test
     void getPaymentKeyHash_fromBaseAddress_mainnet() {
         String baseAddress = "addr1q9wf2pasguad0uy8rzxly6hxc4yk4vhlj4ufv7xg973fvu9l7f23amv6dqy99nrlezg38y3797tgel0udlxfsjp26ensg63c8u";
         Address address = new Address(baseAddress);
@@ -772,6 +791,24 @@ class AddressServiceTest {
 
         Optional<byte[]> paymentKeyHash = AddressService.getInstance().getPaymentKeyHash(address);
         assertThat(paymentKeyHash).isEmpty();
+    }
+
+    @Test
+    void getPaymentKeyHash_fromPointerAddress_mainnet() {
+        String pointerAddress = "addr1g9ekml92qyvzrjmawxkh64r2w5xr6mg9ngfmxh2khsmdrcudevsft64mf887333adamant";
+        Address address = new Address(pointerAddress);
+
+        byte[] paymentKeyHash = AddressService.getInstance().getPaymentKeyHash(address).get();
+        assertThat(HexUtil.encodeHexString(paymentKeyHash)).isEqualTo("736dfcaa011821cb7d71ad7d546a750c3d6d059a13b35d56bc36d1e3");
+    }
+
+    @Test
+    void getPaymentKeyHash_fromPointerAddress_testnet() {
+        String pointerAddress = "addr_test1grl9uzketqym52kqyjrxplslh3t5zlm65vmlvgzmnycg7m48kw8hvqqqt5mz03";
+        Address address = new Address(pointerAddress);
+
+        byte[] paymentKeyHash = AddressService.getInstance().getPaymentKeyHash(address).get();
+        assertThat(HexUtil.encodeHexString(paymentKeyHash)).isEqualTo("fe5e0ad95809ba2ac0248660fe1fbc57417f7aa337f6205b99308f6e");
     }
 
 }
