@@ -23,7 +23,7 @@ public class CIP30ValueDeserializer {
      * @return {@link Value}
      */
     public static Value deserialize(byte[] bytes) throws CborDeserializationException {
-        Value value = new Value();
+        var value = new Value();
         try {
             List<DataItem> dataItemList = CborDecoder.decode(bytes);
             if (dataItemList.size() != 1) {
@@ -33,7 +33,7 @@ public class CIP30ValueDeserializer {
             if (dataItem.getMajorType() == MajorType.UNSIGNED_INTEGER) {
                 value.setCoin(((UnsignedInteger) dataItem).getValue());
             } else if (dataItem.getMajorType() == MajorType.ARRAY) {
-                Array array = (Array) dataItemList.get(0);
+                var array = (Array) dataItemList.get(0);
                 value.setCoin(((UnsignedInteger) array.getDataItems().get(0)).getValue());
                 Map multiAssetsMap = (Map) array.getDataItems().get(1);
                 for (DataItem key : multiAssetsMap.getKeys()) {
