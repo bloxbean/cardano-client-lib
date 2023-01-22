@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * Serialize Value Object to cbor CIP30's Balance Object
- * to Support CIP30's wallet.getUtxo(amount: cbor<value>) method
+ * to Support CIP30's wallet.getUtxo(amount: cbor&lt;value&gt;) method
  */
 public class CIP30ValueSerializer {
 
