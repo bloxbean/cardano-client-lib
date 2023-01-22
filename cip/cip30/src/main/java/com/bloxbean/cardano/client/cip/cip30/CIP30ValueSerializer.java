@@ -29,7 +29,7 @@ public class CIP30ValueSerializer {
     public static byte[] serialize(Value value) throws CborSerializationException {
         try {
             List<DataItem> dataItems = new ArrayList<>();
-            UnsignedInteger coin = new UnsignedInteger(BigInteger.ZERO);
+            var coin = new UnsignedInteger(BigInteger.ZERO);
             if (value.getCoin() != null) {
                 coin = new UnsignedInteger(value.getCoin());
             }
@@ -37,7 +37,7 @@ public class CIP30ValueSerializer {
             if (value.getMultiAssets() == null || value.getMultiAssets().isEmpty()) {
                 dataItems.add(coin);
             } else {
-                Array array = new Array();
+                var array = new Array();
                 array.add(coin);
                 array.add(value.serialize());
                 dataItems.add(array);
