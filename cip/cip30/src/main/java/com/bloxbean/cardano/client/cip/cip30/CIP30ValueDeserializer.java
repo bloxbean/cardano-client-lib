@@ -13,6 +13,10 @@ import java.util.List;
  */
 public class CIP30ValueDeserializer {
 
+    private CIP30ValueDeserializer() {
+        throw new IllegalStateException("Utility Class");
+    }
+
     /**
      * Deserialize cbor from CIP30's wallet.getBalance() method
      * @param bytes balance cbor bytes from wallet.getBalance()
