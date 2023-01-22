@@ -61,7 +61,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 #### Metadata Builder
 - Helper to build Metadata
-- Converter to conver JSON (No Schema) to Metadata format
+- Converter to convert JSON (No Schema) to Metadata format
 
 #### Token Minting
 - Token Minting transaction builder
