@@ -40,7 +40,7 @@ For **simple** setup, you can use **cardano-client-lib** and one of the backend 
 
 | Modules                                          | Artifact Id                       | Description                                                                                                                                                                                       |
 |--------------------------------------------------|-----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| cardano-client-lib                               | cardano-client-lib                | This is a top level module which includes all other modules except backend provider modules.<br/> **(Recommended for most application)**                                                          | 
+| cardano-client-lib                               | cardano-client-lib                | This is a top level module which includes all other modules except backend provider modules.<br/> **(Recommended for most applications)**                                                          | 
 | [Backend Api](backend)                           | cardano-client-backend            | Defines backend apis which are implemented by provider specific module.                                                                                                                           |
  | [Blockfrost Backend](backend-modules/blockfrost) | cardano-client-backend-blockfrost | Provides integration with [Blockfrost](https://blockfrost.io/)                                                                                                                                    |  
 | [Koios Backend](backend-modules/koios)           | cardano-client-backend-koios      | Provides integration with [Koios](https://www.koios.rest/)                                                                                                                                        |  
@@ -269,7 +269,7 @@ AddressService addressService = backendService.getAddressService();
 ```
 
 
-#### Simple ADA Payment transaction usgin High-Level Api
+#### Simple ADA Payment transaction using High-Level Api
 ```
   PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                                             .sender(sender)
@@ -417,7 +417,7 @@ Result<String> result
 ```
 
 #### UtxoSelectionStrategy in High Level Api
-The utxo selection strategy can be changed by providing a custom implementation of "UtxoSelectionStrategy" interface. By default, the high level api like TransactionHelperService uses a default out-of-box implementation "DefaultUtxoSelectionStrategyImpl". The default strategy is too simple and finds all required utxos sequentially. But it may not be efficient for some usecases.
+The utxo selection strategy can be changed by providing a custom implementation of "UtxoSelectionStrategy" interface. By default, the high level api like TransactionHelperService uses a default out-of-box implementation "DefaultUtxoSelectionStrategyImpl". The default strategy is too simple and finds all required utxos sequentially. But it may not be efficient for some use cases.
 
 You can use a custom or different implementation of UtxoSelectionStrategy to change the default utxo selection behaviour. 
 
@@ -459,7 +459,7 @@ export BF_PROJECT_ID=<Blockfrost Preprod network Project Id>
 * [MusicBox - CNFT Project](https://www.musicboxnft.com/)
 * [Realfi.info - Portfolio Viewer](https://realfi.info)
 
-# Any questions, ideas or issues ?
+# Any questions, ideas or issues?
 
 - Create a Github [Discussion](https://github.com/bloxbean/cardano-client-lib/discussions)
 - Create a Github [Issue](https://github.com/bloxbean/cardano-client-lib/issues)
