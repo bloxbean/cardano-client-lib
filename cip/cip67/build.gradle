@@ -1,0 +1,14 @@
+dependencies {
+    api project(':metadata')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client CIP67'
+                description = 'Cardano Client Lib - CIP67 Implementation'
+            }
+        }
+    }
+}
