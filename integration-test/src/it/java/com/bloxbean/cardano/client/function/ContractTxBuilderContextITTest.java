@@ -296,7 +296,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         TxBuilder builder = customGuessContractOutput.outputBuilder()
                 .and(sumContractOutput.outputBuilder())
-                .buildInputs(createFromUtxos(List.of(customGuessUtxo, sumScriptUtxo)))
+                .buildInputs(createFromUtxos(List.of(customGuessUtxo, sumScriptUtxo), senderAddress))
                 .andThen(collateralFrom(collateral, collateralIndex))
                 .andThen((context, t) -> {
                     try {
