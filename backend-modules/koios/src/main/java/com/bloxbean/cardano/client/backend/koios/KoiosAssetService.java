@@ -142,7 +142,11 @@ public class KoiosAssetService implements AssetService {
     @Override
     public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page, OrderEnum order) throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.asset.model.PolicyAsset>> assetPolicyInfoResult = assetService.getAssetPolicyInformation(policyId);
+            Options options = Options.builder()
+                    .option(Limit.of(count))
+                    .option(Offset.of((long) (page - 1) * count))
+                    .build();
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.asset.model.PolicyAsset>> assetPolicyInfoResult = assetService.getAssetPolicyInformation(policyId, options);
             if (!assetPolicyInfoResult.isSuccessful()) {
                 return Result.error(assetPolicyInfoResult.getResponse()).code(assetPolicyInfoResult.getCode());
             }
