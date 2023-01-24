@@ -1,20 +1,20 @@
-package com.bloxbean.cardano.client.plutus;
+package com.bloxbean.cardano.client.util;
 
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.AddressService;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.util.AssetUtil;
-import com.bloxbean.cardano.client.util.Tuple;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
+@Slf4j
 public class UtxoUtil {
 
     /**
@@ -69,4 +69,28 @@ public class UtxoUtil {
         }
     }
 
+    /**
+     * Get a set of PubKeyHash of owners from a given set of utxos. Script utxos are ignored.
+     *
+     * @param utxos
+     * @return Set of PubKeyHash
+     */
+    public static Set<String> getOwnerPubKeyHashes(@NonNull Set<Utxo> utxos) {
+        Set<String> pubKeyHashes = new HashSet<>();
+        for (Utxo utxo : utxos) {
+            if (utxo.getAddress() == null || utxo.getAddress().isEmpty()) {
+                log.warn("Null address in utxo : TxHash=" + utxo.getTxHash()
+                        + ", Index=" + utxo.getOutputIndex());
+                continue;
+            }
+
+            Address address = new Address(utxo.getAddress());
+            //If PubKeyHash in Payment part
+            if (AddressService.getInstance().isPubKeyHashInPaymentPart(address)) {
+                AddressService.getInstance().getPaymentKeyHash(address)
+                        .ifPresent(bytes -> pubKeyHashes.add(HexUtil.encodeHexString(bytes)));
+            }
+        }
+        return pubKeyHashes;
+    }
 }

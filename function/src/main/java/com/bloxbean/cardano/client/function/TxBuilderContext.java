@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.api.helper.TransactionBuilder;
 import com.bloxbean.cardano.client.api.helper.impl.FeeCalculationServiceImpl;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
@@ -16,7 +17,9 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import lombok.Data;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Provides necessary services which are required to build the transaction
@@ -34,6 +37,9 @@ public class TxBuilderContext {
     //Needed to check if the output is for minting
     //This list is cleared after each Input Builder
     private List<MultiAsset> mintMultiAssets = new ArrayList<>();
+    //Stores utxos used in the transaction.
+    //This list is cleared after each build() call.
+    private Set<Utxo> usedUtxos = new HashSet<>();
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
         this(utxoSupplier, protocolParamsSupplier.getProtocolParams());
@@ -77,6 +83,18 @@ public class TxBuilderContext {
         this.costMdls = costMdls;
     }
 
+    public void addUsedUtxo(Utxo utxo) {
+        usedUtxos.add(utxo);
+    }
+
+    public Set<Utxo> getUsedUtxos() {
+        return usedUtxos;
+    }
+
+    public void clearUsedUtxos() {
+        usedUtxos.clear();
+    }
+
     public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
         return new TxBuilderContext(utxoSupplier, protocolParams);
     }
@@ -94,6 +112,7 @@ public class TxBuilderContext {
     public Transaction build(TxBuilder txBuilder) {
         Transaction transaction = new Transaction();
         txBuilder.apply(this, transaction);
+        clearTempStates();
         return transaction;
     }
 
@@ -117,6 +136,11 @@ public class TxBuilderContext {
      */
     public void build(Transaction transaction, TxBuilder txBuilder) {
         txBuilder.apply(this, transaction);
+        clearTempStates();
     }
 
+    private void clearTempStates() {
+        clearMintMultiAssets();
+        clearUsedUtxos();
+    }
 }

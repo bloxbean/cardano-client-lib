@@ -230,7 +230,7 @@ public class AddressService {
             byte[] stakeKeyHash = blake2bHash224(publicKey); //Get keyhash from publickey (stake credential)
             newAddressBytes = getAddressBytes(null, stakeKeyHash, addressType, header);
         } else {
-            byte[] stakeKeyHash = getStakeKeyHash(address).orElse(null); //Get stakekeyhash from existing address
+            byte[] stakeKeyHash = getDelegationHash(address).orElse(null); //Get stakekeyhash from existing address
             byte[] paymentKeyHash = blake2bHash224(publicKey); //calculate keyhash from public key
             newAddressBytes = getAddressBytes(paymentKeyHash, stakeKeyHash, addressType, header);
         }
@@ -257,7 +257,7 @@ public class AddressService {
                     String.format("Stake address can't be derived. Required address type: Base Address, Found: %s ",
                             address.getAddressType()));
 
-        byte[] stakeKeyHash = getStakeKeyHash(address)
+        byte[] stakeKeyHash = getDelegationHash(address)
                 .orElseThrow(() -> new AddressRuntimeException("StakeKeyHash was not found for the address"));
 
         AddressType addressType = AddressType.Reward; //target type
@@ -282,11 +282,11 @@ public class AddressService {
     }
 
     /**
-     * Get StakeKeyHash from {@link Address}
+     * Get StakeKeyHash or ScriptHash from delegation part of a Shelley {@link Address}
      * @param address
-     * @return stake key hash. For Pointer address, delegationPointerHash
+     * @return StakeKeyHash or ScriptHash. For Pointer address, delegationPointerHash
      */
-    public Optional<byte[]> getStakeKeyHash(Address address) {
+    public Optional<byte[]> getDelegationHash(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
 
@@ -308,7 +308,7 @@ public class AddressService {
                 System.arraycopy(addressBytes, 1 + 28, stakeKeyHash, 0, stakeKeyHash.length);
                 break;
             default:
-                throw new AddressRuntimeException("StakeKeyHash can't be found for address type : " + addressType);
+                throw new AddressRuntimeException("DelegationHash can't be found for address type : " + addressType);
         }
 
         return Optional.ofNullable(stakeKeyHash);
@@ -339,6 +339,91 @@ public class AddressService {
             }
         }
         return Optional.ofNullable(paymentKeyHash);
+    }
+
+    /**
+     * Check if payment part of a Shelley address is PubkeyHash
+     * @param address
+     * @return true if PubkeyHash, otherwise false
+     */
+    public boolean isPubKeyHashInPaymentPart(@NonNull Address address) {
+        AddressType addressType = address.getAddressType();
+        if (addressType != AddressType.Base && addressType != AddressType.Enterprise
+                && addressType != AddressType.Ptr) {
+            if (log.isDebugEnabled())
+                log.warn("Method not supported for address type=" + addressType + ", address=" + address.getAddress());
+            return false;
+        }
+
+        byte[] addressBytes = address.getBytes();
+        byte header = addressBytes[0];
+        if ((header & (1 << 4)) == 0) { //Check if 4th bit is not set. If not set, it's pubkey hash
+            return true;
+        } else
+            return false;
+    }
+
+    /**
+     * Check if payment part of a Shelley address is ScriptHash
+     * @param address
+     * @return true if ScriptHash, otherwise false
+     */
+    public boolean isScriptHashInPaymentPart(@NonNull Address address) {
+        AddressType addressType = address.getAddressType();
+        if (addressType != AddressType.Base && addressType != AddressType.Enterprise
+                && addressType != AddressType.Ptr) {
+            if (log.isDebugEnabled())
+                log.warn("Method not supported for address type=" + addressType + ", address=" + address.getAddress());
+            return false;
+        }
+
+        return !isPubKeyHashInPaymentPart(address);
+    }
+
+    /**
+     * Check if delegation part of a Shelley address is StakeKeyHash
+     * @param address
+     * @return true if StakeKeyHash, otherwise false
+     */
+    public boolean isStakeKeyHashInDelegationPart(@NonNull Address address) {
+        AddressType addressType = address.getAddressType();
+        if (addressType != AddressType.Base && addressType != AddressType.Ptr
+                && addressType != AddressType.Reward) {
+            if (log.isDebugEnabled())
+                log.warn("Method not supported for address type=" + addressType + ", address=" + address.getAddress());
+            return false;
+        }
+
+        byte[] addressBytes = address.getBytes();
+        byte header = addressBytes[0];
+        if (addressType == AddressType.Reward) {
+            if ((header & (1 << 4)) == 0) { //Check if 4th bit is not set. If not set, it's stakekey hash
+                return true;
+            } else
+                return false;
+        } else { //For Base, Ptr
+            if ((header & (1 << 5)) == 0) { //Check if 5th bit is not set. If not set, it's stakekey hash
+                return true;
+            } else
+                return false;
+        }
+    }
+
+    /**
+     * Check if delegation part of a Shelley address is ScriptHash
+     * @param address
+     * @return true if ScriptHash, otherwise false
+     */
+    public boolean isScriptHashInDelegationPart(@NonNull Address address) {
+        AddressType addressType = address.getAddressType();
+        if (addressType != AddressType.Base && addressType != AddressType.Ptr
+                && addressType != AddressType.Reward) {
+            if (log.isDebugEnabled())
+                log.warn("Method not supported for address type=" + addressType + ", address=" + address.getAddress());
+            return false;
+        }
+
+        return !isStakeKeyHashInDelegationPart(address);
     }
 
     private byte[] variableNatEncode(long num) {
