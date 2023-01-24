@@ -85,36 +85,7 @@ public class TransactionOutput {
 
         if(value == null)
             throw new CborSerializationException("Value cannot be null");
-
-        if(value.getMultiAssets() != null && value.getMultiAssets().size() > 0) {
-            Array coinAssetArray = new Array();
-
-            if(value.getCoin() != null) {
-                if(value.getCoin().compareTo(BigInteger.ZERO) == 0 || value.getCoin().compareTo(BigInteger.ZERO) == 1) {
-                    coinAssetArray.add(new UnsignedInteger(value.getCoin()));
-                } else {
-                    coinAssetArray.add(new NegativeInteger(value.getCoin()));
-                }
-            } else {
-                coinAssetArray.add(new UnsignedInteger(BigInteger.ZERO));
-            }
-
-            Map valueMap = value.serialize();
-            coinAssetArray.add(valueMap);
-
-            map.put(new UnsignedInteger(1), coinAssetArray);
-
-        } else {
-            if(value.getCoin() != null) {
-                if (value.getCoin().compareTo(BigInteger.ZERO) == 0 || value.getCoin().compareTo(BigInteger.ZERO) == 1) {
-                    map.put(new UnsignedInteger(1), new UnsignedInteger(value.getCoin()));
-                } else {
-                    map.put(new UnsignedInteger(1), new NegativeInteger(value.getCoin()));
-                }
-            } else {
-                map.put(new UnsignedInteger(1), new UnsignedInteger(BigInteger.ZERO));
-            }
-        }
+        map.put(new UnsignedInteger(1), value.serialize());
 
         if (datumHash != null && inlineDatum != null)
             throw new CborSerializationException("Only one can be set. datumHash or datum");
@@ -154,36 +125,7 @@ public class TransactionOutput {
 
         if(value == null)
             throw new CborSerializationException("Value cannot be null");
-
-        if(value.getMultiAssets() != null && value.getMultiAssets().size() > 0) {
-            Array coinAssetArray = new Array();
-
-            if(value.getCoin() != null) {
-                if(value.getCoin().compareTo(BigInteger.ZERO) == 0 || value.getCoin().compareTo(BigInteger.ZERO) == 1) {
-                    coinAssetArray.add(new UnsignedInteger(value.getCoin()));
-                } else {
-                    coinAssetArray.add(new NegativeInteger(value.getCoin()));
-                }
-            } else {
-                coinAssetArray.add(new UnsignedInteger(BigInteger.ZERO));
-            }
-
-            Map valueMap = value.serialize();
-            coinAssetArray.add(valueMap);
-
-            array.add(coinAssetArray);
-
-        } else {
-            if(value.getCoin() != null) {
-                if (value.getCoin().compareTo(BigInteger.ZERO) == 0 || value.getCoin().compareTo(BigInteger.ZERO) == 1) {
-                    array.add(new UnsignedInteger(value.getCoin()));
-                } else {
-                    array.add(new NegativeInteger(value.getCoin()));
-                }
-            } else {
-                array.add(new UnsignedInteger(BigInteger.ZERO));
-            }
-        }
+        array.add(value.serialize());
 
         if(datumHash != null)
             array.add(new ByteString(datumHash));
@@ -214,23 +156,8 @@ public class TransactionOutput {
         }
 
         //value
-        Value value = null;
         DataItem valueItem = ouptutItem.get(new UnsignedInteger(1));
-        if(MajorType.UNSIGNED_INTEGER.equals(valueItem.getMajorType()) || MajorType.NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
-            value = new Value();
-            value.setCoin(((Number) valueItem).getValue());
-        } else if(MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
-            if(valueItem.getTag().getValue() == 2) {
-                value = new Value();
-                value.setCoin(new BigInteger(((ByteString) valueItem).getBytes()));
-            } else if(valueItem.getTag().getValue() == 3) {
-                value = new Value();
-                value.setCoin(new BigInteger(((ByteString)valueItem).getBytes()).multiply(BigInteger.valueOf(-1)));
-            }
-        } else if(MajorType.ARRAY.equals(valueItem.getMajorType())) {
-            Array coinAssetArray = (Array)valueItem;
-            value = Value.deserialize(coinAssetArray);
-        }
+        Value value = Value.deserialize(valueItem);
         output.setValue(value);
 
         //datum_options
@@ -278,24 +205,8 @@ public class TransactionOutput {
             }
         }
 
-        Value value = null;
         DataItem valueItem = items.get(1);
-        if(MajorType.UNSIGNED_INTEGER.equals(valueItem.getMajorType()) || MajorType.NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
-            value = new Value();
-            value.setCoin(((Number) valueItem).getValue());
-        } else if(MajorType.BYTE_STRING.equals(valueItem.getMajorType())) { //For BigNum. >  2 pow 64 Tag 2
-            if(valueItem.getTag().getValue() == 2) {
-                value = new Value();
-                value.setCoin(new BigInteger(((ByteString) valueItem).getBytes()));
-            } else if(valueItem.getTag().getValue() == 3) {
-                value = new Value();
-                value.setCoin(new BigInteger(((ByteString)valueItem).getBytes()).multiply(BigInteger.valueOf(-1)));
-            }
-        } else if(MajorType.ARRAY.equals(valueItem.getMajorType())) {
-            Array coinAssetArray = (Array)valueItem;
-            value = Value.deserialize(coinAssetArray);
-
-        }
+        Value value = Value.deserialize(valueItem);
 
         if (items.size() == 3) {
             ByteString datumBytes = (ByteString) items.get(2);

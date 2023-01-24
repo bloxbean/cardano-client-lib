@@ -138,7 +138,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                 .steps(BigInteger.valueOf(0)).build();
 
         TxBuilder txBuilder = output.outputBuilder()
-                .buildInputs(createFromUtxos(Arrays.asList(scriptUtxo)))
+                .buildInputs(createFromUtxos(Arrays.asList(scriptUtxo), senderAddress))
                 .andThen(collateralFrom(collateralUtxo.getTxHash(), collateralUtxo.getOutputIndex()))
                 .andThen(scriptCallContext(plutusScript, scriptUtxo, null, redeemerData, RedeemerTag.Spend, exUnits))
                 .andThen((context, txn) -> { //Evaluate ExUnits
@@ -347,7 +347,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                 .steps(BigInteger.valueOf(0)).build();
 
         TxBuilder txBuilder = createFromOutput(output)
-                .buildInputs(createFromUtxos(Arrays.asList(inputUtxo)))
+                .buildInputs(createFromUtxos(Arrays.asList(inputUtxo), senderAddress))
                 .andThen(collateralFrom(collateralUtxo.getTxHash(), collateralUtxo.getOutputIndex()))
                 .andThen(referenceInputsFrom(List.of(refScriptInput)))
                 .andThen(scriptCallContext(plutusScript, inputUtxo, null, redeemerData, RedeemerTag.Spend, exUnits))
@@ -569,7 +569,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                 .steps(BigInteger.valueOf(0)).build();
 
         TxBuilder txBuilder = createFromOutput(output)
-                .buildInputs(createFromUtxos(Arrays.asList(inputUtxo)))
+                .buildInputs(createFromUtxos(Arrays.asList(inputUtxo), senderAddress))
                 .andThen(collateralOutputs(senderAddress, List.of(collateralUtxo)))
                 .andThen((context, txn) -> {
                     txn.getBody().getReferenceInputs().add(refScriptInput);
