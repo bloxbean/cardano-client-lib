@@ -231,10 +231,15 @@ public class InputBuilders {
 
     /**
      * Function to create inputs from list of <code>{@link Utxo}</code>
+     * @deprecated
+     * This method should not be used as it doesn't calculate change output. Additional utxos are required to balance the
+     * outputs.
+     * <p>Use any of the other createFromUtxos method with a changeAddress</p>
      *
      * @param utxos list of <code>{@link Utxo}</code>
      * @return <code>{@link TxInputBuilder}</code> function
      */
+    @Deprecated
     public static TxInputBuilder createFromUtxos(List<Utxo> utxos) {
         return (context, outputs) -> {
             List<TransactionInput> inputs = new ArrayList<>();
@@ -252,10 +257,15 @@ public class InputBuilders {
 
     /**
      * Function to create inputs from list of <code>{@link Utxo}</code>
+     * @deprecated
+     * This method should not be used as it doesn't calculate change output. Additional utxos are required to balance the
+     * outputs.
+     * <p>Use any of the other createFromUtxos method with a changeAddress</p>
      *
      * @param supplier Supplier function to provide <code>Utxo</code> list
      * @return <code>{@link TxInputBuilder}</code> function
      */
+    @Deprecated
     public static TxInputBuilder createFromUtxos(Supplier<List<Utxo>> supplier) {
         return (context, outputs) -> {
             List<TransactionInput> inputs = new ArrayList<>();

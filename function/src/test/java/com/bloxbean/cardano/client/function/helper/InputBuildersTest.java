@@ -492,6 +492,7 @@ class InputBuildersTest extends BaseTest {
         );
     }
 
+    //TODO -- Remove when the deprecated method is removed
     @Test
     void createFromUtxos_whenNoChangeAddress() {
         List<Utxo> utxos = List.of(
@@ -532,6 +533,7 @@ class InputBuildersTest extends BaseTest {
         assertThat(inputResult.getChanges()).hasSize(0);
     }
 
+    //TODO -- Remove when the deprecated method is removed
     @Test
     void createFromUtxos_whenUtxosFromSupplier() {
         Utxo utxo = Utxo.builder()
