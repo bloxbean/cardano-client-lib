@@ -39,7 +39,7 @@ public class TxBuilderContext {
     private List<MultiAsset> mintMultiAssets = new ArrayList<>();
     //Stores utxos used in the transaction.
     //This list is cleared after each build() call.
-    private Set<Utxo> usedUtxos = new HashSet<>();
+    private Set<Utxo> utxos = new HashSet<>();
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
         this(utxoSupplier, protocolParamsSupplier.getProtocolParams());
@@ -83,16 +83,16 @@ public class TxBuilderContext {
         this.costMdls = costMdls;
     }
 
-    public void addUsedUtxo(Utxo utxo) {
-        usedUtxos.add(utxo);
+    public void addUtxo(Utxo utxo) {
+        utxos.add(utxo);
     }
 
-    public Set<Utxo> getUsedUtxos() {
-        return usedUtxos;
+    public Set<Utxo> getUtxos() {
+        return utxos;
     }
 
-    public void clearUsedUtxos() {
-        usedUtxos.clear();
+    public void clearUtxos() {
+        utxos.clear();
     }
 
     public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
@@ -141,6 +141,6 @@ public class TxBuilderContext {
 
     private void clearTempStates() {
         clearMintMultiAssets();
-        clearUsedUtxos();
+        clearUtxos();
     }
 }

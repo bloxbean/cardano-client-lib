@@ -67,7 +67,7 @@ public class InputBuilders {
                 TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
                 utxoSet.stream().forEach(utxo -> {
                     UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
-                    context.addUsedUtxo(utxo); //Add used utxos to context
+                    context.addUtxo(utxo); //Add used utxos to context
                 });
 
                 //Substract output values from change
@@ -87,7 +87,7 @@ public class InputBuilders {
 
                     additionalUtxos.stream().forEach(utxo -> {
                         UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
-                        context.addUsedUtxo(utxo); //Add used utxos to context
+                        context.addUtxo(utxo); //Add used utxos to context
                     });
 
                     _inputs.addAll(additionalInputs);
@@ -216,7 +216,7 @@ public class InputBuilders {
                 TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
                 utxos.stream().forEach(utxo -> {
                     UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
-                    context.addUsedUtxo(utxo); //Add used utxo to context
+                    context.addUtxo(utxo); //Add used utxo to context
                 });
 
                 //Substract output values from change
@@ -251,7 +251,7 @@ public class InputBuilders {
                         .index(utxo.getOutputIndex())
                         .build();
                 inputs.add(input);
-                context.addUsedUtxo(utxo);
+                context.addUtxo(utxo);
             });
 
             return new TxInputBuilder.Result(inputs, Collections.EMPTY_LIST);
@@ -273,7 +273,7 @@ public class InputBuilders {
                         .index(utxo.getOutputIndex())
                         .build();
                 inputs.add(input);
-                context.addUsedUtxo(utxo);
+                context.addUtxo(utxo);
             });
 
             return new TxInputBuilder.Result(inputs, Collections.EMPTY_LIST);
