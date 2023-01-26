@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
@@ -84,13 +85,42 @@ public class UtxoUtil {
                 continue;
             }
 
-            Address address = new Address(utxo.getAddress());
-            //If PubKeyHash in Payment part
-            if (AddressService.getInstance().isPubKeyHashInPaymentPart(address)) {
-                AddressService.getInstance().getPaymentKeyHash(address)
-                        .ifPresent(bytes -> pubKeyHashes.add(HexUtil.encodeHexString(bytes)));
+            try {
+                Address address = new Address(utxo.getAddress());
+                //If PubKeyHash in Payment part
+                if (AddressService.getInstance().isPubKeyHashInPaymentPart(address)) {
+                    AddressService.getInstance().getPaymentKeyHash(address)
+                            .ifPresent(bytes -> pubKeyHashes.add(HexUtil.encodeHexString(bytes)));
+                }
+            } catch (Exception e) {
+                if (log.isDebugEnabled())
+                    log.warn("Unable to parse the address. Probably a Byron address. " + utxo.getAddress());
             }
         }
         return pubKeyHashes;
+    }
+
+    /**
+     * Get list of Byron address (if any) of owners from the utxos set.
+     * @param utxos
+     * @return List of Byron addresses
+     */
+    public static Set<String> getByronAddressOwners(@NonNull Set<Utxo> utxos) {
+        return utxos.stream().filter(utxo -> utxo.getAddress() != null && !utxo.getAddress().isEmpty()
+                                && !utxo.getAddress().startsWith("addr") && !utxo.getAddress().startsWith("stake"))
+                .map(utxo -> utxo.getAddress())
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Get the no of required signers for the utxos set based on owners of utxos.
+     *
+     * @return
+     */
+    public static int getNoOfRequiredSigners(@NonNull Set<Utxo> utxos) {
+        Set<String> pubKeyHashes = getOwnerPubKeyHashes(utxos);
+        Set<String> byronOwners = getByronAddressOwners(utxos);
+
+        return pubKeyHashes.size() + byronOwners.size();
     }
 }

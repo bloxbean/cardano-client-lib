@@ -97,6 +97,95 @@ class UtxoUtilTest {
         assertThat(pubKeyHashes).hasSize(10);
     }
 
+    @Test
+    void getByronAddressOwners() {
+        Utxo utxo1 = Utxo.builder()
+                .txHash("2d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(0)
+                .address("DdzFFzCqrhssWKWXD5n5ScEZtEiQp46Y7bB4KYpm2tyjuoKC2CLtKfCgL2ySfC1goUagjLuuwALeHvWjQZxHHZkbXmb9Fqy4S5eHUZdU")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(4))))
+                .build();
+        Utxo utxo2 = Utxo.builder()
+                .txHash("2d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(1)
+                .address("addr_test1qpkcp26l47j2fp4crdl9n83zmnw84qrp64sd5w6fwesqt6g8sd9mcktl67rn2t0cth25ryflz59yfxlx636csng7hawstfp400")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(10))))
+                .build();
+        Utxo utxo3 = Utxo.builder()
+                .txHash("1d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(12)
+                .address("Ae2tdPwUPEZFRbyhz3cpfC2CumGzNkFBN2L42rcUc2yjQpEkxDbkPodpMAi")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(10))))
+                .build();
+        Utxo utxo4 = Utxo.builder()
+                .txHash("8674de7f24b09e7cd31e807bd2215917f33c13e34b6ec3e610925c338b8545f0")
+                .outputIndex(0)
+                .address("addr_test1qqxnp3khzm7kcj9t23hskehat7428ghsenk0pfew4rqy5v9frnmht7uwrl073q4jvq20z82kh4rksyns540azhndqexqpvhgqr")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(10))))
+                .build();
+
+        Set<String> byronAddresses = UtxoUtil.getByronAddressOwners(Set.of(utxo1, utxo2, utxo3, utxo4));
+        assertThat(byronAddresses).hasSize(2);
+        assertThat(byronAddresses).contains("DdzFFzCqrhssWKWXD5n5ScEZtEiQp46Y7bB4KYpm2tyjuoKC2CLtKfCgL2ySfC1goUagjLuuwALeHvWjQZxHHZkbXmb9Fqy4S5eHUZdU",
+                "Ae2tdPwUPEZFRbyhz3cpfC2CumGzNkFBN2L42rcUc2yjQpEkxDbkPodpMAi");
+    }
+
+    @Test
+    public void getNoOfRequiredSigners() {
+        Utxo utxo1 = Utxo.builder()
+                .txHash("2d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(0)
+                .address("addr_test1wqe44q5knddmv9rldtw2k0vn8d2am4pujtj8mm9u0a0t5esed99ya")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(4))))
+                .build();
+        Utxo utxo2 = Utxo.builder()
+                .txHash("2d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(1)
+                .address("addr_test1qpkcp26l47j2fp4crdl9n83zmnw84qrp64sd5w6fwesqt6g8sd9mcktl67rn2t0cth25ryflz59yfxlx636csng7hawstfp400")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(10))))
+                .build();
+        Utxo utxo3 = Utxo.builder()
+                .txHash("1d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(12)
+                .address("addr_test1qpkcp26l47j2fp4crdl9n83zmnw84qrp64sd5w6fwesqt6g8sd9mcktl67rn2t0cth25ryflz59yfxlx636csng7hawstfp400")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(10))))
+                .build();
+        Utxo utxo4 = Utxo.builder()
+                .txHash("8674de7f24b09e7cd31e807bd2215917f33c13e34b6ec3e610925c338b8545f0")
+                .outputIndex(0)
+                .address("addr_test1qqxnp3khzm7kcj9t23hskehat7428ghsenk0pfew4rqy5v9frnmht7uwrl073q4jvq20z82kh4rksyns540azhndqexqpvhgqr")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(10))))
+                .build();
+        Utxo utxo5 = Utxo.builder()
+                .txHash("2d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(12)
+                .address("Ae2tdPwUPEZFRbyhz3cpfC2CumGzNkFBN2L42rcUc2yjQpEkxDbkPodpMAi")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(10))))
+                .build();
+
+        int noOfRequiredSigners = UtxoUtil.getNoOfRequiredSigners(Set.of(utxo1, utxo2, utxo3, utxo4, utxo5));
+        assertThat(noOfRequiredSigners).isEqualTo(3);
+    }
+
+    @Test
+    public void getNoOfRequiredSigners_returnsZero_whenOnlyScriptAddress() {
+        Utxo utxo1 = Utxo.builder()
+                .txHash("2d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(0)
+                .address("addr_test1wqe44q5knddmv9rldtw2k0vn8d2am4pujtj8mm9u0a0t5esed99ya")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(4))))
+                .build();
+        Utxo utxo2 = Utxo.builder()
+                .txHash("2d8d602c311a07dfff18273b006b927a30f908b215fec0052b5aca97aa7b34b3")
+                .outputIndex(1)
+                .address("addr_test1wqe44q5knddmv9rldtw2k0vn8d2am4pujtj8mm9u0a0t5esed99ya")
+                .amount(List.of(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(10))))
+                .build();
+
+        int noOfRequiredSigners = UtxoUtil.getNoOfRequiredSigners(Set.of(utxo1, utxo2));
+        assertThat(noOfRequiredSigners).isEqualTo(0);
+    }
+
     private String getRandomHexString(int numchars) {
         Random r = new Random();
         StringBuffer sb = new StringBuffer();
