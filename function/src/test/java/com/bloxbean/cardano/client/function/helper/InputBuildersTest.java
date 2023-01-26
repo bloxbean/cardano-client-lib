@@ -139,6 +139,8 @@ class InputBuildersTest extends BaseTest {
                                 .build()
                         ).build()
         );
+
+        assertThat(context.getUtxos()).hasSize(3);
     }
 
     @Test
@@ -232,6 +234,7 @@ class InputBuildersTest extends BaseTest {
                         )).build()
         );
 
+        assertThat(context.getUtxos()).hasSize(2);
     }
 
     @Test
@@ -387,6 +390,7 @@ class InputBuildersTest extends BaseTest {
                         .build()
         );
 
+        assertThat(context.getUtxos()).hasSize(2);
     }
 
     @Test
@@ -436,6 +440,8 @@ class InputBuildersTest extends BaseTest {
                         .datumHash("somedatum_hash".getBytes(StandardCharsets.UTF_8))
                         .build()
         );
+
+        assertThat(context.getUtxos()).hasSize(1);
     }
 
     @Test

@@ -11,7 +11,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxInputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.plutus.UtxoUtil;
+import com.bloxbean.cardano.client.util.UtxoUtil;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -45,7 +45,6 @@ public class InputBuilders {
         return ((context, outputs) -> {
             if (outputs == null || outputs.size() == 0)
                 throw new TxBuildException("No output found. UtxoSelector transformer should be called after OutputTransformer");
-
             //Total value required
             Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
             value = outputs.stream()
@@ -66,12 +65,14 @@ public class InputBuilders {
             if (utxoSet != null && !utxoSet.isEmpty()) {
                 //Copy assets to change address
                 TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
-                utxoSet.stream().forEach(utxo -> UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo));
+                utxoSet.stream().forEach(utxo -> {
+                    UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
+                    context.addUtxo(utxo); //Add used utxos to context
+                });
 
                 //Substract output values from change
                 Value changedValue = changeOutput.getValue().minus(value);
                 changeOutput.setValue(changedValue);
-
                 BigInteger additionalLovelace = MinAdaCheckers.minAdaChecker().apply(context, changeOutput);
 
                 if (additionalLovelace.compareTo(BigInteger.ZERO) == 1) { //Need more inputs
@@ -84,7 +85,10 @@ public class InputBuilders {
                             .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
                             .collect(Collectors.toList());
 
-                    additionalUtxos.stream().forEach(utxo -> UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo));
+                    additionalUtxos.stream().forEach(utxo -> {
+                        UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
+                        context.addUtxo(utxo); //Add used utxos to context
+                    });
 
                     _inputs.addAll(additionalInputs);
                 }
@@ -210,7 +214,10 @@ public class InputBuilders {
             if (changeAddress != null && !changeAddress.isEmpty()) {
                 //Copy assets to change address
                 TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
-                utxos.stream().forEach(utxo -> UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo));
+                utxos.stream().forEach(utxo -> {
+                    UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
+                    context.addUtxo(utxo); //Add used utxo to context
+                });
 
                 //Substract output values from change
                 Value changedValue = changeOutput.getValue().minus(value);
@@ -249,6 +256,7 @@ public class InputBuilders {
                         .index(utxo.getOutputIndex())
                         .build();
                 inputs.add(input);
+                context.addUtxo(utxo);
             });
 
             return new TxInputBuilder.Result(inputs, Collections.EMPTY_LIST);
@@ -275,6 +283,7 @@ public class InputBuilders {
                         .index(utxo.getOutputIndex())
                         .build();
                 inputs.add(input);
+                context.addUtxo(utxo);
             });
 
             return new TxInputBuilder.Result(inputs, Collections.EMPTY_LIST);
