@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.function.helper;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.plutus.UtxoUtil;
+import com.bloxbean.cardano.client.util.UtxoUtil;
 import com.bloxbean.cardano.client.transaction.spec.*;
 
 import java.math.BigDecimal;

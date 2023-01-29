@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.crypto.Bech32;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 
+import java.util.Optional;
+
 import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
 
 public class Address {
@@ -76,4 +78,51 @@ public class Address {
         return network;
     }
 
+    /**
+     * Get StakeKeyHash or ScriptHash from delegation part of a Shelley {@link Address}
+     * @return StakeKeyHash or ScriptHash. For Pointer address, delegationPointerHash
+     */
+    public Optional<byte[]> getDelegationHash() {
+        return AddressService.getInstance().getDelegationHash(this);
+    }
+
+    /**
+     * Get PaymentKeyHash from {@link Address}
+     * @return payment key hash
+     */
+    public Optional<byte[]> getPaymentKeyHash() {
+        return AddressService.getInstance().getPaymentKeyHash(this);
+    }
+
+    /**
+     * Check if payment part of a Shelley address is PubkeyHash
+     * @return true if PubkeyHash, otherwise false
+     */
+    public boolean isPubKeyHashInPaymentPart() {
+        return AddressService.getInstance().isPubKeyHashInPaymentPart(this);
+    }
+
+    /**
+     * Check if payment part of a Shelley address is ScriptHash
+     * @return true if ScriptHash, otherwise false
+     */
+    public boolean isScriptHashInPaymentPart() {
+        return AddressService.getInstance().isScriptHashInPaymentPart(this);
+    }
+
+    /**
+     * Check if delegation part of a Shelley address is StakeKeyHash
+     * @return true if StakeKeyHash, otherwise false
+     */
+    public boolean isStakeKeyHashInDelegationPart() {
+        return AddressService.getInstance().isStakeKeyHashInDelegationPart(this);
+    }
+
+    /**
+     * Check if delegation part of a Shelley address is ScriptHash
+     * @return true if ScriptHash, otherwise false
+     */
+    public boolean isScriptHashInDelegationPart() {
+        return AddressService.getInstance().isScriptHashInDelegationPart(this);
+    }
 }

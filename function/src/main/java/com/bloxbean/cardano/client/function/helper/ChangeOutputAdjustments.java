@@ -8,7 +8,7 @@ import com.bloxbean.cardano.client.function.MinAdaChecker;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.plutus.UtxoUtil;
+import com.bloxbean.cardano.client.util.UtxoUtil;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.extern.slf4j.Slf4j;
