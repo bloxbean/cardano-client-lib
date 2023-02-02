@@ -43,6 +43,7 @@ public class KoiosUtxoService implements UtxoService {
         List<Utxo> utxoList = new ArrayList<>();
         for (AddressUtxo addressUtxo : addressInfo.getUtxoSet()) {
             Utxo utxo = new Utxo();
+            utxo.setAddress(addressInfo.getAddress());
             utxo.setTxHash(addressUtxo.getTxHash());
             utxo.setOutputIndex(addressUtxo.getTxIndex());
             utxo.setDataHash(addressUtxo.getDatumHash());
