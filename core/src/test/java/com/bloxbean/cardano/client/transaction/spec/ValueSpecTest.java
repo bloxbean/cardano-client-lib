@@ -2,8 +2,6 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
-import com.bloxbean.cardano.client.exception.CborDeserializationException;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Assertions;
@@ -365,7 +363,7 @@ class ValueSpecTest {
     }
 
     @Test
-    void serializeDeserializeTest() throws CborSerializationException, CborDeserializationException, CborException {
+    void serializeDeserializeTest() throws CborException {
         Value value = new Value();
         value.setCoin(BigInteger.valueOf(133402997L));
         MultiAsset multiAsset1 = MultiAsset.builder()
