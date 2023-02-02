@@ -31,14 +31,26 @@ public interface TxOutputBuilder {
             this.accept(context, outputs);
             TxInputBuilder.Result inputBuilderResult = after.apply(context, outputs);
 
-            if (inputs.size() > 0)
+            if (!inputs.isEmpty())
                 transaction.getBody().getInputs().addAll(inputs);
             transaction.getBody().getInputs().addAll(inputBuilderResult.inputs);
 
-            if (outputs.size() > 0)
+            if (!outputs.isEmpty())
                 transaction.getBody().getOutputs().addAll(outputs);
-            if (inputBuilderResult.changes != null && inputBuilderResult.changes.size() > 0)
-                transaction.getBody().getOutputs().addAll(inputBuilderResult.changes);
+            if (inputBuilderResult.changes != null && !inputBuilderResult.changes.isEmpty())
+                inputBuilderResult.changes.forEach(txOutput -> {
+                    boolean foundSameAddress = false;
+                    for (TransactionOutput transactionOutput : transaction.getBody().getOutputs()) {
+                        if (transactionOutput.getAddress().equals(txOutput.getAddress())) {
+                            foundSameAddress = true;
+                            transactionOutput.setValue(transactionOutput.getValue().plus(txOutput.getValue()));
+                            break;
+                        }
+                    }
+                    if (!foundSameAddress) {
+                        transaction.getBody().getOutputs().add(txOutput);
+                    }
+                });
 
             //Clear multiasset in the context
             context.clearMintMultiAssets();
