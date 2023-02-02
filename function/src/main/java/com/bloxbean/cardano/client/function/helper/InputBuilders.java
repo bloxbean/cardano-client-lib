@@ -201,8 +201,13 @@ public class InputBuilders {
             //Total value required
             Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
             value = outputs.stream()
-                    .map(output -> output.getValue())
-                    .reduce(value, (value1, value2) -> value1.plus(value2));
+                    .map(TransactionOutput::getValue)
+                    .reduce(value, Value::plus);
+
+            // Check if mint value is there in context. Then we need to ignore mint outputs from total value
+            List<MultiAsset> mintMultiAssets = context.getMintMultiAssets();
+            if (mintMultiAssets != null && !mintMultiAssets.isEmpty())
+                value = value.minus(new Value(BigInteger.ZERO, mintMultiAssets));
 
             List<Utxo> utxos = supplier.get();
 
@@ -214,12 +219,12 @@ public class InputBuilders {
             if (changeAddress != null && !changeAddress.isEmpty()) {
                 //Copy assets to change address
                 TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
-                utxos.stream().forEach(utxo -> {
+                utxos.forEach(utxo -> {
                     UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
                     context.addUtxo(utxo); //Add used utxo to context
                 });
 
-                //Substract output values from change
+                //Subtract output values from change
                 Value changedValue = changeOutput.getValue().minus(value);
                 changeOutput.setValue(changedValue);
 
@@ -227,7 +232,7 @@ public class InputBuilders {
                     changeOutput.setDatumHash(HexUtil.decodeHexString(datumHash));
 
                 if (!changeOutput.getValue().getCoin().equals(BigInteger.ZERO) ||
-                        (changeOutput.getValue().getMultiAssets() != null && changeOutput.getValue().getMultiAssets().size() > 0)) {
+                        (changeOutput.getValue().getMultiAssets() != null && !changeOutput.getValue().getMultiAssets().isEmpty())) {
                     changeOutputs.add(changeOutput);
                 }
             }
