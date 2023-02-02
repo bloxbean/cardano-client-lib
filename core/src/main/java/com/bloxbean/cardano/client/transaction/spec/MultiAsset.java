@@ -1,23 +1,19 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@Data
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
@@ -147,7 +143,7 @@ public class MultiAsset {
         assetsClone.addAll(that.getAssets());
         List<Asset> mergedAssets = assetsClone
                 .stream()
-                .collect(Collectors.groupingBy(Asset::getName))
+                .collect(Collectors.groupingBy(Asset::getNameAsHex))
                 .entrySet()
                 .stream()
                 .map(entry -> entry.getValue().stream().reduce(Asset.builder().name(entry.getKey()).value(BigInteger.ZERO).build(), Asset::plus))
@@ -179,5 +175,23 @@ public class MultiAsset {
 
     private java.util.Map<String, Asset> convertToMap(List<Asset> assets) {
         return assets.stream().collect(Collectors.toMap(Asset::getNameAsHex, Function.identity()));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        MultiAsset that = (MultiAsset) o;
+
+        if (!Objects.equals(policyId, that.policyId)) return false;
+        return new HashSet<>(assets).containsAll(that.assets) && new HashSet<>(that.assets).containsAll(assets);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = policyId != null ? policyId.hashCode() : 0;
+        result = 31 * result + (assets != null ? new HashSet<>(assets).hashCode() : 0);
+        return result;
     }
 }

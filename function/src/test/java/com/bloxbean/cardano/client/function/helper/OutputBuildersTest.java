@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.Output;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.PolicyUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -78,7 +79,7 @@ class OutputBuildersTest extends BaseTest {
     }
 
     @Test
-    void createFromOutput_whenWithMultiAssetsAndWithDatumHash() throws ApiException, CborException, CborSerializationException {
+    void createFromOutput_whenWithMultiAssetsAndWithDatumHash() throws CborException, CborSerializationException {
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("abc-policy", 1);
 
         Output output1 = Output.builder()
@@ -115,7 +116,7 @@ class OutputBuildersTest extends BaseTest {
         assertThat(list.get(0).getValue().getMultiAssets()).hasSize(1);
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getPolicyId()).isEqualTo(policy.getPolicyId());
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets()).hasSize(1);
-        assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getName()).isEqualTo(output2.getAssetName());
+        assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getName()).isEqualTo(HexUtil.encodeHexString(output2.getAssetName().getBytes(), true));
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getValue()).isEqualTo(output2.getQty());
         assertThat(list.get(0).getDatumHash()).isEqualTo(new BytesPlutusData("hello".getBytes()).getDatumHashAsBytes());
 
@@ -203,7 +204,7 @@ class OutputBuildersTest extends BaseTest {
         assertThat(list.get(0).getValue().getMultiAssets()).hasSize(1);
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getPolicyId()).isEqualTo(policy.getPolicyId());
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets()).hasSize(1);
-        assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getName()).isEqualTo(output2.getAssetName());
+        assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getName()).isEqualTo(HexUtil.encodeHexString(output2.getAssetName().getBytes(), true));
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getValue()).isEqualTo(output2.getQty());
         assertThat(list.get(0).getInlineDatum()).isEqualTo(new BytesPlutusData("hello".getBytes()));
         assertThat(list.get(0).getScriptRef()).isEqualTo(new byte[] {-126, 2, 73, 72, 1, 0, 0, 34, 33, 32, 1, 1});
@@ -386,7 +387,7 @@ class OutputBuildersTest extends BaseTest {
         assertThat(list.get(0).getValue().getMultiAssets()).hasSize(1);
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getPolicyId()).isEqualTo(policy.getPolicyId());
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets()).hasSize(1);
-        assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getName()).isEqualTo(output1.getAssetName());
+        assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getName()).isEqualTo(HexUtil.encodeHexString(output1.getAssetName().getBytes(), true));
         assertThat(list.get(0).getValue().getMultiAssets().get(0).getAssets().get(0).getValue()).isEqualTo(output1.getQty());
 
         assertThat(list.get(1).getAddress()).isEqualTo(output2.getAddress());
@@ -396,7 +397,7 @@ class OutputBuildersTest extends BaseTest {
 
         assertThat(context.getMintMultiAssets()).hasSize(1);
         assertThat(context.getMintMultiAssets().get(0).getPolicyId()).isEqualTo(policy.getPolicyId());
-        assertThat(context.getMintMultiAssets().get(0).getAssets().get(0).getName()).isEqualTo(output1.getAssetName());
+        assertThat(context.getMintMultiAssets().get(0).getAssets().get(0).getName()).isEqualTo(HexUtil.encodeHexString(output1.getAssetName().getBytes(), true));
         assertThat(context.getMintMultiAssets().get(0).getAssets().get(0).getValue()).isEqualTo(output1.getQty());
 
     }
