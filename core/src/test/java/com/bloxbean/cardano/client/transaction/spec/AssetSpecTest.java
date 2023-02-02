@@ -5,12 +5,13 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class AssetSpecTest {
+class AssetSpecTest {
 
     @Test
-    public void addSameAsset() {
+    void addSameAsset() {
         Asset asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(100L)).build();
         Asset asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
 
@@ -18,7 +19,7 @@ public class AssetSpecTest {
     }
 
     @Test
-    public void addDifferentAssetThrowsError() {
+    void addDifferentAssetThrowsError() {
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
         Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
 
@@ -26,7 +27,7 @@ public class AssetSpecTest {
     }
 
     @Test
-    public void minusSameAsset() {
+    void minusSameAsset() {
         Asset asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
 
@@ -34,7 +35,7 @@ public class AssetSpecTest {
     }
 
     @Test
-    public void minusDifferentAssetThrowsError() {
+    void minusDifferentAssetThrowsError() {
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
 
@@ -42,23 +43,25 @@ public class AssetSpecTest {
     }
 
     @Test
-    public void equals() {
+    void equals() {
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
 
         assertThat(asset1).isEqualTo(asset2);
+        assertEquals(asset1.hashCode(), asset2.hashCode());
     }
 
     @Test
-    public void equalsWhenOneWithHexName() {
+    void equalsWhenOneWithHexName() {
         Asset asset1 = Asset.builder().name("TestAss1").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("0x5465737441737331").value(BigInteger.valueOf(700L)).build();
 
         assertThat(asset1).isEqualTo(asset2);
+        assertEquals(asset1.hashCode(), asset2.hashCode());
     }
 
     @Test
-    public void notEqualsWhenOneWithHexName() {
+    void notEqualsWhenOneWithHexName() {
         Asset asset1 = Asset.builder().name("TestAss2").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("0x5465737441737331").value(BigInteger.valueOf(700L)).build();
 
@@ -66,7 +69,7 @@ public class AssetSpecTest {
     }
 
     @Test
-    public void notEqualsWhenDifferentValue() {
+    void notEqualsWhenDifferentValue() {
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("asset1").value(BigInteger.valueOf(500L)).build();
 
