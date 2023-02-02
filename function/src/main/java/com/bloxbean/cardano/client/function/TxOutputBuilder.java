@@ -39,15 +39,14 @@ public interface TxOutputBuilder {
                 transaction.getBody().getOutputs().addAll(outputs);
             if (inputBuilderResult.changes != null && !inputBuilderResult.changes.isEmpty())
                 inputBuilderResult.changes.forEach(txOutput -> {
-                    boolean foundSameAddress = false;
-                    for (TransactionOutput transactionOutput : transaction.getBody().getOutputs()) {
-                        if (transactionOutput.getAddress().equals(txOutput.getAddress())) {
-                            foundSameAddress = true;
-                            transactionOutput.setValue(transactionOutput.getValue().plus(txOutput.getValue()));
-                            break;
-                        }
-                    }
-                    if (!foundSameAddress) {
+                    TransactionOutput txOutputSameAddress = transaction.getBody().
+                            getOutputs()
+                            .stream()
+                            .filter(transactionOutput -> transactionOutput.getAddress().equals(txOutput.getAddress()))
+                            .findFirst().orElse(null);
+                    if (txOutputSameAddress != null) {
+                        txOutputSameAddress.setValue(txOutputSameAddress.getValue().plus(txOutput.getValue()));
+                    } else {
                         transaction.getBody().getOutputs().add(txOutput);
                     }
                 });
