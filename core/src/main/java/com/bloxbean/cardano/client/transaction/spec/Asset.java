@@ -2,17 +2,15 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
-@Data
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
@@ -72,7 +70,7 @@ public class Asset {
         if (!Arrays.equals(getNameAsBytes(), that.getNameAsBytes())) {
             throw new IllegalArgumentException("Trying to add Assets with different name");
         }
-        return Asset.builder().name(getName()).value(getValue().add(that.getValue())).build();
+        return Asset.builder().name(getNameAsHex()).value(getValue().add(that.getValue())).build();
     }
 
     /**
@@ -97,6 +95,6 @@ public class Asset {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, value);
+        return Objects.hash(Arrays.hashCode(getNameAsBytes()), value);
     }
 }

@@ -7,13 +7,8 @@ import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.model.EpochContent;
 import rest.koios.client.backend.api.epoch.model.EpochInfo;
 import rest.koios.client.backend.api.epoch.model.EpochParams;
-import rest.koios.client.backend.factory.options.Limit;
-import rest.koios.client.backend.factory.options.Options;
-import rest.koios.client.backend.factory.options.Order;
-import rest.koios.client.backend.factory.options.SortType;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 /**
  * Koios Epoch Service
@@ -36,13 +31,11 @@ public class KoiosEpochService implements EpochService {
     @Override
     public Result<EpochContent> getLatestEpoch() throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<List<EpochInfo>> epochInformationResult = epochService.getEpochInformation(Options.builder()
-                    .option(Limit.of(1))
-                    .option(Order.by("epoch_no", SortType.DESC)).build());
+            rest.koios.client.backend.api.base.Result<EpochInfo> epochInformationResult = epochService.getLatestEpochInfo();
             if (!epochInformationResult.isSuccessful()) {
                 return Result.error(epochInformationResult.getResponse()).code(epochInformationResult.getCode());
             }
-            return convertToEpochContent(epochInformationResult.getValue().get(0));
+            return convertToEpochContent(epochInformationResult.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
@@ -77,14 +70,11 @@ public class KoiosEpochService implements EpochService {
     @Override
     public Result<ProtocolParams> getProtocolParameters() throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<List<EpochParams>> epochParametersResult = epochService.getEpochParameters(Options.builder()
-                    .option(Limit.of(1))
-                    .option(Order.by("epoch_no", SortType.DESC))
-                    .build());
+            rest.koios.client.backend.api.base.Result<EpochParams> epochParametersResult = epochService.getLatestEpochParameters();
             if (!epochParametersResult.isSuccessful()) {
                 return Result.error(epochParametersResult.getResponse()).code(epochParametersResult.getCode());
             }
-            return convertToProtocolParams(epochParametersResult.getValue().get(0));
+            return convertToProtocolParams(epochParametersResult.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
