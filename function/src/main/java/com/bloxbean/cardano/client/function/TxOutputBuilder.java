@@ -39,11 +39,11 @@ public interface TxOutputBuilder {
      * Build Transaction Inputs by a TxInputBuilder.
      *
      * @param after                TxInputBuilder to work with.
-     * @param separateChangeOutput false - merge change output with other outputs if they are for the same address,
+     * @param mergeChangeOutput true - merge change output with other outputs if they are for the same address,
      *                             otherwise, create new output for change output.
      * @return {@link TxBuilder}
      */
-    default TxBuilder buildInputs(TxInputBuilder after, boolean separateChangeOutput) {
+    default TxBuilder buildInputs(TxInputBuilder after, boolean mergeChangeOutput) {
         return (context, transaction) -> {
             List<TransactionInput> inputs = new ArrayList<>();
             List<TransactionOutput> outputs = new ArrayList<>();
@@ -58,9 +58,7 @@ public interface TxOutputBuilder {
             if (!outputs.isEmpty())
                 transaction.getBody().getOutputs().addAll(outputs);
             if (inputBuilderResult.changes != null && !inputBuilderResult.changes.isEmpty()) {
-                if (separateChangeOutput) {
-                    transaction.getBody().getOutputs().addAll(inputBuilderResult.changes);
-                } else {
+                if (mergeChangeOutput) {
                     inputBuilderResult.changes.forEach(txOutput -> {
                         TransactionOutput txOutputSameAddress = transaction.getBody().
                                 getOutputs()
@@ -73,6 +71,8 @@ public interface TxOutputBuilder {
                             transaction.getBody().getOutputs().add(txOutput);
                         }
                     });
+                } else {
+                    transaction.getBody().getOutputs().addAll(inputBuilderResult.changes);
                 }
             }
             //Clear multiasset in the context
