@@ -19,33 +19,14 @@ import java.util.Optional;
 import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
 import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash224;
 
-@Slf4j
 /**
- * @deprecated
- * <p>This class will be removed in future release. Use {@link AddressProvider} instead</p>
+ * Utility class to generate various types of addresses.
  */
-@Deprecated(since = "0.4.3", forRemoval = true)
-public class AddressService {
-
-    private static AddressService instance;
-
-    private AddressService() {
-
-    }
-
-    public static AddressService getInstance() {
-        if (instance == null) {
-            synchronized (AddressService.class) {
-                if (instance == null)
-                    instance = new AddressService();
-            }
-        }
-
-        return instance;
-    }
+@Slf4j
+public class AddressProvider {
 
     //header: 0000....
-    public Address getBaseAddress(HdPublicKey paymentKey, HdPublicKey delegationKey, Network networkInfo) {
+    public static Address getBaseAddress(HdPublicKey paymentKey, HdPublicKey delegationKey, Network networkInfo) {
         if (paymentKey == null || delegationKey == null)
             throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
 
@@ -58,7 +39,7 @@ public class AddressService {
     }
 
     //header: 0001....
-    public Address getBaseAddress(Script paymentKey, HdPublicKey delegationKey, Network networkInfo) throws CborSerializationException {
+    public static Address getBaseAddress(Script paymentKey, HdPublicKey delegationKey, Network networkInfo) throws CborSerializationException {
         if (paymentKey == null || delegationKey == null)
             throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
 
@@ -71,7 +52,7 @@ public class AddressService {
     }
 
     //header: 0010....
-    public Address getBaseAddress(HdPublicKey paymentKey, Script delegationKey, Network networkInfo) throws CborSerializationException {
+    public static Address getBaseAddress(HdPublicKey paymentKey, Script delegationKey, Network networkInfo) throws CborSerializationException {
         if (paymentKey == null || delegationKey == null)
             throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
 
@@ -84,7 +65,7 @@ public class AddressService {
     }
 
     //header: 0011....
-    public Address getBaseAddress(Script paymentKey, Script delegationKey, Network networkInfo) throws CborSerializationException {
+    public static Address getBaseAddress(Script paymentKey, Script delegationKey, Network networkInfo) throws CborSerializationException {
         if (paymentKey == null || delegationKey == null)
             throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
 
@@ -98,7 +79,7 @@ public class AddressService {
 
     //TODO -- Implement Pointer address
     //header: 0100....
-    public Address getPointerAddress(HdPublicKey paymentKey, Pointer delegationPointer, Network networkInfo) {
+    public static Address getPointerAddress(HdPublicKey paymentKey, Pointer delegationPointer, Network networkInfo) {
         if (paymentKey == null || delegationPointer == null)
             throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
 
@@ -111,7 +92,7 @@ public class AddressService {
     }
 
     //header: 0101....
-    public Address getPointerAddress(Script paymentKey, Pointer delegationPointer, Network networkInfo) throws CborSerializationException {
+    public static Address getPointerAddress(Script paymentKey, Pointer delegationPointer, Network networkInfo) throws CborSerializationException {
         if (paymentKey == null || delegationPointer == null)
             throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
 
@@ -124,7 +105,7 @@ public class AddressService {
     }
 
     //header: 0110....
-    public Address getEntAddress(HdPublicKey paymentKey, Network networkInfo)  {
+    public static Address getEntAddress(HdPublicKey paymentKey, Network networkInfo)  {
         if (paymentKey == null)
             throw new AddressRuntimeException("paymentkey cannot be null");
 
@@ -136,7 +117,7 @@ public class AddressService {
     }
 
     //header: 0111....
-    public Address getEntAddress(Script paymentKey, Network networkInfo) throws CborSerializationException {
+    public static Address getEntAddress(Script paymentKey, Network networkInfo) throws CborSerializationException {
         if (paymentKey == null)
             throw new AddressRuntimeException("paymentkey cannot be null");
 
@@ -148,7 +129,7 @@ public class AddressService {
     }
 
     //header: 1110....
-    public Address getRewardAddress(HdPublicKey stakeKey, Network networkInfo)  {
+    public static Address getRewardAddress(HdPublicKey stakeKey, Network networkInfo)  {
         if (stakeKey == null)
             throw new AddressRuntimeException("stakeKey cannot be null");
 
@@ -160,7 +141,7 @@ public class AddressService {
     }
 
     //header: 1111....
-    public Address getRewardAddress(Script stakeKey, Network networkInfo) throws CborSerializationException {
+    public static Address getRewardAddress(Script stakeKey, Network networkInfo) throws CborSerializationException {
         if (stakeKey == null)
             throw new AddressRuntimeException("stakeKey cannot be null");
 
@@ -171,7 +152,7 @@ public class AddressService {
         return getAddress(null, stakeKeyHash, (byte) headerType, networkInfo, AddressType.Reward);
     }
 
-    private Address getAddress(byte[] paymentKeyHash, byte[] stakeKeyHash, byte headerKind, Network networkInfo, AddressType addressType) {
+    private static Address getAddress(byte[] paymentKeyHash, byte[] stakeKeyHash, byte headerKind, Network networkInfo, AddressType addressType) {
         NetworkId network = getNetworkId(networkInfo);
 
         //get prefix
@@ -184,7 +165,7 @@ public class AddressService {
         return new Address(prefix, addressArray);
     }
 
-    private byte[] getAddressBytes(byte[] paymentKeyHash, byte[] stakeKeyHash, AddressType addressType, byte header) {
+    private static byte[] getAddressBytes(byte[] paymentKeyHash, byte[] stakeKeyHash, AddressType addressType, byte header) {
         //get body
         byte[] addressArray;
         switch (addressType) {
@@ -223,7 +204,7 @@ public class AddressService {
      * @param publicKey
      * @return true or false
      */
-    public boolean verifyAddress(@NonNull Address address, byte[] publicKey) {
+    public static boolean verifyAddress(@NonNull Address address, byte[] publicKey) {
         String prefix = address.getPrefix();
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
@@ -256,7 +237,7 @@ public class AddressService {
      * @return stake address
      * @throws AddressRuntimeException
      */
-    public Address getStakeAddress(@NonNull Address address) {
+    public static Address getStakeAddress(@NonNull Address address) {
         if (AddressType.Base != address.getAddressType())
             throw new AddressRuntimeException(
                     String.format("Stake address can't be derived. Required address type: Base Address, Found: %s ",
@@ -291,7 +272,7 @@ public class AddressService {
      * @param address
      * @return StakeKeyHash or ScriptHash. For Pointer address, delegationPointerHash
      */
-    public Optional<byte[]> getDelegationHash(Address address) {
+    public static Optional<byte[]> getDelegationHash(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
 
@@ -324,7 +305,7 @@ public class AddressService {
      * @param address
      * @return payment key hash
      */
-    public Optional<byte[]> getPaymentKeyHash(Address address) {
+    public static Optional<byte[]> getPaymentKeyHash(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
 
@@ -351,7 +332,7 @@ public class AddressService {
      * @param address
      * @return true if PubkeyHash, otherwise false
      */
-    public boolean isPubKeyHashInPaymentPart(@NonNull Address address) {
+    public static boolean isPubKeyHashInPaymentPart(@NonNull Address address) {
         AddressType addressType = address.getAddressType();
         if (addressType != AddressType.Base && addressType != AddressType.Enterprise
                 && addressType != AddressType.Ptr) {
@@ -373,7 +354,7 @@ public class AddressService {
      * @param address
      * @return true if ScriptHash, otherwise false
      */
-    public boolean isScriptHashInPaymentPart(@NonNull Address address) {
+    public static boolean isScriptHashInPaymentPart(@NonNull Address address) {
         AddressType addressType = address.getAddressType();
         if (addressType != AddressType.Base && addressType != AddressType.Enterprise
                 && addressType != AddressType.Ptr) {
@@ -390,7 +371,7 @@ public class AddressService {
      * @param address
      * @return true if StakeKeyHash, otherwise false
      */
-    public boolean isStakeKeyHashInDelegationPart(@NonNull Address address) {
+    public static boolean isStakeKeyHashInDelegationPart(@NonNull Address address) {
         AddressType addressType = address.getAddressType();
         if (addressType != AddressType.Base && addressType != AddressType.Ptr
                 && addressType != AddressType.Reward) {
@@ -419,7 +400,7 @@ public class AddressService {
      * @param address
      * @return true if ScriptHash, otherwise false
      */
-    public boolean isScriptHashInDelegationPart(@NonNull Address address) {
+    public static boolean isScriptHashInDelegationPart(@NonNull Address address) {
         AddressType addressType = address.getAddressType();
         if (addressType != AddressType.Base && addressType != AddressType.Ptr
                 && addressType != AddressType.Reward) {
@@ -431,7 +412,7 @@ public class AddressService {
         return !isStakeKeyHashInDelegationPart(address);
     }
 
-    private byte[] variableNatEncode(long num) {
+    private static byte[] variableNatEncode(long num) {
         List<Byte> output = new ArrayList<>();
         output.add((byte)(num & 0x7F));
 
