@@ -11,10 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Field;
 import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -81,7 +78,7 @@ public class DefaultPlutusObjectConverter implements PlutusObjectConverter {
 
     private PlutusData _toPlutusData(String fieldName, Object obj) {
         if (Objects.isNull(obj)) {
-            throw new PlutusDataConvertionException("Can't convert a null object : " + fieldName);
+            throw new PlutusDataConvertionException("Can't convert a null object. Field : " + fieldName);
         }
 
         Class<?> clazz = obj.getClass();
@@ -116,13 +113,24 @@ public class DefaultPlutusObjectConverter implements PlutusObjectConverter {
                 ((ListPlutusData) plutusData).add(_toPlutusData(fieldName + "[x]", value));
             }
 
+        } else if (Map.class.isAssignableFrom(clazz)) {
+            Map map = (Map) obj;
+            plutusData = new MapPlutusData();
+
+            Iterator<Map.Entry> iterator = map.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry entry = iterator.next();
+                PlutusData keyPlutusData = toPlutusData(entry.getKey());
+                PlutusData valuePlutusData = toPlutusData(entry.getValue());
+
+                ((MapPlutusData)plutusData).put(keyPlutusData, valuePlutusData);
+            }
         } else {
             plutusData = toPlutusData(obj);
 
 //          log.error("Valid field types: String, byte[], BigInteger, Long, Integer");
 //          throw new PlutusDataConvertionException("Unsupported field type : name: " + field.getName() + ", type: " + field.getType());
         }
-        //TODO -- Handle map field
 
         return plutusData;
 
