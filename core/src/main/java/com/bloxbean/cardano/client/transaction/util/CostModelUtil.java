@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public class CostModelUtil {
 
-    //babbage
+    //babbage -- 14th Feb 2023 HF
     private final static long[] plutusV1Costs = new long[]{
             205665,
             812,
@@ -176,8 +176,8 @@ public class CostModelUtil {
             32,
             38314,
             32,
-            9462713,
-            1021,
+            57996947,
+            18975,
             10
     };
 
@@ -349,14 +349,14 @@ public class CostModelUtil {
             32,
             38314,
             32,
-            20000000000L,
-            20000000000L,
-            9462713,
-            1021,
+            35892428,
             10,
-            20000000000L,
-            0,
-            20000000000L
+            57996947,
+            18975,
+            10,
+            38887044,
+            32947,
+            10
     };
 
     public final static CostModel PlutusV1CostModel = new CostModel(Language.PLUTUS_V1, plutusV1Costs);

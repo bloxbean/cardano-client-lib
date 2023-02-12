@@ -67,7 +67,7 @@ class ScriptCallContextProvidersTest extends BaseTest {
         TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         CostMdls costMdls = new CostMdls();
         costMdls.add(costModel);
-        context.setCostMdls(costMdls);
+        context.withCostMdls(costMdls);
 
         Transaction transaction = new Transaction();
 
@@ -200,7 +200,7 @@ class ScriptCallContextProvidersTest extends BaseTest {
         TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
         CostMdls costMdls = new CostMdls();
         costMdls.add(costModel);
-        context.setCostMdls(costMdls);
+        context.withCostMdls(costMdls);
 
         Transaction transaction = new Transaction();
 
