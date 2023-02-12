@@ -115,12 +115,13 @@ public class DefaultPlutusObjectConverter implements PlutusObjectConverter {
 
         } else if (Map.class.isAssignableFrom(clazz)) {
             Map map = (Map) obj;
-
             plutusData = new MapPlutusData();
-            for (Object key: map.keySet()) {
-                Object value = map.get(key);
-                PlutusData keyPlutusData = toPlutusData(key);
-                PlutusData valuePlutusData = toPlutusData(value);
+
+            Iterator<Map.Entry> iterator = map.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry entry = iterator.next();
+                PlutusData keyPlutusData = toPlutusData(entry.getKey());
+                PlutusData valuePlutusData = toPlutusData(entry.getValue());
 
                 ((MapPlutusData)plutusData).put(keyPlutusData, valuePlutusData);
             }
