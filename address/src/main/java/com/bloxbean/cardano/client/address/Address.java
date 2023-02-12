@@ -83,7 +83,7 @@ public class Address {
      * @return StakeKeyHash or ScriptHash. For Pointer address, delegationPointerHash
      */
     public Optional<byte[]> getDelegationHash() {
-        return AddressService.getInstance().getDelegationHash(this);
+        return AddressProvider.getDelegationHash(this);
     }
 
     /**
@@ -91,7 +91,7 @@ public class Address {
      * @return payment key hash
      */
     public Optional<byte[]> getPaymentKeyHash() {
-        return AddressService.getInstance().getPaymentKeyHash(this);
+        return AddressProvider.getPaymentKeyHash(this);
     }
 
     /**
@@ -99,7 +99,7 @@ public class Address {
      * @return true if PubkeyHash, otherwise false
      */
     public boolean isPubKeyHashInPaymentPart() {
-        return AddressService.getInstance().isPubKeyHashInPaymentPart(this);
+        return AddressProvider.isPubKeyHashInPaymentPart(this);
     }
 
     /**
@@ -107,7 +107,7 @@ public class Address {
      * @return true if ScriptHash, otherwise false
      */
     public boolean isScriptHashInPaymentPart() {
-        return AddressService.getInstance().isScriptHashInPaymentPart(this);
+        return AddressProvider.isScriptHashInPaymentPart(this);
     }
 
     /**
@@ -115,7 +115,7 @@ public class Address {
      * @return true if StakeKeyHash, otherwise false
      */
     public boolean isStakeKeyHashInDelegationPart() {
-        return AddressService.getInstance().isStakeKeyHashInDelegationPart(this);
+        return AddressProvider.isStakeKeyHashInDelegationPart(this);
     }
 
     /**
@@ -123,6 +123,6 @@ public class Address {
      * @return true if ScriptHash, otherwise false
      */
     public boolean isScriptHashInDelegationPart() {
-        return AddressService.getInstance().isScriptHashInDelegationPart(this);
+        return AddressProvider.isScriptHashInDelegationPart(this);
     }
 }

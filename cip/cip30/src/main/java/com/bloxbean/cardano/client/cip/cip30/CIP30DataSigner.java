@@ -4,7 +4,7 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.cip.cip8.*;
 import com.bloxbean.cardano.client.cip.cip8.builder.COSESign1Builder;
 import com.bloxbean.cardano.client.config.Configuration;
@@ -108,7 +108,7 @@ public enum CIP30DataSigner {
         //Verify address
         byte[] addressBytes  =  coseSign1.headers()._protected().getAsHeaderMap().otherHeaderAsBytes(ADDRESS_KEY);
         Address address = new Address(addressBytes);
-        boolean addressVerified = AddressService.getInstance().verifyAddress(address, pubKey);
+        boolean addressVerified = AddressProvider.verifyAddress(address, pubKey);
 
         return sigVerified && addressVerified;
     }

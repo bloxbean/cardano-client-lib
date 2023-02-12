@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.util;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.common.ADAConversionUtil;
@@ -79,7 +79,7 @@ class UtxoUtilTest {
         IntStream.range(0, 15)
                 .forEach(value -> {
                     try {
-                        Address address = AddressService.getInstance().getBaseAddress(plutusScript,
+                        Address address = AddressProvider.getBaseAddress(plutusScript,
                                 new Account().hdKeyPair().getPublicKey(), Networks.testnet());
                         Utxo utxo = Utxo.builder()
                                 .address(address.toBech32())

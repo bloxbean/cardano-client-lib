@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
@@ -191,7 +191,7 @@ public class Account {
             HdKeyPair paymentKeyPair = getHdKeyPair();
             HdKeyPair stakeKeyPair = getStakeKeyPair();
 
-            Address address = AddressService.getInstance().getBaseAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
+            Address address = AddressProvider.getBaseAddress(paymentKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
             baseAddress = address.toBech32();
         }
 
@@ -218,7 +218,7 @@ public class Account {
             HdKeyPair changeKeyPair = getChangeKeyPair();
             HdKeyPair stakeKeyPair = getStakeKeyPair();
 
-            Address address = AddressService.getInstance().getBaseAddress(changeKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
+            Address address = AddressProvider.getBaseAddress(changeKeyPair.getPublicKey(), stakeKeyPair.getPublicKey(), network);
             changeAddress = address.toBech32();
         }
 
@@ -231,7 +231,7 @@ public class Account {
     public String enterpriseAddress() {
         if (enterpriseAddress == null || enterpriseAddress.isEmpty()) {
             HdKeyPair paymentKeyPair = getHdKeyPair();
-            Address address = AddressService.getInstance().getEntAddress(paymentKeyPair.getPublicKey(), network);
+            Address address = AddressProvider.getEntAddress(paymentKeyPair.getPublicKey(), network);
             enterpriseAddress = address.toBech32();
         }
 
@@ -244,7 +244,7 @@ public class Account {
     public String stakeAddress() {
         if (stakeAddress == null || stakeAddress.isEmpty()) {
             HdKeyPair stakeKeyPair = getStakeKeyPair();
-            Address address = AddressService.getInstance().getRewardAddress(stakeKeyPair.getPublicKey(), network);
+            Address address = AddressProvider.getRewardAddress(stakeKeyPair.getPublicKey(), network);
             stakeAddress = address.toBech32();
         }
 

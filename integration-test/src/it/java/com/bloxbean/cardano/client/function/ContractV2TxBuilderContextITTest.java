@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.function;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
@@ -95,7 +95,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                 .build();
 
         BigInteger scriptAmt = new BigInteger("2479280");
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
 
         Random rand = new Random();
         int randInt = rand.nextInt();
@@ -172,7 +172,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                 .build();
 
         BigInteger scriptAmt = new BigInteger("2479280");
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
 
         Random rand = new Random();
         int randInt = rand.nextInt();
@@ -297,7 +297,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                 .build();
 
         BigInteger scriptAmt = new BigInteger("2479280");
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
 
         //Uncomment to create a script reference
 //        createScriptReferenceOutput(sender, scriptAddress, plutusScript);
@@ -389,7 +389,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                 .build();
 
         BigInteger scriptAmt = new BigInteger("2479280");
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript1, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript1, Networks.testnet()).getAddress();
 
         //Uncomment to create a script reference
         //createScriptReferenceOutput(sender, scriptAddress, plutusScript1);
@@ -520,7 +520,7 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
                 .build();
 
         BigInteger scriptAmt = new BigInteger("2479280");
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
 
         //Uncomment to create a script reference
 //        createScriptReferenceOutput(sender, scriptAddress, plutusScript);

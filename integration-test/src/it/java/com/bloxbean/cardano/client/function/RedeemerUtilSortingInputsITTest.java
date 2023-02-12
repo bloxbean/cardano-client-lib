@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
@@ -68,7 +68,7 @@ public class RedeemerUtilSortingInputsITTest extends BaseITTest {
                 .build();
 
         BigInteger scriptAmt = new BigInteger("2479280");
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
         BigIntPlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(11));
 
         String txHash = distributeFund(sender, senderAddress, ADAConversionUtil.adaToLovelace(2), 11, scriptAddress, scriptAmt, plutusData);

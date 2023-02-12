@@ -2,17 +2,18 @@ package com.bloxbean.cardano.client.backend.api.helper;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
+import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.*;
-import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
-import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.*;
+import com.bloxbean.cardano.client.backend.model.Block;
+import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
@@ -30,7 +31,6 @@ import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
-import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
@@ -100,7 +100,7 @@ public class ContractTransactionIT extends BaseITTest {
         collateralIndex = collateralTuple._2;
 
         BigInteger scriptAmt = new BigInteger("2479280");
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
 
         Random rand = new Random();
         int randInt = rand.nextInt();
@@ -237,7 +237,7 @@ public class ContractTransactionIT extends BaseITTest {
         collateralIndex = collateralTuple._2;
 
         BigInteger claimAmount;
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
         System.out.println("Script Address: " + scriptAddress);
 
         PlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(3));
@@ -368,7 +368,7 @@ public class ContractTransactionIT extends BaseITTest {
         collateralIndex = collateralTuple._2;
 
         BigInteger claimAmount;
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
         System.out.println("Script Address: " + scriptAddress);
 
         PlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(42));
@@ -497,7 +497,7 @@ public class ContractTransactionIT extends BaseITTest {
         collateralIndex = collateralTuple._2;
 
         BigInteger claimAmount;
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
         System.out.println("Script Address: " + scriptAddress);
 
         Guess guess = new Guess(Integer.valueOf(42));
@@ -632,7 +632,7 @@ public class ContractTransactionIT extends BaseITTest {
         collateralIndex = collateralTuple._2;
 
         BigInteger claimAmount;
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
         System.out.println("Script Address: " + scriptAddress);
 
         PlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(400)); //Some number
@@ -765,7 +765,7 @@ public class ContractTransactionIT extends BaseITTest {
         collateralIndex = collateralTuple._2;
 
         BigInteger claimAmount;
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
         //addr_test1wrs527svgl0m0ghkhramqkdae643v0q96d83jku8h8etxrs58smpj
 
         System.out.println("Script Address: " + scriptAddress);
@@ -896,7 +896,7 @@ public class ContractTransactionIT extends BaseITTest {
         collateralIndex = collateralTuple._2;
 
         BigInteger claimAmount;
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
         //addr_test1wrs527svgl0m0ghkhramqkdae643v0q96d83jku8h8etxrs58smpj
 
         System.out.println("Script Address: " + scriptAddress);

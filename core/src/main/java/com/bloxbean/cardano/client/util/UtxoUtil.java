@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.util;
 
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -88,8 +88,8 @@ public class UtxoUtil {
             try {
                 Address address = new Address(utxo.getAddress());
                 //If PubKeyHash in Payment part
-                if (AddressService.getInstance().isPubKeyHashInPaymentPart(address)) {
-                    AddressService.getInstance().getPaymentKeyHash(address)
+                if (AddressProvider.isPubKeyHashInPaymentPart(address)) {
+                    AddressProvider.getPaymentKeyHash(address)
                             .ifPresent(bytes -> pubKeyHashes.add(HexUtil.encodeHexString(bytes)));
                 }
             } catch (Exception e) {
