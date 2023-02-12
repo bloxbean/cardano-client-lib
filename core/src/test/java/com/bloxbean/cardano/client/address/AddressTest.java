@@ -375,7 +375,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getBaseAddress(hdKeyPair.getPublicKey(), plutusScript, Networks.mainnet());
+            Address address = AddressProvider.getBaseAddress(hdKeyPair.getPublicKey(), plutusScript, Networks.mainnet());
             boolean flag = address.isPubKeyHashInPaymentPart();
             assertThat(flag).isTrue();
         }
@@ -389,7 +389,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getBaseAddress(hdKeyPair.getPublicKey(), plutusScript, Networks.mainnet());
+            Address address = AddressProvider.getBaseAddress(hdKeyPair.getPublicKey(), plutusScript, Networks.mainnet());
             boolean flag = address.isScriptHashInPaymentPart();
             assertThat(flag).isFalse();
         }
@@ -403,7 +403,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getBaseAddress(plutusScript, hdKeyPair.getPublicKey(), Networks.mainnet());
+            Address address = AddressProvider.getBaseAddress(plutusScript, hdKeyPair.getPublicKey(), Networks.mainnet());
             boolean flag = address.isPubKeyHashInPaymentPart();
             assertThat(flag).isFalse();
         }
@@ -417,7 +417,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getBaseAddress(plutusScript, hdKeyPair.getPublicKey(), Networks.mainnet());
+            Address address = AddressProvider.getBaseAddress(plutusScript, hdKeyPair.getPublicKey(), Networks.mainnet());
             boolean flag = address.isScriptHashInPaymentPart();
             assertThat(flag).isTrue();
         }
@@ -429,7 +429,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getBaseAddress(plutusScript, plutusScript, Networks.mainnet());
+            Address address = AddressProvider.getBaseAddress(plutusScript, plutusScript, Networks.mainnet());
             boolean flag = address.isPubKeyHashInPaymentPart();
             assertThat(flag).isFalse();
         }
@@ -441,7 +441,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getBaseAddress(plutusScript, plutusScript, Networks.mainnet());
+            Address address = AddressProvider.getBaseAddress(plutusScript, plutusScript, Networks.mainnet());
             boolean flag = address.isScriptHashInPaymentPart();
             assertThat(flag).isTrue();
         }
@@ -451,7 +451,7 @@ public class AddressTest {
             Account account = new Account();
             HdKeyPair hdKeyPair = account.hdKeyPair();
 
-            Address address = AddressService.getInstance().getEntAddress(hdKeyPair.getPublicKey(), Networks.mainnet());
+            Address address = AddressProvider.getEntAddress(hdKeyPair.getPublicKey(), Networks.mainnet());
             boolean flag = address.isPubKeyHashInPaymentPart();
             assertThat(flag).isTrue();
         }
@@ -461,7 +461,7 @@ public class AddressTest {
             Account account = new Account();
             HdKeyPair hdKeyPair = account.hdKeyPair();
 
-            Address address = AddressService.getInstance().getEntAddress(hdKeyPair.getPublicKey(), Networks.mainnet());
+            Address address = AddressProvider.getEntAddress(hdKeyPair.getPublicKey(), Networks.mainnet());
             boolean flag = address.isScriptHashInPaymentPart();
             assertThat(flag).isFalse();
         }
@@ -473,7 +473,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getEntAddress(plutusScript, Networks.mainnet());
+            Address address = AddressProvider.getEntAddress(plutusScript, Networks.mainnet());
             boolean flag = address.isPubKeyHashInPaymentPart();
             assertThat(flag).isFalse();
         }
@@ -485,7 +485,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getEntAddress(plutusScript, Networks.mainnet());
+            Address address = AddressProvider.getEntAddress(plutusScript, Networks.mainnet());
             boolean flag = address.isScriptHashInPaymentPart();
             assertThat(flag).isTrue();
         }
@@ -516,7 +516,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getBaseAddress(hdKeyPair.getPublicKey(), plutusScript, Networks.mainnet());
+            Address address = AddressProvider.getBaseAddress(hdKeyPair.getPublicKey(), plutusScript, Networks.mainnet());
             boolean flag = address.isStakeKeyHashInDelegationPart();
             assertThat(flag).isFalse();
         }
@@ -530,7 +530,7 @@ public class AddressTest {
                     .cborHex("49480100002221200101")
                     .build();
 
-            Address address = AddressService.getInstance().getBaseAddress(hdKeyPair.getPublicKey(), plutusScript, Networks.mainnet());
+            Address address = AddressProvider.getBaseAddress(hdKeyPair.getPublicKey(), plutusScript, Networks.mainnet());
             boolean flag = address.isScriptHashInDelegationPart();
             assertThat(flag).isTrue();
         }

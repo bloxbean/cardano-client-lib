@@ -2,15 +2,15 @@ package com.bloxbean.cardano.client.backend.api.helper;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.address.AddressService;
-import com.bloxbean.cardano.client.api.model.ProtocolParams;
-import com.bloxbean.cardano.client.backend.api.BaseITTest;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.backend.api.BaseITTest;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
-import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
@@ -395,12 +395,12 @@ public class StakeTransactionIT extends BaseITTest {
         Policy policy = loadJsonPolicyScript(STAKEREGISTRATION_POLICY_JSON);
 
         //Get a address for payment key (Account at address 0) and Script as delegation key
-        Address address = AddressService.getInstance().getBaseAddress(stakingPaymentAccount.hdKeyPair().getPublicKey(), policy.getPolicyScript(), Networks.testnet());
+        Address address = AddressProvider.getBaseAddress(stakingPaymentAccount.hdKeyPair().getPublicKey(), policy.getPolicyScript(), Networks.testnet());
         String baseAddress = address.toBech32();
         System.out.println(baseAddress);
 
         //Find stake address. Just for info, not required for test
-        Address stakeAddress = AddressService.getInstance().getRewardAddress(policy.getPolicyScript(), Networks.testnet());
+        Address stakeAddress = AddressProvider.getRewardAddress(policy.getPolicyScript(), Networks.testnet());
         System.out.println("Stake address (Bech32) >> " + stakeAddress.toBech32());
         System.out.println("Stake address (Hex) >> " + HexUtil.encodeHexString(stakeAddress.getBytes()));
 

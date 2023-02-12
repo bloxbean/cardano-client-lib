@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.function;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
@@ -105,7 +105,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         collateral = collateralTuple._1;
         collateralIndex = collateralTuple._2;
 
-        String scriptAddress = AddressService.getInstance().getEntAddress(plutusScript, Networks.testnet()).getAddress();
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).getAddress();
         System.out.println("Script Address: " + scriptAddress);
 
         Guess guess = new Guess(Integer.valueOf(42));
@@ -218,7 +218,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         collateralIndex = collateralTuple._2;
 
         //Custom guess contract setup
-        String customGuessScriptAddress = AddressService.getInstance().getEntAddress(customGuessScript, Networks.testnet()).getAddress();
+        String customGuessScriptAddress = AddressProvider.getEntAddress(customGuessScript, Networks.testnet()).getAddress();
         System.out.println("Script Address: " + customGuessScriptAddress);
 
         Guess guess = new Guess(Integer.valueOf(42));
@@ -243,7 +243,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         Integer sumRedeemer = 6;
 
         //Custom guess contract setup
-        String sumScriptAddress = AddressService.getInstance().getEntAddress(sumScript, Networks.testnet()).getAddress();
+        String sumScriptAddress = AddressProvider.getEntAddress(sumScript, Networks.testnet()).getAddress();
         System.out.println("Sum Script Address: " + sumScriptAddress);
 
         Optional<Utxo> sumUtxoOptional = ScriptUtxoFinders.findFirstByDatumHashUsingDatum(utxoSupplier, sumScriptAddress, sumDatum);
@@ -338,7 +338,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 .build();
 
         //-- Custom guess contract setup
-        String mintScriptAddress = AddressService.getInstance().getEntAddress(mintScript, Networks.testnet()).getAddress();
+        String mintScriptAddress = AddressProvider.getEntAddress(mintScript, Networks.testnet()).getAddress();
         System.out.println("Mint Script Address: " + mintScriptAddress);
 
         //-- Setup collateral
@@ -406,7 +406,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 .build();
 
         //-- Custom guess contract setup
-        String mintScriptAddress = AddressService.getInstance().getEntAddress(mintScript, Networks.testnet()).getAddress();
+        String mintScriptAddress = AddressProvider.getEntAddress(mintScript, Networks.testnet()).getAddress();
         System.out.println("Mint Script Address: " + mintScriptAddress);
 
         //-- Setup collateral

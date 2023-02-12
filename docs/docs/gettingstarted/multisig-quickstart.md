@@ -321,7 +321,7 @@ details. You may need to wait for few secs to a min depending on the blockchain 
 
 ```java showLineNumbers
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.address.AddressService;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Result;
@@ -380,7 +380,7 @@ public class MultiSigTransfer {
                 .addScript(scriptPubkey3);
 
         //addr_test1wr6fvn0y3rumu30ch3lrggss4vmgsr65cxly2t6dulvwamq3y98et
-        String scriptAddress = AddressService.getInstance().getEntAddress(scriptAtLeast, Networks.testnet()).toBech32();
+        String scriptAddress = AddressProvider.getEntAddress(scriptAtLeast, Networks.testnet()).toBech32();
 
         // For Blockfrost
         String bf_projectId = "preprod...";
