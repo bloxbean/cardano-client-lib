@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.EpochContent;
+import com.bloxbean.cardano.client.transaction.spec.Language;
+import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -77,5 +79,15 @@ public class EpochServiceIT extends BaseITTest {
         assertThat(protocolParams.getCoinsPerUtxoSize(), is("4310"));
         assertThat(protocolParams.getEMax(), notNullValue());
         assertThat(protocolParams.getNOpt(), notNullValue());
+    }
+
+    @Test
+    public void getCostMdls() throws Exception {
+        ProtocolParams protocolParams = epochService.getProtocolParameters().getValue();
+        long[] costs = CostModelUtil.getCostModelFromProtocolParams(protocolParams, Language.PLUTUS_V2).get().getCosts();
+//        for (int i=0; i<costs.length; i++) {
+//            System.out.println(costs[i] + ",");
+//        }
+        assertThat(costs.length, greaterThan(0));
     }
 }

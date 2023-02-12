@@ -79,8 +79,19 @@ public class TxBuilderContext {
         mintMultiAssets.clear();
     }
 
-    public void setCostMdls(CostMdls costMdls) {
+    public TxBuilderContext withCostMdls(CostMdls costMdls) {
         this.costMdls = costMdls;
+        return this;
+    }
+
+    /**
+     * @deprecated
+     * Use {@link #withCostMdls(CostMdls)} instead
+     * @param costMdls
+     */
+    @Deprecated(since = "0.4.3", forRemoval = true)
+    public void setCostMdls(CostMdls costMdls) {
+        withCostMdls(costMdls);
     }
 
     public void addUtxo(Utxo utxo) {
