@@ -80,4 +80,12 @@ public interface PlutusData {
             throw new CborRuntimeException("Cbor serialization error", e);
         }
     }
+
+    default byte[] serializeToBytes()  {
+        try {
+            return CborSerializationUtil.serialize(serialize());
+        } catch (Exception e) {
+            throw new CborRuntimeException("Cbor serialization error", e);
+        }
+    }
 }
