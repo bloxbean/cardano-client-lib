@@ -11,6 +11,8 @@ import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.Builder;
 import lombok.Data;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -19,6 +21,13 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DefaultPlutusObjectConverterTest {
+
+    static PlutusObjectConverter plutusObjectConverter;
+
+    @BeforeAll
+    static void setup() {
+        plutusObjectConverter = new DefaultPlutusObjectConverter();
+    }
 
     @Test
     void toPlutusData() throws CborSerializationException {
@@ -194,6 +203,54 @@ class DefaultPlutusObjectConverterTest {
         assertThat(constrPlutusData.serialize()).isEqualTo(expected.serialize());
     }
 
+    @Nested
+    class OptionalTests {
+        @Test
+        void optionalWithIntValue() {
+            Optional<Integer> optional =  Optional.of(42);
+            PlutusData plutusData = plutusObjectConverter.toPlutusData(optional);
+
+            assertThat(plutusData.serializeToHex()).isEqualTo("d8799f182aff");
+        }
+
+        @Test
+        void optionalWithEmpty() {
+            Optional<Integer> optional =  Optional.empty();
+            PlutusData plutusData = plutusObjectConverter.toPlutusData(optional);
+
+            assertThat(plutusData.serializeToHex()).isEqualTo("d87a80");
+        }
+
+        @Test
+        void classWithOptionalFieldAndNonEmptyValue() {
+            ClassWithOptional c = new ClassWithOptional();
+            c.l = 500;
+            c.i = 100;
+            c.k = Optional.of(42L);
+
+            ConstrPlutusData plutusData = (ConstrPlutusData) plutusObjectConverter.toPlutusData(c);
+
+            //value of k field
+            ConstrPlutusData kPlutusData = (ConstrPlutusData)plutusData.getData().getPlutusDataList().get(2);
+            assertThat(kPlutusData.serializeToHex()).isEqualTo("d8799f182aff");
+            assertThat(kPlutusData.getAlternative()).isEqualTo(0);
+        }
+
+        @Test
+        void classWithOptionalFieldAndEmptyValue() {
+            ClassWithOptional c = new ClassWithOptional();
+            c.l = 500;
+            c.i = 100;
+            c.k = Optional.empty();
+
+            ConstrPlutusData plutusData = (ConstrPlutusData) plutusObjectConverter.toPlutusData(c);
+
+            //value of k field
+            ConstrPlutusData kPlutusData = (ConstrPlutusData)plutusData.getData().getPlutusDataList().get(2);
+            assertThat(kPlutusData.serializeToHex()).isEqualTo("d87a80");
+            assertThat(kPlutusData.getAlternative()).isEqualTo(1);
+        }
+    }
 }
 
 @Data
@@ -264,4 +321,17 @@ class C {
 
     @PlutusField
     int i;
+}
+
+
+@Constr
+class ClassWithOptional {
+    @PlutusField
+    long l;
+
+    @PlutusField
+    int i;
+
+    @PlutusField
+    Optional<Long> k;
 }

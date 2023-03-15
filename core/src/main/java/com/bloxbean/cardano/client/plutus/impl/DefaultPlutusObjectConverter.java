@@ -35,6 +35,8 @@ public class DefaultPlutusObjectConverter implements PlutusObjectConverter {
             return BytesPlutusData.of((byte[])obj);
         } else if (obj instanceof String) {
             return BytesPlutusData.of((String)obj);
+        } else if (obj instanceof Optional) {
+            return convertOptionalType((Optional<?>) obj);
         }
 
         Class<?> clazz = obj.getClass();
@@ -74,6 +76,18 @@ public class DefaultPlutusObjectConverter implements PlutusObjectConverter {
         }
 
         return constrPlutusData;
+    }
+
+    private ConstrPlutusData convertOptionalType(Optional<?> obj) {
+        if (obj.isEmpty())
+            return ConstrPlutusData.builder()
+                    .alternative(1)
+                    .data(ListPlutusData.of()).build();
+        else
+            return ConstrPlutusData.builder()
+                    .alternative(0)
+                    .data(ListPlutusData.of(toPlutusData(obj.get())))
+                    .build();
     }
 
     private PlutusData _toPlutusData(String fieldName, Object obj) {
