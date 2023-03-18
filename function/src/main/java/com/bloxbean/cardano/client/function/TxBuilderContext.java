@@ -55,8 +55,9 @@ public class TxBuilderContext {
                 new TransactionBuilder(utxoSupplier, () -> protocolParams));
     }
 
-    public void setUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
+    public TxBuilderContext setUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
         this.utxoSelectionStrategy = utxoSelectionStrategy;
+        return this;
     }
 
     public UtxoSelectionStrategy getUtxoSelectionStrategy() {
