@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -10,7 +11,6 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConverter;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
-import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.Collection;
 
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
@@ -28,7 +29,7 @@ public class AuxiliaryDataTest {
     String dataFile = "json-metadata.json";
 
     @Test
-    public void getAuxiliaryDataHash_whenMetadataIsSet() throws IOException {
+    public void getAuxiliaryDataHash_checkKeysOrder_whenMetadataIsSet() throws Exception {
         JsonNode json = loadJsonMetadata("json-4");
         Metadata metadata = JsonNoSchemaToMetadataConverter.jsonToCborMetadata(json.toString());
 
@@ -38,8 +39,14 @@ public class AuxiliaryDataTest {
 
         byte[] auxHashBytes = auxiliaryData.getAuxiliaryDataHash();
         String auxHash = HexUtil.encodeHexString(auxHashBytes);
+        String serializedHex = HexUtil.encodeHexString(CborSerializationUtil.serialize(auxiliaryData.serialize()));
 
-        assertThat(auxHash).isEqualTo("17df7ed927194d072174f36ac34e09f92e8a63f4131bef66d8cd186b95b6bfe8");
+        Map metadataMap =  (Map)CborSerializationUtil.deserialize(HexUtil.decodeHexString(serializedHex));
+        Collection<DataItem> metadataLabels = metadataMap.getKeys();
+
+        assertThat(metadataLabels).containsExactly(new UnsignedInteger(945845007538436815L), new UnsignedInteger(1302243434517352162L), new UnsignedInteger(1351859328329939190L),
+                new UnsignedInteger(7274669146951118819L), new UnsignedInteger(7505166164059511819L), new UnsignedInteger(new BigInteger("17802948329108123211")));
+        assertThat(auxHash).isEqualTo("47a7d2a804b63b12818b1fc4bf710a966d20aa25105f315f92af673dfec435db");
     }
 
     @Test
