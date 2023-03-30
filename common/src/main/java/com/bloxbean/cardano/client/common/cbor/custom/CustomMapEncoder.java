@@ -10,8 +10,8 @@ import co.nstant.in.cbor.model.SimpleValue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.TreeMap;
 
 /**
@@ -76,28 +76,7 @@ public class CustomMapEncoder extends MapEncoder {
          * lexical order sorts earlier.
          */
 
-        TreeMap<byte[], byte[]> sortedMap = new TreeMap<>(new Comparator<byte[]>() {
-
-            @Override
-            public int compare(byte[] o1, byte[] o2) {
-                if (o1.length < o2.length) {
-                    return -1;
-                }
-                if (o1.length > o2.length) {
-                    return 1;
-                }
-                for (int i = 0; i < o1.length; i++) {
-                    if (o1[i] < o2[i]) {
-                        return -1;
-                    }
-                    if (o1[i] > o2[i]) {
-                        return 1;
-                    }
-                }
-                return 0;
-            }
-
-        });
+        TreeMap<byte[], byte[]> sortedMap = new TreeMap<>(Arrays::compareUnsigned);
 
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         CborEncoder e = new CustomCborEncoder(byteArrayOutputStream);
