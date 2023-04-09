@@ -24,6 +24,11 @@ public class KoiosBlockService implements BlockService {
      */
     private final rest.koios.client.backend.api.block.BlockService blockService;
 
+    /**
+     * KoiosBlockService Constructor
+     *
+     * @param blockService blockService
+     */
     public KoiosBlockService(rest.koios.client.backend.api.block.BlockService blockService) {
         this.blockService = blockService;
     }

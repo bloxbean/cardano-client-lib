@@ -13,6 +13,11 @@ public class KoiosBackendService implements BackendService {
      */
     private final BackendServiceImpl backendServiceImpl;
 
+    /**
+     * KoiosBackendService Constructor
+     *
+     * @param baseUrl baseUrl
+     */
     public KoiosBackendService(String baseUrl) {
         backendServiceImpl = new BackendServiceImpl(baseUrl);
     }

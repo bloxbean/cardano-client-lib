@@ -34,6 +34,11 @@ public class KoiosMetadataService implements MetadataService {
      */
     private final TransactionsService transactionsService;
 
+    /**
+     * KoiosMetadataService Constructor
+     *
+     * @param transactionsService transactionsService
+     */
     public KoiosMetadataService(TransactionsService transactionsService) {
         this.transactionsService = transactionsService;
     }
