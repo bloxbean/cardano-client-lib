@@ -28,6 +28,11 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
      */
     private final AccountService accountService;
 
+    /**
+     * KoiosAccountService Constructor
+     *
+     * @param accountService accountService
+     */
     public KoiosAccountService(AccountService accountService) {
         this.accountService = accountService;
     }
@@ -97,7 +102,7 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                 accountRewardsHistories.add(accountRewardsHistory);
             });
         }
-        if (order==OrderEnum.asc) {
+        if (order == OrderEnum.asc) {
             accountRewardsHistories.sort(Comparator.comparing(AccountRewardsHistory::getEpoch));
         } else {
             accountRewardsHistories.sort(Comparator.comparing(AccountRewardsHistory::getEpoch).reversed());
@@ -140,7 +145,7 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                 accountHistoryList.add(accountHist);
             });
         }
-        if (order==OrderEnum.asc) {
+        if (order == OrderEnum.asc) {
             accountHistoryList.sort(Comparator.comparing(AccountHistory::getActiveEpoch));
         } else {
             accountHistoryList.sort(Comparator.comparing(AccountHistory::getActiveEpoch).reversed());
@@ -181,7 +186,7 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                     .option(Limit.of(count))
                     .option(Offset.of((long) (page - 1) * count))
                     .build();
-            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountAddress>> accountAddressesResult = accountService.getAccountAddresses(List.of(stakeAddress), options);
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountAddress>> accountAddressesResult = accountService.getAccountAddresses(List.of(stakeAddress), false, true, options);
             if (!accountAddressesResult.isSuccessful()) {
                 return Result.error(accountAddressesResult.getResponse()).code(accountAddressesResult.getCode());
             }
@@ -250,10 +255,10 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
 
     private Result<List<AccountAsset>> convertToAccountAssets(List<rest.koios.client.backend.api.common.Asset> accountAssetList) {
         List<AccountAsset> accountAssets = new ArrayList<>();
-        if (accountAssetList!=null) {
+        if (accountAssetList != null) {
             accountAssetList.forEach(accountAsset -> {
                 AccountAsset accountAsset1 = new AccountAsset();
-                accountAsset1.setUnit(accountAsset.getPolicyId()+accountAsset.getAssetName());
+                accountAsset1.setUnit(accountAsset.getPolicyId() + accountAsset.getAssetName());
                 accountAsset1.setQuantity(accountAsset.getQuantity());
                 accountAssets.add(accountAsset1);
             });
