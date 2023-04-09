@@ -9,6 +9,8 @@ import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class KoiosTransactionServiceIT extends KoiosBaseTest {
@@ -34,6 +36,15 @@ class KoiosTransactionServiceIT extends KoiosBaseTest {
     void testGetTransaction() throws Exception {
         String txnHash = "83b9df2741b964ecd96e44f062e65fad451d22e2ac6ce70a58c56339feda525e";
         Result<TransactionContent> result = transactionService.getTransaction(txnHash);
+
+        assertNotNull(result.getValue());
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+    }
+
+    @Test
+    void testGetTransactions() throws Exception {
+        String txnHash = "83b9df2741b964ecd96e44f062e65fad451d22e2ac6ce70a58c56339feda525e";
+        Result<List<TransactionContent>> result = transactionService.getTransactions(List.of(txnHash));
 
         assertNotNull(result.getValue());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));

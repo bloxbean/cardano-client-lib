@@ -11,24 +11,36 @@ import java.util.List;
 public interface TransactionService {
 
     /**
+     * submitTransaction
      *
-     * @param cborData
+     * @param cborData cborData
      * @return Transaction hash
      * @throws ApiException
      */
     Result<String> submitTransaction(byte[] cborData) throws ApiException;
 
     /**
+     * getTransaction
      *
-     * @param txnHash
+     * @param txnHash txnHash
      * @return Transaction content
      * @throws ApiException
      */
     Result<TransactionContent> getTransaction(String txnHash) throws ApiException;
 
     /**
+     * getTransactions
      *
-     * @param txnHash
+     * @param txnHashCollection Collection of TX Ids
+     * @return Transaction content
+     * @throws ApiException
+     */
+    Result<List<TransactionContent>> getTransactions(List<String> txnHashCollection) throws ApiException;
+
+    /**
+     * getTransactionUtxos
+     *
+     * @param txnHash txnHash
      * @return Transaction Utxos
      * @throws ApiException
      */
@@ -36,6 +48,7 @@ public interface TransactionService {
 
     /**
      * Evaluate ExUnits for the scripts in the input transaction
+     *
      * @param cborData Serialized cbor bytes
      * @return List of {@link EvaluationResult}
      * @throws ApiException

@@ -45,6 +45,15 @@ public class TransactionServiceIT extends BaseITTest {
     }
 
     @Test
+    public void testGetTransactions() throws Exception {
+        String txnHash = "fb77161efb9788f78d13e815e7c0bfde192cbdfb18a8e502c7a3d3171c1e5688";
+        Result<List<TransactionContent>> result = service.getTransactions(List.of(txnHash));
+
+        assertNotNull(result.getValue());
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+    }
+
+    @Test
     public void testGetTransactionUtxos() throws Exception {
         String txnHash = "ac2f821fda7b2488e9f9da05b9013134cfe2958ed210466d44e66136f1b3ca94";
         Result<TxContentUtxo> result = service.getTransactionUtxos(txnHash);

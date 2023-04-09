@@ -14,6 +14,7 @@ import retrofit2.Call;
 import retrofit2.Response;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class BFTransactionService extends BFBaseService implements TransactionService {
@@ -45,10 +46,23 @@ public class BFTransactionService extends BFBaseService implements TransactionSe
         try {
             Response<TransactionContent> response = txnCall.execute();
             return processResponse(response);
-
         } catch (IOException e) {
             throw new ApiException("Error getting transaction for id : " + txnHash, e);
         }
+    }
+
+    @Override
+    public Result<List<TransactionContent>> getTransactions(List<String> txnHashCollection) throws ApiException {
+        List<TransactionContent> transactionContentList = new ArrayList<>();
+        for (String txnHash : txnHashCollection) {
+            Result<TransactionContent> result = getTransaction(txnHash);
+            if (result.isSuccessful()) {
+                transactionContentList.add(result.getValue());
+            } else {
+                return Result.error(result.getResponse()).code(result.code());
+            }
+        }
+        return Result.success("OK").withValue(transactionContentList).code(200);
     }
 
     @Override
