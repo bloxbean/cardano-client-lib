@@ -50,6 +50,8 @@ public class TransactionServiceIT extends BaseITTest {
         Result<List<TransactionContent>> result = service.getTransactions(List.of(txnHash));
 
         assertNotNull(result.getValue());
+        assertFalse(result.getValue().isEmpty());
+        assertEquals(txnHash, result.getValue().get(0).getHash());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
     }
 

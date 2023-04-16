@@ -47,6 +47,8 @@ class KoiosTransactionServiceIT extends KoiosBaseTest {
         Result<List<TransactionContent>> result = transactionService.getTransactions(List.of(txnHash));
 
         assertNotNull(result.getValue());
+        assertFalse(result.getValue().isEmpty());
+        assertEquals(txnHash, result.getValue().get(0).getHash());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
     }
 
