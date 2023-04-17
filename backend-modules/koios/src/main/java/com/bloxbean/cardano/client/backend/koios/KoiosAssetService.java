@@ -30,6 +30,11 @@ public class KoiosAssetService implements AssetService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final rest.koios.client.backend.api.asset.AssetService assetService;
 
+    /**
+     * KoiosAssetService Constructor
+     *
+     * @param assetService assetService
+     */
     public KoiosAssetService(rest.koios.client.backend.api.asset.AssetService assetService) {
         this.assetService = assetService;
     }
@@ -97,7 +102,7 @@ public class KoiosAssetService implements AssetService {
                     .option(Offset.of((long) (page - 1) * count))
                     .build();
             rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.asset.model.AssetAddress>>
-                    assetsAddressList = assetService.getAssetsAddressList(assetTuple._1, assetTuple._2.replace("0x", ""), options);
+                    assetsAddressList = assetService.getAssetsAddresses(assetTuple._1, assetTuple._2.replace("0x", ""), options);
             if (!assetsAddressList.isSuccessful()) {
                 return Result.error(assetsAddressList.getResponse()).code(assetsAddressList.getCode());
             }
@@ -146,7 +151,7 @@ public class KoiosAssetService implements AssetService {
                     .option(Limit.of(count))
                     .option(Offset.of((long) (page - 1) * count))
                     .build();
-            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.asset.model.PolicyAsset>> assetPolicyInfoResult = assetService.getAssetPolicyInformation(policyId, options);
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.asset.model.PolicyAssetInfo>> assetPolicyInfoResult = assetService.getPolicyAssetInformation(policyId, options);
             if (!assetPolicyInfoResult.isSuccessful()) {
                 return Result.error(assetPolicyInfoResult.getResponse()).code(assetPolicyInfoResult.getCode());
             }
@@ -161,7 +166,7 @@ public class KoiosAssetService implements AssetService {
         return getPolicyAssets(policyId, count, page, null);
     }
 
-    private Result<List<PolicyAsset>> convertToPolicyAssetList(String policyId, List<rest.koios.client.backend.api.asset.model.PolicyAsset> policyAssets) {
+    private Result<List<PolicyAsset>> convertToPolicyAssetList(String policyId, List<rest.koios.client.backend.api.asset.model.PolicyAssetInfo> policyAssets) {
         List<PolicyAsset> policyAssetList = new ArrayList<>();
         if (policyAssets != null) {
             policyAssets.forEach(policyAsset -> policyAssetList.add(new PolicyAsset(policyId + policyAsset.getAssetName(), policyAsset.getTotalSupply())));

@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.model.*;
+import org.apache.commons.collections4.ListUtils;
 import rest.koios.client.backend.api.common.Asset;
 import rest.koios.client.backend.api.transactions.TransactionsService;
 import rest.koios.client.backend.api.transactions.model.*;
@@ -23,6 +24,11 @@ public class KoiosTransactionService implements TransactionService {
      */
     private final TransactionsService transactionsService;
 
+    /**
+     * KoiosTransactionService Constructor
+     *
+     * @param transactionsService transactionsService
+     */
     public KoiosTransactionService(TransactionsService transactionsService) {
         this.transactionsService = transactionsService;
     }
@@ -47,9 +53,8 @@ public class KoiosTransactionService implements TransactionService {
             if (!txInfoResult.isSuccessful()) {
                 return Result.error(txInfoResult.getResponse()).code(txInfoResult.getCode());
             }
-
             if (!txInfoResult.getValue().isEmpty()) {
-                return convertToTransactionContent(txInfoResult.getValue().get(0));
+                return Result.success("OK").withValue(convertToTransactionContent(txInfoResult.getValue().get(0))).code(200);
             } else {
                 return Result.error("Not Found").code(404);
             }
@@ -58,7 +63,29 @@ public class KoiosTransactionService implements TransactionService {
         }
     }
 
-    private Result<TransactionContent> convertToTransactionContent(TxInfo txInfo) {
+    @Override
+    public Result<List<TransactionContent>> getTransactions(List<String> txnHashCollection) throws ApiException {
+        List<TransactionContent> result = new ArrayList<>();
+        List<List<String>> partitioned = ListUtils.partition(txnHashCollection, 1000);
+        for (List<String> txIds : partitioned) {
+            try {
+                rest.koios.client.backend.api.base.Result<List<TxInfo>> txInfoResult = transactionsService.getTransactionInformation(txIds, null);
+                if (!txInfoResult.isSuccessful()) {
+                    return Result.error(txInfoResult.getResponse()).code(txInfoResult.getCode());
+                }
+                if (!txInfoResult.getValue().isEmpty()) {
+                    txInfoResult.getValue().forEach(txInfo -> result.add(convertToTransactionContent(txInfo)));
+                } else {
+                    return Result.error("Not Found").code(404);
+                }
+            } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
+                throw new ApiException(e.getMessage(), e);
+            }
+        }
+        return Result.success("OK").withValue(result).code(200);
+    }
+
+    private TransactionContent convertToTransactionContent(TxInfo txInfo) {
         TransactionContent transactionContent = new TransactionContent();
         transactionContent.setHash(txInfo.getTxHash());
         transactionContent.setBlock(txInfo.getBlockHash());
@@ -140,7 +167,7 @@ public class KoiosTransactionService implements TransactionService {
         }
         transactionContent.setValidContract(validContract);
         transactionContent.setRedeemerCount(redeemerCount);
-        return Result.success("OK").withValue(transactionContent).code(200);
+        return transactionContent;
     }
 
     @Override

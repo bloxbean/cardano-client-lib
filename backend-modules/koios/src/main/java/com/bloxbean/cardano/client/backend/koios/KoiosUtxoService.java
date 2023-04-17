@@ -30,6 +30,11 @@ public class KoiosUtxoService implements UtxoService {
      */
     private final AddressService addressService;
 
+    /**
+     * KoiosUtxoService Constructor
+     *
+     * @param addressService addressService
+     */
     public KoiosUtxoService(AddressService addressService) {
         this.addressService = addressService;
     }

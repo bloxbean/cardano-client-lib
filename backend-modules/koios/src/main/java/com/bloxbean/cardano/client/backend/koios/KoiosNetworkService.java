@@ -17,6 +17,11 @@ public class KoiosNetworkService implements NetworkInfoService {
      */
     private final NetworkService networkService;
 
+    /**
+     * KoiosNetworkService Constructor
+     *
+     * @param networkService networkService
+     */
     public KoiosNetworkService(NetworkService networkService) {
         this.networkService = networkService;
     }

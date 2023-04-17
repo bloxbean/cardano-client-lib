@@ -16,7 +16,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class TransactionServiceIT extends BaseITTest {
+class TransactionServiceIT extends BaseITTest {
 
     TransactionService service;
 
@@ -26,7 +26,7 @@ public class TransactionServiceIT extends BaseITTest {
     }
 
     @Test
-    public void testSubmitInvalidTransaction() throws ApiException {
+    void testSubmitInvalidTransaction() throws ApiException {
 
         Result<String> result = service.submitTransaction(new byte[0]);
 
@@ -36,7 +36,7 @@ public class TransactionServiceIT extends BaseITTest {
     }
 
     @Test
-    public void testGetTransaction() throws Exception {
+    void testGetTransaction() throws Exception {
         String txnHash = "fb77161efb9788f78d13e815e7c0bfde192cbdfb18a8e502c7a3d3171c1e5688";
         Result<TransactionContent> result = service.getTransaction(txnHash);
 
@@ -45,7 +45,33 @@ public class TransactionServiceIT extends BaseITTest {
     }
 
     @Test
-    public void testGetTransactionUtxos() throws Exception {
+    void testGetTransactions() throws Exception {
+        String txnHash = "fb77161efb9788f78d13e815e7c0bfde192cbdfb18a8e502c7a3d3171c1e5688";
+        Result<List<TransactionContent>> result = service.getTransactions(List.of(txnHash));
+
+        assertNotNull(result.getValue());
+        assertFalse(result.getValue().isEmpty());
+        assertEquals(txnHash, result.getValue().get(0).getHash());
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+    }
+
+    @Test
+    void testInvalidTransactionsFormat() {
+        List<String> txList = List.of("test", "83b9df2741b964ecd96e44f062e65fad451d22e2ac6ce70a58c56339feda525e");
+        assertThrows(ApiException.class, () -> service.getTransactions(txList));
+    }
+
+    @Test
+    void testTransactionsNotFound() throws ApiException {
+        List<String> txList = List.of("83b9");
+        Result<List<TransactionContent>> result = service.getTransactions(txList);
+
+        assertFalse(result.isSuccessful());
+        assertEquals(404, result.code());
+    }
+
+    @Test
+    void testGetTransactionUtxos() throws Exception {
         String txnHash = "ac2f821fda7b2488e9f9da05b9013134cfe2958ed210466d44e66136f1b3ca94";
         Result<TxContentUtxo> result = service.getTransactionUtxos(txnHash);
 
@@ -63,7 +89,7 @@ public class TransactionServiceIT extends BaseITTest {
         byte[] cborBytes = HexUtil.decodeHexString(txHex);
         Result<List<EvaluationResult>> evaluationResults = service.evaluateTx(cborBytes);
 
-        assertThat(evaluationResults.isSuccessful()).isEqualTo(false);
+        assertThat(evaluationResults.isSuccessful()).isFalse();
         assertThat(evaluationResults.getValue()).isEmpty();
     }
 
@@ -77,7 +103,7 @@ public class TransactionServiceIT extends BaseITTest {
         byte[] cborBytes = HexUtil.decodeHexString(txHex);
         Result<List<EvaluationResult>> evaluationResults = service.evaluateTx(cborBytes);
 
-        assertThat(evaluationResults.isSuccessful()).isEqualTo(false);
+        assertThat(evaluationResults.isSuccessful()).isFalse();
         assertThat(evaluationResults.getValue()).isEmpty();
     }
 

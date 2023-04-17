@@ -46,6 +46,11 @@ public class OgmiosTransactionService implements TransactionService {
     }
 
     @Override
+    public Result<List<TransactionContent>> getTransactions(List<String> txnHashCollection) throws ApiException {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
+
+    @Override
     public Result<TxContentUtxo> getTransactionUtxos(String txnHash) {
         throw new UnsupportedOperationException("Not supported yet");
     }

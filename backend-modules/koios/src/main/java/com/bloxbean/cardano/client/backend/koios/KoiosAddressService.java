@@ -28,6 +28,11 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
      */
     private final AddressService addressService;
 
+    /**
+     * KoiosAddressService Constructor
+     *
+     * @param addressService addressService
+     */
     public KoiosAddressService(AddressService addressService) {
         this.addressService = addressService;
     }
@@ -97,7 +102,7 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
             if (from != null && !from.isEmpty()) {
                 options.getOptions().add(Filter.of("block_height", FilterType.GTE, from));
             }
-            if (to !=null && !to.isEmpty()) {
+            if (to != null && !to.isEmpty()) {
                 options.getOptions().add(Filter.of("block_height", FilterType.LTE, to));
             }
             rest.koios.client.backend.api.base.Result<List<TxHash>> transactionsResult = addressService.getAddressTransactions(List.of(address), options);
