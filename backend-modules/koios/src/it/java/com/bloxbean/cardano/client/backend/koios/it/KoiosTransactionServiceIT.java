@@ -53,6 +53,21 @@ class KoiosTransactionServiceIT extends KoiosBaseTest {
     }
 
     @Test
+    void testInvalidTransactionsFormat() {
+        List<String> txList = List.of("test", "83b9df2741b964ecd96e44f062e65fad451d22e2ac6ce70a58c56339feda525e");
+        assertThrows(ApiException.class, () -> transactionService.getTransactions(txList));
+    }
+
+    @Test
+    void testTransactionsNotFound() throws ApiException {
+        List<String> txList = List.of("83b9");
+        Result<List<TransactionContent>> result = transactionService.getTransactions(txList);
+
+        assertFalse(result.isSuccessful());
+        assertEquals(404, result.code());
+    }
+
+    @Test
     void testGetTransactionUtxos() throws Exception {
         String txnHash = "83b9df2741b964ecd96e44f062e65fad451d22e2ac6ce70a58c56339feda525e";
         Result<TxContentUtxo> result = transactionService.getTransactionUtxos(txnHash);
