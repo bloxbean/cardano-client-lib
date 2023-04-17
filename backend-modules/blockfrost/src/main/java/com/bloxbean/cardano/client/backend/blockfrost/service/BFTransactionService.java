@@ -55,6 +55,9 @@ public class BFTransactionService extends BFBaseService implements TransactionSe
     public Result<List<TransactionContent>> getTransactions(List<String> txnHashCollection) throws ApiException {
         List<TransactionContent> transactionContentList = new ArrayList<>();
         for (String txnHash : txnHashCollection) {
+            if (!txnHash.isEmpty() && !txnHash.matches("^[\\da-fA-F]+$")) {
+                throw new ApiException("Invalid Transaction Hash Format");
+            }
             Result<TransactionContent> result = getTransaction(txnHash);
             if (result.isSuccessful()) {
                 transactionContentList.add(result.getValue());
