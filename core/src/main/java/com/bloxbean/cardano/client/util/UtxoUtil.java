@@ -89,7 +89,7 @@ public class UtxoUtil {
                 Address address = new Address(utxo.getAddress());
                 //If PubKeyHash in Payment part
                 if (AddressProvider.isPubKeyHashInPaymentPart(address)) {
-                    AddressProvider.getPaymentKeyHash(address)
+                    AddressProvider.getPaymentCredential(address)
                             .ifPresent(bytes -> pubKeyHashes.add(HexUtil.encodeHexString(bytes)));
                 }
             } catch (Exception e) {

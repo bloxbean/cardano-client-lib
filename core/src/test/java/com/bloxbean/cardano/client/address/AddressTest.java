@@ -177,7 +177,7 @@ public class AddressTest {
             String entAddress = "addr_test1vzxazkxxxapq9k76aae6reskfjuzfljy4lf209kduuxjfec7msk6n";
             Address address = new Address(entAddress);
 
-            Optional<byte[]> delegationHash = address.getDelegationHash();
+            Optional<byte[]> delegationHash = address.getDelegationCredential();
             assertThat(delegationHash).isEmpty();
         }
 
@@ -186,7 +186,7 @@ public class AddressTest {
             String entAddress = "addr1vxm9rssxy335nxtph8x4jndrnxj7eyg0e66uv0u7k4dzyjsg6fr38";
             Address address = new Address(entAddress);
 
-            Optional<byte[]> delegationHash = address.getDelegationHash();
+            Optional<byte[]> delegationHash = address.getDelegationCredential();
             assertThat(delegationHash).isEmpty();
         }
 
@@ -195,7 +195,7 @@ public class AddressTest {
             String baseAddress = "addr_test1qra2kf2lzdt05j7793wz9nxgf5ywf79puqu50djvp0q804g4ee7lj7wgt0urvw6n57eklscwju3p02wu2vmdqd84hgdsc8lqcp";
             Address address = new Address(baseAddress);
 
-            byte[] delegationHash = address.getDelegationHash().get();
+            byte[] delegationHash = address.getDelegationCredential().get();
             assertThat(HexUtil.encodeHexString(delegationHash)).isEqualTo("15ce7df979c85bf8363b53a7b36fc30e972217a9dc5336d034f5ba1b");
         }
 
@@ -204,7 +204,7 @@ public class AddressTest {
             String baseAddress = "addr1q8hxcjnvwd2hf397kee6ptfu889r248cn0k5qzvyz78ywa5tdzj0j8al6970zz8urxtdsvwejxn89aqkp4fk6y2jt2wswpm6fz";
             Address address = new Address(baseAddress);
 
-            byte[] delegationHash = address.getDelegationHash().get();
+            byte[] delegationHash = address.getDelegationCredential().get();
             assertThat(HexUtil.encodeHexString(delegationHash)).isEqualTo("8b68a4f91fbfd17cf108fc1996d831d991a672f4160d536d11525a9d");
         }
 
@@ -213,7 +213,7 @@ public class AddressTest {
             String rewardAddress = "stake_test1up2gmk3f9s6l50ehm26s9kufd9y2gkektu2xy3uawvzk5ug0ze6xv";
             Address address = new Address(rewardAddress);
 
-            byte[] delegationHash = address.getDelegationHash().get();
+            byte[] delegationHash = address.getDelegationCredential().get();
             assertThat(HexUtil.encodeHexString(delegationHash)).isEqualTo("548dda292c35fa3f37dab502db896948a45b365f1462479d73056a71");
         }
 
@@ -222,7 +222,7 @@ public class AddressTest {
             String rewardAddress = "stake1u857f9s2s556nfedulykja499mvredrnj6qupp2f2mpumsgkw23zc";
             Address address = new Address(rewardAddress);
 
-            byte[] delegationHash = address.getDelegationHash().get();
+            byte[] delegationHash = address.getDelegationCredential().get();
             assertThat(HexUtil.encodeHexString(delegationHash)).isEqualTo("e9e4960a8529a9a72de7c96976a52ed83cb4739681c0854956c3cdc1");
         }
 
@@ -231,7 +231,7 @@ public class AddressTest {
             String pointerAddress = "addr_test1grl9uzketqym52kqyjrxplslh3t5zlm65vmlvgzmnycg7m48kw8hvqqqt5mz03";
             Address address = new Address(pointerAddress);
 
-            byte[] delegationHash = address.getDelegationHash().get();
+            byte[] delegationHash = address.getDelegationCredential().get();
             assertThat(HexUtil.encodeHexString(delegationHash)).isEqualTo("a7b38f760000");
         }
 
@@ -240,7 +240,7 @@ public class AddressTest {
             String pointerAddress = "addr1g9ekml92qyvzrjmawxkh64r2w5xr6mg9ngfmxh2khsmdrcudevsft64mf887333adamant";
             Address address = new Address(pointerAddress);
 
-            byte[] delegationHash = address.getDelegationHash().get();
+            byte[] delegationHash = address.getDelegationCredential().get();
             assertThat(HexUtil.encodeHexString(delegationHash)).isEqualTo("8dcb2095eabb49cfe8c63d");
         }
 
@@ -250,7 +250,7 @@ public class AddressTest {
             String baseAddress = "addr1q9wf2pasguad0uy8rzxly6hxc4yk4vhlj4ufv7xg973fvu9l7f23amv6dqy99nrlezg38y3797tgel0udlxfsjp26ensg63c8u";
             Address address = new Address(baseAddress);
 
-            byte[] paymentKeyHash = address.getPaymentKeyHash().get();
+            byte[] paymentKeyHash = address.getPaymentCredential().get();
             System.out.println(HexUtil.encodeHexString(paymentKeyHash));
             assertThat(HexUtil.encodeHexString(paymentKeyHash)).isEqualTo("5c9507b0473ad7f087188df26ae6c5496ab2ff95789678c82fa29670");
         }
@@ -260,7 +260,7 @@ public class AddressTest {
             String baseAddress = "addr_test1qz96la9s5xa0ad67vvprdrl8dw79gs7nqf58czr409xynscttpxxc9w2gmdewjwzlv8lx255q7z3mqymv0umkygycskqyf227e";
             Address address = new Address(baseAddress);
 
-            byte[] paymentKeyHash = address.getPaymentKeyHash().get();
+            byte[] paymentKeyHash = address.getPaymentCredential().get();
             System.out.println(HexUtil.encodeHexString(paymentKeyHash));
             assertThat(HexUtil.encodeHexString(paymentKeyHash)).isEqualTo("8baff4b0a1bafeb75e6302368fe76bbc5443d302687c0875794c49c3");
         }
@@ -270,7 +270,7 @@ public class AddressTest {
             String baseAddress = "addr_test1wzdtu0djc76qyqak9cj239udezj2544nyk3ksmfqvaksv7c9xanpg";
             Address address = new Address(baseAddress);
 
-            byte[] paymentKeyHash = address.getPaymentKeyHash().get();
+            byte[] paymentKeyHash = address.getPaymentCredential().get();
             System.out.println(HexUtil.encodeHexString(paymentKeyHash));
             assertThat(HexUtil.encodeHexString(paymentKeyHash)).isEqualTo("9abe3db2c7b40203b62e24a8978dc8a4aa56b325a3686d20676d067b");
         }
@@ -280,7 +280,7 @@ public class AddressTest {
             String baseAddress = "addr1vypj5jf999edw02khvy8e63ec9w0wk39y2pels36ntn3gxsqlvq6t";
             Address address = new Address(baseAddress);
 
-            byte[] paymentKeyHash = address.getPaymentKeyHash().get();
+            byte[] paymentKeyHash = address.getPaymentCredential().get();
             assertThat(HexUtil.encodeHexString(paymentKeyHash)).isEqualTo("032a49252972d73d56bb087cea39c15cf75a2522839fc23a9ae7141a");
         }
 
@@ -289,7 +289,7 @@ public class AddressTest {
             String baseAddress = "stake1uytvm7mh3xvpqgef9fh6f5llwktk0urg7q23cs5h20x9qesrphuw7";
             Address address = new Address(baseAddress);
 
-            Optional<byte[]> paymentKeyHash = address.getPaymentKeyHash();
+            Optional<byte[]> paymentKeyHash = address.getPaymentCredential();
             assertThat(paymentKeyHash).isEmpty();
         }
 
@@ -298,7 +298,7 @@ public class AddressTest {
             String pointerAddress = "addr1g9ekml92qyvzrjmawxkh64r2w5xr6mg9ngfmxh2khsmdrcudevsft64mf887333adamant";
             Address address = new Address(pointerAddress);
 
-            byte[] paymentKeyHash = address.getPaymentKeyHash().get();
+            byte[] paymentKeyHash = address.getPaymentCredential().get();
             assertThat(HexUtil.encodeHexString(paymentKeyHash)).isEqualTo("736dfcaa011821cb7d71ad7d546a750c3d6d059a13b35d56bc36d1e3");
         }
 
@@ -307,7 +307,7 @@ public class AddressTest {
             String pointerAddress = "addr_test1grl9uzketqym52kqyjrxplslh3t5zlm65vmlvgzmnycg7m48kw8hvqqqt5mz03";
             Address address = new Address(pointerAddress);
 
-            byte[] paymentKeyHash = address.getPaymentKeyHash().get();
+            byte[] paymentKeyHash = address.getPaymentCredential().get();
             assertThat(HexUtil.encodeHexString(paymentKeyHash)).isEqualTo("fe5e0ad95809ba2ac0248660fe1fbc57417f7aa337f6205b99308f6e");
         }
     }
