@@ -216,7 +216,7 @@ public class AddressProvider {
             byte[] stakeKeyHash = blake2bHash224(publicKey); //Get keyhash from publickey (stake credential)
             newAddressBytes = getAddressBytes(null, stakeKeyHash, addressType, header);
         } else {
-            byte[] stakeKeyHash = getDelegationHash(address).orElse(null); //Get stakekeyhash from existing address
+            byte[] stakeKeyHash = getDelegationCredential(address).orElse(null); //Get stakekeyhash from existing address
             byte[] paymentKeyHash = blake2bHash224(publicKey); //calculate keyhash from public key
             newAddressBytes = getAddressBytes(paymentKeyHash, stakeKeyHash, addressType, header);
         }
@@ -243,7 +243,7 @@ public class AddressProvider {
                     String.format("Stake address can't be derived. Required address type: Base Address, Found: %s ",
                             address.getAddressType()));
 
-        byte[] stakeKeyHash = getDelegationHash(address)
+        byte[] stakeKeyHash = getDelegationCredential(address)
                 .orElseThrow(() -> new AddressRuntimeException("StakeKeyHash was not found for the address"));
 
         AddressType addressType = AddressType.Reward; //target type
@@ -272,7 +272,7 @@ public class AddressProvider {
      * @param address
      * @return StakeKeyHash or ScriptHash. For Pointer address, delegationPointerHash
      */
-    public static Optional<byte[]> getDelegationHash(Address address) {
+    public static Optional<byte[]> getDelegationCredential(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
 
@@ -301,11 +301,11 @@ public class AddressProvider {
     }
 
     /**
-     * Get PaymentKeyHash from {@link Address}
+     * Get PaymentCredential from {@link Address}
      * @param address
-     * @return payment key hash
+     * @return payment key hash or script hash
      */
-    public static Optional<byte[]> getPaymentKeyHash(Address address) {
+    public static Optional<byte[]> getPaymentCredential(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
 

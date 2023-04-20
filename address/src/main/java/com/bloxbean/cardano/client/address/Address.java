@@ -82,16 +82,16 @@ public class Address {
      * Get StakeKeyHash or ScriptHash from delegation part of a Shelley {@link Address}
      * @return StakeKeyHash or ScriptHash. For Pointer address, delegationPointerHash
      */
-    public Optional<byte[]> getDelegationHash() {
-        return AddressProvider.getDelegationHash(this);
+    public Optional<byte[]> getDelegationCredential() {
+        return AddressProvider.getDelegationCredential(this);
     }
 
     /**
-     * Get PaymentKeyHash from {@link Address}
-     * @return payment key hash
+     * Get PaymentCredential from {@link Address}
+     * @return payment key hash or script hash
      */
-    public Optional<byte[]> getPaymentKeyHash() {
-        return AddressProvider.getPaymentKeyHash(this);
+    public Optional<byte[]> getPaymentCredential() {
+        return AddressProvider.getPaymentCredential(this);
     }
 
     /**
