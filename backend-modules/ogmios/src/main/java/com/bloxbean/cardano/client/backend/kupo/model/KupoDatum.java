@@ -14,12 +14,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-public class KupoUtxo {
-    private String transactionId;
-    private int outputIndex;
-    private String address;
-    private KupoValue value;
-    private String datumHash;
-    private String scriptHash;
-    private String datumType;
+public class KupoDatum {
+    private String datum;
 }

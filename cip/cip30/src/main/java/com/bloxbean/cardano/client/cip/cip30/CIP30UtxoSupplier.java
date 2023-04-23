@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * CIP30 getUtxos() implementation to receive Hex-Encoded Cbor Representation of UTxOs and provide it to Transaction Build.
@@ -42,6 +43,12 @@ public class CIP30UtxoSupplier implements UtxoSupplier {
             return Collections.emptyList();
         }
         return utxos.subList(fromIndex, Math.min(fromIndex + pageSize, utxos.size()));
+    }
+
+    @Override
+    public Optional<Utxo> getTxOutput(String txHash, int outputIndex) {
+        return utxos.stream()
+                .filter(utxo -> utxo.getTxHash().equals(txHash) && utxo.getOutputIndex() == outputIndex).findFirst();
     }
 
     @Override
