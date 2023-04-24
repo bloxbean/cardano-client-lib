@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.config;
 
+import com.bloxbean.cardano.client.coinselection.config.CoinselectionConfig;
 import com.bloxbean.cardano.client.crypto.api.SigningProvider;
 import com.bloxbean.cardano.client.crypto.bip39.api.EntropyProvider;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
@@ -10,7 +11,6 @@ public enum Configuration {
     INSTANCE();
 
     private PlutusObjectConverter plutusObjectConverter;
-    private int coinSelectionLimit = 20;
 
     //Can be used to set isAndroid programmatically.
     private boolean isAndroid;
@@ -44,11 +44,11 @@ public enum Configuration {
     }
 
     public int getCoinSelectionLimit() {
-        return coinSelectionLimit;
+        return CoinselectionConfig.INSTANCE.getCoinSelectionLimit();
     }
 
     public void setCoinSelectionLimit(int coinSelectionLimit) {
-        this.coinSelectionLimit = coinSelectionLimit;
+        CoinselectionConfig.INSTANCE.setCoinSelectionLimit(coinSelectionLimit);
     }
 
     public boolean isAndroid() {

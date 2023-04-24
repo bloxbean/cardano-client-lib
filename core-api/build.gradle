@@ -1,0 +1,15 @@
+dependencies {
+    api project(':common')
+    api project(':spec')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Core Api module'
+                description = 'Cardano Client Lib - Core Api Module'
+            }
+        }
+    }
+}

@@ -11,6 +11,7 @@ import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+//TODO -- Move this test to spec module later
 class ScriptDataHashGeneratorTest {
 
     //This is Alonzo cost model. Update later //TODO

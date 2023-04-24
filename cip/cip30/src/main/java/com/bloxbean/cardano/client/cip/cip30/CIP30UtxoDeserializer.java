@@ -8,6 +8,7 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.api.util.ValueUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.List;
@@ -45,7 +46,7 @@ class CIP30UtxoDeserializer {
 
             TransactionOutput transactionOutput = TransactionOutput.deserialize(utxoItems.get(1));
             utxo.setAddress(transactionOutput.getAddress());
-            utxo.setAmount(transactionOutput.getValue().toAmountList());
+            utxo.setAmount(ValueUtil.toAmountList(transactionOutput.getValue()));
             if (transactionOutput.getInlineDatum() != null) {
                 utxo.setInlineDatum(transactionOutput.getInlineDatum().serializeToHex());
             }
