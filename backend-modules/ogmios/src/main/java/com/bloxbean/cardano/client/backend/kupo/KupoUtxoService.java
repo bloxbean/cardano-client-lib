@@ -86,7 +86,7 @@ public class KupoUtxoService extends KupoBaseService implements UtxoService {
                     return Result.error("Not Found").withValue(null).code(404);
                 }
             } else {
-                return Result.error(response.errorBody().string()).code(response.code());
+                return Result.error(response.errorBody() != null?response.errorBody().string(): null).code(response.code());
             }
         } catch (IOException e) {
             throw new ApiException(e.getMessage());
@@ -111,7 +111,7 @@ public class KupoUtxoService extends KupoBaseService implements UtxoService {
                 });
                 return Result.success("OK").withValue(utxos).code(200);
             } else {
-                return Result.error(response.errorBody().string()).code(response.code());
+                return Result.error(response.errorBody() != null?response.errorBody().string(): null).code(response.code());
             }
         } catch (IOException e) {
             throw new ApiException("Error getting utxos", e);
