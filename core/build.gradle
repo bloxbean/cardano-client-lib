@@ -4,8 +4,11 @@ dependencies {
     api project(':transaction-common')
     api project(":address")
     api project(':metadata')
+    api project(':spec')
+    api project(':core-api')
+    api project(':plutus')
+    api project(':coinselection')
 
-    implementation(libs.guava)
     implementation(libs.bouncycastle.bcprov)
 }
 

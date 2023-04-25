@@ -8,7 +8,7 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.HexUtil;
-import com.bloxbean.cardano.client.util.PolicyUtil;
+import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

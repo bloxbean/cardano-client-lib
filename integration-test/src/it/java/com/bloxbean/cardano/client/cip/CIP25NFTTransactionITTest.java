@@ -16,7 +16,7 @@ import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
-import com.bloxbean.cardano.client.util.PolicyUtil;
+import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

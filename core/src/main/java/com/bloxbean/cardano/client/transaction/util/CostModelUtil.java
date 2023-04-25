@@ -9,6 +9,10 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 
+@Deprecated
+/**
+ * Use {@link com.bloxbean.cardano.client.api.util.CostModelUtil} from core-api module instead
+ */
 public class CostModelUtil {
 
     //babbage -- 14th Feb 2023 HF

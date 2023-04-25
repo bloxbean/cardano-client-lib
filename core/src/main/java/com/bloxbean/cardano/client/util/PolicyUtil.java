@@ -14,6 +14,10 @@ import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import java.util.ArrayList;
 import java.util.List;
 
+@Deprecated
+/**
+ * @deprecated Use {@link com.bloxbean.cardano.client.api.util.PolicyUtil} instead
+ */
 public class PolicyUtil {
 
     private static final int SLOTS_PER_EPOCH = 5 * 24 * 60 * 60;

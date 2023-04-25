@@ -5,6 +5,10 @@ include 'crypto'
 include 'transaction-common'
 include 'address'
 include 'metadata'
+include 'spec'
+include 'core-api'
+include 'plutus'
+include 'coinselection'
 include 'core'
 include 'function'
 
@@ -23,6 +27,4 @@ include 'backend-modules:blockfrost'
 include 'backend-modules:koios'
 include 'backend-modules:ogmios'
 include 'integration-test'
-
-
 

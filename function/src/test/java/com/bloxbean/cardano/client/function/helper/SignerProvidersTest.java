@@ -1,13 +1,13 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
-import com.bloxbean.cardano.client.util.PolicyUtil;
+import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;

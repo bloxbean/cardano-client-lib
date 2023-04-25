@@ -1,0 +1,15 @@
+dependencies {
+    api project(':common')
+    api project(':core-api')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Coinselection module'
+                description = 'Cardano Client Lib - Coinselection Module'
+            }
+        }
+    }
+}
