@@ -3,8 +3,8 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
-import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

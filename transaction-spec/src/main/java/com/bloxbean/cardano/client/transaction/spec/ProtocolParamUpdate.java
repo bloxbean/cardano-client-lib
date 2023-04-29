@@ -14,7 +14,7 @@ import lombok.*;
 import java.math.BigInteger;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil.*;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toRational;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
 

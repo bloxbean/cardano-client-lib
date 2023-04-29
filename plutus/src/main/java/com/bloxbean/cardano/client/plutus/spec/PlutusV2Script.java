@@ -2,8 +2,8 @@ package com.bloxbean.cardano.client.plutus.spec;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
-import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.experimental.SuperBuilder;
 

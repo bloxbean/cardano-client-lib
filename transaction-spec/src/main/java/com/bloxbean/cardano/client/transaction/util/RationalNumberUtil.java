@@ -4,7 +4,7 @@ import co.nstant.in.cbor.model.RationalNumber;
 import com.bloxbean.cardano.client.spec.Rational;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 
-import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil.getBigInteger;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
 
 public class RationalNumberUtil {
 

@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction;
 
 import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
@@ -16,7 +17,6 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionBody;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.VkeyWitness;
-import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 
 import java.util.ArrayList;
 

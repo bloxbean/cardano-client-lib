@@ -10,10 +10,10 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getBigInteger;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 import static com.bloxbean.cardano.client.transaction.spec.cert.MirPot.RESERVES;
 import static com.bloxbean.cardano.client.transaction.spec.cert.MirPot.TREASURY;
-import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil.getBigInteger;
-import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil.toInt;
 
 @Getter
 @NoArgsConstructor

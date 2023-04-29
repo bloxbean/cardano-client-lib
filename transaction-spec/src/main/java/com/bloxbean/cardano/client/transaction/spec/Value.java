@@ -2,8 +2,8 @@ package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
-import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

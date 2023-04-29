@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -10,7 +11,6 @@ import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationExcep
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
-import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -2,10 +2,10 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.UnitInterval;
-import com.bloxbean.cardano.client.transaction.util.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
 
@@ -17,7 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil.*;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
 
 @Getter
 @AllArgsConstructor

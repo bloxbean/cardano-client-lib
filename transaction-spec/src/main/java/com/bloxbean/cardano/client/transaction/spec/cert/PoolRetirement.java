@@ -10,7 +10,8 @@ import lombok.*;
 
 import java.util.List;
 
-import static com.bloxbean.cardano.client.transaction.util.CborSerializationUtil.*;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toBytes;
+import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toLong;
 
 @Getter
 @NoArgsConstructor
