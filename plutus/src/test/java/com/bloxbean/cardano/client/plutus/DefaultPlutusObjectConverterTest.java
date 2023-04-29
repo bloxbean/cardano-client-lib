@@ -7,7 +7,7 @@ import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.plutus.api.PlutusObjectConverter;
 import com.bloxbean.cardano.client.plutus.impl.DefaultPlutusObjectConverter;
-import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.Builder;
 import lombok.Data;
@@ -18,8 +18,6 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.*;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 class DefaultPlutusObjectConverterTest {
 

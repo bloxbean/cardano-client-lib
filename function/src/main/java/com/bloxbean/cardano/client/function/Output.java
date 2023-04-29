@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.function.helper.OutputBuilders;
-import com.bloxbean.cardano.client.transaction.spec.PlutusData;
-import com.bloxbean.cardano.client.transaction.spec.script.Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.spec.Script;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

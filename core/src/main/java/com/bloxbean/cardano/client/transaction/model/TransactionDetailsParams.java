@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.transaction.model;
 
-import com.bloxbean.cardano.client.transaction.spec.NetworkId;
+import com.bloxbean.cardano.client.spec.NetworkId;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
