@@ -1,0 +1,14 @@
+dependencies {
+    api project(':core')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client QuickTx module'
+                description = 'Cardano Client Lib - QuickTx Module'
+            }
+        }
+    }
+}

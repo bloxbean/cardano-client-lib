@@ -11,6 +11,7 @@ include 'plutus'
 include 'coinselection'
 include 'core'
 include 'function'
+include 'quicktx'
 
 //CIPs
 include 'cip'
