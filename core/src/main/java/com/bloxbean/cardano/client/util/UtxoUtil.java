@@ -16,6 +16,10 @@ import java.util.stream.Collectors;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 @Slf4j
+@Deprecated
+/**
+ * @deprecated Use {@link com.bloxbean.cardano.client.api.util.UtxoUtil} instead
+ */
 public class UtxoUtil {
 
     /**

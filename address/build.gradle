@@ -1,7 +1,7 @@
 dependencies {
     api project(':common')
     api project(':crypto')
-    api project(':transaction-common')
+    api project(':common-spec')
 
     implementation(libs.guava)
 }

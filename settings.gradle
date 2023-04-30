@@ -2,9 +2,13 @@ rootProject.name = 'cardano-client-lib'
 //Main Modules
 include 'common'
 include 'crypto'
-include 'transaction-common'
+include 'common-spec'
 include 'address'
 include 'metadata'
+include 'transaction-spec'
+include 'core-api'
+include 'plutus'
+include 'coinselection'
 include 'core'
 include 'function'
 
@@ -23,6 +27,4 @@ include 'backend-modules:blockfrost'
 include 'backend-modules:koios'
 include 'backend-modules:ogmios'
 include 'integration-test'
-
-
 

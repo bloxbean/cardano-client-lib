@@ -1,0 +1,15 @@
+dependencies {
+    api project(':common')
+    api project(':common-spec')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Plutus module'
+                description = 'Cardano Client Lib - Plutus Module'
+            }
+        }
+    }
+}

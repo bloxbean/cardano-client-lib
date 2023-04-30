@@ -1,14 +1,18 @@
 package com.bloxbean.cardano.client.transaction.util;
 
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
-import com.bloxbean.cardano.client.transaction.spec.CostMdls;
-import com.bloxbean.cardano.client.transaction.spec.CostModel;
-import com.bloxbean.cardano.client.transaction.spec.Language;
+import com.bloxbean.cardano.client.plutus.spec.CostMdls;
+import com.bloxbean.cardano.client.plutus.spec.CostModel;
+import com.bloxbean.cardano.client.plutus.spec.Language;
 
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 
+@Deprecated
+/**
+ * Use {@link com.bloxbean.cardano.client.api.util.CostModelUtil} from core-api module instead
+ */
 public class CostModelUtil {
 
     //babbage -- 14th Feb 2023 HF

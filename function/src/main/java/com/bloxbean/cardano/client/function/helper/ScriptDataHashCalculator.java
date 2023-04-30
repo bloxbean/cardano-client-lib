@@ -5,12 +5,12 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
-import com.bloxbean.cardano.client.transaction.spec.CostMdls;
-import com.bloxbean.cardano.client.transaction.spec.CostModel;
-import com.bloxbean.cardano.client.transaction.spec.Language;
+import com.bloxbean.cardano.client.plutus.spec.CostMdls;
+import com.bloxbean.cardano.client.plutus.spec.CostModel;
+import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
-import com.bloxbean.cardano.client.transaction.util.ScriptDataHashGenerator;
+import com.bloxbean.cardano.client.plutus.util.ScriptDataHashGenerator;
 
 import java.util.Optional;
 

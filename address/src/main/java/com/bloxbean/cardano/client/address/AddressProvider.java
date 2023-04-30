@@ -5,8 +5,8 @@ import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.transaction.spec.NetworkId;
-import com.bloxbean.cardano.client.transaction.spec.script.Script;
+import com.bloxbean.cardano.client.spec.NetworkId;
+import com.bloxbean.cardano.client.spec.Script;
 import com.google.common.primitives.Bytes;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -20,11 +20,30 @@ import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil
 import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash224;
 
 /**
- * Utility class to generate various types of addresses.
+ * Utility class to generate various types of Shelley addresses.
  */
 @Slf4j
 public class AddressProvider {
 
+    private static final byte BASE_PAYMENT_KEY_STAKE_KEY_HEADER_TYPE = 0b0000_0000;
+    private static final byte BASE_PAYMENT_SCRIPT_STAKE_KEY_HEADER_TYPE = 0b0001_0000;
+    private static final byte BASE_PAYMENT_KEY_STAKE_SCRIPT_HEADER_TYPE = 0b0010_0000;
+    private static final byte BASE_PAYMENT_SCRIPT_STAKE_SCRIPT_HEADER_TYPE = 0b0011_0000;
+    private static final byte PTR_PAYMENT_KEY_STAKE_PTR_HEADER_TYPE = 0b0100_0000;
+    private static final byte PTR_PAYMENT_SCRIPT_STAKE_PTR_HEADER_TYPE = 0b0101_0000;
+    private static final byte ENT_PAYMENT_KEY_HEADER_TYPE = 0b0110_0000;
+    private static final byte ENT_PAYMENT_SCRIPT_HEADER_TYPE = 0b0111_0000;
+    private static final byte RWD_STAKE_KEY_HEDER_TYPE = (byte)0b1110_0000;
+    private static final byte RWD_STAKE_SCRIPT_HEADER_TYPE = (byte)0b1111_0000;
+
+    /**
+     * Returns base address from payment key and delegation key
+     * @param paymentKey HdPublicKey
+     * @param delegationKey HdPublicKey
+     * @param networkInfo Network
+     * @return Base address
+     * @throws AddressRuntimeException
+     */
     //header: 0000....
     public static Address getBaseAddress(HdPublicKey paymentKey, HdPublicKey delegationKey, Network networkInfo) {
         if (paymentKey == null || delegationKey == null)
@@ -33,51 +52,131 @@ public class AddressProvider {
         byte[] paymentKeyHash = paymentKey.getKeyHash();
         byte[] delegationKeyHash = delegationKey.getKeyHash();
 
-        byte headerType = 0b0000_0000;
-
-        return getAddress(paymentKeyHash, delegationKeyHash, headerType, networkInfo, AddressType.Base);
+        return getAddress(paymentKeyHash, delegationKeyHash, BASE_PAYMENT_KEY_STAKE_KEY_HEADER_TYPE, networkInfo, AddressType.Base);
     }
 
+    /**
+     * Returns base address from script in payment part and delegation key
+     * @param paymentScript Script
+     * @param delegationKey HdPublicKey
+     * @param networkInfo   Network
+     * @return Base address
+     * @throws AddressRuntimeException
+     */
     //header: 0001....
-    public static Address getBaseAddress(Script paymentKey, HdPublicKey delegationKey, Network networkInfo) throws CborSerializationException {
-        if (paymentKey == null || delegationKey == null)
-            throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
+    public static Address getBaseAddress(Script paymentScript, HdPublicKey delegationKey, Network networkInfo) {
+        if (paymentScript == null || delegationKey == null)
+            throw new AddressRuntimeException("paymentScript and delegationKey cannot be null");
 
-        byte[] paymentKeyHash = paymentKey.getScriptHash();
+        byte[] paymentScriptHash;
+        try {
+            paymentScriptHash = paymentScript.getScriptHash();
+        } catch (CborSerializationException e) {
+            throw new AddressRuntimeException("Unable to get script hash from payment script", e);
+        }
         byte[] delegationKeyHash = delegationKey.getKeyHash();
 
-        byte headerType = 0b0001_0000;
+        byte headerType = BASE_PAYMENT_SCRIPT_STAKE_KEY_HEADER_TYPE;
 
-        return getAddress(paymentKeyHash, delegationKeyHash, headerType, networkInfo, AddressType.Base);
+        return getAddress(paymentScriptHash, delegationKeyHash, headerType, networkInfo, AddressType.Base);
     }
 
+    /**
+     * Returns base address from payment key and delegation script
+     * @param paymentKey payment key
+     * @param delegationScript delegation script
+     * @param networkInfo Network
+     * @return Base address
+     * @throws AddressRuntimeException
+     */
     //header: 0010....
-    public static Address getBaseAddress(HdPublicKey paymentKey, Script delegationKey, Network networkInfo) throws CborSerializationException {
-        if (paymentKey == null || delegationKey == null)
-            throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
+    public static Address getBaseAddress(HdPublicKey paymentKey, Script delegationScript, Network networkInfo) {
+        if (paymentKey == null || delegationScript == null)
+            throw new AddressRuntimeException("paymentkey and delegationScript cannot be null");
 
         byte[] paymentKeyHash = paymentKey.getKeyHash();
-        byte[] delegationKeyHash = delegationKey.getScriptHash();
+        byte[] delegationScriptHash;
+        try {
+            delegationScriptHash = delegationScript.getScriptHash();
+        } catch (CborSerializationException e) {
+            throw new AddressRuntimeException("Unable to get script hash from delegation script", e);
+        }
 
-        byte headerType = 0b0010_0000;
+        byte headerType = BASE_PAYMENT_KEY_STAKE_SCRIPT_HEADER_TYPE;
 
-        return getAddress(paymentKeyHash, delegationKeyHash, headerType, networkInfo, AddressType.Base);
+        return getAddress(paymentKeyHash, delegationScriptHash, headerType, networkInfo, AddressType.Base);
     }
 
+    /**
+     * Returns base address from payment script and delegation script
+     * @param paymentScript payment script
+     * @param delegationScript delegation script
+     * @param networkInfo Network
+     * @return Base address
+     * @throws AddressRuntimeException
+     */
     //header: 0011....
-    public static Address getBaseAddress(Script paymentKey, Script delegationKey, Network networkInfo) throws CborSerializationException {
-        if (paymentKey == null || delegationKey == null)
-            throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
+    public static Address getBaseAddress(Script paymentScript, Script delegationScript, Network networkInfo) {
+        if (paymentScript == null || delegationScript == null)
+            throw new AddressRuntimeException("paymentScript and delegationScript cannot be null");
 
-        byte[] paymentKeyHash = paymentKey.getScriptHash();
-        byte[] delegationKeyHash = delegationKey.getScriptHash();
+        byte[] paymentScriptHash;
+        byte[] delegationScriptHash;
+        try {
+            paymentScriptHash = paymentScript.getScriptHash();
+            delegationScriptHash = delegationScript.getScriptHash();
+        } catch (CborSerializationException e) {
+            throw new RuntimeException(e);
+        }
 
-        byte headerType = 0b0011_0000;
+        byte headerType = BASE_PAYMENT_SCRIPT_STAKE_SCRIPT_HEADER_TYPE;
 
-        return getAddress(paymentKeyHash, delegationKeyHash, headerType, networkInfo, AddressType.Base);
+        return getAddress(paymentScriptHash, delegationScriptHash, headerType, networkInfo, AddressType.Base);
     }
 
-    //TODO -- Implement Pointer address
+    /**
+     * Returns base address from payment credential and delegation credential.
+     * Payment credential can be either verification key hash or script hash.
+     * Delegation credential can be either verification key hash or script hash.
+     * @param paymentCredential payment credential
+     * @param delegationCredential delegation credential
+     * @param networkInfo network
+     * @return Base address
+     * @throws AddressRuntimeException
+     */
+    public static Address getBaseAddress(Credential paymentCredential, Credential delegationCredential, Network networkInfo) {
+        if (paymentCredential == null || delegationCredential == null)
+            throw new AddressRuntimeException("paymentCredential and delegationCredential cannot be null");
+
+        if (paymentCredential.getType() == CredentialType.Key
+                && delegationCredential.getType() == CredentialType.Key) {
+            return getAddress(paymentCredential.getBytes(), delegationCredential.getBytes(),
+                    BASE_PAYMENT_KEY_STAKE_KEY_HEADER_TYPE, networkInfo, AddressType.Base);
+        } else if (paymentCredential.getType() == CredentialType.Script
+                && delegationCredential.getType() == CredentialType.Key) {
+            return getAddress(paymentCredential.getBytes(), delegationCredential.getBytes(),
+                    BASE_PAYMENT_SCRIPT_STAKE_KEY_HEADER_TYPE, networkInfo, AddressType.Base);
+        } else if (paymentCredential.getType() == CredentialType.Key
+                && delegationCredential.getType() == CredentialType.Script) {
+            return getAddress(paymentCredential.getBytes(), delegationCredential.getBytes(),
+                    BASE_PAYMENT_KEY_STAKE_SCRIPT_HEADER_TYPE, networkInfo, AddressType.Base);
+        } else if (paymentCredential.getType() == CredentialType.Script
+                && delegationCredential.getType() == CredentialType.Script) {
+            return getAddress(paymentCredential.getBytes(), delegationCredential.getBytes(),
+                    BASE_PAYMENT_SCRIPT_STAKE_SCRIPT_HEADER_TYPE, networkInfo, AddressType.Base);
+        } else
+            throw new AddressRuntimeException("Invalid credential type, should be either Key or Script. Payment Credential: "
+                    + paymentCredential + ", Delegation Credential: " + delegationCredential);
+    }
+
+    /**
+     * Returns pointer address from payment key and delegation pointer
+     * @param paymentKey payment key
+     * @param delegationPointer delegation pointer
+     * @param networkInfo Network
+     * @return Pointer address
+     * @throws AddressRuntimeException
+     */
     //header: 0100....
     public static Address getPointerAddress(HdPublicKey paymentKey, Pointer delegationPointer, Network networkInfo) {
         if (paymentKey == null || delegationPointer == null)
@@ -87,23 +186,72 @@ public class AddressProvider {
         byte[] delegationPointerHash = BytesUtil.merge(variableNatEncode(delegationPointer.slot),
                 variableNatEncode(delegationPointer.txIndex), variableNatEncode(delegationPointer.certIndex));
 
-        byte headerType = 0b0100_0000;
+        byte headerType = PTR_PAYMENT_KEY_STAKE_PTR_HEADER_TYPE;
         return getAddress(paymentKeyHash, delegationPointerHash, headerType, networkInfo, AddressType.Ptr);
     }
 
+    /**
+     * Returns pointer address from payment script and delegation pointer
+     * @param paymentScript payment script
+     * @param delegationPointer delegation pointer
+     * @param networkInfo Network
+     * @return Pointer address
+     * @throws AddressRuntimeException
+     */
     //header: 0101....
-    public static Address getPointerAddress(Script paymentKey, Pointer delegationPointer, Network networkInfo) throws CborSerializationException {
-        if (paymentKey == null || delegationPointer == null)
-            throw new AddressRuntimeException("paymentkey and delegationKey cannot be null");
+    public static Address getPointerAddress(Script paymentScript, Pointer delegationPointer, Network networkInfo) {
+        if (paymentScript == null || delegationPointer == null)
+            throw new AddressRuntimeException("paymentScript and delegationKey cannot be null");
 
-        byte[] paymentKeyHash = paymentKey.getScriptHash();
+        byte[] paymentScriptHash;
+        try {
+            paymentScriptHash = paymentScript.getScriptHash();
+        } catch (CborSerializationException e) {
+            throw new AddressRuntimeException("Unable to get script hash from payment script", e);
+        }
         byte[] delegationPointerHash = BytesUtil.merge(variableNatEncode(delegationPointer.slot),
                 variableNatEncode(delegationPointer.txIndex), variableNatEncode(delegationPointer.certIndex));
 
-        byte headerType = 0b0101_0000;
-        return getAddress(paymentKeyHash, delegationPointerHash, headerType, networkInfo, AddressType.Ptr);
+        byte headerType = PTR_PAYMENT_SCRIPT_STAKE_PTR_HEADER_TYPE;
+        return getAddress(paymentScriptHash, delegationPointerHash, headerType, networkInfo, AddressType.Ptr);
     }
 
+    /**
+     * Returns pointer address from payment credential and delegation pointer.
+     * Payment credential can be either verification key hash or script hash.
+     * @param paymentCredential payment credential
+     * @param delegationPointer delegation pointer
+     * @param networkInfo network
+     * @return Pointer address
+     * @throws AddressRuntimeException
+     */
+    public static Address getPointerAddress(Credential paymentCredential, Pointer delegationPointer, Network networkInfo) {
+        if (paymentCredential == null || delegationPointer == null)
+            throw new AddressRuntimeException("paymentCredential and delegationPointer cannot be null");
+
+        byte[] delegationPointerHash = BytesUtil.merge(variableNatEncode(delegationPointer.slot),
+                variableNatEncode(delegationPointer.txIndex), variableNatEncode(delegationPointer.certIndex));
+
+        switch (paymentCredential.getType()) {
+            case Key:
+                return getAddress(paymentCredential.getBytes(), delegationPointerHash,
+                        PTR_PAYMENT_KEY_STAKE_PTR_HEADER_TYPE, networkInfo, AddressType.Ptr);
+            case Script:
+                return getAddress(paymentCredential.getBytes(), delegationPointerHash,
+                        PTR_PAYMENT_SCRIPT_STAKE_PTR_HEADER_TYPE, networkInfo, AddressType.Ptr);
+            default:
+                throw new AddressRuntimeException("Invalid credential type, should be either Key or Script. Payment Credential: "
+                        + paymentCredential + ", Delegation Pointer: " + delegationPointer);
+        }
+    }
+
+    /**
+     * Returns enterprise address from payment key
+     * @param paymentKey payment key
+     * @param networkInfo network
+     * @return Enterprise address
+     * @throws AddressRuntimeException
+     */
     //header: 0110....
     public static Address getEntAddress(HdPublicKey paymentKey, Network networkInfo)  {
         if (paymentKey == null)
@@ -111,45 +259,120 @@ public class AddressProvider {
 
         byte[] paymentKeyHash = paymentKey.getKeyHash();
 
-        byte headerType = 0b0110_0000;
+        byte headerType = ENT_PAYMENT_KEY_HEADER_TYPE;
 
         return getAddress(paymentKeyHash, null, headerType, networkInfo, AddressType.Enterprise);
     }
 
+    /**
+     * Returns enterprise address from payment script
+     * @param paymentScript payment script
+     * @param networkInfo network
+     * @return Enterprise address
+     * @throws AddressRuntimeException
+     */
     //header: 0111....
-    public static Address getEntAddress(Script paymentKey, Network networkInfo) throws CborSerializationException {
-        if (paymentKey == null)
-            throw new AddressRuntimeException("paymentkey cannot be null");
+    public static Address getEntAddress(Script paymentScript, Network networkInfo) {
+        if (paymentScript == null)
+            throw new AddressRuntimeException("paymentScript cannot be null");
 
-        byte[] paymentKeyHash = paymentKey.getScriptHash();
+        byte[] paymentScriptHash;
+        try {
+            paymentScriptHash = paymentScript.getScriptHash();
+        } catch (CborSerializationException e) {
+            throw new AddressRuntimeException("Unable to get script hash from payment script", e);
+        }
 
-        byte headerType = 0b0111_0000;
+        byte headerType = ENT_PAYMENT_SCRIPT_HEADER_TYPE;
 
-        return getAddress(paymentKeyHash, null, headerType, networkInfo, AddressType.Enterprise);
+        return getAddress(paymentScriptHash, null, headerType, networkInfo, AddressType.Enterprise);
     }
 
+    /**
+     * Returns enterprise address from payment credential.
+     * Payment credential can be either verification key hash or script hash.
+     * @param paymentCredential payment credential
+     * @param networkInfo network
+     * @return Enterprise address
+     * @throws AddressRuntimeException
+     */
+    public static Address getEntAddress(@NonNull Credential paymentCredential, Network networkInfo) {
+        switch (paymentCredential.getType()) {
+            case Key:
+                return getAddress(paymentCredential.getBytes(), null,
+                        ENT_PAYMENT_KEY_HEADER_TYPE, networkInfo, AddressType.Enterprise);
+            case Script:
+                return getAddress(paymentCredential.getBytes(), null,
+                        ENT_PAYMENT_SCRIPT_HEADER_TYPE, networkInfo, AddressType.Enterprise);
+            default:
+                throw new AddressRuntimeException("Invalid credential type, should be either Key or Script. Payment Credential: "
+                        + paymentCredential);
+        }
+    }
+
+    /**
+     * Returns reward address from delegation key
+     * @param delegationKey Delegation/Stake key
+     * @param networkInfo network
+     * @return Reward address
+     * @throws AddressRuntimeException
+     */
     //header: 1110....
-    public static Address getRewardAddress(HdPublicKey stakeKey, Network networkInfo)  {
-        if (stakeKey == null)
+    public static Address getRewardAddress(HdPublicKey delegationKey, Network networkInfo)  {
+        if (delegationKey == null)
             throw new AddressRuntimeException("stakeKey cannot be null");
 
-        byte[] stakeKeyHash = stakeKey.getKeyHash();
+        byte[] stakeKeyHash = delegationKey.getKeyHash();
 
-        int headerType = 0b1110_0000;
+        byte headerType = RWD_STAKE_KEY_HEDER_TYPE;
 
-        return getAddress(null, stakeKeyHash, (byte) headerType, networkInfo, AddressType.Reward);
+        return getAddress(null, stakeKeyHash, headerType, networkInfo, AddressType.Reward);
     }
 
+    /**
+     * Returns reward address from delegation script
+     * @param delegationScript Delegation/Stake script
+     * @param networkInfo network
+     * @return Reward address
+     * @throws AddressRuntimeException
+     */
     //header: 1111....
-    public static Address getRewardAddress(Script stakeKey, Network networkInfo) throws CborSerializationException {
-        if (stakeKey == null)
-            throw new AddressRuntimeException("stakeKey cannot be null");
+    public static Address getRewardAddress(Script delegationScript, Network networkInfo) {
+        if (delegationScript == null)
+            throw new AddressRuntimeException("delegationScript cannot be null");
 
-        byte[] stakeKeyHash = stakeKey.getScriptHash();
+        byte[] stakeScriptHash;
+        try {
+            stakeScriptHash = delegationScript.getScriptHash();
+        } catch (CborSerializationException e) {
+            throw new AddressRuntimeException("Unable to get script hash from delegation script", e);
+        }
 
-        int headerType = 0b1111_0000;
+        byte headerType = RWD_STAKE_SCRIPT_HEADER_TYPE;
 
-        return getAddress(null, stakeKeyHash, (byte) headerType, networkInfo, AddressType.Reward);
+        return getAddress(null, stakeScriptHash, headerType, networkInfo, AddressType.Reward);
+    }
+
+    /**
+     * Returns reward address from stake credential.
+     * Stake credential can be either verification key hash or script hash.
+     * @param stakeCredential Stake credential
+     * @param networkInfo network
+     * @return Reward address
+     * @throws AddressRuntimeException
+     */
+    public static Address getRewardAddress(@NonNull Credential stakeCredential, Network networkInfo) {
+        switch (stakeCredential.getType()) {
+            case Key:
+                return getAddress(null, stakeCredential.getBytes(),
+                        RWD_STAKE_KEY_HEDER_TYPE, networkInfo, AddressType.Reward);
+            case Script:
+                return getAddress(null, stakeCredential.getBytes(),
+                        RWD_STAKE_SCRIPT_HEADER_TYPE, networkInfo, AddressType.Reward);
+            default:
+                throw new AddressRuntimeException("Invalid credential type, should be either Key or Script. Stake Credential: "
+                        + stakeCredential);
+        }
     }
 
     private static Address getAddress(byte[] paymentKeyHash, byte[] stakeKeyHash, byte headerKind, Network networkInfo, AddressType addressType) {
@@ -200,8 +423,8 @@ public class AddressProvider {
     /**
      * Verify the provided address with publicKey
      * Reconstruct the address from public key and then compare it with the provided address
-     * @param address
-     * @param publicKey
+     * @param address address
+     * @param publicKey public key bytes
      * @return true or false
      */
     public static boolean verifyAddress(@NonNull Address address, byte[] publicKey) {

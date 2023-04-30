@@ -2,7 +2,8 @@ package com.bloxbean.cardano.client.transaction.util;
 
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.plutus.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
@@ -11,6 +12,7 @@ import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+//TODO -- Move this test to spec module later
 class ScriptDataHashGeneratorTest {
 
     //This is Alonzo cost model. Update later //TODO

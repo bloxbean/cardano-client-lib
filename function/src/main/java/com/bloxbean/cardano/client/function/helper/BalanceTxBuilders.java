@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.function.TxBuilder;
-import com.bloxbean.cardano.client.util.UtxoUtil;
+import com.bloxbean.cardano.client.api.util.UtxoUtil;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
