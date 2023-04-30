@@ -1,30 +1,20 @@
 package com.bloxbean.cardano.client.quicktx;
 
-import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
-import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
-import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
-import com.bloxbean.cardano.client.function.*;
-import com.bloxbean.cardano.client.function.helper.AuxDataProviders;
+import com.bloxbean.cardano.client.function.TxBuilder;
+import com.bloxbean.cardano.client.function.TxBuilderContext;
+import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.BalanceTxBuilders;
-import com.bloxbean.cardano.client.function.helper.InputBuilders;
-import com.bloxbean.cardano.client.function.helper.SignerProviders;
-import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.util.Tuple;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 /**
  * QuickTxBuilder is a utility class to build and submit transactions quickly. It provides high level APIs to build
@@ -36,132 +26,92 @@ public class QuickTxBuilder {
     private ProtocolParamsSupplier protocolParamsSupplier;
     private TransactionProcessor transactionProcessor;
 
-    private TxBuilder txBuilder;
-    private TxOutputBuilder txOutputBuilder;
-    private TxSigner txSigner;
-    private String sender;
-    private Account senderAccount;
+    private TxBuilder txBuilder = (context, txn) -> {};
 
+    private String balanceChangeAddress;
     private TxBuilder preBalanceTrasformer;
     private TxBuilder postBalanceTrasformer;
 
-    private QuickTxBuilder(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier,
+    public QuickTxBuilder(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier,
                            TransactionProcessor transactionProcessor) {
         this.utxoSupplier = utxoSupplier;
         this.protocolParamsSupplier = protocolParamsSupplier;
         this.transactionProcessor = transactionProcessor;
-
-        txBuilder = (context, txn) -> {};
-        txOutputBuilder = (context, txn) -> {};
     }
 
-    public static QuickTxBuilder newTx(BackendService backendService) {
-        return QuickTxBuilder.newTx(new DefaultUtxoSupplier(backendService.getUtxoService()),
+    public static  QuickTxBuilder create(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier,
+                          TransactionProcessor transactionProcessor) {
+        return new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+    }
+
+    public static QuickTxBuilder create(BackendService backendService) {
+        return new QuickTxBuilder(new DefaultUtxoSupplier(backendService.getUtxoService()),
                 new DefaultProtocolParamsSupplier(backendService.getEpochService()),
                 new DefaultTransactionProcessor(backendService.getTransactionService()));
     }
 
-    public static QuickTxBuilder newTx(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier,
-                                       TransactionProcessor transactionProcessor) {
-        return new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+    public Tx newTx() {
+        return new Tx();
     }
 
-    public QuickTxBuilder withSender(String sender) {
-        if (senderAccount != null)
-            throw new IllegalStateException("Sender and senderAccount cannot be set at the same time");
-
-        this.txBuilder = txOutputBuilder.buildInputs(InputBuilders
-                .createFromSender(sender, sender));
-
-        this.sender = sender;
+    public QuickTxBuilder balanceChangeAddress(String address) {
+        this.balanceChangeAddress = address;
         return this;
     }
 
-    public QuickTxBuilder withSender(Account account) {
-        if (sender != null)
-            throw new IllegalStateException("Sender and senderAccount cannot be set at the same time");
-
-        this.txBuilder = txBuilder.andThen(txOutputBuilder.buildInputs(InputBuilders
-                .createFromSender(account.baseAddress(), account.baseAddress())));
-        this.senderAccount = account;
-        return this;
-    }
-
-    public QuickTxBuilder withSigner(TxSigner signer) {
-        this.txSigner = signer;
-        return this;
-    }
-
-    public QuickTxBuilder payToAddress(String address, Amount amount) {
-        return payToAddress(address, List.of(amount));
-    }
-
-    public QuickTxBuilder payToAddress(String address, List<Amount> amounts) {
-        for (Amount amount: amounts) {
-            String unit = amount.getUnit();
-            Output output;
-            if (unit.equals(LOVELACE)) {
-                output = Output.builder()
-                        .address(address)
-                        .assetName(LOVELACE)
-                        .qty(amount.getQuantity())
-                        .build();
-            } else {
-                Tuple<String, String> policyAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
-                output = Output.builder()
-                        .address(address)
-                        .policyId(policyAssetName._1)
-                        .assetName(policyAssetName._2)
-                        .qty(amount.getQuantity())
-                        .build();
-            }
-
-            txOutputBuilder = txOutputBuilder.and(output.outputBuilder());
-        }
-
-        return this;
-    }
-
-    public QuickTxBuilder attachMetadata(Metadata metadata) {
-        this.txBuilder = this.txBuilder.andThen(AuxDataProviders.metadataProvider(metadata));
-        return this;
-    }
-
-    public QuickTxBuilder preBalance(TxBuilder txBuilder) {
+    public QuickTxBuilder preBalanceTx(TxBuilder txBuilder) {
         this.preBalanceTrasformer = txBuilder;
         return this;
     }
 
-    public QuickTxBuilder postBalance(TxBuilder txBuilder) {
+    public QuickTxBuilder postBalanceTx(TxBuilder txBuilder) {
         this.postBalanceTrasformer = txBuilder;
         return this;
     }
 
-    public Transaction build() {
-        String senderAddress = sender;
-        if (senderAccount != null)
-            senderAddress = senderAccount.baseAddress();
+    public Transaction build(Tx... txList) {
+        int totalSigners = 0;
+        for(Tx tx: txList) {
+            this.txBuilder = this.txBuilder.andThen(tx.txBuilder());
+            totalSigners += tx.additionalSigner();
+        }
 
         TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier);
 
         if (preBalanceTrasformer != null)
             txBuilder = txBuilder.andThen(preBalanceTrasformer);
 
-        txBuilder = txBuilder.andThen(BalanceTxBuilders.balanceTx(senderAddress));
+        if (balanceChangeAddress == null) {
+            if (txList.length == 1)
+                balanceChangeAddress = txList[0].sender();
+            else
+                throw new TxBuildException("Balance change address is not set. " +
+                        "It's mandatory when there are more than one txs");
+        }
 
+        txBuilder = txBuilder.andThen(BalanceTxBuilders.balanceTxWithAdditionalSigners(balanceChangeAddress, totalSigners));
         if (postBalanceTrasformer != null)
             txBuilder = txBuilder.andThen(postBalanceTrasformer);
 
         return txBuilderContext.build(txBuilder);
     }
 
-    public Result<String> complete() {
-        Transaction transaction = build();
-        if (senderAccount != null)
-            transaction = SignerProviders.signerFrom(senderAccount).sign(transaction);
-        else if (txSigner != null)
-            transaction = txSigner.sign(transaction);
+    public Transaction buildAndSign(Tx... txList) {
+        Transaction transaction = build(txList);
+        for (Tx tx : txList) {
+            if (tx.txSigner() != null) {
+                transaction = tx.txSigner().sign(transaction);
+            }
+        }
 
+        return transaction;
+    }
+
+    public Result<String> complete(Tx... txList) {
+        if (txList.length == 0)
+            throw new TxBuildException("At least one tx is required");
+
+        Transaction transaction = buildAndSign(txList);
         try {
             return transactionProcessor.submitTransaction(transaction.serialize());
         } catch (Exception e) {

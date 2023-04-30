@@ -78,6 +78,17 @@ public class AssetUtil {
     }
 
     /**
+     * Get unit name from policy id and asset name
+     * @param policyId policy id
+     * @param assetName asset name
+     * @return unit name
+     */
+    public static String getUnit(String policyId, String assetName) {
+        Asset asset = new Asset(assetName, BigInteger.ZERO);
+        return policyId + HexUtil.encodeHexString(asset.getNameAsBytes());
+    }
+
+    /**
      * Create a <code>{@link MultiAsset}</code> from unit and qty
      *
      * @param unit unit of the asset (policy id + asset name)
