@@ -4,7 +4,7 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.config.CoinselectionConfig;
-import com.bloxbean.cardano.client.transaction.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 
 import java.math.BigInteger;
 import java.util.ArrayList;

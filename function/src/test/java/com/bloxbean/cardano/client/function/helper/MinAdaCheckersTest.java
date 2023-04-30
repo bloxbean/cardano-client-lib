@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.function.MinAdaChecker;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
+import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import org.junit.jupiter.api.BeforeEach;

@@ -24,7 +24,7 @@ import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.helper.BalanceTxBuilders;
 import com.bloxbean.cardano.client.function.helper.InputBuilders;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.transaction.spec.UnitInterval;
+import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRetirement;
 import com.bloxbean.cardano.client.transaction.spec.cert.SingleHostAddr;

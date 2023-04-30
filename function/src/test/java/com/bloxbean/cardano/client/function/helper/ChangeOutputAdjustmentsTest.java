@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.function.BaseTest;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
+import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

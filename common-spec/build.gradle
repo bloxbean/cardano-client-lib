@@ -1,0 +1,15 @@
+dependencies {
+    api project(':common')
+    api project(':crypto')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Spec Common'
+                description = 'Cardano Client Lib - Common Spec classes used in other spec modules'
+            }
+        }
+    }
+}

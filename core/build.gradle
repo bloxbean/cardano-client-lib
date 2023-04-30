@@ -1,10 +1,10 @@
 dependencies {
     api project(':common')
     api project(':crypto')
-    api project(':transaction-common')
+    api project(':common-spec')
     api project(":address")
     api project(':metadata')
-    api project(':spec')
+    api project(':transaction-spec')
     api project(':core-api')
     api project(':plutus')
     api project(':coinselection')

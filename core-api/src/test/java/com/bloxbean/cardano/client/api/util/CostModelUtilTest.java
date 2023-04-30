@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.client.api.util;
 
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
-import com.bloxbean.cardano.client.transaction.spec.CostModel;
-import com.bloxbean.cardano.client.transaction.spec.Language;
+import com.bloxbean.cardano.client.plutus.spec.CostModel;
+import com.bloxbean.cardano.client.plutus.spec.Language;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;

@@ -1,0 +1,21 @@
+dependencies {
+    api project(':common')
+    api project(':crypto')
+    api project(':common-spec')
+    api project(":address")
+    api project(':metadata')
+    api project(':plutus')
+
+    implementation(libs.guava)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Transaction Spec (Serialization) module'
+                description = 'Cardano Client Lib - Transaction Spec Module'
+            }
+        }
+    }
+}

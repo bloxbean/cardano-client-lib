@@ -4,7 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
-import com.bloxbean.cardano.client.transaction.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
