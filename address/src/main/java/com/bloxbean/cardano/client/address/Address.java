@@ -8,6 +8,9 @@ import java.util.Optional;
 
 import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
 
+/**
+ * Address class represents Shelley address
+ */
 public class Address {
     private String prefix;
     private byte[] bytes;
@@ -15,6 +18,11 @@ public class Address {
     private AddressType addressType;
     private Network network;
 
+    /**
+     * Create Address from a byte array
+     * @param prefix Address prefix
+     * @param bytes Address bytes
+     */
     public Address(String prefix, byte[] bytes) {
         this.prefix = prefix;
         this.bytes = bytes;
@@ -40,6 +48,10 @@ public class Address {
         this.network = readNetworkType(this.bytes);
     }
 
+    /**
+     * Create Address from a byte array
+     * @param addressBytes
+     */
     public Address(byte[] addressBytes) {
         if (addressBytes == null)
             throw new AddressRuntimeException("Address cannot be null or empty");
@@ -55,6 +67,10 @@ public class Address {
         return bytes;
     }
 
+    /**
+     * Returns Bech32 encoded address
+     * @return Bech32 encoded address
+     */
     public String toBech32() {
         if (address == null || address.isEmpty()) {
             address = Bech32.encode(bytes, prefix);
@@ -62,18 +78,34 @@ public class Address {
         return address;
     }
 
+    /**
+     * Returns address prefix
+     * @return address prefix
+     */
     public String getPrefix() {
         return prefix;
     }
 
+    /**
+     * Returns Bech32 encoded address
+     * @return Bech32 encoded address
+     */
     public String getAddress() {
         return toBech32();
     }
 
+    /**
+     * Returns AddressType
+     * @return AddressType
+     */
     public AddressType getAddressType() {
         return addressType;
     }
 
+    /**
+     * Returns Network
+     * @return Network
+     */
     public Network getNetwork() {
         return network;
     }
