@@ -1,5 +1,11 @@
 dependencies {
     api project(':core')
+    api project(':function')
+    api project(':backend')
+
+    integrationTestImplementation project(':')
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation project(':backend-modules:koios')
 }
 
 publishing {
