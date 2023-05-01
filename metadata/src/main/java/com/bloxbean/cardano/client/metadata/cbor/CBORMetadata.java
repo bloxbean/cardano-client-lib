@@ -6,6 +6,8 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.metadata.MetadataList;
+import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
 import com.bloxbean.cardano.client.metadata.helper.MetadataToJsonNoSchemaConverter;
@@ -30,46 +32,55 @@ public class CBORMetadata implements Metadata {
         this.map = map;
     }
 
+    @Override
     public CBORMetadata put(BigInteger key, BigInteger value) {
         map.put(new UnsignedInteger(key), new UnsignedInteger(value));
         return this;
     }
 
+    @Override
     public CBORMetadata putNegative(BigInteger key, BigInteger value) {
         map.put(new UnsignedInteger(key), new NegativeInteger(value));
         return this;
     }
 
+    @Override
     public CBORMetadata put(BigInteger key, byte[] value) {
         map.put(new UnsignedInteger(key), new ByteString(value));
         return this;
     }
 
+    @Override
     public CBORMetadata put(BigInteger key, String value) {
         checkLength(value);
         map.put(new UnsignedInteger(key), new UnicodeString(value));
         return this;
     }
 
-    public CBORMetadata put(BigInteger key, CBORMetadataMap mm) {
+    @Override
+    public CBORMetadata put(BigInteger key, MetadataMap mm) {
         if(map != null)
             map.put(new UnsignedInteger(key), mm.getMap());
         return this;
     }
 
-    public CBORMetadata put(BigInteger key, CBORMetadataList list) {
+    @Override
+    public CBORMetadata put(BigInteger key, MetadataList list) {
         map.put(new UnsignedInteger(key), list.getArray());
         return this;
     }
 
+    @Override
     public Object get(BigInteger key) {
         return extractActualValue(getData().get(objectToDataItem(key)));
     }
 
+    @Override
     public void remove(BigInteger key) {
         this.getData().remove(objectToDataItem(key));
     }
 
+    @Override
     public List keys() {
         return getData().getKeys().stream().map(di -> extractActualValue(di)).collect(Collectors.toList());
     }

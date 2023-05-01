@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
+import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -12,7 +14,7 @@ class CBORMetadataTest {
 
     @Test
     void testRemove() {
-        CBORMetadata metadata = new CBORMetadata();
+        Metadata metadata = MetadataBuilder.createMetadata();
         metadata.put(BigInteger.valueOf(1), "value1");
         metadata.put(BigInteger.valueOf(2), "value2");
         metadata.put(BigInteger.valueOf(3), "value3");
@@ -33,17 +35,17 @@ class CBORMetadataTest {
 
     @Test
     void testMerge() {
-        CBORMetadata metadata = new CBORMetadata();
+        Metadata metadata = MetadataBuilder.createMetadata();
         metadata.put(BigInteger.valueOf(1), "value1");
         metadata.put(BigInteger.valueOf(2), "value2");
         metadata.put(BigInteger.valueOf(3), "value3");
 
-        CBORMetadata metadata1 = new CBORMetadata();
+        Metadata metadata1 = MetadataBuilder.createMetadata();
         metadata.put(BigInteger.valueOf(4), "value4");
         metadata.put(BigInteger.valueOf(5), "value5");
         metadata.put(BigInteger.valueOf(6), "value6");
 
-        CBORMetadata mergeMetadata = (CBORMetadata) metadata.merge(metadata1);
+        Metadata mergeMetadata = (Metadata) metadata.merge(metadata1);
 
         assertThat(mergeMetadata.getData().getKeys()).hasSize(6);
         assertThat(mergeMetadata.get(BigInteger.valueOf(1))).isEqualTo("value1");

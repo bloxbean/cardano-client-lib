@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
 import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.metadata.MetadataBuilder;
+import com.bloxbean.cardano.client.metadata.MetadataMap;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -11,7 +13,7 @@ class CBORMetadataMapTest {
 
     @Test
     void testRemove() throws CborException {
-        CBORMetadataMap metadataMap = new CBORMetadataMap();
+        MetadataMap metadataMap = MetadataBuilder.createMap();
         metadataMap.put("key1", "value1");
         metadataMap.put("key2", BigInteger.valueOf(123));
         metadataMap.put("key3", "value3");

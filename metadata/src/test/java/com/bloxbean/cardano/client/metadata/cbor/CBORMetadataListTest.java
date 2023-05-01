@@ -1,5 +1,8 @@
 package com.bloxbean.cardano.client.metadata.cbor;
 
+import com.bloxbean.cardano.client.metadata.MetadataBuilder;
+import com.bloxbean.cardano.client.metadata.MetadataList;
+import com.bloxbean.cardano.client.metadata.MetadataMap;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -10,7 +13,7 @@ class CBORMetadataListTest {
 
     @Test
     void testRemove() {
-        CBORMetadataList list = new CBORMetadataList();
+        MetadataList list = MetadataBuilder.createList();
         list.add(BigInteger.valueOf(1));
         list.add(BigInteger.valueOf(4));
         list.add("value3");
@@ -31,7 +34,7 @@ class CBORMetadataListTest {
 
     @Test
     void testReplace() {
-        CBORMetadataList list = new CBORMetadataList();
+        MetadataList list = MetadataBuilder.createList();
         list.add(BigInteger.valueOf(1));
         list.add(BigInteger.valueOf(4));
         list.add("value3");
@@ -55,7 +58,7 @@ class CBORMetadataListTest {
 
     @Test
     void testReplace_whenListAndMap() {
-        CBORMetadataList list = new CBORMetadataList();
+        MetadataList list = MetadataBuilder.createList();
         list.add(BigInteger.valueOf(1));
         list.add(BigInteger.valueOf(4));
         list.add("value3");
@@ -67,11 +70,11 @@ class CBORMetadataListTest {
         System.out.println(list.toJson());
         assertThat(list.size()).isEqualTo(7);
 
-        CBORMetadataList nestedList = new CBORMetadataList();
+        MetadataList nestedList = MetadataBuilder.createList();
         nestedList.add("list-val1");
         nestedList.add("list-val2");
 
-        CBORMetadataMap nestedMap = new CBORMetadataMap();
+        MetadataMap nestedMap = MetadataBuilder.createMap();
         nestedMap.put("key1", "val1");
         nestedMap.put("key2", "val2");
 
@@ -81,8 +84,8 @@ class CBORMetadataListTest {
         System.out.println(list.toJson());
 
         assertThat(list.size()).isEqualTo(7);
-        assertThat(((CBORMetadataList)list.getValueAt(1)).getArray()).isEqualTo(nestedList.getArray());
-        assertThat(((CBORMetadataMap)list.getValueAt(4)).getMap()).isEqualTo(nestedMap.getMap());
+        assertThat(((MetadataList)list.getValueAt(1)).getArray()).isEqualTo(nestedList.getArray());
+        assertThat(((MetadataMap)list.getValueAt(4)).getMap()).isEqualTo(nestedMap.getMap());
 
     }
 
