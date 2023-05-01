@@ -31,9 +31,13 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
     String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
     String receiver3 = "addr_test1qqqvjp4ffcdqg3fmx0k8rwamnn06wp8e575zcv8d0m3tjn2mmexsnkxp7az774522ce4h3qs4tjp9rxjjm46qf339d9sk33rqn";
 
+    QuickTxBuilder quickTxBuilder;
+
     @BeforeEach
     void setup() {
         backendService = getBackendService();
+        quickTxBuilder = new QuickTxBuilder(backendService);
+
         String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
         sender = new Account(Networks.testnet(), senderMnemonic);
 
@@ -44,40 +48,14 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
     @Test
     void simplePayment() {
-        QuickTxBuilder quickTxBuilder = QuickTxBuilder.create(backendService);
-        Tx tx = quickTxBuilder
-                .newTx()
-                .payToAddress(receiver1, Amount.ada(1.5))
-                .payToAddress(receiver2, Amount.ada(2.5))
-                .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
-                .withSender(sender);
-
-        Result<String> result = quickTxBuilder.complete(tx);
-        System.out.println(result);
-        assertTrue(result.isSuccessful());
-        waitForTransaction(result);
-    }
-
-    @Test
-    void simplePayment_withPreAndPostBalanceBuilder() {
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .payToAddress(receiver2, Amount.ada(2.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
-                .withSender(sender);
+                .from(sender);
 
-        QuickTxBuilder quickTxBuilder = QuickTxBuilder.create(backendService);
-        Result<String> result = quickTxBuilder
-                .preBalanceTx((context, txn) -> {
-                    //do anything here...
-                    System.out.println("Pre balance");
-                    AuxiliaryData auxiliaryData = new AuxiliaryData();
-                    auxiliaryData.setMetadata(MessageMetadata.create().add("This is a test message in pre balance"));
-                    txn.setAuxiliaryData(auxiliaryData);
-                }).postBalanceTx((context, txn) -> {
-                    System.out.println("Post balance");
-                })
-                .complete(tx);
+        Result<String> result = quickTxBuilder.create(tx)
+                        .complete();
 
         System.out.println(result);
         assertTrue(result.isSuccessful());
@@ -90,16 +68,16 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .payToAddress(receiver2, Amount.ada(2.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
-                .withSender(sender);
+                .from(sender);
 
         Tx tx2 = new Tx()
                 .payToAddress(receiver3, Amount.ada(4.5))
-                .withSender(sender2);
+                .from(sender2);
 
-        QuickTxBuilder quickTxBuilder = QuickTxBuilder.create(backendService);
         Result<String> result = quickTxBuilder
-                .balanceChangeAddress(sender.baseAddress())
-                .complete(tx1, tx2);
+                .create(tx1, tx2)
+                .feePayer(sender.baseAddress())
+                .complete();
 
         System.out.println(result);
         assertTrue(result.isSuccessful());
@@ -115,11 +93,12 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         Tx tx = new Tx()
                 .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), sender.baseAddress())
                 .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                .withSender(sender)
+                .from(sender)
                 .withSigner(SignerProviders.signerFrom(policy));
 
-        QuickTxBuilder quickTxBuilder = QuickTxBuilder.create(backendService);
-        Result<String> result = quickTxBuilder.complete(tx);
+        Result<String> result = quickTxBuilder.create(tx)
+                .complete();
+
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
@@ -135,16 +114,16 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .payToAddress(receiver2, Amount.ada(1.5))
                 .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), receiver2)
                 .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                .withSender(sender)
+                .from(sender)
                 .withSigner(SignerProviders.signerFrom(policy));
 
         Tx tx2 = new Tx()
                 .payToAddress(receiver3, new Amount(LOVELACE, adaToLovelace(2.13)))
-                .withSender(sender2);
+                .from(sender2);
 
-        QuickTxBuilder quickTxBuilder = QuickTxBuilder.create(backendService)
-                .balanceChangeAddress(sender.baseAddress());
-        Result<String> result = quickTxBuilder.complete(tx1, tx2);
+        Result<String> result = quickTxBuilder.create(tx1, tx2)
+                        .feePayer(sender.baseAddress())
+                        .complete();
 
         System.out.println(result);
         assertTrue(result.isSuccessful());
@@ -162,16 +141,43 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .payToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)), true)
                 .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty))
                 .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                .withSender(sender)
+                .from(sender)
                 .withSigner(SignerProviders.signerFrom(policy));
 
         Tx tx2 = new Tx()
                 .payToAddress(receiver3, Amount.ada(2.13))
-                .withSender(sender2);
+                .from(sender2);
 
-        QuickTxBuilder quickTxBuilder = QuickTxBuilder.create(backendService)
-                .balanceChangeAddress(sender.baseAddress());
-        Result<String> result = quickTxBuilder.complete(tx1, tx2);
+
+        Result<String> result = quickTxBuilder.create(tx1, tx2)
+                        .feePayer(sender2.baseAddress())
+                        .complete();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+    }
+
+    @Test
+    void simplePayment_withPreAndPostBalanceBuilder() {
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .payToAddress(receiver2, Amount.ada(2.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
+                .from(sender);
+
+        Result<String> result = quickTxBuilder
+                .create(tx)
+                .preBalanceTx((context, txn) -> {
+                    //do anything here...
+                    System.out.println("Pre balance");
+                    AuxiliaryData auxiliaryData = new AuxiliaryData();
+                    auxiliaryData.setMetadata(MessageMetadata.create().add("This is a test message in pre balance"));
+                    txn.setAuxiliaryData(auxiliaryData);
+                }).postBalanceTx((context, txn) -> {
+                    System.out.println("Post balance");
+                })
+                .complete();
 
         System.out.println(result);
         assertTrue(result.isSuccessful());

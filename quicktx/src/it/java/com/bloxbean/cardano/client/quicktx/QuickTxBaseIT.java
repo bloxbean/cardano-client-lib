@@ -2,13 +2,29 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.util.JsonUtil;
 
 public class QuickTxBaseIT {
+    protected String BLOCKFROST = "blockfrost";
+    protected String KOIOS = "koios";
+    protected String backendType = BLOCKFROST;
+
     public BackendService getBackendService() {
-        return new KoiosBackendService(com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_PREPROD_URL);
+        if (BLOCKFROST.equals(backendType)) {
+            String bfProjectId = System.getProperty("BF_PROJECT_ID");
+            if (bfProjectId == null || bfProjectId.isEmpty()) {
+                bfProjectId = System.getenv("BF_PROJECT_ID");
+            }
+
+            return new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bfProjectId);
+        } else if (KOIOS.equals(backendType)) {
+            return new KoiosBackendService(com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_PREPROD_URL);
+        } else
+            return null;
     }
 
     public void waitForTransaction(Result<String> result) {
