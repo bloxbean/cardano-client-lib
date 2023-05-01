@@ -9,10 +9,13 @@ import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
+import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -38,6 +41,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         backendService = getBackendService();
         quickTxBuilder = new QuickTxBuilder(backendService);
 
+        //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
         String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
         sender = new Account(Networks.testnet(), senderMnemonic);
 
@@ -48,14 +52,19 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
     @Test
     void simplePayment() {
+        Metadata metadata = MetadataBuilder.createMetadata();
+        metadata.put(BigInteger.valueOf(100), "This is second metadata");
+        metadata.putNegative(200, -900);
+
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .payToAddress(receiver2, Amount.ada(2.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
+                .attachMetadata(metadata)
                 .from(sender);
 
         Result<String> result = quickTxBuilder.create(tx)
-                        .complete();
+                .complete();
 
         System.out.println(result);
         assertTrue(result.isSuccessful());
@@ -84,78 +93,143 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         waitForTransaction(result);
     }
 
-    @Test
-    void minting() throws CborSerializationException {
-        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
-        String assetName = "MyAsset";
-        BigInteger qty = BigInteger.valueOf(1000);
+    @Nested
+    class MintingTests {
+        @Test
+        void minting() throws CborSerializationException {
+            Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+            String assetName = "MyAsset";
+            BigInteger qty = BigInteger.valueOf(1000);
 
-        Tx tx = new Tx()
-                .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), sender.baseAddress())
-                .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                .from(sender)
-                .withSigner(SignerProviders.signerFrom(policy));
+            Tx tx = new Tx()
+                    .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), sender.baseAddress())
+                    .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                    .from(sender)
+                    .withSigner(SignerProviders.signerFrom(policy));
 
-        Result<String> result = quickTxBuilder.create(tx)
-                .complete();
+            Result<String> result = quickTxBuilder.create(tx)
+                    .complete();
 
-        System.out.println(result);
-        assertTrue(result.isSuccessful());
-        waitForTransaction(result);
+            System.out.println(result);
+            assertTrue(result.isSuccessful());
+            waitForTransaction(result);
+        }
+
+        @Test
+        void minting_withTransfer() throws CborSerializationException {
+            Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+            String assetName = "MyAsset";
+            BigInteger qty = BigInteger.valueOf(2000);
+
+            Tx tx1 = new Tx()
+                    .payToAddress(receiver2, Amount.ada(1.5))
+                    .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), receiver2)
+                    .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                    .from(sender)
+                    .withSigner(SignerProviders.signerFrom(policy));
+
+            Tx tx2 = new Tx()
+                    .payToAddress(receiver3, new Amount(LOVELACE, adaToLovelace(2.13)))
+                    .from(sender2);
+
+            Result<String> result = quickTxBuilder.create(tx1, tx2)
+                    .feePayer(sender.baseAddress())
+                    .complete();
+
+            System.out.println(result);
+            assertTrue(result.isSuccessful());
+            waitForTransaction(result);
+        }
+
+        @Test
+        void minting_transferMintedToTwoAccounts() throws CborSerializationException {
+            Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+            String assetName = "MyAsset";
+            BigInteger qty = BigInteger.valueOf(2000);
+
+            Tx tx1 = new Tx()
+                    .payToAddress(receiver1, Amount.asset(policy.getPolicyId(), assetName, 200), true)
+                    .payToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)), true)
+                    .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty))
+                    .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                    .from(sender)
+                    .withSigner(SignerProviders.signerFrom(policy));
+
+            Tx tx2 = new Tx()
+                    .payToAddress(receiver3, Amount.ada(2.13))
+                    .from(sender2);
+
+
+            Result<String> result = quickTxBuilder.create(tx1, tx2)
+                    .feePayer(sender2.baseAddress())
+                    .complete();
+
+            System.out.println(result);
+            assertTrue(result.isSuccessful());
+            waitForTransaction(result);
+        }
     }
 
-    @Test
-    void minting_withTransfer() throws CborSerializationException {
-        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
-        String assetName = "MyAsset";
-        BigInteger qty = BigInteger.valueOf(2000);
+    @Nested
+    class CustomChangeAddress {
+        @Test
+        void simplePayment_customChangeAddress() {
+            //Send 4 ada to a new change account
+            Account changeAccount = new Account(Networks.testnet());
+            Tx tx = new Tx()
+                    .payToAddress(changeAccount.baseAddress(), Amount.ada(4.0))
+                    .from(sender);
 
-        Tx tx1 = new Tx()
-                .payToAddress(receiver2, Amount.ada(1.5))
-                .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), receiver2)
-                .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                .from(sender)
-                .withSigner(SignerProviders.signerFrom(policy));
+            Result<String> result = quickTxBuilder.create(tx)
+                    .complete();
+            System.out.println(result);
+            assertTrue(result.isSuccessful());
+            waitForTransaction(result);
 
-        Tx tx2 = new Tx()
-                .payToAddress(receiver3, new Amount(LOVELACE, adaToLovelace(2.13)))
-                .from(sender2);
+            //Now create another tx with custom change address
+            Tx tx2 = new Tx()
+                    .payToAddress(receiver1, Amount.ada(1.1))
+                    .withChangeAddress(sender.baseAddress())
+                    .from(changeAccount);
 
-        Result<String> result = quickTxBuilder.create(tx1, tx2)
-                        .feePayer(sender.baseAddress())
-                        .complete();
+            Result<String> result2 = quickTxBuilder.create(tx2)
+                    .complete();
+            System.out.println(result2);
+            assertTrue(result2.isSuccessful());
+            waitForTransaction(result2);
+        }
 
-        System.out.println(result);
-        assertTrue(result.isSuccessful());
-        waitForTransaction(result);
-    }
+        @Test
+        void simplePayment_customChangeAddress_multipleTxs_requiredFeePayer() {
+            //Send 4 ada to a new change account
+            Account changeAccount = new Account(Networks.testnet());
+            Tx tx = new Tx()
+                    .payToAddress(changeAccount.baseAddress(), Amount.ada(4.0))
+                    .from(sender);
 
-    @Test
-    void minting_transferMintedToTwoAccounts() throws CborSerializationException {
-        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
-        String assetName = "MyAsset";
-        BigInteger qty = BigInteger.valueOf(2000);
+            Result<String> result = quickTxBuilder.create(tx)
+                    .complete();
+            System.out.println(result);
+            assertTrue(result.isSuccessful());
+            waitForTransaction(result);
 
-        Tx tx1 = new Tx()
-                .payToAddress(receiver1, Amount.asset(policy.getPolicyId(), assetName, 200), true)
-                .payToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)), true)
-                .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty))
-                .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                .from(sender)
-                .withSigner(SignerProviders.signerFrom(policy));
+            //Now create another tx with custom change address
+            Tx tx2 = new Tx()
+                    .payToAddress(receiver1, Amount.ada(1.1))
+                    .withChangeAddress(sender.baseAddress())
+                    .from(changeAccount);
 
-        Tx tx2 = new Tx()
-                .payToAddress(receiver3, Amount.ada(2.13))
-                .from(sender2);
+            Tx tx3 = new Tx()
+                    .payToAddress(receiver2, Amount.ada(2.1))
+                    .from(sender2);
 
-
-        Result<String> result = quickTxBuilder.create(tx1, tx2)
-                        .feePayer(sender2.baseAddress())
-                        .complete();
-
-        System.out.println(result);
-        assertTrue(result.isSuccessful());
-        waitForTransaction(result);
+            Result<String> result2 = quickTxBuilder.create(tx2, tx3)
+                    .feePayer(sender.baseAddress())
+                    .complete();
+            System.out.println(result2);
+            assertTrue(result2.isSuccessful());
+            waitForTransaction(result2);
+        }
     }
 
     @Test
@@ -183,4 +257,5 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
     }
+
 }

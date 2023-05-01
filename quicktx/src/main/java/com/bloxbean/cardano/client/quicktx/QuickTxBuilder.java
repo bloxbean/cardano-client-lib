@@ -87,7 +87,7 @@ public class QuickTxBuilder {
         private TxBuilder preBalanceTrasformer;
         private TxBuilder postBalanceTrasformer;
 
-        private int additionalSignerCount;
+        private int additionalSignerCount = 0;
         private TxSigner additionalTxSigner;
 
         TxContext(Tx... txs) {
@@ -128,11 +128,15 @@ public class QuickTxBuilder {
             return this;
         }
 
+
         /**
-         * Set additional signers count. This is useful when there are additional signers other than the default signers and
-         * signer's set in individual Tx level. This helps to calculate correct size of the transaction and hence the fee.
-         * @param additionalSigners
-         * @return TxContext
+         * This is an optional method to set additional signers count. This is useful when you have multiple additional composite signers and calculating
+         * total additional signers count is not possible automatically by the builder.
+         * <br>
+         * For example, if you have added 1 additional signer with two TxSigner instance composed together,
+         * you can set the additional signers count to 2.
+         *
+         * @return Tx
          */
         public TxContext additionalSignersCount(int additionalSigners) {
             this.additionalSignerCount = additionalSigners;
@@ -146,6 +150,7 @@ public class QuickTxBuilder {
          * @return TxContext
          */
         public TxContext additionalSigner(TxSigner txSigner) {
+            additionalSignerCount++;
             if (this.additionalTxSigner != null)
                 this.additionalTxSigner = this.additionalTxSigner.andThen(txSigner);
             else
@@ -163,7 +168,7 @@ public class QuickTxBuilder {
                 if (tx.sender() == null)
                     throw new TxBuildException("Sender is not set for the tx : " + tx);
 
-                txBuilder = txBuilder.andThen(tx.txBuilder());
+                txBuilder = txBuilder.andThen(tx.complete());
             }
 
             int totalSigners = getTotalSigners();
@@ -174,9 +179,14 @@ public class QuickTxBuilder {
                 txBuilder = txBuilder.andThen(preBalanceTrasformer);
 
             if (feePayer == null) {
-                if (txList.length == 1)
-                    feePayer = txList[0].sender();
-                else
+                if (txList.length == 1) {
+                    // If change address is set, then fee will be deducted from change address output
+                    // If not set, then fee will be deducted from sender's account.
+                    if (txList[0].changeAddress() != null)
+                        feePayer = txList[0].changeAddress();
+                    else
+                        feePayer = txList[0].sender();
+                } else
                     throw new TxBuildException("Fee Payer address is not set. " +
                             "It's mandatory when there are more than one txs");
             }
