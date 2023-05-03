@@ -3,22 +3,22 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
-import com.bloxbean.cardano.client.function.Output;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.AuxDataProviders;
-import com.bloxbean.cardano.client.function.helper.InputBuilders;
-import com.bloxbean.cardano.client.function.helper.MintCreators;
-import com.bloxbean.cardano.client.function.helper.SignerProviders;
+import com.bloxbean.cardano.client.function.helper.*;
 import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.NonNull;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,8 +37,8 @@ public class Tx {
     private int additionalSignersCount = 0;
     private boolean senderAdded = false;
 
-    private List<Output> outputs;
-    private List<Output> mintOutputs;
+    private List<TransactionOutput> outputs;
+    private List<TransactionOutput> mintOutputs;
     private List<Tuple<Script, MultiAsset>> multiAssets;
     private Metadata txMetadata;
     //custom change address
@@ -96,39 +96,192 @@ public class Tx {
      * @param address    address
      * @param amounts    List of Amount to send
      * @param mintOutput If the assets in the output will be minted in this transaction, set this to true, otherwise false
-     * @return
+     * @return Tx
      */
     public Tx payToAddress(String address, List<Amount> amounts, boolean mintOutput) {
+        return payToAddress(address, amounts, null, false, null, null, mintOutput);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address  address
+     * @param amounts List of Amount to send
+     * @param datum  Plutus data
+     * @param inlineDatum If the datum is inline or not
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, PlutusData datum, boolean inlineDatum) {
+        return payToAddress(address, amounts, datum, inlineDatum, null, null, false);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param datum Plutus data
+     * @param referenceScript Reference Script
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, PlutusData datum, Script referenceScript) {
+        return payToAddress(address, amounts, datum, true, referenceScript, null, false);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param datum Plutus data
+     * @param scriptRefBytes Reference Script bytes
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, PlutusData datum, byte[] scriptRefBytes) {
+        return payToAddress(address, amounts, datum, true, null, scriptRefBytes, false);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param script Reference Script
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, Script script) {
+        return payToAddress(address, amounts, null, false, script, null, false);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param scriptRefBytes Reference Script bytes
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, byte[] scriptRefBytes) {
+        return payToAddress(address, amounts, null, false, null, scriptRefBytes, false);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param datum Plutus data
+     * @param inlineDatum If the datum is inline or not
+     * @param mintOutput If the asset in the output will be minted in this transaction, set this to true, otherwise false
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, PlutusData datum, boolean inlineDatum, boolean mintOutput) {
+        return payToAddress(address, amounts, datum, inlineDatum, null, null, mintOutput);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param datum Plutus data
+     * @param script Reference Script
+     * @param mintOutput If the asset in the output will be minted in this transaction, set this to true, otherwise false
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, PlutusData datum, Script script, boolean mintOutput) {
+        return payToAddress(address, amounts, datum, true, script, null, mintOutput);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param datum Plutus data
+     * @param scriptRefBytes Reference Script bytes
+     * @param mintOutput If the asset in the output will be minted in this transaction, set this to true, otherwise false
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, PlutusData datum, byte[] scriptRefBytes, boolean mintOutput) {
+        return payToAddress(address, amounts, datum, true, null, scriptRefBytes, mintOutput);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param script Reference Script
+     * @param mintOutput If the asset in the output will be minted in this transaction, set this to true, otherwise false
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, Script script, boolean mintOutput) {
+        return payToAddress(address, amounts, null, false, script, null, mintOutput);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts   List of Amount to send
+     * @param scriptRefBytes Reference Script bytes
+     * @param mintOutput If the asset in the output will be minted in this transaction, set this to true, otherwise false
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, byte[] scriptRefBytes, boolean mintOutput) {
+        return payToAddress(address, amounts, null, false, null, scriptRefBytes, mintOutput);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     * @param address address
+     * @param amounts  List of Amount to send
+     * @param datum Plutus data
+     * @param inlineDatum If the datum is inline or not
+     * @param scriptRef Reference Script
+     * @param scriptRefBytes Reference Script bytes
+     * @param mintOutput If the asset in the output will be minted in this transaction, set this to true, otherwise false
+     * @return Tx
+     */
+    public Tx payToAddress(String address, List<Amount> amounts, PlutusData datum, boolean inlineDatum, Script scriptRef, byte[] scriptRefBytes, boolean mintOutput) {
         verifySenderNotAddedYet();
+
+        if (scriptRef != null && scriptRefBytes != null && scriptRefBytes.length > 0)
+            throw new TxBuildException("Both scriptRef and scriptRefBytes cannot be set. Only one of them can be set");
+
+        TransactionOutput transactionOutput = TransactionOutput.builder()
+                .address(address)
+                .value(Value.builder().coin(BigInteger.ZERO).build())
+                .build();
+
         for (Amount amount : amounts) {
             String unit = amount.getUnit();
-            Output output;
             if (unit.equals(LOVELACE)) {
-                output = Output.builder()
-                        .address(address)
-                        .assetName(LOVELACE)
-                        .qty(amount.getQuantity())
-                        .build();
+                transactionOutput.getValue().setCoin(amount.getQuantity());
             } else {
                 Tuple<String, String> policyAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
-                output = Output.builder()
-                        .address(address)
-                        .policyId(policyAssetName._1)
-                        .assetName(policyAssetName._2)
-                        .qty(amount.getQuantity())
-                        .build();
+                Asset asset = new Asset(policyAssetName._2, amount.getQuantity());
+                MultiAsset multiAsset = new MultiAsset(policyAssetName._1, List.of(asset));
+                Value newValue = transactionOutput.getValue().plus(new Value(BigInteger.ZERO, List.of(multiAsset)));
+                transactionOutput.setValue(newValue);
             }
+        }
 
-            if (mintOutput) {
-                if (mintOutputs == null)
-                    mintOutputs = new ArrayList<>();
+        //set datum
+        try {
+            if (datum != null && inlineDatum)
+                transactionOutput.setInlineDatum(datum);
+            else if (datum != null && !inlineDatum)
+                transactionOutput.setDatumHash(datum.getDatumHashAsBytes());
+        } catch (Exception e) {
+            throw new TxBuildException("Error while setting datum", e);
+        }
 
-                mintOutputs.add(output);
-            } else {
-                if (outputs == null)
-                    outputs = new ArrayList<>();
-                outputs.add(output);
-            }
+        if (scriptRef != null) {
+            transactionOutput.setScriptRef(scriptRef);
+        } else if (scriptRefBytes != null)
+            transactionOutput.setScriptRef(scriptRefBytes);
+
+        if (mintOutput) {
+            if (mintOutputs == null)
+                mintOutputs = new ArrayList<>();
+
+            mintOutputs.add(transactionOutput);
+        } else {
+            if (outputs == null)
+                outputs = new ArrayList<>();
+            outputs.add(transactionOutput);
         }
 
         return this;
@@ -301,20 +454,20 @@ public class Tx {
         TxOutputBuilder txOutputBuilder = null;
         //Define outputs
         if (outputs != null) {
-            for (Output output: outputs) {
+            for (TransactionOutput output: outputs) {
                 if (txOutputBuilder == null)
-                    txOutputBuilder = output.outputBuilder();
+                    txOutputBuilder = OutputBuilders.createFromOutput(output);
                 else
-                    txOutputBuilder = txOutputBuilder.and(output.outputBuilder());
+                    txOutputBuilder = txOutputBuilder.and(OutputBuilders.createFromOutput(output));
             }
         }
 
         if (mintOutputs != null) {
-            for (Output mintOutput: mintOutputs) {
+            for (TransactionOutput mintOutput: mintOutputs) {
                 if (txOutputBuilder == null)
-                    txOutputBuilder = mintOutput.mintOutputBuilder();
+                    txOutputBuilder = OutputBuilders.createFromMintOutput(mintOutput);
                 else
-                    txOutputBuilder = txOutputBuilder.and(mintOutput.mintOutputBuilder());
+                    txOutputBuilder = txOutputBuilder.and(OutputBuilders.createFromMintOutput(mintOutput));
             }
         }
 

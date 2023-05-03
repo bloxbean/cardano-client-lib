@@ -21,8 +21,8 @@ import lombok.extern.slf4j.Slf4j;
  * QuickTxBuilder is a utility class to build and submit transactions quickly. It provides high level APIs to build
  * transactions with minimal configuration. Internally it uses composable functions to build transactions. Same instance of
  * QuickBuilder can be resued to build multiple transactions.
- * <br/>
- * <br/>
+ * <br>
+ * <br>
  * Example:
  * <pre>
  *   {@code QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
