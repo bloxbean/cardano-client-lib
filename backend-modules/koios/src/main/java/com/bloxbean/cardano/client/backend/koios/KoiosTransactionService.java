@@ -177,7 +177,12 @@ public class KoiosTransactionService implements TransactionService {
             if (!txUtxosResult.isSuccessful()) {
                 return Result.error(txUtxosResult.getResponse()).code(txUtxosResult.getCode());
             }
-            return convertToTxContentUtxo(txUtxosResult.getValue().get(0));
+
+            if (txUtxosResult.getValue().isEmpty()) {
+                return Result.error("Not Found").code(404);
+            } else {
+                return convertToTxContentUtxo(txUtxosResult.getValue().get(0));
+            }
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
@@ -210,7 +215,16 @@ public class KoiosTransactionService implements TransactionService {
             for (Asset txAsset : txIO.getAssetList()) {
                 txContentOutputAmountList.add(new TxContentOutputAmount(txAsset.getPolicyId() + txAsset.getAssetName(), txAsset.getQuantity()));
             }
-            outputs.add(new TxContentUtxoOutputs(txIO.getPaymentAddr().getBech32(), txContentOutputAmountList));
+
+            TxContentUtxoOutputs txContentUtxoOutputs = TxContentUtxoOutputs.builder()
+                    .address(txIO.getPaymentAddr().getBech32())
+                    .amount(txContentOutputAmountList)
+                    .dataHash(txIO.getDatumHash())
+                    .outputIndex(txIO.getTxIndex())
+                    .inlineDatum(txIO.getInlineDatum() != null? txIO.getInlineDatum().getBytes(): null)
+                    .referenceScriptHash(txIO.getReferenceScript() != null? txIO.getReferenceScript().getHash(): null)
+                    .build();
+            outputs.add(txContentUtxoOutputs);
         }
         txContentUtxo.setOutputs(outputs);
         return Result.success("OK").withValue(txContentUtxo).code(200);

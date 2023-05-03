@@ -44,7 +44,7 @@ public class KoiosBackendService implements BackendService {
 
     @Override
     public UtxoService getUtxoService() {
-        return new KoiosUtxoService(backendServiceImpl.getAddressService());
+        return new KoiosUtxoService(backendServiceImpl.getAddressService(), getTransactionService());
     }
 
     @Override
