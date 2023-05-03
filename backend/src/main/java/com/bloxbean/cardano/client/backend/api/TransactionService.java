@@ -2,9 +2,12 @@ package com.bloxbean.cardano.client.backend.api;
 
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
+import com.bloxbean.cardano.client.backend.model.TxContentUtxoOutputs;
+import com.bloxbean.cardano.client.util.JsonUtil;
 
 import java.util.List;
 
@@ -45,6 +48,35 @@ public interface TransactionService {
      * @throws ApiException
      */
     Result<TxContentUtxo> getTransactionUtxos(String txnHash) throws ApiException;
+
+    /**
+     * Get transaction output at given index for a transaction hash
+     * @param txnHash Transaction hash
+     * @param outputIndex Output index
+     * @return Utxo
+     * @throws ApiException If any error occurs
+     */
+    default Result<Utxo> getTransactionOutput(String txnHash, int outputIndex) throws ApiException {
+        Result<TxContentUtxo> result = this.getTransactionUtxos(txnHash);
+        if (!result.isSuccessful())
+            return Result.error(result.getResponse()).code(result.code());
+
+        TxContentUtxo txContentUtxo = result.getValue();
+        if (txContentUtxo == null)
+            return Result.error("No UTXO found for txHash: " + txnHash).code(404);
+
+        List<TxContentUtxoOutputs> outputs = txContentUtxo.getOutputs();
+        if (outputs == null) {
+            return Result.error("No UTXO found for txHash: " + txnHash).code(404);
+        } else {
+            return outputs.stream().filter(output -> output.getOutputIndex() == outputIndex)
+                    .findFirst()
+                    .map(output -> {
+                        Utxo utxo = output.toUtxos();
+                        return Result.success(JsonUtil.getPrettyJson(utxo)).withValue(utxo).code(result.code());
+                    }).orElseGet(() -> Result.error("No UTXO found for txHash: " + txnHash + ", outputIndex: " + outputIndex).code(404));
+        }
+    }
 
     /**
      * Evaluate ExUnits for the scripts in the input transaction

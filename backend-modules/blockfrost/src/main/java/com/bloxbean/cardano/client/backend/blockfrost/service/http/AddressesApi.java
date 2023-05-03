@@ -16,6 +16,10 @@ public interface AddressesApi {
     Call<List<Utxo>> getUtxos(@Header("project_id") String projectId, @Path("address") String address,
                               @Query("count") int count, @Query("page") int page, @Query("order") String order);
 
+    @GET("addresses/{address}/utxos/{asset}")
+    Call<List<Utxo>> getUtxosByAsset(@Header("project_id") String projectId, @Path("address") String address, @Path("asset") String asset,
+                              @Query("count") int count, @Query("page") int page, @Query("order") String order);
+
     @GET("addresses/{address}")
     Call<AddressContent> getAddressInfo(@Header("project_id") String projectId, @Path("address") String address);
 
