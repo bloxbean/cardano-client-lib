@@ -173,26 +173,21 @@ public class KoiosTransactionService implements TransactionService {
     @Override
     public Result<TxContentUtxo> getTransactionUtxos(String txnHash) throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<List<TxUtxo>> txUtxosResult = transactionsService.getTransactionUTxOs(List.of(txnHash), null);
-            if (!txUtxosResult.isSuccessful()) {
-                return Result.error(txUtxosResult.getResponse()).code(txUtxosResult.getCode());
+            rest.koios.client.backend.api.base.Result<TxInfo> txInfoResult = transactionsService.getTransactionInformation(txnHash);
+            if (!txInfoResult.isSuccessful()) {
+                return Result.error(txInfoResult.getResponse()).code(txInfoResult.getCode());
             }
-
-            if (txUtxosResult.getValue().isEmpty()) {
-                return Result.error("Not Found").code(404);
-            } else {
-                return convertToTxContentUtxo(txUtxosResult.getValue().get(0));
-            }
+            return convertToTxContentUtxo(txInfoResult.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private Result<TxContentUtxo> convertToTxContentUtxo(TxUtxo txUtxo) {
+    private Result<TxContentUtxo> convertToTxContentUtxo(TxInfo txInfo) {
         TxContentUtxo txContentUtxo = new TxContentUtxo();
         //Inputs
         List<TxContentUtxoInputs> inputs = new ArrayList<>();
-        for (TxIO txIO : txUtxo.getInputs()) {
+        for (TxIO txIO : txInfo.getInputs()) {
             List<TxContentOutputAmount> txContentOutputAmountList = new ArrayList<>();
             if (txIO.getValue() != null && !txIO.getValue().isEmpty()) {
                 txContentOutputAmountList.add(new TxContentOutputAmount(LOVELACE, txIO.getValue()));
@@ -207,7 +202,7 @@ public class KoiosTransactionService implements TransactionService {
         }
         //Outputs
         List<TxContentUtxoOutputs> outputs = new ArrayList<>();
-        for (TxIO txIO : txUtxo.getOutputs()) {
+        for (TxIO txIO : txInfo.getOutputs()) {
             List<TxContentOutputAmount> txContentOutputAmountList = new ArrayList<>();
             if (txIO.getValue() != null && !txIO.getValue().isEmpty()) {
                 txContentOutputAmountList.add(new TxContentOutputAmount(LOVELACE, txIO.getValue()));
