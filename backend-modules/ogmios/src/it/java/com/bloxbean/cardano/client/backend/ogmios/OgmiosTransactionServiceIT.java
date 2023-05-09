@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.backend.ogmios;
 
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
-import com.bloxbean.cardano.client.backend.model.EvaluationResult;
+import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

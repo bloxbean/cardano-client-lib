@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.model;
+package com.bloxbean.cardano.client.api.model;
 
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;

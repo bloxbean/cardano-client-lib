@@ -3,9 +3,13 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
+import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.impl.RandomImproveUtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
@@ -20,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Set;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
@@ -27,8 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class QuickTxBuilderIT extends QuickTxBaseIT {
     BackendService backendService;
-    Account sender;
+    Account sender1;
     Account sender2;
+
+    String sender1Addr;
+    String sender2Addr;
+
 
     String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
     String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
@@ -43,11 +52,13 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
         //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
         String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
-        sender = new Account(Networks.testnet(), senderMnemonic);
+        sender1 = new Account(Networks.testnet(), senderMnemonic);
+        sender1Addr = sender1.baseAddress();
 
         //addr_test1qz5fcpvkg7pekqvv9ld03t5sx2w2c2fac67fzlaxw5844s83l4p6tr389lhgcpe4797kt7xkcxqvcc4a6qjshzsmta8sh3ncs4
         String sender2Mnemonic = "access else envelope between rubber celery forum brief bubble notice stomach add initial avocado current net film aunt quick text joke chase robust artefact";
         sender2 = new Account(Networks.testnet(), sender2Mnemonic);
+        sender2Addr = sender2.baseAddress();
     }
 
     @Test
@@ -59,11 +70,12 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .payToAddress(receiver2, Amount.ada(2.5))
-                .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
+                .attachMetadata(MessageMetadata.create().add("This is a test message"))
                 .attachMetadata(metadata)
-                .from(sender);
+                .from(sender1Addr);
 
-        Result<String> result = quickTxBuilder.create(tx)
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
                 .complete();
 
         System.out.println(result);
@@ -77,16 +89,18 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .payToAddress(receiver2, Amount.ada(2.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
-                .from(sender);
+                .from(sender1Addr);
 
         Tx tx2 = new Tx()
                 .payToAddress(receiver3, Amount.ada(4.5))
-                .from(sender2);
+                .from(sender2Addr);
 
         Result<String> result = quickTxBuilder
-                .create(tx1, tx2)
-                .feePayer(sender.baseAddress())
-                .complete();
+                .compose(tx1, tx2)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
 
         System.out.println(result);
         assertTrue(result.isSuccessful());
@@ -102,12 +116,13 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             BigInteger qty = BigInteger.valueOf(1000);
 
             Tx tx = new Tx()
-                    .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), sender.baseAddress())
+                    .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), sender1.baseAddress())
                     .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                    .from(sender)
-                    .withSigner(SignerProviders.signerFrom(policy));
+                    .from(sender1.baseAddress());
 
-            Result<String> result = quickTxBuilder.create(tx)
+            Result<String> result = quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withSigner(SignerProviders.signerFrom(policy))
                     .complete();
 
             System.out.println(result);
@@ -125,15 +140,19 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                     .payToAddress(receiver2, Amount.ada(1.5))
                     .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), receiver2)
                     .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                    .from(sender)
-                    .withSigner(SignerProviders.signerFrom(policy));
+                    .from(sender1.baseAddress());
 
             Tx tx2 = new Tx()
                     .payToAddress(receiver3, new Amount(LOVELACE, adaToLovelace(2.13)))
-                    .from(sender2);
+                    .from(sender2.baseAddress());
 
-            Result<String> result = quickTxBuilder.create(tx1, tx2)
-                    .feePayer(sender.baseAddress())
+            Result<String> result = quickTxBuilder.compose(tx1, tx2)
+                    .feePayer(sender1.baseAddress())
+                    .withSigner(SignerProviders.signerFrom(sender1)
+                            .andThen(SignerProviders.signerFrom(sender2)))
+                    .withSigner(SignerProviders.signerFrom(policy))
+                    .additionalSignersCount(1) //As we have composed TxSigners from 2 signers, we need to add 1 additional signer,
+                    // as it's hard to determine how many signers are in the composed TxSigner
                     .complete();
 
             System.out.println(result);
@@ -152,16 +171,18 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                     .payToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)), true)
                     .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty))
                     .attachMetadata(MessageMetadata.create().add("Minting tx"))
-                    .from(sender)
-                    .withSigner(SignerProviders.signerFrom(policy));
+                    .from(sender1.baseAddress());
 
             Tx tx2 = new Tx()
                     .payToAddress(receiver3, Amount.ada(2.13))
-                    .from(sender2);
+                    .from(sender2.baseAddress());
 
 
-            Result<String> result = quickTxBuilder.create(tx1, tx2)
+            Result<String> result = quickTxBuilder.compose(tx1, tx2)
                     .feePayer(sender2.baseAddress())
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withSigner(SignerProviders.signerFrom(sender2))
+                    .withSigner(SignerProviders.signerFrom(policy))
                     .complete();
 
             System.out.println(result);
@@ -173,26 +194,31 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
     @Nested
     class CustomChangeAddress {
         @Test
-        void simplePayment_customChangeAddress() {
+        void simplePayment_customChangeAddress() throws InterruptedException {
             //Send 4 ada to a new change account
             Account changeAccount = new Account(Networks.testnet());
             Tx tx = new Tx()
                     .payToAddress(changeAccount.baseAddress(), Amount.ada(4.0))
-                    .from(sender);
+                    .from(sender1Addr);
 
-            Result<String> result = quickTxBuilder.create(tx)
+            Result<String> result = quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(sender1))
                     .complete();
             System.out.println(result);
             assertTrue(result.isSuccessful());
             waitForTransaction(result);
 
+            System.out.println("Mnemonic: " + changeAccount.mnemonic());
+
             //Now create another tx with custom change address
             Tx tx2 = new Tx()
                     .payToAddress(receiver1, Amount.ada(1.1))
-                    .withChangeAddress(sender.baseAddress())
-                    .from(changeAccount);
+                    .withChangeAddress(sender1Addr)
+                    .from(changeAccount.baseAddress());
 
-            Result<String> result2 = quickTxBuilder.create(tx2)
+            Result<String> result2 = quickTxBuilder.compose(tx2)
+                    .feePayer(sender1Addr)
+                    .withSigner(SignerProviders.signerFrom(changeAccount))
                     .complete();
             System.out.println(result2);
             assertTrue(result2.isSuccessful());
@@ -205,9 +231,10 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             Account changeAccount = new Account(Networks.testnet());
             Tx tx = new Tx()
                     .payToAddress(changeAccount.baseAddress(), Amount.ada(4.0))
-                    .from(sender);
+                    .from(sender1Addr);
 
-            Result<String> result = quickTxBuilder.create(tx)
+            Result<String> result = quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(sender1))
                     .complete();
             System.out.println(result);
             assertTrue(result.isSuccessful());
@@ -216,15 +243,17 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             //Now create another tx with custom change address
             Tx tx2 = new Tx()
                     .payToAddress(receiver1, Amount.ada(1.1))
-                    .withChangeAddress(sender.baseAddress())
-                    .from(changeAccount);
+                    .withChangeAddress(sender1Addr)
+                    .from(changeAccount.baseAddress());
 
             Tx tx3 = new Tx()
                     .payToAddress(receiver2, Amount.ada(2.1))
-                    .from(sender2);
+                    .from(sender2Addr);
 
-            Result<String> result2 = quickTxBuilder.create(tx2, tx3)
-                    .feePayer(sender.baseAddress())
+            Result<String> result2 = quickTxBuilder.compose(tx2, tx3)
+                    .feePayer(sender1.baseAddress())
+                    .withSigner(SignerProviders.signerFrom(changeAccount))
+                    .withSigner(SignerProviders.signerFrom(sender2))
                     .complete();
             System.out.println(result2);
             assertTrue(result2.isSuccessful());
@@ -238,10 +267,11 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .payToAddress(receiver2, Amount.ada(2.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
-                .from(sender);
+                .from(sender1Addr);
 
         Result<String> result = quickTxBuilder
-                .create(tx)
+                .compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
                 .preBalanceTx((context, txn) -> {
                     //do anything here...
                     System.out.println("Pre balance");
@@ -258,4 +288,32 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         waitForTransaction(result);
     }
 
+    @Test
+    void simplePayment_collectFromUtxo() {
+        String senderAddr = sender1.baseAddress();
+        UtxoSelectionStrategy utxoSelectionStrategy =
+                new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(backendService.getUtxoService()));
+        Set<Utxo> utxos = utxoSelectionStrategy.select(senderAddr, Amount.ada(4.0), null);
+
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .payToAddress(receiver2, Amount.ada(1.5))
+                .collectFrom(utxos)
+                .from(senderAddr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .complete();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+    }
+
+    @Test
+    void simplePayment_collectFromUtxo_withSelectedUtxos() {
+
+    }
 }
