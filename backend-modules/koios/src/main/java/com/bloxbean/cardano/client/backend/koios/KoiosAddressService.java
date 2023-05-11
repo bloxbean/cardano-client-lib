@@ -100,10 +100,10 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
                     .option(Offset.of((long) (page - 1) * count))
                     .option(ordering).build();
             if (from != null && !from.isEmpty()) {
-                options.getOptions().add(Filter.of("block_height", FilterType.GTE, from));
+                options.getOptionList().add(Filter.of("block_height", FilterType.GTE, from));
             }
             if (to != null && !to.isEmpty()) {
-                options.getOptions().add(Filter.of("block_height", FilterType.LTE, to));
+                options.getOptionList().add(Filter.of("block_height", FilterType.LTE, to));
             }
             rest.koios.client.backend.api.base.Result<List<TxHash>> transactionsResult = addressService.getAddressTransactions(List.of(address), options);
             if (!transactionsResult.isSuccessful()) {

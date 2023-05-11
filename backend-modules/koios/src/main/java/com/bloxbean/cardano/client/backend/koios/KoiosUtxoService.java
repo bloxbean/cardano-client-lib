@@ -39,7 +39,8 @@ public class KoiosUtxoService implements UtxoService {
     /**
      * KoiosUtxoService Constructor
      *
-     * @param addressService addressService
+     * @param addressService     addressService
+     * @param transactionService transactionService
      */
     public KoiosUtxoService(AddressService addressService, TransactionService transactionService) {
         this.addressService = addressService;
@@ -88,7 +89,7 @@ public class KoiosUtxoService implements UtxoService {
             return resultUtxos;
 
         List<Utxo> assetUtxos = utxos.stream().filter(utxo ->
-            utxo.getAmount().stream().filter(amount -> amount.getUnit().equals(unit)).findFirst().isPresent())
+                        utxo.getAmount().stream().filter(amount -> amount.getUnit().equals(unit)).findFirst().isPresent())
                 .collect(Collectors.toList());
 
         if (!assetUtxos.isEmpty())
