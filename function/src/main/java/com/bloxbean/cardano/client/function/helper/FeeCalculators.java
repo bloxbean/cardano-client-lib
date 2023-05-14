@@ -18,6 +18,7 @@ import com.bloxbean.cardano.client.transaction.spec.*;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -35,7 +36,7 @@ public class FeeCalculators {
      * @param noOfSigners   no of signer to sign the transaction
      * @return <code>{@link TxBuilder}</code> function
      * @throws TxBuildException
-     * @throws ApiRuntimeException if api error
+     * @throws ApiRuntimeException  if api error
      * @throws CborRuntimeException if Cbor serialization/de-serialization error
      */
     public static TxBuilder feeCalculator(String changeAddress, int noOfSigners) {
@@ -52,7 +53,7 @@ public class FeeCalculators {
      * @param updateOutputWithFeeFunc
      * @return <code>{@link TxBuilder}</code> function
      * @throws TxBuildException
-     * @throws ApiRuntimeException if api error
+     * @throws ApiRuntimeException  if api error
      * @throws CborRuntimeException if Cbor serialization/de-serialization error
      */
     public static TxBuilder feeCalculator(int noOfSigners, UpdateOutputFunction updateOutputWithFeeFunc) {
@@ -91,17 +92,26 @@ public class FeeCalculators {
             tbody.setFee(totalFee);
 
             if (updateOutputWithFeeFunc == null) {
-                //Update amount in change address
-                tbody.getOutputs().stream().filter(output -> changeAddress.equals(output.getAddress()))
-                        //Find the output with max lovelace value if multiple outputs for change address. Fee will be deducted from that
-                        .max((to1, to2) -> to1.getValue().getCoin().compareTo(to2.getValue().getCoin()))
-                        .ifPresentOrElse(output -> {
-                            output.getValue().setCoin(output.getValue().getCoin().subtract(totalFee));
-                        }, () -> {
-                            Value value = new Value(BigInteger.ZERO.subtract(totalFee), new ArrayList<>());
-                            TransactionOutput output = new TransactionOutput(changeAddress, value);
-                            transaction.getBody().getOutputs().add(output); //New change output //Need to calculate fee again
-                        });
+                //If a change output is there with negative value, then deduct fee from that
+                Optional<TransactionOutput> changeOutput
+                        = tbody.getOutputs().stream().filter(output -> changeAddress.equals(output.getAddress())
+                                && output.getValue().getCoin().compareTo(BigInteger.ZERO) < 0)
+                        .findFirst();
+
+                //If no change output with negative value, then deduct fee from change output with max value.
+                if (!changeOutput.isPresent()) {
+                    changeOutput = tbody.getOutputs().stream().filter(output -> changeAddress.equals(output.getAddress()))
+                            //Find the output with max lovelace value if multiple outputs for change address. Fee will be deducted from that
+                            .max((to1, to2) -> to1.getValue().getCoin().compareTo(to2.getValue().getCoin()));
+                }
+
+                changeOutput.ifPresentOrElse(output -> {
+                    output.getValue().setCoin(output.getValue().getCoin().subtract(totalFee));
+                }, () -> {
+                    Value value = new Value(BigInteger.ZERO.subtract(totalFee), new ArrayList<>());
+                    TransactionOutput output = new TransactionOutput(changeAddress, value);
+                    transaction.getBody().getOutputs().add(output); //New change output //Need to calculate fee again
+                });
             } else {
                 updateOutputWithFeeFunc.accept(totalFee, transaction.getBody().getOutputs());
             }
