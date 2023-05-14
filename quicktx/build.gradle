@@ -3,6 +3,8 @@ dependencies {
     api project(':function')
     api project(':backend')
 
+    integrationTestImplementation(libs.slf4j.log4j)
+
     integrationTestImplementation project(':')
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':backend-modules:koios')

@@ -3,6 +3,7 @@ koios-java = "io.github.cardano-community:koios-java-client:1.17.1"
 ogmios-java = "io.adabox:ogmios-java-client:1.0.0"
 
 slf4j-api = "org.slf4j:slf4j-api:1.7.36"
+slf4j-log4j = "org.slf4j:slf4j-log4j12:1.7.36"
 
 bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk15to18:1.71"
 guava = "com.google.guava:guava:31.1-jre"
