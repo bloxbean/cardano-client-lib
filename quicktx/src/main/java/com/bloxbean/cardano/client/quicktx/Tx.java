@@ -1,9 +1,17 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
+import com.bloxbean.cardano.client.spec.Script;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.util.Tuple;
+import lombok.NonNull;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -17,6 +25,75 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx() {
 
+    }
+
+    /**
+     * Add a mint asset to the transaction. The newly minted asset will be transferred to the defined receivers in payToAddress methods.
+     *
+     * @param script Policy script
+     * @param asset  Asset to mint
+     * @return Tx
+     */
+    public Tx mintAssets(@NonNull Script script, Asset asset) {
+        return mintAssets(script, List.of(asset), null);
+    }
+
+    /**
+     * Add a mint asset to the transaction. The newly minted asset will be transferred to the receiver address.
+     *
+     * @param script   Policy script
+     * @param asset    Asset to mint
+     * @param receiver Receiver address
+     * @return Tx
+     */
+    public Tx mintAssets(@NonNull Script script, Asset asset, String receiver) {
+        return mintAssets(script, List.of(asset), receiver);
+    }
+
+    /**
+     * Add mint assets to the transaction. The newly minted assets will be transferred to the defined receivers in payToAddress methods.
+     *
+     * @param script Policy script
+     * @param assets List of assets to mint
+     * @return Tx
+     */
+    public Tx mintAssets(@NonNull Script script, List<Asset> assets) {
+        return mintAssets(script, assets, null);
+    }
+
+    /**
+     * Add mint assets to the transaction. The newly minted assets will be transferred to the receiver address.
+     *
+     * @param script   Policy script
+     * @param assets   List of assets to mint
+     * @param receiver Receiver address
+     * @return Tx
+     */
+    public Tx mintAssets(@NonNull Script script, List<Asset> assets, String receiver) {
+        try {
+            String policyId = script.getPolicyId();
+
+            if (receiver != null) { //If receiver address is defined
+                assets.forEach(asset -> {
+                    payToAddress(receiver,
+                            List.of(new Amount(AssetUtil.getUnit(policyId, asset), asset.getValue())), true);
+                });
+            }
+
+            MultiAsset multiAsset = MultiAsset.builder()
+                    .policyId(policyId)
+                    .assets(assets)
+                    .build();
+
+            if (multiAssets == null)
+                multiAssets = new ArrayList<>();
+
+            multiAssets.add(new Tuple<>(script, multiAsset));
+        } catch (Exception e) {
+            throw new TxBuildException(e);
+        }
+
+        return this;
     }
 
     /**

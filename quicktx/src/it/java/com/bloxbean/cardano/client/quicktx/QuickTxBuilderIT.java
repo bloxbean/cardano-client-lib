@@ -67,11 +67,11 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         metadata.put(BigInteger.valueOf(100), "This is second metadata");
         metadata.putNegative(200, -900);
 
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .payToAddress(receiver2, Amount.ada(2.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message"))
-                .attachMetadata(metadata)
                 .from(sender1Addr);
 
         Result<String> result = quickTxBuilder.compose(tx)

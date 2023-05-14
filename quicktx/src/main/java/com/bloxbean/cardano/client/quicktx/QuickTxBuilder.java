@@ -3,10 +3,8 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
-import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
@@ -15,15 +13,17 @@ import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.coinselection.impl.LargestFirstUtxoSelectionStrategy;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.BalanceTxBuilders;
 import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
-import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.function.helper.OutputMergers;
+import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
+import com.bloxbean.cardano.client.quicktx.helpers.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.util.JsonUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,6 +57,8 @@ import java.util.function.Consumer;
  */
 @Slf4j
 public class QuickTxBuilder {
+    private static final int MAX_COLLATERAL_INPUTS = 3;
+    private static final Amount DEFAULT_COLLATERAL_AMT = Amount.ada(5.0);
     private UtxoSupplier utxoSupplier;
     private ProtocolParamsSupplier protocolParamsSupplier;
     private TransactionProcessor transactionProcessor;
@@ -112,6 +114,8 @@ public class QuickTxBuilder {
         private int additionalSignerCount = 0;
         private int signersCount = 0;
         private TxSigner signers;
+
+        private boolean mergeChangeOutputs = true;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -185,6 +189,9 @@ public class QuickTxBuilder {
 
             for (AbstractTx tx : txList) {
                 tx.verifyData();
+                if (tx.getChangeAddress() == null && tx instanceof ScriptTx)
+                    ((ScriptTx)tx).withChangeAddress(feePayer);
+
                 txBuilder = txBuilder.andThen(tx.complete());
 
                 if (tx instanceof ScriptTx)
@@ -216,11 +223,21 @@ public class QuickTxBuilder {
 
             if (containsScriptTx) {
                 txBuilder = txBuilder.andThen(((context, transaction) -> {
-                    computeScriptCost(transaction);
+                    try {
+                        ScriptCostEvaluators.evaluateScriptCost(transactionProcessor).apply(context, transaction);
+                    } catch (Exception e) {
+                        //Ignore as it could happen due to insufficient ada in utxo
+                    }
                 }));
             }
 
-            txBuilder = txBuilder.andThen(BalanceTxBuilders.balanceTxWithAdditionalSigners(feePayer, totalSigners));
+            if (mergeChangeOutputs)
+                txBuilder = txBuilder.andThen(OutputMergers.mergeOutputsForAddress(feePayer));
+
+            //Balance outputs
+            txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx,
+                    transactionProcessor));
+
             if (postBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(postBalanceTrasformer);
 
@@ -258,37 +275,13 @@ public class QuickTxBuilder {
 
         private TxBuilder buildCollateralOutput(String feePayer) {
             UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
-            Set<Utxo> collateralUtxos = utxoSelectionStrategy.select(feePayer, Amount.ada(5.0), null);
-
-            return CollateralBuilders.collateralOutputs(feePayer, List.copyOf(collateralUtxos));
-        }
-
-        private void computeScriptCost(Transaction transaction) {
-            if (transaction.getWitnessSet().getRedeemers() == null ||
-                    transaction.getWitnessSet().getRedeemers().isEmpty())
-                return; //non-script transaction
-
-            try {
-                Result<List<EvaluationResult>> evaluationResult = transactionProcessor.evaluateTx(transaction.serialize());
-                if (!evaluationResult.isSuccessful())
-                    throw new TxBuildException("Failed to compute script cost : " + evaluationResult.getResponse());
-
-                List<EvaluationResult> evaluationResults = evaluationResult.getValue();
-                for (Redeemer redeemer : transaction.getWitnessSet().getRedeemers()) {
-                    for (EvaluationResult evalRes : evaluationResults) {
-                        if (redeemer.getIndex().intValue() == evalRes.getIndex() && redeemer.getTag() == evalRes.getRedeemerTag()) {
-                            redeemer.getExUnits()
-                                    .setMem(evalRes.getExUnits().getMem());
-                            redeemer.getExUnits()
-                                    .setSteps(evalRes.getExUnits().getSteps());
-                            break;
-                        }
-                    }
-                }
-            } catch (CborSerializationException | ApiException e) {
-                throw new TxBuildException("Failed to compute script cost", e);
+            Set<Utxo> collateralUtxos = utxoSelectionStrategy.select(feePayer, DEFAULT_COLLATERAL_AMT, null);
+            if (collateralUtxos.size() > MAX_COLLATERAL_INPUTS) {
+                utxoSelectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoSupplier);
+                collateralUtxos = utxoSelectionStrategy.select(feePayer, DEFAULT_COLLATERAL_AMT, null);
             }
 
+            return CollateralBuilders.collateralOutputs(feePayer, List.copyOf(collateralUtxos));
         }
 
         /**
@@ -304,7 +297,7 @@ public class QuickTxBuilder {
 
             try {
                 Result<String> result = transactionProcessor.submitTransaction(transaction.serialize());
-                System.out.println("Transaction : " + transaction);
+                System.out.println("Transaction : " + JsonUtil.getPrettyJson(transaction));
                 if (!result.isSuccessful()) {
                     log.error("Transaction : " + transaction);
                 }
@@ -376,5 +369,9 @@ public class QuickTxBuilder {
             return this;
         }
 
+        public TxContext mergeChangeOutputs(boolean merge) {
+            this.mergeChangeOutputs = merge;
+            return this;
+        }
     }
 }
