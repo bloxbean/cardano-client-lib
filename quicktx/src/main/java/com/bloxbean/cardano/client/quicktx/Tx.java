@@ -110,11 +110,21 @@ public class Tx extends AbstractTx<Tx> {
         return this;
     }
 
+    /**
+     * Create Tx with given utxos as inputs.
+     * @param utxos List of utxos
+     * @return Tx
+     */
     public Tx collectFrom(List<Utxo> utxos) {
         this.inputUtxos = utxos;
         return this;
     }
 
+    /**
+     * Create Tx with given utxos as inputs.
+     * @param utxos Set of utxos
+     * @return Tx
+     */
     public Tx collectFrom(Set<Utxo> utxos) {
         this.inputUtxos = List.copyOf(utxos);
         return this;

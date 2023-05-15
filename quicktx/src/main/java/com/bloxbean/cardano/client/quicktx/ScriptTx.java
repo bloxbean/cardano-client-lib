@@ -35,6 +35,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         mintingValidators = new ArrayList<>();
     }
 
+    /**
+     * Add given script utxo as input of the transaction. T
+     * @param utxo Script utxo
+     * @param redeemer Redeemer
+     * @return ScriptTx
+     */
     public ScriptTx collectFrom(Utxo utxo, PlutusData redeemer) {
         if (inputUtxos == null)
             inputUtxos = new ArrayList<>();
@@ -58,18 +64,50 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     //TODO : collectFrom(List<Utxo> utxos, PlutusData redeemer)
     //TODO: read from utxo  readFrom(Utxo utxo)
 
+    /**
+     * Mint asset with given script and redeemer
+     * @param script plutus script
+     * @param asset asset to mint
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
     public ScriptTx mintAsset(PlutusScript script, Asset asset, PlutusData redeemer) {
         return mintAsset(script, List.of(asset), redeemer, null, null);
     }
 
+    /**
+     * Mint asset with given script and redeemer. The minted asset will be sent to the given receiver address
+     * @param script plutus script
+     * @param asset asset to mint
+     * @param redeemer redeemer
+     * @param receiver receiver address
+     * @return ScriptTx
+     */
     public ScriptTx mintAsset(PlutusScript script, Asset asset, PlutusData redeemer, String receiver) {
         return mintAsset(script, List.of(asset), redeemer, receiver, null);
     }
 
+    /**
+     * Mint assets with given script and redeemer. The minted assets will be sent to the given receiver address
+     * @param script plutus script
+     * @param assets assets to mint
+     * @param redeemer redeemer
+     * @param receiver receiver address
+     * @return ScriptTx
+     */
     public ScriptTx mintAsset(PlutusScript script, List<Asset> assets, PlutusData redeemer, String receiver) {
         return mintAsset(script, assets, redeemer, receiver, null);
     }
 
+    /**
+     * Mint assets with given script and redeemer. The minted assets will be sent to the given receiver address with output datum
+     * @param script plutus script
+     * @param assets assets to mint
+     * @param redeemer redeemer
+     * @param receiver receiver address
+     * @param outputDatum output datum
+     * @return ScriptTx
+     */
     public ScriptTx mintAsset(PlutusScript script, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
         Redeemer _redeemer = Redeemer.builder()
                 .tag(RedeemerTag.Mint)
@@ -106,11 +144,21 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return this;
     }
 
+    /**
+     * Attach a spending validator script to the transaction
+     * @param plutusScript
+     * @return ScriptTx
+     */
     public ScriptTx attachSpendingValidator(PlutusScript plutusScript) {
         spendingValidators.add(plutusScript);
         return this;
     }
 
+    /**
+     * Attach a minting validator script to the transaction. This method is called from the mintAssets methods.
+     * @param plutusScript plutus script
+     * @return ScriptTx
+     */
     private ScriptTx attachMintValidator(PlutusScript plutusScript) {
         mintingValidators.add(plutusScript);
         return this;
@@ -133,6 +181,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 //        return this;
 //    }
 
+    /**
+     * Send change to the change address with the output datum.
+     * @param changeAddress change address
+     * @param plutusData output datum
+     * @return ScriptTx
+     */
     public ScriptTx withChangeAddress(String changeAddress, PlutusData plutusData) {
         if (changeDatahash != null)
             throw new TxBuildException("Change data hash already set. Cannot set change data");
@@ -141,6 +195,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return this;
     }
 
+    /**
+     * Send change to the change address with the output datum hash.
+     * @param changeAddress
+     * @param datumHash
+     * @return ScriptTx
+     */
     public ScriptTx withChangeAddress(String changeAddress, String datumHash) {
         if (changeData != null)
             throw new TxBuildException("Change data already set. Cannot set change data hash");
@@ -149,6 +209,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return this;
     }
 
+    /**
+     * Get change address
+     * @return
+     */
     @Override
     protected String getChangeAddress() {
         if (changeAddress != null)
@@ -157,6 +221,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             return null;
     }
 
+    /**
+     * Get from address
+     * @return
+     */
     @Override
     protected String getFromAddress() {
         return null;

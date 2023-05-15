@@ -326,10 +326,23 @@ public class QuickTxBuilder {
             return completeAndWait(Duration.ofSeconds(60), (msg) -> log.info(msg));
         }
 
+        /**
+         * Build, sign and submit transaction and wait for the transaction to be included in the block.
+         * Default timeout is 60 seconds.
+         *
+         * @param logConsumer consumer to get log messages
+         * @return Result of transaction submission
+         */
         public Result<String> completeAndWait(Consumer<String> logConsumer) {
             return completeAndWait(Duration.ofSeconds(60), logConsumer);
         }
 
+        /**
+         * Build, sign and submit transaction and wait for the transaction to be included in the block.
+         *
+         * @param timeout
+         * @return Result of transaction submission
+         */
         public Result<String> completeAndWait(Duration timeout) {
             return completeAndWait(timeout, (msg) -> log.info(msg));
         }
@@ -368,6 +381,11 @@ public class QuickTxBuilder {
             return result;
         }
 
+        /**
+         * Sign transaction with the given signer
+         * @param signer
+         * @return TxContext
+         */
         public TxContext withSigner(@NonNull TxSigner signer) {
             signersCount++;
 
@@ -378,11 +396,23 @@ public class QuickTxBuilder {
             return this;
         }
 
+        /**
+         * Define if change outputs should be merged or not
+         * Default is true
+         *
+         * @param merge
+         * @return TxContext
+         */
         public TxContext mergeChangeOutputs(boolean merge) {
             this.mergeChangeOutputs = merge;
             return this;
         }
 
+        /**
+         * Evaluate script cost for the transaction with the given evaluator
+         * @param txEvaluator
+         * @return TxContext
+         */
         public TxContext withTxEvaluator(TransactionEvaluator txEvaluator) {
             this.txnEvaluator = txEvaluator;
             return this;
