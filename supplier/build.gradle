@@ -1,0 +1,25 @@
+dependencies {
+    api project(':core')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Supplier Modules'
+                description = 'Cardano Client Lib - Supplier Modules'
+            }
+        }
+    }
+}
+
+subprojects {
+    archivesBaseName = 'cardano-client-supplier-' + project.name
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                artifactId 'cardano-client-supplier-' + project.name
+            }
+        }
+    }
+}
