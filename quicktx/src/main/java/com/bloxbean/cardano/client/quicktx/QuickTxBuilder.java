@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
@@ -85,7 +86,8 @@ public class QuickTxBuilder {
     public QuickTxBuilder(BackendService backendService) {
         this(new DefaultUtxoSupplier(backendService.getUtxoService()),
                 new DefaultProtocolParamsSupplier(backendService.getEpochService()),
-                new DefaultTransactionProcessor(backendService.getTransactionService()));
+                new DefaultTransactionProcessor(backendService.getTransactionService())
+        );
     }
 
     /**
@@ -116,6 +118,8 @@ public class QuickTxBuilder {
         private TxSigner signers;
 
         private boolean mergeChangeOutputs = true;
+
+        private TransactionEvaluator txnEvaluator;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -201,6 +205,12 @@ public class QuickTxBuilder {
             int totalSigners = getTotalSigners();
 
             TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier);
+            //Set tx evaluator for script cost calculation
+            if (txnEvaluator != null)
+                txBuilderContext.withTxnEvaluator(txnEvaluator);
+            else
+                txBuilderContext.withTxnEvaluator(transactionProcessor);
+
 
             if (preBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(preBalanceTrasformer);
@@ -224,7 +234,7 @@ public class QuickTxBuilder {
             if (containsScriptTx) {
                 txBuilder = txBuilder.andThen(((context, transaction) -> {
                     try {
-                        ScriptCostEvaluators.evaluateScriptCost(transactionProcessor).apply(context, transaction);
+                        ScriptCostEvaluators.evaluateScriptCost().apply(context, transaction);
                     } catch (Exception e) {
                         //Ignore as it could happen due to insufficient ada in utxo
                     }
@@ -235,8 +245,7 @@ public class QuickTxBuilder {
                 txBuilder = txBuilder.andThen(OutputMergers.mergeOutputsForAddress(feePayer));
 
             //Balance outputs
-            txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx,
-                    transactionProcessor));
+            txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
 
             if (postBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(postBalanceTrasformer);
@@ -371,6 +380,11 @@ public class QuickTxBuilder {
 
         public TxContext mergeChangeOutputs(boolean merge) {
             this.mergeChangeOutputs = merge;
+            return this;
+        }
+
+        public TxContext withTxEvaluator(TransactionEvaluator txEvaluator) {
+            this.txnEvaluator = txEvaluator;
             return this;
         }
     }

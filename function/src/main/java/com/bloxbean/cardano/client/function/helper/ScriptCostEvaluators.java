@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import com.bloxbean.cardano.client.api.TransactionProcessor;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.api.model.Result;
@@ -14,14 +14,18 @@ import java.util.List;
 public class ScriptCostEvaluators {
 
     //TODO -- Unit tests pending
-    public static TxBuilder evaluateScriptCost(TransactionProcessor transactionProcessor) {
+    public static TxBuilder evaluateScriptCost() {
         return (ctx, transaction) -> {
             if (transaction.getWitnessSet().getRedeemers() == null ||
                     transaction.getWitnessSet().getRedeemers().isEmpty())
                 return; //non-script transaction
 
+            TransactionEvaluator transactionEvaluator = ctx.getTxnEvaluator();
+            if (transactionEvaluator == null)
+                throw new TxBuildException("Transaction evaluator is not set. Transaction evaluator is required to calculate script cost");
+
             try {
-                Result<List<EvaluationResult>> evaluationResult = transactionProcessor.evaluateTx(transaction.serialize());
+                Result<List<EvaluationResult>> evaluationResult = transactionEvaluator.evaluateTx(transaction.serialize());
                 if (!evaluationResult.isSuccessful())
                     throw new TxBuildException("Failed to compute script cost : " + evaluationResult.getResponse());
 

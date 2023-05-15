@@ -1,7 +1,8 @@
 package com.bloxbean.cardano.client.quicktx.helpers;
 
-import com.bloxbean.cardano.client.api.TransactionProcessor;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.function.TxBuilder;
+import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.BalanceTxBuilders;
 import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.transaction.spec.Value;
@@ -11,8 +12,7 @@ import java.math.BigInteger;
 public class ScriptBalanceTxProviders {
 
     //TODO -- Unit tests pending
-    public static TxBuilder balanceTx(String feePayer, int additionalSigners, boolean containsScript,
-                                      TransactionProcessor transactionProcessor) {
+    public static TxBuilder balanceTx(String feePayer, int additionalSigners, boolean containsScript) {
         return (ctx, transaction) -> {
             int inputSize = transaction.getBody().getInputs().size();
             BalanceTxBuilders.balanceTxWithAdditionalSigners(feePayer, additionalSigners).apply(ctx, transaction);
@@ -21,6 +21,10 @@ public class ScriptBalanceTxProviders {
             if (!containsScript || (newInputSize == inputSize)) { //TODO -- check for contains script
                 return;
             }
+
+            TransactionEvaluator transactionEvaluator = ctx.getTxnEvaluator();
+            if (transactionEvaluator == null)
+                throw new TxBuildException("Transaction evaluator is not set. Transaction evaluator is required to calculate script cost");
 
             //As new inputs are added, the cost of the transaction will increase
             //So, we need to recompute the script cost and fee
@@ -38,7 +42,7 @@ public class ScriptBalanceTxProviders {
             transaction.getBody().setTotalCollateral(BigInteger.valueOf(1000000)); //reset total collateral. some dummy value
 
             //Recompute script cost
-            ScriptCostEvaluators.evaluateScriptCost(transactionProcessor).apply(ctx, transaction);
+            ScriptCostEvaluators.evaluateScriptCost().apply(ctx, transaction);
             BalanceTxBuilders.balanceTxWithAdditionalSigners(feePayer, additionalSigners).apply(ctx, transaction);
         };
     }

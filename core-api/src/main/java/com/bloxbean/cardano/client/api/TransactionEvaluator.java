@@ -6,10 +6,6 @@ import com.bloxbean.cardano.client.api.model.Result;
 
 import java.util.List;
 
-/**
- * Implement this interface to provide transaction submission capability.
- */
-public interface TransactionProcessor extends TransactionEvaluator {
-
-    Result<String> submitTransaction(byte[] cborData) throws ApiException;
+public interface TransactionEvaluator {
+    Result<List<EvaluationResult>> evaluateTx(byte[] cbor) throws ApiException;
 }
