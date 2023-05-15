@@ -1,0 +1,14 @@
+dependencies {
+    api project(':core-api')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Supplier - Hydra'
+                description = 'Cardano Client Lib - Hydra Supplier Module'
+            }
+        }
+    }
+}

@@ -28,3 +28,8 @@ include 'backend-modules:koios'
 include 'backend-modules:ogmios'
 include 'integration-test'
 
+//supplier modules
+include 'supplier'
+include 'supplier:local'
+include 'supplier:hydra'
+
