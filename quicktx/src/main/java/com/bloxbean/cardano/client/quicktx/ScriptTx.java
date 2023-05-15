@@ -61,8 +61,17 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return this;
     }
 
-    //TODO : collectFrom(List<Utxo> utxos, PlutusData redeemer)
+    //TODO: collectFrom(List<Utxo> utxos, PlutusData redeemer)
     //TODO: read from utxo  readFrom(Utxo utxo)
+    //TODO: registerPool(poolParam)
+    //TODO: registerStakeAddress(stakeAddress)
+    //TODO: deregisterStakeAddress(stakeAddress)
+    //TODO: retirePool(poolId, epochNo)
+    //TODO: updatePool(poolParam)
+    //TODO: delegateTo(stakeAddress, poolId, redeemer)
+    //TODO: withdraw(rewardAddress, amount, redeemer)
+    //TODO: validFrom(slotNo)
+    //TODO: validTo(slotNo)
 
     /**
      * Mint asset with given script and redeemer
