@@ -8,10 +8,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.MintCreators;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
-import com.bloxbean.cardano.client.transaction.spec.Asset;
-import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
-import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
+import com.bloxbean.cardano.client.transaction.spec.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -28,6 +25,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     protected List<SpendingContext> spendingContexts;
     protected List<MintingContext> mintingContexts;
 
+    protected List<TransactionInput> referenceInputs;
+
     public ScriptTx() {
         spendingContexts = new ArrayList<>();
         mintingContexts = new ArrayList<>();
@@ -36,7 +35,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
-     * Add given script utxo as input of the transaction. T
+     * Add given script utxo as input of the transaction.
      * @param utxo Script utxo
      * @param redeemer Redeemer
      * @return ScriptTx
@@ -61,8 +60,58 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return this;
     }
 
-    //TODO: collectFrom(List<Utxo> utxos, PlutusData redeemer)
-    //TODO: read from utxo  readFrom(Utxo utxo)
+    /**
+     * Add given script utxos as inputs of the transaction.
+     * @param utxos Script utxos
+     * @param redeemer Redeemer to be used for all the utxos
+     * @return ScriptTx
+     */
+    public ScriptTx collectFrom(List<Utxo> utxos, PlutusData redeemer) {
+        if (utxos == null)
+            return this;
+
+        utxos.forEach(utxo -> collectFrom(utxo, redeemer));
+        return this;
+    }
+
+    /**
+     * Add utxo(s) as reference input(s) of the transaction.
+     * @param utxos
+     * @return ScriptTx
+     */
+    public ScriptTx readFrom(Utxo... utxos) {
+        for (Utxo utxo: utxos) {
+            readFrom(utxo.getTxHash(), utxo.getOutputIndex());
+        }
+        return this;
+    }
+
+    /**
+     * Add transaction input(s) as reference input(s) of the transaction.
+     * @param transactionInputs
+     * @return ScriptTx
+     */
+    public ScriptTx readFrom(TransactionInput... transactionInputs) {
+        for (TransactionInput transactionInput: transactionInputs) {
+            readFrom(transactionInput.getTransactionId(), transactionInput.getIndex());
+        }
+        return this;
+    }
+
+    /**
+     * Add transaction input as reference input of the transaction.
+     * @param txHash
+     * @param outputIndex
+     * @return ScriptTx
+     */
+    public ScriptTx readFrom(String txHash, int outputIndex) {
+        TransactionInput transactionInput = new TransactionInput(txHash, outputIndex);
+        if (referenceInputs == null)
+            referenceInputs = new ArrayList<>();
+        referenceInputs.add(transactionInput);
+        return this;
+    }
+
     //TODO: registerPool(poolParam)
     //TODO: registerStakeAddress(stakeAddress)
     //TODO: deregisterStakeAddress(stakeAddress)
@@ -70,8 +119,6 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     //TODO: updatePool(poolParam)
     //TODO: delegateTo(stakeAddress, poolId, redeemer)
     //TODO: withdraw(rewardAddress, amount, redeemer)
-    //TODO: validFrom(slotNo)
-    //TODO: validTo(slotNo)
 
     /**
      * Mint asset with given script and redeemer
@@ -284,9 +331,25 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     protected TxBuilder prepareScriptCallContext() {
         TxBuilder txBuilder = (context, txn) -> {
         };
+
+        txBuilder = addReferenceInputs(txBuilder);
+
         txBuilder = txBuilderFromSpendingValidators(txBuilder);
         txBuilder = txBuilderFromMintingValidators(txBuilder);
 
+        return txBuilder;
+    }
+
+    private TxBuilder addReferenceInputs(TxBuilder txBuilder) {
+        if (referenceInputs != null) {
+            txBuilder = txBuilder.andThen((context, txn) -> {
+                List<TransactionInput> txRefInputs = txn.getBody().getReferenceInputs();
+                if (txRefInputs == null)
+                    txn.getBody().setReferenceInputs(referenceInputs);
+                else
+                    txRefInputs.addAll(referenceInputs);
+            });
+        }
         return txBuilder;
     }
 

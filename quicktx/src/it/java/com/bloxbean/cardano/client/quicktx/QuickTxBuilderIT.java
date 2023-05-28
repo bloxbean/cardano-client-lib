@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -18,6 +19,8 @@ import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -28,7 +31,7 @@ import java.util.Set;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class QuickTxBuilderIT extends QuickTxBaseIT {
     BackendService backendService;
@@ -315,5 +318,98 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
     @Test
     void simplePayment_collectFromUtxo_withSelectedUtxos() {
 
+    }
+
+    @Test
+    void tx_validTo() throws ApiException, CborSerializationException {
+        long validSlot = backendService.getBlockService().getLatestBlock().getValue().getSlot() + 100;
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message"))
+                .validTo(validSlot)
+                .from(sender1Addr);
+
+        Transaction transaction = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .buildAndSign();
+
+        Result<String> result = backendService.getTransactionService().submitTransaction(transaction.serialize());
+
+        assertEquals(validSlot, transaction.getBody().getTtl());
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+    }
+
+    @Test
+    void tx_invalid_validTo() throws ApiException, CborSerializationException {
+        long validSlot = backendService.getBlockService().getLatestBlock().getValue().getSlot() - 100;
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message"))
+                .validTo(validSlot)
+                .from(sender1Addr);
+
+        Transaction transaction = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .buildAndSign();
+
+        Result<String> result = backendService.getTransactionService().submitTransaction(transaction.serialize());
+
+        assertEquals(validSlot, transaction.getBody().getTtl());
+        System.out.println(result);
+        assertFalse(result.isSuccessful());
+    }
+
+    @Test
+    void tx_validFrom() throws ApiException, CborSerializationException {
+        long validSlot = backendService.getBlockService().getLatestBlock().getValue().getSlot() - 100;
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message"))
+                .validFrom(validSlot)
+                .from(sender1Addr);
+
+        Transaction transaction = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .buildAndSign();
+        System.out.println(JsonUtil.getPrettyJson(transaction));
+
+        Result<String> result = backendService.getTransactionService().submitTransaction(transaction.serialize());
+
+        assertEquals(validSlot, transaction.getBody().getValidityStartInterval());
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+    }
+
+    @Test
+    void tx_invalid_validFrom() throws ApiException, CborSerializationException {
+        long validSlot = backendService.getBlockService().getLatestBlock().getValue().getSlot() + 100;
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message"))
+                .validFrom(validSlot)
+                .from(sender1Addr);
+
+        Transaction transaction = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .buildAndSign();
+        System.out.println(JsonUtil.getPrettyJson(transaction));
+
+        Result<String> result = backendService.getTransactionService().submitTransaction(transaction.serialize());
+
+        assertEquals(validSlot, transaction.getBody().getValidityStartInterval());
+        System.out.println(result);
+        assertFalse(result.isSuccessful());
+        waitForTransaction(result);
     }
 }

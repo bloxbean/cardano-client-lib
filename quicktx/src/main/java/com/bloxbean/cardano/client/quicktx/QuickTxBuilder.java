@@ -24,7 +24,6 @@ import com.bloxbean.cardano.client.function.helper.OutputMergers;
 import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.quicktx.helpers.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.util.JsonUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -306,7 +305,6 @@ public class QuickTxBuilder {
 
             try {
                 Result<String> result = transactionProcessor.submitTransaction(transaction.serialize());
-                System.out.println("Transaction : " + JsonUtil.getPrettyJson(transaction));
                 if (!result.isSuccessful()) {
                     log.error("Transaction : " + transaction);
                 }
