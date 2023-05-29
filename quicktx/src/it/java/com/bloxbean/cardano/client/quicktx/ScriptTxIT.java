@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 
-import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ScriptTxIT extends QuickTxBaseIT {
@@ -477,19 +476,6 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
-    }
-
-    private void checkIfUtxoAvailable(String txHash, String address) {
-        Optional<Utxo> utxo = Optional.empty();
-        while (utxo.isEmpty()) {
-            List<Utxo> utxos = utxoSupplier.getAll(address);
-            utxo = utxos.stream().filter(u -> u.getTxHash().equals(txHash))
-                    .findFirst();
-            System.out.println("Try to get new output... txhash: " + txHash);
-            try {
-                Thread.sleep(1000);
-            } catch (Exception e) {}
-        }
     }
 
 }

@@ -62,6 +62,7 @@ public class QuickTxBuilder {
     private UtxoSupplier utxoSupplier;
     private ProtocolParamsSupplier protocolParamsSupplier;
     private TransactionProcessor transactionProcessor;
+    private Consumer<Transaction> txInspector;
 
     /**
      * Create QuickTxBuilder
@@ -303,6 +304,9 @@ public class QuickTxBuilder {
 
             Transaction transaction = buildAndSign();
 
+            if (txInspector != null)
+                txInspector.accept(transaction);
+
             try {
                 Result<String> result = transactionProcessor.submitTransaction(transaction.serialize());
                 if (!result.isSuccessful()) {
@@ -413,6 +417,16 @@ public class QuickTxBuilder {
          */
         public TxContext withTxEvaluator(TransactionEvaluator txEvaluator) {
             this.txnEvaluator = txEvaluator;
+            return this;
+        }
+
+        /**
+         * Inspect transaction before submitting
+         * @param txInspector
+         * @return TxContext
+         */
+        public TxContext withTxInspector(Consumer<Transaction> txInspector) {
+            QuickTxBuilder.this.txInspector = txInspector;
             return this;
         }
     }

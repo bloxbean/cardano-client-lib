@@ -82,4 +82,21 @@ public class SignerProviders {
             return outputTxn;
         };
     }
+
+    /**
+     * Function to sign a transaction with one or more stake key(s) of <code>Account</code>(s)
+     * @param signers account(s) to sign the transaction
+     * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
+     */
+    public static TxSigner stakeKeySignerFrom(Account... signers) {
+
+        return transaction -> {
+            Transaction outputTxn = transaction;
+            for (Account signer : signers) {
+                outputTxn = signer.signWithStakeKey(outputTxn);
+            }
+
+            return outputTxn;
+        };
+    }
 }

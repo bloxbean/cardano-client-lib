@@ -357,15 +357,16 @@ public abstract class AbstractTx<T> {
             }
         }
 
-        if (txOutputBuilder == null)
-            throw new TxBuildException("No outputs defined");
-
-        //Build inputs
         TxBuilder txBuilder;
-        if (inputUtxos != null && !inputUtxos.isEmpty()) {
-            txBuilder = buildInputBuildersFromUtxos(txOutputBuilder);
+        if (txOutputBuilder == null) {
+            txBuilder = (context, txn) -> {};
         } else {
-            txBuilder = buildInputBuilders(txOutputBuilder);
+            //Build inputs
+            if (inputUtxos != null && !inputUtxos.isEmpty()) {
+                txBuilder = buildInputBuildersFromUtxos(txOutputBuilder);
+            } else {
+                txBuilder = buildInputBuilders(txOutputBuilder);
+            }
         }
 
         //Mint assets

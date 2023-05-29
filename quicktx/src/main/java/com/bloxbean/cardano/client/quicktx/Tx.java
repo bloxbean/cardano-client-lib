@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public class Tx extends AbstractTx<Tx> {
+public class Tx extends StakeTx<Tx> {
 
     private String sender;
     protected boolean senderAdded = false;

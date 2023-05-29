@@ -65,6 +65,18 @@ class SignerProvidersTest {
         assertThat(signedTxn.getWitnessSet().getVkeyWitnesses()).hasSize(3);
     }
 
+    @Test
+    void signerFromAccountStakeKeys() throws Exception {
+        Account account1 = new Account(Networks.testnet());
+        Account account2 = new Account(Networks.testnet());
+
+        Transaction signedTxn = SignerProviders.stakeKeySignerFrom(account1, account2)
+                .andThen(SignerProviders.signerFrom(account1))
+                .sign(buildTransaction());
+
+        assertThat(signedTxn.getWitnessSet().getVkeyWitnesses()).hasSize(3);
+    }
+
     private Transaction buildTransaction() throws Exception {
         List<TransactionInput> inputs = List.of(
                 new TransactionInput("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0),
