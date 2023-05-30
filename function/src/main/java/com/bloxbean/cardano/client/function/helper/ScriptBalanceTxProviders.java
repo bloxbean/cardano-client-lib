@@ -1,17 +1,30 @@
-package com.bloxbean.cardano.client.quicktx.helpers;
+package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.BalanceTxBuilders;
-import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.transaction.spec.Value;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 
+/**
+ * Helper class to balance a transaction with script.
+ */
+@Slf4j
 public class ScriptBalanceTxProviders {
 
     //TODO -- Unit tests pending
+    /**
+     * Function to balance an unbalanced transaction using Automatic Utxo Discovery with Additional Signers.
+     * This function invokes {@link BalanceTxBuilders#balanceTxWithAdditionalSigners(String, int)} to balance the transaction.
+     * If any new inputs are added to the transaction during balancing, the script cost and fee will be recomputed.
+     *
+     * @param feePayer Fee payer address
+     * @param additionalSigners No of Additional signers. This is required for accurate fee calculation.
+     * @param containsScript If the transaction contains script
+     * @return TxBuilder
+     */
     public static TxBuilder balanceTx(String feePayer, int additionalSigners, boolean containsScript) {
         return (ctx, transaction) -> {
             int inputSize = transaction.getBody().getInputs().size();

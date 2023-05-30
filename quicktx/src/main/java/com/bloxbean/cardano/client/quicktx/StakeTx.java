@@ -4,12 +4,19 @@ import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,9 +32,12 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
  */
 @Slf4j
 public abstract class StakeTx<T> extends AbstractTx<T> {
+    //TODO -- Read from protocol params
     public static final BigInteger STAKE_KEY_REG_DEPOSIT = adaToLovelace(2.0);
+    public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
+
     protected List<StakeRegistration> stakeRegistrations;
-    protected List<StakeDeregistration> stakeDeRegistrations;
+    protected List<StakeKeyDeregestrationContext> stakeDeRegistrations;
 
     /**
      * Register stake address
@@ -64,7 +74,7 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
     }
 
     /**
-     * De-register stake address
+     * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified
      * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
      * @return T
      */
@@ -73,11 +83,73 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
     }
 
     /**
-     * De-register stake address
+     * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified
      * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
      * @return T
      */
     public T deregisterStakeAddress(@NonNull Address address) {
+        return deregisterStakeAddress(address, null, null);
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the refund address.
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param refundAddr refund address
+     * @return T
+     */
+    public T deregisterStakeAddress(@NonNull String address, @NonNull String refundAddr) {
+        return deregisterStakeAddress(new Address(address), null, refundAddr);
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the refund address.
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param refundAddr refund address
+     * @return T
+     */
+    public T deregisterStakeAddress(@NonNull Address address, @NonNull String refundAddr) {
+        return deregisterStakeAddress(address, null, refundAddr);
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified.
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param redeemer redeemer to use if the address is a script address
+     * @return T
+     */
+    public T deregisterStakeAddress(@NonNull String address, PlutusData redeemer) {
+        return deregisterStakeAddress(new Address(address), redeemer, null);
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified.
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param redeemer redeemer to use if the address is a script address
+     * @return T
+     */
+    public T deregisterStakeAddress(@NonNull Address address, PlutusData redeemer) {
+        return deregisterStakeAddress(address, redeemer, null);
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the refund address.
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param redeemer redeemer to use if the address is a script address
+     * @param refundAddr refund address
+     * @return T
+     */
+    public T deregisterStakeAddress(@NonNull String address, PlutusData redeemer, String refundAddr) {
+        return deregisterStakeAddress(new Address(address), redeemer, refundAddr);
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the refund address.
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param redeemer redeemer to use if the address is a script address
+     * @param refundAddr refund address
+     * @return T
+     */
+    public T deregisterStakeAddress(@NonNull Address address, PlutusData redeemer, String refundAddr) {
         byte[] delegationHash = address.getDelegationCredential()
                 .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
 
@@ -92,7 +164,22 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
 
         //-- Stake key de-registration
         StakeDeregistration stakeDeregistration = new StakeDeregistration(stakeCredential);
-        stakeDeRegistrations.add(stakeDeregistration);
+        Redeemer _redeemer = null;
+        if (redeemer != null) {
+            _redeemer = Redeemer.builder()
+                    .tag(RedeemerTag.Cert)
+                    .index(BigInteger.valueOf(stakeDeRegistrations.size())) //dummy value
+                    .data(redeemer)
+                    .index(BigInteger.valueOf(1)) //dummy value
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000)) // Some dummy value
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+        }
+
+        StakeKeyDeregestrationContext stakeKeyDeregestrationContext = new StakeKeyDeregestrationContext(stakeDeregistration, _redeemer, refundAddr);
+        stakeDeRegistrations.add(stakeKeyDeregestrationContext);
 
         return (T) this;
     }
@@ -111,7 +198,13 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
         }
 
         if (stakeDeRegistrations != null && stakeDeRegistrations.size() > 0 && (outputs == null || outputs.size() == 0)) {
-            payToAddress(getFromAddress(), Amount.ada(1.0)); //Dummy output to sender address to trigger input selection
+            String fromAddress = getFromAddress();
+            if (fromAddress == null)
+                fromAddress = getChangeAddress();
+            if (fromAddress == null)
+                throw new TxBuildException("From address is not set");
+
+            payToAddress(fromAddress, DUMMY_MIN_OUTPUT_VAL); //Dummy output to sender address to trigger input selection
         }
 
         TxBuilder txBuilder = super.complete();
@@ -183,22 +276,45 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
                 txn.getBody().setCerts(certificates);
             }
 
-            certificates.addAll(stakeDeRegistrations);
+            if (txn.getWitnessSet() == null) {
+                txn.setWitnessSet(new TransactionWitnessSet());
+            }
 
-            BigInteger totalStakeKeyDeposit = STAKE_KEY_REG_DEPOSIT.multiply(BigInteger.valueOf(stakeDeRegistrations.size()));
-            log.debug("Total stake key deposit to refund: " + totalStakeKeyDeposit);
+            for (StakeKeyDeregestrationContext stakeKeyDeregestrationContext: stakeDeRegistrations) {
+                certificates.add(stakeKeyDeregestrationContext.getStakeDeregistration());
 
-            txn.getBody().getOutputs()
-                    .stream().filter(to -> to.getAddress().equals(changeAddress))
-                    .findFirst()
-                    .ifPresentOrElse(to -> {
-                        //Add deposit amount to the change address
-                        to.getValue().setCoin(to.getValue().getCoin().add(totalStakeKeyDeposit));
-                    }, () -> {
-                        TransactionOutput transactionOutput = new TransactionOutput(changeAddress, Value.builder().coin(totalStakeKeyDeposit).build());
-                        txn.getBody().getOutputs().add(transactionOutput);
-                    });
+                if (stakeKeyDeregestrationContext.refundAddress == null)
+                    stakeKeyDeregestrationContext.refundAddress = changeAddress;
+
+                if (stakeKeyDeregestrationContext.redeemer != null) {
+                    //Add redeemer to witness set
+                    Redeemer redeemer = stakeKeyDeregestrationContext.redeemer;
+                    redeemer.setIndex(BigInteger.valueOf(certificates.size() - 1));
+                    txn.getWitnessSet().getRedeemers().add(redeemer);
+                }
+
+                //Add deposit refund
+                txn.getBody().getOutputs()
+                        .stream().filter(to -> to.getAddress().equals(stakeKeyDeregestrationContext.refundAddress))
+                        .findFirst()
+                        .ifPresentOrElse(to -> {
+                            //Add deposit amount to the change address
+                            to.getValue().setCoin(to.getValue().getCoin().add(STAKE_KEY_REG_DEPOSIT));
+                        }, () -> {
+                            TransactionOutput transactionOutput = new TransactionOutput(stakeKeyDeregestrationContext.refundAddress,
+                                    Value.builder().coin(STAKE_KEY_REG_DEPOSIT).build());
+                            txn.getBody().getOutputs().add(transactionOutput);
+                        });
+            }
         });
         return txBuilder;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class StakeKeyDeregestrationContext {
+        private StakeDeregistration stakeDeregistration;
+        private Redeemer redeemer;
+        private String refundAddress;
     }
 }

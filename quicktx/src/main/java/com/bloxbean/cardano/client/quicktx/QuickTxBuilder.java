@@ -22,7 +22,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
 import com.bloxbean.cardano.client.function.helper.OutputMergers;
 import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
-import com.bloxbean.cardano.client.quicktx.helpers.ScriptBalanceTxProviders;
+import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -193,8 +193,13 @@ public class QuickTxBuilder {
 
             for (AbstractTx tx : txList) {
                 tx.verifyData();
-                if (tx.getChangeAddress() == null && tx instanceof ScriptTx)
-                    ((ScriptTx)tx).withChangeAddress(feePayer);
+                //For scriptTx, set fee payer as change address and from address by default.
+                if (tx.getChangeAddress() == null && tx instanceof ScriptTx) {
+                    ((ScriptTx) tx).withChangeAddress(feePayer);
+                }
+                if (tx.getFromAddress() == null && tx instanceof ScriptTx) {
+                    ((ScriptTx) tx).from(feePayer);
+                }
 
                 txBuilder = txBuilder.andThen(tx.complete());
 

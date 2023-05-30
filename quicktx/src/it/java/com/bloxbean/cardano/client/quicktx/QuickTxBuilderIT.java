@@ -84,6 +84,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }
 
     @Test
@@ -108,6 +110,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }
 
     @Nested
@@ -131,6 +135,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             System.out.println(result);
             assertTrue(result.isSuccessful());
             waitForTransaction(result);
+
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
         }
 
         @Test
@@ -161,6 +167,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             System.out.println(result);
             assertTrue(result.isSuccessful());
             waitForTransaction(result);
+
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
         }
 
         @Test
@@ -191,6 +199,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             System.out.println(result);
             assertTrue(result.isSuccessful());
             waitForTransaction(result);
+
+            checkIfUtxoAvailable(result.getValue(), sender2Addr);
         }
     }
 
@@ -226,6 +236,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             System.out.println(result2);
             assertTrue(result2.isSuccessful());
             waitForTransaction(result2);
+
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
         }
 
         @Test
@@ -261,6 +273,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             System.out.println(result2);
             assertTrue(result2.isSuccessful());
             waitForTransaction(result2);
+
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
         }
     }
 
@@ -289,6 +303,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }
 
     @Test
@@ -313,6 +329,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender2Addr);
     }
 
     @Test
@@ -341,6 +359,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }
 
     @Test
@@ -387,6 +407,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.MintCreators;
+import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
@@ -17,21 +18,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-public class ScriptTx extends AbstractTx<ScriptTx> {
+public class ScriptTx extends StakeTx<ScriptTx> {
     protected List<PlutusScript> spendingValidators;
     protected List<PlutusScript> mintingValidators;
+    protected List<PlutusScript> certValidators;
 
     protected List<SpendingContext> spendingContexts;
     protected List<MintingContext> mintingContexts;
 
     protected List<TransactionInput> referenceInputs;
 
+    protected String fromAddress;
+
     public ScriptTx() {
         spendingContexts = new ArrayList<>();
         mintingContexts = new ArrayList<>();
         spendingValidators = new ArrayList<>();
         mintingValidators = new ArrayList<>();
+        certValidators = new ArrayList<>();
     }
 
     /**
@@ -169,8 +175,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                 .tag(RedeemerTag.Mint)
                 .data(redeemer)
                 .exUnits(ExUnits.builder()
-                        .mem(BigInteger.valueOf(100000000)) // Some dummy value
-                        .steps(BigInteger.valueOf(100000000))
+                        .mem(BigInteger.valueOf(10000)) // Some dummy value
+                        .steps(BigInteger.valueOf(10000))
                         .build())
                 .build();
 
@@ -191,9 +197,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         if (receiver != null) {
             if (outputDatum != null)
-                payToContract(receiver, amounts, outputDatum);
+                payToContract(receiver, amounts, outputDatum, true);
             else
-                payToAddress(receiver, amounts);
+                payToAddress(receiver, amounts, true);
         }
 
         attachMintValidator(script);
@@ -220,11 +226,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return this;
     }
 
-//    public ScriptTx attachCertificateValidator(PlutusScript plutusScript) {
-//        this.script = plutusScript;
-//        this.redeemerTag = RedeemerTag.Cert;
-//        return this;
-//    }
+    public ScriptTx attachCertificateValidator(PlutusScript plutusScript) {
+        certValidators.add(plutusScript);
+        return this;
+    }
 //
 //    public ScriptTx attachRewardValidator(PlutusScript plutusScript) {
 //        this.script = plutusScript;
@@ -283,7 +288,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     @Override
     protected String getFromAddress() {
-        return null;
+        return fromAddress;
+    }
+
+    void from(String address) {
+        this.fromAddress = address;
     }
 
     @Override
@@ -336,6 +345,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         txBuilder = txBuilderFromSpendingValidators(txBuilder);
         txBuilder = txBuilderFromMintingValidators(txBuilder);
+        txBuilder = txBuilderFromCertValidators(txBuilder);
 
         return txBuilder;
     }
@@ -408,19 +418,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         }
 
         for (MintingContext mintingContext : mintingContexts) {
-            txBuilder = txBuilder.andThen(((context, transaction) -> {
-                if (transaction.getWitnessSet() == null) {
-                    transaction.setWitnessSet(new TransactionWitnessSet());
-                }
-
-                if (mintingContext.redeemer != null) {
-                    //update script input index
-                    mintingContext.getRedeemer().setIndex(BigInteger.ZERO);
-                    transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
-                }
-            }));
-
-            //Find the minting validator for the policy id
+            //Find the minting validator for the policy id and add mint field to the transaction
             Optional<PlutusScript> mintingValidator = mintingValidators.stream()
                     .filter(plutusScript -> {
                         try {
@@ -441,6 +439,57 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             } else {
                 throw new TxBuildException("No minting validator found for policy id : " + mintingContext.getPolicyId());
             }
+        }
+
+        //Sort mint field in the transaction
+        txBuilder = txBuilder.andThen((context, txn) -> {
+            if (txn.getBody().getMint() != null) {
+                List<MultiAsset> multiAssets = MintUtil.getSortedMultiAssets(txn.getBody().getMint());
+                txn.getBody().setMint(multiAssets);
+            }
+        });
+
+        //Add the redeemer to the transaction witness set
+        for (MintingContext mintingContext: mintingContexts) {
+            txBuilder = txBuilder.andThen(((context, transaction) -> {
+                if (transaction.getWitnessSet() == null) {
+                    transaction.setWitnessSet(new TransactionWitnessSet());
+                }
+
+                if (mintingContext.redeemer != null) {
+                    List<MultiAsset> multiAssets = transaction.getBody().getMint();
+                    int index = IntStream.range(0, multiAssets.size())
+                            .filter(i -> mintingContext.getPolicyId().equals(multiAssets.get(i).getPolicyId()))
+                            .findFirst()
+                            .orElse(-1);
+
+                    if (index == -1)
+                        throw new TxBuildException("Policy id is not found in transaction mint : " + mintingContext.getPolicyId());
+
+                    //update script input index
+                    mintingContext.getRedeemer().setIndex(BigInteger.valueOf(index));
+                    transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
+                }
+            }));
+        }
+
+        return txBuilder;
+    }
+
+    private TxBuilder txBuilderFromCertValidators(TxBuilder txBuilder) {
+        for (PlutusScript plutusScript : certValidators) {
+            txBuilder =
+                    txBuilder.andThen(((context, transaction) -> {
+                        if (transaction.getWitnessSet() == null)
+                            transaction.setWitnessSet(new TransactionWitnessSet());
+                        if (plutusScript instanceof PlutusV1Script) {
+                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+                        } else if (plutusScript instanceof PlutusV2Script) {
+                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+                        }
+                    }));
         }
 
         return txBuilder;

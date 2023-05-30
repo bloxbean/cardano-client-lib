@@ -15,9 +15,11 @@ import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -99,6 +101,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender1Addr);
     }
 
 
@@ -137,6 +141,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .completeAndWait(System.out::println);
 
         System.out.println(result.getResponse());
+        if (result.isSuccessful())
+            checkIfUtxoAvailable(result.getValue(), alwaysTrueScriptAddr);
 
         Optional<Utxo> alwaysTrueUtxo  = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, alwaysTrueScriptAddr, alwaysTruePlutusData);
         Optional<Utxo> sumUtxo  = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, sumScriptAddr, sumScriptDatum);
@@ -157,6 +163,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender1Addr);
     }
 
     @Test
@@ -199,10 +207,12 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender1Addr);
     }
 
     @Test
-    void alwaysTrueScript_minting() throws ApiException, CborSerializationException, InterruptedException {
+    void alwaysTrueScript_minting() throws ApiException {
         PlutusV2Script mintingScript = PlutusV2Script.builder()
                 .type("PlutusScriptV2")
                 .cborHex("49480100002221200101")
@@ -242,10 +252,26 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         Asset asset = new Asset("PlutusMintToken", BigInteger.valueOf(4000));
 
+        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
+
+        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
+
+        String aikenCompileCode3 = "581801000032223253330043370e00290030a4c2c6eb40095cd1";
+        PlutusScript plutusScript3 = getPlutusScript(aikenCompileCode3);
+
+        Asset asset1 = new Asset("PlutusMintToken-1", BigInteger.valueOf(8000));
+        Asset asset2 = new Asset("PlutusMintToken-2", BigInteger.valueOf(5000));
+        Asset asset3 = new Asset("PlutusMintToken-3", BigInteger.valueOf(2000));
+
         ScriptTx scriptTx = new ScriptTx()
               .payToAddress(receiver2, Amount.lovelace(scriptAmt))
                 .collectFrom(spendingUtxoOptional.get(), plutusData)
                 .mintAsset(mintingScript, asset, PlutusData.unit(), sender2Addr)
+                .mintAsset(plutusScript1, asset1, BigIntPlutusData.of(1), receiver1)
+                .mintAsset(plutusScript2, asset2, BigIntPlutusData.of(2), sender1Addr)
+                .mintAsset(plutusScript3, asset3, BigIntPlutusData.of(3), receiver1)
                 .attachSpendingValidator(spendingScript)
                 .withChangeAddress(sender2Addr);
 
@@ -254,10 +280,13 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withSigner(SignerProviders.signerFrom(sender2))
                 .mergeChangeOutputs(false)
+                .withTxInspector(txn -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
     }
 
     @Test
@@ -271,6 +300,12 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .type("PlutusScriptV2")
                 .cborHex("49480100002221200101")
                 .build();
+
+        String aikenCompiledCode2 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+        PlutusScript mintingScript2 = getPlutusScript(aikenCompiledCode2);
+
+        String aikenCompileCode3 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+        PlutusScript mintingScript3 = getPlutusScript(aikenCompileCode3);
 
         String scriptAddress = AddressProvider.getEntAddress(spendingScript, Networks.testnet()).toBech32();
         BigInteger scriptAmt = new BigInteger("2479280");
@@ -302,11 +337,16 @@ public class ScriptTxIT extends QuickTxBaseIT {
         Asset asset = new Asset("PlutusMintToken", BigInteger.valueOf(4000));
         String policyId = mintingScript.getPolicyId();
 
+        Asset asset2 = new Asset("PlutusMintToken-2", BigInteger.valueOf(5000));
+        Asset asset3 = new Asset("PlutusMintToken-3", BigInteger.valueOf(6000));
+
         ScriptTx scriptTx = new ScriptTx()
                 .collectFrom(spendingUtxoOptional.get(), plutusData)
                 .attachSpendingValidator(spendingScript)
                 .payToAddress(receiver2, Amount.lovelace(scriptAmt))
                 .mintAsset(mintingScript, asset, PlutusData.unit())
+                .mintAsset(mintingScript2, asset2, BigIntPlutusData.of(1), receiver1)
+                .mintAsset(mintingScript3, asset3, BigIntPlutusData.of(2), sender1Addr)
                 .payToAddress(receiver1, Amount.asset(policyId, asset.getName(), BigInteger.valueOf(1000)), true)
                 .payToAddress(receiver3, Amount.asset(policyId, asset.getName(), BigInteger.valueOf(2500)), true)
                 .payToContract(scriptAddress, List.of(Amount.asset(policyId, asset.getName(), BigInteger.valueOf(500))), plutusData, true);
@@ -320,6 +360,45 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
+    @Test
+    void multi_minting() throws ApiException, CborSerializationException, InterruptedException {
+        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
+
+        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
+
+        String aikenCompileCode3 = "581801000032223253330043370e00290030a4c2c6eb40095cd1";
+        PlutusScript plutusScript3 = getPlutusScript(aikenCompileCode3);
+
+        Asset asset1 = new Asset("PlutusMintToken-1", BigInteger.valueOf(8000));
+        Asset asset2 = new Asset("PlutusMintToken-2", BigInteger.valueOf(5000));
+        Asset asset3 = new Asset("PlutusMintToken-3", BigInteger.valueOf(2000));
+
+        System.out.println("policy 1: " + plutusScript1.getPolicyId());
+        System.out.println("policy 2: " + plutusScript2.getPolicyId());
+
+        ScriptTx scriptTx = new ScriptTx()
+                .mintAsset(plutusScript1, asset1, BigIntPlutusData.of(1), receiver1)
+                .mintAsset(plutusScript2, asset2, BigIntPlutusData.of(2), sender1Addr)
+                .mintAsset(plutusScript3, asset3, BigIntPlutusData.of(3), receiver1)
+                .withChangeAddress(sender2Addr);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .mergeChangeOutputs(false)
+                .withTxInspector(tx -> System.out.println(JsonUtil.getPrettyJson(tx)))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
     }
 
     @Test
@@ -375,6 +454,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender1Addr);
     }
 
     @Test
@@ -424,6 +505,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender1Addr);
     }
 
     @Test
@@ -454,6 +537,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
         System.out.println("Tx Response: " + result.getResponse());
         assertTrue(result.isSuccessful());
 
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+
         //Required as backend service returns outdated utxo
         if (result.isSuccessful()) {
             checkIfUtxoAvailable(result.getValue(), sender1Addr);
@@ -476,6 +561,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender1Addr);
     }
 
 }

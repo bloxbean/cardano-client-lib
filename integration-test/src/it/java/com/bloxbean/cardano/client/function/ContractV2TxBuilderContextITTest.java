@@ -8,13 +8,9 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
-import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.api.model.ProtocolParams;
-import com.bloxbean.cardano.client.api.model.Result;
-import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.model.*;
 import com.bloxbean.cardano.client.backend.api.*;
 import com.bloxbean.cardano.client.backend.model.Block;
-import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
@@ -25,14 +21,14 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.function.helper.SignerProviders;
+import com.bloxbean.cardano.client.function.helper.*;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.plutus.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
-import com.bloxbean.cardano.client.plutus.util.ScriptDataHashGenerator;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -602,6 +598,71 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         System.out.printf("txn hex : " + signedTxn.serializeToHex());
 
         Result<String> result = transactionService.submitTransaction(signedTxn.serialize());
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+    }
+
+    @Test
+    void mint() throws Exception {
+        String receiverAddress = "addr_test1qrs2a2hjfs2wt8r3smzwmptezmave3yjgws068hp0qsflmcypglx0rl69tp49396282ns02caz4cx7a2n290h2df0j3qjku4dy";
+        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
+
+        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
+
+        String collateral = "16b786523c20539b1fc9e79f9ae92b8abe691cd92573099264f192a47ec8e435";
+        int collateralIndex = 0;
+        Utxo collateralUtxo = checkCollateral(sender, collateral, collateralIndex);
+        if (collateralUtxo == null) {
+            System.out.println("Collateral cannot be found or created. " + collateral);
+            return;
+        }
+
+        Asset asset1 = new Asset("PlutusToken-1", BigInteger.valueOf(3000));
+        Asset asset2 = new Asset("PlutusToken-2", BigInteger.valueOf(8000));
+
+        MultiAsset multiAsset1 = MultiAsset.builder()
+                .policyId(plutusScript1.getPolicyId())
+                .assets(Arrays.asList(asset1))
+                .build();
+
+        MultiAsset multiAsset2 = MultiAsset.builder()
+                .policyId(plutusScript2.getPolicyId())
+                .assets(Arrays.asList(asset2))
+                .build();
+
+        TransactionOutput mintOutput = TransactionOutput
+                .builder()
+                .address(receiverAddress)
+                .value(new Value(BigInteger.ZERO, Arrays.asList(multiAsset1, multiAsset2)))
+                .build();
+
+        MessageMetadata metadata = MessageMetadata.create()
+                .add("NFT minted by Plutus script");
+
+        ExUnits exUnits = ExUnits.builder()
+                .mem(BigInteger.valueOf(989624))
+                .steps(BigInteger.valueOf(514842019)).build();
+
+        TxBuilder txBuilder = OutputBuilders.createFromMintOutput(mintOutput)
+                .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
+                .andThen(CollateralBuilders.collateralFrom(collateralUtxo.getTxHash(), collateralUtxo.getOutputIndex()))
+                .andThen(MintCreators.mintCreator(plutusScript1, multiAsset1))
+                .andThen(MintCreators.mintCreator(plutusScript2, multiAsset2))
+                .andThen(ScriptCallContextProviders.scriptCallContext(plutusScript1, null, null, BigIntPlutusData.of(1), RedeemerTag.Mint, exUnits))
+                .andThen(ScriptCallContextProviders.scriptCallContext(plutusScript2, null, null, BigIntPlutusData.of(2), RedeemerTag.Mint, exUnits))
+                .andThen(AuxDataProviders.metadataProvider(metadata))
+                .andThen(BalanceTxBuilders.balanceTx(senderAddress, 1));
+
+        TxSigner signer = SignerProviders.signerFrom(sender);
+
+        Transaction signTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .buildAndSign(txBuilder, signer);
+
+        System.out.println(signTxn);
+        Result<String> result = transactionService.submitTransaction(signTxn.serialize());
         System.out.println(result);
         assertTrue(result.isSuccessful());
         waitForTransaction(result);

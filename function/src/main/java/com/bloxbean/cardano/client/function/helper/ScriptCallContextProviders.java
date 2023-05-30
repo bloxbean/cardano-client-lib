@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.function.helper;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
@@ -10,6 +11,7 @@ import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
 
 import java.math.BigInteger;
+import java.util.List;
 import java.util.Objects;
 
 import static com.bloxbean.cardano.client.function.helper.RedeemerUtil.getScriptInputIndex;
@@ -112,10 +114,25 @@ public class ScriptCallContextProviders {
                 else
                     redeemerPlutusData = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(redeemerData);
 
+                int index = scriptInputIndex;
+                if (index == -1 && tag == RedeemerTag.Mint) {
+                    if (transaction.getBody().getMint() != null && !transaction.getBody().getMint().isEmpty()) {
+                        //sort multiassets
+                        List<MultiAsset> sortedMultiAssets = MintUtil.getSortedMultiAssets(transaction.getBody().getMint());
+                        try {
+                            index = MintUtil.getIndexByPolicyId(sortedMultiAssets, plutusScript.getPolicyId());
+                        } catch (CborSerializationException e) {
+                            throw new TxBuildException("Error getting policy id from the mint script " + plutusScript);
+                        }
+                    }
+                }
+
+                //TODO -- index for RedeemerTag.Cert
+
                 Redeemer redeemer = Redeemer.builder()
                         .tag(tag)
                         .data(redeemerPlutusData)
-                        .index(scriptInputIndex != -1? BigInteger.valueOf(scriptInputIndex): BigInteger.ZERO) //TODO -- check
+                        .index(index != -1? BigInteger.valueOf(index): BigInteger.ZERO)
                         .exUnits(exUnits).build();
 
                 transaction.getWitnessSet().getRedeemers().add(redeemer);

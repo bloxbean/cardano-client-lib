@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import co.nstant.in.cbor.CborException;
+import co.nstant.in.cbor.model.ByteString;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
@@ -8,6 +10,9 @@ import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 
 import java.util.List;
@@ -67,6 +72,19 @@ public class QuickTxBaseIT {
             try {
                 Thread.sleep(1000);
             } catch (Exception e) {}
+        }
+    }
+
+    protected PlutusV2Script getPlutusScript(String aikenCompileCode) {
+        //Do double encoding for aiken compileCode
+        ByteString bs = new ByteString(HexUtil.decodeHexString(aikenCompileCode));
+        try {
+            String cborHex = HexUtil.encodeHexString(CborSerializationUtil.serialize(bs));
+            return PlutusV2Script.builder()
+                    .cborHex(cborHex)
+                    .build();
+        } catch (CborException e) {
+            throw new RuntimeException(e);
         }
     }
 }

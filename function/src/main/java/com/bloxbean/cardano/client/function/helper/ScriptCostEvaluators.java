@@ -11,9 +11,19 @@ import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 
 import java.util.List;
 
+/**
+ * Helper functions to evaluate script costs
+ */
 public class ScriptCostEvaluators {
 
     //TODO -- Unit tests pending
+    /**
+     * Function to evaluate script costs and add to <code>{@link Redeemer}</code> objects.
+     * <br>
+     * It uses <code>{@link TransactionEvaluator}</code> set in {@link com.bloxbean.cardano.client.function.TxBuilderContext}
+     * to evaluate script costs
+     * @return TxBuilder function
+     */
     public static TxBuilder evaluateScriptCost() {
         return (ctx, transaction) -> {
             if (transaction.getWitnessSet().getRedeemers() == null ||
