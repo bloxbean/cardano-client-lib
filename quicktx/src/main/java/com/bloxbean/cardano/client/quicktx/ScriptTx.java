@@ -119,11 +119,8 @@ public class ScriptTx extends StakeTx<ScriptTx> {
     }
 
     //TODO: registerPool(poolParam)
-    //TODO: registerStakeAddress(stakeAddress)
-    //TODO: deregisterStakeAddress(stakeAddress)
     //TODO: retirePool(poolId, epochNo)
     //TODO: updatePool(poolParam)
-    //TODO: delegateTo(stakeAddress, poolId, redeemer)
     //TODO: withdraw(rewardAddress, amount, redeemer)
 
     /**

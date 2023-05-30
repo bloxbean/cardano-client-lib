@@ -11,10 +11,7 @@ import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
-import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
-import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
-import com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration;
-import com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration;
+import com.bloxbean.cardano.client.transaction.spec.cert.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
@@ -37,7 +34,8 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
     public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
 
     protected List<StakeRegistration> stakeRegistrations;
-    protected List<StakeKeyDeregestrationContext> stakeDeRegistrations;
+    protected List<StakeKeyDeregestrationContext> stakeDeRegistrationContexts;
+    protected List<StakeDelegationContext> stakeDelegationContexts;
 
     /**
      * Register stake address
@@ -159,8 +157,8 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
         else if (address.isScriptHashInDelegationPart())
             stakeCredential = StakeCredential.fromScriptHash(delegationHash);
 
-        if (stakeDeRegistrations == null)
-            stakeDeRegistrations = new ArrayList<>();
+        if (stakeDeRegistrationContexts == null)
+            stakeDeRegistrationContexts = new ArrayList<>();
 
         //-- Stake key de-registration
         StakeDeregistration stakeDeregistration = new StakeDeregistration(stakeCredential);
@@ -168,7 +166,6 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
         if (redeemer != null) {
             _redeemer = Redeemer.builder()
                     .tag(RedeemerTag.Cert)
-                    .index(BigInteger.valueOf(stakeDeRegistrations.size())) //dummy value
                     .data(redeemer)
                     .index(BigInteger.valueOf(1)) //dummy value
                     .exUnits(ExUnits.builder()
@@ -179,16 +176,96 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
         }
 
         StakeKeyDeregestrationContext stakeKeyDeregestrationContext = new StakeKeyDeregestrationContext(stakeDeregistration, _redeemer, refundAddr);
-        stakeDeRegistrations.add(stakeKeyDeregestrationContext);
+        stakeDeRegistrationContexts.add(stakeKeyDeregestrationContext);
 
         return (T) this;
     }
 
+    /**
+     * Delegate stake address to a stake pool
+     * @param address address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param poolId stake pool id Bech32 or hex encoded
+     * @return T
+     */
+    public T delegateTo(@NonNull String address, @NonNull String poolId) {
+        return delegateTo(new Address(address), poolId, null);
+    }
+
+    /**
+     * Delegate stake address to a stake pool
+     * @param address address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param poolId stake pool id Bech32 or hex encoded
+     * @return T
+     */
+    public T delegateTo(@NonNull Address address, @NonNull String poolId) {
+        return delegateTo(address, poolId, null);
+    }
+
+    /**
+     * Delegate stake address to a stake pool
+     * @param address address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param poolId stake pool id Bech32 or hex encoded
+     * @param redeemer redeemer to use if the address is a script address
+     * @return T
+     */
+    public T delegateTo(@NonNull String address, @NonNull String poolId, PlutusData redeemer) {
+        return delegateTo(new Address(address), poolId, redeemer);
+    }
+
+    /**
+     * Delegate stake address to a stake pool
+     * @param address address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param poolId stake pool id Bech32 or hex encoded
+     * @param redeemer redeemer to use if the address is a script address
+     * @return T
+     */
+    public T delegateTo(@NonNull Address address, @NonNull String poolId, PlutusData redeemer) {
+        byte[] delegationHash = address.getDelegationCredential()
+                .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
+
+        StakeCredential stakeCredential = null;
+        if (address.isStakeKeyHashInDelegationPart())
+            stakeCredential = StakeCredential.fromKeyHash(delegationHash);
+        else if (address.isScriptHashInDelegationPart())
+            stakeCredential = StakeCredential.fromScriptHash(delegationHash);
+
+        if (stakeDelegationContexts == null)
+            stakeDelegationContexts = new ArrayList<>();
+
+        StakePoolId stakePoolId;
+        if (poolId.startsWith("pool")) {
+            stakePoolId = StakePoolId.fromBech32PoolId(poolId);
+        } else {
+            stakePoolId = StakePoolId.fromHexPoolId(poolId);
+        }
+
+        //-- Stake delegation
+        StakeDelegation stakeDelegation = new StakeDelegation(stakeCredential, stakePoolId);
+        Redeemer _redeemer = null;
+        if (redeemer != null) {
+            _redeemer = Redeemer.builder()
+                    .tag(RedeemerTag.Cert)
+                    .data(redeemer)
+                    .index(BigInteger.valueOf(1)) //dummy value
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000)) // Some dummy value
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+        }
+
+        StakeDelegationContext stakeDelegationContext = new StakeDelegationContext(stakeDelegation, _redeemer);
+        stakeDelegationContexts.add(stakeDelegationContext);
+
+        return (T) this;
+
+    }
 
     @Override
     TxBuilder complete() {
         if ((stakeRegistrations == null || stakeRegistrations.size() == 0)
-                && (stakeDeRegistrations == null || stakeDeRegistrations.size() == 0))
+                && (stakeDeRegistrationContexts == null || stakeDeRegistrationContexts.size() == 0)
+                && (stakeDelegationContexts == null || stakeDelegationContexts.size() == 0))
             return super.complete();
 
         if (stakeRegistrations != null && stakeRegistrations.size() > 0) {
@@ -197,20 +274,19 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
             payToAddress(getFromAddress(), totalStakeDepositAmount);
         }
 
-        if (stakeDeRegistrations != null && stakeDeRegistrations.size() > 0 && (outputs == null || outputs.size() == 0)) {
-            String fromAddress = getFromAddress();
-            if (fromAddress == null)
-                fromAddress = getChangeAddress();
-            if (fromAddress == null)
-                throw new TxBuildException("From address is not set");
+        if (stakeDeRegistrationContexts != null && stakeDeRegistrationContexts.size() > 0 && (outputs == null || outputs.size() == 0)) {
+            payToAddress(getFromAddress(), DUMMY_MIN_OUTPUT_VAL); //Dummy output to sender address to trigger input selection
+        }
 
-            payToAddress(fromAddress, DUMMY_MIN_OUTPUT_VAL); //Dummy output to sender address to trigger input selection
+        if (stakeDelegationContexts != null && stakeDelegationContexts.size() > 0 && (outputs == null || outputs.size() == 0)) {
+            payToAddress(getFromAddress(), DUMMY_MIN_OUTPUT_VAL); //Dummy output to sender address to trigger input selection
         }
 
         TxBuilder txBuilder = super.complete();
 
         txBuilder = buildStakeAddressRegistration(txBuilder);
         txBuilder = buildStakeAddressDeRegistration(txBuilder);
+        txBuilder = buildStakeDelegation(txBuilder);
 
         return txBuilder;
     }
@@ -259,13 +335,13 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
     }
 
     private TxBuilder buildStakeAddressDeRegistration(TxBuilder txBuilder) {
-        if (stakeDeRegistrations == null || stakeDeRegistrations.size() == 0)
+        if (stakeDeRegistrationContexts == null || stakeDeRegistrationContexts.size() == 0)
             return txBuilder;
 
         String changeAddress = getChangeAddress();
 
         txBuilder = txBuilder.andThen((context, txn) -> {
-            if (stakeDeRegistrations == null || stakeDeRegistrations.size() == 0) {
+            if (stakeDeRegistrationContexts == null || stakeDeRegistrationContexts.size() == 0) {
                 return;
             }
 
@@ -280,7 +356,7 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
                 txn.setWitnessSet(new TransactionWitnessSet());
             }
 
-            for (StakeKeyDeregestrationContext stakeKeyDeregestrationContext: stakeDeRegistrations) {
+            for (StakeKeyDeregestrationContext stakeKeyDeregestrationContext: stakeDeRegistrationContexts) {
                 certificates.add(stakeKeyDeregestrationContext.getStakeDeregistration());
 
                 if (stakeKeyDeregestrationContext.refundAddress == null)
@@ -310,11 +386,52 @@ public abstract class StakeTx<T> extends AbstractTx<T> {
         return txBuilder;
     }
 
+    private TxBuilder buildStakeDelegation(TxBuilder txBuilder) {
+        if (stakeDelegationContexts == null || stakeDelegationContexts.size() == 0)
+            return txBuilder;
+
+        txBuilder = txBuilder.andThen((context, txn) -> {
+            if (stakeDelegationContexts == null || stakeDelegationContexts.size() == 0) {
+                return;
+            }
+
+            //Add stake delegation certificates
+            List<Certificate> certificates = txn.getBody().getCerts();
+            if (certificates == null) {
+                certificates = new ArrayList<>();
+                txn.getBody().setCerts(certificates);
+            }
+
+            if (txn.getWitnessSet() == null) {
+                txn.setWitnessSet(new TransactionWitnessSet());
+            }
+
+            for (StakeDelegationContext stakeDelegationContext: stakeDelegationContexts) {
+                certificates.add(stakeDelegationContext.getStakeDelegation());
+
+                if (stakeDelegationContext.redeemer != null) {
+                    //Add redeemer to witness set
+                    Redeemer redeemer = stakeDelegationContext.redeemer;
+                    redeemer.setIndex(BigInteger.valueOf(certificates.size() - 1));
+                    txn.getWitnessSet().getRedeemers().add(redeemer);
+                }
+            }
+        });
+        return txBuilder;
+    }
+
     @Data
     @AllArgsConstructor
     static class StakeKeyDeregestrationContext {
         private StakeDeregistration stakeDeregistration;
         private Redeemer redeemer;
         private String refundAddress;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class StakeDelegationContext {
+        private StakeDelegation stakeDelegation;
+        private Redeemer redeemer;
     }
 }

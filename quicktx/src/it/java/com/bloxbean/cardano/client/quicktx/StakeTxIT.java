@@ -28,6 +28,18 @@ public class StakeTxIT extends QuickTxBaseIT {
     String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
     String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
+    String poolId = "pool1vqq4hdwrh442u97e2jh6k4xuscs3x5mqjjrn8daj36y7gt2rj85";
+
+    String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+    PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
+
+    String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+    PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
+
+    String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
+    String scriptStakeAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
+
+
     QuickTxBuilder quickTxBuilder;
 
     @BeforeEach
@@ -139,14 +151,7 @@ public class StakeTxIT extends QuickTxBaseIT {
     @Test
     @Order(5)
     void scriptStakeAddress_registration() {
-        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
-
-        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
-
-        String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
-        String scriptStakeAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
+        deregisterScriptsStakeKeys();
 
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         Tx tx = new Tx()
@@ -169,15 +174,6 @@ public class StakeTxIT extends QuickTxBaseIT {
     @Test
     @Order(6)
     void scriptStakeAddress_deRegistration() {
-        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
-
-        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
-
-        String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
-        String scriptStakeAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
-
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         ScriptTx tx = new ScriptTx()
                 .deregisterStakeAddress(scriptStakeAddress1, BigIntPlutusData.of(1))
@@ -201,15 +197,6 @@ public class StakeTxIT extends QuickTxBaseIT {
     @Test
     @Order(7)
     void scriptStakeAddress_registration_withChangeAddress() {
-        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
-
-        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
-
-        String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
-        String scriptStakeAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
-
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
 
         //Registration
@@ -233,17 +220,7 @@ public class StakeTxIT extends QuickTxBaseIT {
     @Test
     @Order(8)
     void scriptStakeAddress_deregistration_withChangeAddress() {
-        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
-
-        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
-
-        String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
-        String scriptStakeAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
-
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-
         //DeRegistration
         ScriptTx deregTx = new ScriptTx()
                 .deregisterStakeAddress(scriptStakeAddress1, BigIntPlutusData.of(1))
@@ -264,4 +241,184 @@ public class StakeTxIT extends QuickTxBaseIT {
         checkIfUtxoAvailable(deRegResult.getValue(), sender1Addr);
     }
 
+    @Test
+    @Order(9)
+    void stakeDelegation_scriptStakeKeys() {
+        registerScriptsStakeKeys();
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        //Delegation
+        ScriptTx delegTx = new ScriptTx()
+                .delegateTo(new Address(scriptStakeAddress1), poolId, BigIntPlutusData.of(1))
+                .delegateTo(new Address(scriptStakeAddress2), poolId, BigIntPlutusData.of(2))
+                .attachMetadata(MessageMetadata.create().add("This is a delegation transaction"))
+                .attachCertificateValidator(plutusScript1)
+                .attachCertificateValidator(plutusScript2);
+
+        Result<String> delgResult = quickTxBuilder.compose(delegTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
+                .completeAndWait(msg -> System.out.println(msg));
+
+        System.out.println(delgResult);
+        assertTrue(delgResult.isSuccessful());
+
+        checkIfUtxoAvailable(delgResult.getValue(), sender1Addr);
+
+        deregisterScriptsStakeKeys();
+    }
+
+    @Test
+    @Order(11)
+    void stakeDelegation_stakeKeys() {
+        registerStakeKeys();
+        registerScriptsStakeKeys();
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        //Delegation
+        Tx delegTx = new Tx()
+                .delegateTo(sender1Addr, poolId)
+                .delegateTo(new Address(sender2Addr), poolId)
+                .payToAddress(receiver1, Amount.ada(1.3))
+                .payToAddress(receiver2, Amount.ada(2.2))
+                .from(sender2Addr);
+
+        ScriptTx scriptDelegationTx = new ScriptTx()
+                .payToAddress(receiver2, Amount.ada(3.2))
+                .delegateTo(scriptStakeAddress1, poolId, BigIntPlutusData.of(1))
+                .delegateTo(new Address(scriptStakeAddress2), poolId, BigIntPlutusData.of(2))
+                .attachMetadata(MessageMetadata.create().add("This is a delegation transaction"))
+                .attachCertificateValidator(plutusScript1)
+                .attachCertificateValidator(plutusScript2);
+
+        Result<String> delgResult = quickTxBuilder.compose(delegTx, scriptDelegationTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1)) //for fee
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withSigner(SignerProviders.stakeKeySignerFrom(sender1))
+                .withSigner(SignerProviders.stakeKeySignerFrom(sender2))
+                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
+                .completeAndWait(msg -> System.out.println(msg));
+
+        System.out.println(delgResult);
+        assertTrue(delgResult.isSuccessful());
+
+        checkIfUtxoAvailable(delgResult.getValue(), sender1Addr);
+
+        deRegisterStakeKeys();
+        deregisterScriptsStakeKeys();
+    }
+
+
+    @Test
+    @Order(12)
+    void stakeDelegation_nonScriptStakeKey_mixWithOtherPayments() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+       registerStakeKeys();
+       registerScriptsStakeKeys();
+
+        //Delegation
+        Tx delegTx = new Tx()
+                .delegateTo(new Address(sender1Addr), poolId)
+                .delegateTo(new Address(sender2Addr), poolId)
+                .attachMetadata(MessageMetadata.create().add("This is a delegation transaction"))
+                .from(sender1Addr);
+
+        Result<String> delgResult = quickTxBuilder.compose(delegTx)
+                .withSigner(SignerProviders.signerFrom(sender1)) //for fee
+                .withSigner(SignerProviders.stakeKeySignerFrom(sender1))
+                .withSigner(SignerProviders.stakeKeySignerFrom(sender2))
+                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
+                .completeAndWait(msg -> System.out.println(msg));
+
+        System.out.println(delgResult);
+        assertTrue(delgResult.isSuccessful());
+
+        checkIfUtxoAvailable(delgResult.getValue(), sender1Addr);
+    }
+
+    private void registerScriptsStakeKeys() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        //stake Registration
+        Tx tx = new Tx()
+                .registerStakeAddress(scriptStakeAddress1)
+                .registerStakeAddress(scriptStakeAddress2)
+                .attachMetadata(MessageMetadata.create().add("This is a script stake registration tx"))
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
+                .completeAndWait(msg -> System.out.println(msg));
+
+        if (result.isSuccessful())
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    private void deregisterScriptsStakeKeys() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        //stake Registration
+        ScriptTx tx = new ScriptTx()
+                .deregisterStakeAddress(scriptStakeAddress1, BigIntPlutusData.of(1))
+                .deregisterStakeAddress(scriptStakeAddress2, BigIntPlutusData.of(2))
+                .attachCertificateValidator(plutusScript1)
+                .attachCertificateValidator(plutusScript2);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
+                .completeAndWait(msg -> System.out.println(msg));
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    private void registerStakeKeys() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        //stake Registration
+        Tx tx = new Tx()
+                .registerStakeAddress(sender1Addr)
+                .registerStakeAddress(sender2Addr)
+                .attachMetadata(MessageMetadata.create().add("This is a script stake registration tx"))
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
+                .completeAndWait(msg -> System.out.println(msg));
+
+        if (result.isSuccessful())
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    private void deRegisterStakeKeys() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        //stake Registration
+        Tx tx = new Tx()
+                .deregisterStakeAddress(sender1Addr)
+                .deregisterStakeAddress(sender2Addr)
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.stakeKeySignerFrom(sender1))
+                .withSigner(SignerProviders.stakeKeySignerFrom(sender2))
+                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
+                .completeAndWait(msg -> System.out.println(msg));
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
 }
