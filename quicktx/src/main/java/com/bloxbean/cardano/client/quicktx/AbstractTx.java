@@ -229,10 +229,9 @@ public abstract class AbstractTx<T> {
      * @param scriptRef      Reference Script
      * @param scriptRefBytes Reference Script bytes
      * @param mintOutput     If the asset in the output will be minted in this transaction, set this to true, otherwise false
-     * @param <T>
      * @return T
      */
-    protected <T> T payToAddress(String address, List<Amount> amounts, byte[] datumHash, PlutusData datum, Script scriptRef, byte[] scriptRefBytes, boolean mintOutput) {
+    protected T payToAddress(String address, List<Amount> amounts, byte[] datumHash, PlutusData datum, Script scriptRef, byte[] scriptRefBytes, boolean mintOutput) {
         if (scriptRef != null && scriptRefBytes != null && scriptRefBytes.length > 0)
             throw new TxBuildException("Both scriptRef and scriptRefBytes cannot be set. Only one of them can be set");
 

@@ -105,7 +105,7 @@ public class Tx extends AbstractTx<Tx> {
      * Create Tx with a sender address. The application needs to provide the signer for this sender address.
      * A Tx object can have only one sender. This method should be called after all outputs are defined.
      *
-     * @param sender
+     * @param sender sender address
      * @return Tx
      */
     public Tx from(String sender) {

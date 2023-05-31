@@ -395,8 +395,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     /**
      * Send change to the change address with the output datum hash.
      *
-     * @param changeAddress
-     * @param datumHash
+     * @param changeAddress change address
+     * @param datumHash output datum hash
      * @return ScriptTx
      */
     public ScriptTx withChangeAddress(String changeAddress, String datumHash) {

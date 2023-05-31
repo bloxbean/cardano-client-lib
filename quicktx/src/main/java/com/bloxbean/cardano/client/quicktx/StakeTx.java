@@ -194,7 +194,7 @@ class StakeTx {
      * Return TxBuilder, payments to build a stake transaction
      *
      * @param fromAddress
-     * @return
+     * @return Tuple<List<PaymentContext>, TxBuilder>
      */
     Tuple<List<PaymentContext>, TxBuilder> build(String fromAddress, String changeAddress) {
         List<PaymentContext> paymentContexts = buildStakePayments(fromAddress, changeAddress);
