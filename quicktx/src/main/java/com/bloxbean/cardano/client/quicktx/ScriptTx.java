@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -10,8 +11,10 @@ import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NonNull;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -20,10 +23,11 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ScriptTx extends StakeTx<ScriptTx> {
+public class ScriptTx extends AbstractTx<ScriptTx> {
     protected List<PlutusScript> spendingValidators;
     protected List<PlutusScript> mintingValidators;
     protected List<PlutusScript> certValidators;
+    protected List<PlutusScript> rewardValidators;
 
     protected List<SpendingContext> spendingContexts;
     protected List<MintingContext> mintingContexts;
@@ -31,6 +35,7 @@ public class ScriptTx extends StakeTx<ScriptTx> {
     protected List<TransactionInput> referenceInputs;
 
     protected String fromAddress;
+    private StakeTx stakeTx;
 
     public ScriptTx() {
         spendingContexts = new ArrayList<>();
@@ -38,11 +43,15 @@ public class ScriptTx extends StakeTx<ScriptTx> {
         spendingValidators = new ArrayList<>();
         mintingValidators = new ArrayList<>();
         certValidators = new ArrayList<>();
+        rewardValidators = new ArrayList<>();
+
+        stakeTx = new StakeTx();
     }
 
     /**
      * Add given script utxo as input of the transaction.
-     * @param utxo Script utxo
+     *
+     * @param utxo     Script utxo
      * @param redeemer Redeemer
      * @return ScriptTx
      */
@@ -56,8 +65,8 @@ public class ScriptTx extends StakeTx<ScriptTx> {
                 .data(redeemer)
                 .index(BigInteger.valueOf(1)) //dummy value
                 .exUnits(ExUnits.builder()
-                        .mem(BigInteger.valueOf(100000000)) // Some dummy value
-                        .steps(BigInteger.valueOf(100000000))
+                        .mem(BigInteger.valueOf(10000)) // Some dummy value
+                        .steps(BigInteger.valueOf(10000))
                         .build())
                 .build();
 
@@ -68,7 +77,8 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Add given script utxos as inputs of the transaction.
-     * @param utxos Script utxos
+     *
+     * @param utxos    Script utxos
      * @param redeemer Redeemer to be used for all the utxos
      * @return ScriptTx
      */
@@ -82,11 +92,12 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Add utxo(s) as reference input(s) of the transaction.
+     *
      * @param utxos
      * @return ScriptTx
      */
     public ScriptTx readFrom(Utxo... utxos) {
-        for (Utxo utxo: utxos) {
+        for (Utxo utxo : utxos) {
             readFrom(utxo.getTxHash(), utxo.getOutputIndex());
         }
         return this;
@@ -94,11 +105,12 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Add transaction input(s) as reference input(s) of the transaction.
+     *
      * @param transactionInputs
      * @return ScriptTx
      */
     public ScriptTx readFrom(TransactionInput... transactionInputs) {
-        for (TransactionInput transactionInput: transactionInputs) {
+        for (TransactionInput transactionInput : transactionInputs) {
             readFrom(transactionInput.getTransactionId(), transactionInput.getIndex());
         }
         return this;
@@ -106,6 +118,7 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Add transaction input as reference input of the transaction.
+     *
      * @param txHash
      * @param outputIndex
      * @return ScriptTx
@@ -121,12 +134,12 @@ public class ScriptTx extends StakeTx<ScriptTx> {
     //TODO: registerPool(poolParam)
     //TODO: retirePool(poolId, epochNo)
     //TODO: updatePool(poolParam)
-    //TODO: withdraw(rewardAddress, amount, redeemer)
 
     /**
      * Mint asset with given script and redeemer
-     * @param script plutus script
-     * @param asset asset to mint
+     *
+     * @param script   plutus script
+     * @param asset    asset to mint
      * @param redeemer redeemer
      * @return ScriptTx
      */
@@ -136,8 +149,9 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Mint asset with given script and redeemer. The minted asset will be sent to the given receiver address
-     * @param script plutus script
-     * @param asset asset to mint
+     *
+     * @param script   plutus script
+     * @param asset    asset to mint
      * @param redeemer redeemer
      * @param receiver receiver address
      * @return ScriptTx
@@ -148,8 +162,9 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Mint assets with given script and redeemer. The minted assets will be sent to the given receiver address
-     * @param script plutus script
-     * @param assets assets to mint
+     *
+     * @param script   plutus script
+     * @param assets   assets to mint
      * @param redeemer redeemer
      * @param receiver receiver address
      * @return ScriptTx
@@ -160,10 +175,11 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Mint assets with given script and redeemer. The minted assets will be sent to the given receiver address with output datum
-     * @param script plutus script
-     * @param assets assets to mint
-     * @param redeemer redeemer
-     * @param receiver receiver address
+     *
+     * @param script      plutus script
+     * @param assets      assets to mint
+     * @param redeemer    redeemer
+     * @param receiver    receiver address
      * @param outputDatum output datum
      * @return ScriptTx
      */
@@ -205,6 +221,7 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Attach a spending validator script to the transaction
+     *
      * @param plutusScript
      * @return ScriptTx
      */
@@ -215,6 +232,7 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Attach a minting validator script to the transaction. This method is called from the mintAssets methods.
+     *
      * @param plutusScript plutus script
      * @return ScriptTx
      */
@@ -223,26 +241,31 @@ public class ScriptTx extends StakeTx<ScriptTx> {
         return this;
     }
 
+    /**
+     * Attach a certificate validator script to the transaction
+     * @param plutusScript plutus script
+     * @return ScriptTx
+     */
     public ScriptTx attachCertificateValidator(PlutusScript plutusScript) {
         certValidators.add(plutusScript);
         return this;
     }
-//
-//    public ScriptTx attachRewardValidator(PlutusScript plutusScript) {
-//        this.script = plutusScript;
-//        this.redeemerTag = RedeemerTag.Reward;
-//        return this;
-//    }
 
-//    public ScriptTx withDatum(PlutusData datum) {
-//        this.datum = datum;
-//        return this;
-//    }
+    /**
+     * Attach a reward validator script to the transaction
+     * @param plutusScript plutus script
+     * @return ScriptTx
+     */
+    public ScriptTx attachRewardValidator(PlutusScript plutusScript) {
+        rewardValidators.add(plutusScript);
+        return this;
+    }
 
     /**
      * Send change to the change address with the output datum.
+     *
      * @param changeAddress change address
-     * @param plutusData output datum
+     * @param plutusData    output datum
      * @return ScriptTx
      */
     public ScriptTx withChangeAddress(String changeAddress, PlutusData plutusData) {
@@ -254,7 +277,124 @@ public class ScriptTx extends StakeTx<ScriptTx> {
     }
 
     /**
+     * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified.
+     *
+     * @param address  address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param redeemer redeemer to use if the address is a script address
+     * @return ScriptTx
+     */
+    public ScriptTx deregisterStakeAddress(@NonNull String address, PlutusData redeemer) {
+        stakeTx.deregisterStakeAddress(new Address(address), redeemer, null);
+        return this;
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified.
+     *
+     * @param address  address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param redeemer redeemer to use if the address is a script address
+     * @return ScriptTx
+     */
+    public ScriptTx deregisterStakeAddress(@NonNull Address address, PlutusData redeemer) {
+        stakeTx.deregisterStakeAddress(address, redeemer, null);
+        return this;
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the refund address.
+     *
+     * @param address    address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param redeemer   redeemer to use if the address is a script address
+     * @param refundAddr refund address
+     * @return ScriptTx
+     */
+    public ScriptTx deregisterStakeAddress(@NonNull String address, PlutusData redeemer, String refundAddr) {
+        stakeTx.deregisterStakeAddress(new Address(address), redeemer, refundAddr);
+        return this;
+    }
+
+    /**
+     * Delegate stake address to a stake pool
+     *
+     * @param address  address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param poolId   stake pool id Bech32 or hex encoded
+     * @param redeemer redeemer to use if the address is a script address
+     * @return ScriptTx
+     */
+    public ScriptTx delegateTo(@NonNull String address, @NonNull String poolId, PlutusData redeemer) {
+        stakeTx.delegateTo(new Address(address), poolId, redeemer);
+        return this;
+    }
+
+    /**
+     * Delegate stake address to a stake pool
+     *
+     * @param address  address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param poolId   stake pool id Bech32 or hex encoded
+     * @param redeemer redeemer to use if the address is a script address
+     * @return ScriptTx
+     */
+    public ScriptTx delegateTo(@NonNull Address address, @NonNull String poolId, PlutusData redeemer) {
+        stakeTx.delegateTo(address, poolId, redeemer);
+        return this;
+    }
+
+    /**
+     * Withdraw rewards from a stake address
+     *
+     * @param rewardAddress stake address to withdraw rewards from
+     * @param amount        amount to withdraw
+     * @param redeemer      redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount, PlutusData redeemer) {
+        stakeTx.withdraw(new Address(rewardAddress), amount, redeemer, null);
+        return this;
+    }
+
+    /**
+     * Withdraw rewards from a stake address
+     *
+     * @param rewardAddress stake address to withdraw rewards from
+     * @param amount        amount to withdraw
+     * @param redeemer      redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount, PlutusData redeemer) {
+        stakeTx.withdraw(rewardAddress, amount, redeemer, null);
+        return this;
+    }
+
+    /**
+     * Withdraw rewards from a stake address
+     * @param rewardAddress stake address to withdraw rewards from
+     * @param amount   amount to withdraw
+     * @param redeemer redeemer
+     * @param receiver receiver address
+     * @return
+     */
+    public ScriptTx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount, PlutusData redeemer, String receiver) {
+        stakeTx.withdraw(new Address(rewardAddress), amount, redeemer, receiver);
+        return this;
+    }
+
+    /**
+     * Withdraw rewards from a stake address
+     *
+     * @param rewardAddress stake address to withdraw rewards from
+     * @param amount        amount to withdraw
+     * @param redeemer      redeemer
+     * @param receiver      receiver address
+     * @return ScriptTx
+     */
+    public ScriptTx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount, PlutusData redeemer, String receiver) {
+        stakeTx.withdraw(rewardAddress, amount, redeemer, receiver);
+        return this;
+    }
+
+    /**
      * Send change to the change address with the output datum hash.
+     *
      * @param changeAddress
      * @param datumHash
      * @return ScriptTx
@@ -269,6 +409,7 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Get change address
+     *
      * @return
      */
     @Override
@@ -281,6 +422,7 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     /**
      * Get from address
+     *
      * @return
      */
     @Override
@@ -330,8 +472,20 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     @Override
     TxBuilder complete() {
+        //stake related
+        Tuple<List<StakeTx.PaymentContext>, TxBuilder> stakeBuildTuple =
+                stakeTx.build(getFromAddress(), getChangeAddress());
+        for (StakeTx.PaymentContext paymentContext : stakeBuildTuple._1) {
+            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
+        }
+
         TxBuilder txBuilder = super.complete();
-        return txBuilder.andThen(prepareScriptCallContext());
+        txBuilder = txBuilder.andThen(prepareScriptCallContext());
+
+        //stake related
+        txBuilder = txBuilder.andThen(stakeBuildTuple._2);
+
+        return txBuilder;
     }
 
     protected TxBuilder prepareScriptCallContext() {
@@ -343,6 +497,7 @@ public class ScriptTx extends StakeTx<ScriptTx> {
         txBuilder = txBuilderFromSpendingValidators(txBuilder);
         txBuilder = txBuilderFromMintingValidators(txBuilder);
         txBuilder = txBuilderFromCertValidators(txBuilder);
+        txBuilder = txBuilderFromRewardValidators(txBuilder);
 
         return txBuilder;
     }
@@ -447,7 +602,7 @@ public class ScriptTx extends StakeTx<ScriptTx> {
         });
 
         //Add the redeemer to the transaction witness set
-        for (MintingContext mintingContext: mintingContexts) {
+        for (MintingContext mintingContext : mintingContexts) {
             txBuilder = txBuilder.andThen(((context, transaction) -> {
                 if (transaction.getWitnessSet() == null) {
                     transaction.setWitnessSet(new TransactionWitnessSet());
@@ -475,6 +630,25 @@ public class ScriptTx extends StakeTx<ScriptTx> {
 
     private TxBuilder txBuilderFromCertValidators(TxBuilder txBuilder) {
         for (PlutusScript plutusScript : certValidators) {
+            txBuilder =
+                    txBuilder.andThen(((context, transaction) -> {
+                        if (transaction.getWitnessSet() == null)
+                            transaction.setWitnessSet(new TransactionWitnessSet());
+                        if (plutusScript instanceof PlutusV1Script) {
+                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+                        } else if (plutusScript instanceof PlutusV2Script) {
+                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+                        }
+                    }));
+        }
+
+        return txBuilder;
+    }
+
+    private TxBuilder txBuilderFromRewardValidators(TxBuilder txBuilder) {
+        for (PlutusScript plutusScript : rewardValidators) {
             txBuilder =
                     txBuilder.andThen(((context, transaction) -> {
                         if (transaction.getWitnessSet() == null)

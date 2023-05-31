@@ -1,21 +1,26 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
+import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.NonNull;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public class Tx extends StakeTx<Tx> {
+public class Tx extends AbstractTx<Tx> {
+
+    private StakeTx stakeTx;
 
     private String sender;
     protected boolean senderAdded = false;
@@ -24,7 +29,7 @@ public class Tx extends StakeTx<Tx> {
      * Create Tx
      */
     public Tx() {
-
+        stakeTx = new StakeTx();
     }
 
     /**
@@ -34,7 +39,7 @@ public class Tx extends StakeTx<Tx> {
      * @param asset  Asset to mint
      * @return Tx
      */
-    public Tx mintAssets(@NonNull Script script, Asset asset) {
+    public Tx mintAssets(@NonNull NativeScript script, Asset asset) {
         return mintAssets(script, List.of(asset), null);
     }
 
@@ -46,7 +51,7 @@ public class Tx extends StakeTx<Tx> {
      * @param receiver Receiver address
      * @return Tx
      */
-    public Tx mintAssets(@NonNull Script script, Asset asset, String receiver) {
+    public Tx mintAssets(@NonNull NativeScript script, Asset asset, String receiver) {
         return mintAssets(script, List.of(asset), receiver);
     }
 
@@ -57,7 +62,7 @@ public class Tx extends StakeTx<Tx> {
      * @param assets List of assets to mint
      * @return Tx
      */
-    public Tx mintAssets(@NonNull Script script, List<Asset> assets) {
+    public Tx mintAssets(@NonNull NativeScript script, List<Asset> assets) {
         return mintAssets(script, assets, null);
     }
 
@@ -69,7 +74,7 @@ public class Tx extends StakeTx<Tx> {
      * @param receiver Receiver address
      * @return Tx
      */
-    public Tx mintAssets(@NonNull Script script, List<Asset> assets, String receiver) {
+    public Tx mintAssets(@NonNull NativeScript script, List<Asset> assets, String receiver) {
         try {
             String policyId = script.getPolicyId();
 
@@ -131,6 +136,136 @@ public class Tx extends StakeTx<Tx> {
     }
 
     /**
+     * Register stake address
+     * @param address address to register. Address should have delegation credential. So it should be a base address or stake address.
+     * @return Tx
+     */
+    public Tx registerStakeAddress(@NonNull String address) {
+        stakeTx.registerStakeAddress(new Address(address));
+        return this;
+    }
+
+    /**
+     * Register stake address
+     * @param address address to register. Address should have delegation credential. So it should be a base address or stake address.
+     * @return Tx
+     */
+    public Tx registerStakeAddress(@NonNull Address address) {
+        stakeTx.registerStakeAddress(address);
+        return this;
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @return Tx
+     */
+    public Tx deregisterStakeAddress(@NonNull String address) {
+        stakeTx.deregisterStakeAddress(new Address(address), null, null);
+        return this;
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @return Tx
+     */
+    public Tx deregisterStakeAddress(@NonNull Address address) {
+        stakeTx.deregisterStakeAddress(address, null, null);
+        return this;
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the refund address.
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param refundAddr refund address
+     * @return T
+     */
+    public Tx deregisterStakeAddress(@NonNull String address, @NonNull String refundAddr) {
+        stakeTx.deregisterStakeAddress(new Address(address), null, refundAddr);
+        return this;
+    }
+
+    /**
+     * De-register stake address. The key deposit will be refunded to the refund address.
+     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     * @param refundAddr refund address
+     * @return T
+     */
+    public Tx deregisterStakeAddress(@NonNull Address address, @NonNull String refundAddr) {
+        stakeTx.deregisterStakeAddress(address, null, refundAddr);
+        return this;
+    }
+
+    /**
+     * Delegate stake address to a stake pool
+     * @param address address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param poolId stake pool id Bech32 or hex encoded
+     * @return ScriptTx
+     */
+    public Tx delegateTo(@NonNull String address, @NonNull String poolId) {
+        stakeTx.delegateTo(new Address(address), poolId, null);
+        return this;
+    }
+
+    /**
+     * Delegate stake address to a stake pool
+     * @param address address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param poolId stake pool id Bech32 or hex encoded
+     * @return ScriptTx
+     */
+    public Tx delegateTo(@NonNull Address address, @NonNull String poolId) {
+        stakeTx.delegateTo(address, poolId, null);
+        return this;
+    }
+
+    /**
+     * Withdraw rewards from a stake address
+     * @param rewardAddress stake address to withdraw rewards from
+     * @param amount  amount to withdraw
+     * @return Tx
+     */
+    public Tx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount) {
+        stakeTx.withdraw(new Address(rewardAddress), amount, null, null);
+        return this;
+    }
+
+    /**
+     * Withdraw rewards from a stake address
+     * @param rewardAddress stake address to withdraw rewards from
+     * @param amount amount to withdraw
+     * @return Tx
+     */
+    public Tx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount) {
+        stakeTx.withdraw(rewardAddress, amount, null, null);
+        return this;
+    }
+
+    /**
+     * Withdraw rewards from a stake address
+     * @param rewardAddress stake address to withdraw rewards from
+     * @param amount amount to withdraw
+     * @param receiver receiver address
+     * @return Tx
+     */
+    public Tx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount, String receiver) {
+        stakeTx.withdraw(new Address(rewardAddress), amount, null, receiver);
+        return this;
+    }
+
+    /**
+     * Withdraw rewards from a stake address
+     * @param rewardAddress stake address to withdraw rewards from
+     * @param amount amount to withdraw
+     * @param receiver receiver address
+     * @return Tx
+     */
+    public Tx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount, String receiver) {
+        stakeTx.withdraw(rewardAddress, amount, null, receiver);
+        return this;
+    }
+
+    /**
      * Sender address
      *
      * @return String
@@ -177,6 +312,21 @@ public class Tx extends StakeTx<Tx> {
             return sender;
         else
             return null;
+    }
+
+    @Override
+    TxBuilder complete() {
+       Tuple<List<StakeTx.PaymentContext>, TxBuilder> stakeBuildTuple =
+               stakeTx.build(getFromAddress(), getChangeAddress());
+
+        for (StakeTx.PaymentContext paymentContext: stakeBuildTuple._1) {
+            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
+        }
+
+        TxBuilder txBuilder = super.complete();
+
+        txBuilder = txBuilder.andThen(stakeBuildTuple._2);
+        return txBuilder;
     }
 
     private void verifySenderNotExists() {

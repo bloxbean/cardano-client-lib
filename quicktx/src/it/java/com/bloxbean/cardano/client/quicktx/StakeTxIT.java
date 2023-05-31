@@ -3,17 +3,25 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.*;
 
+import java.math.BigInteger;
+
+import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -338,6 +346,81 @@ public class StakeTxIT extends QuickTxBaseIT {
         assertTrue(delgResult.isSuccessful());
 
         checkIfUtxoAvailable(delgResult.getValue(), sender1Addr);
+    }
+
+    @Test
+    @Order(13)
+    void withdrawal_regularAddress() throws ApiException {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        Address stakeAddress = AddressProvider.getStakeAddress(new Address(sender1Addr));
+        //withdrawal
+        Tx withdrawalTx = new Tx()
+                .withdraw(stakeAddress, adaToLovelace(1.2))
+                .from(sender1Addr);
+
+        Transaction transaction = quickTxBuilder.compose(withdrawalTx)
+                .build();
+
+        //expected values
+        BigInteger inputLovelace = getLovelaceInUtxo(transaction.getBody().getInputs().get(0).getTransactionId(),
+                transaction.getBody().getInputs().get(0).getIndex());
+        BigInteger totalInput = inputLovelace.add(transaction.getBody().getWithdrawals().get(0).getCoin());
+        BigInteger outputCoin = transaction.getBody().getOutputs()
+                        .get(0).getValue().getCoin();
+        BigInteger totalOutput = transaction.getBody().getFee().add(outputCoin);
+
+        assertThat(transaction.getBody().getWithdrawals()).hasSize(1);
+        assertThat(transaction.getBody().getInputs()).hasSizeGreaterThan(0);
+        assertThat(transaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(sender1Addr);
+        assertThat(totalInput).isEqualTo(totalOutput);
+    }
+
+    @Test
+    @Order(14)
+    void withdrawal_scriptAddress() throws ApiException {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        Address stakeAddress = AddressProvider.getStakeAddress(new Address(sender1Addr));
+
+        //withdrawal
+        ScriptTx withdrawalTx = new ScriptTx()
+                .withdraw(stakeAddress, adaToLovelace(1.2), BigIntPlutusData.of(1))
+                .withdraw(stakeAddress, adaToLovelace(2.3), BigIntPlutusData.of(2))
+                .attachRewardValidator(plutusScript1)
+                .attachRewardValidator(plutusScript2);
+
+        Transaction transaction = quickTxBuilder.compose(withdrawalTx)
+                .feePayer(sender1Addr)
+                .build();
+
+        //expected values
+        BigInteger inputLovelace = getLovelaceInUtxo(transaction.getBody().getInputs().get(0).getTransactionId(),
+                transaction.getBody().getInputs().get(0).getIndex());
+        BigInteger totalInput = inputLovelace
+                .add(transaction.getBody().getWithdrawals().get(0).getCoin())
+                .add(transaction.getBody().getWithdrawals().get(1).getCoin());
+
+        BigInteger outputCoin = transaction.getBody().getOutputs()
+                .get(0).getValue().getCoin();
+        BigInteger totalOutput = transaction.getBody().getFee().add(outputCoin);
+
+        assertThat(transaction.getBody().getWithdrawals()).hasSize(2);
+        assertThat(transaction.getWitnessSet().getPlutusV2Scripts()).hasSize(2);
+        assertThat(transaction.getWitnessSet().getRedeemers()).hasSize(2);
+        assertThat(transaction.getWitnessSet().getRedeemers().get(0).getIndex()).isEqualTo(0);
+        assertThat(transaction.getWitnessSet().getRedeemers().get(1).getIndex()).isEqualTo(1);
+        assertThat(transaction.getWitnessSet().getRedeemers().get(0).getTag()).isEqualTo(RedeemerTag.Reward);
+        assertThat(transaction.getWitnessSet().getRedeemers().get(1).getTag()).isEqualTo(RedeemerTag.Reward);
+        assertThat(transaction.getBody().getInputs()).hasSizeGreaterThan(0);
+        assertThat(transaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(sender1Addr);
+        assertThat(totalInput).isEqualTo(totalOutput);
+    }
+
+    private BigInteger getLovelaceInUtxo(String txHash, int outputIndex) throws ApiException {
+        Result<Utxo> utxoResult = backendService.getUtxoService().getTxOutput(txHash, outputIndex);
+        return utxoResult.getValue().getAmount().stream().filter(amt -> amt.getUnit().equals("lovelace"))
+                .findFirst().get().getQuantity();
     }
 
     private void registerScriptsStakeKeys() {
