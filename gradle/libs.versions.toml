@@ -15,4 +15,4 @@ retrofit2-converter-jackson = "com.squareup.retrofit2:converter-jackson:2.9.0"
 okhttp = "com.squareup.okhttp3:okhttp:4.10.0"
 
 yaci = "com.bloxbean.cardano:yaci:0.1.11"
-
+hydra = "org.cardanofoundation:hydra-java-core:0.0.7-SNAPSHOT"

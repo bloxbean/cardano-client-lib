@@ -1,5 +1,10 @@
 dependencies {
     api project(':core-api')
+    api project(':plutus')
+    api project(':function')
+    api project(':core')
+
+    api libs.hydra
 }
 
 publishing {
