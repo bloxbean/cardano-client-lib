@@ -105,7 +105,7 @@ public class QuickTxBuilder {
     /**
      * TxContext is created for group of transactions which are to be submitted as a single transaction.
      */
-    class TxContext {
+    public class TxContext {
         private AbstractTx[] txList;
         private String feePayer;
         private String collateralPayer;
