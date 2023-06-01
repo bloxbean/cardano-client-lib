@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.backend.blockfrost.service;
 
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Result;
-import com.bloxbean.cardano.client.backend.model.EvaluationResult;
+import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.util.JsonUtil;

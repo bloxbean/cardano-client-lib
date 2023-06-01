@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.api.helper.TransactionBuilder;
@@ -32,6 +33,7 @@ public class TxBuilderContext {
     private UtxoSelectionStrategy utxoSelectionStrategy;
     private UtxoSelector utxoSelector;
     private FeeCalculationService feeCalculationService;
+    private TransactionEvaluator transactionEvaluator;
     private CostMdls costMdls;
 
     //Needed to check if the output is for minting
@@ -78,6 +80,15 @@ public class TxBuilderContext {
 
     public void clearMintMultiAssets() {
         mintMultiAssets.clear();
+    }
+
+    public TxBuilderContext withTxnEvaluator(TransactionEvaluator transactionEvaluator) {
+        this.transactionEvaluator = transactionEvaluator;
+        return this;
+    }
+
+    public TransactionEvaluator getTxnEvaluator() {
+        return transactionEvaluator;
     }
 
     public TxBuilderContext withCostMdls(CostMdls costMdls) {

@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.backend.api;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.backend.model.EvaluationResult;
+import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxoOutputs;
@@ -72,7 +72,7 @@ public interface TransactionService {
             return outputs.stream().filter(output -> output.getOutputIndex() == outputIndex)
                     .findFirst()
                     .map(output -> {
-                        Utxo utxo = output.toUtxos();
+                        Utxo utxo = output.toUtxos(txnHash);
                         return Result.success(JsonUtil.getPrettyJson(utxo)).withValue(utxo).code(result.code());
                     }).orElseGet(() -> Result.error("No UTXO found for txHash: " + txnHash + ", outputIndex: " + outputIndex).code(404));
         }

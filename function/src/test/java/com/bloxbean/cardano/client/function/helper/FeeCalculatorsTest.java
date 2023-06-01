@@ -32,6 +32,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -195,6 +196,168 @@ class FeeCalculatorsTest extends BaseTest {
         assertThat(transaction.getBody().getFee()).isEqualTo(expectedFee.add(scriptFee));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin())
                 .isEqualTo(ONE_ADA.multiply(BigInteger.valueOf(3)).subtract(expectedFee.add(scriptFee)));
+    }
+
+    @Test
+    void feeCalculator_multipleChanges_whenNegtiveChangeOutput_deductFeeFromNegativeOutput() throws Exception {
+        BigInteger expectedFee = BigInteger.valueOf(18000);
+        given(feeCalculationService.calculateFee(any(Transaction.class))).willReturn(expectedFee);
+
+        //prepare transaction
+        List<TransactionInput> inputs = List.of(
+                new TransactionInput("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0),
+                new TransactionInput("88c014d348bf1919c78a5cb87a5beed87729ff3f8a2019be040117a41a83e82e", 1)
+        );
+
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        Account account = new Account(Networks.testnet());
+        String sender = account.baseAddress();
+
+        Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("test", 1);
+        String unit = policy.getPolicyId() + HexUtil.encodeHexString("token1".getBytes(StandardCharsets.UTF_8));
+        MultiAsset ma = AssetUtil.getMultiAssetFromUnitAndAmount(unit, BigInteger.valueOf(800));
+        MultiAsset changeMa = AssetUtil.getMultiAssetFromUnitAndAmount(unit, BigInteger.valueOf(200));
+
+        List<TransactionOutput> outputs = List.of(
+                TransactionOutput.builder()
+                        .address(receiver)
+                        .value(Value.builder()
+                                .coin(ONE_ADA.multiply(BigInteger.valueOf(5)))
+                                .multiAssets(List.of(ma))
+                                .build()
+                        )
+                        .build(),
+                TransactionOutput.builder()
+                        .address(sender)
+                        .value(Value.builder()
+                                .coin(adaToLovelace(3))
+                                .multiAssets(List.of(changeMa))
+                                .build()
+                        )
+                        .build(),
+                TransactionOutput.builder()
+                        .address(sender)
+                        .value(Value.builder()
+                                .coin(ONE_ADA.multiply(BigInteger.valueOf(-2)))
+                                .multiAssets(List.of(changeMa))
+                                .build()
+                        )
+                        .build(),
+                TransactionOutput.builder()
+                        .address(sender)
+                        .value(Value.builder()
+                                .coin(adaToLovelace(5))
+                                .multiAssets(List.of(changeMa))
+                                .build()
+                        )
+                        .build()
+        );
+
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+        context.setFeeCalculationService(feeCalculationService); //Mock
+
+        Transaction transaction = new Transaction();
+        TransactionBody body = TransactionBody.builder()
+                .inputs(inputs)
+                .outputs(outputs)
+                .ttl(6500000).build();
+
+        transaction.setBody(body);
+        transaction.setValid(true);
+
+        //apply
+        TxBuilder txBuilder = FeeCalculators.feeCalculator(sender, 1);
+        txBuilder.apply(context, transaction);
+
+        //assert
+        assertThat(transaction.getBody().getFee()).isEqualTo(expectedFee);
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin())
+                .isEqualTo(adaToLovelace(3));
+        assertThat(transaction.getBody().getOutputs().get(2).getValue().getCoin())
+                .isEqualTo(ONE_ADA.multiply(BigInteger.valueOf(-2)).subtract(expectedFee));
+        assertThat(transaction.getBody().getOutputs().get(3).getValue().getCoin())
+                .isEqualTo(adaToLovelace(5));
+    }
+
+    @Test
+    void feeCalculator_multipleChageOutput_deductFeeFromLargerChangeOutput() throws Exception {
+        BigInteger expectedFee = BigInteger.valueOf(18000);
+        given(feeCalculationService.calculateFee(any(Transaction.class))).willReturn(expectedFee);
+
+        //prepare transaction
+        List<TransactionInput> inputs = List.of(
+                new TransactionInput("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0),
+                new TransactionInput("88c014d348bf1919c78a5cb87a5beed87729ff3f8a2019be040117a41a83e82e", 1)
+        );
+
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        Account account = new Account(Networks.testnet());
+        String sender = account.baseAddress();
+
+        Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("test", 1);
+        String unit = policy.getPolicyId() + HexUtil.encodeHexString("token1".getBytes(StandardCharsets.UTF_8));
+        MultiAsset ma = AssetUtil.getMultiAssetFromUnitAndAmount(unit, BigInteger.valueOf(800));
+        MultiAsset changeMa = AssetUtil.getMultiAssetFromUnitAndAmount(unit, BigInteger.valueOf(200));
+
+        List<TransactionOutput> outputs = List.of(
+                TransactionOutput.builder()
+                        .address(receiver)
+                        .value(Value.builder()
+                                .coin(ONE_ADA.multiply(BigInteger.valueOf(5)))
+                                .multiAssets(List.of(ma))
+                                .build()
+                        )
+                        .build(),
+                TransactionOutput.builder()
+                        .address(sender)
+                        .value(Value.builder()
+                                .coin(adaToLovelace(3))
+                                .multiAssets(List.of(changeMa))
+                                .build()
+                        )
+                        .build(),
+                TransactionOutput.builder()
+                        .address(sender)
+                        .value(Value.builder()
+                                .coin(ONE_ADA.multiply(BigInteger.valueOf(2)))
+                                .multiAssets(List.of(changeMa))
+                                .build()
+                        )
+                        .build(),
+                TransactionOutput.builder()
+                        .address(sender)
+                        .value(Value.builder()
+                                .coin(adaToLovelace(5))
+                                .multiAssets(List.of(changeMa))
+                                .build()
+                        )
+                        .build()
+        );
+
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+        context.setFeeCalculationService(feeCalculationService); //Mock
+
+        Transaction transaction = new Transaction();
+        TransactionBody body = TransactionBody.builder()
+                .inputs(inputs)
+                .outputs(outputs)
+                .ttl(6500000).build();
+
+        transaction.setBody(body);
+        transaction.setValid(true);
+
+        //apply
+        TxBuilder txBuilder = FeeCalculators.feeCalculator(sender, 1);
+        txBuilder.apply(context, transaction);
+
+        //assert
+        assertThat(transaction.getBody().getFee()).isEqualTo(expectedFee);
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin())
+                .isEqualTo(adaToLovelace(3));
+        assertThat(transaction.getBody().getOutputs().get(2).getValue().getCoin())
+                .isEqualTo(ONE_ADA.multiply(BigInteger.valueOf(2)));
+        assertThat(transaction.getBody().getOutputs().get(3).getValue().getCoin())
+                .isEqualTo(adaToLovelace(5).subtract(expectedFee));
     }
 
 }

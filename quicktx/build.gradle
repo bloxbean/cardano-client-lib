@@ -1,0 +1,22 @@
+dependencies {
+    api project(':core')
+    api project(':function')
+    api project(':backend')
+
+    integrationTestImplementation(libs.slf4j.log4j)
+
+    integrationTestImplementation project(':')
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation project(':backend-modules:koios')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client QuickTx module'
+                description = 'Cardano Client Lib - QuickTx Module'
+            }
+        }
+    }
+}

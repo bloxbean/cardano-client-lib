@@ -9,7 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-class RedeemerUtil {
+public class RedeemerUtil {
 
     public static TransactionInput getScriptInputFromRedeemer(Redeemer redeemer, Transaction transaction) {
         List<TransactionInput> sortedInputs = getSortedInputs(transaction);

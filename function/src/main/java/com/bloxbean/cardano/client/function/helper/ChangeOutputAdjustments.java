@@ -150,7 +150,12 @@ public class ChangeOutputAdjustments {
             //Create a Redeemer and corresponding TransactionInput map
             originalRedeemerTxnInputList = transaction.getWitnessSet().getRedeemers()
                     .stream()
-                    .map(redeemer -> new Tuple<Redeemer, TransactionInput>(redeemer, getScriptInputFromRedeemer(redeemer, transaction)))
+                    .map(redeemer -> {
+                        if (redeemer.getTag() == RedeemerTag.Spend)
+                            return new Tuple<Redeemer, TransactionInput>(redeemer, getScriptInputFromRedeemer(redeemer, transaction));
+                        else
+                            return new Tuple<Redeemer, TransactionInput>(redeemer, null);
+                    })
                     .collect(Collectors.toList());
         }
 
@@ -209,18 +214,15 @@ public class ChangeOutputAdjustments {
             originalRedeemerTxnInputList.forEach(tuple -> {
                 Redeemer redeemer = tuple._1;
                 TransactionInput input = tuple._2;
-
-                int index = -1;
-                if (redeemer.getTag() == RedeemerTag.Mint) {
-                    index = 0; //For minting redeemer index is always "0"  //TODO -- check later
-                } else {
-                    index = getScriptInputIndex(input, transaction);
+                if (redeemer.getTag() == RedeemerTag.Spend) {
+                    int index = getScriptInputIndex(input, transaction);
                     if (index == -1) {
                         throw new TxBuildException(String.format("Invalid redeemer index: %s, TransactionInput not found %s", index, input));
                     }
+
+                    redeemer.setIndex(BigInteger.valueOf(index));
                 }
 
-                redeemer.setIndex(BigInteger.valueOf(index));
                 redeemerList.add(redeemer);
             });
 

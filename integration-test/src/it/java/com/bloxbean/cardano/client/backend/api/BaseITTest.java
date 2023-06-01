@@ -1,9 +1,14 @@
 package com.bloxbean.cardano.client.backend.api;
 
+import co.nstant.in.cbor.CborException;
+import co.nstant.in.cbor.model.ByteString;
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
 import com.bloxbean.cardano.client.backend.ogmios.OgmiosBackendService;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.util.HexUtil;
 
 public class BaseITTest {
 
@@ -28,5 +33,18 @@ public class BaseITTest {
 //            return new GqlBackendService(com.bloxbean.cardano.client.backend.gql.Constants.DANDELION_TESTNET_GQL_URL);
         } else
             return null;
+    }
+
+    protected PlutusV2Script getPlutusScript(String aikenCompileCode) {
+        //Do double encoding for aiken compileCode
+        ByteString bs = new ByteString(HexUtil.decodeHexString(aikenCompileCode));
+        try {
+            String cborHex = HexUtil.encodeHexString(CborSerializationUtil.serialize(bs));
+            return PlutusV2Script.builder()
+                    .cborHex(cborHex)
+                    .build();
+        } catch (CborException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

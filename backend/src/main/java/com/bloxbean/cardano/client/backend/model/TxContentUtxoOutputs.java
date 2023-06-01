@@ -33,9 +33,10 @@ public class TxContentUtxoOutputs {
     private String inlineDatum;
     private String referenceScriptHash;
 
-    public Utxo toUtxos() {
+    public Utxo toUtxos(String txHash) {
         Utxo utxo = new Utxo();
         utxo.setAddress(this.getAddress());
+        utxo.setTxHash(txHash);
 
         List<Amount> amounts = this.getAmount() != null? this.getAmount()
                 .stream().map(amount -> new Amount(amount.getUnit(), new BigInteger(amount.getQuantity())))
