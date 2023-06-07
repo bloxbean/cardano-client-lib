@@ -1266,4 +1266,52 @@ class AddressProviderTest {
 
     }
 
+    @Nested
+    class StakeAddressFromAccountPubKey {
+
+        @Test
+        void getStakeAddressFromAccountPubKey_acct_xvk() {
+            Address address = AddressProvider.getStakeAddressFromAccountPublicKey("acct_xvk136qnzfm6c34lddfxll60uqxwe3csymp8sdqvg3zcs79azchhqdn4qhs75qtwvuzjkd5h436fujcrgqgq2mnlmr5yse5zvewdj6flkgg5catgs",
+                    Networks.testnet());
+            assertThat(address.toBech32()).isEqualTo("stake_test1uq28tn7xfckpaxxlfnhjz07r9nlwgcagzzza0r5la7hagycfa458m");
+        }
+
+        @Test
+        void getStakeAddressFromAccountPubKey_acct_xvk_2() {
+            Address address = AddressProvider.getStakeAddressFromAccountPublicKey("acct_xvk1zxnrf4j4xzvxwwkmsjsrvtgv6g5q4l9yyskp807d62w5y6zvnmhepfxyysq4nydjqsjxj2dcsfc6ns6ljm2gqs6jh5vj58auceyfadsydvkn7",
+                    Networks.testnet());
+            assertThat(address.toBech32()).isEqualTo("stake_test1uqu22dnnwvfrw0xwa3x3jux9p9z63ts5l0kmmn3jvttvg6gljr6y9");
+        }
+
+        @Test
+        void getStakeAddressFromAccountPubKey_xpub() {
+            Address address = AddressProvider.getStakeAddressFromAccountPublicKey("xpub136qnzfm6c34lddfxll60uqxwe3csymp8sdqvg3zcs79azchhqdn4qhs75qtwvuzjkd5h436fujcrgqgq2mnlmr5yse5zvewdj6flkgg88stt0",
+                    Networks.testnet());
+            assertThat(address.toBech32()).isEqualTo("stake_test1uq28tn7xfckpaxxlfnhjz07r9nlwgcagzzza0r5la7hagycfa458m");
+        }
+
+        @Test
+        void getStakeAddressFromAccountPubKey_xpub_2() {
+            Address address = AddressProvider.getStakeAddressFromAccountPublicKey("xpub1zxnrf4j4xzvxwwkmsjsrvtgv6g5q4l9yyskp807d62w5y6zvnmhepfxyysq4nydjqsjxj2dcsfc6ns6ljm2gqs6jh5vj58auceyfadshjpksp",
+                    Networks.testnet());
+            assertThat(address.toBech32()).isEqualTo("stake_test1uqu22dnnwvfrw0xwa3x3jux9p9z63ts5l0kmmn3jvttvg6gljr6y9");
+        }
+
+        @Test
+        void getStakeAddressFromAccountPubKey_whenLessThan64Bytes_throwError() {
+            assertThrows(IllegalArgumentException.class, () -> {
+                AddressProvider.getStakeAddressFromAccountPublicKey("acct_vk1zxnrf4j4xzvxwwkmsjsrvtgv6g5q4l9yyskp807d62w5y6zvnmhsk5ajve",
+                        Networks.testnet());
+            });
+        }
+
+        @Test
+        void getStakeAddressFromAccountPubKey_invalidPrefix_throwError() {
+            assertThrows(IllegalArgumentException.class, () -> {
+                AddressProvider.getStakeAddressFromAccountPublicKey("xyz1zxnrf4j4xzvxwwkmsjsrvtgv6g5q4l9yyskp807d62w5y6zvnmhepfxyysq4nydjqsjxj2dcsfc6ns6ljm2gqs6jh5vj58auceyfadshjpksp",
+                        Networks.testnet());
+            });
+        }
+    }
+
 }

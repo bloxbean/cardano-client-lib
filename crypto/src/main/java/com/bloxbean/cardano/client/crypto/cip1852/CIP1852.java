@@ -3,10 +3,20 @@ package com.bloxbean.cardano.client.crypto.cip1852;
 import com.bloxbean.cardano.client.crypto.CryptoException;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyGenerator;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
+import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
 
+/**
+ * CIP1852 helper class
+ */
 public class CIP1852 {
 
+    /**
+     * Get HdKeyPair from mnemonic phrase
+     * @param mnemonicPhrase mnemonic phrase
+     * @param derivationPath derivation path
+     * @return HdKeyPair
+     */
     public HdKeyPair getKeyPairFromMnemonic(String mnemonicPhrase, DerivationPath derivationPath) {
         try {
             byte[] entropy = MnemonicCode.INSTANCE.toEntropy(mnemonicPhrase);
@@ -17,6 +27,12 @@ public class CIP1852 {
         }
     }
 
+    /**
+     * Get HdKeyPair from entropy
+     * @param entropy entropy
+     * @param derivationPath derivation path
+     * @return HdKeyPair
+     */
     public HdKeyPair getKeyPairFromEntropy(byte[] entropy, DerivationPath derivationPath) {
         HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
         HdKeyPair rootKeyPair = hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
@@ -30,6 +46,12 @@ public class CIP1852 {
         return indexKey;
     }
 
+    /**
+     * Get HdKeyPair from account key
+     * @param accountKey account key
+     * @param derivationPath derivation path
+     * @return HdKeyPair
+     */
     public HdKeyPair getKeyPairFromAccountKey(byte[] accountKey, DerivationPath derivationPath) {
         HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
 
@@ -38,6 +60,22 @@ public class CIP1852 {
 
         HdKeyPair indexKey = hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
         return indexKey;
+    }
+
+    /**
+     * Get HdPublicKey from account public key
+     * @param accountPubKey account public key
+     * @param derivationPath derivation path
+     * @return HdPublicKey
+     */
+    public HdPublicKey getPublicKeyFromAccountPubKey(byte[] accountPubKey, DerivationPath derivationPath) {
+        HdPublicKey accountHdPubKey = HdPublicKey.fromBytes(accountPubKey);
+
+        HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+        HdPublicKey roleHdPubKey = hdKeyGenerator.getChildPublicKey(accountHdPubKey, derivationPath.getRole().getValue());
+        HdPublicKey indexHdPubKey = hdKeyGenerator.getChildPublicKey(roleHdPubKey, derivationPath.getIndex().getValue());
+
+        return indexHdPubKey;
     }
 
 }

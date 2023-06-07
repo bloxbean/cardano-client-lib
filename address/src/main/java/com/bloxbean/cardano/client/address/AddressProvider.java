@@ -1,8 +1,11 @@
 package com.bloxbean.cardano.client.address;
 
 import com.bloxbean.cardano.client.common.model.Network;
+import com.bloxbean.cardano.client.crypto.Bech32;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
+import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
+import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.NetworkId;
@@ -11,10 +14,7 @@ import com.google.common.primitives.Bytes;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil.*;
 import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash224;
@@ -488,6 +488,45 @@ public class AddressProvider {
         byte[] rewardAddressBytes = getAddressBytes(null, stakeKeyHash, addressType, (byte) stakeHeader);
 
         return new Address(rewardAddressBytes);
+    }
+
+    /**
+     * Get stake address from CIP-1852's extended account public key (Bech32 encoded) with prefix "acct_xvk" or "xpub"
+     *
+     * @param accountPubKey extended account public key (Bech32 encoded) with prefix "acct_xvk" or "xpub"
+     * @param network network
+     * @return stake address
+     */
+    public static Address getStakeAddressFromAccountPublicKey(String accountPubKey, Network network) {
+        Objects.requireNonNull(accountPubKey, "accountPubKey cannot be null");
+        Objects.requireNonNull(network, "network cannot be null");
+
+        if (!accountPubKey.startsWith("acct_xvk") && !accountPubKey.startsWith("xpub")) {
+            throw new IllegalArgumentException("Invalid account public key. Must start with 'acct_xvk' or 'xpub'");
+        }
+
+        byte[] accountPubKeyBytes = Bech32.decode(accountPubKey).data;
+
+        return getStakeAddressFromAccountPublicKey(accountPubKeyBytes, network);
+    }
+
+    /**
+     * Get stake address from CIP-1852's extended account public key. Ed25519 public key with chain code.
+     *
+     * @param accountPubKeyBytes extended account public key. Ed25519 public key with chain code.
+     * @param network network
+     * @return stake address
+     */
+    public static Address getStakeAddressFromAccountPublicKey(byte[] accountPubKeyBytes, Network network) {
+        Objects.requireNonNull(accountPubKeyBytes, "accountPubKeyBytes cannot be null");
+        Objects.requireNonNull(network, "network cannot be null");
+
+        if (accountPubKeyBytes.length != 64) {
+            throw new IllegalArgumentException("Invalid account public key");
+        }
+
+        HdPublicKey stakeHdPubKey = new CIP1852().getPublicKeyFromAccountPubKey(accountPubKeyBytes, DerivationPath.createStakeAddressDerivationPath());
+        return getRewardAddress(stakeHdPubKey, network);
     }
 
     /**
