@@ -439,7 +439,7 @@ public class AddressProvider {
             byte[] stakeKeyHash = blake2bHash224(publicKey); //Get keyhash from publickey (stake credential)
             newAddressBytes = getAddressBytes(null, stakeKeyHash, addressType, header);
         } else {
-            byte[] stakeKeyHash = getDelegationCredential(address).orElse(null); //Get stakekeyhash from existing address
+            byte[] stakeKeyHash = getDelegationCredentialHash(address).orElse(null); //Get stakekeyhash from existing address
             byte[] paymentKeyHash = blake2bHash224(publicKey); //calculate keyhash from public key
             newAddressBytes = getAddressBytes(paymentKeyHash, stakeKeyHash, addressType, header);
         }
@@ -466,7 +466,7 @@ public class AddressProvider {
                     String.format("Stake address can't be derived. Required address type: Base Address, Found: %s ",
                             address.getAddressType()));
 
-        byte[] stakeKeyHash = getDelegationCredential(address)
+        byte[] stakeKeyHash = getDelegationCredentialHash(address)
                 .orElseThrow(() -> new AddressRuntimeException("StakeKeyHash was not found for the address"));
 
         AddressType addressType = AddressType.Reward; //target type
@@ -534,7 +534,7 @@ public class AddressProvider {
      * @param address
      * @return StakeKeyHash or ScriptHash. For Pointer address, delegationPointerHash
      */
-    public static Optional<byte[]> getDelegationCredential(Address address) {
+    public static Optional<byte[]> getDelegationCredentialHash(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
 
@@ -563,11 +563,11 @@ public class AddressProvider {
     }
 
     /**
-     * Get PaymentCredential from {@link Address}
+     * Get PaymentCredential hash from {@link Address}
      * @param address
      * @return payment key hash or script hash
      */
-    public static Optional<byte[]> getPaymentCredential(Address address) {
+    public static Optional<byte[]> getPaymentCredentialHash(Address address) {
         AddressType addressType = address.getAddressType();
         byte[] addressBytes = address.getBytes();
 
@@ -587,6 +587,42 @@ public class AddressProvider {
             }
         }
         return Optional.ofNullable(paymentKeyHash);
+    }
+
+    /**
+     * Get delegation credential from {@link Address}
+     * @param address Shelley address
+     * @return Credential if address has a delegation part, else empty
+     */
+    public static Optional<Credential> getDelegationCredential(Address address) {
+        Objects.requireNonNull(address, "address cannot be null");
+        if (isStakeKeyHashInDelegationPart(address)) {
+            return getDelegationCredentialHash(address)
+                    .map(hash -> Credential.fromKey(hash));
+        } else if (isScriptHashInDelegationPart(address)) {
+            return getDelegationCredentialHash(address)
+                    .map(hash -> Credential.fromScript(hash));
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Get payment credential from {@link Address}
+     * @param address Shelley address
+     * @return Credential if address has a payment part, else empty
+     */
+    public static Optional<Credential> getPaymentCredential(Address address) {
+        Objects.requireNonNull(address, "address cannot be null");
+        if (isPubKeyHashInPaymentPart(address)) {
+            return getPaymentCredentialHash(address)
+                    .map(hash -> Credential.fromKey(hash));
+        } else if (isScriptHashInPaymentPart(address)) {
+            return getPaymentCredentialHash(address)
+                    .map(hash -> Credential.fromScript(hash));
+        }  else {
+            return Optional.empty();
+        }
     }
 
     /**
