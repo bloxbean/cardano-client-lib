@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -16,6 +17,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
@@ -433,5 +435,67 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         System.out.println(result);
         assertFalse(result.isSuccessful());
         waitForTransaction(result);
+    }
+
+    @Test
+    void simplePayment_withRandomImproveSelectionStrategy() {
+        Metadata metadata = MetadataBuilder.createMetadata();
+        metadata.put(BigInteger.valueOf(100), "This is second metadata");
+        metadata.putNegative(200, -900);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .payToAddress(receiver2, Amount.ada(2.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message"))
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withUtxoSelectionStrategy(
+                        new RandomImproveUtxoSelectionStrategy(new DefaultUtxoSupplier(backendService.getUtxoService())))
+                .complete();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void simplePayment_withDummySelectionStrategy_shouldFail() {
+        Metadata metadata = MetadataBuilder.createMetadata();
+        metadata.put(BigInteger.valueOf(100), "This is second metadata");
+        metadata.putNegative(200, -900);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .payToAddress(receiver2, Amount.ada(2.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message"))
+                .from(sender1Addr);
+
+        assertThrows(InsufficientBalanceException.class, () -> {
+            quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withUtxoSelectionStrategy(new UtxoSelectionStrategy() {
+                        @Override
+                        public Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+                            throw new InsufficientBalanceException("Insufficient balance");
+                        }
+
+                        @Override
+                        public UtxoSelectionStrategy fallback() {
+                            return null;
+                        }
+
+                        @Override
+                        public void setIgnoreUtxosWithDatumHash(boolean ignoreUtxosWithDatumHash) {
+
+                        }
+                    })
+                    .complete();
+        });
     }
 }

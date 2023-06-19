@@ -120,6 +120,7 @@ public class QuickTxBuilder {
         private boolean mergeChangeOutputs = true;
 
         private TransactionEvaluator txnEvaluator;
+        private UtxoSelectionStrategy utxoSelectionStrategy;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -216,6 +217,9 @@ public class QuickTxBuilder {
             else
                 txBuilderContext.withTxnEvaluator(transactionProcessor);
 
+            //Set utxo selection strategy
+            if (utxoSelectionStrategy != null)
+                txBuilderContext.setUtxoSelectionStrategy(utxoSelectionStrategy);
 
             if (preBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(preBalanceTrasformer);
@@ -262,7 +266,6 @@ public class QuickTxBuilder {
                     tx.postBalanceTx(transaction);
                 }));
             }
-
             return txBuilderContext.build(txBuilder);
         }
 
@@ -432,6 +435,16 @@ public class QuickTxBuilder {
          */
         public TxContext withTxInspector(Consumer<Transaction> txInspector) {
             QuickTxBuilder.this.txInspector = txInspector;
+            return this;
+        }
+
+        /**
+         * Use the given {@link UtxoSelectionStrategy} for selecting utxos
+         * @param utxoSelectionStrategy
+         * @return TxContext
+         */
+        public TxContext withUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
+            this.utxoSelectionStrategy = utxoSelectionStrategy;
             return this;
         }
     }
