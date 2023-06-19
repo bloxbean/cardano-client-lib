@@ -440,7 +440,7 @@ public class QuickTxBuilder {
 
         /**
          * Use the given {@link UtxoSelectionStrategy} for selecting utxos
-         * @param utxoSelectionStrategy
+         * @param utxoSelectionStrategy UtxoSelectionStrategy
          * @return TxContext
          */
         public TxContext withUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
