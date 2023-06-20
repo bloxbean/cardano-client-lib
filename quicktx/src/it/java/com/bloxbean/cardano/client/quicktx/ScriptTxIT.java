@@ -13,6 +13,8 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
+import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
@@ -253,13 +255,13 @@ public class ScriptTxIT extends QuickTxBaseIT {
         Asset asset = new Asset("PlutusMintToken", BigInteger.valueOf(4000));
 
         String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
+        PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
 
         String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
+        PlutusScript plutusScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
 
         String aikenCompileCode3 = "581801000032223253330043370e00290030a4c2c6eb40095cd1";
-        PlutusScript plutusScript3 = getPlutusScript(aikenCompileCode3);
+        PlutusScript plutusScript3 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode3, PlutusVersion.v2);
 
         Asset asset1 = new Asset("PlutusMintToken-1", BigInteger.valueOf(8000));
         Asset asset2 = new Asset("PlutusMintToken-2", BigInteger.valueOf(5000));
@@ -302,10 +304,10 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .build();
 
         String aikenCompiledCode2 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-        PlutusScript mintingScript2 = getPlutusScript(aikenCompiledCode2);
+        PlutusScript mintingScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode2, PlutusVersion.v2);
 
         String aikenCompileCode3 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-        PlutusScript mintingScript3 = getPlutusScript(aikenCompileCode3);
+        PlutusScript mintingScript3 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode3, PlutusVersion.v2);
 
         String scriptAddress = AddressProvider.getEntAddress(spendingScript, Networks.testnet()).toBech32();
         BigInteger scriptAmt = new BigInteger("2479280");
@@ -367,13 +369,13 @@ public class ScriptTxIT extends QuickTxBaseIT {
     @Test
     void multi_minting() throws ApiException, CborSerializationException, InterruptedException {
         String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1);
+        PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
 
         String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-        PlutusScript plutusScript2 = getPlutusScript(aikenCompileCode2);
+        PlutusScript plutusScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
 
         String aikenCompileCode3 = "581801000032223253330043370e00290030a4c2c6eb40095cd1";
-        PlutusScript plutusScript3 = getPlutusScript(aikenCompileCode3);
+        PlutusScript plutusScript3 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode3, PlutusVersion.v2);
 
         Asset asset1 = new Asset("PlutusMintToken-1", BigInteger.valueOf(8000));
         Asset asset2 = new Asset("PlutusMintToken-2", BigInteger.valueOf(5000));
