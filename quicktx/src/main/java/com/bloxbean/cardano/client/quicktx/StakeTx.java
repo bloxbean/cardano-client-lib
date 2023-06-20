@@ -47,7 +47,7 @@ class StakeTx {
      * @return T
      */
     public StakeTx registerStakeAddress(@NonNull Address address) {
-        byte[] delegationHash = address.getDelegationCredential()
+        byte[] delegationHash = address.getDelegationCredentialHash()
                 .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
 
         StakeCredential stakeCredential = null;
@@ -75,7 +75,7 @@ class StakeTx {
      * @return T
      */
     public StakeTx deregisterStakeAddress(@NonNull Address address, PlutusData redeemer, String refundAddr) {
-        byte[] delegationHash = address.getDelegationCredential()
+        byte[] delegationHash = address.getDelegationCredentialHash()
                 .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
 
         StakeCredential stakeCredential = null;
@@ -117,7 +117,7 @@ class StakeTx {
      * @return T
      */
     public StakeTx delegateTo(@NonNull Address address, @NonNull String poolId, PlutusData redeemer) {
-        byte[] delegationHash = address.getDelegationCredential()
+        byte[] delegationHash = address.getDelegationCredentialHash()
                 .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
 
         StakeCredential stakeCredential = null;
