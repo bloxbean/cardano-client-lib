@@ -37,6 +37,10 @@ public class Amount {
                 .build();
     }
 
+    public static Amount ada(long ada) {
+        return ada((double) ada);
+    }
+
     public static Amount asset(String unit, BigInteger quantity) {
         return Amount.builder()
                 .unit(unit)
