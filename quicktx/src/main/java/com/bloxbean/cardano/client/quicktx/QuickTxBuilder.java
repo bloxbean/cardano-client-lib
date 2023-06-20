@@ -121,6 +121,7 @@ public class QuickTxBuilder {
 
         private TransactionEvaluator txnEvaluator;
         private UtxoSelectionStrategy utxoSelectionStrategy;
+        private Verifier txVerifier;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -315,6 +316,9 @@ public class QuickTxBuilder {
             if (txInspector != null)
                 txInspector.accept(transaction);
 
+            if (txVerifier != null)
+                txVerifier.verify(transaction);
+
             try {
                 Result<String> result = transactionProcessor.submitTransaction(transaction.serialize());
                 if (!result.isSuccessful()) {
@@ -445,6 +449,19 @@ public class QuickTxBuilder {
          */
         public TxContext withUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
             this.utxoSelectionStrategy = utxoSelectionStrategy;
+            return this;
+        }
+
+        /**
+         * Verify the transaction with the given verifier before submitting
+         * @param txVerifier TxVerifier
+         * @return TxContext
+         */
+        public TxContext withVerifier(Verifier txVerifier) {
+            if (this.txVerifier == null)
+                this.txVerifier = txVerifier;
+            else
+                this.txVerifier = this.txVerifier.andThen(txVerifier);
             return this;
         }
     }

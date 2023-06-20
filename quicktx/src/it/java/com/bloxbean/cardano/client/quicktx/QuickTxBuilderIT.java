@@ -18,10 +18,7 @@ import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.client.transaction.spec.Asset;
-import com.bloxbean.cardano.client.transaction.spec.AuxiliaryData;
-import com.bloxbean.cardano.client.transaction.spec.Policy;
-import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -33,6 +30,7 @@ import java.util.Set;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
+import static com.bloxbean.cardano.client.quicktx.verifiers.TxVerifiers.outputAmountVerifier;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class QuickTxBuilderIT extends QuickTxBaseIT {
@@ -42,7 +40,6 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
     String sender1Addr;
     String sender2Addr;
-
 
     String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
     String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
@@ -498,4 +495,108 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                     .complete();
         });
     }
+
+    @Test
+    void simplePayment_withVerifier() {
+        Metadata metadata = MetadataBuilder.createMetadata();
+        metadata.put(BigInteger.valueOf(100), "This is second metadata");
+        metadata.putNegative(200, -900);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .payToAddress(receiver2, Amount.ada(2.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message"))
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withVerifier(
+                        outputAmountVerifier(receiver1, Amount.ada(1.5), "Output amount is not correct")
+                        .andThen(outputAmountVerifier(receiver2, Amount.ada(2.5), "Output amount is not correct"))
+                ).complete();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void minting_withTransfer_andVerifier() throws CborSerializationException {
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+        String assetName = "MyAsset";
+        BigInteger qty = BigInteger.valueOf(2000);
+
+        Tx tx1 = new Tx()
+                .payToAddress(receiver2, Amount.ada(1.5))
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), receiver2)
+                .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                .from(sender1.baseAddress());
+
+        Tx tx2 = new Tx()
+                .payToAddress(receiver3, new Amount(LOVELACE, adaToLovelace(2.13)))
+                .payToAddress(receiver2, Amount.ada(1.5))
+                .from(sender2.baseAddress());
+
+        Result<String> result = quickTxBuilder.compose(tx1, tx2)
+                .feePayer(sender1.baseAddress())
+                .withSigner(SignerProviders.signerFrom(sender1)
+                        .andThen(SignerProviders.signerFrom(sender2)))
+                .withSigner(SignerProviders.signerFrom(policy))
+                .additionalSignersCount(1) //As we have composed TxSigners from 2 signers, we need to add 1 additional signer,
+                // as it's hard to determine how many signers are in the composed TxSigner
+                .withVerifier(
+                        outputAmountVerifier(receiver2, Amount.ada(3.0))
+                                .andThen(outputAmountVerifier(receiver3, Amount.ada(2.13)))
+                                .andThen(outputAmountVerifier(receiver2, Amount.asset(policy.getPolicyId(), assetName, qty)))
+                ).complete();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void minting_withTransfer_andFailedVerifier() throws CborSerializationException {
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+        String assetName = "MyAsset";
+        BigInteger qty = BigInteger.valueOf(2000);
+
+        Tx tx1 = new Tx()
+                .payToAddress(receiver2, Amount.ada(1.5))
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), receiver2)
+                .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                .from(sender1.baseAddress());
+
+        Tx tx2 = new Tx()
+                .payToAddress(receiver3, new Amount(LOVELACE, adaToLovelace(2.13)))
+                .payToAddress(receiver2, Amount.ada(1.5))
+                .from(sender2.baseAddress());
+
+        assertThrows(VerifierException.class, () -> {
+            Result<String> result = quickTxBuilder.compose(tx1, tx2)
+                    .feePayer(sender1.baseAddress())
+                    .withSigner(SignerProviders.signerFrom(sender1)
+                            .andThen(SignerProviders.signerFrom(sender2)))
+                    .withSigner(SignerProviders.signerFrom(policy))
+                    .additionalSignersCount(1)
+                    .postBalanceTx((context, txn) -> { //Update tx output to fail the verifier
+                        TransactionOutput txOut = txn.getBody().getOutputs()
+                                .stream().filter(output -> output.getAddress().equals(receiver2))
+                                .findFirst().get();
+                        txOut.getValue().getMultiAssets().get(0).getAssets().get(0).setValue(BigInteger.valueOf(10000));
+                    })
+                    .withVerifier(
+                            outputAmountVerifier(receiver2, Amount.ada(3.0))
+                                    .andThen(outputAmountVerifier(receiver3, Amount.ada(2.13)))
+                                    .andThen(outputAmountVerifier(receiver2, Amount.asset(policy.getPolicyId(), assetName, qty)))
+                    ).complete();
+
+        });
+    }
+
 }
