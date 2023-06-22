@@ -28,6 +28,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -354,36 +355,59 @@ public class QuickTxBuilder {
         /**
          * Build, sign and submit transaction and wait for the transaction to be included in the block.
          *
-         * @param timeout
+         * @param timeout Timeout to wait for transaction to be included in the block
          * @return Result of transaction submission
          */
         public Result<String> completeAndWait(Duration timeout) {
-            return completeAndWait(timeout, (msg) -> log.info(msg));
+            return completeAndWait(timeout, Duration.ofSeconds(2), (msg) -> log.info(msg));
         }
 
         /**
          * Build, sign and submit transaction and wait for the transaction to be included in the block.
-         *
-         * @param timeout timeout duration
+         * @param timeout Timeout to wait for transaction to be included in the block
+         * @param logConsumer consumer to get log messages
          * @return Result of transaction submission
          */
         public Result<String> completeAndWait(Duration timeout, Consumer<String> logConsumer) {
+            return completeAndWait(timeout, Duration.ofSeconds(2), logConsumer);
+        }
+
+        /**
+         * Build, sign and submit transaction and wait for the transaction to be included in the block.
+         * @param timeout Timeout to wait for transaction to be included in the block
+         * @param checkInterval Interval sec to check if transaction is included in the block
+         * @param logConsumer consumer to get log messages
+         * @return Result of transaction submission
+         */
+        public Result<String> completeAndWait(@NonNull Duration timeout, @NonNull Duration checkInterval,
+                                              @NonNull Consumer<String> logConsumer) {
             Result<String> result = complete();
             if (!result.isSuccessful())
                 return result;
 
-            logConsumer.accept("Transaction submitted. TxHash : " + result.getValue());
+            Instant startInstant = Instant.now();
+            long millisToTimeout = timeout.toMillis();
+
+            logConsumer.accept(showStatus(Constant.STATUS_SUBMITTED, result.getValue()));
             String txHash = result.getValue();
             try {
                 if (result.isSuccessful()) { //Wait for transaction to be included in the block
                     int count = 0;
                     while (count < 60) {
                         Optional<Utxo> utxoOptional = utxoSupplier.getTxOutput(txHash, 0);
-                        if (utxoOptional.isPresent())
+                        if (utxoOptional.isPresent()) {
+                            logConsumer.accept(showStatus(Constant.STATUS_CONFIRMED, txHash));
                             return result;
+                        }
 
-                        logConsumer.accept("Waiting for transaction to be included in the block. TxHash : " + txHash);
-                        Thread.sleep(2000);
+                        logConsumer.accept(showStatus(Constant.STATUS_PENDING, txHash));
+                        Instant now = Instant.now();
+                        if (now.isAfter(startInstant.plusMillis(millisToTimeout))) {
+                            logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
+                            return result;
+                        }
+
+                        Thread.sleep(checkInterval.toMillis());
                     }
                 }
             } catch (Exception e) {
@@ -391,8 +415,12 @@ public class QuickTxBuilder {
                 logConsumer.accept("Error while waiting for transaction to be included in the block. TxHash : " + txHash);
             }
 
-            logConsumer.accept("Timeout while waiting for transaction to be included in the block. TxHash : " + txHash);
+            logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
             return result;
+        }
+
+        private String showStatus(String status, String txHash) {
+            return String.format("[%s] Tx: %s", status, txHash);
         }
 
         /**
