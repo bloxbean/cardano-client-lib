@@ -8,11 +8,11 @@ include 'metadata'
 include 'transaction-spec'
 include 'core-api'
 include 'plutus'
-include 'plutus-annotation'
 include 'coinselection'
 include 'core'
 include 'function'
 include 'quicktx'
+include 'annotation-processor'
 
 //CIPs
 include 'cip'
