@@ -36,8 +36,6 @@ public abstract class AbstractTx<T> {
     protected PlutusData changeData;
     protected String changeDatahash;
 
-    protected long validFrom;
-    protected long validTo;
 
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
@@ -315,26 +313,6 @@ public abstract class AbstractTx<T> {
         return (T) this;
     }
 
-    /**
-     * Add validity start slot to the transaction. This value is set in "validity start from" field of the transaction.
-     * @param slot validity start slot
-     * @return T
-     */
-    public T validFrom(long slot) {
-        this.validFrom = slot;
-        return (T) this;
-    }
-
-    /**
-     * Add validity end slot to the transaction. This value is set in ttl field of the transaction.
-     * @param slot validity end slot
-     * @return T
-     */
-    public T validTo(long slot) {
-        this.validTo = slot;
-        return (T) this;
-    }
-
     TxBuilder complete() {
         TxOutputBuilder txOutputBuilder = null;
         //Define outputs
@@ -379,16 +357,6 @@ public abstract class AbstractTx<T> {
         //Add metadata
         if (txMetadata != null)
             txBuilder = txBuilder.andThen(AuxDataProviders.metadataProvider(txMetadata));
-
-        //Add validity interval
-        if (validFrom != 0 || validTo != 0) {
-            txBuilder = txBuilder.andThen((context, txn) -> {
-                if (validFrom != 0)
-                    txn.getBody().setValidityStartInterval(validFrom);
-                if (validTo != 0)
-                    txn.getBody().setTtl(validTo);
-            });
-        }
 
         return txBuilder;
     }
