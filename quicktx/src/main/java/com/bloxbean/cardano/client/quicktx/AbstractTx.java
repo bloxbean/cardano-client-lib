@@ -148,6 +148,28 @@ public abstract class AbstractTx<T> {
     }
 
     /**
+     * Add an output at contract address with amount and datum hash.
+     * @param address contract address
+     * @param amount amount
+     * @param datumHash datum hash
+     * @return T
+     */
+    public T payToContract(String address, Amount amount, String datumHash) {
+        return payToAddress(address, List.of(amount), HexUtil.decodeHexString(datumHash), null, null, null, false);
+    }
+
+    /**
+     * Add an output at contract address with amount and datum hash.
+     * @param address contract address
+     * @param amounts list of amounts
+     * @param datumHash datum hash
+     * @return T
+     */
+    public T payToContract(String address, List<Amount> amounts, String datumHash) {
+        return payToAddress(address, amounts, HexUtil.decodeHexString(datumHash), null, null, null, false);
+    }
+
+    /**
      * Add an output at contract address with amounts and datum hash.
      * This method is useful for newly minted assets in the transaction.
      *
@@ -162,7 +184,20 @@ public abstract class AbstractTx<T> {
     }
 
     /**
-     * Add an output at contract address with amounts, datum hash and reference script.
+     * Add an output at contract address with amounts, inline datum and reference script.
+     *
+     * @param address    address
+     * @param amounts    List of Amount to send
+     * @param datum      Plutus data
+     * @param refScript  Reference Script
+     * @return T
+     */
+    public T payToContract(String address, List<Amount> amounts, PlutusData datum, Script refScript) {
+        return payToAddress(address, amounts, null, datum, refScript, null, false);
+    }
+
+    /**
+     * Add an output at contract address with amounts, inline datum and reference script.
      * This method is useful for newly minted assets in the transaction.
      *
      * @param address    address
@@ -174,6 +209,19 @@ public abstract class AbstractTx<T> {
      */
     public T payToContract(String address, List<Amount> amounts, PlutusData datum, Script refScript, boolean mintOutput) {
         return payToAddress(address, amounts, null, datum, refScript, null, mintOutput);
+    }
+
+    /**
+     * Add an output at contract address with amounts, inline datum and reference script bytes.
+     *
+     * @param address        address
+     * @param amounts        List of Amount to send
+     * @param datum          Plutus data
+     * @param scriptRefBytes Reference Script bytes
+     * @return T
+     */
+    public T payToContract(String address, List<Amount> amounts, PlutusData datum, byte[] scriptRefBytes) {
+        return payToAddress(address, amounts, null, datum, null, scriptRefBytes, false);
     }
 
     /**
