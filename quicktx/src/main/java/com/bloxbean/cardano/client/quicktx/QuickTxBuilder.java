@@ -118,6 +118,9 @@ public class QuickTxBuilder {
         private int signersCount = 0;
         private TxSigner signers;
 
+        private long validFrom;
+        private long validTo;
+
         private boolean mergeChangeOutputs = true;
 
         private TransactionEvaluator txnEvaluator;
@@ -236,11 +239,18 @@ public class QuickTxBuilder {
                             "It's mandatory when there are more than one txs");
             }
 
+            //Set validity interval
+            txBuilder = buildValidityIntervalTxBuilder(txBuilder);
+
             if (containsScriptTx) {
                 if (collateralPayer == null)
                     collateralPayer = feePayer;
                 txBuilder = txBuilder.andThen(buildCollateralOutput(collateralPayer));
             }
+
+            //Merge outputs if required
+            if (mergeChangeOutputs)
+                txBuilder = txBuilder.andThen(OutputMergers.mergeOutputsForAddress(feePayer));
 
             if (containsScriptTx) {
                 txBuilder = txBuilder.andThen(((context, transaction) -> {
@@ -252,15 +262,11 @@ public class QuickTxBuilder {
                 }));
             }
 
-            if (mergeChangeOutputs)
-                txBuilder = txBuilder.andThen(OutputMergers.mergeOutputsForAddress(feePayer));
-
             //Balance outputs
             txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
 
             if (postBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(postBalanceTrasformer);
-
 
             //Call post balance function of each tx
             for (AbstractTx tx : txList) {
@@ -439,6 +445,26 @@ public class QuickTxBuilder {
         }
 
         /**
+         * Add validity start slot to the transaction. This value is set in "validity start from" field of the transaction.
+         * @param slot validity start slot
+         * @return TxContext
+         */
+        public TxContext validFrom(long slot) {
+            this.validFrom = slot;
+            return this;
+        }
+
+        /**
+         * Add validity end slot to the transaction. This value is set in ttl field of the transaction.
+         * @param slot validity end slot
+         * @return TxContext
+         */
+        public TxContext validTo(long slot) {
+            this.validTo = slot;
+            return this;
+        }
+
+        /**
          * Define if change outputs should be merged or not
          * Default is true
          *
@@ -491,6 +517,24 @@ public class QuickTxBuilder {
             else
                 this.txVerifier = this.txVerifier.andThen(txVerifier);
             return this;
+        }
+
+        /**
+         * TxBuilder to set start validity interval and ttl for the transaction
+         * @param txBuilder TxBuilder
+         * @return TxBuilder
+         */
+        private TxBuilder buildValidityIntervalTxBuilder(TxBuilder txBuilder) {
+            //Add validity interval
+            if (validFrom != 0 || validTo != 0) {
+                return txBuilder.andThen((context, txn) -> {
+                    if (validFrom != 0)
+                        txn.getBody().setValidityStartInterval(validFrom);
+                    if (validTo != 0)
+                        txn.getBody().setTtl(validTo);
+                });
+            } else
+                return txBuilder;
         }
     }
 }

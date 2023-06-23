@@ -345,11 +345,11 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message"))
-                .validTo(validSlot)
                 .from(sender1Addr);
 
         Transaction transaction = quickTxBuilder.compose(tx)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .validTo(validSlot)
                 .buildAndSign();
 
         Result<String> result = backendService.getTransactionService().submitTransaction(transaction.serialize());
@@ -370,11 +370,11 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message"))
-                .validTo(validSlot)
                 .from(sender1Addr);
 
         Transaction transaction = quickTxBuilder.compose(tx)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .validTo(validSlot)
                 .buildAndSign();
 
         Result<String> result = backendService.getTransactionService().submitTransaction(transaction.serialize());
@@ -392,11 +392,11 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message"))
-                .validFrom(validSlot)
                 .from(sender1Addr);
 
         Transaction transaction = quickTxBuilder.compose(tx)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .validFrom(validSlot)
                 .buildAndSign();
         System.out.println(JsonUtil.getPrettyJson(transaction));
 
@@ -418,11 +418,11 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
                 .attachMetadata(MessageMetadata.create().add("This is a test message"))
-                .validFrom(validSlot)
                 .from(sender1Addr);
 
         Transaction transaction = quickTxBuilder.compose(tx)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .validFrom(validSlot)
                 .buildAndSign();
         System.out.println(JsonUtil.getPrettyJson(transaction));
 

@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.metadata.cbor;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.metadata.MetadataList;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.helper.MetadataToJsonNoSchemaConverter;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -58,7 +59,7 @@ public class CBORMetadataMap implements MetadataMap {
     }
 
     @Override
-    public CBORMetadataMap put(BigInteger key, CBORMetadataList list) {
+    public CBORMetadataMap put(BigInteger key, MetadataList list) {
         if(list != null)
             map.put(new UnsignedInteger(key), list.getArray());
         return this;
@@ -102,7 +103,7 @@ public class CBORMetadataMap implements MetadataMap {
     }
 
     @Override
-    public CBORMetadataMap put(String key, CBORMetadataList list) {
+    public CBORMetadataMap put(String key, MetadataList list) {
         if(list != null)
             map.put(new UnicodeString(key), list.getArray());
         return this;
@@ -141,7 +142,7 @@ public class CBORMetadataMap implements MetadataMap {
     }
 
     @Override
-    public CBORMetadataMap put(byte[] key, CBORMetadataList list) {
+    public CBORMetadataMap put(byte[] key, MetadataList list) {
         if(list != null)
             map.put(new ByteString(key), list.getArray());
         return this;
