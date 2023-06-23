@@ -521,7 +521,7 @@ public class QuickTxBuilder {
 
         /**
          * TxBuilder to set start validity interval and ttl for the transaction
-         * @param txBuilder
+         * @param txBuilder TxBuilder
          * @return TxBuilder
          */
         private TxBuilder buildValidityIntervalTxBuilder(TxBuilder txBuilder) {
