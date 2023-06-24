@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,6 +26,7 @@ import java.util.List;
 @NoArgsConstructor
 @Builder
 public class AuxiliaryData {
+    @JsonSerialize(using = MetadataJacksonSerializer.class)
     private Metadata metadata;
 
     @Builder.Default
