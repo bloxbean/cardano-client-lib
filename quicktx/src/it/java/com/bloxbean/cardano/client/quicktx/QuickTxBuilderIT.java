@@ -599,4 +599,71 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         });
     }
 
+    @Test
+    void mint_samepolicy_withdifferent_mintAssets() throws Exception {
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+        String assetName1 = "_Asset1";
+        BigInteger qty1 = BigInteger.valueOf(2000);
+        String assetName2 = "_Asset2";
+        BigInteger qty2 = BigInteger.valueOf(5000);
+        String assetName3 = "_Asset2";
+        BigInteger qty3 = BigInteger.valueOf(500);
+
+        Tx tx1 = new Tx()
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName1, qty1), receiver1)
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName2, qty2), receiver2)
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName3, qty3), receiver2)
+                .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                .from(sender1.baseAddress());
+
+        Result<String> result = quickTxBuilder.compose(tx1)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(policy))
+                .completeAndWait();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void mint_samepolicy_withdifferent_mintAssets_withdifferent_policy() throws Exception {
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+        String assetName1 = "_Asset1";
+        BigInteger qty1 = BigInteger.valueOf(2000);
+        String assetName2 = "_Asset2";
+        BigInteger qty2 = BigInteger.valueOf(5000);
+        String assetName3 = "_Asset2";
+        BigInteger qty3 = BigInteger.valueOf(500);
+
+        Policy policy2 = PolicyUtil.createMultiSigScriptAtLeastPolicy("second_policy", 1, 1);
+        String assetName4 = "_Asset4";
+        BigInteger qty4 = BigInteger.valueOf(400);
+
+        String assetName5 = "_Asset4";
+        BigInteger qty5 = BigInteger.valueOf(200);
+
+        Tx tx1 = new Tx()
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName1, qty1), receiver1)
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName2, qty2), receiver2)
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName3, qty3), receiver2)
+                .mintAssets(policy2.getPolicyScript(), new Asset(assetName4, qty4), receiver2)
+                .mintAssets(policy2.getPolicyScript(), new Asset(assetName5, qty5), receiver2)
+                .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                .from(sender1.baseAddress());
+
+        Result<String> result = quickTxBuilder.compose(tx1)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(policy))
+                .withSigner(SignerProviders.signerFrom(policy2))
+                .completeAndWait();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+
+    }
+
 }

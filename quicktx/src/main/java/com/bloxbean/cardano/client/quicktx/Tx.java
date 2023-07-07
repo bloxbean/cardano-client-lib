@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
@@ -93,7 +95,21 @@ public class Tx extends AbstractTx<Tx> {
             if (multiAssets == null)
                 multiAssets = new ArrayList<>();
 
-            multiAssets.add(new Tuple<>(script, multiAsset));
+            //Check if multiasset already exists
+            //If there is another mulitasset with same policy id, add the assets to that multiasset and use MultiAsset.plus method
+            //to create a new multiasset
+            multiAssets.stream().filter(ma -> {
+                try {
+                    return ma._1.getPolicyId().equals(script.getPolicyId());
+                } catch (CborSerializationException e) {
+                    throw new CborRuntimeException(e);
+                }
+            }).findFirst().ifPresentOrElse(ma -> {
+                multiAssets.remove(ma);
+                multiAssets.add(new Tuple<>(script, ma._2.plus(multiAsset)));
+            }, () -> {
+                multiAssets.add(new Tuple<>(script, multiAsset));
+            });
         } catch (Exception e) {
             throw new TxBuildException(e);
         }
