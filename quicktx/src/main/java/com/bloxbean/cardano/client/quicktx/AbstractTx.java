@@ -62,6 +62,17 @@ public abstract class AbstractTx<T> {
     }
 
     /**
+     * Add an output to the transaction for the newly minted tokens. This method can be called multiple times to add multiple outputs.
+     * The tokens used in this method are not searched during coin selection, instead they are minted in the transaction.
+     * @param address Address to send the output
+     * @param amount Amount to send
+     * @return T
+     */
+    public T payMintAssetToAddress(String address, Amount amount) {
+        return payToAddress(address, List.of(amount), true);
+    }
+
+    /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
      *
      * @param address Address to send the output
@@ -86,6 +97,18 @@ public abstract class AbstractTx<T> {
     }
 
     /**
+     * Add an output to the transaction for the newly minted tokens. This method can be called multiple times to add multiple outputs.
+     * The tokens used in this method are not searched during coin selection, instead they are minted in the transaction.
+     *
+     * @param address Address to send the output
+     * @param amounts List of Amount to send
+     * @return T
+     */
+    public T payMintAssetToAddress(String address, List<Amount> amounts) {
+        return payToAddress(address, amounts, true);
+    }
+
+    /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
      *
      * @param address address
@@ -95,6 +118,17 @@ public abstract class AbstractTx<T> {
      */
     public T payToAddress(String address, List<Amount> amounts, Script script) {
         return payToAddress(address, amounts, null, null, script, null, false);
+    }
+
+    /**
+     * Add an output to the transaction for the newly minted tokens.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param script Reference Script
+     * @return T
+     */
+    public T payMintAssetToAddress(String address, List<Amount> amounts, Script script) {
+        return payToAddress(address, amounts, null, null, script, null, true);
     }
 
     /**
@@ -110,6 +144,17 @@ public abstract class AbstractTx<T> {
     }
 
     /**
+     * Add an output to the transaction for the newly minted tokens.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param scriptRefBytes Reference Script bytes
+     * @return T
+     */
+    public T payMintAssetToAddress(String address, List<Amount> amounts, byte[] scriptRefBytes) {
+        return payToAddress(address, amounts, null, null, null, scriptRefBytes, true);
+    }
+
+    /**
      * Add an output at contract address with amount and inline datum.
      *
      * @param address contract address
@@ -119,6 +164,17 @@ public abstract class AbstractTx<T> {
      */
     public T payToContract(String address, Amount amount, PlutusData datum) {
         return payToAddress(address, List.of(amount), null, datum, null, null, false);
+    }
+
+    /**
+     * Add an output at contract address with amount and inline datum when the asset is newly minted in the transaction.
+     * @param address address
+     * @param amount amount
+     * @param datum inline datum
+     * @return T
+     */
+    public T payMintAssetToContract(String address, Amount amount, PlutusData datum) {
+        return payToAddress(address, List.of(amount), null, datum, null, null, true);
     }
 
     /**
@@ -148,6 +204,17 @@ public abstract class AbstractTx<T> {
     }
 
     /**
+     * Add an output at contract address with amount and inline datum when amount has newly minted assets.
+     * @param address contract address
+     * @param amounts list of amounts
+     * @param datum inline datum
+     * @return T
+     */
+    public T payMintAssetToContract(String address, List<Amount> amounts, PlutusData datum) {
+        return payToAddress(address, amounts, null, datum, null, null, true);
+    }
+
+    /**
      * Add an output at contract address with amount and datum hash.
      * @param address contract address
      * @param amount amount
@@ -159,6 +226,17 @@ public abstract class AbstractTx<T> {
     }
 
     /**
+     * Add an output at contract address with amount and datum hash when amount has newly minted asset.
+     * @param address contract address
+     * @param amount amount
+     * @param datumHash datum hash
+     * @return T
+     */
+    public T payMintAssetToContract(String address, Amount amount, String datumHash) {
+        return payToAddress(address, List.of(amount), HexUtil.decodeHexString(datumHash), null, null, null, true);
+    }
+
+    /**
      * Add an output at contract address with amount and datum hash.
      * @param address contract address
      * @param amounts list of amounts
@@ -167,6 +245,17 @@ public abstract class AbstractTx<T> {
      */
     public T payToContract(String address, List<Amount> amounts, String datumHash) {
         return payToAddress(address, amounts, HexUtil.decodeHexString(datumHash), null, null, null, false);
+    }
+
+    /**
+     * Add an output at contract address with amount and datum hash when amount has newly minted asset.
+     * @param address contract address
+     * @param amounts list of amounts
+     * @param datumHash datum hash
+     * @return T
+     */
+    public T payMintAssetToContract(String address, List<Amount> amounts, String datumHash) {
+        return payToAddress(address, amounts, HexUtil.decodeHexString(datumHash), null, null, null, true);
     }
 
     /**
@@ -197,6 +286,18 @@ public abstract class AbstractTx<T> {
     }
 
     /**
+     * Add an output at contract address with amounts, inline datum and reference script when the asset is newly minted in the transaction.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param datum Plutus data
+     * @param refScript Reference Script
+     * @return T
+     */
+    public T payMintAssetToContract(String address, List<Amount> amounts, PlutusData datum, Script refScript) {
+        return payToAddress(address, amounts, null, datum, refScript, null, true);
+    }
+
+    /**
      * Add an output at contract address with amounts, inline datum and reference script.
      * This method is useful for newly minted assets in the transaction.
      *
@@ -222,6 +323,18 @@ public abstract class AbstractTx<T> {
      */
     public T payToContract(String address, List<Amount> amounts, PlutusData datum, byte[] scriptRefBytes) {
         return payToAddress(address, amounts, null, datum, null, scriptRefBytes, false);
+    }
+
+    /**
+     * Add an output at contract address with amounts, inline datum and reference script bytes when the asset is newly minted in the transaction.
+     * @param address address
+     * @param amounts List of Amount to send
+     * @param datum Plutus data
+     * @param scriptRefBytes Reference Script bytes
+     * @return T
+     */
+    public T payMintAssetToContract(String address, List<Amount> amounts, PlutusData datum, byte[] scriptRefBytes) {
+        return payToAddress(address, amounts, null, datum, null, scriptRefBytes, true);
     }
 
     /**

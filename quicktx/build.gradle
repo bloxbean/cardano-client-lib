@@ -4,6 +4,7 @@ dependencies {
     api project(':backend')
 
     integrationTestImplementation(libs.slf4j.log4j)
+    integrationTestImplementation(libs.aiken.java.binding)
 
     integrationTestImplementation project(':')
     integrationTestImplementation project(':backend-modules:blockfrost')
