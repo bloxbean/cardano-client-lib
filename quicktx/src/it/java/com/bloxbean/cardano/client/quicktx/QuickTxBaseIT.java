@@ -16,7 +16,8 @@ import java.util.Optional;
 public class QuickTxBaseIT {
     protected String BLOCKFROST = "blockfrost";
     protected String KOIOS = "koios";
-    protected String backendType = BLOCKFROST;
+    protected String DEVKIT = "devkit";
+    protected String backendType = DEVKIT;
 
     public BackendService getBackendService() {
         if (BLOCKFROST.equals(backendType)) {
@@ -28,6 +29,8 @@ public class QuickTxBaseIT {
             return new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bfProjectId);
         } else if (KOIOS.equals(backendType)) {
             return new KoiosBackendService(com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_PREPROD_URL);
+        } else if (DEVKIT.equals(backendType)) {
+            return new BFBackendService("http://localhost:8080/api/v1/", "Dummy");
         } else
             return null;
     }

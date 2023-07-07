@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
@@ -17,7 +19,9 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
+import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -179,6 +183,57 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             Tx tx1 = new Tx()
                     .payToAddress(receiver1, Amount.asset(policy.getPolicyId(), assetName, 200), true)
                     .payToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)), true)
+                    .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty))
+                    .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                    .from(sender1.baseAddress());
+
+            Tx tx2 = new Tx()
+                    .payToAddress(receiver3, Amount.ada(2.13))
+                    .from(sender2.baseAddress());
+
+
+            Result<String> result = quickTxBuilder.compose(tx1, tx2)
+                    .feePayer(sender2.baseAddress())
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withSigner(SignerProviders.signerFrom(sender2))
+                    .withSigner(SignerProviders.signerFrom(policy))
+                    .complete();
+
+            System.out.println(result);
+            assertTrue(result.isSuccessful());
+            waitForTransaction(result);
+
+            checkIfUtxoAvailable(result.getValue(), sender2Addr);
+        }
+
+        @Test
+        void minting_transferMintedToTwoAccounts_withPayMintAssetToAddress() throws CborSerializationException, CborException {
+            Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+            String assetName = "MyAsset";
+            BigInteger qty = BigInteger.valueOf(2000);
+
+            PlutusV2Script referenceScript = PlutusV2Script.builder()
+                    .type("PlutusScriptV2")
+                    .cborHex("49480100002221200101")
+                    .build();
+            String scriptAddr = AddressProvider.getEntAddress(referenceScript, Networks.testnet()).toBech32();
+
+            PlutusV2Script referenceScript2 = PlutusV2Script.builder()
+                    .type("PlutusScriptV2")
+                    .cborHex("49480100002221200101")
+                    .build();
+            String scriptAddr2 = AddressProvider.getEntAddress(referenceScript2, Networks.testnet()).toBech32();
+
+            Tx tx1 = new Tx()
+                    .payMintAssetToAddress(receiver1, Amount.asset(policy.getPolicyId(), assetName, 190))
+                    .payMintAssetToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)))
+                    .payMintAssetToContract("addr_test1wr297svp7eth4y2qd356a042gwn3th93j93843sa3hgm5lcgc3gkc",
+                            Amount.asset(policy.getPolicyId(), assetName, 4),
+                            BigIntPlutusData.of(1).getDatumHash())
+                    .payMintAssetToAddress(receiver3, List.of(Amount.asset(policy.getPolicyId(), assetName, 3)), referenceScript)
+                    .payMintAssetToAddress(receiver2, List.of(Amount.asset(policy.getPolicyId(), assetName, 1)), referenceScript2.scriptRefBytes())
+                    .payMintAssetToContract(scriptAddr2, List.of(Amount.asset(policy.getPolicyId(), assetName, 1)), BigIntPlutusData.of(1), referenceScript2)
+                    .payMintAssetToContract(scriptAddr, List.of(Amount.asset(policy.getPolicyId(), assetName, 1)), BigIntPlutusData.of(1), referenceScript.scriptRefBytes())
                     .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty))
                     .attachMetadata(MessageMetadata.create().add("Minting tx"))
                     .from(sender1.baseAddress());
