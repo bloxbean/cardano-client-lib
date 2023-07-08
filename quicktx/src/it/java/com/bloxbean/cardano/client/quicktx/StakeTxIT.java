@@ -1,13 +1,18 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.aiken.AikenTransactionEvaluator;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
@@ -29,6 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class StakeTxIT extends QuickTxBaseIT {
     BackendService backendService;
+    UtxoSupplier utxoSupplier;
+    ProtocolParamsSupplier protocolParamsSupplier;
     Account sender1;
     Account sender2;
 
@@ -38,7 +45,7 @@ public class StakeTxIT extends QuickTxBaseIT {
     String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
     String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
-    String poolId = "pool1vqq4hdwrh442u97e2jh6k4xuscs3x5mqjjrn8daj36y7gt2rj85";
+    String poolId;
 
     String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
     PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
@@ -55,6 +62,8 @@ public class StakeTxIT extends QuickTxBaseIT {
     @BeforeEach
     void setup() {
         backendService = getBackendService();
+        utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
         quickTxBuilder = new QuickTxBuilder(backendService);
 
         //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
@@ -66,11 +75,20 @@ public class StakeTxIT extends QuickTxBaseIT {
         String sender2Mnemonic = "access else envelope between rubber celery forum brief bubble notice stomach add initial avocado current net film aunt quick text joke chase robust artefact";
         sender2 = new Account(Networks.testnet(), sender2Mnemonic);
         sender2Addr = sender2.baseAddress();
+
+        if (backendType.equals(DEVKIT)) {
+            poolId = "pool1wvqhvyrgwch4jq9aa84hc8q4kzvyq2z3xr6mpafkqmx9wce39zy";
+        } else {
+            poolId = "pool1vqq4hdwrh442u97e2jh6k4xuscs3x5mqjjrn8daj36y7gt2rj85";
+        }
     }
 
     @Test
     @Order(1)
     void stakeAddressRegistration() {
+        //De-register all stake addresses if required
+        _deRegisterStakeKeys();
+
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(1.5))
@@ -196,6 +214,8 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(msg -> System.out.println(msg));
 
         System.out.println(result);
@@ -242,6 +262,8 @@ public class StakeTxIT extends QuickTxBaseIT {
         Result<String> deRegResult = quickTxBuilder.compose(deregTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -269,6 +291,8 @@ public class StakeTxIT extends QuickTxBaseIT {
         Result<String> delgResult = quickTxBuilder.compose(delegTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -309,6 +333,8 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender2))
                 .withSigner(SignerProviders.stakeKeySignerFrom(sender1))
                 .withSigner(SignerProviders.stakeKeySignerFrom(sender2))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -394,6 +420,8 @@ public class StakeTxIT extends QuickTxBaseIT {
 
         Transaction transaction = quickTxBuilder.compose(withdrawalTx)
                 .feePayer(sender1Addr)
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .build();
 
         //expected values
@@ -457,6 +485,8 @@ public class StakeTxIT extends QuickTxBaseIT {
         Result<String> result = quickTxBuilder.compose(tx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -486,6 +516,11 @@ public class StakeTxIT extends QuickTxBaseIT {
     }
 
     private void deRegisterStakeKeys() {
+        Result<String> result = _deRegisterStakeKeys();
+        assertTrue(result.isSuccessful());
+    }
+
+    private Result<String> _deRegisterStakeKeys() {
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
 
         //stake Registration
@@ -502,8 +537,8 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .completeAndWait(msg -> System.out.println(msg));
 
         System.out.println(result);
-        assertTrue(result.isSuccessful());
-
-        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+        if (result.isSuccessful())
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
+        return result;
     }
 }

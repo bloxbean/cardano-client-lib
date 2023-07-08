@@ -38,14 +38,16 @@ public class InputBuilders {
      * @param sender        Address to select utxo from
      * @param changeAddress change address
      * @return <code>{@link TxInputBuilder}</code> function
-     * @throws TxBuildException if not enough utxos available at sender address
+     * @throws TxBuildException    if not enough utxos available at sender address
      * @throws ApiRuntimeException if api error
      */
     public static TxInputBuilder createFromSender(String sender, String changeAddress) {
 
         return ((context, outputs) -> {
-            if (outputs == null || outputs.size() == 0)
-                throw new TxBuildException("No output found. UtxoSelector transformer should be called after OutputTransformer");
+            if ((outputs == null || outputs.size() == 0)
+                    && (context.getMintMultiAssets() == null || context.getMintMultiAssets().size() == 0))
+                throw new TxBuildException("No output found. TxInputBuilder transformer should be called after OutputTransformer");
+
             //Total value required
             Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
             value = outputs.stream()
@@ -54,8 +56,16 @@ public class InputBuilders {
 
             //Check if mint value is there in context. Then we need to ignore mint outputs from total value
             List<MultiAsset> mintMultiAssets = context.getMintMultiAssets();
-            if (mintMultiAssets != null && mintMultiAssets.size() > 0)
-                value = value.minus(new Value(BigInteger.ZERO, mintMultiAssets));
+            Optional<Value> mintValue = findMintValueFromMultiAssets(mintMultiAssets);
+            if (mintValue.isPresent()) {
+                value = value.minus(mintValue.get());
+            }
+
+            //check if there is any burn multiasset value
+            Optional<Value> burnValue = findBurnValueFromMultiAssets(mintMultiAssets);
+            if (burnValue.isPresent()) {
+                value = value.plus(burnValue.get());
+            }
 
             Set<Utxo> utxoSet = getUtxosForValue(context, sender, value, Collections.EMPTY_SET);
 
@@ -101,6 +111,53 @@ public class InputBuilders {
                 return new TxInputBuilder.Result(Collections.EMPTY_LIST, Collections.EMPTY_LIST);
             }
         });
+    }
+
+    private static Optional<Value> findMintValueFromMultiAssets(List<MultiAsset> multiAssets) {
+        if (multiAssets == null || multiAssets.isEmpty())
+            return Optional.empty();
+
+        List<MultiAsset> mintMultiAssets = multiAssets.stream()
+                .map(multiAsset -> {
+                    List<Asset> assets = multiAsset.getAssets().stream()
+                            .filter(asset -> asset.getValue().compareTo(BigInteger.ZERO) > 0) //positive value
+                            .collect(Collectors.toList());
+                    if (assets != null && !assets.isEmpty())
+                        return new MultiAsset(multiAsset.getPolicyId(), assets);
+                    else
+                        return null;
+                }).filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        if (mintMultiAssets != null && !mintMultiAssets.isEmpty()) {
+            return Optional.of(new Value(BigInteger.ZERO, mintMultiAssets));
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<Value> findBurnValueFromMultiAssets(List<MultiAsset> mintMultiAssets) {
+        if (mintMultiAssets == null || mintMultiAssets.isEmpty())
+            return Optional.empty();
+
+        List<MultiAsset> burnMultiAssets = mintMultiAssets.stream()
+                .map(multiAsset -> {
+                    List<Asset> assets = multiAsset.getAssets().stream()
+                            .filter(asset -> asset.getValue().compareTo(BigInteger.ZERO) < 0) //negative value
+                            .map(asset -> new Asset(asset.getName(), asset.getValue().negate()))
+                            .collect(Collectors.toList());
+                    if (assets != null && !assets.isEmpty())
+                        return new MultiAsset(multiAsset.getPolicyId(), assets);
+                    else
+                        return null;
+                }).filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        if (burnMultiAssets != null && !burnMultiAssets.isEmpty()) {
+            return Optional.of(new Value(BigInteger.ZERO, burnMultiAssets));
+        } else {
+            return Optional.empty();
+        }
     }
 
     private static Set<Utxo> getUtxosForValue(TxBuilderContext context, String sender, Value value, Set<Utxo> excludeUtxos) {
@@ -205,10 +262,18 @@ public class InputBuilders {
                     .map(TransactionOutput::getValue)
                     .reduce(value, Value::plus);
 
-            // Check if mint value is there in context. Then we need to ignore mint outputs from total value
+            //Check if mint value is there in context. Then we need to ignore mint outputs from total value
             List<MultiAsset> mintMultiAssets = context.getMintMultiAssets();
-            if (mintMultiAssets != null && !mintMultiAssets.isEmpty())
-                value = value.minus(new Value(BigInteger.ZERO, mintMultiAssets));
+            Optional<Value> mintValue = findMintValueFromMultiAssets(mintMultiAssets);
+            if (mintValue.isPresent()) {
+                value = value.minus(mintValue.get());
+            }
+
+            //check if there is any burn multiasset value
+            Optional<Value> burnValue = findBurnValueFromMultiAssets(mintMultiAssets);
+            if (burnValue.isPresent()) {
+                value = value.plus(burnValue.get());
+            }
 
             List<Utxo> utxos = supplier.get();
 
@@ -244,13 +309,12 @@ public class InputBuilders {
 
     /**
      * Function to create inputs from list of <code>{@link Utxo}</code>
-     * @deprecated
-     * This method should not be used as it doesn't calculate change output. Additional utxos are required to balance the
-     * outputs.
-     * <p>Use any of the other createFromUtxos method with a changeAddress</p>
      *
      * @param utxos list of <code>{@link Utxo}</code>
      * @return <code>{@link TxInputBuilder}</code> function
+     * @deprecated This method should not be used as it doesn't calculate change output. Additional utxos are required to balance the
+     * outputs.
+     * <p>Use any of the other createFromUtxos method with a changeAddress</p>
      */
     @Deprecated
     public static TxInputBuilder createFromUtxos(List<Utxo> utxos) {
@@ -271,13 +335,12 @@ public class InputBuilders {
 
     /**
      * Function to create inputs from list of <code>{@link Utxo}</code>
-     * @deprecated
-     * This method should not be used as it doesn't calculate change output. Additional utxos are required to balance the
-     * outputs.
-     * <p>Use any of the other createFromUtxos method with a changeAddress</p>
      *
      * @param supplier Supplier function to provide <code>Utxo</code> list
      * @return <code>{@link TxInputBuilder}</code> function
+     * @deprecated This method should not be used as it doesn't calculate change output. Additional utxos are required to balance the
+     * outputs.
+     * <p>Use any of the other createFromUtxos method with a changeAddress</p>
      */
     @Deprecated
     public static TxInputBuilder createFromUtxos(Supplier<List<Utxo>> supplier) {
@@ -298,6 +361,7 @@ public class InputBuilders {
 
     /**
      * Function to populate reference inputs using a supplier function
+     *
      * @param supplier - Supplier function to provide Utxo list
      * @return <code>{@link TxBuilder}</code> function
      */
@@ -309,6 +373,7 @@ public class InputBuilders {
 
     /**
      * Function to populate reference inputs from list of utxos
+     *
      * @param utxos List of utxos for reference inputs
      * @return <code>{@link TxBuilder}</code> function
      */
@@ -335,6 +400,7 @@ public class InputBuilders {
 
     /**
      * Function to populate reference inputs
+     *
      * @param referenceInputs List of inputs
      * @return <code>{@link TxBuilder}</code> function
      */

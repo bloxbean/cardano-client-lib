@@ -4,19 +4,15 @@ import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
-import com.bloxbean.cardano.client.exception.CborRuntimeException;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
-import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.NonNull;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -79,37 +75,14 @@ public class Tx extends AbstractTx<Tx> {
     public Tx mintAssets(@NonNull NativeScript script, List<Asset> assets, String receiver) {
         try {
             String policyId = script.getPolicyId();
-
             if (receiver != null) { //If receiver address is defined
                 assets.forEach(asset -> {
                     payToAddress(receiver,
-                            List.of(new Amount(AssetUtil.getUnit(policyId, asset), asset.getValue())), true);
+                            List.of(new Amount(AssetUtil.getUnit(policyId, asset), asset.getValue())));
                 });
             }
 
-            MultiAsset multiAsset = MultiAsset.builder()
-                    .policyId(policyId)
-                    .assets(assets)
-                    .build();
-
-            if (multiAssets == null)
-                multiAssets = new ArrayList<>();
-
-            //Check if multiasset already exists
-            //If there is another mulitasset with same policy id, add the assets to that multiasset and use MultiAsset.plus method
-            //to create a new multiasset
-            multiAssets.stream().filter(ma -> {
-                try {
-                    return ma._1.getPolicyId().equals(script.getPolicyId());
-                } catch (CborSerializationException e) {
-                    throw new CborRuntimeException(e);
-                }
-            }).findFirst().ifPresentOrElse(ma -> {
-                multiAssets.remove(ma);
-                multiAssets.add(new Tuple<>(script, ma._2.plus(multiAsset)));
-            }, () -> {
-                multiAssets.add(new Tuple<>(script, multiAsset));
-            });
+            addToMultiAssetList(script, assets);
         } catch (Exception e) {
             throw new TxBuildException(e);
         }

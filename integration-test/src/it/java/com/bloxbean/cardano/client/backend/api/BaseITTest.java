@@ -15,7 +15,7 @@ public class BaseITTest {
     protected String BLOCKFROST = "blockfrost";
     protected String KOIOS = "koios";
     protected String OGMIOS = "ogmios";
-    //    protected String CARDANO_GQL = "cardano-gql";
+    protected String DEVKIT = "devkit";
     protected String backendType = BLOCKFROST;
 
     public BackendService getBackendService() {
@@ -29,8 +29,8 @@ public class BaseITTest {
             return new KoiosBackendService(com.bloxbean.cardano.client.backend.koios.Constants.KOIOS_PREPROD_URL);
         } else if (OGMIOS.equals(backendType)) {
             return new OgmiosBackendService(com.bloxbean.cardano.client.backend.ogmios.Constants.OGMIOS_DANDELION_TESTNET_URL);
-//        } else if (CARDANO_GQL.equals(backendType)) {
-//            return new GqlBackendService(com.bloxbean.cardano.client.backend.gql.Constants.DANDELION_TESTNET_GQL_URL);
+        } else if (DEVKIT.equals(backendType)) {
+            return new BFBackendService("http://localhost:8080/api/v1/", "Dummy");
         } else
             return null;
     }

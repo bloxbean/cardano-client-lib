@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.MintCreators;
 import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
@@ -210,11 +209,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         if (receiver != null) {
             if (outputDatum != null)
-                payToContract(receiver, amounts, outputDatum, true);
+                payToContract(receiver, amounts, outputDatum);
             else
-                payToAddress(receiver, amounts, true);
+                payToAddress(receiver, amounts);
         }
 
+        addToMultiAssetList(script, assets);
         attachMintValidator(script);
         return this;
     }
@@ -479,7 +479,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
         }
 
+        //Invoke common complete logic
         TxBuilder txBuilder = super.complete();
+
         txBuilder = txBuilder.andThen(prepareScriptCallContext());
 
         //stake related
@@ -567,30 +569,6 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                                 transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
                         }
                     }));
-        }
-
-        for (MintingContext mintingContext : mintingContexts) {
-            //Find the minting validator for the policy id and add mint field to the transaction
-            Optional<PlutusScript> mintingValidator = mintingValidators.stream()
-                    .filter(plutusScript -> {
-                        try {
-                            return plutusScript.getPolicyId().equals(mintingContext.getPolicyId());
-                        } catch (CborSerializationException e) {
-                            throw new TxBuildException("Error getting policy id from the script");
-                        }
-                    }).findFirst();
-
-            if (mintingValidator.isPresent()) {
-                txBuilder = txBuilder.andThen(((context, txn) -> {
-                    MultiAsset multiAsset = MultiAsset.builder()
-                            .policyId(mintingContext.getPolicyId())
-                            .assets(mintingContext.getAssets())
-                            .build();
-                    MintCreators.mintCreator(mintingValidator.get(), multiAsset, false).apply(context, txn);
-                }));
-            } else {
-                throw new TxBuildException("No minting validator found for policy id : " + mintingContext.getPolicyId());
-            }
         }
 
         //Sort mint field in the transaction
