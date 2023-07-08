@@ -442,12 +442,12 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .mintAsset(mintingScript, asset, PlutusData.unit())
                 .mintAsset(mintingScript2, asset2, BigIntPlutusData.of(1), receiver1)
                 .mintAsset(mintingScript3, asset3, BigIntPlutusData.of(2), sender1Addr)
-                .payMintAssetToAddress(receiver1, Amount.asset(policyId, asset.getName(), BigInteger.valueOf(1000)))
-                .payMintAssetToAddress(receiver3, Amount.asset(policyId, asset.getName(), BigInteger.valueOf(2500)))
-                .payMintAssetToContract(scriptAddress, Amount.asset(policyId, asset.getName(), BigInteger.valueOf(100)), plutusData)
-                .payMintAssetToContract("addr_test1wr297svp7eth4y2qd356a042gwn3th93j93843sa3hgm5lcgc3gkc",
+                .payToAddress(receiver1, Amount.asset(policyId, asset.getName(), BigInteger.valueOf(1000)))
+                .payToAddress(receiver3, Amount.asset(policyId, asset.getName(), BigInteger.valueOf(2500)))
+                .payToContract(scriptAddress, Amount.asset(policyId, asset.getName(), BigInteger.valueOf(100)), plutusData)
+                .payToContract("addr_test1wr297svp7eth4y2qd356a042gwn3th93j93843sa3hgm5lcgc3gkc",
                         Amount.asset(policyId, asset.getName(), BigInteger.valueOf(100)), plutusData.getDatumHash())
-                .payMintAssetToContract(scriptAddress, List.of(Amount.asset(policyId, asset.getName(), BigInteger.valueOf(300))), plutusData);
+                .payToContract(scriptAddress, List.of(Amount.asset(policyId, asset.getName(), BigInteger.valueOf(300))), plutusData);
 
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)

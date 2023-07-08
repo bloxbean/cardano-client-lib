@@ -435,8 +435,8 @@ class TxTest extends QuickTxBaseTest {
         Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("new_policy", 1, 1);
         Asset newAsset = new Asset("asset4", BigInteger.valueOf(6000));
         Tx tx = new Tx()
-                .payToAddress(receiver1, List.of(Amount.ada(10), Amount.asset(policy.getPolicyId(), newAsset.getName(), BigInteger.valueOf(2000))), true)
-                .payToAddress(receiver2, List.of(Amount.ada(5), Amount.asset(policy.getPolicyId(), newAsset.getName(), BigInteger.valueOf(4000))), true)
+                .payToAddress(receiver1, List.of(Amount.ada(10), Amount.asset(policy.getPolicyId(), newAsset.getName(), BigInteger.valueOf(2000))))
+                .payToAddress(receiver2, List.of(Amount.ada(5), Amount.asset(policy.getPolicyId(), newAsset.getName(), BigInteger.valueOf(4000))))
                 .mintAssets(policy.getPolicyScript(), newAsset)
                 .from(sender1);
 
@@ -712,7 +712,7 @@ class TxTest extends QuickTxBaseTest {
         );
 
         Tx tx = new Tx()
-                .payToContract(receiver1, List.of(Amount.ada(5)), BigIntPlutusData.of(42).getDatumHash(), false)
+                .payToContract(receiver1, List.of(Amount.ada(5)), BigIntPlutusData.of(42).getDatumHash())
                 .payToAddress(receiver2, Amount.ada(6))
                 .from(sender1);
 
@@ -880,7 +880,7 @@ class TxTest extends QuickTxBaseTest {
         Asset newAsset = new Asset("newAsset", BigInteger.valueOf(1000));
 
         Tx tx = new Tx()
-                .payToContract(receiver1, List.of(Amount.ada(5), Amount.asset(policy.getPolicyId(), "newAsset", BigInteger.valueOf(1000))), BigIntPlutusData.of(42), plutusScript, true)
+                .payToContract(receiver1, List.of(Amount.ada(5), Amount.asset(policy.getPolicyId(), "newAsset", BigInteger.valueOf(1000))), BigIntPlutusData.of(42), plutusScript)
                 .payToAddress(receiver2, Amount.ada(6))
                 .mintAssets(policy.getPolicyScript(), List.of(newAsset))
                 .from(sender1);
@@ -901,7 +901,7 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     @SneakyThrows
-    void payToContract_inlineDatumAndScriptRef_mintOutputFalse_throwError_insufficientAsset() {
+    void payToContract_inlineDatumAndScriptRef_mintOutput_throwError_insufficientAsset() {
         given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(
                 List.of(
                         Utxo.builder()
@@ -922,8 +922,8 @@ class TxTest extends QuickTxBaseTest {
         Asset newAsset = new Asset("newAsset", BigInteger.valueOf(1000));
 
         Tx tx = new Tx()
-                .payToContract(receiver1, List.of(Amount.ada(5), Amount.asset(policy.getPolicyId(), "newAsset", BigInteger.valueOf(1000))),
-                        BigIntPlutusData.of(42), plutusScript, false)
+                .payToContract(receiver1, List.of(Amount.ada(5), Amount.asset(policy.getPolicyId(), "newAsset", BigInteger.valueOf(1002))),
+                        BigIntPlutusData.of(42), plutusScript)
                 .payToAddress(receiver2, Amount.ada(6))
                 .mintAssets(policy.getPolicyScript(), List.of(newAsset))
                 .from(sender1);

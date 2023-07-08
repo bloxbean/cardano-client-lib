@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.impl.RandomImproveUtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -23,6 +24,7 @@ import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -181,8 +183,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             BigInteger qty = BigInteger.valueOf(2000);
 
             Tx tx1 = new Tx()
-                    .payToAddress(receiver1, Amount.asset(policy.getPolicyId(), assetName, 200), true)
-                    .payToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)), true)
+                    .payToAddress(receiver1, Amount.asset(policy.getPolicyId(), assetName, 200))
+                    .payToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)))
                     .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty))
                     .attachMetadata(MessageMetadata.create().add("Minting tx"))
                     .from(sender1.baseAddress());
@@ -208,7 +210,10 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
         @Test
         void minting_transferMintedToTwoAccounts_withPayMintAssetToAddress() throws CborSerializationException, CborException {
-            Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+            ScriptPubkey policyScript =
+                      ScriptPubkey.create(VerificationKey.create(sender1.publicKeyBytes()));
+            String policyId = policyScript.getPolicyId();
+
             String assetName = "MyAsset";
             BigInteger qty = BigInteger.valueOf(2000);
 
@@ -225,16 +230,16 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             String scriptAddr2 = AddressProvider.getEntAddress(referenceScript2, Networks.testnet()).toBech32();
 
             Tx tx1 = new Tx()
-                    .payMintAssetToAddress(receiver1, Amount.asset(policy.getPolicyId(), assetName, 190))
-                    .payMintAssetToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policy.getPolicyId(), assetName, 1800)))
-                    .payMintAssetToContract("addr_test1wr297svp7eth4y2qd356a042gwn3th93j93843sa3hgm5lcgc3gkc",
-                            Amount.asset(policy.getPolicyId(), assetName, 4),
+                    .mintAssets(policyScript, new Asset(assetName, qty))
+                    .payToAddress(receiver1, Amount.asset(policyId, assetName, 190))
+                    .payToAddress(receiver2, List.of(Amount.ada(1.5), Amount.asset(policyId, assetName, 1800)))
+                    .payToContract("addr_test1wr297svp7eth4y2qd356a042gwn3th93j93843sa3hgm5lcgc3gkc",
+                            Amount.asset(policyScript.getPolicyId(), assetName, 4),
                             BigIntPlutusData.of(1).getDatumHash())
-                    .payMintAssetToAddress(receiver3, List.of(Amount.asset(policy.getPolicyId(), assetName, 3)), referenceScript)
-                    .payMintAssetToAddress(receiver2, List.of(Amount.asset(policy.getPolicyId(), assetName, 1)), referenceScript2.scriptRefBytes())
-                    .payMintAssetToContract(scriptAddr2, List.of(Amount.asset(policy.getPolicyId(), assetName, 1)), BigIntPlutusData.of(1), referenceScript2)
-                    .payMintAssetToContract(scriptAddr, List.of(Amount.asset(policy.getPolicyId(), assetName, 1)), BigIntPlutusData.of(1), referenceScript.scriptRefBytes())
-                    .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty))
+                    .payToAddress(receiver3, List.of(Amount.asset(policyId, assetName, 3)), referenceScript)
+                    .payToAddress(receiver2, List.of(Amount.asset(policyId, assetName, 1)), referenceScript2.scriptRefBytes())
+                    .payToContract(scriptAddr2, List.of(Amount.asset(policyId, assetName, 1)), BigIntPlutusData.of(1), referenceScript2)
+                    .payToContract(scriptAddr, List.of(Amount.asset(policyId, assetName, 1)), BigIntPlutusData.of(1), referenceScript.scriptRefBytes())
                     .attachMetadata(MessageMetadata.create().add("Minting tx"))
                     .from(sender1.baseAddress());
 
@@ -247,7 +252,6 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                     .feePayer(sender2.baseAddress())
                     .withSigner(SignerProviders.signerFrom(sender1))
                     .withSigner(SignerProviders.signerFrom(sender2))
-                    .withSigner(SignerProviders.signerFrom(policy))
                     .complete();
 
             System.out.println(result);
@@ -568,7 +572,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withVerifier(
                         outputAmountVerifier(receiver1, Amount.ada(1.5), "Output amount is not correct")
-                        .andThen(outputAmountVerifier(receiver2, Amount.ada(2.5), "Output amount is not correct"))
+                                .andThen(outputAmountVerifier(receiver2, Amount.ada(2.5), "Output amount is not correct"))
                 ).complete();
 
         System.out.println(result);
@@ -712,13 +716,54 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withSigner(SignerProviders.signerFrom(policy))
                 .withSigner(SignerProviders.signerFrom(policy2))
-                .completeAndWait();
+                .completeAndWait(System.out::println);
 
         System.out.println(result);
         assertTrue(result.isSuccessful());
 
         checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
 
+    @Test
+    void mint_and_burn_test() throws CborSerializationException {
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+        String assetName = "MyAsset";
+        BigInteger qty = BigInteger.valueOf(2000);
+
+        String assetName2 = "MyAsset2";
+        BigInteger qty2 = BigInteger.valueOf(300);
+
+        Tx tx1 = new Tx()
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), sender1Addr)
+                .mintAssets(policy.getPolicyScript(), new Asset(assetName2, qty2), sender1Addr)
+                .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                .from(sender1.baseAddress());
+
+        Result<String> result = quickTxBuilder.compose(tx1)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(policy))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+
+        Asset burnAsset = new Asset(assetName, BigInteger.valueOf(200).negate()); //negative value for asset
+        Asset burnAsset2 = new Asset(assetName, BigInteger.valueOf(500).negate());
+        Tx burnTx = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.0))
+                .mintAssets(policy.getPolicyScript(), List.of(burnAsset))
+                .mintAssets(policy.getPolicyScript(), List.of(burnAsset2))
+                .attachMetadata(MessageMetadata.create().add("Burning tx"))
+                .from(sender1.baseAddress());
+
+        Result<String> burnResult = quickTxBuilder.compose(burnTx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(policy))
+                .completeAndWait(System.out::println);
+
+        System.out.println(burnResult);
+        assertTrue(burnResult.isSuccessful());
     }
 
 }
