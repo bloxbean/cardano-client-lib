@@ -32,6 +32,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Add a mint asset to the transaction. The newly minted asset will be transferred to the defined receivers in payToAddress methods.
+     * <p>
+     * This method can also be used to burn assets by passing a negative quantity.
+     * </p>
      *
      * @param script Policy script
      * @param asset  Asset to mint
@@ -55,6 +58,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Add mint assets to the transaction. The newly minted assets will be transferred to the defined receivers in payToAddress methods.
+     * <p>
+     * This method can also be used to burn assets by passing a negative quantity.
+     * </p>
      *
      * @param script Policy script
      * @param assets List of assets to mint
