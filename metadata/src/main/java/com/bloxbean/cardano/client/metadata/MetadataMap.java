@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.metadata;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Map;
-import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -21,7 +20,7 @@ public interface MetadataMap {
 
     MetadataMap put(BigInteger key, MetadataMap value);
 
-    MetadataMap put(BigInteger key, CBORMetadataList list);
+    MetadataMap put(BigInteger key, MetadataList list);
 
     MetadataMap put(String key, BigInteger value);
 
@@ -33,7 +32,7 @@ public interface MetadataMap {
 
     MetadataMap put(String key, MetadataMap value);
 
-    MetadataMap put(String key, CBORMetadataList list);
+    MetadataMap put(String key, MetadataList list);
 
     MetadataMap put(byte[] key, BigInteger value);
 
@@ -45,7 +44,7 @@ public interface MetadataMap {
 
     MetadataMap put(byte[] key, MetadataMap value);
 
-    MetadataMap put(byte[] key, CBORMetadataList list);
+    MetadataMap put(byte[] key, MetadataList list);
 
     Object get(String key);
 

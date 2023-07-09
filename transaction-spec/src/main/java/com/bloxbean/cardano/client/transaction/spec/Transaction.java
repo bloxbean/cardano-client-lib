@@ -7,6 +7,8 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.util.JsonUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -55,6 +57,7 @@ public class Transaction {
      * @return
      */
     @Deprecated
+    @JsonIgnore
     public Metadata getMetadata() {
         if (auxiliaryData != null)
             return auxiliaryData.getMetadata();
@@ -170,6 +173,10 @@ public class Transaction {
         } catch (Exception e) {
             throw new CborDeserializationException("CBOR deserialization failed", e);
         }
+    }
+
+    public String toJson() {
+        return JsonUtil.getPrettyJson(this);
     }
 
     // This customization is not required after metadata (deprecated) method is removed in future release.

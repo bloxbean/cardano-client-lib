@@ -7,14 +7,13 @@ import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
-import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.NonNull;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -34,6 +33,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Add a mint asset to the transaction. The newly minted asset will be transferred to the defined receivers in payToAddress methods.
+     * <p>
+     * This method can also be used to burn assets by passing a negative quantity.
+     * </p>
      *
      * @param script Policy script
      * @param asset  Asset to mint
@@ -57,6 +59,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Add mint assets to the transaction. The newly minted assets will be transferred to the defined receivers in payToAddress methods.
+     * <p>
+     * This method can also be used to burn assets by passing a negative quantity.
+     * </p>
      *
      * @param script Policy script
      * @param assets List of assets to mint
@@ -77,23 +82,14 @@ public class Tx extends AbstractTx<Tx> {
     public Tx mintAssets(@NonNull NativeScript script, List<Asset> assets, String receiver) {
         try {
             String policyId = script.getPolicyId();
-
             if (receiver != null) { //If receiver address is defined
                 assets.forEach(asset -> {
                     payToAddress(receiver,
-                            List.of(new Amount(AssetUtil.getUnit(policyId, asset), asset.getValue())), true);
+                            List.of(new Amount(AssetUtil.getUnit(policyId, asset), asset.getValue())));
                 });
             }
 
-            MultiAsset multiAsset = MultiAsset.builder()
-                    .policyId(policyId)
-                    .assets(assets)
-                    .build();
-
-            if (multiAssets == null)
-                multiAssets = new ArrayList<>();
-
-            multiAssets.add(new Tuple<>(script, multiAsset));
+            addToMultiAssetList(script, assets);
         } catch (Exception e) {
             throw new TxBuildException(e);
         }
@@ -262,6 +258,37 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount, String receiver) {
         stakeTx.withdraw(rewardAddress, amount, null, receiver);
+        return this;
+    }
+
+    /**
+     * Register a stake pool
+     * @param poolRegistration stake pool registration certificate
+     * @return Tx
+     */
+    public Tx registerPool(@NonNull PoolRegistration poolRegistration) {
+        stakeTx.registerPool(poolRegistration);
+        return this;
+    }
+
+    /**
+     * Update a stake pool
+     * @param poolRegistration
+     * @return Tx
+     */
+    public Tx updatePool(@NonNull PoolRegistration poolRegistration) {
+        stakeTx.updatePool(poolRegistration);
+        return this;
+    }
+
+    /**
+     * Retire a stake pool
+     * @param poolId stake pool id Bech32 or hex encoded
+     * @param epoch epoch to retire the pool
+     * @return Tx
+     */
+    public Tx retirePool(@NonNull String poolId, @NonNull int epoch) {
+        stakeTx.retirePool(poolId, epoch);
         return this;
     }
 

@@ -28,6 +28,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -116,6 +117,9 @@ public class QuickTxBuilder {
         private int additionalSignerCount = 0;
         private int signersCount = 0;
         private TxSigner signers;
+
+        private long validFrom;
+        private long validTo;
 
         private boolean mergeChangeOutputs = true;
 
@@ -235,11 +239,18 @@ public class QuickTxBuilder {
                             "It's mandatory when there are more than one txs");
             }
 
+            //Set validity interval
+            txBuilder = buildValidityIntervalTxBuilder(txBuilder);
+
             if (containsScriptTx) {
                 if (collateralPayer == null)
                     collateralPayer = feePayer;
                 txBuilder = txBuilder.andThen(buildCollateralOutput(collateralPayer));
             }
+
+            //Merge outputs if required
+            if (mergeChangeOutputs)
+                txBuilder = txBuilder.andThen(OutputMergers.mergeOutputsForAddress(feePayer));
 
             if (containsScriptTx) {
                 txBuilder = txBuilder.andThen(((context, transaction) -> {
@@ -251,15 +262,11 @@ public class QuickTxBuilder {
                 }));
             }
 
-            if (mergeChangeOutputs)
-                txBuilder = txBuilder.andThen(OutputMergers.mergeOutputsForAddress(feePayer));
-
             //Balance outputs
             txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
 
             if (postBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(postBalanceTrasformer);
-
 
             //Call post balance function of each tx
             for (AbstractTx tx : txList) {
@@ -354,36 +361,59 @@ public class QuickTxBuilder {
         /**
          * Build, sign and submit transaction and wait for the transaction to be included in the block.
          *
-         * @param timeout
+         * @param timeout Timeout to wait for transaction to be included in the block
          * @return Result of transaction submission
          */
         public Result<String> completeAndWait(Duration timeout) {
-            return completeAndWait(timeout, (msg) -> log.info(msg));
+            return completeAndWait(timeout, Duration.ofSeconds(2), (msg) -> log.info(msg));
         }
 
         /**
          * Build, sign and submit transaction and wait for the transaction to be included in the block.
-         *
-         * @param timeout timeout duration
+         * @param timeout Timeout to wait for transaction to be included in the block
+         * @param logConsumer consumer to get log messages
          * @return Result of transaction submission
          */
         public Result<String> completeAndWait(Duration timeout, Consumer<String> logConsumer) {
+            return completeAndWait(timeout, Duration.ofSeconds(2), logConsumer);
+        }
+
+        /**
+         * Build, sign and submit transaction and wait for the transaction to be included in the block.
+         * @param timeout Timeout to wait for transaction to be included in the block
+         * @param checkInterval Interval sec to check if transaction is included in the block
+         * @param logConsumer consumer to get log messages
+         * @return Result of transaction submission
+         */
+        public Result<String> completeAndWait(@NonNull Duration timeout, @NonNull Duration checkInterval,
+                                              @NonNull Consumer<String> logConsumer) {
             Result<String> result = complete();
             if (!result.isSuccessful())
                 return result;
 
-            logConsumer.accept("Transaction submitted. TxHash : " + result.getValue());
+            Instant startInstant = Instant.now();
+            long millisToTimeout = timeout.toMillis();
+
+            logConsumer.accept(showStatus(Constant.STATUS_SUBMITTED, result.getValue()));
             String txHash = result.getValue();
             try {
                 if (result.isSuccessful()) { //Wait for transaction to be included in the block
                     int count = 0;
                     while (count < 60) {
                         Optional<Utxo> utxoOptional = utxoSupplier.getTxOutput(txHash, 0);
-                        if (utxoOptional.isPresent())
+                        if (utxoOptional.isPresent()) {
+                            logConsumer.accept(showStatus(Constant.STATUS_CONFIRMED, txHash));
                             return result;
+                        }
 
-                        logConsumer.accept("Waiting for transaction to be included in the block. TxHash : " + txHash);
-                        Thread.sleep(2000);
+                        logConsumer.accept(showStatus(Constant.STATUS_PENDING, txHash));
+                        Instant now = Instant.now();
+                        if (now.isAfter(startInstant.plusMillis(millisToTimeout))) {
+                            logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
+                            return result;
+                        }
+
+                        Thread.sleep(checkInterval.toMillis());
                     }
                 }
             } catch (Exception e) {
@@ -391,8 +421,12 @@ public class QuickTxBuilder {
                 logConsumer.accept("Error while waiting for transaction to be included in the block. TxHash : " + txHash);
             }
 
-            logConsumer.accept("Timeout while waiting for transaction to be included in the block. TxHash : " + txHash);
+            logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
             return result;
+        }
+
+        private String showStatus(String status, String txHash) {
+            return String.format("[%s] Tx: %s", status, txHash);
         }
 
         /**
@@ -407,6 +441,26 @@ public class QuickTxBuilder {
                 this.signers = signer;
             else
                 this.signers = this.signers.andThen(signer);
+            return this;
+        }
+
+        /**
+         * Add validity start slot to the transaction. This value is set in "validity start from" field of the transaction.
+         * @param slot validity start slot
+         * @return TxContext
+         */
+        public TxContext validFrom(long slot) {
+            this.validFrom = slot;
+            return this;
+        }
+
+        /**
+         * Add validity end slot to the transaction. This value is set in ttl field of the transaction.
+         * @param slot validity end slot
+         * @return TxContext
+         */
+        public TxContext validTo(long slot) {
+            this.validTo = slot;
             return this;
         }
 
@@ -463,6 +517,24 @@ public class QuickTxBuilder {
             else
                 this.txVerifier = this.txVerifier.andThen(txVerifier);
             return this;
+        }
+
+        /**
+         * TxBuilder to set start validity interval and ttl for the transaction
+         * @param txBuilder TxBuilder
+         * @return TxBuilder
+         */
+        private TxBuilder buildValidityIntervalTxBuilder(TxBuilder txBuilder) {
+            //Add validity interval
+            if (validFrom != 0 || validTo != 0) {
+                return txBuilder.andThen((context, txn) -> {
+                    if (validFrom != 0)
+                        txn.getBody().setValidityStartInterval(validFrom);
+                    if (validTo != 0)
+                        txn.getBody().setTtl(validTo);
+                });
+            } else
+                return txBuilder;
         }
     }
 }

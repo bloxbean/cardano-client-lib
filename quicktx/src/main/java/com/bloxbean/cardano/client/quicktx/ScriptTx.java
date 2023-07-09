@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.MintCreators;
 import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
@@ -136,15 +135,29 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     //TODO: updatePool(poolParam)
 
     /**
-     * Mint asset with given script and redeemer
+     * Mint or Burn asset with given script and redeemer
+     * For minting, provide a positive quantity. For burning, provide a negative quantity.
      *
      * @param script   plutus script
-     * @param asset    asset to mint
+     * @param asset    asset to mint or burn
      * @param redeemer redeemer
      * @return ScriptTx
      */
     public ScriptTx mintAsset(PlutusScript script, Asset asset, PlutusData redeemer) {
         return mintAsset(script, List.of(asset), redeemer, null, null);
+    }
+
+    /**
+     * Mint assets with given script and redeemer.
+     * For minting, provide a positive quantity. For burning, provide a negative quantity.
+     *
+     * @param script plutus script
+     * @param assets assets to mint or burn
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx mintAsset(PlutusScript script, List<Asset> assets, PlutusData redeemer) {
+        return mintAsset(script, assets, redeemer, null, null);
     }
 
     /**
@@ -210,11 +223,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         if (receiver != null) {
             if (outputDatum != null)
-                payToContract(receiver, amounts, outputDatum, true);
+                payToContract(receiver, amounts, outputDatum);
             else
-                payToAddress(receiver, amounts, true);
+                payToAddress(receiver, amounts);
         }
 
+        addToMultiAssetList(script, assets);
         attachMintValidator(script);
         return this;
     }
@@ -479,7 +493,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
         }
 
+        //Invoke common complete logic
         TxBuilder txBuilder = super.complete();
+
         txBuilder = txBuilder.andThen(prepareScriptCallContext());
 
         //stake related
@@ -567,30 +583,6 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                                 transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
                         }
                     }));
-        }
-
-        for (MintingContext mintingContext : mintingContexts) {
-            //Find the minting validator for the policy id and add mint field to the transaction
-            Optional<PlutusScript> mintingValidator = mintingValidators.stream()
-                    .filter(plutusScript -> {
-                        try {
-                            return plutusScript.getPolicyId().equals(mintingContext.getPolicyId());
-                        } catch (CborSerializationException e) {
-                            throw new TxBuildException("Error getting policy id from the script");
-                        }
-                    }).findFirst();
-
-            if (mintingValidator.isPresent()) {
-                txBuilder = txBuilder.andThen(((context, txn) -> {
-                    MultiAsset multiAsset = MultiAsset.builder()
-                            .policyId(mintingContext.getPolicyId())
-                            .assets(mintingContext.getAssets())
-                            .build();
-                    MintCreators.mintCreator(mintingValidator.get(), multiAsset, false).apply(context, txn);
-                }));
-            } else {
-                throw new TxBuildException("No minting validator found for policy id : " + mintingContext.getPolicyId());
-            }
         }
 
         //Sort mint field in the transaction
