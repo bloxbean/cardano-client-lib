@@ -135,15 +135,29 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     //TODO: updatePool(poolParam)
 
     /**
-     * Mint asset with given script and redeemer
+     * Mint or Burn asset with given script and redeemer
+     * For minting, provide a positive quantity. For burning, provide a negative quantity.
      *
      * @param script   plutus script
-     * @param asset    asset to mint
+     * @param asset    asset to mint or burn
      * @param redeemer redeemer
      * @return ScriptTx
      */
     public ScriptTx mintAsset(PlutusScript script, Asset asset, PlutusData redeemer) {
         return mintAsset(script, List.of(asset), redeemer, null, null);
+    }
+
+    /**
+     * Mint assets with given script and redeemer.
+     * For minting, provide a positive quantity. For burning, provide a negative quantity.
+     *
+     * @param script plutus script
+     * @param assets assets to mint or burn
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx mintAsset(PlutusScript script, List<Asset> assets, PlutusData redeemer) {
+        return mintAsset(script, assets, redeemer, null, null);
     }
 
     /**

@@ -29,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.Collections;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
@@ -933,6 +934,115 @@ class TxTest extends QuickTxBaseTest {
         assertThatThrownBy(() -> quickTxBuilder.compose(tx).build())
                 .isInstanceOf(InsufficientBalanceException.class)
                 .hasMessageContaining("Not enough funds for");
+    }
+
+    @Test
+    @SneakyThrows
+    void payToContract_inlineDatumAndScriptRef_mintOutput_burnOutput_success() {
+        Policy existingPolicy = PolicyUtil.createMultiSigScriptAtLeastPolicy("newPolicy", 1, 1);
+        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+                List.of(
+                        Utxo.builder()
+                                .address(sender1)
+                                .txHash(generateRandomHexValue(32))
+                                .outputIndex(0)
+                                .amount(List.of(Amount.ada(20),
+                                        Amount.asset(existingPolicy.getPolicyId(), "TestAsset", 1000),
+                                        Amount.asset(existingPolicy.getPolicyId(), "TestAsset2", 4000)
+                                )).build()
+                )
+        );
+
+        PlutusV2Script plutusScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("newPolicy", 1, 1);
+        Asset newAsset = new Asset("newAsset", BigInteger.valueOf(1000));
+
+        Tx tx = new Tx()
+                .mintAssets(existingPolicy.getPolicyScript(), List.of(
+                        new Asset("TestAsset", BigInteger.valueOf(300).negate()),
+                        new Asset("TestAsset2", BigInteger.valueOf(100).negate())))
+                .mintAssets(existingPolicy.getPolicyScript(), List.of(new Asset("TestAsset2", BigInteger.valueOf(100).negate())))
+                .mintAssets(policy.getPolicyScript(), List.of(newAsset))
+                .payToContract(receiver1, List.of(Amount.ada(5),
+                        Amount.asset(policy.getPolicyId(), "newAsset", BigInteger.valueOf(1000))), BigIntPlutusData.of(42), plutusScript)
+                .payToAddress(receiver2, Amount.ada(6))
+                .from(sender1);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+        var transaction = quickTxBuilder.compose(tx)
+                .build();
+
+        List<TransactionOutput> actualTxOuts = transaction.getBody().getOutputs();
+        TransactionOutput receiver2Output = actualTxOuts.stream().filter(txOut -> txOut.getAddress().equals(receiver1)).findFirst().get();
+
+        assertThat(getLovelaceAmountForAddress(actualTxOuts, receiver1).get()).isEqualTo(adaToLovelace(5));
+        assertThat(receiver2Output.getInlineDatum()).isEqualTo(BigIntPlutusData.of(42));
+        assertThat(receiver2Output.getScriptRef()).isEqualTo(plutusScript.scriptRefBytes());
+        assertThat(getLovelaceAmountForAddress(actualTxOuts, receiver2).get()).isEqualTo(adaToLovelace(6));
+        assertThat(getLovelaceAmountForAddress(actualTxOuts, sender1).get()).isEqualTo(adaToLovelace(9).subtract(transaction.getBody().getFee()));
+        assertThat(getAssetAmountForAddress(actualTxOuts, sender1, existingPolicy.getPolicyId(), "TestAsset").get())
+                .isEqualTo(BigInteger.valueOf(700));
+        assertThat(getAssetAmountForAddress(actualTxOuts, sender1, existingPolicy.getPolicyId(), "TestAsset2").get())
+                .isEqualTo(BigInteger.valueOf(3800));
+        assertThat(transaction.getBody().getMint()).contains(
+                MultiAsset.builder()
+                .policyId(existingPolicy.getPolicyId())
+                .assets(List.of(
+                        new Asset("TestAsset", BigInteger.valueOf(300).negate()),
+                        new Asset("TestAsset2", BigInteger.valueOf(200).negate())
+                )).build(),
+                MultiAsset.builder()
+                        .policyId(policy.getPolicyId())
+                        .assets(List.of(new Asset("newAsset", BigInteger.valueOf(1000)))).build());
+
+    }
+
+    @Test
+    @SneakyThrows
+    void payToContract_inlineDatumAndScriptRef_mintOutput_burnOutput_insufficient_balance_error() {
+        Policy existingPolicy = PolicyUtil.createMultiSigScriptAtLeastPolicy("newPolicy", 1, 1);
+        given(utxoSupplier.getPage(any(), any(), eq(0), any())).willReturn(
+                List.of(
+                        Utxo.builder()
+                                .address(sender1)
+                                .txHash(generateRandomHexValue(32))
+                                .outputIndex(0)
+                                .amount(List.of(Amount.ada(20),
+                                        Amount.asset(existingPolicy.getPolicyId(), "TestAsset", 1000),
+                                        Amount.asset(existingPolicy.getPolicyId(), "TestAsset2", 4000)
+                                )).build()
+                )
+        );
+        given(utxoSupplier.getPage(any(), any(), eq(1), any())).willReturn(Collections.emptyList());
+
+        PlutusV2Script plutusScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("newPolicy", 1, 1);
+        Asset newAsset = new Asset("newAsset", BigInteger.valueOf(1000));
+
+        Tx tx = new Tx()
+                .mintAssets(existingPolicy.getPolicyScript(), List.of(
+                        new Asset("TestAsset", BigInteger.valueOf(1200).negate()),
+                        new Asset("TestAsset2", BigInteger.valueOf(100).negate())))
+                .mintAssets(existingPolicy.getPolicyScript(), List.of(new Asset("TestAsset2", BigInteger.valueOf(100).negate())))
+                .mintAssets(policy.getPolicyScript(), List.of(newAsset))
+                .payToContract(receiver1, List.of(Amount.ada(5),
+                        Amount.asset(policy.getPolicyId(), "newAsset", BigInteger.valueOf(1000))), BigIntPlutusData.of(42), plutusScript)
+                .payToAddress(receiver2, Amount.ada(6))
+                .from(sender1);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+
+        assertThatThrownBy(() -> quickTxBuilder.compose(tx).build())
+                .isInstanceOf(InsufficientBalanceException.class)
+                .hasMessageStartingWith("Not enough funds for")
+                .hasMessageContaining(existingPolicy.getPolicyId())
+                .hasMessageContaining("200");
     }
 
     @Test
