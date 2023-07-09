@@ -4,25 +4,23 @@ import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 
 import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
 
-@Getter
+@Data
 @AllArgsConstructor
 @NoArgsConstructor
-@EqualsAndHashCode
 @Builder
 public class PoolRegistration implements Certificate {
     private final CertificateType type = CertificateType.POOL_REGISTRATION;
@@ -240,6 +238,30 @@ public class PoolRegistration implements Certificate {
             return new MultiHostName(dns);
         }
         throw new CborDeserializationException("Relay deserialization failed. Invalid type : " + type);
+    }
+
+    /**
+     * Deserialize a PoolRegistration cert from cbor hex string
+     * @param cborHex cbor hex string
+     * @return PoolRegistration
+     * @throws CborRuntimeException when deserialization fails
+     */
+    public static PoolRegistration deserialize(String cborHex) {
+        DataItem dataItem = CborSerializationUtil.deserialize(HexUtil.decodeHexString(cborHex));
+        try {
+            return deserialize(dataItem);
+        } catch (CborDeserializationException e) {
+            throw new CborRuntimeException(e);
+        }
+    }
+
+    /**
+     * Get Bech32 pool id
+     */
+    @JsonIgnore
+    public String getBech32PoolId() {
+        Objects.requireNonNull(operator, "Operator cannot be null");
+        return StakePoolId.fromHexPoolId(HexUtil.encodeHexString(operator)).getBech32PoolId();
     }
 
     @Override

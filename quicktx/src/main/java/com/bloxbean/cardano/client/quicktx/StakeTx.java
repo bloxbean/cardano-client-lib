@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 
@@ -33,12 +34,15 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 class StakeTx {
     //TODO -- Read from protocol params
     public static final BigInteger STAKE_KEY_REG_DEPOSIT = adaToLovelace(2.0);
+    private static final BigInteger POOL_REG_DEPOSIT = adaToLovelace(500);
     public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
 
     protected List<StakeRegistration> stakeRegistrations;
     protected List<StakeKeyDeregestrationContext> stakeDeRegistrationContexts;
     protected List<StakeDelegationContext> stakeDelegationContexts;
     protected List<WithdrawalContext> withdrawalContexts;
+    protected List<PoolRegistrationContext> poolRegistrationContexts;
+    protected List<PoolRetirement> poolRetirements;
 
     /**
      * Register stake address
@@ -191,6 +195,58 @@ class StakeTx {
     }
 
     /**
+     * Register stake pool
+     *
+     * @param poolRegistration pool registration certificate
+     * @return StakeTx
+     */
+    public StakeTx registerPool(@NonNull PoolRegistration poolRegistration) {
+        if (poolRegistrationContexts == null)
+            poolRegistrationContexts = new ArrayList<>();
+
+        poolRegistrationContexts.add(new PoolRegistrationContext(poolRegistration, false));
+        return this;
+    }
+
+    /**
+     * Update stake pool
+     *
+     * @param poolRegistration pool registration certificate
+     * @return StakeTx
+     */
+    public StakeTx updatePool(@NonNull PoolRegistration poolRegistration) {
+        if (poolRegistrationContexts == null)
+            poolRegistrationContexts = new ArrayList<>();
+
+        poolRegistrationContexts.add(new PoolRegistrationContext(poolRegistration, true));
+        return this;
+    }
+
+    /**
+     * Retire a stake pool
+     * @param poolId Pool id Bech32 or hex encoded pool key hash
+     * @param epoch Epoch to retire the pool
+     * @return StakeTx
+     */
+    public StakeTx retirePool(@NonNull String poolId, int epoch) {
+        if (epoch <= 0)
+            throw new TxBuildException("Invalid epoch. Epoch should be greater than current epoch");
+
+        if (poolRetirements == null)
+            poolRetirements = new ArrayList<>();
+
+        byte[] poolKeyHash;
+        if (poolId.startsWith("pool")) {
+            poolKeyHash = StakePoolId.fromBech32PoolId(poolId).getPoolKeyHash();
+        } else {
+            poolKeyHash = StakePoolId.fromHexPoolId(poolId).getPoolKeyHash();
+        }
+
+        poolRetirements.add(new PoolRetirement(poolKeyHash, epoch));
+        return this;
+    }
+
+    /**
      * Return TxBuilder, payments to build a stake transaction
      *
      * @param fromAddress
@@ -205,6 +261,8 @@ class StakeTx {
         txBuilder = buildStakeAddressDeRegistration(txBuilder, changeAddress);
         txBuilder = buildStakeDelegation(txBuilder);
         txBuilder = buildWithdrawal(txBuilder, changeAddress);
+        txBuilder = buildPoolRegistration(txBuilder, fromAddress);
+        txBuilder = buildPoolRetirement(txBuilder);
 
         return new Tuple<>(paymentContexts, txBuilder);
     }
@@ -214,7 +272,9 @@ class StakeTx {
         if ((stakeRegistrations == null || stakeRegistrations.size() == 0)
                 && (stakeDeRegistrationContexts == null || stakeDeRegistrationContexts.size() == 0)
                 && (stakeDelegationContexts == null || stakeDelegationContexts.size() == 0)
-                && (withdrawalContexts == null || withdrawalContexts.size() == 0)) {
+                && (withdrawalContexts == null || withdrawalContexts.size() == 0)
+                && (poolRegistrationContexts == null || poolRegistrationContexts.size() == 0)
+                && (poolRetirements == null || poolRetirements.size() == 0)) {
             return paymentContexts;
         }
 
@@ -233,6 +293,23 @@ class StakeTx {
         }
 
         if (withdrawalContexts != null && withdrawalContexts.size() > 0) {
+            paymentContexts.add(new PaymentContext(fromAddress, DUMMY_MIN_OUTPUT_VAL)); //Dummy output to sender fromAddress to trigger input selection
+        }
+
+        if (poolRegistrationContexts != null && poolRegistrationContexts.size() > 0) {
+            List<PoolRegistration> poolRegistrations = poolRegistrationContexts.stream()
+                    .filter(poolRegistrationContext -> !poolRegistrationContext.isUpdate())
+                    .map(PoolRegistrationContext::getPoolRegistration)
+                    .collect(Collectors.toList());
+
+            if (poolRegistrations.size() > 0) {
+                //Dummy pay to fromAddress to add deposit
+                Amount totalPoolDepositAmount = Amount.lovelace(POOL_REG_DEPOSIT.multiply(BigInteger.valueOf(poolRegistrations.size())));
+                paymentContexts.add(new PaymentContext(fromAddress, totalPoolDepositAmount));
+            }
+        }
+
+        if (poolRetirements != null && poolRetirements.size() > 0) {
             paymentContexts.add(new PaymentContext(fromAddress, DUMMY_MIN_OUTPUT_VAL)); //Dummy output to sender fromAddress to trigger input selection
         }
 
@@ -405,6 +482,87 @@ class StakeTx {
         return txBuilder;
     }
 
+    private TxBuilder buildPoolRegistration(TxBuilder txBuilder, String fromAddress) {
+        if (poolRegistrationContexts == null || poolRegistrationContexts.isEmpty())
+            return txBuilder;
+
+        txBuilder = txBuilder.andThen((context, txn) -> {
+            if (poolRegistrationContexts == null || poolRegistrationContexts.isEmpty()) {
+                return;
+            }
+
+            //Add pool registration certificate
+            List<Certificate> certificates = txn.getBody().getCerts();
+            if (certificates == null) {
+                certificates = new ArrayList<>();
+                txn.getBody().setCerts(certificates);
+            }
+
+            List<PoolRegistration> poolRegistrations = poolRegistrationContexts.stream()
+                    .filter(poolRegistrationContext -> !poolRegistrationContext.isUpdate())
+                    .map(PoolRegistrationContext::getPoolRegistration)
+                    .collect(Collectors.toList());
+
+            List<PoolRegistration> poolUpdates = poolRegistrationContexts.stream()
+                    .filter(PoolRegistrationContext::isUpdate)
+                    .map(PoolRegistrationContext::getPoolRegistration)
+                    .collect(Collectors.toList());
+
+            if (poolRegistrations.size() > 0)
+                certificates.addAll(poolRegistrations);
+
+            if (poolUpdates.size() > 0)
+                certificates.addAll(poolUpdates);
+
+            String poolDeposit = context.getProtocolParams().getPoolDeposit();
+            BigInteger poolRegDeposit = new BigInteger(poolDeposit);
+            BigInteger totalPoolRegistrationDeposit = poolRegDeposit.multiply(BigInteger.valueOf(poolRegistrations.size()));
+            log.debug("Total pool registration deposit: " + totalPoolRegistrationDeposit);
+
+            if (poolRegistrations.size() > 0) {
+                txn.getBody().getOutputs()
+                        .stream().filter(to -> to.getAddress().equals(fromAddress)
+                                && to.getValue().getCoin().compareTo(totalPoolRegistrationDeposit) >= 0)
+                        .sorted((o1, o2) -> o2.getValue().getCoin().compareTo(o1.getValue().getCoin()))
+                        .findFirst()
+                        .ifPresentOrElse(to -> {
+                            //Remove the deposit amount from the from address output
+                            to.getValue().setCoin(to.getValue().getCoin().subtract(totalPoolRegistrationDeposit));
+
+                            if (to.getValue().getCoin().equals(BigInteger.ZERO)
+                                    && to.getValue().getMultiAssets() == null
+                                    && to.getValue().getMultiAssets().size() == 0) {
+                                txn.getBody().getOutputs().remove(to);
+                            }
+                        }, () -> {
+                            throw new TxBuildException("Output for from address not found to remove deposit amount: " + fromAddress);
+                        });
+            }
+        });
+        return txBuilder;
+    }
+
+    private TxBuilder buildPoolRetirement(TxBuilder txBuilder) {
+        if (poolRetirements == null || poolRetirements.size() == 0)
+            return txBuilder;
+
+        txBuilder = txBuilder.andThen((context, txn) -> {
+            if (poolRetirements == null || poolRetirements.size() == 0) {
+                return;
+            }
+
+            //Add pool retirement certificates
+            List<Certificate> certificates = txn.getBody().getCerts();
+            if (certificates == null) {
+                certificates = new ArrayList<>();
+                txn.getBody().setCerts(certificates);
+            }
+
+            txn.getBody().getCerts().addAll(poolRetirements);
+        });
+        return txBuilder;
+    }
+
     @Data
     @AllArgsConstructor
     static class StakeKeyDeregestrationContext {
@@ -426,6 +584,13 @@ class StakeTx {
         private Withdrawal withdrawal;
         private Redeemer redeemer;
         private String receiver;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class PoolRegistrationContext {
+        private PoolRegistration poolRegistration;
+        private boolean update;
     }
 
     @Data
