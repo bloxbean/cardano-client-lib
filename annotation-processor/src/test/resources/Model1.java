@@ -2,43 +2,64 @@ package com.test;
 
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
+import com.bloxbean.cardano.client.plutus.annotation.Enc;
 
 import java.math.BigInteger;
-import java.util.List;
+import java.util.*;
+import java.util.Map.*;
 
 @Constr(alternative = 1)
 public class Model1 {
-
-    @PlutusField
     long l = 0L;
-
-    @PlutusField
     Integer a;
-
-    @PlutusField
-    BigInteger b = BigInteger.valueOf(0);
-
-    @PlutusField
+    private BigInteger b = BigInteger.valueOf(0);
     BigInteger ccc = BigInteger.valueOf(0);
+    Optional<BigInteger> optBI;
+    Optional<Integer> optInt;
+    Optional<Model2> optMod2;
+    Optional<Long> optionalLong;
 
-    @PlutusField
-    String str;
+    @Enc("hex")
+    private String str;
 
-    @PlutusField
     List<String> list;
-
-    @PlutusField
     Model2 model2;
-
-    @PlutusField
     List<Model2> model2List;
+    ArrayList<Model2> model3List;
+    private Map<String, BigInteger> modelMap;
+    Map<Model1, Model2> modelMap2;
+    HashMap<Model1, Model2> modelMap3;
 
-    String getStr() {
+    public String getStr() {
         return str;
     }
 
-    BigInteger getB() {
+    public void setStr(String str) {
+        this.str = str;
+    }
+
+    public BigInteger getB() {
         return b;
+    }
+
+    public void setB(BigInteger B) {
+        this.b = B;
+    }
+
+    public List<String> getList() {
+        return list;
+    }
+
+    public List<Model2> getModel2List() {
+        return model2List;
+    }
+
+    public Map<String, BigInteger> getModelMap() {
+        return modelMap;
+    }
+
+    public void setModelMap(Map<String, BigInteger> modelMap) {
+        this.modelMap = modelMap;
     }
 }
 

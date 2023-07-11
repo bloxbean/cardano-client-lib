@@ -1,9 +1,9 @@
 dependencies {
     api project(':plutus')
-    implementation("com.google.auto.service:auto-service:1.1.1")
-    implementation("com.squareup:javapoet:1.13.0")
+    implementation libs.google.auto.service
+    api libs.javapoet
 
-    testImplementation('com.google.testing.compile:compile-testing:0.21.0')
+    testImplementation libs.google.testing.compile
 }
 
 publishing {
