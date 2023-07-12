@@ -12,6 +12,7 @@ include 'coinselection'
 include 'core'
 include 'function'
 include 'quicktx'
+include 'annotation-processor'
 
 //CIPs
 include 'cip'

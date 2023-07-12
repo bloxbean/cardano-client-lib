@@ -17,3 +17,7 @@ okhttp = "com.squareup.okhttp3:okhttp:4.10.0"
 
 yaci = "com.bloxbean.cardano:yaci:0.2.0-beta1"
 aiken-java-binding = "com.bloxbean.cardano:aiken-java-binding:0.0.7"
+
+google-auto-service="com.google.auto.service:auto-service:1.1.1"
+javapoet="com.squareup:javapoet:1.13.0"
+google-testing-compile="com.google.testing.compile:compile-testing:0.21.0"
