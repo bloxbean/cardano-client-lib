@@ -17,7 +17,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 - [Simple Ada transfer](https://cardano-client.bloxbean.com/docs/gettingstarted/simple-transfer)
 - [Multisig transfer using Native Script](https://cardano-client.bloxbean.com/docs/gettingstarted/multisig-quickstart)
 
-### More details --> [Documentation](https://cardano-client.bloxbean.com/)
+### More details --> [Documentation](https://www.cardano-client.dev/)
 
 ### **Posts**
 - [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
