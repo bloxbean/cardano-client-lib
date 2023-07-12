@@ -13,8 +13,12 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Code generator for Plutus Data Converter
+ */
 @Slf4j
 public class ConverterCodeGenerator implements CodeGenerator {
     private ProcessingEnvironment processEnv;
@@ -58,6 +62,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 case STRING:
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
+                            .add(nullCheckStatement(field, fieldOrGetterName(field)))
                             .addStatement("constr.getData().add(toPlutusData(obj.$L))", fieldOrGetterName(field))
                             .add("\n")
                             .build();
@@ -65,6 +70,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 case LIST:
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
+                            .add(nullCheckStatement(field, fieldOrGetterName(field)))
                             .addStatement("$T $LListPlutusData = $T.builder().build();", ListPlutusData.class, field.getName(), ListPlutusData.class)
                             .beginControlFlow("for(var item: obj.$L)", fieldOrGetterName(field))
                             .addStatement("$LListPlutusData.add($L)",
@@ -77,6 +83,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 case MAP:
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
+                            .add(nullCheckStatement(field, fieldOrGetterName(field)))
                             .addStatement("$T $LMapPlutusData = $T.builder().build();", MapPlutusData.class, field.getName(), MapPlutusData.class)
                             .beginControlFlow("for(var entry: obj.$L.entrySet())", fieldOrGetterName(field))
                             .addStatement("$LMapPlutusData.put($L, $L)", field.getName(),
@@ -102,6 +109,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                      ****/
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
+                            .add(nullCheckStatement(field, fieldOrGetterName(field)))
                             .beginControlFlow("if(obj.$L.isEmpty())", fieldOrGetterName(field))
                             .addStatement("var $LConstr = $T.builder().alternative(1).data($T.of()).build()", field.getName(),
                                     ConstrPlutusData.class, ListPlutusData.class)
@@ -118,6 +126,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 case CONSTRUCTOR:
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
+                            .add(nullCheckStatement(field, fieldOrGetterName(field)))
                             .addStatement("constr.getData().add(new $LPlutusDataConverter().serialize(obj.$L))", field.getFieldType().getJavaType().getName(), fieldOrGetterName(field))
                             .add("\n")
                             .build();
@@ -146,6 +155,13 @@ public class ConverterCodeGenerator implements CodeGenerator {
             default:
                 return String.format("new %sPlutusDataConverter().serialize(%s)", itemType.getJavaType().getName(), fieldOrGetterName);
         }
+    }
+
+    private CodeBlock nullCheckStatement(Field field, String fieldOrGetterName) {
+        CodeBlock.Builder nullCheckBuilder = CodeBlock.builder();
+        nullCheckBuilder.addStatement("$T.requireNonNull(obj.$L, \"$L cannot be null\")", Objects.class, fieldOrGetterName, field.getName());
+
+        return nullCheckBuilder.build();
     }
 
     // ---- Deserialize method
@@ -285,16 +301,16 @@ public class ConverterCodeGenerator implements CodeGenerator {
     }
 
     private String fromPlutusDataToObj(FieldType itemType, String fieldName) {
-        CodeBlock.Builder builder = CodeBlock.builder();
         switch (itemType.getType()) {
             case INTEGER:
                 String getValueMethodName = getValueMethodNameForIntType(itemType);
-                if (itemType.getJavaType() == JavaType.INT)
+                if (itemType.getJavaType() == JavaType.INT || itemType.getJavaType() == JavaType.INTEGER)
                     return String.format("plutusDataToInteger(%s)", fieldName);
-                else if (itemType.getJavaType() == JavaType.LONG)
+                else if (itemType.getJavaType() == JavaType.LONG || itemType.getJavaType() == JavaType.LONG_OBJECT)
                     return String.format("plutusDataToLong(%s)", fieldName);
                 else if (itemType.getJavaType() == JavaType.BIGINTEGER)
                     return String.format("plutusDataToBigInteger(%s)", fieldName);
+                break;
             case BYTES:
                 return String.format("plutusDataToBytes(%s)", fieldName);
             case STRING:
@@ -305,13 +321,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
             default:
                 return String.format("new %sPlutusDataConverter().deserialize((ConstrPlutusData)%s)", itemType.getJavaType().getName(), fieldName);
         }
+
+        return "";
     }
 
     private static String getValueMethodNameForIntType(FieldType fieldType) {
         String getValueMethodName = "getValue()";
-        if (fieldType.getJavaType() == JavaType.INT)
+        if (fieldType.getJavaType() == JavaType.INT || fieldType.getJavaType() == JavaType.INTEGER)
             getValueMethodName = "getValue().intValue()";
-        else if (fieldType.getJavaType() == JavaType.LONG)
+        else if (fieldType.getJavaType() == JavaType.LONG || fieldType.getJavaType() == JavaType.LONG_OBJECT)
             getValueMethodName = "getValue().longValue()";
 
         return getValueMethodName;

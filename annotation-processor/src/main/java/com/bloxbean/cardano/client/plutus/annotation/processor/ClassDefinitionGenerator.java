@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Generates ClassDefinition from the given TypeElement
+ */
 @Slf4j
 public class ClassDefinitionGenerator {
     private ProcessingEnvironment processingEnvironment;
@@ -98,13 +101,19 @@ public class ClassDefinitionGenerator {
 
     private FieldType detectFieldType(TypeName typeName, TypeMirror typeMirror) throws NotSupportedException {
         FieldType fieldType = new FieldType();
-        if (typeName.equals(TypeName.get(Long.class)) || typeName.equals(TypeName.LONG)) {
+        if (typeName.equals(TypeName.get(Long.class))) {
+            fieldType.setType(Type.INTEGER);
+            fieldType.setJavaType(JavaType.LONG_OBJECT);
+        } else if (typeName.equals(TypeName.LONG)) {
             fieldType.setType(Type.INTEGER);
             fieldType.setJavaType(JavaType.LONG);
         } else if (typeName.equals(TypeName.get(BigInteger.class))) {
             fieldType.setType(Type.INTEGER);
             fieldType.setJavaType(JavaType.BIGINTEGER);
-        } else if (typeName.equals(TypeName.get(Integer.class)) || typeName.equals(TypeName.INT)) {
+        } else if (typeName.equals(TypeName.get(Integer.class))) {
+            fieldType.setType(Type.INTEGER);
+            fieldType.setJavaType(JavaType.INTEGER);
+        } else if (typeName.equals(TypeName.INT)) {
             fieldType.setType(Type.INTEGER);
             fieldType.setJavaType(JavaType.INT);
         } else if (typeName.equals(TypeName.get(String.class))) {

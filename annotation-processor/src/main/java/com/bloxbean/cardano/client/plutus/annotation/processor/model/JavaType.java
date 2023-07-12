@@ -7,7 +7,9 @@ import lombok.ToString;
 @EqualsAndHashCode
 public class JavaType {
     public final static JavaType INT = new JavaType("int", false);
+    public final static JavaType INTEGER = new JavaType("java.lang.Integer", false);
     public final static JavaType LONG = new JavaType("long", false);
+    public final static JavaType LONG_OBJECT = new JavaType("java.lang.Long", false);
     public final static JavaType BIGINTEGER = new JavaType("java.math.BigInteger", false);
     public final static JavaType STRING = new JavaType("java.lang.String", false);
     public final static JavaType BYTES = new JavaType("byte[]", false);
