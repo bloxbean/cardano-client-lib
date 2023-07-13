@@ -518,14 +518,12 @@ public class ScriptTxIT extends QuickTxBaseIT {
         //Create a reference input and send lock amount at script address
         Tx createRefInputTx = new Tx();
         createRefInputTx.payToAddress(receiver1, List.of(Amount.ada(1.0)), sumScript)
-                .from(sender1Addr);
-
-        Tx scriptPayTx = new Tx();
-        scriptPayTx.payToContract(sumScriptAddr, sumScriptAmt, sumScriptDatum)
+                .payToContract(sumScriptAddr, sumScriptAmt, sumScriptDatum)
                 .from(sender1Addr);
 
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         Result<String> result = quickTxBuilder.compose(createRefInputTx)
+                .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .completeAndWait(System.out::println);
         System.out.println("Tx Response: " + result.getResponse());
@@ -541,12 +539,25 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .outputIndex(0)
                 .build();
 
+        //Pay to script
+        Tx scriptPayTx = new Tx();
+        scriptPayTx.payToContract(sumScriptAddr, sumScriptAmt, sumScriptDatum)
+                .from(sender1Addr);
+        result = quickTxBuilder.compose(scriptPayTx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(System.out::println);
+        //Required as backend service returns outdated utxo
+        if (result.isSuccessful()) {
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
+        }
+
         //Find the utxo for the script address
         Optional<Utxo> sumUtxo  = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, sumScriptAddr, sumScriptDatum);
         ScriptTx scriptTx = new ScriptTx()
                 .collectFrom(sumUtxo.get(), sumScriptRedeemer)
                 .readFrom(refUtxo)
                 .payToAddress(receiver1, List.of(sumScriptAmt))
+                .attachSpendingValidator(sumScript)
                 .withChangeAddress(sumScriptAddr, sumScriptDatum);
 
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
@@ -554,7 +565,10 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
-                .completeAndWait(System.out::println);
+                .postBalanceTx((context, txn) -> {
+                    //Remove the plutus script from the witness set
+                    txn.getWitnessSet().getPlutusV2Scripts().clear();
+                }).completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
@@ -632,18 +646,12 @@ public class ScriptTxIT extends QuickTxBaseIT {
         createRefInputTx.payToAddress(receiver1, List.of(Amount.ada(1.0)), sumScript)
                 .from(sender1Addr);
 
-        Tx scriptPayTx = new Tx();
-        scriptPayTx.payToContract(sumScriptAddr, sumScriptAmt, sumScriptDatum)
-                .from(sender1Addr);
-
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         Result<String> result = quickTxBuilder.compose(createRefInputTx)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .completeAndWait(System.out::println);
         System.out.println("Tx Response: " + result.getResponse());
         assertTrue(result.isSuccessful());
-
-        checkIfUtxoAvailable(result.getValue(), sender1Addr);
 
         //Required as backend service returns outdated utxo
         if (result.isSuccessful()) {
@@ -652,12 +660,27 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
         TransactionInput refInput = new TransactionInput(result.getValue(), 0);
 
+        Tx scriptPayTx = new Tx();
+        scriptPayTx.payToContract(sumScriptAddr, sumScriptAmt, sumScriptDatum)
+                .from(sender1Addr);
+
+        result = quickTxBuilder.compose(scriptPayTx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(System.out::println);
+        System.out.println("Tx Response: " + result.getResponse());
+        assertTrue(result.isSuccessful());
+
+        if (result.isSuccessful()) {
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
+        }
+
         //Find the utxo for the script address
         Optional<Utxo> sumUtxo  = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, sumScriptAddr, sumScriptDatum);
         ScriptTx scriptTx = new ScriptTx()
                 .collectFrom(sumUtxo.get(), sumScriptRedeemer)
                 .readFrom(refInput)
                 .payToAddress(receiver1, List.of(sumScriptAmt))
+                .attachSpendingValidator(sumScript)
                 .withChangeAddress(sumScriptAddr, sumScriptDatum);
 
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
@@ -665,7 +688,9 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
-                .completeAndWait(System.out::println);
+                .postBalanceTx((context, txn) -> {
+                    txn.getWitnessSet().getPlutusV2Scripts().clear();
+                }).completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
