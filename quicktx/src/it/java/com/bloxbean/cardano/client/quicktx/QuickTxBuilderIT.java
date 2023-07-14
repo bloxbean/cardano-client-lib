@@ -445,7 +445,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
     @Test
     void tx_validFrom() throws ApiException, CborSerializationException {
-        long validSlot = backendService.getBlockService().getLatestBlock().getValue().getSlot() - 100;
+        long validSlot = backendService.getBlockService().getLatestBlock().getValue().getSlot() - 10;
 
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         Tx tx = new Tx()
