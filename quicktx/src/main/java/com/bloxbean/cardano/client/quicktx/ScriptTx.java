@@ -444,8 +444,19 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return fromAddress;
     }
 
-    void from(String address) {
+    /**
+     * This is an optional field for Script transaction, as usually a script output is spent for a script transaction.
+     * But if provided, any required ada for fee or minimum ada will be taken from this address.
+     *
+     * <p>
+     * If this address is not set, then builder will use fee payer address to pay the fees or minimum ada or any other ada required.
+     * </p>
+     *
+     * @return
+     */
+    public ScriptTx from(String address) {
         this.fromAddress = address;
+        return this;
     }
 
     @Override

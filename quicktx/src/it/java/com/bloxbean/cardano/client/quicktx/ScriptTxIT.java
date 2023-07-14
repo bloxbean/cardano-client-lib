@@ -23,8 +23,10 @@ import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.quicktx.verifiers.OutputAmountVerifier;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +35,10 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
+import java.util.stream.Collectors;
 
+import static com.bloxbean.cardano.client.quicktx.verifiers.TxVerifiers.outputAmountVerifier;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ScriptTxIT extends QuickTxBaseIT {
@@ -671,6 +676,116 @@ public class ScriptTxIT extends QuickTxBaseIT {
         assertTrue(result1.isSuccessful());
 
         checkIfUtxoAvailable(result1.getValue(), sender1Addr);
+    }
+
+    @Test
+    void multi_minting_when_from_set() throws CborSerializationException {
+        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+        PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
+
+        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+        PlutusScript plutusScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
+
+        String aikenCompileCode3 = "581801000032223253330043370e00290030a4c2c6eb40095cd1";
+        PlutusScript plutusScript3 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode3, PlutusVersion.v2);
+
+        Asset asset1 = new Asset("PlutusMintToken-1", BigInteger.valueOf(8000));
+        Asset asset2 = new Asset("PlutusMintToken-2", BigInteger.valueOf(5000));
+        Asset asset3 = new Asset("PlutusMintToken-3", BigInteger.valueOf(2000));
+
+        System.out.println("policy 1: " + plutusScript1.getPolicyId());
+        System.out.println("policy 2: " + plutusScript2.getPolicyId());
+
+        ScriptTx scriptTx = new ScriptTx()
+                .payToAddress(receiver1, List.of(Amount.ada(2.0)))
+                .mintAsset(plutusScript1, asset1, BigIntPlutusData.of(1), receiver1)
+                .mintAsset(plutusScript2, asset2, BigIntPlutusData.of(2), sender1Addr)
+                .mintAsset(plutusScript3, asset3, BigIntPlutusData.of(3), sender1Addr)
+                .from(sender2Addr);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .mergeChangeOutputs(false)
+                .withTxInspector(tx -> System.out.println(JsonUtil.getPrettyJson(tx)))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                .withVerifier(outputAmountVerifier(receiver1, Amount.ada(2.0), "Receiver1 should get 2 ADA")
+                        .andThen(outputAmountVerifier(receiver1, Amount.asset(plutusScript1.getPolicyId(), asset1.getName(), 8000), "Receiver1 should get  8000 asset1"))
+                        .andThen(outputAmountVerifier(sender1Addr, Amount.asset(plutusScript2.getPolicyId(), asset2.getName(), 5000), "Sender1 should get 5000 asset"))
+                        .andThen(new OutputAmountVerifier(sender1Addr, Amount.asset(plutusScript3.getPolicyId(), asset3.getName(), 2000), "Sender1 should get 2000 asset"))
+                        .andThen(txn -> {
+                            //verify if there is a change output with address sender2Addr
+                            List<TransactionOutput> changeOutputs = txn.getBody().getOutputs().stream()
+                                    .filter(output -> output.getAddress().equals(sender2Addr))
+                                    .collect(Collectors.toList());
+                            assertThat(changeOutputs).hasSizeGreaterThanOrEqualTo(1);
+                        })
+                )
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
+    @Test
+    void multi_minting_when_from_set_without_payTo() throws CborSerializationException {
+        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+        PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
+
+        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+        PlutusScript plutusScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
+
+        String aikenCompileCode3 = "581801000032223253330043370e00290030a4c2c6eb40095cd1";
+        PlutusScript plutusScript3 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode3, PlutusVersion.v2);
+
+        Asset asset1 = new Asset("PlutusMintToken-1", BigInteger.valueOf(8000));
+        Asset asset2 = new Asset("PlutusMintToken-2", BigInteger.valueOf(5000));
+        Asset asset3 = new Asset("PlutusMintToken-3", BigInteger.valueOf(2000));
+
+        System.out.println("policy 1: " + plutusScript1.getPolicyId());
+        System.out.println("policy 2: " + plutusScript2.getPolicyId());
+
+        ScriptTx scriptTx = new ScriptTx()
+                .mintAsset(plutusScript1, asset1, BigIntPlutusData.of(1), receiver1)
+                .mintAsset(plutusScript2, asset2, BigIntPlutusData.of(2), receiver2)
+                .mintAsset(plutusScript3, asset3, BigIntPlutusData.of(3), receiver3)
+                .from(sender1Addr);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+//                .feePayer(sender2Addr)
+//                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .mergeChangeOutputs(false)
+                .withTxInspector(tx -> System.out.println(JsonUtil.getPrettyJson(tx)))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                .withVerifier(outputAmountVerifier(receiver1, Amount.asset(plutusScript1.getPolicyId(), asset1.getName(), 8000), "Receiver1 should get  8000 asset1")
+                        .andThen(outputAmountVerifier(receiver2, Amount.asset(plutusScript2.getPolicyId(), asset2.getName(), 5000), "Receiver2 should get 5000 asset"))
+                        .andThen(new OutputAmountVerifier(receiver3, Amount.asset(plutusScript3.getPolicyId(), asset3.getName(), 2000), "Receiver3 should get 2000 asset"))
+                        .andThen(txn -> {
+                            //verify if there is a change output with address sender2Addr
+                            List<TransactionOutput> sender2Output = txn.getBody().getOutputs().stream()
+                                    .filter(output -> output.getAddress().equals(sender2Addr))
+                                    .collect(Collectors.toList());
+                            assertThat(sender2Output).hasSize(1);
+
+//                            List<TransactionOutput> sender1Output = txn.getBody().getOutputs().stream()
+//                                    .filter(output -> output.getAddress().equals(sender1Addr))
+//                                    .collect(Collectors.toList());
+//                            assertThat(sender1Output).hasSize(1);
+                        })
+                )
+                .completeAndWait(System.out::println);
+
+        System.out.println("From      - Sender1: " + sender1Addr);
+        System.out.println("Fee Payer - Sender2: " + sender2Addr);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
     }
 
     private String getRandomTokenName() {
