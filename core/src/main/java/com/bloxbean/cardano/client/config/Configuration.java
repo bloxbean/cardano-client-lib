@@ -6,14 +6,12 @@ import com.bloxbean.cardano.client.crypto.bip39.api.EntropyProvider;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.client.plutus.api.PlutusObjectConverter;
 import com.bloxbean.cardano.client.plutus.impl.DefaultPlutusObjectConverter;
+import com.bloxbean.cardano.client.util.OSUtil;
 
 public enum Configuration {
     INSTANCE();
 
     private PlutusObjectConverter plutusObjectConverter;
-
-    //Can be used to set isAndroid programmatically.
-    private boolean isAndroid;
 
     Configuration() {
         plutusObjectConverter = new DefaultPlutusObjectConverter();
@@ -52,10 +50,10 @@ public enum Configuration {
     }
 
     public boolean isAndroid() {
-        return isAndroid;
+        return OSUtil.isAndroid();
     }
 
     public void setAndroid(boolean android) {
-        isAndroid = android;
+        OSUtil.setAndroid(android);
     }
 }

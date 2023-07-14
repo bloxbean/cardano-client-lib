@@ -1,20 +1,11 @@
 package com.bloxbean.cardano.client.util;
 
-import com.bloxbean.cardano.client.config.Configuration;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OSUtilTest {
-
-    @Test
-    void isAndroid() {
-        Configuration.INSTANCE.setAndroid(true);
-        boolean isAndroid = OSUtil.isAndroid();
-        Configuration.INSTANCE.setAndroid(false);
-
-        assertTrue(isAndroid);
-    }
 
     @Test
     void isAndroid_whenNotSetInConfig() {
