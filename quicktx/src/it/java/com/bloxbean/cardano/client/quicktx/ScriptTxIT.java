@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.coinselection.impl.LargestFirstUtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
@@ -302,6 +303,32 @@ public class ScriptTxIT extends QuickTxBaseIT {
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
 
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
+    @Test
+    void only_minting() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+        PlutusScript mintingScript = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
+
+        Asset asset1 = new Asset("PlutusMintToken-1", BigInteger.valueOf(8000));
+        Asset asset2 = new Asset("PlutusMintToken-2", BigInteger.valueOf(5000));
+        Asset asset3 = new Asset("PlutusMintToken-3", BigInteger.valueOf(2000));
+
+        ScriptTx scriptTx = new ScriptTx()
+                .mintAsset(mintingScript, List.of(asset1, asset2, asset3), BigIntPlutusData.of(2), sender2Addr);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withUtxoSelectionStrategy(
+                        new LargestFirstUtxoSelectionStrategy(new DefaultUtxoSupplier(backendService.getUtxoService())))
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
         checkIfUtxoAvailable(result1.getValue(), sender2Addr);
     }
 
