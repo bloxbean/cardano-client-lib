@@ -11,11 +11,11 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 ### **Latest Stable Version**: [0.4.3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.4.3)
 
-### **Latest Preview Version**: [0.5.0-alpha.3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0-alpha.3)
+### **Latest Preview Version**: [0.5.0-alpha.4](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0-alpha.4)
 
 ### **Tutorials**
-- [Simple Ada transfer](https://cardano-client.bloxbean.com/docs/gettingstarted/simple-transfer)
-- [Multisig transfer using Native Script](https://cardano-client.bloxbean.com/docs/gettingstarted/multisig-quickstart)
+- [Simple Ada transfer](https://cardano-client.dev/docs/gettingstarted/simple-transfer)
+- [Multisig transfer using Native Script](https://cardano-client.dev/docs/gettingstarted/multisig-quickstart)
 
 ### More details --> [Documentation](https://cardano-client.dev/)
 
@@ -177,7 +177,7 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:{SNAPSHOT
 ```
 
 ### Usages
-This section highlights few key apis in the library. For detailed documentation, please visit  [Cardano Client Doc site](https://cardano-client.bloxbean.com/).
+This section highlights few key apis in the library. For detailed documentation, please visit  [Cardano Client Doc site](https://cardano-client.dev/).
 
 #### Account API Usage
 
@@ -270,62 +270,6 @@ AddressService addressService = backendService.getAddressService();
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
 ```
 
-
-#### Simple ADA Payment transaction using High-Level Api
-```
-  PaymentTransaction paymentTransaction = PaymentTransaction.builder()
-                                            .sender(sender)
-                                            .receiver(receiver)
-                                            .amount(BigInteger.valueOf(1500000))
-                                            .unit("lovelace")
-                                            .build();
-          
-  //Calculate Time to Live        
-  long ttl = blockService.getLastestBlock().getValue().getSlot() + 1000;
-  TransactionDetailsParams detailsParams =
-                TransactionDetailsParams.builder()
-                        .ttl(ttl)
-                        .build();
-
-  //Calculate fee
-  BigInteger fee
-          = feeCalculationService.calculateFee(paymentTransaction, detailsParams, null);
-  paymentTransaction.setFee(fee);                                        
-
-  Result<String> result = 
-                    transactionHelperService.transfer(paymentTransaction, detailsParam);
-
-  if(result.isSuccessful())
-      System.out.println("Transaction Id: " + result.getValue());
-```
-#### Native Token transfer using High-Level Api
-```
- PaymentTransaction paymentTransaction =
-                PaymentTransaction.builder()
-                        .sender(sender)
-                        .receiver(receiver)
-                        .amount(BigInteger.valueOf(12))
-                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
-                        .build();
-
- //Calculate Time to Live        
-  long ttl = blockService.getLastestBlock().getValue().getSlot() + 1000;
-  TransactionDetailsParams detailsParams =
-                TransactionDetailsParams.builder()
-                        .ttl(ttl)
-                        .build();
-
-  //Calculate fee
-  BigInteger fee
-          = feeCalculationService.calculateFee(paymentTransaction, detailsParams, null);
-  paymentTransaction.setFee(fee); 
-                                            
- Result<String> result = transactionHelperService.transfer(paymentTransaction, detailsParam);
-
- if(result.isSuccessful())
-     System.out.println("Transaction Id: " + result.getValue());
-```
-
 #### ScriptHash
 ```
 Example: 1
@@ -352,37 +296,7 @@ ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
 String policyId = scriptAtLeast.getPolicyId();
 
 ```
-#### Token Minting transaction with High Level Api
-```
-MultiAsset multiAsset = new MultiAsset();
-multiAsset.setPolicyId(policyId);
 
-Asset asset = new Asset("testtoken"), BigInteger.valueOf(250000));
-multiAsset.getAssets().add(asset);
-
-MintTransaction mintTransaction = MintTransaction.builder()
-                        .sender(sender)
-                        .receiver(receiver)
-                        .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAtLeast)
-                        .policyKeys(Arrays.asList(sk2, sk3))
-                        .build();
-                        
-//Calculate Time to Live        
-long ttl = blockService.getLastestBlock().getValue().getSlot() + 1000;
-TransactionDetailsParams detailsParams =
-                TransactionDetailsParams.builder()
-                        .ttl(ttl)
-                        .build();
-
-//Calculate fee
-BigInteger fee
-          = feeCalculationService.calculateFee(mintTransaction, detailsParams, null);
-mintTransaction.setFee(fee);
-
-Result<String> result = transactionHelperService.mintToken(mintTransaction,
-                TransactionDetailsParams.builder().ttl(getTtl()).build());
-```
 #### Metadata
 ```
 CBORMetadataMap productDetailsMap
@@ -398,41 +312,26 @@ CBORMetadataList tagList
 Metadata metadata = new CBORMetadata()
                 .put(new BigInteger("670001"), productDetailsMap)
                 .put(new BigInteger("670002"), tagList);
-PaymentTransaction paymentTransaction =
-                PaymentTransaction.builder()
-                        ...
-                        .build();
-
-long ttl = blockService.getLastestBlock().getValue().getSlot() + 1000;
-TransactionDetailsParams detailsParams =
-                TransactionDetailsParams.builder()
-                        .ttl(ttl)
-                        .build();
-
-//Also add metadata for fee calculation
-BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, detailsParams, metadata);
-paymentTransaction.setFee(fee);
-
-//Send metadata as 3rd parameter
-Result<String> result
-                = transactionHelperService.transfer(paymentTransaction, detailsParams, metadata);
 ```
 
 #### UtxoSelectionStrategy in High Level Api
-The utxo selection strategy can be changed by providing a custom implementation of "UtxoSelectionStrategy" interface. By default, the high level api like TransactionHelperService uses a default out-of-box implementation "DefaultUtxoSelectionStrategyImpl". The default strategy is too simple and finds all required utxos sequentially. But it may not be efficient for some use cases.
+The utxo selection strategy can be changed by providing a custom implementation of ``UtxoSelectionStrategy`` interface. By default,
+the transaction builder apis use ``DefaultUtxoSelectionStrategyImpl`` which finds all required utxos sequentially. But it may not be efficient for some use cases.
 
-You can use a custom or different implementation of UtxoSelectionStrategy to change the default utxo selection behaviour. 
+You can use a custom or different implementation of ``UtxoSelectionStrategy`` to change the default utxo selection behaviour. 
+Out-of-box, the library provides two additional implementations of UtxoSelectionStrategy 
+   - LargestFirstUtxoSelectionStrategy 
+   - RandomImproveUtxoSelectionStrategy
+
+
+#### UtxoSupplier, ProtocolPramsSupplier
+
+You can get UtxoSupplier and ProtocolParamsSupplier from the backend service.
+Alternatively, you can create your own UtxoSupplier, ProtocolParamsSupplier and use it in the transaction builder api.
 
 ```
 UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(utxoService);
 ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(epochService);
-
-//Create TransactionHelperService with LargestFirst
-TransactionBuilder transactionBuilder = new TransactionBuilder(new LargestFirstUtxoSelectionStrategy(utxoSupplier), protocolParamsSupplier);
-TransactionHelperService transactionHelperService = new TransactionHelperService(transactionBuilder, new DefaultTransactionProcessor(transactionService));
-
-//Get FeeCalculationService using the above TransactionHelperService
-FeeCalculationService feeCalculationService = backendService.getFeeCalculationService(transactionHelperService);
 ```
 
 # Build
@@ -469,14 +368,13 @@ export BF_PROJECT_ID=<Blockfrost Preprod network Project Id>
 
 # Sponsors :sparkling_heart:
 <p align="center">
-  <a href="https://github.com/blockfrost"><img src="https://avatars.githubusercontent.com/u/70073210?s=45&v=4" width=45 height=45 /></a>
-  &nbsp;
-  <a href="https://github.com/KtorZ"><img src="https://avatars.githubusercontent.com/u/5680256?s=45&v=4" width=45 height=45 /></a>
-</p>
+ </p>
 
 # Previous Sponsors :sparkling_heart:
 
-<p align="center">&nbsp;
+<p >&nbsp;
+  <a href="https://github.com/blockfrost"><img src="https://avatars.githubusercontent.com/u/70073210?s=45&v=4" width=45 height=45 /></a>
+  <a href="https://github.com/KtorZ"><img src="https://avatars.githubusercontent.com/u/5680256?s=45&v=4" width=45 height=45 /></a>
   <a href="https://github.com/djcyr"><img src="https://avatars.githubusercontent.com/u/9329514?s=70&v=4" width="45" height="45" /></a>
 </p>
 
@@ -484,7 +382,7 @@ export BF_PROJECT_ID=<Blockfrost Preprod network Project Id>
 
 [BLOXB](https://www.bloxbean.com/cardano-staking/)
 
-[Support this project](https://cardano-client.bloxbean.com/docs/support-this-project)
+[Support this project](https://cardano-client.dev/docs/support-this-project)
 
 # Support from YourKit
 
