@@ -154,7 +154,7 @@ export default function HomepageExamples() {
                     </div>
                     <HomepageExample examples={quickTxExamples}/>
                 </TabItem>
-                <TabItem value="ComposableFunctions" title="Composable Functions">
+                <TabItem value="Composable Functions" title="Composable Functions">
                     {/*<div className="margin-top--lg text--center"><h1>Composable Functions</h1></div>*/}
                     <div className="alert alert--success" role="alert">
                         A flexible way to build transactions using out-of-box <strong>composable functions</strong> and
