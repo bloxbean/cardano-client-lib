@@ -5,26 +5,49 @@
  */
 
 /* You can override the default Infima variables here. */
+
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+    --ifm-color-primary: #3f4241;
+    --ifm-color-primary-dark: #393b3b;
+    --ifm-color-primary-darker: #363837;
+    --ifm-color-primary-darkest: #2c2e2d;
+    --ifm-color-primary-light: #454947;
+    --ifm-color-primary-lighter: #484c4b;
+    --ifm-color-primary-lightest: #525655;
+}
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+.purple-text {
+    color: rebeccapurple;
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
+/*.hero--primary {*/
+/*    background-color: #003883;*/
+/*}*/
+
+/* Overriding root Infima variables */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+    --ifm-color-primary: #4e89e8;
 }
+/* Styling one class specially in dark mode */
+[data-theme='dark'] .purple-text {
+    color: plum;
+}
+
+ul.features {
+    list-style: none; /* remove default bullet points */
+}
+
+ul.features li::before {
+    content: "\2713"; /* unicode character for a check mark */
+    color: mediumpurple; /* color of check mark */
+    border: 2px solid green; /* color and thickness of circle border */
+    border-radius: 50%; /* make the square background into a circle */
+    display: inline-block; /* necessary to add padding and size */
+    width: 20px; /* size of circle */
+    height: 20px; /* size of circle */
+    text-align: center; /* center the check mark */
+    line-height: 20px; /* vertically center the check mark, should be the same as height */
+    margin-right: 10px; /* space between bullet and text */
+    background-color: transparent; /* color of circle */
+}
+

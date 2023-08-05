@@ -7,7 +7,7 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: 'Cardano Client Lib',
-  tagline: 'A Client Library for Cardano in Java',
+  tagline: 'A Java Library for Simplifying Transactions, Token Minting, Address Derivation, and CIP Implementations for Applications on the Cardano Blockchain!',
   url: 'https://cardano-client.bloxbean.com',
   baseUrl: '/',
   onBrokenLinks: 'throw',
@@ -125,6 +125,7 @@ const config = {
         theme: require('prism-react-renderer/themes/dracula'),
         // theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
+        additionalLanguages: ['java'],
       },
     }),
 };

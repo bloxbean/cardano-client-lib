@@ -87,61 +87,6 @@ Output output1 = Output.builder()
  Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
 ```
 
-## Simple ADA Payment transaction (High Level Api)
-```
-  PaymentTransaction paymentTransaction = PaymentTransaction.builder()
-                                            .sender(sender)
-                                            .receiver(receiver)
-                                            .amount(BigInteger.valueOf(1500000))
-                                            .unit("lovelace")
-                                            .build();
-          
-  //Calculate Time to Live        
-  long ttl = blockService.getLastestBlock().getValue().getSlot() + 1000;
-  TransactionDetailsParams detailsParams =
-                TransactionDetailsParams.builder()
-                        .ttl(ttl)
-                        .build();
-
-  //Calculate fee
-  BigInteger fee
-          = feeCalculationService.calculateFee(paymentTransaction, detailsParams, null);
-  paymentTransaction.setFee(fee);                                        
-
-  Result<String> result = 
-                    transactionHelperService.transfer(paymentTransaction, detailsParam);
-
-  if(result.isSuccessful())
-      System.out.println("Transaction Id: " + result.getValue());
-```
-## Native Token transfer
-```
- PaymentTransaction paymentTransaction =
-                PaymentTransaction.builder()
-                        .sender(sender)
-                        .receiver(receiver)
-                        .amount(BigInteger.valueOf(12))
-                        .unit("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e")
-                        .build();
-
- //Calculate Time to Live        
-  long ttl = blockService.getLastestBlock().getValue().getSlot() + 1000;
-  TransactionDetailsParams detailsParams =
-                TransactionDetailsParams.builder()
-                        .ttl(ttl)
-                        .build();
-
-  //Calculate fee
-  BigInteger fee
-          = feeCalculationService.calculateFee(paymentTransaction, detailsParams, null);
-  paymentTransaction.setFee(fee); 
-                                            
- Result<String> result = transactionHelperService.transfer(paymentTransaction, detailsParam);
-
- if(result.isSuccessful())
-     System.out.println("Transaction Id: " + result.getValue());
-```
-
 ## ScriptHash
 ```
 Example: 1
@@ -168,85 +113,20 @@ ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
 String policyId = scriptAtLeast.getPolicyId();
 
 ```
-## Token Minting transaction
-```
-MultiAsset multiAsset = new MultiAsset();
-multiAsset.setPolicyId(policyId);
 
-Asset asset = new Asset("testtoken"), BigInteger.valueOf(250000));
-multiAsset.getAssets().add(asset);
-
-MintTransaction mintTransaction = MintTransaction.builder()
-                        .sender(sender)
-                        .receiver(receiver)
-                        .mintAssets(Arrays.asList(multiAsset))
-                        .policyScript(scriptAtLeast)
-                        .policyKeys(Arrays.asList(sk2, sk3))
-                        .build();
-                        
-//Calculate Time to Live        
-long ttl = blockService.getLastestBlock().getValue().getSlot() + 1000;
-TransactionDetailsParams detailsParams =
-                TransactionDetailsParams.builder()
-                        .ttl(ttl)
-                        .build();
-
-//Calculate fee
-BigInteger fee
-          = feeCalculationService.calculateFee(mintTransaction, detailsParams, null);
-mintTransaction.setFee(fee);
-
-Result<String> result = transactionHelperService.mintToken(mintTransaction,
-                TransactionDetailsParams.builder().ttl(getTtl()).build());
-```
 ## Metadata
 ```
 CBORMetadataMap productDetailsMap
                 = new CBORMetadataMap()
-                .put("code", "PROD-800")
-                .put("slno", "SL20000039484");
+                    .put("code", "PROD-800")
+                    .put("slno", "SL20000039484");
 
 CBORMetadataList tagList
                 = new CBORMetadataList()
-                .add("laptop")
-                .add("computer");
+                    .add("laptop")
+                    .add("computer");
 
 Metadata metadata = new CBORMetadata()
-                .put(new BigInteger("670001"), productDetailsMap)
-                .put(new BigInteger("670002"), tagList);
-PaymentTransaction paymentTransaction =
-                PaymentTransaction.builder()
-                        ...
-                        .build();
-
-long ttl = blockService.getLastestBlock().getValue().getSlot() + 1000;
-TransactionDetailsParams detailsParams =
-                TransactionDetailsParams.builder()
-                        .ttl(ttl)
-                        .build();
-
-//Also add metadata for fee calculation
-BigInteger fee = feeCalculationService.calculateFee(paymentTransaction, detailsParams, metadata);
-paymentTransaction.setFee(fee);
-
-//Send metadata as 3rd parameter
-Result<String> result
-                = transactionHelperService.transfer(paymentTransaction, detailsParams, metadata);
-```
-
-## UtxoSelectionStrategy
-The utxo selection strategy can be changed by providing a custom implementation of "UtxoSelectionStrategy" interface. By default, the high level api like TransactionHelperService uses a default out-of-box implementation "DefaultUtxoSelectionStrategyImpl". The default strategy is too simple and finds all required utxos sequentially. But it may not be efficient for some usecases.
-
-You can use a custom or different implementation of UtxoSelectionStrategy to change the default utxo selection behaviour.
-
-```
-UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(utxoService);
-ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(epochService);
-
-//Create TransactionHelperService with LargestFirst
-TransactionBuilder transactionBuilder = new TransactionBuilder(new LargestFirstUtxoSelectionStrategy(utxoSupplier), protocolParamsSupplier);
-TransactionHelperService transactionHelperService = new TransactionHelperService(transactionBuilder, new DefaultTransactionProcessor(transactionService));
-
-//Get FeeCalculationService using the above TransactionHelperService
-FeeCalculationService feeCalculationService = backendService.getFeeCalculationService(transactionHelperService);
+                    .put(new BigInteger("670001"), productDetailsMap)
+                    .put(new BigInteger("670002"), tagList);
 ```
