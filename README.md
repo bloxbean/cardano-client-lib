@@ -14,8 +14,8 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 ### **Latest Preview Version**: [0.5.0-alpha.4](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0-alpha.4)
 
 ### **Tutorials**
-- [Simple Ada transfer](https://cardano-client.bloxbean.com/docs/gettingstarted/simple-transfer)
-- [Multisig transfer using Native Script](https://cardano-client.bloxbean.com/docs/gettingstarted/multisig-quickstart)
+- [Simple Ada transfer](https://cardano-client.dev/docs/gettingstarted/simple-transfer)
+- [Multisig transfer using Native Script](https://cardano-client.dev/docs/gettingstarted/multisig-quickstart)
 
 ### More details --> [Documentation](https://cardano-client.dev/)
 
@@ -382,7 +382,7 @@ export BF_PROJECT_ID=<Blockfrost Preprod network Project Id>
 
 [BLOXB](https://www.bloxbean.com/cardano-staking/)
 
-[Support this project](https://cardano-client.bloxbean.com/docs/support-this-project)
+[Support this project](https://cardano-client.dev/docs/support-this-project)
 
 # Support from YourKit
 
