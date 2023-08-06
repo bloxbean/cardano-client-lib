@@ -15,7 +15,9 @@ import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -42,6 +44,9 @@ public class TxBuilderContext {
     //Stores utxos used in the transaction.
     //This list is cleared after each build() call.
     private Set<Utxo> utxos = new HashSet<>();
+
+    @Setter(AccessLevel.NONE)
+    private boolean mergeOutputs = true;
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
         this(utxoSupplier, protocolParamsSupplier.getProtocolParams());
@@ -93,6 +98,15 @@ public class TxBuilderContext {
 
     public TxBuilderContext withCostMdls(CostMdls costMdls) {
         this.costMdls = costMdls;
+        return this;
+    }
+
+    /**
+     * If true, the outputs will be merged if there are multiple outputs with same address. Default is true.
+     * @param mergeOutputs
+     */
+    public TxBuilderContext mergeOutputs(boolean mergeOutputs) {
+        this.mergeOutputs = mergeOutputs;
         return this;
     }
 
