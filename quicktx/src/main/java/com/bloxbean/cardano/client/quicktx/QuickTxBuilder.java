@@ -20,7 +20,6 @@ import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
-import com.bloxbean.cardano.client.function.helper.OutputMergers;
 import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
@@ -121,7 +120,7 @@ public class QuickTxBuilder {
         private long validFrom;
         private long validTo;
 
-        private boolean mergeChangeOutputs = true;
+        private boolean mergeOutputs = true;
 
         private TransactionEvaluator txnEvaluator;
         private UtxoSelectionStrategy utxoSelectionStrategy;
@@ -216,6 +215,9 @@ public class QuickTxBuilder {
             int totalSigners = getTotalSigners();
 
             TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier);
+            //Set merge outputs flag
+            txBuilderContext.mergeOutputs(mergeOutputs);
+
             //Set tx evaluator for script cost calculation
             if (txnEvaluator != null)
                 txBuilderContext.withTxnEvaluator(txnEvaluator);
@@ -247,10 +249,6 @@ public class QuickTxBuilder {
                     collateralPayer = feePayer;
                 txBuilder = txBuilder.andThen(buildCollateralOutput(collateralPayer));
             }
-
-            //Merge outputs if required
-            if (mergeChangeOutputs)
-                txBuilder = txBuilder.andThen(OutputMergers.mergeOutputsForAddress(feePayer));
 
             if (containsScriptTx) {
                 txBuilder = txBuilder.andThen(((context, transaction) -> {
@@ -465,14 +463,14 @@ public class QuickTxBuilder {
         }
 
         /**
-         * Define if change outputs should be merged or not
+         * Define if outputs with the same address should be merged into one output.
          * Default is true
          *
          * @param merge
          * @return TxContext
          */
-        public TxContext mergeChangeOutputs(boolean merge) {
-            this.mergeChangeOutputs = merge;
+        public TxContext mergeOutputs(boolean merge) {
+            this.mergeOutputs = merge;
             return this;
         }
 
