@@ -293,7 +293,7 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withSigner(SignerProviders.signerFrom(sender2))
-                .mergeChangeOutputs(false)
+                .mergeOutputs(false)
                 .withTxInspector(txn -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
@@ -374,7 +374,7 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender2))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
-                .mergeChangeOutputs(false)
+                .mergeOutputs(false)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -455,7 +455,7 @@ public class ScriptTxIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender2))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
-                .mergeChangeOutputs(false)
+                .mergeOutputs(false)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -491,7 +491,7 @@ public class ScriptTxIT extends QuickTxBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
-                .mergeChangeOutputs(false)
+                .mergeOutputs(false)
                 .withTxInspector(tx -> System.out.println(JsonUtil.getPrettyJson(tx)))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)

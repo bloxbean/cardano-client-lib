@@ -38,6 +38,7 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static com.bloxbean.cardano.client.quicktx.verifiers.TxVerifiers.outputAmountVerifier;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class QuickTxBuilderIT extends QuickTxBaseIT {
     BackendService backendService;
@@ -764,6 +765,67 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
         System.out.println(burnResult);
         assertTrue(burnResult.isSuccessful());
+    }
+
+    @Test
+    void simplePayment_mergeOutputsIsTrue() throws CborSerializationException {
+       Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(sender1Addr, Amount.ada(1))
+                .mintAssets(policy.getPolicyScript(), new Asset("MyAsset", BigInteger.valueOf(1)), receiver1)
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(policy))
+                .withTxInspector(transaction -> {
+                    assertThat(transaction.getBody().getOutputs()).hasSize(2);
+                    assertThat(transaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(receiver1);
+                    assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin()).isGreaterThanOrEqualTo(adaToLovelace(1));
+                    assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets()).hasSize(1);
+
+                    assertThat(transaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(sender1Addr);
+                    assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin()).isGreaterThanOrEqualTo(adaToLovelace(1));
+                })
+                .completeAndWait(System.out::println);
+
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void simplePayment_mergeOutputsIsFalse() throws CborSerializationException {
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(sender1Addr, Amount.ada(1))
+                .mintAssets(policy.getPolicyScript(), new Asset("MyAsset", BigInteger.valueOf(1)), receiver1)
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(policy))
+                .mergeOutputs(false)
+                .withTxInspector(transaction -> {
+                    assertThat(transaction.getBody().getOutputs()).hasSize(3);
+                    assertThat(transaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(sender1Addr);
+                    assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin()).isEqualTo(adaToLovelace(1));
+                    assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets()).hasSize(0);
+
+                    assertThat(transaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(receiver1);
+                    assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin()).isGreaterThanOrEqualTo(adaToLovelace(1));
+                    assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets()).hasSize(1);
+
+                    assertThat(transaction.getBody().getOutputs().get(2).getAddress()).isEqualTo(sender1Addr);
+                    assertThat(transaction.getBody().getOutputs().get(2).getValue().getCoin()).isGreaterThan(adaToLovelace(1));
+                })
+                .completeAndWait(System.out::println);
+
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }
 
 }

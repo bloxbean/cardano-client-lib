@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.BaseITTest;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
@@ -37,6 +39,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static com.bloxbean.cardano.client.function.helper.AuxDataProviders.metadataProvider;
 import static com.bloxbean.cardano.client.function.helper.BalanceTxBuilders.balanceTx;
 import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromSender;
+import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromUtxos;
 import static com.bloxbean.cardano.client.function.helper.MintCreators.mintCreator;
 import static com.bloxbean.cardano.client.function.helper.OutputBuilders.createFromMintOutput;
 import static com.bloxbean.cardano.client.function.helper.SignerProviders.signerFrom;
@@ -799,6 +802,143 @@ public class TxBuilderContextIT extends BaseITTest {
         else
             System.out.println("Transaction failed: " + result);
 
+        waitForTransaction(result);
+    }
+
+    @Test
+    void testPayment_withMinUtxoValue_mergeOutputsIsTrue() throws Exception {
+        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String senderAddress = sender.baseAddress();
+
+        String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("policy-1", 1);
+
+        //Multi asset and NFT metadata
+        //NFT-1
+        MultiAsset multiAsset1 = new MultiAsset();
+        multiAsset1.setPolicyId(policy.getPolicyId());
+        Asset asset = new Asset("TestNFT", BigInteger.valueOf(100));
+        multiAsset1.getAssets().add(asset);
+
+        //Define outputs
+        //Output using Output class
+        Output mintOutput = Output.builder()
+                .address(senderAddress)
+                .policyId(policy.getPolicyId())
+                .assetName("TestNFT")
+                .qty(BigInteger.valueOf(100))
+                .build();
+
+        Output feeOutput = Output.builder()
+                .address(receiver1)
+                .assetName(LOVELACE)
+                .qty(adaToLovelace(1))
+                .build();
+
+        //Create TxBuilder function
+        TxBuilder txBuilder =
+                mintOutput.mintOutputBuilder()
+                        .and(feeOutput.mintOutputBuilder())
+                        .buildInputs(createFromSender(senderAddress, senderAddress))
+                        .andThen(mintCreator(policy.getPolicyScript(), multiAsset1))
+                        .andThen(balanceTx(senderAddress, 2));
+
+        //Build and sign transaction
+        Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+
+        //asserts
+        assertThat(signedTransaction.getBody().getOutputs()).hasSize(2);
+        assertThat(signedTransaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(receiver1);
+        assertThat(signedTransaction.getBody().getOutputs().get(0).getValue().getCoin()).isEqualTo(adaToLovelace(1));
+        assertThat(signedTransaction.getBody().getOutputs().get(0).getValue().getMultiAssets()).isEmpty();
+
+        assertThat(signedTransaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(senderAddress);
+        assertThat(signedTransaction.getBody().getOutputs().get(1).getValue().getMultiAssets().size()).isGreaterThanOrEqualTo(1);
+
+        Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+        System.out.println(result);
+
+        if (result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+    }
+
+    @Test
+    void testPayment_withCreateFromUtxos_withMinUtxoValue_mergeOutputsIsFalse() throws Exception {
+        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
+        Account sender = new Account(Networks.testnet(), senderMnemonic);
+        String senderAddress = sender.baseAddress();
+
+        String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+
+        Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("policy-1", 1);
+
+        //Multi asset and NFT metadata
+        //NFT-1
+        MultiAsset multiAsset1 = new MultiAsset();
+        multiAsset1.setPolicyId(policy.getPolicyId());
+        Asset asset = new Asset("TestNFT", BigInteger.valueOf(100));
+        multiAsset1.getAssets().add(asset);
+
+        //Define outputs
+        //Output using Output class
+        Output mintOutput = Output.builder()
+                .address(senderAddress)
+                .policyId(policy.getPolicyId())
+                .assetName("TestNFT")
+                .qty(BigInteger.valueOf(100))
+                .build();
+
+        Output feeOutput = Output.builder()
+                .address(receiver1)
+                .assetName(LOVELACE)
+                .qty(adaToLovelace(1))
+                .build();
+
+        List<Utxo> utxos = backendService.getUtxoService().getUtxos(senderAddress, 10, 0).getValue();
+        if (utxos == null)
+            utxos = Collections.emptyList();
+
+        //Create TxBuilder function
+        TxBuilder txBuilder =
+                mintOutput.mintOutputBuilder()
+                        .and(feeOutput.mintOutputBuilder())
+                        .buildInputs(createFromUtxos(utxos, senderAddress))
+                        .andThen(mintCreator(policy.getPolicyScript(), multiAsset1))
+                        .andThen(balanceTx(senderAddress, 2));
+
+        //Build and sign transaction
+        Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .mergeOutputs(false)
+                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+
+        Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+        System.out.println(result);
+
+        //asserts
+        assertThat(signedTransaction.getBody().getOutputs()).hasSize(3);
+        assertThat(signedTransaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(senderAddress);
+        assertThat(signedTransaction.getBody().getOutputs().get(0).getValue().getMultiAssets()).hasSize(1);
+
+        assertThat(signedTransaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(receiver1);
+        assertThat(signedTransaction.getBody().getOutputs().get(1).getValue().getCoin()).isEqualTo(adaToLovelace(1));
+        assertThat(signedTransaction.getBody().getOutputs().get(1).getValue().getMultiAssets()).isEmpty();
+
+        assertThat(signedTransaction.getBody().getOutputs().get(2).getAddress()).isEqualTo(senderAddress);
+
+        if (result.isSuccessful())
+            System.out.println("Transaction Id: " + result.getValue());
+        else
+            System.out.println("Transaction failed: " + result);
+
+        assertTrue(result.isSuccessful());
         waitForTransaction(result);
     }
 
