@@ -9,11 +9,13 @@ import java.util.List;
 
 /**
  * For payment transaction both in ADA (Lovelace) or Native tokens
+ *  @deprecated Use Composable Functions API or QuickTx API to build transaction
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Deprecated(since = "0.5.0")
 public class PaymentTransaction extends TransactionRequest {
     private String unit;
     private BigInteger amount;

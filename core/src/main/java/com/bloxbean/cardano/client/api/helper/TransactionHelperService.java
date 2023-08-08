@@ -19,8 +19,10 @@ import java.util.List;
 /**
  * Helper service to build transaction request from high level transaction request apis and submit to the network.
  * To build the final transaction request, this class uses {@link TransactionBuilder}
+ *  @deprecated Use Composable Functions API or QuickTx API to build transaction
  */
 @Slf4j
+@Deprecated(since = "0.5.0")
 public class TransactionHelperService {
 
     private TransactionProcessor transactionProcessor;

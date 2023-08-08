@@ -15,11 +15,13 @@ import java.util.List;
 
 /**
  * This class is used while minting a new native token
+ * @deprecated Use Composable Functions API or QuickTx API to build transaction
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Deprecated(since = "0.5.0")
 public class MintTransaction extends TransactionRequest {
 
     private List<MultiAsset> mintAssets;

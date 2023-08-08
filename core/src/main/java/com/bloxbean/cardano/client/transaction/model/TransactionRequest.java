@@ -12,6 +12,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Deprecated(since = "0.5.0")
 public abstract class TransactionRequest {
     protected Account sender;
     protected String receiver;
