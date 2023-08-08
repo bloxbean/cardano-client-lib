@@ -7,10 +7,10 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.MajorType;
 import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.SimpleValue;
+import com.google.common.primitives.UnsignedBytes;
 
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.TreeMap;
 
@@ -76,7 +76,7 @@ public class CustomMapEncoder extends MapEncoder {
          * lexical order sorts earlier.
          */
 
-        TreeMap<byte[], byte[]> sortedMap = new TreeMap<>(Arrays::compareUnsigned);
+        TreeMap<byte[], byte[]> sortedMap = new TreeMap<>(UnsignedBytes.lexicographicalComparator());
 
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         CborEncoder e = new CustomCborEncoder(byteArrayOutputStream);
