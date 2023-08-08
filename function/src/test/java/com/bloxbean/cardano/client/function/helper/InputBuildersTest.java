@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
+import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import com.bloxbean.cardano.client.function.BaseTest;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
@@ -16,7 +18,6 @@ import com.bloxbean.cardano.client.function.TxInputBuilder;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -54,6 +56,8 @@ class InputBuildersTest extends BaseTest {
     public static final String LIST_6 = "list6-multiassets-insufficientADA_Error";
     public static final String LIST_7 = "list7-insufficient-change-amount";
     public static final String LIST_8 = "list8-insufficient-change-amount-with-native-token";
+    public static final String LIST_9 = "list9-merge_outputs_true";
+    public static final String LIST_10 = "list10-merge_outputs_false";
 
     @Mock
     UtxoSupplier utxoSupplier;
@@ -698,6 +702,107 @@ class InputBuildersTest extends BaseTest {
                             )).build()
             );
             return utxos;
+        }
+    }
+
+    @Nested
+    class MergeOutputsTest {
+        @Test
+        void createFromSender_whenMergeOutputsIsTrue() throws IOException, CborSerializationException {
+            List<Utxo> utxos = loadUtxos(LIST_9);
+            given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+            given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
+
+            Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("policy", 1);
+
+            List<MultiAsset> mintAssets = new ArrayList<>();
+            List<Asset> assets = new ArrayList<>();
+            assets.add(new Asset("asset1", BigInteger.valueOf(1)));
+            mintAssets.add(
+                    MultiAsset.builder()
+                            .policyId(policy.getPolicyId())
+                            .assets(assets).build()
+            );
+
+            List<TransactionOutput> outputs = new ArrayList<>();
+            outputs.add(TransactionOutput.builder()
+                    .address("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c")
+                    .value(Value.builder().coin(adaToLovelace(1)).build())
+                    .build()
+            );
+            outputs.add(TransactionOutput.builder()
+                    .address(sender)
+                    .value(Value.builder().coin(BigInteger.ZERO)
+                            .multiAssets(mintAssets).build()).build());
+
+            TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+            context.setMintMultiAssets(mintAssets);
+
+            TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, sender)
+                    .apply(context, outputs);
+
+            //assert inputs
+            assertThat(inputResult.getInputs()).hasSize(1);
+            assertThat(outputs.size()).isEqualTo(1);
+            assertThat(inputResult.getChanges()).hasSize(1);
+            assertThat(inputResult.getChanges().get(0).getAddress()).isEqualTo(sender);
+            assertThat(inputResult.getChanges().get(0).getValue().getCoin()).isGreaterThan(adaToLovelace(1));
+            assertThat(inputResult.getChanges().get(0).getValue().getMultiAssets()).hasSize(1);
+
+            assertThat(outputs.get(0).getAddress()).isEqualTo("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c");
+            assertThat(outputs.get(0).getValue().getCoin()).isEqualTo(adaToLovelace(1));
+            assertThat(outputs.get(0).getValue().getMultiAssets()).isEmpty();
+        }
+
+        @Test
+        void createFromSender_whenMergeOutputsIsFalse() throws IOException, CborSerializationException {
+            List<Utxo> utxos = loadUtxos(LIST_10);
+            given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+            given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
+
+            Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("policy", 1);
+            List<MultiAsset> mintAssets = new ArrayList<>();
+            List<Asset> assets = new ArrayList<>();
+            assets.add(new Asset("asset1", BigInteger.valueOf(1)));
+            mintAssets.add(
+                    MultiAsset.builder()
+                            .policyId(policy.getPolicyId())
+                            .assets(assets).build()
+            );
+
+            List<TransactionOutput> outputs = new ArrayList<>();
+            outputs.add(TransactionOutput.builder()
+                    .address("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c")
+                    .value(Value.builder().coin(adaToLovelace(1)).build())
+                    .build()
+            );
+            outputs.add(TransactionOutput.builder()
+                    .address(sender)
+                    .value(Value.builder().coin(adaToLovelace(1.2))
+                            .multiAssets(mintAssets).build()).build());
+
+            TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+            context.mergeOutputs(false);
+            context.setMintMultiAssets(mintAssets);
+
+            TxInputBuilder.Result inputResult = InputBuilders.createFromSender(sender, sender)
+                    .apply(context, outputs);
+
+            //assert inputs
+            assertThat(inputResult.getInputs()).hasSize(1);
+            assertThat(outputs.size()).isEqualTo(2);
+            assertThat(inputResult.getChanges()).hasSize(1);
+            assertThat(inputResult.getChanges().get(0).getAddress()).isEqualTo(sender);
+            assertThat(inputResult.getChanges().get(0).getValue().getCoin()).isGreaterThan(adaToLovelace(1));
+            assertThat(inputResult.getChanges().get(0).getValue().getMultiAssets()).hasSize(0);
+
+            assertThat(outputs.get(0).getAddress()).isEqualTo("addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c");
+            assertThat(outputs.get(0).getValue().getCoin()).isEqualTo(adaToLovelace(1));
+            assertThat(outputs.get(0).getValue().getMultiAssets()).isEmpty();
+
+            assertThat(outputs.get(1).getAddress()).isEqualTo(sender);
+            assertThat(outputs.get(1).getValue().getCoin()).isEqualTo(adaToLovelace(1.2));
+            assertThat(outputs.get(1).getValue().getMultiAssets()).hasSize(1);
         }
     }
 }

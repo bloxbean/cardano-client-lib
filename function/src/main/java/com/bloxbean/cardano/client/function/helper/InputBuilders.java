@@ -42,6 +42,8 @@ public class InputBuilders {
      * @throws ApiRuntimeException if api error
      */
     public static TxInputBuilder createFromSender(String sender, String changeAddress) {
+        Objects.requireNonNull(sender, "Sender address cannot be null");
+        Objects.requireNonNull(changeAddress, "Change address cannot be null");
 
         return ((context, outputs) -> {
             if ((outputs == null || outputs.size() == 0)
@@ -75,7 +77,9 @@ public class InputBuilders {
 
             if (utxoSet != null && !utxoSet.isEmpty()) {
                 //Copy assets to change address
-                TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
+                TransactionOutput changeOutput = getChangeOutput(outputs, changeAddress, context.isMergeOutputs());
+                outputs.remove(changeOutput); //Remove change output from outputs as it will be added to changeOutput List later. If it's a new output, nothing will happen
+
                 utxoSet.stream().forEach(utxo -> {
                     UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
                     context.addUtxo(utxo); //Add used utxos to context
@@ -255,6 +259,8 @@ public class InputBuilders {
      * @return <code>{@link TxInputBuilder}</code> function
      */
     public static TxInputBuilder createFromUtxos(Supplier<List<Utxo>> supplier, String changeAddress, String datumHash) {
+        Objects.requireNonNull(changeAddress, "Change address cannot be null");
+
         return (context, outputs) -> {
             //Total value required
             Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
@@ -284,7 +290,9 @@ public class InputBuilders {
             List<TransactionOutput> changeOutputs = new ArrayList<>();
             if (changeAddress != null && !changeAddress.isEmpty()) {
                 //Copy assets to change address
-                TransactionOutput changeOutput = new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
+                TransactionOutput changeOutput = getChangeOutput(outputs, changeAddress, context.isMergeOutputs());
+                outputs.remove(changeOutput); //Remove change output from outputs. This will be added to changeOutputs
+
                 utxos.forEach(utxo -> {
                     UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
                     context.addUtxo(utxo); //Add used utxo to context
@@ -411,6 +419,19 @@ public class InputBuilders {
             else
                 transaction.getBody().getReferenceInputs().addAll(referenceInputs);
         };
+    }
+
+    private static TransactionOutput getChangeOutput(List<TransactionOutput> outputs, String changeAddress, boolean isMergeOutputs) {
+        if (changeAddress == null || changeAddress.isEmpty())
+            throw new TxBuildException("Change address is required");
+
+        if (!isMergeOutputs) //If merge outputs is false, return a separate change output
+            return new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
+
+        return outputs.stream()
+                .filter(output -> output.getAddress().equals(changeAddress))
+                .findFirst()
+                .orElse(new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>())));
     }
 
 }

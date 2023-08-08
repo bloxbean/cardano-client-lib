@@ -450,5 +450,36 @@
       "block": "eee6cd082d297f85406cff49f83aa3ebd1083dae3c8997ec03f4a17f49297bf6",
       "data_hash": null
     }
+  ],
+
+  "list9-merge_outputs_true": [
+    {
+      "tx_hash": "d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "3200000"
+        }
+      ],
+      "block": "eee6cd082d297f85406cff49f83aa3ebd1083dae3c8997ec03f4a17f49297bf6",
+      "data_hash": null
+    }
+  ],
+  "list10-merge_outputs_false": [
+    {
+      "tx_hash": "d60669420bc15d3f359b74f5177cd4035325c22f7a67cf96d466472acf145ecb",
+      "tx_index": 0,
+      "output_index": 0,
+      "amount": [
+        {
+          "unit": "lovelace",
+          "quantity": "5000000"
+        }
+      ],
+      "block": "eee6cd082d297f85406cff49f83aa3ebd1083dae3c8997ec03f4a17f49297bf6",
+      "data_hash": null
+    }
   ]
 }

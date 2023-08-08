@@ -113,21 +113,29 @@ public class OutputBuilders {
                         .forEach(context::addMintMultiAsset);
             }
 
-            outputs.stream().filter(to -> address.equals(to.getAddress()))
-                    .findFirst()
-                    .ifPresentOrElse(to -> {
-                        Value newValue = to.getValue().plus(value);
-                        to.setValue(newValue);
-                        copyDatumAndScriptRef(txnOutput, to);
+            if (context.isMergeOutputs()) {
+                outputs.stream().filter(to -> address.equals(to.getAddress()))
+                        .findFirst()
+                        .ifPresentOrElse(to -> {
+                            Value newValue = to.getValue().plus(value);
+                            to.setValue(newValue);
+                            copyDatumAndScriptRef(txnOutput, to);
 
-                        checkIfMinAdaIsThere(context, to, minAdaChecker);
-                    }, () -> {
-                        TransactionOutput output = new TransactionOutput(address, value);
-                        copyDatumAndScriptRef(txnOutput, output);
+                            checkIfMinAdaIsThere(context, to, minAdaChecker);
+                        }, () -> {
+                            TransactionOutput output = new TransactionOutput(address, value);
+                            copyDatumAndScriptRef(txnOutput, output);
 
-                        checkIfMinAdaIsThere(context, output, minAdaChecker);
-                        outputs.add(output);
-                    });
+                            checkIfMinAdaIsThere(context, output, minAdaChecker);
+                            outputs.add(output);
+                        });
+            } else {
+                TransactionOutput output = new TransactionOutput(address, value);
+                copyDatumAndScriptRef(txnOutput, output);
+
+                checkIfMinAdaIsThere(context, output, minAdaChecker);
+                outputs.add(output);
+            }
         };
     }
 
@@ -141,43 +149,59 @@ public class OutputBuilders {
             tc.addMintMultiAsset(multiAsset);
         }
 
-        outputs.stream().filter(to -> output.getAddress().equals(to.getAddress()))
-                .findFirst()
-                .ifPresentOrElse(to -> {
-                    Value newValue = to.getValue().plus(new Value(BigInteger.ZERO, List.of(multiAsset)));
-                    to.setValue(newValue);
-                    copyDatumAndScriptRef(output, to);
+        if (tc.isMergeOutputs()) {
+            outputs.stream().filter(to -> output.getAddress().equals(to.getAddress()))
+                    .findFirst()
+                    .ifPresentOrElse(to -> {
+                        Value newValue = to.getValue().plus(new Value(BigInteger.ZERO, List.of(multiAsset)));
+                        to.setValue(newValue);
+                        copyDatumAndScriptRef(output, to);
 
-                    checkIfMinAdaIsThere(tc, to, minAdaChecker);
-                }, () -> {
-                    TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(BigInteger.ZERO, List.of(multiAsset)));
-                    copyDatumAndScriptRef(output, to);
+                        checkIfMinAdaIsThere(tc, to, minAdaChecker);
+                    }, () -> {
+                        TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(BigInteger.ZERO, List.of(multiAsset)));
+                        copyDatumAndScriptRef(output, to);
 
-                    checkIfMinAdaIsThere(tc, to, minAdaChecker);
-                    outputs.add(to);
-                });
+                        checkIfMinAdaIsThere(tc, to, minAdaChecker);
+                        outputs.add(to);
+                    });
+        } else {
+            TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(BigInteger.ZERO, List.of(multiAsset)));
+            copyDatumAndScriptRef(output, to);
+
+            checkIfMinAdaIsThere(tc, to, minAdaChecker);
+            outputs.add(to);
+        }
     }
 
     private static void handleLovelaceOutput(Output output, MinAdaChecker minAdaChecker, TxBuilderContext tc,
                                              List<TransactionOutput> outputs) {
 
-        outputs.stream().filter(to -> output.getAddress().equals(to.getAddress()))
-                .findFirst()
-                .ifPresentOrElse(to -> {
-                            BigInteger newCoinAmt = to.getValue().getCoin().add(output.getQty());
-                            to.getValue().setCoin(newCoinAmt);
-                            copyDatumAndScriptRef(output, to);
+        if (tc.isMergeOutputs()) {
+            outputs.stream().filter(to -> output.getAddress().equals(to.getAddress()))
+                    .findFirst()
+                    .ifPresentOrElse(to -> {
+                                BigInteger newCoinAmt = to.getValue().getCoin().add(output.getQty());
+                                to.getValue().setCoin(newCoinAmt);
+                                copyDatumAndScriptRef(output, to);
 
-                            checkIfMinAdaIsThere(tc, to, minAdaChecker);
-                        },
-                        () -> {
-                            TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(output.getQty(), new ArrayList<>()));
-                            copyDatumAndScriptRef(output, to);
+                                checkIfMinAdaIsThere(tc, to, minAdaChecker);
+                            },
+                            () -> {
+                                TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(output.getQty(), new ArrayList<>()));
+                                copyDatumAndScriptRef(output, to);
 
-                            checkIfMinAdaIsThere(tc, to, minAdaChecker);
-                            outputs.add(to);
-                        }
-                );
+                                checkIfMinAdaIsThere(tc, to, minAdaChecker);
+                                outputs.add(to);
+                            }
+                    );
+        } else {
+            TransactionOutput to = new TransactionOutput(output.getAddress(), new Value(output.getQty(), new ArrayList<>()));
+            copyDatumAndScriptRef(output, to);
+
+            checkIfMinAdaIsThere(tc, to, minAdaChecker);
+            outputs.add(to);
+        }
     }
 
     private static void copyDatumAndScriptRef(Output output, TransactionOutput to) {
