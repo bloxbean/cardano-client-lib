@@ -1,6 +1,7 @@
 dependencies {
     api(libs.co.nstant.in.cbor)
     api(libs.jackson.databind)
+    implementation(libs.guava)
 }
 
 publishing {
