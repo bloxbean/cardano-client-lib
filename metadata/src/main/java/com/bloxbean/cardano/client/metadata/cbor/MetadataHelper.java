@@ -49,14 +49,13 @@ public class MetadataHelper {
             throw new RuntimeException("Unknown object type : " + value.getClass());
         }
     }
-
     public static int checkLength(String str) {
         if (str == null) {
             return 0;
         } else if (str.getBytes(StandardCharsets.UTF_8).length > 64) {
-            log.error("Strings in metadata must be at most 64 bytes when UTF-8 encoded. >> " + str);
-            //TODO -- throw error ?
+            log.warn("Strings in metadata must be at most 64 bytes when UTF-8 encoded (auto converted to list of max 64 bytes). >> " + str);
         }
         return str.getBytes(StandardCharsets.UTF_8).length;
     }
+
 }
