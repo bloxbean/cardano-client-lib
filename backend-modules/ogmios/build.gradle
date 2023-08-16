@@ -1,6 +1,5 @@
 dependencies {
     api project(':core')
-    api project(':function')
     api project(':backend')
 
     api (libs.ogmios.java) {
@@ -18,6 +17,8 @@ dependencies {
     //test dependencies
     testImplementation project(':cip:cip25')
     testImplementation project(':cip:cip20')
+    integrationTestImplementation project(':function')
+    integrationTestImplementation project(':quicktx')
 }
 
 publishing {

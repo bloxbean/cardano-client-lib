@@ -8,6 +8,8 @@ import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 import io.adabox.client.OgmiosWSClient;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class OgmiosTransactionService implements TransactionService {
@@ -60,7 +63,26 @@ public class OgmiosTransactionService implements TransactionService {
         EvaluateTxResponse evaluateTxResponse = client.evaluateTx(cborData);
 
         if (evaluateTxResponse.getEvaluationFailure() == null) {
-            return Result.success("OK").withValue(evaluateTxResponse.getEvaluationResults()).code(200);
+            List<io.adabox.model.tx.response.EvaluationResult> adaBoxEvaluationResults
+                    = evaluateTxResponse.getEvaluationResults();
+
+            if (adaBoxEvaluationResults == null)
+                return Result.error("Empty evaluation result").withValue(Collections.emptyList()).code(200);
+
+            //convert adabox EvaluationResult to cardano-client EvaluationResult
+            List<EvaluationResult> evaluationResults = adaBoxEvaluationResults.stream()
+                    .map(adaBoxEvaluationResult -> {
+                        EvaluationResult evaluationResult = new EvaluationResult();
+                        RedeemerTag cclRedeemerTag = RedeemerTag.valueOf(adaBoxEvaluationResult.getRedeemerTag().name());
+                        evaluationResult.setRedeemerTag(cclRedeemerTag);
+                        evaluationResult.setIndex(adaBoxEvaluationResult.getIndex());
+                        if (adaBoxEvaluationResult.getExUnits() != null) {
+                            evaluationResult.setExUnits(new ExUnits(adaBoxEvaluationResult.getExUnits().getMem(), adaBoxEvaluationResult.getExUnits().getSteps()));
+                        }
+                        return evaluationResult;
+                    }).collect(Collectors.toList());
+
+            return Result.success("OK").withValue(evaluationResults).code(200);
         } else {
             return Result.error(evaluateTxResponse.getEvaluationFailure().getErrorMsg())
                     .withValue(Collections.emptyList()).code(500);

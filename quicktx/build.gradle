@@ -9,6 +9,7 @@ dependencies {
     integrationTestImplementation project(':')
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':backend-modules:koios')
+    integrationTestImplementation project(':backend-modules:ogmios')
 }
 
 publishing {

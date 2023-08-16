@@ -13,6 +13,10 @@ public class OgmiosBackendService implements BackendService {
 
     private final OgmiosWSClient wsClient;
 
+    protected OgmiosBackendService() {
+        wsClient = null;
+    }
+
     public OgmiosBackendService(String url) {
         try {
             wsClient = new OgmiosWSClient(new URI(url));
