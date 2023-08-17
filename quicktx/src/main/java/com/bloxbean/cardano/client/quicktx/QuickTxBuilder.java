@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -196,8 +197,18 @@ public class QuickTxBuilder {
             };
             boolean containsScriptTx = false;
 
+            Set<String> fromAddresses = new HashSet<>();
             for (AbstractTx tx : txList) {
                 tx.verifyData();
+
+                //Check for duplicate from addresses in Txs
+                if (tx.getFromAddress() != null && fromAddresses.contains(tx.getFromAddress())) {
+                    throw new TxBuildException("Duplicate from address found in Txs. Please use unique from addresses for each Tx.");
+                } else {
+                    if (tx.getFromAddress() != null)
+                        fromAddresses.add(tx.getFromAddress());
+                }
+
                 //For scriptTx, set fee payer as change address and from address by default.
                 if (tx.getChangeAddress() == null && tx instanceof ScriptTx) {
                     ((ScriptTx) tx).withChangeAddress(feePayer);

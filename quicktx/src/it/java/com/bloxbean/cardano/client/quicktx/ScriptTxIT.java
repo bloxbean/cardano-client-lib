@@ -115,6 +115,64 @@ public class ScriptTxIT extends QuickTxBaseIT {
         checkIfUtxoAvailable(result1.getValue(), sender1Addr);
     }
 
+    @Test
+    void alwaysTrueScript_withRegularPayment() throws ApiException, InterruptedException {
+        PlutusV2Script plutusScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        Random rand = new Random();
+        int randInt = rand.nextInt();
+        BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+            .payToContract(scriptAddress, Amount.ada(2), plutusData)
+            .payToContract(scriptAddress, Amount.ada(3), plutusData)
+            .payToContract(scriptAddress, Amount.ada(4), plutusData)
+            .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .mergeOutputs(false)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        Tx tx1 = new Tx()
+                .payToAddress(receiver3, Amount.ada(1))
+                .from(sender1Addr);
+
+        List<Utxo> utxos  = ScriptUtxoFinders.findAllByInlineDatum(utxoSupplier, scriptAddress, plutusData);
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(utxos, plutusData)
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .payToAddress(receiver1, Amount.ada(2))
+                .payToAddress(receiver1, Amount.ada(3))
+                .payToAddress(receiver1, Amount.ada(4))
+                .attachSpendingValidator(plutusScript)
+                .withChangeAddress(scriptAddress, plutusData);
+
+        Result<String> result1 = quickTxBuilder.compose(tx1, scriptTx)
+                .feePayer(sender1Addr)
+                .mergeOutputs(false)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender1Addr);
+    }
+
 
     @Test
     void alwaysTrueScript_guessSumScript() throws ApiException, InterruptedException {
