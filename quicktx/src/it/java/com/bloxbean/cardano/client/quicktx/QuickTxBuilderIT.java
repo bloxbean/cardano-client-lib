@@ -17,6 +17,7 @@ import com.bloxbean.cardano.client.coinselection.impl.RandomImproveUtxoSelection
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
@@ -212,7 +213,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         @Test
         void minting_transferMintedToTwoAccounts_withPayMintAssetToAddress() throws CborSerializationException, CborException {
             ScriptPubkey policyScript =
-                      ScriptPubkey.create(VerificationKey.create(sender1.publicKeyBytes()));
+                    ScriptPubkey.create(VerificationKey.create(sender1.publicKeyBytes()));
             String policyId = policyScript.getPolicyId();
 
             String assetName = "MyAsset";
@@ -769,7 +770,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
     @Test
     void simplePayment_mergeOutputsIsTrue() throws CborSerializationException {
-       Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+        Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
 
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         Tx tx = new Tx()
@@ -824,6 +825,47 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 })
                 .completeAndWait(System.out::println);
 
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void twoTxs_withSameSender() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx1 = new Tx()
+                .payToAddress(receiver1, Amount.ada(1))
+                .from(sender1Addr);
+
+        Tx tx2 = new Tx()
+                .payToAddress(receiver2, Amount.ada(1))
+                .from(sender1Addr);
+
+        assertThrows(TxBuildException.class, () -> {
+            Result<String> result = quickTxBuilder.compose(tx1, tx2)
+                    .feePayer(sender1Addr)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .completeAndWait(System.out::println);
+        });
+    }
+
+    @Test
+    void twoTxs_withDifferentSenders() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx1 = new Tx()
+                .payToAddress(receiver1, Amount.ada(1))
+                .from(sender1Addr);
+
+        Tx tx2 = new Tx()
+                .payToAddress(receiver2, Amount.ada(1))
+                .from(sender2Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx1, tx2)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result);
         assertTrue(result.isSuccessful());
         checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }
