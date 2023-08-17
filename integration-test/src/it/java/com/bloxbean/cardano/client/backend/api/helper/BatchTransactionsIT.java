@@ -200,11 +200,12 @@ public class BatchTransactionsIT extends BaseITTest {
             nftMetadata.addNFT(policy.getPolicyId(), nft);
         }
 
-
+        List multiAssets = new ArrayList();
+        multiAssets.add(multiAsset);
         TransactionOutput mintOutput = TransactionOutput.builder()
                 .address(receiver)
                 .value(Value.builder().coin(adaToLovelace(40))
-                        .multiAssets(List.of(multiAsset)).build()).build();
+                        .multiAssets(multiAssets).build()).build();
 
         //Create TxBuilder function
         TxBuilder txBuilder =
