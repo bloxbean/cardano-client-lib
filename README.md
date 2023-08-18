@@ -20,6 +20,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 ### More details --> [Documentation](https://cardano-client.dev/)
 
 ### **Posts**
+- [Introducing QuickTx API to build transactions](https://satran004.medium.com/introducing-new-quicktx-api-in-cardano-client-lib-0-5-0-beta1-5beb491282ce)
 - [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
 - [Call Plutus V2 contract from off-chain Java code](https://satran004.medium.com/call-plutus-v2-contract-from-off-chain-java-code-using-cardano-client-lib-e2b7e1b27c4)
 - [Cardano-client-lib : A Java Library to interact with Cardano - Part I](https://medium.com/p/83fba0fee537)
