@@ -107,8 +107,14 @@ public class ScriptTxIT extends QuickTxBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .withRequiredSigner(sender1.getBaseAddress())
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                .withVerifier(txn -> {
+                    assertThat(txn.getBody().getRequiredSigners()).hasSize(1);
+                    assertThat(txn.getBody().getRequiredSigners().get(0)) //Verify sender's payment cred hash in required signer
+                            .isEqualTo(sender1.getBaseAddress().getPaymentCredentialHash().get());
+                })
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -878,6 +884,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
             checkIfUtxoAvailable(result1.getValue(), sender1Addr);
         }
     }
+
+    //TODO -- Write an integration test to verify required signer is present in script transaction
 
     private String getRandomTokenName() {
         String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
