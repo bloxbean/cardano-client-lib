@@ -27,6 +27,7 @@ import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ScriptTxIT extends QuickTxBaseIT {
@@ -754,6 +756,127 @@ public class ScriptTxIT extends QuickTxBaseIT {
         assertTrue(result1.isSuccessful());
 
         checkIfUtxoAvailable(result1.getValue(), sender1Addr);
+    }
+
+    @Nested
+    class DatumInWitnessTests {
+
+        @Test
+        void testDatumInWitnessWhenDatumHash() throws ApiException {
+            PlutusV2Script plutusScript = PlutusV2Script.builder()
+                    .type("PlutusScriptV2")
+                    .cborHex("49480100002221200101")
+                    .build();
+
+            String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+            BigInteger scriptAmt = new BigInteger("2479280");
+
+            Random rand = new Random();
+            int randInt = rand.nextInt();
+            BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+            Tx tx = new Tx();
+            tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData.getDatumHash())
+                    .from(sender2Addr);
+
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+            Result<String> result = quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(sender2))
+                    .completeAndWait(System.out::println);
+
+            System.out.println(result.getResponse());
+            checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+            Optional<Utxo> optionalUtxo  = ScriptUtxoFinders.findFirstByDatumHash(utxoSupplier, scriptAddress, plutusData.getDatumHash());
+            ScriptTx scriptTx = new ScriptTx()
+                    .collectFrom(optionalUtxo.get(), PlutusData.unit(), plutusData)
+                    .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                    .attachSpendingValidator(plutusScript)
+                    .withChangeAddress(scriptAddress, plutusData);
+
+            Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                    .feePayer(sender1Addr)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                            new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                    .withVerifier(txn -> {
+                        assertThat(txn.getWitnessSet().getPlutusDataList()).contains(plutusData);
+                        assertThat(txn.getWitnessSet().getPlutusDataList()).hasSize(1);
+                    })
+                    .completeAndWait(System.out::println);
+
+            System.out.println(result1.getResponse());
+            assertTrue(result1.isSuccessful());
+
+            checkIfUtxoAvailable(result1.getValue(), sender1Addr);
+        }
+
+        @Test
+        void testDatumInWitnessWhenDatumHash_multipleUtxos() throws ApiException {
+            PlutusV2Script plutusScript = PlutusV2Script.builder()
+                    .type("PlutusScriptV2")
+                    .cborHex("49480100002221200101")
+                    .build();
+
+            String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+            Random rand = new Random();
+            int randInt = rand.nextInt();
+            BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+            //second datum
+            BigIntPlutusData plutusData2 =  new BigIntPlutusData(BigInteger.valueOf(rand.nextInt())); //any random number
+
+            //three datum
+            BigIntPlutusData plutusData3 =  new BigIntPlutusData(BigInteger.valueOf(rand.nextInt())); //any random number
+
+            Tx tx = new Tx();
+            tx.payToContract(scriptAddress, Amount.ada(1), plutusData.getDatumHash())
+                    .payToContract(scriptAddress, Amount.ada(2), plutusData.getDatumHash())
+                    .payToContract(scriptAddress, Amount.ada(2.5), plutusData.getDatumHash())
+                    .payToContract(scriptAddress, Amount.ada(1.5), plutusData.getDatumHash())
+                    .payToContract(scriptAddress, Amount.ada(1), plutusData2.getDatumHash())
+                    .payToContract(scriptAddress, Amount.ada(1.1), plutusData2.getDatumHash())
+                    .payToContract(scriptAddress, Amount.ada(1.2), plutusData3)
+                    .from(sender2Addr);
+
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+            Result<String> result = quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(sender2))
+                    .mergeOutputs(false)
+                    .completeAndWait(System.out::println);
+
+            System.out.println(result.getResponse());
+            checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+            List<Utxo> utxos  = ScriptUtxoFinders.findAllByDatumHash(utxoSupplier, scriptAddress, plutusData.getDatumHash());
+            List<Utxo> utxos2  = ScriptUtxoFinders.findAllByDatumHash(utxoSupplier, scriptAddress, plutusData2.getDatumHash());
+            Optional<Utxo> utxos3  = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, plutusData3);
+
+            ScriptTx scriptTx = new ScriptTx()
+                    .collectFrom(utxos, PlutusData.unit(), plutusData)
+                    .collectFrom(utxos2, PlutusData.unit(), plutusData2)
+                    .collectFrom(utxos3.get(), PlutusData.unit())
+                    .payToAddress(receiver1, Amount.ada(10.3))
+                    .attachSpendingValidator(plutusScript)
+                    .withChangeAddress(scriptAddress, plutusData);
+
+            Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                    .feePayer(sender1Addr)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                            new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                    .withVerifier(txn -> {
+                        assertThat(txn.getWitnessSet().getPlutusDataList()).contains(plutusData);
+                        assertThat(txn.getWitnessSet().getPlutusDataList()).contains(plutusData2);
+                        assertThat(txn.getWitnessSet().getPlutusDataList()).hasSize(2);
+                    })
+                    .completeAndWait(System.out::println);
+
+            System.out.println(result1.getResponse());
+            assertTrue(result1.isSuccessful());
+
+            checkIfUtxoAvailable(result1.getValue(), sender1Addr);
+        }
     }
 
     private String getRandomTokenName() {

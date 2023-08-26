@@ -1,14 +1,11 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.config.Configuration;
-import com.bloxbean.cardano.client.exception.CborRuntimeException;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import lombok.NonNull;
 
 import java.util.List;
@@ -127,11 +124,7 @@ public class ScriptUtxoFinders {
     }
 
     private static <T> String getDatumHash(T datum) {
-        try {
-            return Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHash();
-        } catch (CborSerializationException | CborException e) {
-            throw new CborRuntimeException(e);
-        }
+        return Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHash();
     }
 
     private static <T> String serializeDatumToHex(T datum) {

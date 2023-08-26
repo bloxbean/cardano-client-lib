@@ -50,18 +50,19 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     /**
      * Add given script utxo as input of the transaction.
      *
-     * @param utxo     Script utxo
-     * @param redeemer Redeemer
+     * @param utxo Script utxo
+     * @param redeemerData Redeemer data
+     * @param datum Datum object. This will be added to witness list
      * @return ScriptTx
      */
-    public ScriptTx collectFrom(Utxo utxo, PlutusData redeemer) {
+    public ScriptTx collectFrom(Utxo utxo, PlutusData redeemerData, PlutusData datum) {
         if (inputUtxos == null)
             inputUtxos = new ArrayList<>();
         inputUtxos.add(utxo);
 
         Redeemer _redeemer = Redeemer.builder()
                 .tag(RedeemerTag.Spend)
-                .data(redeemer)
+                .data(redeemerData)
                 .index(BigInteger.valueOf(1)) //dummy value
                 .exUnits(ExUnits.builder()
                         .mem(BigInteger.valueOf(10000)) // Some dummy value
@@ -69,7 +70,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                         .build())
                 .build();
 
-        SpendingContext spendingContext = new SpendingContext(utxo, _redeemer, null);
+        SpendingContext spendingContext = new SpendingContext(utxo, _redeemer, datum);
         spendingContexts.add(spendingContext);
         return this;
     }
@@ -77,15 +78,42 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     /**
      * Add given script utxos as inputs of the transaction.
      *
-     * @param utxos    Script utxos
-     * @param redeemer Redeemer to be used for all the utxos
+     * @param utxos Script utxos
+     * @param redeemerData Redeemer data
+     * @param datum Datum object. This will be added to witness list
      * @return ScriptTx
      */
-    public ScriptTx collectFrom(List<Utxo> utxos, PlutusData redeemer) {
+    public ScriptTx collectFrom(List<Utxo> utxos, PlutusData redeemerData, PlutusData datum) {
         if (utxos == null)
             return this;
 
-        utxos.forEach(utxo -> collectFrom(utxo, redeemer));
+        utxos.forEach(utxo -> collectFrom(utxo, redeemerData, datum));
+        return this;
+    }
+
+    /**
+     * Add given script utxo as input of the transaction.
+     *
+     * @param utxo     Script utxo
+     * @param redeemerData Redeemer data
+     * @return ScriptTx
+     */
+    public ScriptTx collectFrom(Utxo utxo, PlutusData redeemerData) {
+        return collectFrom(utxo, redeemerData, null);
+    }
+
+    /**
+     * Add given script utxos as inputs of the transaction.
+     *
+     * @param utxos    Script utxos
+     * @param redeemerData Redeemer data to be used for all the utxos
+     * @return ScriptTx
+     */
+    public ScriptTx collectFrom(List<Utxo> utxos, PlutusData redeemerData) {
+        if (utxos == null)
+            return this;
+
+        utxos.forEach(utxo -> collectFrom(utxo, redeemerData, null));
         return this;
     }
 
@@ -552,8 +580,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                 if (transaction.getWitnessSet() == null) {
                     transaction.setWitnessSet(new TransactionWitnessSet());
                 }
-                if (spendingContext.datum != null)
-                    transaction.getWitnessSet().getPlutusDataList().add(spendingContext.datum);
+                if (spendingContext.datum != null) {
+                    if (!transaction.getWitnessSet().getPlutusDataList().contains(spendingContext.datum))
+                        transaction.getWitnessSet().getPlutusDataList().add(spendingContext.datum);
+                }
 
                 if (spendingContext.redeemer != null) {
                     int scriptInputIndex = RedeemerUtil.getScriptInputIndex(spendingContext.scriptUtxo, transaction);

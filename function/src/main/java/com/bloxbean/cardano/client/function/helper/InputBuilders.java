@@ -1,18 +1,16 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
+import com.bloxbean.cardano.client.api.util.UtxoUtil;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxInputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.api.util.UtxoUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -229,12 +227,8 @@ public class InputBuilders {
         if (datum == null) {
             return createFromUtxos(utxos, changeAddress, null);
         } else {
-            try {
-                String datumHash = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHash();
-                return createFromUtxos(utxos, changeAddress, datumHash);
-            } catch (CborException | CborSerializationException e) {
-                throw new CborRuntimeException("Cbor serialization exeception ", e);
-            }
+            String datumHash = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHash();
+            return createFromUtxos(utxos, changeAddress, datumHash);
         }
     }
 
