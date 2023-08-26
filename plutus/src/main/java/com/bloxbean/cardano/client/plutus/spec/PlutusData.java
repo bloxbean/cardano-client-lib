@@ -63,14 +63,28 @@ public interface PlutusData {
         }
     }
 
+    /**
+     * Returns the datum hash as hex string
+     * @return datum hash as hex string
+     * @throws CborRuntimeException
+     */
     @JsonIgnore
-    default String getDatumHash() throws CborSerializationException, CborException {
+    default String getDatumHash() {
         return HexUtil.encodeHexString(getDatumHashAsBytes());
     }
 
+    /**
+     * Returns the datum hash as byte array
+     * @return datum hash as byte array
+     * @throws CborRuntimeException
+     */
     @JsonIgnore
-    default byte[] getDatumHashAsBytes() throws CborSerializationException, CborException {
-        return Blake2bUtil.blake2bHash256(CborSerializationUtil.serialize(serialize()));
+    default byte[] getDatumHashAsBytes() {
+        try {
+            return Blake2bUtil.blake2bHash256(CborSerializationUtil.serialize(serialize()));
+        } catch (CborSerializationException | CborException e) {
+            throw new CborRuntimeException("Cbor serialization error", e);
+        }
     }
 
     default String serializeToHex()  {

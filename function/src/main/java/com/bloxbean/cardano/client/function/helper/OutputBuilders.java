@@ -1,13 +1,13 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import co.nstant.in.cbor.CborException;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.MinAdaChecker;
 import com.bloxbean.cardano.client.function.Output;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
-import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.Value;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -209,11 +209,7 @@ public class OutputBuilders {
             if (output.isInlineDatum()) {
                 to.setInlineDatum(output.getDatum());
             } else {
-                try {
-                    to.setDatumHash(output.getDatum().getDatumHashAsBytes());
-                } catch (CborSerializationException | CborException e) {
-                    throw new TxBuildException("Unable to get dataum hash from plutus data");
-                }
+                to.setDatumHash(output.getDatum().getDatumHashAsBytes());
             }
         }
 
