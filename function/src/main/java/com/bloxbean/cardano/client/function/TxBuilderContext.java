@@ -62,13 +62,40 @@ public class TxBuilderContext {
                 new TransactionBuilder(utxoSupplier, () -> protocolParams));
     }
 
+    /**
+     * Set UtxoSelectionStrategy
+     * @param utxoSelectionStrategy
+     * @return TxBuilderContext
+     */
     public TxBuilderContext setUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
         this.utxoSelectionStrategy = utxoSelectionStrategy;
         return this;
     }
 
+    /**
+     * Get UtxoSelectionStrategy
+     * @return UtxoSelectionStrategy
+     */
     public UtxoSelectionStrategy getUtxoSelectionStrategy() {
         return utxoSelectionStrategy;
+    }
+
+    /**
+     * Set UtxoSelector
+     * @param utxoSelector
+     * @return TxBuilderContext
+     */
+    public TxBuilderContext setUtxoSelector(UtxoSelector utxoSelector) {
+        this.utxoSelector = utxoSelector;
+        return this;
+    }
+
+    /**
+     * Get UtxoSelector
+     * @return UtxoSelector
+     */
+    public UtxoSelector getUtxoSelector() {
+        return utxoSelector;
     }
 
     public ProtocolParams getProtocolParams() {
