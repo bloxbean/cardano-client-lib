@@ -1184,10 +1184,10 @@ class TxTest extends QuickTxBaseTest {
 
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
         var transaction = quickTxBuilder.compose(tx)
-                .withRequiredSigner(address1)
-                .withRequiredSigner(address2)
-                .withRequiredSigner(address3)
-                .withRequiredSigner(address4)
+                .withRequiredSigners(address1)
+                .withRequiredSigners(address2)
+                .withRequiredSigners(address3)
+                .withRequiredSigners(address4)
                 .build();
 
         assertThat(transaction.getBody().getRequiredSigners()).hasSize(4);
@@ -1221,7 +1221,7 @@ class TxTest extends QuickTxBaseTest {
 
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
         var transaction = quickTxBuilder.compose(tx)
-                .withRequiredSigner(address1, address3, address4)
+                .withRequiredSigners(address1, address3, address4)
                 .build();
 
         assertThat(transaction.getBody().getRequiredSigners()).hasSize(3);
@@ -1252,8 +1252,8 @@ class TxTest extends QuickTxBaseTest {
         byte[] bytes1 = new byte[]{0, 1, 2, 3};
         byte[] bytes2 = new byte[]{4, 5, 6, 7};
         var transaction = quickTxBuilder.compose(tx)
-                .withRequiredSigner(bytes1)
-                .withRequiredSigner(bytes2)
+                .withRequiredSigners(bytes1)
+                .withRequiredSigners(bytes2)
                 .build();
 
         assertThat(transaction.getBody().getRequiredSigners()).hasSize(2);
@@ -1283,7 +1283,7 @@ class TxTest extends QuickTxBaseTest {
         byte[] bytes1 = new byte[]{0, 1, 2, 3};
         byte[] bytes2 = new byte[]{4, 5, 6, 7};
         var transaction = quickTxBuilder.compose(tx)
-                .withRequiredSigner(bytes1, bytes2)
+                .withRequiredSigners(bytes1, bytes2)
                 .build();
 
         assertThat(transaction.getBody().getRequiredSigners()).hasSize(2);

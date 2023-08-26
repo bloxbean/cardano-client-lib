@@ -551,7 +551,7 @@ public class QuickTxBuilder {
          * @param addresses Address or list of address to add to the required signer list
          * @return TxContext
          */
-        public TxContext withRequiredSigner(Address... addresses) {
+        public TxContext withRequiredSigners(Address... addresses) {
            if (addresses == null || addresses.length == 0)
                 throw new TxBuildException("Address is required");
 
@@ -579,7 +579,7 @@ public class QuickTxBuilder {
          * @param credentials
          * @return TxContext
          */
-        public TxContext withRequiredSigner(byte[]... credentials) {
+        public TxContext withRequiredSigners(byte[]... credentials) {
             if (credentials == null || credentials.length == 0)
                 throw new TxBuildException("Credential is required");
 

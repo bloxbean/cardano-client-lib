@@ -107,7 +107,7 @@ public class ScriptTxIT extends QuickTxBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withRequiredSigner(sender1.getBaseAddress())
+                .withRequiredSigners(sender1.getBaseAddress())
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .withVerifier(txn -> {
