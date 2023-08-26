@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.PolicyUtil;
+import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
@@ -1156,5 +1157,137 @@ class TxTest extends QuickTxBaseTest {
                 .build();
 
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin()).isEqualTo(adaToLovelace(200));
+    }
+
+    @Test
+    void withRequiredSigner_paymentAddress() {
+        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+                List.of(
+                        Utxo.builder()
+                                .address(sender1)
+                                .txHash("5c6e2d88f7eeff25871e3572fdb994df65170aa406b211652537ee0c2c360a3f")
+                                .outputIndex(0)
+                                .amount(List.of(Amount.ada(100)))
+                                .build()
+                )
+        );
+
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(10))
+                .payToAddress(receiver2, Amount.ada(20))
+                .from(sender1);
+
+        Address address1 = new Account(Networks.mainnet()).getBaseAddress();
+        Address address2 = new Account(Networks.mainnet()).getBaseAddress();
+        Address address3 = new Account(Networks.mainnet()).getEnterpriseAddress();
+        Address address4 = new Address(new Account(Networks.mainnet()).stakeAddress());
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+        var transaction = quickTxBuilder.compose(tx)
+                .withRequiredSigners(address1)
+                .withRequiredSigners(address2)
+                .withRequiredSigners(address3)
+                .withRequiredSigners(address4)
+                .build();
+
+        assertThat(transaction.getBody().getRequiredSigners()).hasSize(4);
+        assertThat(transaction.getBody().getRequiredSigners()).contains(address1.getPaymentCredentialHash().get());
+        assertThat(transaction.getBody().getRequiredSigners()).contains(address2.getPaymentCredentialHash().get());
+        assertThat(transaction.getBody().getRequiredSigners()).contains(address3.getPaymentCredentialHash().get());
+        assertThat(transaction.getBody().getRequiredSigners()).contains(address4.getDelegationCredentialHash().get());
+    }
+
+    @Test
+    void withRequiredSigner_paymentAddress_oneMethod() {
+        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+                List.of(
+                        Utxo.builder()
+                                .address(sender1)
+                                .txHash("5c6e2d88f7eeff25871e3572fdb994df65170aa406b211652537ee0c2c360a3f")
+                                .outputIndex(0)
+                                .amount(List.of(Amount.ada(100)))
+                                .build()
+                )
+        );
+
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(10))
+                .payToAddress(receiver2, Amount.ada(20))
+                .from(sender1);
+
+        Address address1 = new Account(Networks.mainnet()).getBaseAddress();
+        Address address3 = new Account(Networks.mainnet()).getEnterpriseAddress();
+        Address address4 = new Address(new Account(Networks.mainnet()).stakeAddress());
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+        var transaction = quickTxBuilder.compose(tx)
+                .withRequiredSigners(address1, address3, address4)
+                .build();
+
+        assertThat(transaction.getBody().getRequiredSigners()).hasSize(3);
+        assertThat(transaction.getBody().getRequiredSigners()).contains(address1.getPaymentCredentialHash().get());
+        assertThat(transaction.getBody().getRequiredSigners()).contains(address3.getPaymentCredentialHash().get());
+        assertThat(transaction.getBody().getRequiredSigners()).contains(address4.getDelegationCredentialHash().get());
+    }
+
+    @Test
+    void withRequiredSigner_bytes() {
+        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+                List.of(
+                        Utxo.builder()
+                                .address(sender1)
+                                .txHash("5c6e2d88f7eeff25871e3572fdb994df65170aa406b211652537ee0c2c360a3f")
+                                .outputIndex(0)
+                                .amount(List.of(Amount.ada(100)))
+                                .build()
+                )
+        );
+
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(10))
+                .payToAddress(receiver2, Amount.ada(20))
+                .from(sender1);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+        byte[] bytes1 = new byte[]{0, 1, 2, 3};
+        byte[] bytes2 = new byte[]{4, 5, 6, 7};
+        var transaction = quickTxBuilder.compose(tx)
+                .withRequiredSigners(bytes1)
+                .withRequiredSigners(bytes2)
+                .build();
+
+        assertThat(transaction.getBody().getRequiredSigners()).hasSize(2);
+        assertThat(transaction.getBody().getRequiredSigners()).contains(bytes1);
+        assertThat(transaction.getBody().getRequiredSigners()).contains(bytes2);
+    }
+
+    @Test
+    void withRequiredSigner_bytes_oneMethod() {
+        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+                List.of(
+                        Utxo.builder()
+                                .address(sender1)
+                                .txHash("5c6e2d88f7eeff25871e3572fdb994df65170aa406b211652537ee0c2c360a3f")
+                                .outputIndex(0)
+                                .amount(List.of(Amount.ada(100)))
+                                .build()
+                )
+        );
+
+        Tx tx = new Tx()
+                .payToAddress(receiver1, Amount.ada(10))
+                .payToAddress(receiver2, Amount.ada(20))
+                .from(sender1);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+        byte[] bytes1 = new byte[]{0, 1, 2, 3};
+        byte[] bytes2 = new byte[]{4, 5, 6, 7};
+        var transaction = quickTxBuilder.compose(tx)
+                .withRequiredSigners(bytes1, bytes2)
+                .build();
+
+        assertThat(transaction.getBody().getRequiredSigners()).hasSize(2);
+        assertThat(transaction.getBody().getRequiredSigners()).contains(bytes1);
+        assertThat(transaction.getBody().getRequiredSigners()).contains(bytes2);
     }
 }

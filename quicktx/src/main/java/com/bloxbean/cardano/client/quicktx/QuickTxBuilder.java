@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
@@ -28,10 +29,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -110,6 +108,7 @@ public class QuickTxBuilder {
         private AbstractTx[] txList;
         private String feePayer;
         private String collateralPayer;
+        private Set<byte[]> requiredSigners;
 
         private TxBuilder preBalanceTrasformer;
         private TxBuilder postBalanceTrasformer;
@@ -239,6 +238,11 @@ public class QuickTxBuilder {
             if (utxoSelectionStrategy != null)
                 txBuilderContext.setUtxoSelectionStrategy(utxoSelectionStrategy);
 
+            //requiredSigners
+            if (requiredSigners != null && !requiredSigners.isEmpty()) {
+                txBuilder = txBuilder.andThen(addRequiredSignersBuilder());
+            }
+
             if (preBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(preBalanceTrasformer);
 
@@ -316,6 +320,17 @@ public class QuickTxBuilder {
             }
 
             return CollateralBuilders.collateralOutputs(feePayer, List.copyOf(collateralUtxos));
+        }
+
+        private TxBuilder addRequiredSignersBuilder() {
+            return ((context, txn) -> {
+                List<byte[]> txRequiredSigners = txn.getBody().getRequiredSigners();
+                if (txRequiredSigners == null) {
+                    txRequiredSigners = new ArrayList<>();
+                    txn.getBody().setRequiredSigners(txRequiredSigners);
+                }
+                txRequiredSigners.addAll(requiredSigners);
+            });
         }
 
         /**
@@ -525,6 +540,55 @@ public class QuickTxBuilder {
                 this.txVerifier = txVerifier;
             else
                 this.txVerifier = this.txVerifier.andThen(txVerifier);
+            return this;
+        }
+
+        /**
+         * Add address's payment or stake credential hash to the required signer list.
+         * Add payment credential hash if address has a payment part (Base address, Enterprise address etc.),
+         * otherwise add stake credential hash if exists (Stake address).
+         *
+         * @param addresses Address or list of address to add to the required signer list
+         * @return TxContext
+         */
+        public TxContext withRequiredSigners(Address... addresses) {
+           if (addresses == null || addresses.length == 0)
+                throw new TxBuildException("Address is required");
+
+            if (this.requiredSigners == null)
+                this.requiredSigners = new HashSet<>();
+
+            for (Address address : addresses) {
+                if (address.getPaymentCredential().isPresent()) {
+                    address.getPaymentCredential()
+                            .map(credential -> this.requiredSigners.add(credential.getBytes()))
+                            .orElseThrow(() -> new TxBuildException("Address is not a payment address : " + address));
+                } else if (address.getDelegationCredential().isPresent()) {
+                    address.getDelegationCredential()
+                            .map(credential -> this.requiredSigners.add(credential.getBytes()))
+                            .orElseThrow(() -> new TxBuildException("Address is not a stake address : " + address));
+                } else
+                    throw new TxBuildException("Address is not a payment or stake address");
+            }
+
+            return this;
+        }
+
+        /**
+         * Add credential hash to the required signer list
+         * @param credentials
+         * @return TxContext
+         */
+        public TxContext withRequiredSigners(byte[]... credentials) {
+            if (credentials == null || credentials.length == 0)
+                throw new TxBuildException("Credential is required");
+
+            if (this.requiredSigners == null)
+                this.requiredSigners = new HashSet<>();
+
+            for (byte[] credential : credentials) {
+                this.requiredSigners.add(credential);
+            }
             return this;
         }
 
