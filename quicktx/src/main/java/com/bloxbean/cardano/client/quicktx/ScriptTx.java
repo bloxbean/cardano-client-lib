@@ -118,6 +118,36 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
+     * Add this utxo as input of the transaction.
+     * This method doesn't add any redeemer. The utxo will only be added as input and balance will be calculated.
+     *
+     * @param utxo Utxo
+     * @return ScriptTx
+     */
+    public ScriptTx collectFrom(Utxo utxo) {
+        if (inputUtxos == null)
+            inputUtxos = new ArrayList<>();
+        inputUtxos.add(utxo);
+
+        return this;
+    }
+
+    /**
+     * Add these utxos as inputs of the transaction.
+     * This method doesn't add any redeemer. The utxos will only be added as input and balance will be calculated.
+     *
+     * @param utxos Utxos
+     * @return ScriptTx
+     */
+    public ScriptTx collectFrom(List<Utxo> utxos) {
+        if (utxos == null)
+            return this;
+
+        utxos.forEach(utxo -> collectFrom(utxo));
+        return this;
+    }
+
+    /**
      * Add utxo(s) as reference input(s) of the transaction.
      *
      * @param utxos
