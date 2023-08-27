@@ -15,6 +15,8 @@ import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
+import com.bloxbean.cardano.client.coinselection.impl.ExcludeUtxoSelectionStrategy;
+import com.bloxbean.cardano.client.coinselection.impl.ExcludeUtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.LargestFirstUtxoSelectionStrategy;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
@@ -24,6 +26,7 @@ import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
 import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,6 +34,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * QuickTxBuilder is a utility class to build and submit transactions quickly. It provides high level APIs to build
@@ -109,6 +113,7 @@ public class QuickTxBuilder {
         private String feePayer;
         private String collateralPayer;
         private Set<byte[]> requiredSigners;
+        private Set<TransactionInput> collateralInputs;
 
         private TxBuilder preBalanceTrasformer;
         private TxBuilder postBalanceTrasformer;
@@ -238,6 +243,13 @@ public class QuickTxBuilder {
             if (utxoSelectionStrategy != null)
                 txBuilderContext.setUtxoSelectionStrategy(utxoSelectionStrategy);
 
+            //If collateral inputs are set, exclude them from utxo selection
+            if (collateralInputs != null && !collateralInputs.isEmpty()) {
+                txBuilderContext.setUtxoSelectionStrategy(
+                        new ExcludeUtxoSelectionStrategy(txBuilderContext.getUtxoSelectionStrategy(), collateralInputs));
+                txBuilderContext.setUtxoSelector(new ExcludeUtxoSelector(txBuilderContext.getUtxoSelector(), collateralInputs));
+            }
+
             //requiredSigners
             if (requiredSigners != null && !requiredSigners.isEmpty()) {
                 txBuilder = txBuilder.andThen(addRequiredSignersBuilder());
@@ -312,14 +324,22 @@ public class QuickTxBuilder {
         }
 
         private TxBuilder buildCollateralOutput(String feePayer) {
-            UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
-            Set<Utxo> collateralUtxos = utxoSelectionStrategy.select(feePayer, DEFAULT_COLLATERAL_AMT, null);
-            if (collateralUtxos.size() > MAX_COLLATERAL_INPUTS) {
-                utxoSelectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoSupplier);
-                collateralUtxos = utxoSelectionStrategy.select(feePayer, DEFAULT_COLLATERAL_AMT, null);
-            }
+            if (collateralInputs != null && !collateralInputs.isEmpty()) {
+                List<Utxo> collateralUtxos = collateralInputs.stream()
+                        .map(input -> utxoSupplier.getTxOutput(input.getTransactionId(), input.getIndex()))
+                        .map(optionalUtxo -> optionalUtxo.get())
+                        .collect(Collectors.toList());
+                return CollateralBuilders.collateralOutputs(feePayer, List.copyOf(collateralUtxos));
+            } else {
+                UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
+                Set<Utxo> collateralUtxos = utxoSelectionStrategy.select(feePayer, DEFAULT_COLLATERAL_AMT, null);
+                if (collateralUtxos.size() > MAX_COLLATERAL_INPUTS) {
+                    utxoSelectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoSupplier);
+                    collateralUtxos = utxoSelectionStrategy.select(feePayer, DEFAULT_COLLATERAL_AMT, null);
+                }
 
-            return CollateralBuilders.collateralOutputs(feePayer, List.copyOf(collateralUtxos));
+                return CollateralBuilders.collateralOutputs(feePayer, List.copyOf(collateralUtxos));
+            }
         }
 
         private TxBuilder addRequiredSignersBuilder() {
@@ -589,6 +609,20 @@ public class QuickTxBuilder {
             for (byte[] credential : credentials) {
                 this.requiredSigners.add(credential);
             }
+            return this;
+        }
+
+        public TxContext withCollateralInputs(TransactionInput... inputs) {
+            if (inputs == null || inputs.length == 0)
+                throw new TxBuildException("Collateral inputs can't be null or empty");
+
+            if (this.collateralInputs == null)
+                this.collateralInputs = new HashSet<>();
+
+            for (TransactionInput collateralInput : inputs) {
+                collateralInputs.add(collateralInput);
+            }
+
             return this;
         }
 

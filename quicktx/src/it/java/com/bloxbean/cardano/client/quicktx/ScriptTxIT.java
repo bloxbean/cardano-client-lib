@@ -885,6 +885,67 @@ public class ScriptTxIT extends QuickTxBaseIT {
         }
     }
 
+    @Nested
+    class CollateralInputTest {
+
+        @Test
+        void whenCustomCollateralInputs() throws ApiException {
+            PlutusV2Script plutusScript = PlutusV2Script.builder()
+                    .type("PlutusScriptV2")
+                    .cborHex("49480100002221200101")
+                    .build();
+
+            String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+            BigInteger scriptAmt = new BigInteger("2479280");
+
+            Random rand = new Random();
+            int randInt = rand.nextInt();
+            BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+            Tx tx = new Tx();
+            tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                    .payToAddress(sender1Addr, Amount.ada(5))
+                    .payToAddress(sender1Addr, Amount.ada(20))
+                    .from(sender2Addr);
+
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+            Result<String> result = quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(sender2))
+                    .mergeOutputs(false)
+                    .completeAndWait(System.out::println);
+
+            String payTxHash = result.getValue();
+
+            System.out.println(result.getResponse());
+            checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+            Optional<Utxo> optionalUtxo  = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, plutusData);
+            ScriptTx scriptTx = new ScriptTx()
+                    .collectFrom(optionalUtxo.get(), plutusData)
+                    .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                    .attachSpendingValidator(plutusScript)
+                    .withChangeAddress(scriptAddress, plutusData);
+
+            Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                    .feePayer(sender1Addr)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withCollateralInputs(new TransactionInput(payTxHash, 1), new TransactionInput(payTxHash, 2))
+                    .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                            new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                    .withVerifier(txn -> {
+                        assertThat(txn.getBody().getCollateral()).hasSize(2);
+                        assertThat(txn.getBody().getCollateral()).contains(
+                                new TransactionInput(payTxHash, 1), new TransactionInput(payTxHash, 2));
+                    })
+                    .completeAndWait(System.out::println);
+
+            System.out.println(result1.getResponse());
+            assertTrue(result1.isSuccessful());
+
+            checkIfUtxoAvailable(result1.getValue(), sender1Addr);
+        }
+    }
+
     //TODO -- Write an integration test to verify required signer is present in script transaction
 
     private String getRandomTokenName() {
