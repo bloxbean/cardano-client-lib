@@ -131,6 +131,8 @@ public class QuickTxBuilder {
         private UtxoSelectionStrategy utxoSelectionStrategy;
         private Verifier txVerifier;
 
+        private boolean ignoreScriptCostEvaluationError = true;
+
         TxContext(AbstractTx... txs) {
             this.txList = txs;
         }
@@ -283,6 +285,9 @@ public class QuickTxBuilder {
                         ScriptCostEvaluators.evaluateScriptCost().apply(context, transaction);
                     } catch (Exception e) {
                         //Ignore as it could happen due to insufficient ada in utxo
+                        log.error("Error while evaluating script cost", e);
+                        if (!ignoreScriptCostEvaluationError)
+                            throw new TxBuildException("Error while evaluating script cost", e);
                     }
                 }));
             }
@@ -612,6 +617,12 @@ public class QuickTxBuilder {
             return this;
         }
 
+        /**
+         * Add specific inputs as collateral to the transaction. If set, the builder will not select collateral inputs.
+         * The given inputs will be used as collateral inputs and not be included during coin selection.
+         * @param inputs
+         * @return TxContext
+         */
         public TxContext withCollateralInputs(TransactionInput... inputs) {
             if (inputs == null || inputs.length == 0)
                 throw new TxBuildException("Collateral inputs can't be null or empty");
@@ -623,6 +634,28 @@ public class QuickTxBuilder {
                 collateralInputs.add(collateralInput);
             }
 
+            return this;
+        }
+
+        /**
+         * Set this flag to decide if the builder should throw an exception if the script cost evaluation fails during transaction building.
+         *
+         * <p>
+         * If this flag is true, the builder will not throw an exception if the script cost evaluation fails and continue
+         * building the transaction or submit the transaction.
+         * </p>
+         *
+         * <p>
+         * If set to false, the builder will throw an exception if the script cost evaluation fails and stop building the transaction.
+         * </p>
+         *
+         * Default is true
+         *
+         * @param flag
+         * @return TxContext
+         */
+        public TxContext ignoreScriptCostEvaluationError(boolean flag) {
+            this.ignoreScriptCostEvaluationError = flag;
             return this;
         }
 
