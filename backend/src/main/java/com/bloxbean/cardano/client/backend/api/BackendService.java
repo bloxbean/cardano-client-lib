@@ -73,6 +73,13 @@ public interface BackendService {
     MetadataService getMetadataService();
 
     /**
+     * Get ScriptService
+     *
+     * @return {@link ScriptService}
+     */
+    ScriptService getScriptService();
+
+    /**
      * Get TransactionHelperService
      *
      * @return {@link TransactionHelperService}

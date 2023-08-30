@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
@@ -81,7 +82,16 @@ public class ScriptTxIT extends TestDataBaseIT {
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
 
-        checkIfUtxoAvailable(result1.getValue(), sender1Addr);
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+
+        // Example of getting the redeemer datum hash and then getting the datum values.
+        List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
+            .getTransactionRedeemers(result1.getValue()).getValue();
+
+        int gottenValue = getBackendService().getScriptService()
+            .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
+            .getValue().getJsonValue().get("int").asInt();
+        assertThat(randInt).isEqualTo(gottenValue);
     }
 
     @Test
