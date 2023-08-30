@@ -89,7 +89,7 @@ public class BFTransactionService extends BFBaseService implements TransactionSe
             return processResponse(response);
 
         } catch (IOException e) {
-            throw new ApiException("Error getting transaction utxos for id : " + txnHash, e);
+            throw new ApiException("Error getting transaction redeemers for id : " + txnHash, e);
         }
     }
 
