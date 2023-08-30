@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.blockfrost.service.http.TransactionApi;
 import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
+import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.util.HexUtil;
 import okhttp3.MediaType;
@@ -73,6 +74,18 @@ public class BFTransactionService extends BFBaseService implements TransactionSe
         Call<TxContentUtxo> txnCall = transactionApi.getTransactionUtxos(getProjectId(), txnHash);
         try {
             Response<TxContentUtxo> response = txnCall.execute();
+            return processResponse(response);
+
+        } catch (IOException e) {
+            throw new ApiException("Error getting transaction utxos for id : " + txnHash, e);
+        }
+    }
+
+    @Override
+    public Result<List<TxContentRedeemers>> getTransactionRedeemers(String txnHash) throws ApiException {
+        Call<List<TxContentRedeemers>> txnCall = transactionApi.getTransactionRedeemers(getProjectId(), txnHash);
+        try {
+            Response<List<TxContentRedeemers>> response = txnCall.execute();
             return processResponse(response);
 
         } catch (IOException e) {
