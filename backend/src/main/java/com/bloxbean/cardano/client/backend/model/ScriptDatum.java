@@ -18,8 +18,6 @@ import lombok.ToString;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode
-@ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ScriptDatum {
