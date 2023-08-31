@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFTransactionService;
 import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
+import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -78,6 +79,15 @@ class TransactionServiceIT extends BaseITTest {
     void testGetTransactionUtxos() throws Exception {
         String txnHash = "ac2f821fda7b2488e9f9da05b9013134cfe2958ed210466d44e66136f1b3ca94";
         Result<TxContentUtxo> result = service.getTransactionUtxos(txnHash);
+
+        assertNotNull(result.getValue());
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+    }
+
+    @Test
+    void testGetTransactionReedemers() throws Exception {
+        String txnHash = "741ea766fb79dc3cca61061891c902d4bcbb4aee81f20d5133852c8604930ad0";
+        Result<List<TxContentRedeemers>> result = service.getTransactionRedeemers(txnHash);
 
         assertNotNull(result.getValue());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
