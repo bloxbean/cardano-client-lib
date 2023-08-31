@@ -21,5 +21,5 @@ import lombok.ToString;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ScriptDatumCbor {
-  private String cborString;
+  private String cbor;
 }
