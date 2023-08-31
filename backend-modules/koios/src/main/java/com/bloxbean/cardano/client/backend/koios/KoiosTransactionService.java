@@ -183,6 +183,12 @@ public class KoiosTransactionService implements TransactionService {
         }
     }
 
+    @Override
+    public Result<List<TxContentRedeemers>> getTransactionRedeemers(String txnHash)
+        throws ApiException {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
+
     private Result<TxContentUtxo> convertToTxContentUtxo(TxInfo txInfo) {
         TxContentUtxo txContentUtxo = new TxContentUtxo();
         //Inputs

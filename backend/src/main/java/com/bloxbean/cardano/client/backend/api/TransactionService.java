@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
+import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxoOutputs;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -48,6 +49,15 @@ public interface TransactionService {
      * @throws ApiException
      */
     Result<TxContentUtxo> getTransactionUtxos(String txnHash) throws ApiException;
+
+    /**
+     * getTransactionRedeemers
+     *
+     * @param txnHash txnHash
+     * @return Transaction Redeemers
+     * @throws ApiException
+     */
+    Result<List<TxContentRedeemers>> getTransactionRedeemers(String txnHash) throws ApiException;
 
     /**
      * Get transaction output at given index for a transaction hash

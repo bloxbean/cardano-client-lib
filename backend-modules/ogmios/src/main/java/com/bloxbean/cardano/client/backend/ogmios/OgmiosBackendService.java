@@ -75,4 +75,9 @@ public class OgmiosBackendService implements BackendService {
     public MetadataService getMetadataService() {
         throw new UnsupportedOperationException("Not supported yet");
     }
+
+    @Override
+    public ScriptService getScriptService() {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
 }

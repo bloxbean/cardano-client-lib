@@ -52,4 +52,9 @@ public class BFBackendService extends BFBaseService implements BackendService {
     public MetadataService getMetadataService() {
         return new BFMetadataService(getBaseUrl(), getProjectId());
     }
+
+    @Override
+    public ScriptService getScriptService() {
+        return new BFScriptService(getBaseUrl(), getProjectId());
+    }
 }

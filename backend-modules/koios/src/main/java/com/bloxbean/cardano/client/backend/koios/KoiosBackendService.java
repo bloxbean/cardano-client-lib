@@ -66,4 +66,9 @@ public class KoiosBackendService implements BackendService {
     public MetadataService getMetadataService() {
         return new KoiosMetadataService(backendServiceImpl.getTransactionsService());
     }
+
+    @Override
+    public ScriptService getScriptService() {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
 }
