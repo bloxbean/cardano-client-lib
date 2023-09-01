@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.backend.api.AssetService;
 import com.bloxbean.cardano.client.backend.model.Asset;
 import com.bloxbean.cardano.client.backend.model.AssetAddress;
+import com.bloxbean.cardano.client.backend.model.AssetTransactionContent;
 import com.bloxbean.cardano.client.backend.model.PolicyAsset;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -178,5 +179,10 @@ public class KoiosAssetService implements AssetService {
         if (asset == null || asset.equals("")) {
             throw new ApiException("Asset cannot be null or empty");
         }
+    }
+
+    @Override
+    public Result<List<AssetTransactionContent>> getTransactions(String asset, int count, int page, OrderEnum order) throws ApiException {
+        throw new UnsupportedOperationException("Not supported yet");
     }
 }

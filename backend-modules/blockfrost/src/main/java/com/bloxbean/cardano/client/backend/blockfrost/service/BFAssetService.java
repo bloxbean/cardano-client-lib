@@ -1,13 +1,14 @@
 package com.bloxbean.cardano.client.backend.blockfrost.service;
 
-import com.bloxbean.cardano.client.backend.api.AssetService;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.AssetService;
 import com.bloxbean.cardano.client.backend.blockfrost.service.http.AssetsApi;
 import com.bloxbean.cardano.client.backend.model.Asset;
 import com.bloxbean.cardano.client.backend.model.AssetAddress;
+import com.bloxbean.cardano.client.backend.model.AssetTransactionContent;
 import com.bloxbean.cardano.client.backend.model.PolicyAsset;
-import com.bloxbean.cardano.client.api.model.Result;
 import retrofit2.Call;
 import retrofit2.Response;
 
@@ -118,5 +119,24 @@ public class BFAssetService extends BFBaseService implements AssetService {
     @Override
     public Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page) throws ApiException {
         return getPolicyAssets(policyId, count, page, OrderEnum.asc);
+    }
+
+    @Override
+    public Result<List<AssetTransactionContent>> getTransactions(String unit, int count, int page, OrderEnum order) throws ApiException {
+        if(order == null)
+            order = OrderEnum.asc;
+
+        Call<List<AssetTransactionContent>> call = assetsApi.getTransactions(getProjectId(), unit, count, page, order.toString());
+
+        try {
+            Response<List<AssetTransactionContent>> response = call.execute();
+            if (response.isSuccessful())
+                return Result.success(response.toString()).withValue(response.body()).code(response.code());
+            else
+                return Result.error(response.errorBody().string()).code(response.code());
+
+        } catch (IOException e) {
+            throw new ApiException("Error getting asset transactions for " + unit , e);
+        }
     }
 }
