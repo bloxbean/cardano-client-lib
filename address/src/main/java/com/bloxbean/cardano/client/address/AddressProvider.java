@@ -388,7 +388,7 @@ public class AddressProvider {
         return new Address(prefix, addressArray);
     }
 
-    public static byte[] getAddressBytes(byte[] paymentKeyHash, byte[] stakeKeyHash, AddressType addressType, byte header) {
+    private static byte[] getAddressBytes(byte[] paymentKeyHash, byte[] stakeKeyHash, AddressType addressType, byte header) {
         //get body
         byte[] addressArray;
         switch (addressType) {
