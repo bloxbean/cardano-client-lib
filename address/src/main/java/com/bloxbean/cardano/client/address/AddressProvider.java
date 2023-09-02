@@ -375,7 +375,7 @@ public class AddressProvider {
         }
     }
 
-    public static Address getAddress(byte[] paymentKeyHash, byte[] stakeKeyHash, byte headerKind, Network networkInfo, AddressType addressType) {
+    private static Address getAddress(byte[] paymentKeyHash, byte[] stakeKeyHash, byte headerKind, Network networkInfo, AddressType addressType) {
         NetworkId network = getNetworkId(networkInfo);
 
         //get prefix

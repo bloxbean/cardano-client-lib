@@ -130,11 +130,7 @@ public class BFAssetService extends BFBaseService implements AssetService {
 
         try {
             Response<List<AssetTransactionContent>> response = call.execute();
-            if (response.isSuccessful())
-                return Result.success(response.toString()).withValue(response.body()).code(response.code());
-            else
-                return Result.error(response.errorBody().string()).code(response.code());
-
+            return processResponse(response);
         } catch (IOException e) {
             throw new ApiException("Error getting asset transactions for " + unit , e);
         }
