@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Asset;
 import com.bloxbean.cardano.client.backend.model.AssetAddress;
+import com.bloxbean.cardano.client.backend.model.AssetTransactionContent;
 import com.bloxbean.cardano.client.backend.model.PolicyAsset;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -115,5 +116,18 @@ public class AssetServiceIT extends BaseITTest {
         assertEquals(200, result.code());
         assertTrue(result.getValue().size() > 100);
         assertNotNull(result.getValue());
+    }
+
+    @Test
+    void getAssetTransactions() throws ApiException {
+        AssetService service = getBackendService().getAssetService();
+        Result<List<AssetTransactionContent>> result = service.getTransactions("0be55d262b29f564998ff81efe21bdc0022621c12f15af08d0f2ddb17cbbed4218ca44ca5a744aef7cf8b0287869b6ed5ce8fd47b012b0a21e509edc", 1, 1, OrderEnum.desc);
+
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+        assertTrue(result.isSuccessful());
+        assertEquals(200, result.code());
+        assertEquals(1, result.getValue().size());
+        assertNotNull(result.getValue());
+        assertNotNull(result.getValue().get(0).getTxHash());
     }
 }

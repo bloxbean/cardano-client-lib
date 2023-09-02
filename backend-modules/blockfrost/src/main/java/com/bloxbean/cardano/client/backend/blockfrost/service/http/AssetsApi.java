@@ -1,7 +1,9 @@
 package com.bloxbean.cardano.client.backend.blockfrost.service.http;
 
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Asset;
 import com.bloxbean.cardano.client.backend.model.AssetAddress;
+import com.bloxbean.cardano.client.backend.model.AssetTransactionContent;
 import com.bloxbean.cardano.client.backend.model.PolicyAsset;
 import retrofit2.Call;
 import retrofit2.http.GET;
@@ -48,4 +50,16 @@ public interface AssetsApi {
      */
     @GET("assets/policy/{policy_id}")
     Call<List<PolicyAsset>> assetsPolicyPolicyIdGet(@Header("project_id") String projectId, @Path("policy_id") String policyId, @Query("count") Integer count, @Query("page") Integer page, @Query("order") String order);
+
+    /**
+     * List of a specific asset transactions
+     *
+     * @param asset    Concatenation of the policy_id and hex-encoded asset_name (required)
+     * @param count    The number of results displayed on one page. (&lt;=100).
+     * @param page     The page number for listing the results.
+     * @param order    The ordering of items from the point of view of the blockchain, not the page listing itself. By default, we return oldest first, newest last.
+     * @return a list of a specific asset transactions
+     */
+    @GET("assets/{asset}/transactions")
+    Call<List<AssetTransactionContent>> getTransactions(@Header("project_id") String projectId, @Path("asset") String asset, @Query("count") Integer count, @Query("page") Integer page, @Query("order") String order);
 }

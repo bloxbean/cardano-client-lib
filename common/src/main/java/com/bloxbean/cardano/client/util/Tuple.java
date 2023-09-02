@@ -1,5 +1,10 @@
 package com.bloxbean.cardano.client.util;
 
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+
+@ToString
+@EqualsAndHashCode
 public class Tuple<T, Z> {
     public T _1;
     public Z _2;

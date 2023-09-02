@@ -2,9 +2,7 @@ package com.bloxbean.cardano.client.backend.api;
 
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Asset;
-import com.bloxbean.cardano.client.backend.model.AssetAddress;
-import com.bloxbean.cardano.client.backend.model.PolicyAsset;
+import com.bloxbean.cardano.client.backend.model.*;
 import com.bloxbean.cardano.client.api.model.Result;
 
 import java.util.List;
@@ -83,4 +81,17 @@ public interface AssetService {
      * @return List&lt;PolicyAsset&gt;&gt;
      */
     Result<List<PolicyAsset>> getPolicyAssets(String policyId, int count, int page) throws ApiException;
+
+
+    /**
+     * List of a specific asset transactions
+     *
+     * @param asset    Concatenation of the policy_id and hex-encoded asset_name (required)
+     * @param count    The number of results displayed on one page. (&lt;=100).
+     * @param page     The page number for listing the results.
+     * @param order    The ordering of items from the point of view of the blockchain, not the page listing itself. By default, we return oldest first, newest last.
+     * @return a list of a specific asset transactions
+     * @throws ApiException
+     */
+    Result<List<AssetTransactionContent>> getTransactions(String asset, int count, int page, OrderEnum order) throws ApiException;
 }
