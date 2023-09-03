@@ -7,8 +7,9 @@ import java.util.List;
 
 @Constr(alternative = 2)
 public class AnotherData {
-    public String address;
-    public List<String> cities;
+    private String address;
+    private List<String> cities;
+    private byte[] bytes;
 
     public String getAddress() {
         return address;
@@ -24,5 +25,13 @@ public class AnotherData {
 
     public void setCities(List<String> cities) {
         this.cities = cities;
+    }
+
+    public byte[] getBytes() {
+        return bytes;
+    }
+
+    public void setBytes(byte[] bytes) {
+        this.bytes = bytes;
     }
 }

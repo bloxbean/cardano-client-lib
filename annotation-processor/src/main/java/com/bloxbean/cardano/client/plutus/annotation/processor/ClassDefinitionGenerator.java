@@ -119,7 +119,7 @@ public class ClassDefinitionGenerator {
         } else if (typeName.equals(TypeName.get(String.class))) {
             fieldType.setType(Type.STRING);
             fieldType.setJavaType(JavaType.STRING);
-        } else if (typeName.equals(byte[].class)) {
+        } else if (typeName.equals(TypeName.get(byte[].class))) {
             fieldType.setType(Type.BYTES);
             fieldType.setJavaType(JavaType.BYTES);
         } else if (typeName instanceof ParameterizedTypeName &&
