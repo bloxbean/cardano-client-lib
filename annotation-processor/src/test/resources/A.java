@@ -23,6 +23,7 @@ class SuperA {
     String country;
     List<String> days = new ArrayList<>();
     List<Integer> ints = new ArrayList<>();
+    byte[] bytes;
 }
 
 @Constr(alternative = 2)
