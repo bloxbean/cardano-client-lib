@@ -360,6 +360,8 @@ public class ConverterCodeGenerator implements CodeGenerator {
             return ClassName.get(Integer.class);
         else if ("long".equals(name))
             return ClassName.get(Long.class);
+        else if ("byte[]".equals(name))
+            return ArrayTypeName.of(TypeName.BYTE);
         else
             return ClassName.bestGuess(name);
     }

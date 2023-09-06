@@ -18,6 +18,7 @@ public class Model1 {
     Optional<Integer> optInt;
     Optional<Model2> optMod2;
     Optional<Long> optionalLong;
+    Optional<byte[]> bytes;
 
     @Enc("hex")
     private String str;

@@ -23,7 +23,7 @@ import java.util.Set;
  * Annotation processor for Plutus Constr annotation. This annotation processor generates the Serilizer and Deserializer code
  * for the Constr annotated classes.
  */
-@SupportedSourceVersion(SourceVersion.RELEASE_11)
+
 @AutoService(Processor.class)
 @Slf4j
 public class ConstrAnnotationProcessor extends AbstractProcessor {
@@ -45,6 +45,11 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
         Set<String> annotataions = new LinkedHashSet<String>();
         annotataions.add(Constr.class.getCanonicalName());
         return annotataions;
+    }
+
+    @Override
+    public SourceVersion getSupportedSourceVersion() {
+        return SourceVersion.latestSupported();
     }
 
     @Override
