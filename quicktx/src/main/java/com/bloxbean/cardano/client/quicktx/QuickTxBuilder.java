@@ -30,6 +30,7 @@ import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -281,11 +282,21 @@ public class QuickTxBuilder {
 
             if (containsScriptTx) {
                 txBuilder = txBuilder.andThen(((context, transaction) -> {
+                    boolean negativeAmt = transaction.getBody().getOutputs()
+                            .stream()
+                            .filter(output -> output.getValue().getCoin().compareTo(BigInteger.ZERO) < 0)
+                            .collect(Collectors.toList()).size() > 0;
+                    if (negativeAmt) {
+                        log.debug("Negative amount found in transaction output. " +
+                                "Script cost evaluation will be done after balancing the transaction.");
+                        return;
+                    }
+
                     try {
                         ScriptCostEvaluators.evaluateScriptCost().apply(context, transaction);
                     } catch (Exception e) {
                         //Ignore as it could happen due to insufficient ada in utxo
-                        log.error("Error while evaluating script cost", e);
+                        log.warn("Error while evaluating script cost", e);
                         if (!ignoreScriptCostEvaluationError)
                             throw new TxBuildException("Error while evaluating script cost", e);
                     }
