@@ -365,6 +365,7 @@ export BF_PROJECT_ID=<Blockfrost Preprod network Project Id>
 * [ISR - Israeli Cardano Community](https://www.cardano-israel.com/)
 * [MusicBox - CNFT Project](https://www.musicboxnft.com/)
 * [Realfi.info - Portfolio Viewer](https://realfi.info)
+* [nftio.io - NFT Explorer](https://nftio.io)
 
 # Any questions, ideas or issues?
 
