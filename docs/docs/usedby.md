@@ -13,4 +13,4 @@ sidebar_position: 9
 * [ISR - Israeli Cardano Community](https://www.cardano-israel.com/)
 * [MusicBox - CNFT Project](https://www.musicboxnft.com/)
 * [Realfi.info - Portfolio Viewer](https://realfi.info)
-* [nftio.io - NFT Explorer] (https://nftio.io)
+* [nftio.io - NFT Explorer](https://nftio.io)
