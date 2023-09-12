@@ -6,6 +6,7 @@ public enum Type {
     BYTES("bytes"),
     LIST("list"),
     MAP("map"),
+    BOOL("bool"),
     CONSTRUCTOR("constructor"),
     OPTIONAL("optional");
 

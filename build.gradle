@@ -106,8 +106,8 @@ subprojects {
     dependencies {
         api(libs.slf4j.api)
 
-        compileOnly 'org.projectlombok:lombok:1.18.24'
-        annotationProcessor 'org.projectlombok:lombok:1.18.24'
+        compileOnly libs.lombok
+        annotationProcessor libs.lombok
 
         testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
         testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
@@ -118,8 +118,8 @@ subprojects {
         testImplementation('org.assertj:assertj-core:3.23.1')
         testRuntimeOnly 'org.slf4j:slf4j-log4j12:1.7.36'
 
-        testCompileOnly 'org.projectlombok:lombok:1.18.24'
-        testAnnotationProcessor 'org.projectlombok:lombok:1.18.24'
+        testCompileOnly libs.lombok
+        testAnnotationProcessor libs.lombok
     }
 
     compileJava {

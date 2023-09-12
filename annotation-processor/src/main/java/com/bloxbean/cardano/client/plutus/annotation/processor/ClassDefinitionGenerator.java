@@ -8,6 +8,9 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -50,6 +53,14 @@ public class ClassDefinitionGenerator {
         classDefinition.setName(serializationClassName);
         classDefinition.setObjType(typeElement.asType().toString());
 
+        boolean lombokData = typeElement.getAnnotation(Data.class) != null;
+        boolean lombokGetter = typeElement.getAnnotation(Getter.class) != null;
+        boolean lombokSetter = typeElement.getAnnotation(Setter.class) != null;
+
+        if (lombokData || (lombokGetter && lombokSetter)) {
+            classDefinition.setHasLombokAnnotation(true);
+        }
+
         Constr plutusConstr = typeElement.getAnnotation(Constr.class);
         int alternative = plutusConstr.alternative();
         classDefinition.setAlternative(alternative);
@@ -70,13 +81,10 @@ public class ClassDefinitionGenerator {
                 boolean isFieldVisible = variableElement.getModifiers().contains(Modifier.PUBLIC)
                         || variableElement.getModifiers().size() == 0; //default
 
-                if ((getter == null || setter == null) && !isFieldVisible) {
+                if ((getter == null || setter == null) && !isFieldVisible && !classDefinition.isHasLombokAnnotation()) {
                     error(variableElement, "Getter / Setter method not found for field: " + fieldName);
                     continue;
                 }
-
-                if (getter != null && setter != null)
-                    field.setHashGetter(true);
 
                 TypeName typeName = TypeName.get(variableElement.asType());
                 FieldType fieldType = null;
@@ -86,6 +94,22 @@ public class ClassDefinitionGenerator {
                     error(variableElement, e.getMessage());
                 }
                 field.setFieldType(fieldType);
+
+                if (getter != null && setter != null) {
+                    field.setHashGetter(true);
+                    field.setGetterName(getter.getSimpleName().toString());
+                } else if (classDefinition.isHasLombokAnnotation()) {
+                    field.setHashGetter(true);
+                    if (Type.BOOL.equals(field.getFieldType().getType())) {
+                        if (JavaType.BOOLEAN.equals(field.getFieldType().getJavaType())) {
+                            field.setGetterName("is" + capitalize(fieldName));
+                        } else {
+                            field.setGetterName("get" + capitalize(fieldName));
+                        }
+                    } else {
+                        field.setGetterName("get" + capitalize(fieldName));
+                    }
+                }
 
                 Enc encodingField = variableElement.getAnnotation(Enc.class);
                 if (encodingField != null && encodingField.value() != null) {
@@ -122,6 +146,12 @@ public class ClassDefinitionGenerator {
         } else if (typeName.equals(TypeName.get(byte[].class))) {
             fieldType.setType(Type.BYTES);
             fieldType.setJavaType(JavaType.BYTES);
+        } else if (typeName.equals(TypeName.get(Boolean.class))) {
+            fieldType.setType(Type.BOOL);
+            fieldType.setJavaType(JavaType.BOOLEAN_OBJ);
+        } else if (typeName.equals(TypeName.BOOLEAN)) {
+            fieldType.setType(Type.BOOL);
+            fieldType.setJavaType(JavaType.BOOLEAN);
         } else if (typeName instanceof ParameterizedTypeName &&
                 (((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(List.class))
                         || isAssignableToList(typeMirror))) {
@@ -178,10 +208,18 @@ public class ClassDefinitionGenerator {
     private ExecutableElement findGetter(TypeElement typeElement, VariableElement variableElement) {
         String fieldName = variableElement.getSimpleName().toString();
         String getterMethodName = "get" + capitalize(fieldName.toString());
+
+        String altGetterMethodName = null;
+        if (variableElement.asType().getKind().equals(TypeKind.BOOLEAN)
+                || variableElement.asType().toString().equals("java.lang.Boolean")) {
+            altGetterMethodName = "is" + capitalize(fieldName.toString());
+        }
+
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
             if (enclosedElement instanceof ExecutableElement) {
                 ExecutableElement executableElement = (ExecutableElement) enclosedElement;
-                if (executableElement.getSimpleName().toString().equals(getterMethodName) &&
+                if ((executableElement.getSimpleName().toString().equals(getterMethodName) ||
+                        executableElement.getSimpleName().toString().equals(altGetterMethodName)) &&
                         executableElement.getModifiers().contains(Modifier.PUBLIC) &&
                         executableElement.getParameters().isEmpty() &&
                         executableElement.getReturnType().toString().equals(variableElement.asType().toString())) {

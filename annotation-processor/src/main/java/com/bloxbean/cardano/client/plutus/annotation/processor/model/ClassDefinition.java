@@ -16,6 +16,8 @@ public class ClassDefinition {
     private String objType;
     private int alternative;
 
+    private boolean hasLombokAnnotation;
+
     private List<Field> fields = new ArrayList<>();
 }
 

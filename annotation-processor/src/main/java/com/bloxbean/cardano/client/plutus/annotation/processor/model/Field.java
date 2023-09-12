@@ -14,4 +14,5 @@ public class Field {
     private int index;
     private FieldType fieldType;
     private boolean hashGetter;
+    private String getterName;
 }

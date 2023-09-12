@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 public class BasePlutusDataConverter {
 
@@ -39,6 +40,15 @@ public class BasePlutusDataConverter {
         } else {
             return BytesPlutusData.of(s);
         }
+    }
+
+    protected PlutusData toPlutusData(Boolean b) {
+        Objects.requireNonNull(b, "Boolean value cannot be null");
+
+        if (b)
+            return ConstrPlutusData.of(0);
+        else
+            return ConstrPlutusData.of(1);
     }
 
     protected Long plutusDataToLong(PlutusData data) {

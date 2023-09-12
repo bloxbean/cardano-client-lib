@@ -1,10 +1,7 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor;
 
 import com.bloxbean.cardano.client.plutus.annotation.BasePlutusDataConverter;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.ClassDefinition;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.Field;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.FieldType;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.JavaType;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.squareup.javapoet.*;
 import lombok.extern.slf4j.Slf4j;
@@ -128,6 +125,14 @@ public class ConverterCodeGenerator implements CodeGenerator {
                             .add("//Field $L\n", field.getName())
                             .add(nullCheckStatement(field, fieldOrGetterName(field)))
                             .addStatement("constr.getData().add(new $LPlutusDataConverter().serialize(obj.$L))", field.getFieldType().getJavaType().getName(), fieldOrGetterName(field))
+                            .add("\n")
+                            .build();
+                    break;
+                case BOOL:
+                    codeBlock = CodeBlock.builder()
+                            .add("//Field $L\n", field.getName())
+                            .add(nullCheckStatement(field, fieldOrGetterName(field)))
+                            .addStatement("constr.getData().add(toPlutusData(obj.$L))", fieldOrGetterName(field))
                             .add("\n")
                             .build();
                     break;
@@ -293,6 +298,20 @@ public class ConverterCodeGenerator implements CodeGenerator {
                                 fieldTypeName, field.getName(), fieldTypeName, ConstrPlutusData.class, field.getIndex())
                         .build();
                 break;
+            case BOOL:
+                codeBlock = CodeBlock.builder()
+                        .add("//Field $L\n", field.getName())
+                        .add("$T $L = null;\n", Boolean.class, field.getName())
+                        .addStatement("var $LConstr = (($T)data.getPlutusDataList().get($L))",
+                                field.getName(), ConstrPlutusData.class, field.getIndex())
+                        .beginControlFlow("if($LConstr.getAlternative() == 0)", field.getName())
+                        .addStatement("$L = true", field.getName())
+                        .nextControlFlow("else")
+                        .addStatement("$L = false", field.getName())
+                        .endControlFlow()
+                        .add("\n")
+                        .build();
+                break;
             default:
                 throw new RuntimeException("Unsupported type : " + field.getFieldType().getType());
 
@@ -337,14 +356,10 @@ public class ConverterCodeGenerator implements CodeGenerator {
 
     private String fieldOrGetterName(Field field) {
         if (field.isHashGetter()) {
-            return getterName(field.getName());
+            return field.getGetterName() + "()";
         } else {
             return field.getName();
         }
-    }
-
-    private String getterName(String fieldName) {
-        return "get" + capitalize(fieldName) + "()";
     }
 
     private String setterName(String fieldName) {
