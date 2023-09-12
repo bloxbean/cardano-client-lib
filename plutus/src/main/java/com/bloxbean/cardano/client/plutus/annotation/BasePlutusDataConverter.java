@@ -71,6 +71,10 @@ public class BasePlutusDataConverter {
         return deserializeBytesToString(((BytesPlutusData) data).getValue(), encoding);
     }
 
+    protected Boolean plutusDataToBoolean(PlutusData data) {
+        return ((ConstrPlutusData)data).getAlternative() == 0;
+    }
+
     protected String deserializeBytesToString(byte[] bytes, String encoding) {
         if (encoding == null || encoding.isEmpty() || encoding.equalsIgnoreCase("utf-8")) {
             return new String(bytes, StandardCharsets.UTF_8);

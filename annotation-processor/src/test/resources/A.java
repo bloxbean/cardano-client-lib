@@ -13,8 +13,8 @@ public class A {
     BigInteger b = BigInteger.valueOf(0);
     String name = "";
     String address = "";
+    Optional<Boolean> optionalBoolean;
 }
-
 
 @Constr
 class SuperA {

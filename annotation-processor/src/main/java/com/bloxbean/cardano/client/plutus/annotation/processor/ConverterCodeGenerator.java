@@ -156,6 +156,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
             case INTEGER:
             case BYTES:
             case STRING:
+            case BOOL:
                 return "toPlutusData(" + fieldOrGetterName + ")";
             default:
                 return String.format("new %sPlutusDataConverter().serialize(%s)", itemType.getJavaType().getName(), fieldOrGetterName);
@@ -337,6 +338,8 @@ public class ConverterCodeGenerator implements CodeGenerator {
                     return String.format("plutusDataToString(%s, null)", fieldName);
                 else
                     return String.format("plutusDataToString(%s, \"%s\")", fieldName, itemType.getEncoding());
+            case BOOL:
+                return String.format("plutusDataToBoolean(%s)", fieldName);
             default:
                 return String.format("new %sPlutusDataConverter().deserialize((ConstrPlutusData)%s)", itemType.getJavaType().getName(), fieldName);
         }
