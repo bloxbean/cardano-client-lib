@@ -62,10 +62,8 @@ public class UtxoServiceIT extends BaseITTest {
         assertTrue(result.isSuccessful());
         assertTrue(result.code() == 200);
         assertEquals("addr_test1wpu365zw7petuyvhng78y2l3534g4ammuuexldu5nkjf0sgz5xu88", result.getValue().getAddress());
-        if (!backendType.equals(KOIOS)) { //TODO -- Remove after the fix in koios-backend
-            assertEquals("4194bb3c4c0fd47485112d09ea85b2dd6ab44fa826b77cbf9ed0f12582b057d9", result.getValue().getDataHash());
-            assertEquals("d87a9fd8799fd8799f581cd1707e481671d473ee5a8d561aaac4a1f4e8c937ce61e5d11fc0611fffd8799fd8799f1a000687241b00000187a8d155a2ffffffff", result.getValue().getInlineDatum());
-        }
+        assertEquals("4194bb3c4c0fd47485112d09ea85b2dd6ab44fa826b77cbf9ed0f12582b057d9", result.getValue().getDataHash());
+        assertEquals("d87a9fd8799fd8799f581cd1707e481671d473ee5a8d561aaac4a1f4e8c937ce61e5d11fc0611fffd8799fd8799f1a000687241b00000187a8d155a2ffffffff", result.getValue().getInlineDatum());
         assertEquals(3, result.getValue().getAmount().size());
         assertEquals(new Amount(LOVELACE, adaToLovelace(2)), result.getValue().getAmount().get(0));
     }
@@ -81,9 +79,7 @@ public class UtxoServiceIT extends BaseITTest {
         assertTrue(result.isSuccessful());
         assertTrue(result.code() == 200);
         assertEquals("addr_test1wzcppsyg36f65jydjsd6fqu3xm7whxu6nmp3pftn9xfgd4ckah4da", result.getValue().getAddress());
-        if (!backendType.equals(KOIOS)) { //TODO -- Remove after the fix in koios-backend
-            assertEquals("b010c0888e93aa488d941ba4839136fceb9b9a9ec310a573299286d7", result.getValue().getReferenceScriptHash());
-        }
+        assertEquals("b010c0888e93aa488d941ba4839136fceb9b9a9ec310a573299286d7", result.getValue().getReferenceScriptHash());
         assertEquals(1, result.getValue().getAmount().size());
         assertEquals(new Amount(LOVELACE, adaToLovelace(9.34408)), result.getValue().getAmount().get(0));
     }
