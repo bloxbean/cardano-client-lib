@@ -144,7 +144,7 @@ public class KoiosEpochService implements EpochService {
             protocolParams.setMaxCollateralInputs(epochParams.getMaxCollateralInputs());
         }
         if (epochParams.getCostModels() != null) {
-            protocolParams.setCostModels(epochParams.getCostModels());
+//            protocolParams.setCostModels(epochParams.getCostModels()); TODO
         }
         if (epochParams.getCoinsPerUtxoWord() != null) {
             protocolParams.setCoinsPerUtxoWord(epochParams.getCoinsPerUtxoWord());

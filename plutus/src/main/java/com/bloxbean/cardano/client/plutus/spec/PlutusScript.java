@@ -17,6 +17,7 @@ import java.util.List;
 @NoArgsConstructor
 @SuperBuilder
 public abstract class PlutusScript implements Script {
+
     @Setter(AccessLevel.NONE)
     @Getter
     protected String type;
