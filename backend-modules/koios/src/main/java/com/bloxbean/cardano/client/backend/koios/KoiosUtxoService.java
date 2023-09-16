@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.client.util.StringUtils;
 import rest.koios.client.backend.api.address.AddressService;
 import rest.koios.client.backend.api.address.model.AddressInfo;
 import rest.koios.client.backend.api.address.model.AddressUtxo;
@@ -88,12 +89,14 @@ public class KoiosUtxoService implements UtxoService {
         if (utxos == null || utxos.isEmpty())
             return resultUtxos;
 
-        List<Utxo> assetUtxos = utxos.stream().filter(utxo ->
-                        utxo.getAmount().stream().filter(amount -> amount.getUnit().equals(unit)).findFirst().isPresent())
-                .collect(Collectors.toList());
+        if (unit != null && !unit.isEmpty()) {
+            utxos = utxos.stream().filter(utxo ->
+                            utxo.getAmount().stream().anyMatch(amount -> amount.getUnit().equals(unit)))
+                    .collect(Collectors.toList());
+        }
 
-        if (!assetUtxos.isEmpty())
-            return Result.success("OK").withValue(assetUtxos).code(200);
+        if (!utxos.isEmpty())
+            return Result.success("OK").withValue(utxos).code(200);
         else
             return Result.error("Not Found").withValue(Collections.emptyList()).code(404);
     }

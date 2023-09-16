@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.backend.koios.it;
 
 import com.bloxbean.cardano.client.api.exception.ApiException;
+import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
@@ -10,6 +11,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
+import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 import static org.junit.jupiter.api.Assertions.*;
 
 class KoiosUtxoServiceIT extends KoiosBaseTest {
@@ -68,14 +71,13 @@ class KoiosUtxoServiceIT extends KoiosBaseTest {
         assertTrue(result.code() == 404);
     }
 
-    /** TODO -- Uncomment after fix in Koios https://github.com/cardano-community/koios-java-client/issues/120 */
-    /**
+
     @Test
     public void getTxOutput_whenOutput_exists_with_datum() throws ApiException {
         String txHash = "33383bfecb9e541d32857eda88b18ffc71943372fe8ae7b4792589b72a41e26e";
         int outputIndex = 2;
 
-        Result<Utxo> result = utxoService.getOutput(txHash, outputIndex);
+        Result<Utxo> result = utxoService.getTxOutput(txHash, outputIndex);
 
         assertTrue(result.isSuccessful());
         assertTrue(result.code() == 200);
@@ -88,12 +90,13 @@ class KoiosUtxoServiceIT extends KoiosBaseTest {
         assertEquals(new Amount(LOVELACE, adaToLovelace(2)), result.getValue().getAmount().get(0));
     }
 
+
     @Test
     public void getTxOutput_whenOutput_exists_with_referenceInput() throws ApiException {
         String txHash = "d8109586a0dfb1bdc62bec0e6b41f3825994380f32ecad609792587ed3080d10";
         int outputIndex = 0;
 
-        Result<Utxo> result = utxoService.getOutput(txHash, outputIndex);
+        Result<Utxo> result = utxoService.getTxOutput(txHash, outputIndex);
 
         assertTrue(result.isSuccessful());
         assertTrue(result.code() == 200);
@@ -103,7 +106,7 @@ class KoiosUtxoServiceIT extends KoiosBaseTest {
 
         assertEquals(1, result.getValue().getAmount().size());
         assertEquals(new Amount(LOVELACE, adaToLovelace(9.34408)), result.getValue().getAmount().get(0));
-    }**/
+    }
 
     @Test
     public void getTxOutput_whenOutput_invalidIndex() throws ApiException {

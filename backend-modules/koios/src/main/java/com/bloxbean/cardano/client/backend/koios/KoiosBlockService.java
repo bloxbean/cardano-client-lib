@@ -39,8 +39,6 @@ public class KoiosBlockService implements BlockService {
             rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.block.model.Block>>
                     blockList = blockService.getBlockList(Options.builder()
                     .option(Limit.of(2))
-//                    .option(Filter.of("block_height", FilterType.NEQ, "null"))
-//                    .option(Order.by("block_height", SortType.DESC)) TODO uncomment for next Koios Version (1.16.x)
                     .build());
             if (!blockList.isSuccessful()) {
                 return Result.error(blockList.getResponse()).code(blockList.getCode());
