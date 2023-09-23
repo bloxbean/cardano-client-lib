@@ -22,6 +22,16 @@ public class KoiosBackendService implements BackendService {
         backendServiceImpl = new BackendServiceImpl(baseUrl);
     }
 
+    /**
+     * KoiosBackendService Constructor
+     *
+     * @param baseUrl baseUrl
+     * @param apiToken Authorization Bearer Token
+     */
+    public KoiosBackendService(String baseUrl, String apiToken) {
+        backendServiceImpl = new BackendServiceImpl(baseUrl, apiToken);
+    }
+
     @Override
     public AssetService getAssetService() {
         return new KoiosAssetService(backendServiceImpl.getAssetService());
@@ -69,6 +79,6 @@ public class KoiosBackendService implements BackendService {
 
     @Override
     public ScriptService getScriptService() {
-        throw new UnsupportedOperationException("Not supported yet");
+        return new KoiosScriptService(backendServiceImpl.getScriptService(), backendServiceImpl.getTransactionsService());
     }
 }

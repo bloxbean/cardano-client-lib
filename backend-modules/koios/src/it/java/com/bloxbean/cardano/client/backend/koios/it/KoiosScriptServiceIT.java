@@ -1,6 +1,7 @@
-package com.bloxbean.cardano.client.backend.api;
+package com.bloxbean.cardano.client.backend.koios.it;
 
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.ScriptService;
 import com.bloxbean.cardano.client.backend.model.ScriptDatum;
 import com.bloxbean.cardano.client.backend.model.ScriptDatumCbor;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
@@ -16,15 +17,14 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-class ScriptServiceIT extends BaseITTest {
+class KoiosScriptServiceIT extends KoiosBaseTest {
 
-    ScriptService scriptService;
+    private ScriptService scriptService;
 
     @BeforeEach
     public void setup() {
-        scriptService = getBackendService().getScriptService();
+        scriptService = backendService.getScriptService();
     }
-
 
     @Test
     void getDatumValue() throws Exception {
