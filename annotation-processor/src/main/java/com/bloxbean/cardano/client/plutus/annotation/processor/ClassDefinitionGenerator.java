@@ -46,7 +46,7 @@ public class ClassDefinitionGenerator {
     public ClassDefinition getClassDefinition(TypeElement typeElement) {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
-        String serializationClassName = className + "PlutusDataConverter";
+        String serializationClassName = className + "Converter";
 
         ClassDefinition classDefinition = new ClassDefinition();
         classDefinition.setPackageName(packageName);
@@ -125,6 +125,7 @@ public class ClassDefinitionGenerator {
 
     private FieldType detectFieldType(TypeName typeName, TypeMirror typeMirror) throws NotSupportedException {
         FieldType fieldType = new FieldType();
+        fieldType.setFqTypeName(typeName.toString());
         if (typeName.equals(TypeName.get(Long.class))) {
             fieldType.setType(Type.INTEGER);
             fieldType.setJavaType(JavaType.LONG_OBJECT);
@@ -195,7 +196,7 @@ public class ClassDefinitionGenerator {
     }
 
     private boolean isSupportedType(TypeName typeName, TypeMirror typeMirror) {
-        for (TypeElement typeElement: typeElements) {
+        for (TypeElement typeElement : typeElements) {
             if (typeMirror != null && typeElement.asType().equals(typeMirror)) {
                 return true;
             } else if (typeElement.getQualifiedName().toString().equals(typeName.toString())) {

@@ -20,7 +20,15 @@ public class ConstrAnnotationProcessorTest {
                         .compile(JavaFileObjects.forResource("Model1.java"),
                                 JavaFileObjects.forResource("Model2.java"));
 
-        System.out.println(compilation.diagnostics());
+
+        compilation.generatedSourceFiles().forEach(javaFileObject -> {
+            try {
+                System.out.println(javaFileObject.getCharContent(true)); // Prints the generated source
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+
         compilation.generatedFiles().forEach(javaFileObject -> {
             if (javaFileObject.getName().endsWith("class"))
                 return;;
@@ -80,5 +88,70 @@ public class ConstrAnnotationProcessorTest {
         assertThat(compilation).succeeded();
     }
 
+    @Test
+    void listOfListCompile() {
+        Compilation compilation =
+                javac()
+                        .withProcessors(new ConstrAnnotationProcessor())
+                        .compile(JavaFileObjects.forResource("NestedListModel.java"));
+
+        System.out.println(compilation.diagnostics());
+        compilation.generatedFiles().forEach(javaFileObject -> {
+            if (javaFileObject.getName().endsWith("class"))
+                return;;
+            System.out.println(javaFileObject.getName());
+            try {
+                System.out.println(javaFileObject.getCharContent(true));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
+        assertThat(compilation).succeeded();
+    }
+
+    @Test
+    void mapOfMapCompile() throws Exception {
+        Compilation compilation =
+                javac()
+                        .withProcessors(new ConstrAnnotationProcessor())
+                        .compile(JavaFileObjects.forResource("NestedMapModel.java"));
+
+        System.out.println(compilation.diagnostics());
+        compilation.generatedFiles().forEach(javaFileObject -> {
+            if (javaFileObject.getName().endsWith("class"))
+                return;;
+            System.out.println(javaFileObject.getName());
+            try {
+                System.out.println(javaFileObject.getCharContent(true));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
+        assertThat(compilation).succeeded();
+    }
+
+    @Test
+    void nestedListMapCompile() throws Exception {
+        Compilation compilation =
+                javac()
+                        .withProcessors(new ConstrAnnotationProcessor())
+                        .compile(JavaFileObjects.forResource("NestedListMapModel.java"));
+
+        System.out.println(compilation.diagnostics());
+        compilation.generatedFiles().forEach(javaFileObject -> {
+            if (javaFileObject.getName().endsWith("class"))
+                return;;
+            System.out.println(javaFileObject.getName());
+            try {
+                System.out.println(javaFileObject.getCharContent(true));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
+        assertThat(compilation).succeeded();
+    }
 }
 

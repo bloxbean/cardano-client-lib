@@ -15,5 +15,14 @@ public class FieldType {
     private JavaType javaType;
     private String encoding;
     private boolean isCollection;
+    private String fqTypeName; //Fully qualified type name. This can be used to get the exact type.
     private List<FieldType> genericTypes = new ArrayList<>();
+
+    public boolean isMap() {
+        return javaType == JavaType.MAP;
+    }
+
+    public boolean isList() {
+        return javaType == JavaType.LIST;
+    }
 }
