@@ -3,10 +3,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.plutus.annotation.BasePlutusDataConverter;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.ClassDefinition;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.Field;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.FieldType;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.JavaType;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.squareup.javapoet.*;
@@ -15,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -258,6 +255,13 @@ public class ConverterCodeGenerator implements CodeGenerator {
         return nullCheckBuilder.build();
     }
 
+    private CodeBlock nullCheckStatement(String fieldName, String fieldOrGetterName) {
+        CodeBlock.Builder nullCheckBuilder = CodeBlock.builder();
+        nullCheckBuilder.addStatement("$T.requireNonNull(obj.$L, \"$L cannot be null\")", Objects.class, fieldOrGetterName, fieldName);
+
+        return nullCheckBuilder.build();
+    }
+
     /**
      * Generate CodeBlock for Nested List. This is a recursive function.
      * @param fieldType FieldType of the field
@@ -288,6 +292,11 @@ public class ConverterCodeGenerator implements CodeGenerator {
             var nestedMapCodeBlock = generateNestedMapCode(genericType, innerOutputVarName, innerLoopVarName, loopVarName);
             codeBlockBuilder.add(nestedMapCodeBlock)
                     .addStatement("$L.add($L)", outputVarName, innerOutputVarName);
+        } else if (genericType.getType() == Type.OPTIONAL) {
+            String returnVarName = loopVarName + "_$optional";
+            CodeBlock optionalCodeBlock = generateNestedOptionalSerializationCode(genericType, loopVarName, returnVarName);
+            codeBlockBuilder.add(optionalCodeBlock);
+            codeBlockBuilder.addStatement("$L.add($L)", outputVarName, returnVarName);
         } else {
             codeBlockBuilder.addStatement("$L.add($L)", outputVarName, toPlutusDataCodeBlock(genericType, loopVarName));
         }
@@ -332,52 +341,126 @@ public class ConverterCodeGenerator implements CodeGenerator {
             return generateNestedListCode(type, name, outputVarName, name + "Item", objName);
         } else if (type.isMap()) {
             return generateNestedMapCode(type, outputVarName, name + "Entry", objName);
+        } else if (type.getType() == Type.OPTIONAL) {
+            CodeBlock optionalCodeBlock = generateNestedOptionalSerializationCode(type, name, outputVarName);
+            CodeBlock codeBlock = CodeBlock.builder()
+                    .addStatement("var $L = $L", name, objName)
+                    .add(optionalCodeBlock)
+                    .build();
+            return codeBlock;
         } else {
             return CodeBlock.builder().addStatement("var $L = $L", outputVarName, toPlutusDataCodeBlock(type, objName)).build();
         }
     }
 
     /**
-     * Generate CodeBlock for Optional serialization
+     * Generate CodeBlock for Optional serialization. This handles only top level Optional serialization.
      * @param field Field
      * @return CodeBlock
      */
     private CodeBlock generateOptionalSerializationCode(Field field) {
-        FieldType genericType = field.getFieldType().getGenericTypes().get(0);
+        FieldType fieldType = field.getFieldType();
+        String fieldName = field.getName();
+        String fieldOrGetterName = fieldOrGetterName(field);
+
+        return generateOptionalSerializationCode(fieldType, fieldName, fieldOrGetterName);
+    }
+
+    // This only handles top level Optional serialization. Nested Optional serialization is handled by generateNestedOptionalSerializationCode()
+    private CodeBlock generateOptionalSerializationCode(FieldType fieldType, String fieldName, String fieldOrGetterName) {
+        FieldType genericType = fieldType.getGenericTypes().get(0);
         CodeBlock nestedBlock = null;
-        String nestedVarName = field.getName() + "_$nested";
+        String nestedVarName = fieldName + "_$nested";
         if (!genericType.isCollection()) {
             nestedBlock = CodeBlock.builder()
                     .add("var $L=$L;",nestedVarName,
-                            toPlutusDataCodeBlock(field.getFieldType().getGenericTypes().get(0), "obj." + fieldOrGetterName(field) + ".get()"))
+                            toPlutusDataCodeBlock(fieldType.getGenericTypes().get(0), "obj." + fieldOrGetterName + ".get()"))
                     .build();
         } else {
             if (genericType.isList()) {
-                nestedBlock = generateNestedListCode(genericType, field.getName(), nestedVarName, "item", "obj." + fieldOrGetterName(field) + ".get()");
+                nestedBlock = generateNestedListCode(genericType, fieldName, nestedVarName, "item", "obj." + fieldOrGetterName + ".get()");
             } else if (genericType.isMap()) {
-                nestedBlock = generateNestedMapCode(genericType, nestedVarName, "entry", "obj." + fieldOrGetterName(field) + ".get()");
+                nestedBlock = generateNestedMapCode(genericType, nestedVarName, "entry", "obj." + fieldOrGetterName + ".get()");
             } else {
                 throw new RuntimeException("Unsupported type " + genericType);
             }
         }
 
         return CodeBlock.builder()
-                .add("//Field $L\n", field.getName())
-                .add(nullCheckStatement(field, fieldOrGetterName(field)))
-                .beginControlFlow("if(obj.$L.isEmpty())", fieldOrGetterName(field))
-                .addStatement("var $LConstr = $T.builder().alternative(1).data($T.of()).build()", field.getName(),
+                .add("//Field $L\n", fieldName)
+                .add(nullCheckStatement(fieldName, fieldOrGetterName))
+                .beginControlFlow("if(obj.$L.isEmpty())", fieldOrGetterName)
+                .addStatement("var $LConstr = $T.builder().alternative(1).data($T.of()).build()", fieldName,
                         ConstrPlutusData.class, ListPlutusData.class)
-                .addStatement("constr.getData().add($LConstr)", field.getName())
+                .addStatement("constr.getData().add($LConstr)", fieldName)
                 .nextControlFlow("else")
                 .add(nestedBlock)
-                .addStatement("var $LConstr = $T.builder().alternative(0).data($T.of($L)).build()", field.getName(), ConstrPlutusData.class, ListPlutusData.class,
+                .addStatement("var $LConstr = $T.builder().alternative(0).data($T.of($L)).build()", fieldName, ConstrPlutusData.class, ListPlutusData.class,
                         nestedVarName)
-                .addStatement("constr.getData().add($LConstr)", field.getName())
+                .addStatement("constr.getData().add($LConstr)", fieldName)
                 .endControlFlow()
                 .add("\n")
                 .build();
     }
 
+    /**
+     * Generate serialization CodeBlock for Nested Optional in Collection, not top level Optional.
+     * For example:
+     * <p>
+     *     {@literal
+     *     List<Optional<List<List<String>>>> opt
+     *     }
+     * </p>
+     * <p>
+     *     {@literal
+     *     Map<Optional<Map<String, List<Optional<String>>>>, Optional<List<BigInteger>>> optMap
+     *     }
+     * </p>
+     * @param fieldType
+     * @param varName
+     * @param outputVarName
+     * @return
+     */
+    private CodeBlock generateNestedOptionalSerializationCode(FieldType fieldType, String varName, String outputVarName) {
+        FieldType genericType = fieldType.getGenericTypes().get(0);
+        CodeBlock nestedBlock = null;
+        String nestedVarName = varName + "_$nested";
+        if (!genericType.isCollection()) {
+            nestedBlock = CodeBlock.builder()
+                    .add("var $L=$L;",nestedVarName,
+                            toPlutusDataCodeBlock(fieldType.getGenericTypes().get(0), varName + ".get()"))
+                    .build();
+        } else {
+            if (genericType.isList()) {
+                String innerLoopVarName = varName + "_$inner";
+
+                nestedBlock = generateNestedListCode(genericType, varName, nestedVarName, innerLoopVarName, varName + ".get()");
+            } else if (genericType.isMap()) {
+                String innerEntryVarName = varName + "_$inner";
+                nestedBlock = generateNestedMapCode(genericType, nestedVarName, innerEntryVarName, varName + ".get()");
+            } else {
+                throw new RuntimeException("Unsupported type " + genericType);
+            }
+        }
+
+        return CodeBlock.builder()
+                .add("//Field $L\n", varName)
+                .addStatement("$T.requireNonNull($L, \"$L\")", Objects.class, varName, varName + " must not be null")
+                .addStatement("$T $L = null", ConstrPlutusData.class, outputVarName)
+                .beginControlFlow("if($L.isEmpty())", varName)
+                .addStatement("$L = $T.builder().alternative(1).data($T.of()).build()", outputVarName,
+                        ConstrPlutusData.class, ListPlutusData.class)
+                //.addStatement("$L.getPlutusDataList().add($LConstr)", outputVarName, varName)
+                .nextControlFlow("else")
+                .add(nestedBlock)
+                .add("\n")
+                .addStatement("$L = $T.builder().alternative(0).data($T.of($L)).build()", outputVarName, ConstrPlutusData.class, ListPlutusData.class,
+                        nestedVarName)
+               // .addStatement("$L.getPlutusDataList().add($LConstr)", outputVarName, varName)
+                .endControlFlow()
+                .add("\n")
+                .build();
+    }
 
     // ---- Deserialize methods
 
@@ -539,6 +622,14 @@ public class ConverterCodeGenerator implements CodeGenerator {
             CodeBlock innerMapDeserializeCodeBlock = generateMapDeserializeCode(genericType, innerMapName, itemVarName, innerEntryVarName);
             codeBlockBuilder.add(innerMapDeserializeCodeBlock)
                     .addStatement("$L.add($L)", fieldName, innerMapName);
+        } else if (genericType.getType() == Type.OPTIONAL) {
+            String returnVarName = itemVarName + "_$optional";
+            String innerItemVarName = itemVarName+ "_$inner";
+
+            codeBlockBuilder.addStatement("var $L = ($T)$L", innerItemVarName, ConstrPlutusData.class, itemVarName);
+            CodeBlock optionalCodeBlock = generateNestedOptionalDeserializationCode(genericType, innerItemVarName, returnVarName);
+            codeBlockBuilder.add(optionalCodeBlock);
+            codeBlockBuilder.addStatement("$L.add($L)", fieldName, returnVarName);
         } else {
             codeBlockBuilder.addStatement("var o = $L", fromPlutusDataToObj(genericType, itemVarName))
                     .addStatement("$L.add(o)", fieldName);
@@ -563,16 +654,14 @@ public class ConverterCodeGenerator implements CodeGenerator {
 
         CodeBlock.Builder codeBlockBuilder = CodeBlock.builder();
         codeBlockBuilder
-                .addStatement("$L $L = new $T<>()", fieldType.getFqTypeName(), fieldName, HashMap.class)
+                .addStatement("$L $L = new $T<>()", fieldType.getFqTypeName(), fieldName, LinkedHashMap.class)
                 .beginControlFlow("for(var $L: (($T)$L).getMap().entrySet())", entryVarName, MapPlutusData.class, pdMapName);
 
-
-        String innerEntryVarName = entryVarName+ "Inner";
-
+        String innerEntryVarName = entryVarName+ "_$inner";
         String keyOutputVarName = fieldName + "Key";
         String valueOutputVarName = fieldName + "Value";
-        CodeBlock keyDeserializeCodeBlock = generateDeserializeCodeBlock(keyType, keyOutputVarName, entryVarName + ".getKey()", innerEntryVarName);
-        CodeBlock valueDeserializeCodeBlock = generateDeserializeCodeBlock(valueType, valueOutputVarName, entryVarName + ".getValue()", innerEntryVarName);
+        CodeBlock keyDeserializeCodeBlock = generateDeserializeCodeBlock(keyType, keyOutputVarName, entryVarName + ".getKey()", innerEntryVarName + "_$key");
+        CodeBlock valueDeserializeCodeBlock = generateDeserializeCodeBlock(valueType, valueOutputVarName, entryVarName + ".getValue()", innerEntryVarName + "_$value");
 
         codeBlockBuilder.add(keyDeserializeCodeBlock)
                 .add(valueDeserializeCodeBlock)
@@ -587,13 +676,20 @@ public class ConverterCodeGenerator implements CodeGenerator {
             return generateListDeserializeCode(type, fieldName, pdName, itemVarName);
         } else if (type.isMap()) {
             return generateMapDeserializeCode(type, fieldName, pdName, itemVarName);
+        } else if (type.getType() == Type.OPTIONAL) {
+            CodeBlock optionalCodeBlock = generateNestedOptionalDeserializationCode(type, itemVarName, fieldName); //fieldName == outputVarName
+            CodeBlock codeBlock = CodeBlock.builder()
+                    .addStatement("var $L = ($T)$L", itemVarName, ConstrPlutusData.class, pdName)
+                    .add(optionalCodeBlock)
+                    .build();
+            return codeBlock;
         } else {
             return CodeBlock.builder().addStatement("var $L = $L", fieldName, fromPlutusDataToObj(type, pdName)).build();
         }
     }
 
     /**
-     * Generate code block for optional fields
+     * Generate code block for optional fields (top level)
      * @param field
      * @return CodeBlock
      */
@@ -630,6 +726,39 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 .build();
     }
 
+    //-- Handle when Optional is nested inside another collection
+    private CodeBlock generateNestedOptionalDeserializationCode(FieldType fieldType, String varName, String outputVarName) {
+        CodeBlock nestedBlock = null;
+        String nestedVarName = varName + "_$nested";
+        FieldType genericType = fieldType.getGenericTypes().get(0);
+
+        if (genericType.isList()) {
+            String innerVarName = varName + "_$inner";
+            nestedBlock = generateListDeserializeCode(genericType, nestedVarName, varName + "PlutusData", innerVarName);
+        } else if (genericType.isMap()) {
+            String innerEntryName = varName + "_$inner";
+            nestedBlock = generateMapDeserializeCode(genericType, nestedVarName, varName + "PlutusData", innerEntryName);
+        } else {
+            nestedBlock = CodeBlock.builder()
+                    .addStatement("var $L=$L;",nestedVarName,
+                            fromPlutusDataToObj(fieldType.getGenericTypes().get(0), varName + "PlutusData"))
+                    .build();
+        }
+
+        return CodeBlock.builder()
+                .add("//Field $L\n", varName)
+                .add("$L $L = null;\n", fieldType.getFqTypeName(), outputVarName)
+                .beginControlFlow("if($L.getAlternative() == 1)", varName)
+                .addStatement("$L = $T.empty()", outputVarName, Optional.class)
+                .nextControlFlow("else")
+                .addStatement("var $LPlutusData = $L.getData().getPlutusDataList().get(0)", varName, varName)
+                .add(nestedBlock)
+                .addStatement("$L = Optional.ofNullable($L)",
+                        outputVarName, nestedVarName)
+                .endControlFlow()
+                .add("\n")
+                .build();
+    }
 
     private String fromPlutusDataToObj(FieldType itemType, String fieldName) {
         switch (itemType.getType()) {

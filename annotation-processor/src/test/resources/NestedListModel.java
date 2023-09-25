@@ -2,12 +2,17 @@ package com.test;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusIgnore;
+import lombok.Data;
 
 import java.math.BigInteger;
 import java.util.*;
 
 @Constr(alternative = 1)
 public class NestedListModel {
+    List<Optional<String>> opt;
+    Map<Optional<String>, BigInteger> optMap1;
+
+    Map<Optional<Map<String, List<Optional<String>>>>, Optional<List<BigInteger>>> optMap;
     Optional<List<String>> optionalString;
     Optional<Map<String, BigInteger>> optionalMapString;
     Optional<List<Map<String, BigInteger>>> optionalListMapString;
