@@ -21,3 +21,5 @@ aiken-java-binding = "com.bloxbean.cardano:aiken-java-binding:0.0.8"
 google-auto-service="com.google.auto.service:auto-service:1.1.1"
 javapoet="com.squareup:javapoet:1.13.0"
 google-testing-compile="com.google.testing.compile:compile-testing:0.21.0"
+
+lombok = "org.projectlombok:lombok:1.18.28"

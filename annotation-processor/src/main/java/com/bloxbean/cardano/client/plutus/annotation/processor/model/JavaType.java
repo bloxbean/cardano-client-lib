@@ -17,6 +17,9 @@ public class JavaType {
     public final static JavaType MAP = new JavaType("java.util.Map", false);
     public final static JavaType OPTIONAL = new JavaType("java.util.Optional", false);
 
+    public final static JavaType BOOLEAN_OBJ = new JavaType("java.lang.Boolean", false);
+    public final static JavaType BOOLEAN = new JavaType("boolean", false);
+
     private String name;
     private boolean userDefined;
     public JavaType(String name, boolean userDefined) {

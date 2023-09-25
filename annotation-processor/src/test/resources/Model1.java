@@ -19,6 +19,11 @@ public class Model1 {
     Optional<Model2> optMod2;
     Optional<Long> optionalLong;
     Optional<byte[]> bytes;
+    boolean bool;
+    Boolean boolObj;
+
+    private boolean prvBool;
+    private Boolean prvBoolObj;
 
     @Enc("hex")
     private String str;
@@ -61,6 +66,22 @@ public class Model1 {
 
     public void setModelMap(Map<String, BigInteger> modelMap) {
         this.modelMap = modelMap;
+    }
+
+    public boolean isPrvBool() {
+        return prvBool;
+    }
+
+    public void setPrvBool(boolean prvBool) {
+        this.prvBool = prvBool;
+    }
+
+    public Boolean getPrvBoolObj() {
+        return prvBoolObj;
+    }
+
+    public void setPrvBoolObj(Boolean prvBoolObj) {
+        this.prvBoolObj = prvBoolObj;
     }
 }
 

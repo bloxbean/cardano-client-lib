@@ -6,6 +6,7 @@ dependencies {
     api libs.javapoet
 
     testImplementation libs.google.testing.compile
+    testImplementation libs.lombok
 }
 
 publishing {
