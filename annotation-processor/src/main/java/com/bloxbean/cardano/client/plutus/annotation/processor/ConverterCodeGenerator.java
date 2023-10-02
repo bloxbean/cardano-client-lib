@@ -579,9 +579,9 @@ public class ConverterCodeGenerator implements CodeGenerator {
                         .addStatement("var $LConstr = (($T)data.getPlutusDataList().get($L))",
                                 field.getName(), ConstrPlutusData.class, field.getIndex())
                         .beginControlFlow("if($LConstr.getAlternative() == 0)", field.getName())
-                        .addStatement("$L = true", field.getName())
-                        .nextControlFlow("else")
                         .addStatement("$L = false", field.getName())
+                        .nextControlFlow("else")
+                        .addStatement("$L = true", field.getName())
                         .endControlFlow()
                         .add("\n")
                         .build();
