@@ -7,6 +7,8 @@ dependencies {
 
     testImplementation libs.google.testing.compile
     testImplementation libs.lombok
+
+    testAnnotationProcessor project(':annotation-processor')
 }
 
 publishing {
