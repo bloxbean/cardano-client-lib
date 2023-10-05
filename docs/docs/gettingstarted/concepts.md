@@ -20,12 +20,17 @@ These are low level serialization api to build transaction for Cardano network. 
 complex scenarios. Basically, you can achieve any complexity with low level api. These apis provide flexibility, but building
 transactions this way is complex. Unless really required, this option should be avoided to build transactions.
 
-### Composable Functions (Recommended)
+### QuickTx API (Recommended)
+This new declarative-style transaction builder API strikes a balance between simplicity and flexibility. It’s built upon the Composable Functions API 
+and offers a more streamlined experience, supporting an extensive range of transactions. Those familiar with the Lucid JS 
+library will notice many similarities.
+
+### Composable Functions API 
 
 These apis provide a balance between simple interface and flexibility. Using out-of-box composable functions, you can achieve any 
 complexity and at the same time, you can write your own composable functions to customize the behavior during transaction building.
 
-### High-Level Api
+### High-Level Api (Deprecated)
 Provides simple interfaces to do transfer and token minting transaction. These apis are beginner friendly, but some complex transactions
 may not be possible through high-level API.
 

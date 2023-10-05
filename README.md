@@ -329,19 +329,17 @@ String policyId = scriptAtLeast.getPolicyId();
 
 #### Metadata
 ```
-CBORMetadataMap productDetailsMap
-                = new CBORMetadataMap()
+MetadataMap productDetailsMap = MetadataBuilder.createMap()
                 .put("code", "PROD-800")
                 .put("slno", "SL20000039484");
 
-CBORMetadataList tagList
-                = new CBORMetadataList()
+MetadataList tagList = MetadataBuilder.createList()
                 .add("laptop")
                 .add("computer");
 
-Metadata metadata = new CBORMetadata()
+Metadata metadata = MetadataBuilder.createMetadata()
                 .put(new BigInteger("670001"), productDetailsMap)
-                .put(new BigInteger("670002"), tagList);
+                .put(new BigInteger("670001"), productDetailsMap);
 ```
 
 #### UtxoSelectionStrategy in High Level Api

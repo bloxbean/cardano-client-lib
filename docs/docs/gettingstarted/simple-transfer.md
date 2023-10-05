@@ -107,6 +107,12 @@ BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
 ```
 **Note:** You can find other Koios urls in ``com.bloxbean.cardano.client.backend.koios.Constants``
 
+## Simple Transfer - Using QuickTx API
+
+Check this **post** to know how to build and submit transaction using QuickTx API. <br/>
+
+#### [Introducing new QuickTx API in Cardano Client Lib ](https://satran004.medium.com/introducing-new-quicktx-api-in-cardano-client-lib-0-5-0-beta1-5beb491282ce)
+
 ## Simple Transfer - Using Composable Functions
 
 Let's start with a brief introduction about composable functions.
@@ -330,11 +336,3 @@ public class SimpleTransfer {
 }
 
 ```
-
-## Simple Transfer - Using High Level Api
-
-//TODO
-
-## Simple Transfer - Using Low Level Api
-
-//TODO

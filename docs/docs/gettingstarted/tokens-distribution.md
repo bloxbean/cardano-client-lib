@@ -253,10 +253,6 @@ public class Main {
 }
 ```
 
-## Simple Token Distribution - Using High Level Api
-
-//TODO
-
-## Simple Token Distribution - Using Low Level Api
+## Simple Token Distribution - Using QuickTx Api
 
 //TODO
