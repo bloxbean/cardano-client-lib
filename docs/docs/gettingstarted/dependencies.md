@@ -15,7 +15,7 @@ sidebar_position: 2
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.4.3</version>
+            <version>0.5.0</version>
         </dependency>
 ```
 - **Backend modules**
@@ -27,21 +27,21 @@ sidebar_position: 2
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.4.3</version>
+            <version>0.5.0</version>
         </dependency>
         
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>0.4.3</version>
+            <version>0.5.0</version>
         </dependency>
         
          <!-- For Ogmios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>0.4.3</version>
+            <version>0.5.0</version>
         </dependency>
 ```
 
@@ -50,7 +50,7 @@ sidebar_position: 2
 - **Core Module**
 
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.4.3'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.5.0'
 ```
 - **Backend modules**
 
@@ -58,13 +58,13 @@ implementation 'com.bloxbean.cardano:cardano-client-lib:0.4.3'
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.4.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.5.0'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.4.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.5.0'
 
 //For Ogmios
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.4.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.5.0'
 
 ```
 
@@ -73,7 +73,7 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.4.3'
 
 :::info
 
-**SNAPSHOT_VERSION :** 0.4.4-SNAPSHOT (Please verify the latest snapshot version in **gradle.properties**)
+**SNAPSHOT_VERSION :** 0.5.1-SNAPSHOT (Please verify the latest snapshot version in **gradle.properties**)
 
 :::
 
