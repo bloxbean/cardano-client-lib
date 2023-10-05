@@ -9,19 +9,18 @@
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-### **Latest Stable Version**: [0.4.3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.4.3)
-
-### **Latest Beta Version**: [0.5.0-beta3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0-beta3)
-
-### **Tutorials**
-- [Simple Ada transfer](https://cardano-client.dev/docs/gettingstarted/simple-transfer)
-- [Multisig transfer using Native Script](https://cardano-client.dev/docs/gettingstarted/multisig-quickstart)
+### **Latest Stable Version**: [0.5.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0)
 
 ### More details --> [Documentation](https://cardano-client.dev/)
 
 ### **Recent Posts**
 - [Introducing QuickTx API to build transactions](https://satran004.medium.com/introducing-new-quicktx-api-in-cardano-client-lib-0-5-0-beta1-5beb491282ce)
 - [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
+- [Demo:- Test Aiken Smart Contract Using Java Offchain Code with Yaci DevKit](https://youtu.be/PTnSc85t0Nk?si=44uK6KFrTIH3m06A)
+
+### **Tutorials**
+- [Simple Ada transfer](https://cardano-client.dev/docs/gettingstarted/simple-transfer)
+- [Multisig transfer using Native Script](https://cardano-client.dev/docs/gettingstarted/multisig-quickstart)
 
 ### **Old Posts**
 
@@ -57,21 +56,27 @@ For **simple** setup, you can use **cardano-client-lib** and one of the backend 
 
 For fine-grained dependency management, add one or more below modules as required.
 
-| Modules                                  | Artifact Id                  | Description                                                                                                                                                                                                                                                                                                                                                                                    |
-|------------------------------------------|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [common](common)                         | cardano-client-common        | Contains common utilities (HexUtil, JsonUtil, Cbor Utils etc). This module doesn't depend on any other module. <br/>  **Dependencies:** None                                                                                                                                                                                                                                                   | 
- | [crypto](crypto)                         | cardano-client-crypto        | Provides implementation for standards like Bip32, Bip39, CIP1852 and other crypto primitives <br> **Dependencies:** common                                                                                                                                                                                                                                                                     |
- | [address](address)                       | cardano-client-address       | Supports derivation of various types of Cardano addresses (Base, Enterprise, Pointer, Stake etc) <br> **Dependencies:** common, crypto, transaction-common                                                                                                                                                                                                                                     |
-| [metadata](metadata)                     | cardano-client-metadata      | Provides simple api to generate and serialize generic metadata <br/> **Dependencies:** common, crypto                                                                                                                                                                                                                                                                                          |
- | [transaction-common](transaction-common) | cardano-client-transaction-common | A small module with some transaction specific common classes which are required in other modules. <br/> This module is there for backward compatibility. So you should not add this module directly in your application. <br/> **Dependencies:** common, crypto                                                                                                                                | 
-| [core](core)                             | cardano-client-core          | Contains low level transaction serialization logic and other common apis / interfaces (Account, Coin selections, UtxoSupplier, ProtocolParamSupplier etc.). <br> Also contains high-level api like PaymentTransaction for backward compatibility. But HL api may be removed to a separate module in future release<br> **Dependencies:** common, crypto, transaction-common, address, metadata |
- | [function](function)                     | cardano-client-function      | Provides Composable Function Apis. A simple, flexible way to build transactions through re-usable functions. <br> **Dependencies:** core                                                                                                                                                                                                                                                       |
-| [cip](cip)                               | cardano-client-cip           | A umbrella module which provides a simple way to get available cip implementations (cip25, cip8 etc.) <br> **Dependencies:** cip8, cip20, cip25, cip27, cip30                                                                                                                                                                                                                                  |
-| [cip8](cip/cip8)                         | cardano-client-cip8          | [CIP 8 - Message Signing](https://cips.cardano.org/cips/cip8/) <br> **Dependencies:** common, crypto                                                                                                                                                                                                                                                                                           |
-| [cip20](cip/cip20)                       | cardano-client-cip20         | [CIP 20 - Transaction message/comment metadata](https://cips.cardano.org/cips/cip20/) <br> **Dependencies:** metadata                                                                                                                                                                                                                                                                          |
-| [cip25](cip/cip25)                       | cardano-client-cip25 | [CIP 25 - Media NFT Metadata Standard](https://cips.cardano.org/cips/cip25/) <br> **Dependencies:** metadata                                                                                                                                                                                                                                                                                   |
-| [cip27](cip/cip27)                       | cardano-client-cip27 | [CIP 27 - CNFT Community Royalties Standard](https://cips.cardano.org/cips/cip27/) <br> **Dependencies:** cip25                                                                                                                                                                                                                                                                                |
-| [cip30](cip/cip30)                       | cardano-client-cip30 | [CIP 30 - Cardano dApp-Wallet Web Bridge](https://cips.cardano.org/cips/cip30/) <br> **Dependencies:** cip8, core                                                                                                                                                                                                                                                                              |
+| Modules                                      | Artifact Id                         | Description                                                                                                                                                                                                                                         |
+|----------------------------------------------|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [common](common)                             | cardano-client-common               | Contains common utilities (HexUtil, JsonUtil, Cbor Utils etc). This module doesn't depend on any other module. <br/>  **Dependencies:** None                                                                                                        | 
+ | [crypto](crypto)                             | cardano-client-crypto               | Provides implementation for standards like Bip32, Bip39, CIP1852 and other crypto primitives <br> **Dependencies:** common                                                                                                                          |
+ | [address](address)                           | cardano-client-address              | Supports derivation of various types of Cardano addresses (Base, Enterprise, Pointer, Stake etc) <br> **Dependencies:** common, crypto, common-spec                                                                                                 |
+| [metadata](metadata)                         | cardano-client-metadata             | Provides simple api to generate and serialize generic metadata <br/> **Dependencies:** common, crypto                                                                                                                                               |
+ | [common-spec](common-spec)                   | cardano-client-common-spec          | A small module with some common serialization class (CDDL spec) <br/> **Dependencies:** common, crypto                                                                                                                                              | 
+ | [transaction-spec](transaction-spec)         | cardano-client-transaction-spec     | Provides cbor serialization code for transactions (CDDL spec). <br> **Dependencies:** common, common-spec, crypto, address, metadata, plutus                                                                                                        |
+| [core](core)                                 | cardano-client-core                 | Cointains few common api like Account.<br> Also contains high-level api like PaymentTransaction for backward compatibility.<br> **Dependencies:** common, crypto, common-spec, address, metadata, transaction-spec, core-api, plutus, coinselection |
+ | [core-api](core-api)                         | cardano-client-core-api             | Contains core apis, model classes and utils <br> **Dependencies:** common, transaction-spec                                                                                                                                                         |
+| [plutus](plutus)                             | cardano-client-plutus               | Provides plutus specific apis and serialization implementation. <br> **Dependencies:** common, common-spec                                                                                                                                          |
+| [annotation-processor](annotation-processor) | cardano-client-annotation-processor | Annotation processor for POJO <--> PlutusData. <br> **Dependencies:** plutus                                                                                                                                                                        |
+| [quicktx](quicktx)                           | cardano-client-quicktx              | Provides QuickTx TX builder APIs. A declarative API to build and submit transactions. <br> **Dependencies:** core, function, backend                                                                                                                |
+ | [function](function)                         | cardano-client-function             | Provides Composable Function Apis. A simple, flexible way to build transactions through re-usable functions. <br> **Dependencies:** core                                                                                                            |
+ | [coinselection](coinselection)               | cardano-client-coinselection        | Provides Coin selection algorithms. <br> **Dependencies:** common, core-api                                                                                                                                                                         |
+| [cip](cip)                                   | cardano-client-cip                  | A umbrella module which provides a simple way to get available cip implementations (cip25, cip8 etc.) <br> **Dependencies:** cip8, cip20, cip25, cip27, cip30                                                                                       |
+| [cip8](cip/cip8)                             | cardano-client-cip8                 | [CIP 8 - Message Signing](https://cips.cardano.org/cips/cip8/) <br> **Dependencies:** common, crypto                                                                                                                                                |
+| [cip20](cip/cip20)                           | cardano-client-cip20                | [CIP 20 - Transaction message/comment metadata](https://cips.cardano.org/cips/cip20/) <br> **Dependencies:** metadata                                                                                                                               |
+| [cip25](cip/cip25)                           | cardano-client-cip25                | [CIP 25 - Media NFT Metadata Standard](https://cips.cardano.org/cips/cip25/) <br> **Dependencies:** metadata                                                                                                                                        |
+| [cip27](cip/cip27)                           | cardano-client-cip27                | [CIP 27 - CNFT Community Royalties Standard](https://cips.cardano.org/cips/cip27/) <br> **Dependencies:** cip25                                                                                                                                     |
+| [cip30](cip/cip30)                           | cardano-client-cip30                | [CIP 30 - Cardano dApp-Wallet Web Bridge](https://cips.cardano.org/cips/cip30/) <br> **Dependencies:** cip8, core                                                                                                                                   |
 
 ## Use as a library in a Java Project
 
@@ -85,7 +90,7 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.4.3</version>
+            <version>0.5.0</version>
         </dependency>
 ```
 - Backend modules
@@ -96,21 +101,21 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.4.3</version>
+            <version>0.5.0</version>
         </dependency>
         
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>0.4.3</version>
+            <version>0.5.0</version>
         </dependency>
         
          <!-- For Ogmios / Kupo backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>0.4.3</version>
+            <version>0.5.0</version>
         </dependency>
 ```
 
@@ -118,27 +123,27 @@ For fine-grained dependency management, add one or more below modules as require
 
 - Core Module
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.4.3'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.5.0'
 ```
 - Backend modules
     - For backend support, use one of the following supported backend module
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.4.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.5.0'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.4.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.5.0'
 
 //For Ogmios / Kupo
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.4.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.5.0'
 
 ```
 
 
 ### For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.4.4-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+**SNAPSHOT_VERSION :** 0.5.1-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```
@@ -214,11 +219,15 @@ Account account = new Account(mnemonic);  //Create a Mainnet account from Mnemon
 Account account = new Account(Networks.testnet(), mnemonic); //Create a Testnet account from Mnemonic
 ```
 
-#### Create Blockfrost Backend Service and get other services
+#### Create Backend Service
 ```
+//For Blockfrost
 BackendService backendService =
                 new BFBackendService(Constants.BLOCKFROST_TESTNET_URL, <BF_PROJECT_ID>);               
 
+// For Koios
+// BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
+        
 FeeCalculationService feeCalculationService = backendService.getFeeCalculationService();
 TransactionHelperService transactionHelperService = backendService.getTransactionHelperService();
 TransactionService transactionService = backendService.getTransactionService();
@@ -230,17 +239,32 @@ EpochService epochService = backendService.getEpochService();
 AddressService addressService = backendService.getAddressService();
 ```
 
+#### Simple ADA Payment using QuickTx Api
+
+```java
+        Tx tx1 = new Tx()
+                .payToAddress(receiver1Addr, Amount.ada(1.5))
+                .payToAddress(receiver2Addr, Amount.ada(2.5))
+                .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
+                .from(sender1Addr);
+
+        Tx tx2 = new Tx()
+                .payToAddress(receiver2Addr, Amount.ada(4.5))
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder
+                .compose(tx1, tx2)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+        
+```
+
 #### Simple ADA Payment using Composable Functions Api
 
-```
-        // For Blockfrost
-        String bf_projectId = "<Blockfrost Project Id>";
-        BackendService backendService =
-                new BFBackendService(Constants.BLOCKFROST_PREVIEW_URL, bf_projectId);
-
-        // For Koios
-        // BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
-
+```java
         // Define expected Outputs
         Output output1 = Output.builder()
                 .address(receiverAddress1)
