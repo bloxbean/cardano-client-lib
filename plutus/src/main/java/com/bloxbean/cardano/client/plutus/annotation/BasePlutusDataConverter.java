@@ -46,9 +46,9 @@ public class BasePlutusDataConverter {
         Objects.requireNonNull(b, "Boolean value cannot be null");
 
         if (b)
-            return ConstrPlutusData.of(0);
-        else
             return ConstrPlutusData.of(1);
+        else
+            return ConstrPlutusData.of(0);
     }
 
     protected Long plutusDataToLong(PlutusData data) {
@@ -72,7 +72,7 @@ public class BasePlutusDataConverter {
     }
 
     protected Boolean plutusDataToBoolean(PlutusData data) {
-        return ((ConstrPlutusData)data).getAlternative() == 0;
+        return ((ConstrPlutusData)data).getAlternative() == 1;
     }
 
     protected String deserializeBytesToString(byte[] bytes, String encoding) {
