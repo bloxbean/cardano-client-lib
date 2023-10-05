@@ -51,6 +51,29 @@ EpochService epochService = backendService.getEpochService();
 AddressService addressService = backendService.getAddressService();
 ```
 
+## Simple ADA Payment (QuickTx Api)
+
+```java
+Tx tx1 = new Tx()
+        .payToAddress(receiver1Addr, Amount.ada(1.5))
+        .payToAddress(receiver2Addr, Amount.ada(2.5))
+        .attachMetadata(MessageMetadata.create().add("This is a test message 2"))
+        .from(sender1Addr);
+
+Tx tx2 = new Tx()
+        .payToAddress(receiver2Addr, Amount.ada(4.5))
+        .from(sender2Addr);
+
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+Result<String> result = quickTxBuilder
+        .compose(tx1, tx2)
+        .feePayer(sender1Addr)
+        .withSigner(SignerProviders.signerFrom(sender1))
+        .withSigner(SignerProviders.signerFrom(sender2))
+        .completeAndWait(System.out::println);
+        
+```
+
 ## Simple ADA Payment (Composable functions)
 ```java
 //Define expected outputs
@@ -116,17 +139,18 @@ String policyId = scriptAtLeast.getPolicyId();
 
 ## Metadata
 ```
-CBORMetadataMap productDetailsMap
-                = new CBORMetadataMap()
-                    .put("code", "PROD-800")
-                    .put("slno", "SL20000039484");
+MetadataMap productDetailsMap = MetadataBuilder.createMap()
+                .put("code", "PROD-800")
+                .put("slno", "SL20000039484");
 
-CBORMetadataList tagList
-                = new CBORMetadataList()
-                    .add("laptop")
-                    .add("computer");
+MetadataList tagList = MetadataBuilder.createList()
+                .add("laptop")
+                .add("computer");
 
-Metadata metadata = new CBORMetadata()
-                    .put(new BigInteger("670001"), productDetailsMap)
-                    .put(new BigInteger("670002"), tagList);
+Metadata metadata = MetadataBuilder.createMetadata()
+                .put(new BigInteger("670001"), productDetailsMap)
+                .put(new BigInteger("670001"), productDetailsMap);
+```
+
+                          
 ```

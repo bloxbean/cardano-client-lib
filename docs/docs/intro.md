@@ -8,15 +8,14 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 :::info
 
-**Latest Stable Version**: [0.4.3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.4.3)
-
-**Latest Beta Version**: [0.5.0-beta2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0-beta2)
+**Latest Stable Version**: [0.5.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0)
 
 :::
 
 ### Recent Posts
 - [Introducing QuickTx API to build transactions](https://satran004.medium.com/introducing-new-quicktx-api-in-cardano-client-lib-0-5-0-beta1-5beb491282ce)
 - [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
+- [Demo:- Test Aiken Smart Contract Using Java Offchain Code with Yaci DevKit](https://youtu.be/PTnSc85t0Nk?si=44uK6KFrTIH3m06A)
 
 ### Old Posts
 **Note:** Some of the APIs mentioned in the below posts are deprecated. Please refer to the latest documentation for the latest APIs.
@@ -45,17 +44,27 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 - CBOR serialization of transaction
 - Transaction signing
 
-#### High Level api
-- To build and submit
-    -  Payment transaction
-    - Token Minting and token transfer transaction
-
-#### Composable Functions
-- To build and submit
+#### QuickTx API
+- Build and submit transaction with simple declarative style API
+- Supports
     - Payment transaction
     - Token Minting and token transfer
     - Plutus smart contract call
     - Token minting with Plutus contract
+    - Staking operations
+  
+#### Composable Functions
+- Composable functions to build transaction
+- Supports
+    - Payment transaction
+    - Token Minting and token transfer
+    - Plutus smart contract call
+    - Token minting with Plutus contract
+  
+#### High Level api (Deprecated)
+- To build and submit
+    -  Payment transaction
+    - Token Minting and token transfer transaction
 
 [Examples with Composable Functions](https://github.com/bloxbean/cardano-client-examples/tree/main/src/test/java/com/bloxbean/cardano/client/example/function)
 
