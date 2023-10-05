@@ -88,13 +88,13 @@ public class RedeemerUtilSortingInputsITTest extends BaseITTest {
         List<Utxo> utxos = new ArrayList<>();
         Utxo scriptUtxo = Utxo.builder()
                 .txHash(txHash)
-                .outputIndex(11)
+                .outputIndex(10)
                 .amount(List.of(
                         new Amount(LOVELACE, scriptAmt)
                 ))
                 .inlineDatum(plutusData.serializeToHex())
                 .build();
-        for (int i = 3; i < noOfOutputs; i++) {
+        for (int i = 3; i < 9; i++) {
             Utxo utxo = Utxo.builder()
                     .txHash(txHash)
                     .outputIndex(i)
