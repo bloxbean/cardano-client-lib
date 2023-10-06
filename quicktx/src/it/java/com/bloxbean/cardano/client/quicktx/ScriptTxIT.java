@@ -594,18 +594,14 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .collectFrom(sumUtxo.get(), sumScriptRedeemer)
                 .readFrom(refUtxo)
                 .payToAddress(receiver1, List.of(sumScriptAmt))
-                .attachSpendingValidator(sumScript)
                 .withChangeAddress(sumScriptAddr, sumScriptDatum);
 
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
-                .postBalanceTx((context, txn) -> {
-                    //Remove the plutus script from the witness set
-                    txn.getWitnessSet().getPlutusV2Scripts().clear();
-                }).completeAndWait(System.out::println);
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
