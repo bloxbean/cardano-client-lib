@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.transaction.spec;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -74,5 +75,13 @@ class AssetSpecTest {
         Asset asset2 = Asset.builder().name("asset1").value(BigInteger.valueOf(500L)).build();
 
         assertThat(asset1).isNotEqualTo(asset2);
+    }
+
+    @Test
+    void invalidHexName() {
+        Asset asset = Asset.builder().name("0xtest").value(BigInteger.valueOf(700L)).build();
+
+        byte[] expectedBytes = "0xtest".getBytes(StandardCharsets.UTF_8);
+        assertThat(asset.getNameAsBytes()).isEqualTo(expectedBytes);
     }
 }
