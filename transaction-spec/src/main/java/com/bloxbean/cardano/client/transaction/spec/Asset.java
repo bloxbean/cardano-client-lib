@@ -25,7 +25,12 @@ public class Asset {
         if (name != null && !name.isEmpty()) {
             //Check if caller has provided a hex string as asset name
             if (name.startsWith("0x")) {
-                assetNameBytes = HexUtil.decodeHexString(name.substring(2));
+                try {
+                    assetNameBytes = HexUtil.decodeHexString(name.substring(2));
+                } catch (IllegalArgumentException e) {
+                    // name is not actually a hex string
+                    assetNameBytes = name.getBytes(StandardCharsets.UTF_8);
+                }
             } else {
                 assetNameBytes = name.getBytes(StandardCharsets.UTF_8);
             }
