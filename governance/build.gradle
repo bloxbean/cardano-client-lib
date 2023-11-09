@@ -1,0 +1,15 @@
+dependencies {
+    api project(':common')
+    api project(':crypto')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Governance module'
+                description = 'Cardano Client Lib - Governance Module'
+            }
+        }
+    }
+}
