@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
@@ -9,6 +11,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
+import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.NonNull;
@@ -20,6 +23,7 @@ import java.util.Set;
 public class Tx extends AbstractTx<Tx> {
 
     private StakeTx stakeTx;
+    private GovTx govTx;
 
     private String sender;
     protected boolean senderAdded = false;
@@ -29,6 +33,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx() {
         stakeTx = new StakeTx();
+        govTx = new GovTx();
     }
 
     /**
@@ -292,6 +297,36 @@ public class Tx extends AbstractTx<Tx> {
         return this;
     }
 
+    public Tx registerDRep(@NonNull Account account, Anchor anchor) {
+        govTx.registerDRep(account.drepCredential(), anchor);
+        return this;
+    }
+
+    public Tx registerDRep(@NonNull Account account) {
+        registerDRep(account, null);
+        return this;
+    }
+
+    public Tx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
+        govTx.registerDRep(drepCredential, anchor);
+        return this;
+    }
+
+    public Tx registerDRep(@NonNull Credential drepCredential) {
+        registerDRep(drepCredential, null);
+        return this;
+    }
+
+    public Tx unregisterDRep(@NonNull Credential drepCredential, String refaundAddress, BigInteger refundAmount) {
+        govTx.unregisterDRep(drepCredential, refaundAddress, refundAmount);
+        return this;
+    }
+
+    public Tx unregisterDRep(@NonNull Credential drepCredential) {
+        govTx.unregisterDRep(drepCredential, null, null);
+        return this;
+    }
+
     /**
      * Sender address
      *
@@ -350,9 +385,19 @@ public class Tx extends AbstractTx<Tx> {
             payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
         }
 
+        //Gov txs
+        Tuple<List<GovTx.PaymentContext>, TxBuilder> govBuildTuple =
+                govTx.build(getFromAddress(), getChangeAddress());
+
+        for (GovTx.PaymentContext paymentContext: govBuildTuple._1) {
+            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
+        }
+
         TxBuilder txBuilder = super.complete();
 
-        txBuilder = txBuilder.andThen(stakeBuildTuple._2);
+        txBuilder = txBuilder.andThen(stakeBuildTuple._2)
+                .andThen(govBuildTuple._2);
+
         return txBuilder;
     }
 
