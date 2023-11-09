@@ -99,4 +99,15 @@ public class SignerProviders {
             return outputTxn;
         };
     }
+
+    public static TxSigner drepKeySignerFrom(Account... signers) {
+        return transaction -> {
+            Transaction outputTxn = transaction;
+            for (Account signer : signers) {
+                outputTxn = signer.signWithDRepKey(outputTxn);
+            }
+
+            return outputTxn;
+        };
+    }
 }
