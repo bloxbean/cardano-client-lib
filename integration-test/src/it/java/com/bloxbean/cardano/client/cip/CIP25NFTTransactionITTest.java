@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.model.Genesis;
 import com.bloxbean.cardano.client.cip.cip25.NFT;
 import com.bloxbean.cardano.client.cip.cip25.NFTFile;
 import com.bloxbean.cardano.client.cip.cip25.NFTMetadata;
@@ -33,7 +34,10 @@ public class CIP25NFTTransactionITTest extends CIPBaseTransactionITTest {
     public void mintToken() throws CborSerializationException, ApiException, AddressExcepion {
         long currentSlot = queryTipSlot();
         assertNotEquals(0, currentSlot);
-        Policy policy = PolicyUtil.createEpochBasedTimeLockedPolicy("CIP25PolicyTimeLockedPolicy", currentSlot, 5L);
+        Result<Genesis> genesisResult = networkInfoService.getNetworkInfo();
+        assertThat(genesisResult.isSuccessful(), is(true));
+
+        Policy policy = PolicyUtil.createEpochBasedTimeLockedPolicy("CIP25PolicyTimeLockedPolicy", currentSlot, 5L, genesisResult.getValue().getEpochLength());
         String assetName = "NFTTest-" + new Random().nextInt();
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policy.getPolicyId());
