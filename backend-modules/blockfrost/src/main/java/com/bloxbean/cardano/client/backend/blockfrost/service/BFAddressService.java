@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.blockfrost.service.http.AddressesApi;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
+import com.bloxbean.cardano.client.backend.model.AddressDetails;
 import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
 import com.bloxbean.cardano.client.api.model.Result;
 import retrofit2.Call;
@@ -30,6 +31,17 @@ public class BFAddressService extends BFBaseService implements AddressService {
             Response<AddressContent> response = call.execute();
             return processResponse(response);
 
+        } catch (IOException e) {
+            throw new ApiException("Error getting addressInfo", e);
+        }
+    }
+
+    @Override
+    public Result<AddressDetails> getAddressDetails(String address) throws ApiException {
+        Call<AddressDetails> call = addressApi.getAddressDetails(getProjectId(), address);
+        try {
+            Response<AddressDetails> response = call.execute();
+            return processResponse(response);
         } catch (IOException e) {
             throw new ApiException("Error getting addressInfo", e);
         }

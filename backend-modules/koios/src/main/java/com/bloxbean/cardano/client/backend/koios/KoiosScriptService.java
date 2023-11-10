@@ -10,6 +10,7 @@ import rest.koios.client.backend.api.script.ScriptService;
 import rest.koios.client.backend.api.script.model.DatumInfo;
 import rest.koios.client.backend.api.script.model.NativeScript;
 import rest.koios.client.backend.api.script.model.PlutusScript;
+import rest.koios.client.backend.api.script.model.ScriptInfo;
 import rest.koios.client.backend.api.transactions.TransactionsService;
 import rest.koios.client.backend.api.transactions.model.TxInfo;
 import rest.koios.client.backend.api.transactions.model.TxPlutusContract;
@@ -83,17 +84,15 @@ public class KoiosScriptService implements com.bloxbean.cardano.client.backend.a
     @Override
     public Result<JsonNode> getNativeScriptJson(String scriptHash) throws ApiException {
         try {
-            rest.koios.client.backend.api.base.Result<List<NativeScript>> nativeScriptListResult =
-                    scriptService.getNativeScriptList(Options.builder()
-                            .option(Filter.of("script_hash", FilterType.EQ, scriptHash))
-                            .build());
-            if (!nativeScriptListResult.isSuccessful()) {
-                return Result.error(nativeScriptListResult.getResponse()).code(nativeScriptListResult.getCode());
+            rest.koios.client.backend.api.base.Result<List<ScriptInfo>> scriptInfoListResult =
+                    scriptService.getScriptInformation(List.of(scriptHash), Options.EMPTY);
+            if (!scriptInfoListResult.isSuccessful()) {
+                return Result.error(scriptInfoListResult.getResponse()).code(scriptInfoListResult.getCode());
             }
-            if (nativeScriptListResult.getValue().isEmpty()) {
+            if (scriptInfoListResult.getValue().isEmpty()) {
                 return Result.error("Not Found").code(404);
             }
-            return Result.success("OK").withValue(nativeScriptListResult.getValue().get(0).getScript()).code(200);
+            return Result.success("OK").withValue(scriptInfoListResult.getValue().get(0).getValue()).code(200);
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
