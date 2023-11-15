@@ -13,10 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import rest.koios.client.backend.api.epoch.model.EpochInfo;
 import rest.koios.client.backend.api.epoch.model.EpochParams;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -26,8 +23,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class KoiosEpochService implements EpochService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final static String PLUTUS_COST_MODELS_URL = "https://raw.githubusercontent.com/input-output-hk/plutus/master/plutus-core/cost-model/data/builtinCostModel.json";
-    private Map<Integer, String> costModelsMap = new HashMap<>();
 
     /**
      * Epoch Service
@@ -41,20 +36,6 @@ public class KoiosEpochService implements EpochService {
      */
     public KoiosEpochService(rest.koios.client.backend.api.epoch.EpochService epochService) {
         this.epochService = epochService;
-        try {
-            JsonNode costModels = this.objectMapper.readValue(new URI(PLUTUS_COST_MODELS_URL).toURL(), JsonNode.class);
-            Iterator<String> stringIterator = costModels.fieldNames();
-            int cnt = 0;
-            while (stringIterator.hasNext()) {
-                String key = stringIterator.next();
-                List<String> keys = getInnerKeys(key, costModels);
-                for (String innerKey : keys) {
-                    costModelsMap.put(cnt++, innerKey);
-                }
-            }
-        } catch (URISyntaxException | IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private List<String> getInnerKeys(String key, JsonNode costModels) {
@@ -200,17 +181,18 @@ public class KoiosEpochService implements EpochService {
         return Result.success("OK").withValue(protocolParams).code(200);
     }
 
-    private Map<String, Map<String, Long>> convertToCostModels(JsonNode costModelsJson) {
-        Map<String, List<Long>> result;
-        Map<String, Map<String, Long>> result2 = new HashMap<>();
+    private Map<String, Map<String, Long>> convertToCostModels(JsonNode costModelsJsonNode) {
+        String costModelsJson = costModelsJsonNode.asText();
         try {
-            return objectMapper.readValue(costModelsJson.asText(), new TypeReference<>() {
-            });
+            costModelsJson = objectMapper.writeValueAsString(costModelsJsonNode);
         } catch (JsonProcessingException ignored) {}
-
         try {
-            result = objectMapper.readValue(costModelsJson.asText(), new TypeReference<>() {
-            });
+            Map<String, Map<String, Long>> result2 = objectMapper.readValue(costModelsJson, new TypeReference<>() {});
+            return result2;
+        } catch (JsonProcessingException ignored) {}
+        Map<String, Map<String, Long>> res = new HashMap<>();
+        try {
+            Map<String, List<Long>> result = objectMapper.readValue(costModelsJson, new TypeReference<>() {});
             final AtomicInteger plutusV1IndexHolder = new AtomicInteger();
             Map<String, Long> plutusV1CostModelsMap = new HashMap<>();
             final AtomicInteger plutusV2IndexHolder = new AtomicInteger();
@@ -221,16 +203,16 @@ public class KoiosEpochService implements EpochService {
                         final int index = plutusV1IndexHolder.getAndIncrement();
                         plutusV1CostModelsMap.put(PlutusOps.getOperations(1).get(index), aLong);
                     });
-                    result2.put(key, plutusV1CostModelsMap);
+                    res.put(key, plutusV1CostModelsMap);
                 } else if (key.equals("PlutusV2")) {
                     value.forEach(aLong -> {
                         final int index = plutusV2IndexHolder.getAndIncrement();
                         plutusV2CostModelsMap.put(PlutusOps.getOperations(2).get(index), aLong);
                     });
-                    result2.put(key, plutusV2CostModelsMap);
+                    res.put(key, plutusV2CostModelsMap);
                 }
             });
         } catch (JsonProcessingException ignored) {}
-        return result2;
+        return res;
     }
 }
