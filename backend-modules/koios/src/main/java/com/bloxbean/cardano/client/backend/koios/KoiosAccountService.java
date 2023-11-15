@@ -240,20 +240,20 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
                     .option(Limit.of(count))
                     .option(Offset.of((long) (page - 1) * count))
                     .build();
-            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountAssets>> accountAssetsResult = accountService.getAccountAssets(List.of(stakeAddress), null, options);
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountAsset>> accountAssetsResult = accountService.getAccountAssets(List.of(stakeAddress), null, options);
             if (!accountAssetsResult.isSuccessful()) {
                 return Result.error(accountAssetsResult.getResponse()).code(accountAssetsResult.getCode());
             }
             if (accountAssetsResult.getValue().isEmpty()) {
                 return Result.error("Not Found").code(404);
             }
-            return convertToAccountAssets(accountAssetsResult.getValue().get(0).getAssetList());
+            return convertToAccountAssets(accountAssetsResult.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
     }
 
-    private Result<List<AccountAsset>> convertToAccountAssets(List<rest.koios.client.backend.api.common.Asset> accountAssetList) {
+    private Result<List<AccountAsset>> convertToAccountAssets(List<rest.koios.client.backend.api.account.model.AccountAsset> accountAssetList) {
         List<AccountAsset> accountAssets = new ArrayList<>();
         if (accountAssetList != null) {
             accountAssetList.forEach(accountAsset -> {
