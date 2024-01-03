@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.RegDrepCert;
 import com.bloxbean.cardano.client.transaction.spec.cert.UnregDrepCert;
+import com.bloxbean.cardano.client.transaction.spec.cert.UpdateDrepCert;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
@@ -31,8 +32,14 @@ public class GovTx {
 
     protected List<RegDrepCert> drepRegistrations;
     protected List<DRepDeregestrationContext> dRepDeregestrationContexts;
+    protected List<UpdateDrepCert> updateDrepCerts;
 
-
+    /**
+     * Register DRep
+     * @param drepCredential DRep credential
+     * @param anchor Anchor
+     * @return GovTx
+     */
     public GovTx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
         var regDRepCert = RegDrepCert.builder()
                 .drepCredential(drepCredential)
@@ -47,6 +54,13 @@ public class GovTx {
         return this;
     }
 
+    /**
+     * Unregister DRep
+     * @param drepCredential DRep credential
+     * @param refundAddress Refund address
+     * @param refundAmount Refund amount
+     * @return GovTx
+     */
     public GovTx unregisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount) {
         if (refundAmount == null)
             refundAmount = DREP_REG_DEPOSIT;
@@ -64,6 +78,25 @@ public class GovTx {
     }
 
     /**
+     * Update DRep
+     * @param drepCredential DRep credential
+     * @param anchor Anchor
+     * @return GovTx
+     */
+    public GovTx updateDRep(@NonNull Credential drepCredential, Anchor anchor) {
+        var updateDRepCert = UpdateDrepCert.builder()
+                .drepCredential(drepCredential)
+                .anchor(anchor)
+                .build();
+
+        if (updateDrepCerts == null)
+            updateDrepCerts = new ArrayList<>();
+
+        updateDrepCerts.add(updateDRepCert);
+        return this;
+    }
+
+    /**
      * Return TxBuilder, payments to build a drep transaction
      *
      * @param fromAddress
@@ -76,6 +109,7 @@ public class GovTx {
         };
         txBuilder = buildDRepRegistration(txBuilder, fromAddress);
         txBuilder = buildDRepDeRegistration(txBuilder, fromAddress);
+        txBuilder = buildDRepUpdate(txBuilder, fromAddress);
 
         return new Tuple<>(paymentContexts, txBuilder);
     }
@@ -180,6 +214,27 @@ public class GovTx {
                             txn.getBody().getOutputs().add(transactionOutput);
                         });
             }
+        });
+        return txBuilder;
+    }
+
+    private TxBuilder buildDRepUpdate(TxBuilder txBuilder, String fromAddress) {
+        if (updateDrepCerts == null || updateDrepCerts.size() == 0)
+            return txBuilder;
+
+        txBuilder = txBuilder.andThen((context, txn) -> {
+            if (updateDrepCerts == null || updateDrepCerts.size() == 0) {
+                return;
+            }
+
+            //Add DRep update certificates
+            List<Certificate> certificates = txn.getBody().getCerts();
+            if (certificates == null) {
+                certificates = new ArrayList<>();
+                txn.getBody().setCerts(certificates);
+            }
+
+            certificates.addAll(updateDrepCerts);
         });
         return txBuilder;
     }

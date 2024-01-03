@@ -297,33 +297,88 @@ public class Tx extends AbstractTx<Tx> {
         return this;
     }
 
+    /**
+     * Register a DRep
+     * @param account Account
+     * @param anchor Anchor
+     * @return Tx
+     */
     public Tx registerDRep(@NonNull Account account, Anchor anchor) {
         govTx.registerDRep(account.drepCredential(), anchor);
         return this;
     }
 
+    /**
+     * Register a DRep
+     * @param account Account
+     * @return Tx
+     */
     public Tx registerDRep(@NonNull Account account) {
         registerDRep(account, null);
         return this;
     }
 
+    /**
+     * Register a DRep
+     * @param drepCredential Credential
+     * @param anchor Anchor
+     * @return Tx
+     */
     public Tx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
         govTx.registerDRep(drepCredential, anchor);
         return this;
     }
 
+    /**
+     * Register a DRep
+     * @param drepCredential
+     * @return Tx
+     */
     public Tx registerDRep(@NonNull Credential drepCredential) {
         registerDRep(drepCredential, null);
         return this;
     }
 
+    /**
+     * Unregister a DRep
+     * @param drepCredential Credential
+     * @param refaundAddress Refund address
+     * @param refundAmount Refund amount
+     * @return Tx
+     */
     public Tx unregisterDRep(@NonNull Credential drepCredential, String refaundAddress, BigInteger refundAmount) {
         govTx.unregisterDRep(drepCredential, refaundAddress, refundAmount);
         return this;
     }
 
+    /**
+     * Unregister a DRep
+     * @param drepCredential Credential
+     * @return Tx
+     */
     public Tx unregisterDRep(@NonNull Credential drepCredential) {
         govTx.unregisterDRep(drepCredential, null, null);
+        return this;
+    }
+
+    /**
+     * Update a DRep
+     * @param drepCredential Credential
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public Tx updateDRep(@NonNull Credential drepCredential, Anchor anchor) {
+        govTx.updateDRep(drepCredential, anchor);
+        return this;
+    }
+
+    /**
+     * Update a DRep
+     * @param drepCredential Credential
+     * @return Tx
+     */
+    public Tx updateDRep(@NonNull Credential drepCredential) {
+        govTx.updateDRep(drepCredential, null);
         return this;
     }
 

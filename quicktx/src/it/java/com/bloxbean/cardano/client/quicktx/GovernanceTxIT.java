@@ -31,7 +31,6 @@ public class GovernanceTxIT extends QuickTxBaseIT {
             if (bfProjectId == null || bfProjectId.isEmpty()) {
                 bfProjectId = System.getenv("BF_PROJECT_ID");
             }
-
             return new BFBackendService(Constants.BLOCKFROST_SANCHONET_URL, bfProjectId);
         } else
             return super.getBackendService();
@@ -95,6 +94,47 @@ public class GovernanceTxIT extends QuickTxBaseIT {
         assertTrue(result.isSuccessful());
         waitForTransaction(result);
 
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void updateDrep() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        var anchor = new Anchor("https://xyz.com",
+                HexUtil.decodeHexString("cafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
+
+        Tx drepRegTx = new Tx()
+                .updateDRep(sender1.drepCredential(), anchor)
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(drepRegTx)
+                .withSigner(SignerProviders.drepKeySignerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(s -> System.out.println(s));
+
+        System.out.println("DRepId : " + sender1.drepId());
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void updateDrep_nullAnchor() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        Tx drepRegTx = new Tx()
+                .updateDRep(sender1.drepCredential())
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(drepRegTx)
+                .withSigner(SignerProviders.drepKeySignerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(s -> System.out.println(s));
+
+        System.out.println("DRepId : " + sender1.drepId());
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
         checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }
 }
