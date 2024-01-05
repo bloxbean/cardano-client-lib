@@ -362,8 +362,11 @@ UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(utxoService);
 ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(epochService);
 ```
 
-# Build
+## Build from source and run integration tests
 
+Prerequisites: Java 11 
+
+#### Build 
 ```
 git clone https://github.com/bloxbean/cardano-client-lib.git
 
@@ -371,7 +374,7 @@ export JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
 ./gradlew clean build
 ```
 
-# Run Integration Tests
+#### Integration Tests
 ```
 export BF_PROJECT_ID=<Blockfrost Preprod network Project Id>
 ./gradlew :integration-test:integrationTest -PBF_PROJECT_ID=${BF_PROJECT_ID}
