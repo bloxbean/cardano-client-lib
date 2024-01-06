@@ -21,6 +21,7 @@ include 'cip:cip25'
 include 'cip:cip8'
 include 'cip:cip27'
 include 'cip:cip30'
+include 'cip:cip67'
 
 //Backend modules
 include 'backend'
