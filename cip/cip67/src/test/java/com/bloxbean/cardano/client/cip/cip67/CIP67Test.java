@@ -18,7 +18,8 @@ public class CIP67Test {
 
     @Test
     void prefixToLabelTest() {
-        int label = CIP67.prefixToLabel(new byte[]{0, 13, -31, 64});
+        int label = 0;
+        label = CIP67.prefixToLabel(new byte[]{0, 13, -31, 64});
         assertEquals(222, label);
     }
 
