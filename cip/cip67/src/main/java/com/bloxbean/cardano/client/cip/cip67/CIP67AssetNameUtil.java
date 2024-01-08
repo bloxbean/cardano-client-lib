@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.cip.cip67;
 
 import com.bloxbean.cardano.client.crypto.CRC8;
-import com.bloxbean.cardano.client.util.ByteUtil;
+import com.bloxbean.cardano.client.crypto.Utils;
 
 import java.nio.ByteBuffer;
 
@@ -17,12 +17,16 @@ public class CIP67AssetNameUtil {
      * @return prefix as bytes representation
      */
     public static byte[] labelToPrefix(int label) {
-        int crc = CRC8.applyCRC8(ByteUtil.intToByteArray(label));
+        byte[] labelBytes = new byte[4];
+        Utils.uint32ToByteArrayBE(label, labelBytes, 0);
+        int crc = CRC8.applyCRC8(labelBytes);
         
-        int value = 1;
-        value = label << 12;
-        value += crc << 4;
-        return ByteUtil.intToByteArray(value);
+        int prefix = 1;
+        prefix = label << 12;
+        prefix += crc << 4;
+        byte[] prefixBytes = new byte[4];
+        Utils.uint32ToByteArrayBE(prefix, prefixBytes, 0);
+        return prefixBytes;
     }
 
     /**
@@ -61,10 +65,13 @@ public class CIP67AssetNameUtil {
      * @return true if checksum is verified
      */
     private static boolean verifyCheckSum(int assetName) {
-        byte[] labelAsBytes = ByteUtil.intToByteArray(assetName);
-        int label = prefixToLabel(labelAsBytes);
-        int checkSum = getCheckSum(labelAsBytes);
-        return checkSum == CRC8.applyCRC8(ByteUtil.intToByteArray(label));
+        byte[] assetNamesAsBytes = new byte[4];
+        Utils.uint32ToByteArrayBE(assetName,assetNamesAsBytes,0);
+        int label = prefixToLabel(assetNamesAsBytes);
+        int checkSum = getCheckSum(assetNamesAsBytes);
+        byte[] labelAsBytes = new byte[4];
+        Utils.uint32ToByteArrayBE(label,labelAsBytes,0);
+        return checkSum == CRC8.applyCRC8(labelAsBytes);
     }
 
     /**
@@ -75,8 +82,9 @@ public class CIP67AssetNameUtil {
     private static int getCheckSum(byte[] labelBytes) {
         int assetName = ByteBuffer.wrap(labelBytes).getInt();
         assetName = assetName >> 4;
-        byte[] intToByteArray = ByteUtil.intToByteArray(assetName);
-        return intToByteArray[3]; // get the last Byte from label without the zero padding
+        byte[] shiftedAssetNameBytes = new byte[4];
+        Utils.uint32ToByteArrayBE(assetName, shiftedAssetNameBytes, 0);
+        return shiftedAssetNameBytes[3]; // get the last Byte from label without the zero padding
     }
 
 }

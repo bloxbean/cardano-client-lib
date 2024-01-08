@@ -1,7 +1,5 @@
 package com.bloxbean.cardano.client.crypto;
 
-import com.bloxbean.cardano.client.util.ByteUtil;
-
 public class CRC8 {
 
     public static int[] LOOKUP =  new int[] {
@@ -24,7 +22,8 @@ public class CRC8 {
     }
 
     public static int applyCRC8(int input) {
-        byte[] inputAsBytes = ByteUtil.intToByteArray(input);
+        byte[] inputAsBytes = new byte[4];
+        Utils.uint32ToByteArrayBE(input, inputAsBytes, 0);
         return applyCRC8(inputAsBytes);
     }
 }
