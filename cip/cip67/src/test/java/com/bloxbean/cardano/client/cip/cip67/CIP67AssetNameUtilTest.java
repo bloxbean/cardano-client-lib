@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.cip.cip67;
 
+import com.bloxbean.cardano.client.crypto.Utils;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -21,6 +22,14 @@ public class CIP67AssetNameUtilTest {
         int label = 0;
         label = CIP67AssetNameUtil.prefixToLabel(new byte[]{0, 13, -31, 64});
         assertEquals(222, label);
+    }
+
+    @Test
+    void isValidAssetNameFromBytes() {
+        byte[] assetName = new byte[4];
+        Utils.uint32ToByteArrayBE(0x000de140, assetName, 0);
+        boolean isValid = CIP67AssetNameUtil.isValidAssetName(assetName);
+        assertEquals(true, isValid);
     }
 
     @Test

@@ -51,6 +51,16 @@ public class CIP67AssetNameUtil {
     }
 
     /**
+     * Verifies if the asset name is valid with CIP67.
+     * @param assetName prefix to check as bytes
+     * @return true if valid padding and checksum check passed
+     */
+    public static boolean isValidAssetName(byte[] assetName) {
+        int assetNameAsInt = (int) Utils.readUint32BE(assetName, 0);
+        return isValidPadding(assetNameAsInt) && verifyCheckSum(assetNameAsInt);
+    }
+
+    /**
      * Verification if the asset name contains leading and following 0000 
      * @param assetName prefix to check
      * @return true if padding is valid
