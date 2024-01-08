@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.crypto;
 
-import com.bloxbean.cardano.client.util.IntUtil;
+import com.bloxbean.cardano.client.util.ByteUtil;
 
 public class CRC8 {
 
@@ -24,7 +24,7 @@ public class CRC8 {
     }
 
     public static int applyCRC8(int input) {
-        byte[] inputAsBytes = IntUtil.intToByteArray(input);
+        byte[] inputAsBytes = ByteUtil.intToByteArray(input);
         return applyCRC8(inputAsBytes);
     }
 }

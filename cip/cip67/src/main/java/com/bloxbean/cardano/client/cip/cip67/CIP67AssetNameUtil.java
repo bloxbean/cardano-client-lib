@@ -1,13 +1,13 @@
 package com.bloxbean.cardano.client.cip.cip67;
 
 import com.bloxbean.cardano.client.crypto.CRC8;
-import com.bloxbean.cardano.client.util.IntUtil;
+import com.bloxbean.cardano.client.util.ByteUtil;
 
 import java.nio.ByteBuffer;
 
-public class CIP67 {
+public class CIP67AssetNameUtil {
 
-    private CIP67() {
+    private CIP67AssetNameUtil() {
         throw new IllegalStateException("Utility class");
     }
 
@@ -17,12 +17,12 @@ public class CIP67 {
      * @return prefix as bytes representation
      */
     public static byte[] labelToPrefix(int label) {
-        int crc = CRC8.applyCRC8(IntUtil.intToByteArray(label));
+        int crc = CRC8.applyCRC8(ByteUtil.intToByteArray(label));
         
         int value = 1;
         value = label << 12;
         value += crc << 4;
-        return IntUtil.intToByteArray(value);
+        return ByteUtil.intToByteArray(value);
     }
 
     /**
@@ -61,10 +61,10 @@ public class CIP67 {
      * @return true if checksum is verified
      */
     private static boolean verifyCheckSum(int assetName) {
-        byte[] labelAsBytes = IntUtil.intToByteArray(assetName);
+        byte[] labelAsBytes = ByteUtil.intToByteArray(assetName);
         int label = prefixToLabel(labelAsBytes);
         int checkSum = getCheckSum(labelAsBytes);
-        return checkSum == CRC8.applyCRC8(IntUtil.intToByteArray(label));
+        return checkSum == CRC8.applyCRC8(ByteUtil.intToByteArray(label));
     }
 
     /**
@@ -75,7 +75,7 @@ public class CIP67 {
     private static int getCheckSum(byte[] labelBytes) {
         int assetName = ByteBuffer.wrap(labelBytes).getInt();
         assetName = assetName >> 4;
-        byte[] intToByteArray = IntUtil.intToByteArray(assetName);
+        byte[] intToByteArray = ByteUtil.intToByteArray(assetName);
         return intToByteArray[3]; // get the last Byte from label without the zero padding
     }
 

@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.util;
 
-public class IntUtil {
+public class ByteUtil {
     
     public static byte[] intToByteArray(int value) {
         return new byte[] {
