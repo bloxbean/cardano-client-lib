@@ -100,6 +100,18 @@ public class PlutusDataJsonConverter {
             case MAP:
                 value = parseDataItemMap((Map) item);
                 break;
+            case UNSIGNED_INTEGER:
+                value = ((UnsignedInteger)item).getValue();
+                break;
+            case NEGATIVE_INTEGER:
+                value = ((NegativeInteger)item).getValue();
+                break;
+            case UNICODE_STRING:
+                value = ((UnicodeString)item).getString();
+                break;
+            case TAG:
+                value = ((Tag) item).getValue();
+                break;
             default:
                 throw new UnsupportedOperationException("Unkown type. Not implemented"); // TODO need to implement the other types
         }
