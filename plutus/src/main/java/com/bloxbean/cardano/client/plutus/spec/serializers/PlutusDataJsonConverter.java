@@ -70,17 +70,29 @@ public class PlutusDataJsonConverter {
         return mapper.writeValueAsString(plutusData);
     }
 
+    /**
+     * Convert {@link PlutusData} to utf8 encoded json String
+     * @param plutusData data to be encoded
+     * @return utf8 encoded json
+     * @throws JsonProcessingException
+     * @throws CborSerializationException
+     */
     public static String toUTF8Json(PlutusData plutusData) throws JsonProcessingException, CborSerializationException {
         DataItem serializedPlutusData = plutusData.serialize();
         Object o = parseItem(serializedPlutusData);
         return mapper.writeValueAsString(o);
     }
 
+    /**
+     * parsing a {@link DataItem} to utf8 object regarding it's type
+     * @param item cbor {@link DataItem}
+     * @return utf8 encoded representation
+     */
     private static Object parseItem(DataItem item) {
         Object value = "";
         switch (item.getMajorType()) {
             case BYTE_STRING:
-                value = bytestringItemToString(item);
+                value = bytestringItemToString((ByteString) item);
                 break;
             case ARRAY:
                 value = dataItemArrayToString((Array) item);
@@ -94,13 +106,23 @@ public class PlutusDataJsonConverter {
         return value;
     }
 
-    private static String bytestringItemToString(DataItem item) {
+    /**
+     * {@link ByteString} item parsing to utf8 string
+     * @param item
+     * @return
+     */
+    private static String bytestringItemToString(ByteString item) {
         String value = "";
-        byte[] bytes = ((ByteString) item).getBytes();
+        byte[] bytes = item.getBytes();
         value = new String(bytes);
         return value;
     }
 
+    /**
+     * {@link Array} item parsing to utf8 representation
+     * @param array
+     * @return
+     */
     private static Object dataItemArrayToString(Array array) {
         List<Object> decodedItemList = new ArrayList<>();
         for (DataItem dataItem : array.getDataItems()) {
@@ -111,6 +133,11 @@ public class PlutusDataJsonConverter {
         return decodedItemList.stream().toArray(Object[]::new);
     }
 
+    /**
+     * {@link Map} item parsing to utf8 representation
+     * @param m
+     * @return
+     */
     private static HashMap<String, Object> parseDataItemMap(Map m) {
         HashMap<String, Object> decodedMap = new HashMap<>();
         for (DataItem keyItem : m.getKeys()) {
