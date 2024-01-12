@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.cip.cip25;
 
 import org.junit.jupiter.api.Test;
 
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -84,7 +85,7 @@ class NFTMetadataTest {
         assertThat(rNft3).isNotNull();
         assertThat(rNftNotAvailable).isNull();
 
-        assertThat(nftMetadata.getVersion()).isEqualTo("1.0");
+        assertThat(nftMetadata.getVersion()).isEqualTo(BigInteger.valueOf(1));
 
         assertThat(rNft1.getAssetName()).isEqualTo(nft1.getAssetName());
         assertThat(rNft1.getName()).isEqualTo(nft1.getName());
