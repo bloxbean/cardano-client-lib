@@ -12,7 +12,7 @@ public class NFTMetadata extends CBORMetadata {
 
     private final static BigInteger LABEL = BigInteger.valueOf(721);
     public static final String VERSION_KEY = "version";
-    private String version = "1.0";
+    private BigInteger version = BigInteger.valueOf(1);
 
     private CBORMetadataMap policyMap;
 
@@ -105,9 +105,15 @@ public class NFTMetadata extends CBORMetadata {
      * @param version
      * @return
      */
-    public NFTMetadata version(String version) {
+    public NFTMetadata version(int version) {
+        this.version = BigInteger.valueOf(version);
+        policyMap.put(VERSION_KEY, this.version);
+        return this;
+    }
+
+    public NFTMetadata version(BigInteger version) {
         this.version = version;
-        policyMap.put(VERSION_KEY, version);
+        policyMap.put(VERSION_KEY, this.version);
         return this;
     }
 
@@ -115,7 +121,7 @@ public class NFTMetadata extends CBORMetadata {
      * Get version
      * @return
      */
-    public String getVersion() {
+    public BigInteger getVersion() {
         return version;
     }
 

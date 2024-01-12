@@ -1,6 +1,6 @@
 dependencies {
     api project(':cip:cip67')
-    api project(':backend')
+    api project(':cip:cip25')
 }
 
 publishing {
