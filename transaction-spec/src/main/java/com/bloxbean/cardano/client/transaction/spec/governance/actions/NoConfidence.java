@@ -19,15 +19,15 @@ import java.util.Objects;
 public class NoConfidence implements GovAction {
     private final GovActionType type = GovActionType.NO_CONFIDENCE;
 
-    private GovActionId govActionId;
+    private GovActionId prevGovActionId;
 
     @Override
     public Array serialize() {
         Array array = new Array();
         array.add(new UnsignedInteger(3));
 
-        if (govActionId != null)
-            array.add(govActionId.serialize());
+        if (prevGovActionId != null)
+            array.add(prevGovActionId.serialize());
         else
             array.add(SimpleValue.NULL);
 

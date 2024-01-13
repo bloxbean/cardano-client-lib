@@ -23,7 +23,7 @@ import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toBy
  * treasury_withdrawals_action = (2, { reward_account => coin })
  * }
  */
-@Getter
+@Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
@@ -34,6 +34,13 @@ public class TreasuryWithdrawalsAction implements GovAction {
 
     @Builder.Default
     private List<Withdrawal> withdrawals = new ArrayList<>();
+
+    public void addWithdrawal(Withdrawal withdrawal) {
+        if(withdrawals == null)
+            withdrawals = new ArrayList<>();
+
+        withdrawals.add(withdrawal);
+    }
 
     @Override
     @SneakyThrows

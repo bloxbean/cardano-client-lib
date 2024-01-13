@@ -17,7 +17,7 @@ import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.to
  * update_committee = (4, gov_action_id / null, set<committee_cold_credential>, { committee_cold_credential => epoch }, unit_interval)
  * }
  */
-@Getter
+@Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
@@ -26,7 +26,7 @@ import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.to
 public class UpdateCommittee implements GovAction {
     private final GovActionType type = GovActionType.UPDATE_COMMITTEE;
 
-    private GovActionId govActionId;
+    private GovActionId prevGovActionId;
     @Builder.Default
     private Set<Credential> membersForRemoval = new LinkedHashSet<>();
 
@@ -43,8 +43,8 @@ public class UpdateCommittee implements GovAction {
         Array array = new Array();
         array.add(new UnsignedInteger(4));
 
-        if (govActionId != null)
-            array.add(govActionId.serialize());
+        if (prevGovActionId != null)
+            array.add(prevGovActionId.serialize());
         else
             array.add(SimpleValue.NULL);
 

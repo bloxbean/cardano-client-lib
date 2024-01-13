@@ -12,6 +12,8 @@ import com.bloxbean.cardano.client.transaction.spec.cert.RegDrepCert;
 import com.bloxbean.cardano.client.transaction.spec.cert.UnregDrepCert;
 import com.bloxbean.cardano.client.transaction.spec.cert.UpdateDrepCert;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
+import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -33,6 +35,7 @@ public class GovTx {
     protected List<RegDrepCert> drepRegistrations;
     protected List<DRepDeregestrationContext> dRepDeregestrationContexts;
     protected List<UpdateDrepCert> updateDrepCerts;
+    protected List<CreateProposalContext> createProposalContexts;
 
     /**
      * Register DRep
@@ -97,6 +100,24 @@ public class GovTx {
     }
 
     /**
+     * Create Gov Action Proposal
+     * @param govAction Gov Action
+     * @param deposit Deposit
+     * @param returnAddress Return stake address
+     * @param anchor Anchor
+     * @return GovTx
+     */
+    public GovTx createProposal(GovAction govAction, BigInteger deposit, String returnAddress, Anchor anchor) {
+        var createProposalContext = new CreateProposalContext(deposit, returnAddress, govAction, anchor);
+
+        if (createProposalContexts == null)
+            createProposalContexts = new ArrayList<>();
+
+        createProposalContexts.add(createProposalContext);
+        return this;
+    }
+
+    /**
      * Return TxBuilder, payments to build a drep transaction
      *
      * @param fromAddress
@@ -110,6 +131,7 @@ public class GovTx {
         txBuilder = buildDRepRegistration(txBuilder, fromAddress);
         txBuilder = buildDRepDeRegistration(txBuilder, fromAddress);
         txBuilder = buildDRepUpdate(txBuilder, fromAddress);
+        txBuilder = buildCreateProposal(txBuilder, fromAddress);
 
         return new Tuple<>(paymentContexts, txBuilder);
     }
@@ -117,7 +139,8 @@ public class GovTx {
     private List<GovTx.PaymentContext> buildGovernancePayments(String fromAddress, String changeAddress) {
         List<GovTx.PaymentContext> paymentContexts = new ArrayList<>();
         if ((drepRegistrations == null || drepRegistrations.size() == 0)
-                && (dRepDeregestrationContexts == null || dRepDeregestrationContexts.size() == 0)) {
+                && (dRepDeregestrationContexts == null || dRepDeregestrationContexts.size() == 0)
+                && (createProposalContexts == null || createProposalContexts.size() == 0)) {
             return paymentContexts;
         }
 
@@ -129,6 +152,16 @@ public class GovTx {
 
         if (dRepDeregestrationContexts != null && dRepDeregestrationContexts.size() > 0) {
             paymentContexts.add(new GovTx.PaymentContext(fromAddress, DUMMY_MIN_OUTPUT_VAL)); //Dummy output to sender fromAddress to trigger input selection
+        }
+
+        if (createProposalContexts != null && createProposalContexts.size() > 0) {
+            var totalDeposit = createProposalContexts.stream()
+                    .map(c -> c.deposit)
+                    .reduce(BigInteger::add);
+
+            if (totalDeposit.isPresent()) {
+                paymentContexts.add(new GovTx.PaymentContext(fromAddress, Amount.lovelace(totalDeposit.get())));
+            }
         }
 
         return paymentContexts;
@@ -239,6 +272,55 @@ public class GovTx {
         return txBuilder;
     }
 
+    private TxBuilder buildCreateProposal(TxBuilder txBuilder, String fromAddress) {
+        if (createProposalContexts == null || createProposalContexts.size() == 0)
+            return txBuilder;
+
+        txBuilder = txBuilder.andThen((context, txn) -> {
+            if (createProposalContexts == null || createProposalContexts.size() == 0) {
+                return;
+            }
+
+            var proposalProcedures = txn.getBody().getProposalProcedures();
+            if (proposalProcedures == null) {
+                proposalProcedures = new ArrayList<>();
+                txn.getBody().setProposalProcedures(proposalProcedures);
+            }
+
+            for (var proposal: createProposalContexts) {
+                proposalProcedures.add(ProposalProcedure.builder()
+                        .govAction(proposal.govAction)
+                        .deposit(proposal.deposit)
+                        .rewardAccount(proposal.returnAddress)
+                        .anchor(proposal.anchor)
+                        .build()
+                );
+            }
+
+            var totalDeposit = createProposalContexts.stream()
+                    .map(c -> c.deposit)
+                    .reduce(BigInteger::add)
+                    .orElse(BigInteger.ZERO);
+
+            txn.getBody().getOutputs()
+                    .stream().filter(to -> to.getAddress().equals(fromAddress) && to.getValue().getCoin().compareTo(totalDeposit) >= 0)
+                    .sorted((o1, o2) -> o2.getValue().getCoin().compareTo(o1.getValue().getCoin()))
+                    .findFirst()
+                    .ifPresentOrElse(to -> {
+                        //Remove the deposit amount from the from address output
+                        to.getValue().setCoin(to.getValue().getCoin().subtract(totalDeposit));
+
+                        if (to.getValue().getCoin().equals(BigInteger.ZERO) && to.getValue().getMultiAssets() == null && to.getValue().getMultiAssets().size() == 0) {
+                            txn.getBody().getOutputs().remove(to);
+                        }
+                    }, () -> {
+                        throw new TxBuildException("Output for from address not found to remove deposit amount: " + fromAddress);
+                    });
+
+        });
+        return txBuilder;
+    }
+
     @Data
     @AllArgsConstructor
     static class DRepDeregestrationContext {
@@ -252,6 +334,15 @@ public class GovTx {
     static class PaymentContext {
         private String address;
         private Amount amount;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class CreateProposalContext {
+        private BigInteger deposit;
+        private String returnAddress; //stake address
+        private GovAction govAction;
+        private Anchor anchor;
     }
 
 }

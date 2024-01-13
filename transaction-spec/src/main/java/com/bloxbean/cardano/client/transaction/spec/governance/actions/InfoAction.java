@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
+import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import lombok.AllArgsConstructor;
@@ -14,7 +15,9 @@ public class InfoAction implements GovAction {
 
     @Override
     public DataItem serialize() {
-        return new UnsignedInteger(6);
+        var array = new Array();
+        array.add(new UnsignedInteger(6));
+        return array;
     }
 
 }

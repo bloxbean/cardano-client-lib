@@ -23,7 +23,7 @@ import java.util.Objects;
 public class HardForkInitiationAction implements GovAction {
     private final GovActionType type = GovActionType.HARD_FORK_INITIATION_ACTION;
 
-    private GovActionId govActionId;
+    private GovActionId prevGovActionId;
     private ProtocolVersion protocolVersion;
 
     @Override
@@ -33,8 +33,8 @@ public class HardForkInitiationAction implements GovAction {
         Array array = new Array();
         array.add(new UnsignedInteger(1));
 
-        if (govActionId != null)
-            array.add(govActionId.serialize());
+        if (prevGovActionId != null)
+            array.add(prevGovActionId.serialize());
         else
             array.add(SimpleValue.NULL);
 

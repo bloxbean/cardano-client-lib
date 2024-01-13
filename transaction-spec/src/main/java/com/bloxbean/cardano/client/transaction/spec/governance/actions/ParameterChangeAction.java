@@ -20,7 +20,7 @@ import java.util.Objects;
 public class ParameterChangeAction implements GovAction {
     private final GovActionType type = GovActionType.PARAMETER_CHANGE_ACTION;
 
-    private GovActionId govActionId;
+    private GovActionId prevGovActionId;
     private ProtocolParamUpdate protocolParamUpdate;
 
     @Override
@@ -30,8 +30,8 @@ public class ParameterChangeAction implements GovAction {
 
         Array array = new Array();
         array.add(new UnsignedInteger(0));
-        if (govActionId != null)
-            array.add(govActionId.serialize());
+        if (prevGovActionId != null)
+            array.add(prevGovActionId.serialize());
         else
             array.add(SimpleValue.NULL);
 

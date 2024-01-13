@@ -23,7 +23,7 @@ import java.util.Objects;
 public class NewConstitution implements GovAction {
     private final GovActionType type = GovActionType.NEW_CONSTITUTION;
 
-    private GovActionId govActionId;
+    private GovActionId prevGovActionId;
     private Constitution constitution;
 
     @Override
@@ -33,10 +33,12 @@ public class NewConstitution implements GovAction {
         Array array = new Array();
         array.add(new UnsignedInteger(5));
 
-        if (govActionId != null)
-            array.add(govActionId.serialize());
+        if (prevGovActionId != null)
+            array.add(prevGovActionId.serialize());
         else
             array.add(SimpleValue.NULL);
+
+        array.add(constitution.serialize());
 
         return array;
     }

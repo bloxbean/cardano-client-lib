@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.NonNull;
@@ -379,6 +380,11 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx updateDRep(@NonNull Credential drepCredential) {
         govTx.updateDRep(drepCredential, null);
+        return this;
+    }
+
+    public Tx createProposal(@NonNull GovAction govAction, @NonNull BigInteger deposit, @NonNull String rewardAccount, Anchor anchor) {
+        govTx.createProposal(govAction, deposit, rewardAccount, anchor);
         return this;
     }
 
