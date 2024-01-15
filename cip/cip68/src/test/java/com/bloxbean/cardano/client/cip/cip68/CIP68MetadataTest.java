@@ -14,19 +14,17 @@ public class CIP68MetadataTest {
     @Test
     public void assetNamePrefixTest() {
         CIP68NFT testNFT = CIP68NFT.create()
-                .assetName("TestNFT")
                 .name("TestNFT");
 
-        assertTrue(testNFT.getHexAssetFullName().startsWith("0x000de140"));
+        assertTrue(testNFT.getAssetNameAsBytes().startsWith("0x000de140"));
 
         CIP68ReferenceToken referenceToken = testNFT.getReferenceToken();
-        assertTrue(referenceToken.getHexAssetFullName().startsWith("0x000643b0"));
+        assertTrue(referenceToken.getAssetNameAsBytes().startsWith("0x000643b0"));
     }
 
     @Test
     public void assetMetaDataTest() {
         CIP68NFT testNFT = CIP68NFT.create()
-                .assetName("TestNFT")
                 .name("TestNFT")
                 .description("Testing NFT metadata");
         CIP68Metadata metadata = testNFT.getMetadata();
@@ -40,7 +38,6 @@ public class CIP68MetadataTest {
     @Test
     public void createAssetTest() {
         CIP68NFT testNFT = CIP68NFT.create()
-                .assetName("TestNFT")
                 .name("TestNFT")
                 .description("Testing NFT asset creation");
         Asset asset = testNFT.getAsset(BigInteger.valueOf(1));

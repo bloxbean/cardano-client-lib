@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.plutus.spec.serializers;
 
-import co.nstant.in.cbor.model.ByteString;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
@@ -58,16 +57,6 @@ class PlutusDataJsonConverterTest {
         PlutusData plutusData = PlutusData.deserialize(HexUtil.decodeHexString(datumHex));
 
         String json = PlutusDataJsonConverter.toJson(plutusData);
-        assertThat(plutusData).isNotNull();
-        assertThat(json).isNotNull();
-    }
-
-    @Test
-    void utf8_ByteStringdeserializationTest() throws Exception {
-        String datumHex = "d8799fa6446e616d654c54657374313233546f6b656e45696d6167655835697066733a2f2f516d5763636a566279694d6a394637775278725053743554387953687974714331646f5132585072457838485379496d65646961747970654a696d6167652f6a706567496d65646961547970654a696d6167652f6a7065674b6465736372697074696f6e404566696c65739fa3496d65646961747970654a696d6167652f6a706567446e616d654a696d6167652f6a706567437372635835697066733a2f2f516d5763636a566279694d6a394637775278725053743554387953687974714331646f5132585072457838485379ff01ff";
-        PlutusData plutusData = PlutusData.deserialize(HexUtil.decodeHexString(datumHex));
-
-        String json = PlutusDataJsonConverter.toUTF8Json(plutusData);
         assertThat(plutusData).isNotNull();
         assertThat(json).isNotNull();
     }

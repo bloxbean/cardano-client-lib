@@ -14,7 +14,7 @@ public abstract class CIP68TokenTemplate<T extends CIP68TokenTemplate> extends N
     public static final String NAME_KEY = "name";
 
     private int assetNameLabel;
-    private String assetName;
+    private String name;
     CIP68TokenTemplate(int assetNameLabel) {
         this.assetNameLabel = assetNameLabel;
     }
@@ -26,17 +26,17 @@ public abstract class CIP68TokenTemplate<T extends CIP68TokenTemplate> extends N
     CIP68TokenTemplate(Map map, String assetName, int assetNameLabel) {
         super(map);
         this.assetNameLabel = assetNameLabel;
-        this.assetName = assetName;
+        this.name = assetName;
     }
 
     public int getAssetNameLabel() {
         return assetNameLabel;
     }
 
-    public String getHexAssetFullName() {
+    public String getAssetNameAsBytes() {
         byte[] assetNameLabelBytes = CIP67AssetNameUtil.labelToPrefix(assetNameLabel);
         return "0x" + new String(HexUtil.encodeHexString(assetNameLabelBytes))
-                + HexUtil.encodeHexString(assetName.getBytes());
+                + HexUtil.encodeHexString(name.getBytes());
     }
 
     public CIP68ReferenceToken getReferenceToken() {
@@ -44,7 +44,7 @@ public abstract class CIP68TokenTemplate<T extends CIP68TokenTemplate> extends N
     }
 
     public Asset getAsset(BigInteger value) {
-        return new Asset(getHexAssetFullName(), value);
+        return new Asset(getAssetNameAsBytes(), value);
     }
 
     public CIP68Metadata getMetadata() {
@@ -52,15 +52,11 @@ public abstract class CIP68TokenTemplate<T extends CIP68TokenTemplate> extends N
     }
 
     public String getAssetName() {
-        return assetName;
-    }
-
-    public T assetName(String assetName) {
-        this.assetName = assetName;
-        return (T) this;
+        return name;
     }
 
     public T name(String name) {
+        this.name = name;
         put(NAME_KEY, name);
         return (T) this;
     }

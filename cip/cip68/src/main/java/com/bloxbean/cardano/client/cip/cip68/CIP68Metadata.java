@@ -13,14 +13,14 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import java.math.BigInteger;
 
 public class CIP68Metadata extends CBORMetadata {
-    private BigInteger version = BigInteger.valueOf(1);
+    private int version = 1;
     private CBORMetadataList metadataList;
     private PlutusData extra = PlutusData.unit();
     private CIP68TokenTemplate tokenStandard;
 
     private CIP68Metadata() {
         metadataList = new CBORMetadataList();
-        put(1, version);
+        put(1, BigInteger.valueOf(version));
         put(2, extra.serializeToHex());
     }
 
@@ -43,9 +43,9 @@ public class CIP68Metadata extends CBORMetadata {
         return this;
     }
 
-    public CIP68Metadata version(BigInteger version) {
+    public CIP68Metadata version(int version) {
         this.version = version;
-        put(1, version);
+        put(1, BigInteger.valueOf(version));
         return this;
     }
 
@@ -62,7 +62,7 @@ public class CIP68Metadata extends CBORMetadata {
             build = ConstrPlutusData.builder()
                     .data(ListPlutusData.of(
                             PlutusData.deserialize(dataItem.get(new UnsignedInteger(0))),
-                            BigIntPlutusData.of(this.version),
+                            BigIntPlutusData.of(BigInteger.valueOf(this.version)),
                             PlutusData.deserialize(dataItem.get(new UnsignedInteger(2)))
                     )).build();
         } catch (CborDeserializationException e) {
