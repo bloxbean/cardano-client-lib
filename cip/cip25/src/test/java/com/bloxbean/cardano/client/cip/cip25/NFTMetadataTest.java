@@ -85,7 +85,7 @@ class NFTMetadataTest {
         assertThat(rNft3).isNotNull();
         assertThat(rNftNotAvailable).isNull();
 
-        assertThat(nftMetadata.getVersion()).isEqualTo(BigInteger.valueOf(1));
+        assertThat(nftMetadata.getVersion()).isEqualTo(1);
 
         assertThat(rNft1.getAssetName()).isEqualTo(nft1.getAssetName());
         assertThat(rNft1.getName()).isEqualTo(nft1.getName());
