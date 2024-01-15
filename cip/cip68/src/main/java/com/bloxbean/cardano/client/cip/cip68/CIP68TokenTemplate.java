@@ -3,10 +3,12 @@ package com.bloxbean.cardano.client.cip.cip68;
 import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.cip.cip25.NFTProperties;
 import com.bloxbean.cardano.client.cip.cip67.CIP67AssetNameUtil;
+import com.bloxbean.cardano.client.crypto.bip32.util.BytesUtil;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 
 public abstract class CIP68TokenTemplate<T extends CIP68TokenTemplate> extends NFTProperties {
 
@@ -33,10 +35,16 @@ public abstract class CIP68TokenTemplate<T extends CIP68TokenTemplate> extends N
         return assetNameLabel;
     }
 
-    public String getAssetNameAsBytes() {
+    public String getAssetNameAsHex() {
         byte[] assetNameLabelBytes = CIP67AssetNameUtil.labelToPrefix(assetNameLabel);
         return "0x" + new String(HexUtil.encodeHexString(assetNameLabelBytes))
-                + HexUtil.encodeHexString(name.getBytes());
+                + HexUtil.encodeHexString(name.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public byte[] getAssetNameAsBytes() {
+        byte[] assetNameLabelBytes = CIP67AssetNameUtil.labelToPrefix(assetNameLabel);
+        byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
+        return BytesUtil.merge(assetNameLabelBytes, nameBytes);
     }
 
     public CIP68ReferenceToken getReferenceToken() {
@@ -44,7 +52,7 @@ public abstract class CIP68TokenTemplate<T extends CIP68TokenTemplate> extends N
     }
 
     public Asset getAsset(BigInteger value) {
-        return new Asset(getAssetNameAsBytes(), value);
+        return new Asset(getAssetNameAsHex(), value);
     }
 
     public CIP68Metadata getMetadata() {

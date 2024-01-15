@@ -16,10 +16,21 @@ public class CIP68MetadataTest {
         CIP68NFT testNFT = CIP68NFT.create()
                 .name("TestNFT");
 
-        assertTrue(testNFT.getAssetNameAsBytes().startsWith("0x000de140"));
+        assertTrue(testNFT.getAssetNameAsHex().startsWith("0x000de140"));
 
         CIP68ReferenceToken referenceToken = testNFT.getReferenceToken();
-        assertTrue(referenceToken.getAssetNameAsBytes().startsWith("0x000643b0"));
+        assertTrue(referenceToken.getAssetNameAsHex().startsWith("0x000643b0"));
+    }
+
+    @Test
+    public void assetNameBytesTest() {
+        CIP68NFT testNFT = CIP68NFT.create()
+                .name("TestNFT");
+
+        byte[] assetNameAsBytes = testNFT.getAssetNameAsBytes();
+        String assetNameBytesAsHex = HexUtil.encodeHexString(assetNameAsBytes);
+
+        assertTrue(assetNameBytesAsHex.equals("000de140546573744e4654"));
     }
 
     @Test

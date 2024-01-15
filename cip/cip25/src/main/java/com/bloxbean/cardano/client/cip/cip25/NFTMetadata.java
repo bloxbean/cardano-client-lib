@@ -105,7 +105,7 @@ public class NFTMetadata extends CBORMetadata {
      * @param version
      * @return
      */
-    @Deprecated(since = "5.1", forRemoval = true)
+    @Deprecated(since = "0.5.1", forRemoval = true)
     public NFTMetadata version(String version) {
         this.version = Integer.valueOf(version);
         policyMap.put(VERSION_KEY, BigInteger.valueOf(this.version));

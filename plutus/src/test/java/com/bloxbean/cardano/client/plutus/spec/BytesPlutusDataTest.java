@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BytesPlutusDataTest {
 
@@ -31,12 +31,13 @@ public class BytesPlutusDataTest {
 
     @Test
     void unicodeDeserializeSerialize() throws CborDeserializationException, CborSerializationException {
-        UnicodeString unicodeString = new UnicodeString("Hello World!");
+        String testString = "Hello World!";
+
+        UnicodeString unicodeString = new UnicodeString(testString);
         PlutusData deserialize = PlutusData.deserialize(unicodeString);
 
-        ByteString di = (ByteString)deserialize.serialize();
-        String serializedString = new String(di.getBytes());
+        BytesPlutusData bytesPlutusData = BytesPlutusData.of(testString);
 
-        assertEquals(unicodeString.getString(), serializedString);
+        assertTrue(bytesPlutusData.equals(deserialize));
     }
 }
