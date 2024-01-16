@@ -77,13 +77,13 @@ public interface Certificate {
                 certificate = ResignCommitteeColdCert.deserialize(certArray);
                 break;
             case 16:
-                certificate = RegDrepCert.deserialize(certArray);
+                certificate = RegDRepCert.deserialize(certArray);
                 break;
             case 17:
-                certificate = UnregDrepCert.deserialize(certArray);
+                certificate = UnregDRepCert.deserialize(certArray);
                 break;
             case 18:
-                certificate = UpdateDrepCert.deserialize(certArray);
+                certificate = UpdateDRepCert.deserialize(certArray);
                 break;
             default:
                 throw new CborDeserializationException("Certificate deserialization failed. Unknown type : " + type);

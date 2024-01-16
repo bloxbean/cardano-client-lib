@@ -12,7 +12,7 @@ import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
-import com.bloxbean.cardano.client.transaction.spec.governance.Drep;
+import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
 import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
@@ -431,7 +431,7 @@ public class Tx extends AbstractTx<Tx> {
      * @param drep Drep
      * @return Tx
      */
-    public Tx delegateVotingPowerTo(@NonNull String address, @NonNull Drep drep) {
+    public Tx delegateVotingPowerTo(@NonNull String address, @NonNull DRep drep) {
         govTx.delegateVotingPowerTo(new Address(address), drep);
         return this;
     }
@@ -442,7 +442,7 @@ public class Tx extends AbstractTx<Tx> {
      * @param drep Drep
      * @return Tx
      */
-    public Tx delegateVotingPowerTo(@NonNull Address address, @NonNull Drep drep) {
+    public Tx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep) {
         govTx.delegateVotingPowerTo(address, drep);
         return this;
     }

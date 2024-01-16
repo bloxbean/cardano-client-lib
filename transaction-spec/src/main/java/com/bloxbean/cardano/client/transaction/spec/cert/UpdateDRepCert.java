@@ -17,7 +17,7 @@ import java.util.Objects;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class UpdateDrepCert implements Certificate {
+public class UpdateDRepCert implements Certificate {
     private final CertificateType type = CertificateType.UPDATE_DREP_CERT;
 
     private Credential drepCredential;
@@ -39,7 +39,7 @@ public class UpdateDrepCert implements Certificate {
         return certArray;
     }
 
-    public static UpdateDrepCert deserialize(DataItem di) {
+    public static UpdateDRepCert deserialize(DataItem di) {
         Array certArray = (Array) di;
         List<DataItem> dataItemList = certArray.getDataItems();
 
@@ -50,6 +50,6 @@ public class UpdateDrepCert implements Certificate {
         if (anchorDI != SimpleValue.NULL)
             anchor = Anchor.deserialize((Array) anchorDI);
 
-        return new UpdateDrepCert(drepCred, anchor);
+        return new UpdateDRepCert(drepCred, anchor);
     }
 }

@@ -5,7 +5,7 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.transaction.spec.governance.Drep;
+import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
 
@@ -23,7 +23,7 @@ public class StakeVoteDelegCert implements Certificate {
 
     private StakeCredential stakeCredential;
     private String poolKeyHash;
-    private Drep drep;
+    private DRep drep;
 
     @Override
     public Array serialize() throws CborSerializationException {
@@ -47,7 +47,7 @@ public class StakeVoteDelegCert implements Certificate {
 
         StakeCredential stakeCredential = StakeCredential.deserialize((Array) dataItemList.get(1));
         String poolKeyHash = toHex(dataItemList.get(2));
-        Drep drep = Drep.deserialize(dataItemList.get(3));
+        DRep drep = DRep.deserialize(dataItemList.get(3));
         return new StakeVoteDelegCert(stakeCredential, poolKeyHash, drep);
     }
 }

@@ -19,36 +19,36 @@ import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toIn
 @NoArgsConstructor
 @EqualsAndHashCode
 @ToString
-public class Drep {
-    private DrepType type;
+public class DRep {
+    private DRepType type;
     private String hash; //key hash or script hash
 
-    public static Drep addrKeyHash(String addrKeyHash) {
-        Drep drep = new Drep();
-        drep.type = DrepType.ADDR_KEYHASH;
+    public static DRep addrKeyHash(String addrKeyHash) {
+        DRep drep = new DRep();
+        drep.type = DRepType.ADDR_KEYHASH;
         drep.hash = addrKeyHash;
 
         return drep;
     }
 
-    public static Drep scriptHash(String scriptHash) {
-        Drep drep = new Drep();
-        drep.type = DrepType.SCRIPTHASH;
+    public static DRep scriptHash(String scriptHash) {
+        DRep drep = new DRep();
+        drep.type = DRepType.SCRIPTHASH;
         drep.hash = scriptHash;
 
         return drep;
     }
 
-    public static Drep abstain() {
-        Drep drep = new Drep();
-        drep.type = DrepType.ABSTAIN;
+    public static DRep abstain() {
+        DRep drep = new DRep();
+        drep.type = DRepType.ABSTAIN;
 
         return drep;
     }
 
-    public static Drep noConfidence() {
-        Drep drep = new Drep();
-        drep.type = DrepType.NO_CONFIDENCE;
+    public static DRep noConfidence() {
+        DRep drep = new DRep();
+        drep.type = DRepType.NO_CONFIDENCE;
 
         return drep;
     }
@@ -77,7 +77,7 @@ public class Drep {
         return drepArray;
     }
 
-    public static Drep deserialize(DataItem di) {
+    public static DRep deserialize(DataItem di) {
         List<DataItem> dataItemList = ((Array) di).getDataItems();
 
         int key = toInt(dataItemList.get(0));
@@ -85,14 +85,14 @@ public class Drep {
         switch (key) {
             case 0:
                 String addKeyHash = toHex(dataItemList.get(1));
-                return Drep.addrKeyHash(addKeyHash);
+                return DRep.addrKeyHash(addKeyHash);
             case 1:
                 String scriptHash = toHex(dataItemList.get(1));
-                return Drep.scriptHash(scriptHash);
+                return DRep.scriptHash(scriptHash);
             case 2:
-                return Drep.abstain();
+                return DRep.abstain();
             case 3:
-                return Drep.noConfidence();
+                return DRep.noConfidence();
             default:
                 throw new IllegalArgumentException("Invalid Drep key: " + key);
         }

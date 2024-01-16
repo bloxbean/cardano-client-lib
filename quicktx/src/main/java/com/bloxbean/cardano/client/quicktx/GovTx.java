@@ -30,9 +30,9 @@ public class GovTx {
     public static final BigInteger DREP_REG_DEPOSIT = adaToLovelace(2.0);
     public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
 
-    protected List<RegDrepCert> drepRegistrations;
-    protected List<DrepDeregestrationContext> dRepDeregestrationContexts;
-    protected List<UpdateDrepCert> updateDrepCerts;
+    protected List<RegDRepCert> dRepRegistrations;
+    protected List<DRepDeregestrationContext> dRepDeregestrationContexts;
+    protected List<UpdateDRepCert> updateDrepCerts;
     protected List<CreateProposalContext> createProposalContexts;
     protected List<VotingProcedureContext> votingProcedureContexts;
     protected List<VoteDelegCert> voteDelegCerts;
@@ -44,16 +44,16 @@ public class GovTx {
      * @return GovTx
      */
     public GovTx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
-        var regDRepCert = RegDrepCert.builder()
+        var regDRepCert = RegDRepCert.builder()
                 .drepCredential(drepCredential)
                 .anchor(anchor)
                 .coin(DREP_REG_DEPOSIT)
                 .build();
 
-        if (drepRegistrations == null)
-            drepRegistrations = new ArrayList<>();
+        if (dRepRegistrations == null)
+            dRepRegistrations = new ArrayList<>();
 
-        drepRegistrations.add(regDRepCert);
+        dRepRegistrations.add(regDRepCert);
         return this;
     }
 
@@ -68,7 +68,7 @@ public class GovTx {
         if (refundAmount == null)
             refundAmount = DREP_REG_DEPOSIT;
 
-        var unregDRepCert = UnregDrepCert.builder()
+        var unregDRepCert = UnregDRepCert.builder()
                 .drepCredential(drepCredential)
                 .coin(refundAmount)
                 .build();
@@ -76,7 +76,7 @@ public class GovTx {
         if (dRepDeregestrationContexts == null)
             dRepDeregestrationContexts = new ArrayList<>();
 
-        dRepDeregestrationContexts.add(new DrepDeregestrationContext(unregDRepCert, refundAddress, refundAmount));
+        dRepDeregestrationContexts.add(new DRepDeregestrationContext(unregDRepCert, refundAddress, refundAmount));
         return this;
     }
 
@@ -87,7 +87,7 @@ public class GovTx {
      * @return GovTx
      */
     public GovTx updateDRep(@NonNull Credential drepCredential, Anchor anchor) {
-        var updateDRepCert = UpdateDrepCert.builder()
+        var updateDRepCert = UpdateDRepCert.builder()
                 .drepCredential(drepCredential)
                 .anchor(anchor)
                 .build();
@@ -139,7 +139,7 @@ public class GovTx {
      * @param drep DRep to delegate
      * @return GovTx
      */
-    public GovTx delegateVotingPowerTo(@NonNull Address address, @NonNull Drep drep) {
+    public GovTx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep) {
         byte[] delegationHash = address.getDelegationCredentialHash()
                 .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
 
@@ -184,15 +184,15 @@ public class GovTx {
 
     private List<GovTx.PaymentContext> buildGovernancePayments(String fromAddress, String changeAddress) {
         List<GovTx.PaymentContext> paymentContexts = new ArrayList<>();
-        if ((drepRegistrations == null || drepRegistrations.size() == 0)
+        if ((dRepRegistrations == null || dRepRegistrations.size() == 0)
                 && (dRepDeregestrationContexts == null || dRepDeregestrationContexts.size() == 0)
                 && (createProposalContexts == null || createProposalContexts.size() == 0)) {
             return paymentContexts;
         }
 
-        if (drepRegistrations != null && drepRegistrations.size() > 0) {
+        if (dRepRegistrations != null && dRepRegistrations.size() > 0) {
             //Dummy pay to fromAddress to add deposit
-            Amount totalDRepRegistrationDepositAmount = Amount.lovelace(DREP_REG_DEPOSIT.multiply(BigInteger.valueOf(drepRegistrations.size())));
+            Amount totalDRepRegistrationDepositAmount = Amount.lovelace(DREP_REG_DEPOSIT.multiply(BigInteger.valueOf(dRepRegistrations.size())));
             paymentContexts.add(new GovTx.PaymentContext(fromAddress, totalDRepRegistrationDepositAmount));
         }
 
@@ -214,11 +214,11 @@ public class GovTx {
     }
 
     private TxBuilder buildDRepRegistration(TxBuilder txBuilder, String fromAddress) {
-        if (drepRegistrations == null || drepRegistrations.size() == 0)
+        if (dRepRegistrations == null || dRepRegistrations.size() == 0)
             return txBuilder;
 
         txBuilder = txBuilder.andThen((context, txn) -> {
-            if (drepRegistrations == null || drepRegistrations.size() == 0) {
+            if (dRepRegistrations == null || dRepRegistrations.size() == 0) {
                 return;
             }
 
@@ -229,11 +229,11 @@ public class GovTx {
                 txn.getBody().setCerts(certificates);
             }
 
-            certificates.addAll(drepRegistrations);
+            certificates.addAll(dRepRegistrations);
 
             String drepRegDepositParam = DREP_REG_DEPOSIT.toString();//context.getProtocolParams().getKeyDeposit(); //TODO -- Get protocol param
             BigInteger drepRegDeposit = new BigInteger(drepRegDepositParam);
-            BigInteger totalDRepRegDeposit = drepRegDeposit.multiply(BigInteger.valueOf(drepRegistrations.size()));
+            BigInteger totalDRepRegDeposit = drepRegDeposit.multiply(BigInteger.valueOf(dRepRegistrations.size()));
             log.debug("Total stakekey registration deposit: " + totalDRepRegDeposit);
 
             txn.getBody().getOutputs()
@@ -274,7 +274,7 @@ public class GovTx {
                 txn.setWitnessSet(new TransactionWitnessSet());
             }
 
-            for (DrepDeregestrationContext dRepDeregestrationContext : dRepDeregestrationContexts) {
+            for (DRepDeregestrationContext dRepDeregestrationContext : dRepDeregestrationContexts) {
                 certificates.add(dRepDeregestrationContext.getUnregDrepCert());
 
                 if (dRepDeregestrationContext.refundAddress == null)
@@ -415,8 +415,8 @@ public class GovTx {
 
     @Data
     @AllArgsConstructor
-    static class DrepDeregestrationContext {
-        private UnregDrepCert unregDrepCert;
+    static class DRepDeregestrationContext {
+        private UnregDRepCert unregDrepCert;
         private String refundAddress;
         private BigInteger refundAmount;
     }

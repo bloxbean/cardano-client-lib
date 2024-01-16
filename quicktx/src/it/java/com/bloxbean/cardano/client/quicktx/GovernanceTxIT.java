@@ -368,7 +368,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
 //        stakeAddressRegistration(sender2Addr);
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
 
-        Drep drep = DRepId.toDrep(sender1.drepId(), DrepType.ADDR_KEYHASH);
+        DRep drep = DRepId.toDrep(sender1.drepId(), DRepType.ADDR_KEYHASH);
         System.out.println("Drep : " + sender1.drepId());
 
         Tx tx = new Tx()

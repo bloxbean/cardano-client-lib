@@ -22,7 +22,7 @@ import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getB
 @Builder
 @EqualsAndHashCode
 @ToString
-public class RegDrepCert implements Certificate {
+public class RegDRepCert implements Certificate {
     private final CertificateType type = CertificateType.REG_DREP_CERT;
 
     private Credential drepCredential;
@@ -46,7 +46,7 @@ public class RegDrepCert implements Certificate {
         return certArray;
     }
 
-    public static RegDrepCert deserialize(DataItem di) {
+    public static RegDRepCert deserialize(DataItem di) {
         Array certArray = (Array) di;
         List<DataItem> dataItemList = certArray.getDataItems();
 
@@ -58,6 +58,6 @@ public class RegDrepCert implements Certificate {
         if (anchorDI != SimpleValue.NULL)
             anchor = Anchor.deserialize((Array) anchorDI);
 
-        return new RegDrepCert(drepCred, coin, anchor);
+        return new RegDRepCert(drepCred, coin, anchor);
     }
 }

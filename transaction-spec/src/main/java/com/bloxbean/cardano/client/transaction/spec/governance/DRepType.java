@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec.governance;
 
-public enum DrepType {
+public enum DRepType {
     ADDR_KEYHASH,
     SCRIPTHASH,
     ABSTAIN,

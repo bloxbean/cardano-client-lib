@@ -18,7 +18,7 @@ import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.getB
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class UnregDrepCert implements Certificate {
+public class UnregDRepCert implements Certificate {
     private final CertificateType type = CertificateType.UNREG_DREP_CERT;
 
     private Credential drepCredential;
@@ -37,12 +37,12 @@ public class UnregDrepCert implements Certificate {
         return certArray;
     }
 
-    public static UnregDrepCert deserialize(DataItem di) {
+    public static UnregDRepCert deserialize(DataItem di) {
         Array certArray = (Array) di;
         List<DataItem> dataItemList = certArray.getDataItems();
 
         Credential drepCred = CredentialSerializer.deserialize((Array) dataItemList.get(1));
         BigInteger coin = getBigInteger(dataItemList.get(2));
-        return new UnregDrepCert(drepCred, coin);
+        return new UnregDRepCert(drepCred, coin);
     }
 }
