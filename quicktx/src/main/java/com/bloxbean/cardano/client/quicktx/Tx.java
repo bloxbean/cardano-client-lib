@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
@@ -9,6 +11,12 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
+import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
+import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
+import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
+import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.NonNull;
@@ -20,6 +28,7 @@ import java.util.Set;
 public class Tx extends AbstractTx<Tx> {
 
     private StakeTx stakeTx;
+    private GovTx govTx;
 
     private String sender;
     protected boolean senderAdded = false;
@@ -29,6 +38,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx() {
         stakeTx = new StakeTx();
+        govTx = new GovTx();
     }
 
     /**
@@ -293,6 +303,151 @@ public class Tx extends AbstractTx<Tx> {
     }
 
     /**
+     * Register a DRep
+     * @param account Account
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public Tx registerDRep(@NonNull Account account, Anchor anchor) {
+        govTx.registerDRep(account.drepCredential(), anchor);
+        return this;
+    }
+
+    /**
+     * Register a DRep
+     * @param account Account
+     * @return Tx
+     */
+    public Tx registerDRep(@NonNull Account account) {
+        registerDRep(account, null);
+        return this;
+    }
+
+    /**
+     * Register a DRep
+     * @param drepCredential Credential
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public Tx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
+        govTx.registerDRep(drepCredential, anchor);
+        return this;
+    }
+
+    /**
+     * Register a DRep
+     * @param drepCredential
+     * @return Tx
+     */
+    public Tx registerDRep(@NonNull Credential drepCredential) {
+        registerDRep(drepCredential, null);
+        return this;
+    }
+
+    /**
+     * Unregister a DRep
+     * @param drepCredential Credential
+     * @param refaundAddress Refund address
+     * @param refundAmount Refund amount
+     * @return Tx
+     */
+    public Tx unregisterDRep(@NonNull Credential drepCredential, String refaundAddress, BigInteger refundAmount) {
+        govTx.unregisterDRep(drepCredential, refaundAddress, refundAmount);
+        return this;
+    }
+
+    /**
+     * Unregister a DRep
+     * @param drepCredential Credential
+     * @return Tx
+     */
+    public Tx unregisterDRep(@NonNull Credential drepCredential) {
+        govTx.unregisterDRep(drepCredential, null, null);
+        return this;
+    }
+
+    /**
+     * Update a DRep
+     * @param drepCredential Credential
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public Tx updateDRep(@NonNull Credential drepCredential, Anchor anchor) {
+        govTx.updateDRep(drepCredential, anchor);
+        return this;
+    }
+
+    /**
+     * Update a DRep
+     * @param drepCredential Credential
+     * @return Tx
+     */
+    public Tx updateDRep(@NonNull Credential drepCredential) {
+        govTx.updateDRep(drepCredential, null);
+        return this;
+    }
+
+    /**
+     * Create a new governance proposal
+     * @param govAction GovAction
+     * @param deposit Deposit
+     * @param rewardAccount return address for the deposit refund
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public Tx createProposal(@NonNull GovAction govAction, @NonNull BigInteger deposit, @NonNull String rewardAccount, Anchor anchor) {
+        govTx.createProposal(govAction, deposit, rewardAccount, anchor);
+        return this;
+    }
+
+    /**
+     * Create a voting procedure
+     * @param voter Voter
+     * @param govActionId GovActionId
+     * @param vote Vote
+     * @param anchor
+     * @return Tx
+     */
+    public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor) {
+        govTx.createVote(voter, govActionId, vote, anchor);
+        return this;
+    }
+
+    /**
+     * Create a voting procedure
+     * @param voter Voter
+     * @param govActionId GovActionId
+     * @param vote Vote
+     * @return Tx
+     */
+    public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote) {
+        govTx.createVote(voter, govActionId, vote, null);
+        return this;
+    }
+
+    /**
+     * Delegate voting power to a DRep
+     * @param address Address
+     * @param drep Drep
+     * @return Tx
+     */
+    public Tx delegateVotingPowerTo(@NonNull String address, @NonNull DRep drep) {
+        govTx.delegateVotingPowerTo(new Address(address), drep);
+        return this;
+    }
+
+    /**
+     * Delegate voting power to a DRep
+     * @param address Address
+     * @param drep Drep
+     * @return Tx
+     */
+    public Tx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep) {
+        govTx.delegateVotingPowerTo(address, drep);
+        return this;
+    }
+
+    /**
      * Sender address
      *
      * @return String
@@ -350,9 +505,19 @@ public class Tx extends AbstractTx<Tx> {
             payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
         }
 
+        //Gov txs
+        Tuple<List<GovTx.PaymentContext>, TxBuilder> govBuildTuple =
+                govTx.build(getFromAddress(), getChangeAddress());
+
+        for (GovTx.PaymentContext paymentContext: govBuildTuple._1) {
+            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
+        }
+
         TxBuilder txBuilder = super.complete();
 
-        txBuilder = txBuilder.andThen(stakeBuildTuple._2);
+        txBuilder = txBuilder.andThen(stakeBuildTuple._2)
+                .andThen(govBuildTuple._2);
+
         return txBuilder;
     }
 

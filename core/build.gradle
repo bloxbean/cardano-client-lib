@@ -8,6 +8,7 @@ dependencies {
     api project(':core-api')
     api project(':plutus')
     api project(':coinselection')
+    api project(':governance')
 
     implementation(libs.bouncycastle.bcprov)
 }

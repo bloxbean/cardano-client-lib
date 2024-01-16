@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
@@ -13,6 +14,7 @@ import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.governance.DRepId;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -33,6 +35,7 @@ public class Account {
     private String changeAddress;
     private String enterpriseAddress;
     private String stakeAddress;
+    private String drepId;
     private Network network;
 
     @JsonIgnore
@@ -334,6 +337,30 @@ public class Account {
     }
 
     /**
+     * Get Hd key pair for DRep keys
+     * @return
+     */
+    @JsonIgnore
+    public HdKeyPair drepHdKeyPair() {
+        return getDRepKeyPair();
+    }
+
+    public String drepId() {
+        if (drepId == null || drepId.isEmpty()) {
+            var drepHdKeyPair = drepHdKeyPair();
+            var drepKeyHash = drepHdKeyPair.getPublicKey().getKeyHash();
+            drepId = DRepId.fromKeyHash(HexUtil.encodeHexString(drepKeyHash));
+        }
+
+        return drepId;
+    }
+
+    public Credential drepCredential() {
+        var drepHdKeyPair = drepHdKeyPair();
+        return Credential.fromKey(drepHdKeyPair.getPublicKey().getKeyHash());
+    }
+
+    /**
      * @deprecated Use {@link Account#sign(Transaction)}
      * @param txnHex
      * @return
@@ -369,6 +396,10 @@ public class Account {
      */
     public Transaction signWithStakeKey(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getStakeKeyPair());
+    }
+
+    public Transaction signWithDRepKey(Transaction transaction) {
+        return TransactionSigner.INSTANCE.sign(transaction, getDRepKeyPair());
     }
 
     private void generateNew(Words noOfWords) {
@@ -428,6 +459,19 @@ public class Account {
             hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, stakeDerivationPath);
         } else {
             hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
+        }
+
+        return hdKeyPair;
+    }
+
+    private HdKeyPair getDRepKeyPair() {
+        HdKeyPair hdKeyPair;
+        DerivationPath drepDerivationPath = DerivationPath.createDRepKeyDerivationPathForAccount(derivationPath.getAccount().getValue());
+
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, drepDerivationPath);
+        } else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, drepDerivationPath);
         }
 
         return hdKeyPair;
