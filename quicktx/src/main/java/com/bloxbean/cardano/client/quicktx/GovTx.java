@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -7,13 +8,10 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
-import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
-import com.bloxbean.cardano.client.transaction.spec.cert.RegDrepCert;
-import com.bloxbean.cardano.client.transaction.spec.cert.UnregDrepCert;
-import com.bloxbean.cardano.client.transaction.spec.cert.UpdateDrepCert;
-import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
-import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
+import com.bloxbean.cardano.client.transaction.spec.cert.*;
+import com.bloxbean.cardano.client.transaction.spec.governance.*;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -33,9 +31,11 @@ public class GovTx {
     public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
 
     protected List<RegDrepCert> drepRegistrations;
-    protected List<DRepDeregestrationContext> dRepDeregestrationContexts;
+    protected List<DrepDeregestrationContext> dRepDeregestrationContexts;
     protected List<UpdateDrepCert> updateDrepCerts;
     protected List<CreateProposalContext> createProposalContexts;
+    protected List<VotingProcedureContext> votingProcedureContexts;
+    protected List<VoteDelegCert> voteDelegCerts;
 
     /**
      * Register DRep
@@ -76,7 +76,7 @@ public class GovTx {
         if (dRepDeregestrationContexts == null)
             dRepDeregestrationContexts = new ArrayList<>();
 
-        dRepDeregestrationContexts.add(new DRepDeregestrationContext(unregDRepCert, refundAddress, refundAmount));
+        dRepDeregestrationContexts.add(new DrepDeregestrationContext(unregDRepCert, refundAddress, refundAmount));
         return this;
     }
 
@@ -107,13 +107,57 @@ public class GovTx {
      * @param anchor Anchor
      * @return GovTx
      */
-    public GovTx createProposal(GovAction govAction, BigInteger deposit, String returnAddress, Anchor anchor) {
+    public GovTx createProposal(@NonNull GovAction govAction, @NonNull BigInteger deposit, @NonNull String returnAddress, Anchor anchor) {
         var createProposalContext = new CreateProposalContext(deposit, returnAddress, govAction, anchor);
 
         if (createProposalContexts == null)
             createProposalContexts = new ArrayList<>();
 
         createProposalContexts.add(createProposalContext);
+        return this;
+    }
+
+    /**
+     * Create a voting procedure
+     * @param voter Voter
+     * @param govActionId GovActionId
+     * @param vote Vote
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public GovTx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor) {
+        if (votingProcedureContexts == null)
+            votingProcedureContexts = new ArrayList<>();
+
+        votingProcedureContexts.add(new VotingProcedureContext(voter, govActionId, new VotingProcedure(vote, anchor)));
+        return this;
+    }
+
+    /**
+     * Delegate Votes to DRep
+     * @param address Address to delegate. Address should have delegation credential. So it should be a base address or stake address.
+     * @param drep DRep to delegate
+     * @return GovTx
+     */
+    public GovTx delegateVotingPowerTo(@NonNull Address address, @NonNull Drep drep) {
+        byte[] delegationHash = address.getDelegationCredentialHash()
+                .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
+
+        StakeCredential stakeCredential = null;
+        if (address.isStakeKeyHashInDelegationPart())
+            stakeCredential = StakeCredential.fromKeyHash(delegationHash);
+        else if (address.isScriptHashInDelegationPart())
+            stakeCredential = StakeCredential.fromScriptHash(delegationHash);
+
+        var voteDelegation = VoteDelegCert.builder()
+                .stakeCredential(stakeCredential)
+                .drep(drep)
+                .build();
+
+        if (voteDelegCerts == null)
+            voteDelegCerts = new ArrayList<>();
+
+        voteDelegCerts.add(voteDelegation);
         return this;
     }
 
@@ -132,6 +176,8 @@ public class GovTx {
         txBuilder = buildDRepDeRegistration(txBuilder, fromAddress);
         txBuilder = buildDRepUpdate(txBuilder, fromAddress);
         txBuilder = buildCreateProposal(txBuilder, fromAddress);
+        txBuilder = buildCreateVotingProcedures(txBuilder);
+        txBuilder = buildVoteDelegations(txBuilder);
 
         return new Tuple<>(paymentContexts, txBuilder);
     }
@@ -228,7 +274,7 @@ public class GovTx {
                 txn.setWitnessSet(new TransactionWitnessSet());
             }
 
-            for (GovTx.DRepDeregestrationContext dRepDeregestrationContext : dRepDeregestrationContexts) {
+            for (DrepDeregestrationContext dRepDeregestrationContext : dRepDeregestrationContexts) {
                 certificates.add(dRepDeregestrationContext.getUnregDrepCert());
 
                 if (dRepDeregestrationContext.refundAddress == null)
@@ -321,9 +367,55 @@ public class GovTx {
         return txBuilder;
     }
 
+    private TxBuilder buildCreateVotingProcedures(TxBuilder txBuilder) {
+        if (votingProcedureContexts == null || votingProcedureContexts.size() == 0)
+            return txBuilder;
+
+        txBuilder = txBuilder.andThen((context, txn) -> {
+            if (votingProcedureContexts == null || votingProcedureContexts.size() == 0) {
+                return;
+            }
+
+            var votingProcedures = txn.getBody().getVotingProcedures();
+            if (votingProcedures == null) {
+                votingProcedures = new VotingProcedures();
+                txn.getBody().setVotingProcedures(votingProcedures);
+            }
+
+            for (var votingProcedureContext : votingProcedureContexts) {
+                votingProcedures.add(votingProcedureContext.voter, votingProcedureContext.govActionId, votingProcedureContext.votingProcedure);
+            }
+        });
+
+        return txBuilder;
+    }
+
+    private TxBuilder buildVoteDelegations(TxBuilder txBuilder) {
+        if (voteDelegCerts == null || voteDelegCerts.size() == 0)
+            return txBuilder;
+
+        txBuilder = txBuilder.andThen((context, txn) -> {
+            if (voteDelegCerts == null || voteDelegCerts.size() == 0) {
+                return;
+            }
+
+            List<Certificate> certificates = txn.getBody().getCerts();
+            if (certificates == null) {
+                certificates = new ArrayList<>();
+                txn.getBody().setCerts(certificates);
+            }
+
+            for (var voteDelegCert : voteDelegCerts) {
+                certificates.add(voteDelegCert);
+            }
+        });
+
+        return txBuilder;
+    }
+
     @Data
     @AllArgsConstructor
-    static class DRepDeregestrationContext {
+    static class DrepDeregestrationContext {
         private UnregDrepCert unregDrepCert;
         private String refundAddress;
         private BigInteger refundAmount;
@@ -343,6 +435,14 @@ public class GovTx {
         private String returnAddress; //stake address
         private GovAction govAction;
         private Anchor anchor;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class VotingProcedureContext {
+        private Voter voter;
+        private GovActionId govActionId;
+        private VotingProcedure votingProcedure;
     }
 
 }

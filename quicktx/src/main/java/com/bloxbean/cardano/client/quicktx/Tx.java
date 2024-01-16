@@ -12,7 +12,11 @@ import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
+import com.bloxbean.cardano.client.transaction.spec.governance.Drep;
+import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
+import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.NonNull;
@@ -383,8 +387,63 @@ public class Tx extends AbstractTx<Tx> {
         return this;
     }
 
+    /**
+     * Create a new governance proposal
+     * @param govAction GovAction
+     * @param deposit Deposit
+     * @param rewardAccount return address for the deposit refund
+     * @param anchor Anchor
+     * @return Tx
+     */
     public Tx createProposal(@NonNull GovAction govAction, @NonNull BigInteger deposit, @NonNull String rewardAccount, Anchor anchor) {
         govTx.createProposal(govAction, deposit, rewardAccount, anchor);
+        return this;
+    }
+
+    /**
+     * Create a voting procedure
+     * @param voter Voter
+     * @param govActionId GovActionId
+     * @param vote Vote
+     * @param anchor
+     * @return Tx
+     */
+    public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor) {
+        govTx.createVote(voter, govActionId, vote, anchor);
+        return this;
+    }
+
+    /**
+     * Create a voting procedure
+     * @param voter Voter
+     * @param govActionId GovActionId
+     * @param vote Vote
+     * @return Tx
+     */
+    public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote) {
+        govTx.createVote(voter, govActionId, vote, null);
+        return this;
+    }
+
+    /**
+     * Delegate voting power to a DRep
+     * @param address Address
+     * @param drep Drep
+     * @return Tx
+     */
+    public Tx delegateVotingPowerTo(@NonNull String address, @NonNull Drep drep) {
+        govTx.delegateVotingPowerTo(new Address(address), drep);
+        return this;
+    }
+
+    /**
+     * Delegate voting power to a DRep
+     * @param address Address
+     * @param drep Drep
+     * @return Tx
+     */
+    public Tx delegateVotingPowerTo(@NonNull Address address, @NonNull Drep drep) {
+        govTx.delegateVotingPowerTo(address, drep);
         return this;
     }
 

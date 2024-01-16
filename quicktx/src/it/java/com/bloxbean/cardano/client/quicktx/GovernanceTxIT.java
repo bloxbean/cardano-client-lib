@@ -7,12 +7,12 @@ import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
+import com.bloxbean.cardano.client.governance.DRepId;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolVersion;
 import com.bloxbean.cardano.client.transaction.spec.Withdrawal;
-import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
-import com.bloxbean.cardano.client.transaction.spec.governance.Constitution;
+import com.bloxbean.cardano.client.transaction.spec.governance.*;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +23,7 @@ import java.math.BigInteger;
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+//TODO -- Update tests to use Yaci DevKit Sanchonet
 public class GovernanceTxIT extends QuickTxBaseIT {
     BackendService backendService;
     Account sender1;
@@ -315,6 +316,91 @@ public class GovernanceTxIT extends QuickTxBaseIT {
                 .completeAndWait(s -> System.out.println(s));
 
         System.out.println(result);
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void createVote() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        var anchor = new Anchor("https://xyz.com",
+                HexUtil.decodeHexString("daeef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
+
+        var voter = new Voter(VoterType.DREP_KEY_HASH, sender1.drepCredential());
+        Tx tx = new Tx()
+                .createVote(voter, new GovActionId("5655fbb4ceafd34296fe58f6e3d28b8ff663a89e84aa0edd77bd02fe379cef4c", 0),
+                        Vote.NO, anchor)
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.drepKeySignerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(s -> System.out.println(s));
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void createVote_noAnchor() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        var voter = new Voter(VoterType.DREP_KEY_HASH, sender2.drepCredential());
+        Tx tx = new Tx()
+                .createVote(voter, new GovActionId("5655fbb4ceafd34296fe58f6e3d28b8ff663a89e84aa0edd77bd02fe379cef4c", 0),
+                        Vote.YES)
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.drepKeySignerFrom(sender2))
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(s -> System.out.println(s));
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void voteDelegation() {
+//        stakeAddressRegistration(sender2Addr);
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        Drep drep = DRepId.toDrep(sender1.drepId(), DrepType.ADDR_KEYHASH);
+        System.out.println("Drep : " + sender1.drepId());
+
+        Tx tx = new Tx()
+                .delegateVotingPowerTo(sender2Addr, drep)
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.stakeKeySignerFrom(sender2))
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withTxInspector(transaction -> {
+                    System.out.println(transaction);
+                })
+                .completeAndWait(s -> System.out.println(s));
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+
+    //stake address registration
+    void stakeAddressRegistration(String addressToRegister) {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .registerStakeAddress(addressToRegister)
+                .from(sender1Addr);
+
+        System.out.println("Registering stake address for address: " + addressToRegister);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(msg -> System.out.println(msg));
+
         assertTrue(result.isSuccessful());
         checkIfUtxoAvailable(result.getValue(), sender1Addr);
     }

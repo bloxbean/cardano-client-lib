@@ -107,7 +107,6 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .build();
 
         CIP68NFT nft = CIP68NFT.create()
-                .assetName("CIP68-NFT")
                 .name("CIP68-NFT")
                 .image("https://xyz.com/image1.png")
                 .description("This is my first CIP-68 NFT")
@@ -141,7 +140,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         System.out.println(result1.getResponse());
         assertTrue(result1.isSuccessful());
 
-        checkIfUtxoAvailable(result1.getValue(), sender3Addr);
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
     }
 
     @Test

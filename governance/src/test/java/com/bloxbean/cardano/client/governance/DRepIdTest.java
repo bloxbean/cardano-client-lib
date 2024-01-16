@@ -24,4 +24,10 @@ class DRepIdTest {
         String drepId = DRepId.fromVerificationKey(verificationKey);
         assertThat(drepId).isEqualTo("drep1vlmeg4vu96detgkf5srw427363svqemth2xde2e2xp5ywfsx2gn");
     }
+
+    //TODO: Implement this
+    @Test
+    void toDrep() {
+
+    }
 }
