@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.common.MnemonicUtil;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
@@ -82,7 +83,8 @@ public class Account {
     public Account(Network network, DerivationPath derivationPath, Words noOfWords) {
         this.network = network;
         this.derivationPath = derivationPath;
-        generateNew(noOfWords);
+        this.mnemonic = MnemonicUtil.generateNew(noOfWords);
+        baseAddress();
     }
 
     /**
@@ -136,7 +138,7 @@ public class Account {
         this.mnemonic = mnemonic;
         this.accountKey = null;
         this.derivationPath = derivationPath;
-        validateMnemonic();
+        MnemonicUtil.validateMnemonic(this.mnemonic);
         baseAddress();
     }
 
@@ -369,32 +371,6 @@ public class Account {
      */
     public Transaction signWithStakeKey(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getStakeKeyPair());
-    }
-
-    private void generateNew(Words noOfWords) {
-        String mnemonic = null;
-        try {
-            mnemonic = MnemonicCode.INSTANCE.createMnemonic(noOfWords).stream().collect(Collectors.joining(" "));
-        } catch (MnemonicException.MnemonicLengthException e) {
-            throw new RuntimeException("Mnemonic generation failed", e);
-        }
-        this.mnemonic = mnemonic;
-        baseAddress();
-    }
-
-    private void validateMnemonic() {
-        if (mnemonic == null) {
-            throw new AddressRuntimeException("Mnemonic cannot be null");
-        }
-
-        mnemonic = mnemonic.replaceAll("\\s+", " ");
-        String[] words = mnemonic.split("\\s+");
-
-        try {
-            MnemonicCode.INSTANCE.check(Arrays.asList(words));
-        } catch (MnemonicException e) {
-            throw new AddressRuntimeException("Invalid mnemonic phrase", e);
-        }
     }
 
     private HdKeyPair getHdKeyPair() {
