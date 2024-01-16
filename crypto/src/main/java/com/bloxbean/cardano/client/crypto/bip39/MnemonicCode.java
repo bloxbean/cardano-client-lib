@@ -16,6 +16,7 @@
  */
 package com.bloxbean.cardano.client.crypto.bip39;
 
+import com.bloxbean.cardano.client.crypto.Utils;
 import com.bloxbean.cardano.client.crypto.config.CryptoConfiguration;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.google.common.base.Stopwatch;

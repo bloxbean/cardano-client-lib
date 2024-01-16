@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.backend.api;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
+import com.bloxbean.cardano.client.backend.model.AddressDetails;
 import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -31,7 +32,16 @@ public class AddressServiceIT extends BaseITTest {
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
 
         assertTrue(result.isSuccessful());
-        assertTrue(result.getValue().getAmount().size() > 0);
+        assertFalse(result.getValue().getAmount().isEmpty());
+    }
+
+    @Test
+    public void testGetAddressDetails() throws ApiException {
+        Result<AddressDetails> result = addressService.getAddressDetails("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+
+        assertTrue(result.isSuccessful());
+        assertFalse(result.getValue().getReceivedSum().isEmpty());
     }
 
     @Test

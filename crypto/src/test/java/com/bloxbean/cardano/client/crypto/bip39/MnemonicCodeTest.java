@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.crypto.bip39.Utils.WHITESPACE_SPLITTER;
+import static com.bloxbean.cardano.client.crypto.Utils.WHITESPACE_SPLITTER;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 //This file is originally from bitcoinj project. https://github.com/bitcoinj/bitcoinj

@@ -8,6 +8,9 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
+import com.bloxbean.cardano.client.cip.cip25.NFTFile;
+import com.bloxbean.cardano.client.cip.cip68.CIP68NFT;
+import com.bloxbean.cardano.client.cip.cip68.CIP68ReferenceToken;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
@@ -21,6 +24,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import lombok.SneakyThrows;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -92,6 +96,52 @@ public class ScriptTxIT extends TestDataBaseIT {
             .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
             .getValue().getJsonValue().get("int").asInt();
         assertThat(randInt).isEqualTo(gottenValue);
+    }
+
+    @SneakyThrows
+    @Test
+    void alwaysTrueScript_cip68Minting() throws Exception {
+        PlutusV2Script mintingScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+
+        CIP68NFT nft = CIP68NFT.create()
+                .assetName("CIP68-NFT")
+                .name("CIP68-NFT")
+                .image("https://xyz.com/image1.png")
+                .description("This is my first CIP-68 NFT")
+                .addFile(NFTFile.create()
+                        .mediaType("image/png")
+                        .name("image1.png")
+                        .src("https://xyz.com/image1.png")
+                );
+
+
+        CIP68ReferenceToken referenceToken = nft.getReferenceToken();
+        Asset userToken = nft.getAsset(BigInteger.valueOf(1));
+        Asset referenzToken = referenceToken.getAsset(BigInteger.valueOf(1));
+
+
+        PlutusData asPlutusData = referenceToken.getMetadata().asPlutusData();
+
+
+        String userTokenReceiver = sender2Addr;
+        String referenceTokenReceiver = AddressProvider.getEntAddress(mintingScript, Networks.preprod()).toBech32();
+
+
+        ScriptTx scriptTx = new ScriptTx()
+                .mintAsset(mintingScript, List.of(referenzToken), PlutusData.unit(), referenceTokenReceiver, asPlutusData)
+                .mintAsset(mintingScript, List.of(userToken),PlutusData.unit(), userTokenReceiver);
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender3Addr);
     }
 
     @Test

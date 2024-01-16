@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
+import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxo;
 import com.bloxbean.cardano.client.backend.model.TxContentUtxoOutputs;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -90,6 +91,15 @@ class KoiosTransactionServiceIT extends KoiosBaseTest {
 
         assertFalse(result.isSuccessful());
         assertEquals(404, result.code());
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+    }
+
+    @Test
+    void testGetTransactionReedemers() throws Exception {
+        String txnHash = "0bbfc8e75965aebcaf3fbe31147f1615f03c7e165c1fa3e2c7caeac0167e3821";
+        Result<List<TxContentRedeemers>> result = transactionService.getTransactionRedeemers(txnHash);
+
+        assertNotNull(result.getValue());
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
     }
 }

@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import rest.koios.client.backend.api.asset.model.AssetInformation;
+import rest.koios.client.backend.api.base.common.UTxO;
 import rest.koios.client.backend.factory.options.Limit;
 import rest.koios.client.backend.factory.options.Offset;
 import rest.koios.client.backend.factory.options.Options;
@@ -183,6 +184,38 @@ public class KoiosAssetService implements AssetService {
 
     @Override
     public Result<List<AssetTransactionContent>> getTransactions(String asset, int count, int page, OrderEnum order) throws ApiException {
-        throw new UnsupportedOperationException("Not supported yet");
+        try {
+            Tuple<String, String> assetTuple = AssetUtil.getPolicyIdAndAssetName(asset);
+            Options options = Options.builder()
+                    .option(Limit.of(count))
+                    .option(Offset.of((long) (page - 1) * count))
+                    .build();
+            rest.koios.client.backend.api.base.Result<List<UTxO>> utxosResult =
+                    assetService.getAssetUTxOs(List.of(
+                            new rest.koios.client.utils.Tuple<>(assetTuple._1, assetTuple._2.replace("0x", ""))), true, options);
+            if (!utxosResult.isSuccessful()) {
+                return Result.error(utxosResult.getResponse()).code(utxosResult.getCode());
+            }
+            return convertToAssetTransactionContentList(utxosResult.getValue());
+        } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
+            throw new ApiException(e.getMessage(), e);
+        }
+    }
+
+    private Result<List<AssetTransactionContent>> convertToAssetTransactionContentList(List<UTxO> utxos) {
+        List<AssetTransactionContent> assetTransactionContentList = new ArrayList<>();
+        if (utxos != null) {
+            for (UTxO utxo : utxos) {
+                AssetTransactionContent assetTransactionContent = new AssetTransactionContent();
+                assetTransactionContent.setTxHash(utxo.getTxHash());
+                assetTransactionContent.setBlockTime(utxo.getBlockTime());
+                assetTransactionContent.setBlockHeight(utxo.getBlockHeight());
+                assetTransactionContent.setTxIndex(utxo.getTxIndex());
+                assetTransactionContentList.add(assetTransactionContent);
+            }
+        }
+        return Result.success("OK").withValue(assetTransactionContentList).code(200);
     }
 }
+
+

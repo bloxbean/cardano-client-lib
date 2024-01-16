@@ -1,19 +1,21 @@
 package com.bloxbean.cardano.client.cip;
 
 import com.bloxbean.cardano.client.account.Account;
-import com.bloxbean.cardano.client.backend.api.*;
+import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
-import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.*;
+import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 
 public class CIPBaseTransactionITTest extends BaseITTest {
+
+    NetworkInfoService networkInfoService;
     UtxoService utxoService;
     TransactionService transactionService;
     TransactionHelperService transactionHelperService;
@@ -28,6 +30,7 @@ public class CIPBaseTransactionITTest extends BaseITTest {
     @BeforeEach
     public void setup() {
         BackendService backendService = getBackendService();
+        networkInfoService = backendService.getNetworkInfoService();
         utxoService = backendService.getUtxoService();
         transactionService = backendService.getTransactionService();
         transactionHelperService = backendService.getTransactionHelperService();

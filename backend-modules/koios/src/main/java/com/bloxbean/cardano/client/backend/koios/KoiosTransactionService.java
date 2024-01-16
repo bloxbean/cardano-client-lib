@@ -4,12 +4,14 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.model.*;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import org.apache.commons.collections4.ListUtils;
-import rest.koios.client.backend.api.common.Asset;
+import rest.koios.client.backend.api.base.common.Asset;
 import rest.koios.client.backend.api.transactions.TransactionsService;
 import rest.koios.client.backend.api.transactions.model.*;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
@@ -184,9 +186,37 @@ public class KoiosTransactionService implements TransactionService {
     }
 
     @Override
-    public Result<List<TxContentRedeemers>> getTransactionRedeemers(String txnHash)
-        throws ApiException {
-        throw new UnsupportedOperationException("Not supported yet");
+    public Result<List<TxContentRedeemers>> getTransactionRedeemers(String txnHash) throws ApiException {
+        try {
+            rest.koios.client.backend.api.base.Result<TxInfo> txInfoResult = transactionsService.getTransactionInformation(txnHash);
+            if (!txInfoResult.isSuccessful()) {
+                return Result.error(txInfoResult.getResponse()).code(txInfoResult.getCode());
+            }
+            return convertToTxContentRedeemers(txInfoResult.getValue());
+        } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
+            throw new ApiException(e.getMessage(), e);
+        }
+    }
+
+    private Result<List<TxContentRedeemers>> convertToTxContentRedeemers(TxInfo txInfo) {
+        List<TxContentRedeemers> txContentRedeemersList = new ArrayList<>();
+        if (txInfo.getPlutusContracts() != null) {
+            int index = 0;
+            Collections.reverse(txInfo.getPlutusContracts());
+            for (TxPlutusContract txPlutusContract : txInfo.getPlutusContracts()) {
+                TxContentRedeemers txContentRedeemers = new TxContentRedeemers();
+                txContentRedeemers.setTxIndex(index++);
+                txContentRedeemers.setPurpose(RedeemerTag.convert(txPlutusContract.getInput().getRedeemer().getPurpose().name()));
+                txContentRedeemers.setScriptHash(txPlutusContract.getScriptHash());
+                txContentRedeemers.setRedeemerDataHash(txPlutusContract.getInput().getRedeemer().getDatum().getHash());
+                txContentRedeemers.setDatumHash(txPlutusContract.getInput().getRedeemer().getDatum().getHash());
+                txContentRedeemers.setUnitMem(String.valueOf(txPlutusContract.getInput().getRedeemer().getUnit().getMem()));
+                txContentRedeemers.setUnitSteps(String.valueOf(txPlutusContract.getInput().getRedeemer().getUnit().getSteps()));
+                txContentRedeemers.setFee(txPlutusContract.getInput().getRedeemer().getFee());
+                txContentRedeemersList.add(txContentRedeemers);
+            }
+        }
+        return Result.success("OK").withValue(txContentRedeemersList).code(200);
     }
 
     private Result<TxContentUtxo> convertToTxContentUtxo(TxInfo txInfo) {

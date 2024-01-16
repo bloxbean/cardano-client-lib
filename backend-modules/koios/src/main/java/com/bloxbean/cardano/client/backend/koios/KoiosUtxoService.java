@@ -7,17 +7,15 @@ import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
-import com.bloxbean.cardano.client.util.StringUtils;
 import rest.koios.client.backend.api.address.AddressService;
 import rest.koios.client.backend.api.address.model.AddressInfo;
 import rest.koios.client.backend.api.address.model.AddressUtxo;
-import rest.koios.client.backend.api.common.Asset;
-import rest.koios.client.backend.factory.options.Options;
-import rest.koios.client.backend.factory.options.SortType;
+import rest.koios.client.backend.api.base.common.Asset;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -56,19 +54,18 @@ public class KoiosUtxoService implements UtxoService {
     @Override
     public Result<List<Utxo>> getUtxos(String address, int count, int page, OrderEnum order) throws ApiException {
         try {
-            if (page != 1) {
+            if (page < 1) {
                 return Result.success("OK").withValue(Collections.emptyList()).code(200);
             }
-            rest.koios.client.backend.api.base.Result<AddressInfo> addressInformationResult;
-            if (order == OrderEnum.asc) {
-                addressInformationResult = addressService.getAddressInformation(List.of(address), SortType.ASC, Options.EMPTY);
-            } else {
-                addressInformationResult = addressService.getAddressInformation(address);
-            }
+            rest.koios.client.backend.api.base.Result<AddressInfo> addressInformationResult = addressService.getAddressInformation(address);
             if (!addressInformationResult.isSuccessful()) {
                 return Result.error(addressInformationResult.getResponse()).withValue(Collections.emptyList()).code(addressInformationResult.getCode());
             }
-            return convertToUTxOs(addressInformationResult.getValue());
+            List<AddressUtxo> addressUtxos = addressInformationResult.getValue().getUtxoSet().stream().sorted(Comparator.comparingInt(AddressUtxo::getBlockTime).thenComparingInt(AddressUtxo::getTxIndex)).collect(Collectors.toList());
+            if (order == OrderEnum.desc) {
+                Collections.reverse(addressUtxos);
+            }
+            return convertToUTxOs(addressInformationResult.getValue().getAddress(), getSubListByPage(addressUtxos, page, count));
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
@@ -106,11 +103,11 @@ public class KoiosUtxoService implements UtxoService {
         return transactionService.getTransactionOutput(txHash, outputIndex);
     }
 
-    private Result<List<Utxo>> convertToUTxOs(AddressInfo addressInfo) {
+    private Result<List<Utxo>> convertToUTxOs(String address, List<AddressUtxo> utxos) {
         List<Utxo> utxoList = new ArrayList<>();
-        for (AddressUtxo addressUtxo : addressInfo.getUtxoSet()) {
+        for (AddressUtxo addressUtxo : utxos) {
             Utxo utxo = new Utxo();
-            utxo.setAddress(addressInfo.getAddress());
+            utxo.setAddress(address);
             utxo.setTxHash(addressUtxo.getTxHash());
             utxo.setOutputIndex(addressUtxo.getTxIndex());
             utxo.setDataHash(addressUtxo.getDatumHash());
@@ -130,5 +127,26 @@ public class KoiosUtxoService implements UtxoService {
             utxoList.add(utxo);
         }
         return Result.success("OK").withValue(utxoList).code(200);
+    }
+
+    public static List<AddressUtxo> getSubListByPage(List<AddressUtxo> list, int pageNumber, int pageSize) {
+        int start = 0;
+        int end;
+
+        if (pageNumber >= 0) {
+            start = pageSize * (pageNumber - 1);
+
+        }
+        if (pageSize > 0) {
+            end = start + pageSize;
+        } else {
+            end = start;
+        }
+        if (list.size() < end + 1) {
+            end = list.size() - 1;
+        }
+        end = Math.max(end, 0);
+        return list.subList(start, end);
+
     }
 }

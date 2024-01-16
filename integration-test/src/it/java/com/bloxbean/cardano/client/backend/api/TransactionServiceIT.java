@@ -86,7 +86,7 @@ class TransactionServiceIT extends BaseITTest {
 
     @Test
     void testGetTransactionReedemers() throws Exception {
-        String txnHash = "741ea766fb79dc3cca61061891c902d4bcbb4aee81f20d5133852c8604930ad0";
+        String txnHash = "0bbfc8e75965aebcaf3fbe31147f1615f03c7e165c1fa3e2c7caeac0167e3821";
         Result<List<TxContentRedeemers>> result = service.getTransactionRedeemers(txnHash);
 
         assertNotNull(result.getValue());
