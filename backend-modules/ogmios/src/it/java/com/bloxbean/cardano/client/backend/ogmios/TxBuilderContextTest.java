@@ -129,7 +129,7 @@ public class TxBuilderContextTest extends OgmiosBaseTest {
 
         NFTMetadata nftMetadata = NFTMetadata.create()
                 .addNFT(nftPolicy.getPolicyId(), nft)
-                .version("1.0");
+                .version(1);
 
         MessageMetadata metadata = MessageMetadata.create()
                 .add("This is test message !! ---");
@@ -217,7 +217,7 @@ public class TxBuilderContextTest extends OgmiosBaseTest {
                 .description("This is a test NFT");
 
         NFTMetadata nftMetadata = NFTMetadata.create()
-                .version("1.0")
+                .version(1)
                 .addNFT(policy.getPolicyId(), nft1)
                 .addNFT(policy.getPolicyId(), nft2);
 
@@ -315,7 +315,7 @@ public class TxBuilderContextTest extends OgmiosBaseTest {
                 .description("This is a test NFT");
 
         NFTMetadata nftMetadata = NFTMetadata.create()
-                .version("1.0")
+                .version(1)
                 .addNFT(policy.getPolicyId(), nft1)
                 .addNFT(policy.getPolicyId(), nft2);
 
@@ -413,7 +413,7 @@ public class TxBuilderContextTest extends OgmiosBaseTest {
                 .description("This is a test NFT");
 
         NFTMetadata nftMetadata = NFTMetadata.create()
-                .version("1.0")
+                .version(1)
                 .addNFT(policy.getPolicyId(), nft1)
                 .addNFT(policy.getPolicyId(), nft2);
 

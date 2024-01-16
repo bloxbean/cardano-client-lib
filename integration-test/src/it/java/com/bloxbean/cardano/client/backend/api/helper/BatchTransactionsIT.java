@@ -180,7 +180,7 @@ public class BatchTransactionsIT extends BaseITTest {
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId(policy.getPolicyId());
 
-        NFTMetadata nftMetadata = NFTMetadata.create().version("1.0");
+        NFTMetadata nftMetadata = NFTMetadata.create().version(1);
 
         for (int i = 0; i < 10; i++) {
             Asset asset = new Asset("TestNFT-" + i, BigInteger.valueOf(1));

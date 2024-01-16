@@ -33,7 +33,7 @@ public class NFTFile extends NFTProperties {
         return new NFTFile();
     }
 
-    static NFTFile create(Map map) {
+    public static NFTFile create(Map map) {
         return new NFTFile(map);
     }
 

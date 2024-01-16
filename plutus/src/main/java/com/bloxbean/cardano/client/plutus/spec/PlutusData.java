@@ -42,6 +42,8 @@ public interface PlutusData {
             return BigIntPlutusData.deserialize((Number) dataItem);
         } else if (dataItem instanceof ByteString) {
             return BytesPlutusData.deserialize((ByteString) dataItem);
+        }  else if (dataItem instanceof UnicodeString) {
+            return BytesPlutusData.deserialize(((UnicodeString) dataItem));
         } else if (dataItem instanceof Array) {
             if (dataItem.getTag() == null) {
                 return ListPlutusData.deserialize((Array) dataItem);
