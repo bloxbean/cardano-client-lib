@@ -81,5 +81,15 @@ public class DerivationPath {
                 .build();
     }
 
+    public static DerivationPath createDRepKeyDerivationPathForAccount(int account) {
+        return DerivationPath.builder()
+                .purpose(new Segment(1852, true))
+                .coinType(new Segment(1815, true))
+                .account(new Segment(account, true)) //set account
+                .role(new Segment(3, false)) //drep
+                .index(new Segment(0, false))
+                .build();
+    }
+
 
 }
