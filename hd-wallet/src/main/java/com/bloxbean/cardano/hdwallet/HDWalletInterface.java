@@ -7,8 +7,7 @@ import java.util.List;
 
 public interface HDWalletInterface {
 
-    private String mnemonic = "";
-
+//    private String mnemonic = "";
 //    public HDWalletInterface(Network network, String mnemonic);
 //    public HDWalletInterface(Network network);
 

@@ -4,8 +4,14 @@ dependencies {
     api project(':common')
     api project(':crypto')
     api project(':backend')
-    api project(':backend-modules:blockfrost')
     implementation(libs.bouncycastle.bcprov)
+
+    integrationTestImplementation project(':')
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation project(':backend-modules:koios')
+    integrationTestImplementation project(':backend-modules:ogmios')
+
+    integrationTestAnnotationProcessor project(':annotation-processor')
 }
 
 publishing {

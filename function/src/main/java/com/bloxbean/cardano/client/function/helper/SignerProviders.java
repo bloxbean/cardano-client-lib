@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.hdwallet.HDWallet;
 
 /**
  * Provides helper methods to get TxSigner function to sign a <code>{@link Transaction}</code> object
@@ -26,6 +27,13 @@ public class SignerProviders {
                 outputTxn = signer.sign(outputTxn);
             }
 
+            return outputTxn;
+        };
+    }
+
+    public static TxSigner signerFrom(HDWallet wallet) {
+        return transaction -> {
+            Transaction outputTxn = wallet.sign(transaction);
             return outputTxn;
         };
     }

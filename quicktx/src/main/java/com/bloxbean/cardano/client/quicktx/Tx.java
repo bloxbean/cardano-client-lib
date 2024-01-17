@@ -19,9 +19,11 @@ import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.hdwallet.HDWallet;
 import lombok.NonNull;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -32,6 +34,7 @@ public class Tx extends AbstractTx<Tx> {
 
     private String sender;
     protected boolean senderAdded = false;
+    private HDWallet senderWallet;
 
     /**
      * Create Tx
@@ -117,6 +120,15 @@ public class Tx extends AbstractTx<Tx> {
     public Tx from(String sender) {
         verifySenderNotExists();
         this.sender = sender;
+        this.senderAdded = true;
+        return this;
+    }
+
+    public Tx from(HDWallet sender) {
+        verifySenderNotExists();
+        this.inputUtxos = sender.getUtxosForOutputs(amounts);
+        this.sender = this.inputUtxos.get(0).getAddress(); // TODO - is it clever to use the first address as sender here?
+        this.changeAddress = this.sender;
         this.senderAdded = true;
         return this;
     }
@@ -465,6 +477,8 @@ public class Tx extends AbstractTx<Tx> {
             return changeAddress;
         else if (sender != null)
             return sender;
+        else if (senderWallet != null)
+            return senderWallet.getBaseAddress(0).getAddress(); // TODO - Change address to a new index??
         else
             throw new TxBuildException("No change address. " +
                     "Please define at least one of sender address or sender account or change address");
@@ -476,6 +490,14 @@ public class Tx extends AbstractTx<Tx> {
             return sender;
         else
             throw new TxBuildException("No sender address or sender account defined");
+    }
+
+    @Override
+    protected HDWallet getFromWallet() {
+        if(senderWallet != null)
+            return senderWallet;
+        else
+            throw new TxBuildException("No sender wallet defined");
     }
 
     @Override

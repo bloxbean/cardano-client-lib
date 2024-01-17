@@ -18,12 +18,14 @@ import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.hdwallet.HDWallet;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
@@ -34,6 +36,7 @@ public abstract class AbstractTx<T> {
     //custom change address
     protected String changeAddress;
     protected List<Utxo> inputUtxos;
+    protected List<Amount> amounts;
 
     //Required for script
     protected PlutusData changeData;
@@ -182,7 +185,9 @@ public abstract class AbstractTx<T> {
                 .address(address)
                 .value(Value.builder().coin(BigInteger.ZERO).build())
                 .build();
-
+        if(this.amounts == null)
+            this.amounts = new ArrayList<>();
+        this.amounts.addAll(amounts);
         for (Amount amount : amounts) {
             String unit = amount.getUnit();
             if (unit.equals(LOVELACE)) {
@@ -211,7 +216,6 @@ public abstract class AbstractTx<T> {
         if (outputs == null)
             outputs = new ArrayList<>();
         outputs.add(transactionOutput);
-
         return (T) this;
     }
 
@@ -368,6 +372,8 @@ public abstract class AbstractTx<T> {
      */
     protected abstract String getFromAddress();
 
+    protected abstract HDWallet getFromWallet();
+
     /**
      * Perform post balanceTx action
      *
@@ -386,5 +392,4 @@ public abstract class AbstractTx<T> {
      * @return String
      */
     protected abstract String getFeePayer();
-
 }
