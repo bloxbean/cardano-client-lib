@@ -18,14 +18,13 @@ import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
-import com.bloxbean.cardano.hdwallet.HDWallet;
+import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
@@ -372,7 +371,7 @@ public abstract class AbstractTx<T> {
      */
     protected abstract String getFromAddress();
 
-    protected abstract HDWallet getFromWallet();
+    protected abstract Wallet getFromWallet();
 
     /**
      * Perform post balanceTx action

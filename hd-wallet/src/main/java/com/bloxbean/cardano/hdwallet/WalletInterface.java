@@ -5,7 +5,7 @@ import com.bloxbean.cardano.client.api.model.Amount;
 
 import java.util.List;
 
-public interface HDWalletInterface {
+public interface WalletInterface {
 
 //    private String mnemonic = "";
 //    public HDWalletInterface(Network network, String mnemonic);

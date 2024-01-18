@@ -19,11 +19,10 @@ import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
-import com.bloxbean.cardano.hdwallet.HDWallet;
+import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.NonNull;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -34,7 +33,7 @@ public class Tx extends AbstractTx<Tx> {
 
     private String sender;
     protected boolean senderAdded = false;
-    private HDWallet senderWallet;
+    private Wallet senderWallet;
 
     /**
      * Create Tx
@@ -124,10 +123,11 @@ public class Tx extends AbstractTx<Tx> {
         return this;
     }
 
-    public Tx from(HDWallet sender) {
+    public Tx from(Wallet sender) {
         verifySenderNotExists();
-        this.inputUtxos = sender.getUtxosForOutputs(amounts);
-        this.sender = this.inputUtxos.get(0).getAddress(); // TODO - is it clever to use the first address as sender here?
+        this.senderWallet = sender;
+        // TODO sender is not used in this scenarios, but it must be set to avoid breaking other things.
+        this.sender = this.senderWallet.getBaseAddress(0).getAddress(); // TODO - is it clever to use the first address as sender here?
         this.changeAddress = this.sender;
         this.senderAdded = true;
         return this;
@@ -493,7 +493,7 @@ public class Tx extends AbstractTx<Tx> {
     }
 
     @Override
-    protected HDWallet getFromWallet() {
+    protected Wallet getFromWallet() {
         if(senderWallet != null)
             return senderWallet;
         else

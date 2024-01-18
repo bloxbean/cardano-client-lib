@@ -94,6 +94,12 @@ public class QuickTxBuilder {
         );
     }
 
+    public QuickTxBuilder(BackendService backendService, UtxoSupplier utxoSupplier) {
+        this(utxoSupplier,
+                new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                new DefaultTransactionProcessor(backendService.getTransactionService()));
+    }
+
     /**
      * Create TxContext for the given txs
      *

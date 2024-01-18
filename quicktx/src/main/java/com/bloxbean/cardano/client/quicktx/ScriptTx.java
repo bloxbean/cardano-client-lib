@@ -11,7 +11,7 @@ import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.Tuple;
-import com.bloxbean.cardano.hdwallet.HDWallet;
+import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
@@ -504,7 +504,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     @Override
-    protected HDWallet getFromWallet() {
+    protected Wallet getFromWallet() {
         return null;
     }
 

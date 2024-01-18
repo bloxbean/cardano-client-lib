@@ -5,10 +5,7 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
-import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
-import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
-import com.bloxbean.cardano.client.backend.blockfrost.service.BFUtxoService;
+import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.metadata.Metadata;
@@ -29,18 +26,19 @@ public class QuickTxBuilderIT extends QuickTXBaseIT {
 
     BackendService backendService;
     UtxoSupplier utxoSupplier;
-    HDWallet wallet1;
-    HDWallet wallet2;
+    WalletUtxoSupplier walletUtxoSupplier;
+    Wallet wallet1;
+    Wallet wallet2;
 
     @BeforeEach
     void setup() {
         backendService = getBackendService();
         utxoSupplier = getUTXOSupplier();
-
+        walletUtxoSupplier = new WalletUtxoSupplier(backendService.getUtxoService());
         String wallet1Mnemonic = "clog book honey force cricket stamp until seed minimum margin denial kind volume undo simple federal then jealous solid legal crucial crazy acoustic thank";
-        wallet1 = new HDWallet(Networks.testnet(), wallet1Mnemonic, utxoSupplier);
+        wallet1 = new Wallet(Networks.testnet(), wallet1Mnemonic, walletUtxoSupplier);
         String wallet2Mnemonic = "theme orphan remind output arrive lobster decorate ten gap piece casual distance attend total blast dilemma damp punch pride file limit soldier plug canoe";
-        wallet2 = new HDWallet(Networks.testnet(), wallet2Mnemonic, utxoSupplier);
+        wallet2 = new Wallet(Networks.testnet(), wallet2Mnemonic, walletUtxoSupplier);
     }
 
     @Test
@@ -49,10 +47,12 @@ public class QuickTxBuilderIT extends QuickTXBaseIT {
         metadata.put(BigInteger.valueOf(100), "This is first metadata");
         metadata.putNegative(200, -900);
 
-        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        UtxoSupplier walletUtxoSupplier = new WalletUtxoSupplier(backendService.getUtxoService(), wallet1);
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, walletUtxoSupplier);
 
         Tx tx = new Tx()
-                .payToAddress(wallet2.getBaseAddress(0).getAddress(), Amount.ada(3))
+                .payToAddress(wallet2.getBaseAddress(0).getAddress(), Amount.ada(4))
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
@@ -115,7 +115,7 @@ public class QuickTxBuilderIT extends QuickTXBaseIT {
 
     @Test
     void utxoTest() {
-        List<Utxo> utxos = wallet1.getUtxos();
+        List<Utxo> utxos = walletUtxoSupplier.getAll(wallet1);
         Map<String, Integer> amountMap = new HashMap<>();
         for (Utxo utxo : utxos) {
             int totalAmount = 0;
