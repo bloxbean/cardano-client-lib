@@ -1,6 +1,5 @@
-package com.bloxbean.cardano.hdwallet;
+package com.bloxbean.cardano.hdwallet.utxosupplier;
 
-import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
@@ -8,6 +7,7 @@ import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
+import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.Setter;
 
 import java.util.ArrayList;
@@ -15,19 +15,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-public class WalletUtxoSupplier implements UtxoSupplier {
+public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
 
     private final UtxoService utxoService;
     @Setter
     private Wallet wallet;
     private static final int INDEX_SEARCH_RANGE = 20; // according to specifications
 
-    public WalletUtxoSupplier(UtxoService utxoService, Wallet wallet) {
+    public DefaultWalletUtxoSupplier(UtxoService utxoService, Wallet wallet) {
         this.utxoService = utxoService;
         this.wallet = wallet;
     }
 
-    public WalletUtxoSupplier(UtxoService utxoService) {
+    public DefaultWalletUtxoSupplier(UtxoService utxoService) {
         this.utxoService = utxoService;
     }
 
@@ -52,12 +52,13 @@ public class WalletUtxoSupplier implements UtxoSupplier {
         return getAll(wallet);
     }
 
+    @Override
     public List<Utxo> getAll(Wallet wallet) {
-        List<Utxo> utxos = new ArrayList<>();
         int index = 0;
         int noUtxoFound = 0;
+        List<Utxo> utxos = new ArrayList<>();
         while(noUtxoFound < INDEX_SEARCH_RANGE) {
-            List<Utxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet.getAccount(), index);
+            List<Utxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet, wallet.getAccount(), index);
             utxos.addAll(utxoFromIndex);
             noUtxoFound = utxoFromIndex.isEmpty() ? noUtxoFound + 1 : 0;
 
@@ -66,22 +67,7 @@ public class WalletUtxoSupplier implements UtxoSupplier {
         return utxos;
     }
 
-    private void checkIfWalletIsSet() {
-        if(this.wallet == null)
-            throw new RuntimeException("Wallet has to be provided!");
-    }
-
-    /**
-     * Returns all UTXOs for a specific address m/1852'/1815'/{account}'/0/{index}
-     * @param account
-     * @param index
-     * @return
-     */
-    public List<Utxo> getUtxosForAccountAndIndex(int account, int index) {
-        checkIfWalletIsSet();
-        return getUtxosForAccountAndIndex(this.wallet, account, index);
-    }
-
+    @Override
     public List<Utxo> getUtxosForAccountAndIndex(Wallet wallet, int account, int index) {
         String address = wallet.getBaseAddress(account, index).getAddress();
         List<Utxo> utxos = new ArrayList<>();
@@ -99,7 +85,17 @@ public class WalletUtxoSupplier implements UtxoSupplier {
                 break;
             page++;
         }
-
         return utxos;
+    }
+
+    @Override
+    public List<Utxo> getUtxosForAccountAndIndex(int account, int index) {
+        checkIfWalletIsSet();
+        return getUtxosForAccountAndIndex(this.wallet, account, index);
+    }
+
+    private void checkIfWalletIsSet() {
+        if(this.wallet == null)
+            throw new RuntimeException("Wallet has to be provided!");
     }
 }

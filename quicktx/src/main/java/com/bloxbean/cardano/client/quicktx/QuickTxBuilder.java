@@ -27,6 +27,7 @@ import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.hdwallet.utxosupplier.WalletUtxoSupplier;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -383,6 +384,10 @@ public class QuickTxBuilder {
         public Result<String> complete() {
             if (txList.length == 0)
                 throw new TxBuildException("At least one tx is required");
+
+            boolean txListContainsWallet = Arrays.stream(txList).anyMatch(abstractTx -> abstractTx.getFromWallet() != null);
+            if(txListContainsWallet && !(utxoSupplier instanceof WalletUtxoSupplier))
+                throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
 
             Transaction transaction = buildAndSign();
 

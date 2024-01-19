@@ -17,6 +17,8 @@ import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.hdwallet.utxosupplier.WalletUtxoSupplier;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.Setter;
 import java.util.*;
@@ -26,9 +28,9 @@ public class Wallet {
     @Getter
     private int account = 0;
     @Getter
-    private Network network;
+    private final Network network;
     @Getter
-    private String mnemonic;
+    private final String mnemonic;
     @Setter
     @Getter
     private WalletUtxoSupplier utxoSupplier;
@@ -91,10 +93,53 @@ public class Wallet {
      * @return
      */
     private Address getEntAddress(int account, int index) {
-        return getAccountObjectFromCache(account, index).getEnterpriseAddress();
+        return getAccountObject(account, index).getEnterpriseAddress();
     }
 
-    private Account getAccountObjectFromCache(int account, int index) {
+    /**
+     * Get Baseaddress for current account. Account can be changed via the setter.
+     * @param index
+     * @return
+     */
+    public Address getBaseAddress(int index) {
+        return getBaseAddress(this.account, index);
+    }
+
+    /**
+     * Get Baseaddress for current account as String. Account can be changed via the setter.
+     * @param index
+     * @return
+     */
+    public String getBaseAddressString(int index) {
+        return getBaseAddress(index).getAddress();
+    }
+
+    /**
+     * Get Baseaddress for derivationpath m/1852'/1815'/{account}'/0/{index}
+     * @param account
+     * @param index
+     * @return
+     */
+    public Address getBaseAddress(int account, int index) {
+        return getAccountObject(account,index).getBaseAddress();
+    }
+
+    /**
+     * Returns the Account object for the index and current account. Account can be changed via the setter.
+     * @param index
+     * @return
+     */
+    public Account getAccountObject(int index) {
+        return getAccountObject(this.account, index);
+    }
+
+    /**
+     * Returns the Account object for the index and account.
+     * @param account
+     * @param index
+     * @return
+     */
+    public Account getAccountObject(int account, int index) {
         if(account != this.account) {
             DerivationPath derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
             derivationPath.getIndex().setValue(index);
@@ -110,33 +155,15 @@ public class Wallet {
         }
     }
 
+    /**
+     * Setting the current account for derivation path.
+     * Setting the account will reset the cache.
+     * @param account
+     */
     public void setAccount(int account) {
         this.account = account;
-        // invalidating cache since it is only held for an account
+        // invalidating cache since it is only held for one account
         cache = new HashMap<>();
-    }
-
-    /**
-     * Get Baseaddress for current account. Account can be changed via the setter.
-     * @param index
-     * @return
-     */
-    public Address getBaseAddress(int index) {
-        return getBaseAddress(this.account, index);
-    }
-
-    public String getBaseAddressString(int index) {
-        return getBaseAddress(index).getAddress();
-    }
-
-    /**
-     * Get Baseaddress for derivationpath m/1852'/1815'/{account}'/0/{index}
-     * @param account
-     * @param index
-     * @return
-     */
-    public Address getBaseAddress(int account, int index) {
-        return getAccountObjectFromCache(account,index).getBaseAddress();
     }
 
     /**
@@ -149,34 +176,12 @@ public class Wallet {
             try {
                 byte[] entropy = MnemonicCode.INSTANCE.toEntropy(this.mnemonic);
                 rootKeys = hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
-            } catch (MnemonicException.MnemonicLengthException e) {
-                throw new RuntimeException(e);
-            } catch (MnemonicException.MnemonicWordException e) {
-                throw new RuntimeException(e);
-            } catch (MnemonicException.MnemonicChecksumException e) {
+            } catch (MnemonicException.MnemonicLengthException | MnemonicException.MnemonicWordException |
+                     MnemonicException.MnemonicChecksumException e) {
                 throw new RuntimeException(e);
             }
         }
         return rootKeys;
-    }
-
-    /**
-     * TODO Renaming??
-     * @param account
-     * @param index
-     * @return
-     */
-    public Account getSigner(int account, int index) {
-        return getAccountObjectFromCache(account, index);
-    }
-
-    /**
-     * TODO Renaming??
-     * @param index
-     * @return
-     */
-    public Account getSigner(int index) {
-        return getAccountObjectFromCache(this.account, index);
     }
 
     /**
@@ -227,13 +232,17 @@ public class Wallet {
     private boolean matchUtxoWithInputs(List<TransactionInput> inputs, Utxo utxo, List<Account> signers, int index, List<TransactionInput> remaining) {
         for (TransactionInput input : inputs) {
             if(utxo.getTxHash().equals(input.getTransactionId()) && utxo.getOutputIndex() == input.getIndex()) {
-                signers.add(getSigner(index));
+                signers.add(getAccountObject(index));
                 remaining.remove(input);
             }
         }
         return remaining.isEmpty();
     }
 
+    /**
+     * Returns the stake address of the wallet.
+     * @return
+     */
     public String getStakeAddress() {
         if (stakeAddress == null || stakeAddress.isEmpty()) {
             HdKeyPair stakeKeyPair = getStakeKeyPair();
@@ -243,6 +252,11 @@ public class Wallet {
         return stakeAddress;
     }
 
+    /**
+     * Signs the transaction with stake key from wallet.
+     * @param transaction
+     * @return
+     */
     public Transaction signWithStakeKey(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getStakeKeyPair());
     }
@@ -261,4 +275,9 @@ public class Wallet {
     }
 
 
+    @JsonIgnore
+    public String getBech32PrivateKey() {
+        HdKeyPair hdKeyPair = getHDWalletKeyPair();
+        return hdKeyPair.getPrivateKey().toBech32();
+    }
 }
