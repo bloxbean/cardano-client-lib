@@ -163,6 +163,11 @@ public class Tx extends AbstractTx<Tx> {
         return this;
     }
 
+    public Tx registerStakeAddress(@NonNull Wallet wallet) {
+        stakeTx.registerStakeAddress(new Address(wallet.getStakeAddress()));
+        return this;
+    }
+
     /**
      * Register stake address
      * @param address address to register. Address should have delegation credential. So it should be a base address or stake address.
@@ -190,6 +195,11 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx deregisterStakeAddress(@NonNull Address address) {
         stakeTx.deregisterStakeAddress(address, null, null);
+        return this;
+    }
+
+    public Tx deregisterStakeAddress(@NonNull Wallet wallet) {
+        stakeTx.deregisterStakeAddress(new Address(wallet.getStakeAddress()), null, null);
         return this;
     }
 
@@ -223,6 +233,11 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx delegateTo(@NonNull String address, @NonNull String poolId) {
         stakeTx.delegateTo(new Address(address), poolId, null);
+        return this;
+    }
+
+    public Tx delegateTo(@NonNull Wallet wallet, @NonNull String poolId) {
+        stakeTx.delegateTo(new Address(wallet.getStakeAddress()), poolId, null);
         return this;
     }
 

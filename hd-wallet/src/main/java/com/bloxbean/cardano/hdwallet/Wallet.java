@@ -2,8 +2,7 @@ package com.bloxbean.cardano.hdwallet;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.api.UtxoSupplier;
-import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.common.MnemonicUtil;
 import com.bloxbean.cardano.client.common.model.Network;
@@ -13,19 +12,17 @@ import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicException;
 import com.bloxbean.cardano.client.crypto.bip39.Words;
+import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
+import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.math.BigInteger;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class Wallet {
 
-    @Setter
     @Getter
     private int account = 0;
     @Getter
@@ -36,6 +33,10 @@ public class Wallet {
     @Getter
     private WalletUtxoSupplier utxoSupplier;
     private static final int INDEX_SEARCH_RANGE = 20;
+    private String stakeAddress;
+    private Map<Integer, Account> cache;
+    private HdKeyPair rootKeys;
+    private HdKeyPair stakeKeys;
 
     public Wallet(WalletUtxoSupplier utxoSupplier) {
         this(Networks.mainnet(), utxoSupplier);
@@ -54,6 +55,7 @@ public class Wallet {
         this.mnemonic = MnemonicUtil.generateNew(noOfWords);
         this.account = account;
         this.utxoSupplier = utxoSupplier;
+        cache = new HashMap<>();
     }
 
     public Wallet(String mnemonic, WalletUtxoSupplier utxoSupplier) {
@@ -70,6 +72,7 @@ public class Wallet {
         this.account = account;
         MnemonicUtil.validateMnemonic(this.mnemonic);
         this.utxoSupplier = utxoSupplier;
+        cache = new HashMap<>();
     }
 
     /**
@@ -88,10 +91,29 @@ public class Wallet {
      * @return
      */
     private Address getEntAddress(int account, int index) {
-        DerivationPath derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
-        derivationPath.getIndex().setValue(index);
+        return getAccountObjectFromCache(account, index).getEnterpriseAddress();
+    }
 
-        return new Account(this.network, this.mnemonic, derivationPath).getEnterpriseAddress();
+    private Account getAccountObjectFromCache(int account, int index) {
+        if(account != this.account) {
+            DerivationPath derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
+            derivationPath.getIndex().setValue(index);
+            return new Account(this.network, this.mnemonic, derivationPath);
+        } else {
+            if(cache.containsKey(index)) {
+                return cache.get(index);
+            } else {
+                Account acc = new Account(this.network, this.mnemonic, index);
+                cache.put(index, acc);
+                return acc;
+            }
+        }
+    }
+
+    public void setAccount(int account) {
+        this.account = account;
+        // invalidating cache since it is only held for an account
+        cache = new HashMap<>();
     }
 
     /**
@@ -103,6 +125,10 @@ public class Wallet {
         return getBaseAddress(this.account, index);
     }
 
+    public String getBaseAddressString(int index) {
+        return getBaseAddress(index).getAddress();
+    }
+
     /**
      * Get Baseaddress for derivationpath m/1852'/1815'/{account}'/0/{index}
      * @param account
@@ -110,9 +136,7 @@ public class Wallet {
      * @return
      */
     public Address getBaseAddress(int account, int index) {
-        DerivationPath derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
-        derivationPath.getIndex().setValue(index);
-        return new Account(this.network, this.mnemonic, derivationPath).getBaseAddress();
+        return getAccountObjectFromCache(account,index).getBaseAddress();
     }
 
     /**
@@ -120,17 +144,18 @@ public class Wallet {
      * @return
      */
     public HdKeyPair getHDWalletKeyPair() {
-        HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
-        HdKeyPair rootKeys;
-        try {
-            byte[] entropy = MnemonicCode.INSTANCE.toEntropy(this.mnemonic);
-            rootKeys = hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
-        } catch (MnemonicException.MnemonicLengthException e) {
-            throw new RuntimeException(e);
-        } catch (MnemonicException.MnemonicWordException e) {
-            throw new RuntimeException(e);
-        } catch (MnemonicException.MnemonicChecksumException e) {
-            throw new RuntimeException(e);
+        if(rootKeys == null) {
+            HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+            try {
+                byte[] entropy = MnemonicCode.INSTANCE.toEntropy(this.mnemonic);
+                rootKeys = hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
+            } catch (MnemonicException.MnemonicLengthException e) {
+                throw new RuntimeException(e);
+            } catch (MnemonicException.MnemonicWordException e) {
+                throw new RuntimeException(e);
+            } catch (MnemonicException.MnemonicChecksumException e) {
+                throw new RuntimeException(e);
+            }
         }
         return rootKeys;
     }
@@ -142,9 +167,7 @@ public class Wallet {
      * @return
      */
     public Account getSigner(int account, int index) {
-        DerivationPath derivationPath = DerivationPath.createDRepKeyDerivationPathForAccount(account);
-        derivationPath.getIndex().setValue(index);
-        return new Account(this.network, this.mnemonic, derivationPath);
+        return getAccountObjectFromCache(account, index);
     }
 
     /**
@@ -153,7 +176,7 @@ public class Wallet {
      * @return
      */
     public Account getSigner(int index) {
-        return new Account(this.network, this.mnemonic, index);
+        return getAccountObjectFromCache(this.account, index);
     }
 
     /**
@@ -210,5 +233,32 @@ public class Wallet {
         }
         return remaining.isEmpty();
     }
+
+    public String getStakeAddress() {
+        if (stakeAddress == null || stakeAddress.isEmpty()) {
+            HdKeyPair stakeKeyPair = getStakeKeyPair();
+            Address address = AddressProvider.getRewardAddress(stakeKeyPair.getPublicKey(), network);
+            stakeAddress = address.toBech32();
+        }
+        return stakeAddress;
+    }
+
+    public Transaction signWithStakeKey(Transaction transaction) {
+        return TransactionSigner.INSTANCE.sign(transaction, getStakeKeyPair());
+    }
+
+    private HdKeyPair getStakeKeyPair() {
+        if(stakeKeys == null) {
+            DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(this.account);
+//                if (mnemonic == null || mnemonic.trim().length() == 0) {
+//                    hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, stakeDerivationPath); // TODO need to implement creation from key
+//                } else {
+//                    hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
+//                }
+            stakeKeys = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
+        }
+        return stakeKeys;
+    }
+
 
 }

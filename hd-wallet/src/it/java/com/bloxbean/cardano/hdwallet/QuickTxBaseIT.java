@@ -14,12 +14,12 @@ import com.bloxbean.cardano.client.util.JsonUtil;
 import java.util.List;
 import java.util.Optional;
 
-public class QuickTXBaseIT {
+public class QuickTxBaseIT {
 
     protected String BLOCKFROST = "blockfrost";
     protected String KOIOS = "koios";
     protected String DEVKIT = "devkit";
-    protected String backendType = BLOCKFROST;
+    protected String backendType = DEVKIT;
 
     public BackendService getBackendService() {
         if (BLOCKFROST.equals(backendType)) {

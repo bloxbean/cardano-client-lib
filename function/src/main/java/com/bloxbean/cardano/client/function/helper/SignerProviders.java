@@ -119,4 +119,13 @@ public class SignerProviders {
             return outputTxn;
         };
     }
+
+    public static TxSigner stakeKeySignerFrom(Wallet... wallets) {
+        return transaction -> {
+            Transaction outputTxn = transaction;
+            for (Wallet wallet : wallets)
+                outputTxn = wallet.signWithStakeKey(outputTxn);
+            return outputTxn;
+        };
+    }
 }
