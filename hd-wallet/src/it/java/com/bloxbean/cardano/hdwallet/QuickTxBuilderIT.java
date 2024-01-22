@@ -16,7 +16,7 @@ import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
-import com.bloxbean.cardano.hdwallet.utxosupplier.DefaultWalletUtxoSupplier;
+import com.bloxbean.cardano.hdwallet.supplier.DefaultWalletUtxoSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -40,11 +40,10 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         backendService = getBackendService();
         utxoSupplier = getUTXOSupplier();
 
-        walletUtxoSupplier = new DefaultWalletUtxoSupplier(backendService.getUtxoService());
         String wallet1Mnemonic = "clog book honey force cricket stamp until seed minimum margin denial kind volume undo simple federal then jealous solid legal crucial crazy acoustic thank";
-        wallet1 = new Wallet(Networks.testnet(), wallet1Mnemonic, walletUtxoSupplier);
+        wallet1 = new Wallet(Networks.testnet(), wallet1Mnemonic);
         String wallet2Mnemonic = "theme orphan remind output arrive lobster decorate ten gap piece casual distance attend total blast dilemma damp punch pride file limit soldier plug canoe";
-        wallet2 = new Wallet(Networks.testnet(), wallet2Mnemonic, walletUtxoSupplier);
+        wallet2 = new Wallet(Networks.testnet(), wallet2Mnemonic);
     }
 
     @Test
@@ -58,11 +57,11 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, walletUtxoSupplier);
 
         Tx tx = new Tx()
-                .payToAddress(wallet2.getBaseAddress(0).getAddress(), Amount.ada(5))
+                .payToAddress(wallet2.getBaseAddress(0).getAddress(), Amount.ada(4))
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .complete();
 
         System.out.println(result);
@@ -86,7 +85,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         UtxoSupplier walletUtxoSupplier = new DefaultWalletUtxoSupplier(backendService.getUtxoService(), wallet1);
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, walletUtxoSupplier);
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withSigner(SignerProviders.signerFrom(policy))
                 .complete();
 

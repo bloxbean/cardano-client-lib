@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.hdwallet.Wallet;
+import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 
 /**
  * Provides helper methods to get TxSigner function to sign a <code>{@link Transaction}</code> object
@@ -31,10 +32,15 @@ public class SignerProviders {
         };
     }
 
-    public static TxSigner signerFrom(Wallet wallet) {
+    /**
+     * Function to sign a transaction using one or more <code>Wallet</code>
+     * @param wallet wallet(s) to sign the transaction
+     * @param walletUtxoSupplier <code>WalletUtxoSupplier</code> is needed to sign with the right addresses
+     * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
+     */
+    public static TxSigner signerFrom(Wallet wallet, WalletUtxoSupplier walletUtxoSupplier) {
         return transaction -> {
-//            transaction.getBody().getRequiredSigners(); // TODO - look into using this field - it is normally used for smart contracts. Downside it will increase TX size.
-            Transaction outputTxn = wallet.sign(transaction); // TODO - check if it's possible to get the context here to avoid fetching all utxos over and over again
+            Transaction outputTxn = wallet.sign(transaction, walletUtxoSupplier);
             return outputTxn;
         };
     }

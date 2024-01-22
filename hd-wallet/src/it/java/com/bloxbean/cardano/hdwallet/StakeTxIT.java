@@ -20,8 +20,8 @@ import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.ScriptTx;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.util.JsonUtil;
-import com.bloxbean.cardano.hdwallet.utxosupplier.DefaultWalletUtxoSupplier;
-import com.bloxbean.cardano.hdwallet.utxosupplier.WalletUtxoSupplier;
+import com.bloxbean.cardano.hdwallet.supplier.DefaultWalletUtxoSupplier;
+import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 
@@ -61,11 +61,10 @@ public class StakeTxIT extends QuickTxBaseIT {
         protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
         quickTxBuilder = new QuickTxBuilder(backendService);
 
-        walletUtxoSupplier = new DefaultWalletUtxoSupplier(backendService.getUtxoService());
         String wallet1Mnemonic = "clog book honey force cricket stamp until seed minimum margin denial kind volume undo simple federal then jealous solid legal crucial crazy acoustic thank";
-        wallet1 = new Wallet(Networks.testnet(), wallet1Mnemonic, walletUtxoSupplier);
+        wallet1 = new Wallet(Networks.testnet(), wallet1Mnemonic);
         String wallet2Mnemonic = "theme orphan remind output arrive lobster decorate ten gap piece casual distance attend total blast dilemma damp punch pride file limit soldier plug canoe";
-        wallet2 = new Wallet(Networks.testnet(), wallet2Mnemonic, walletUtxoSupplier);
+        wallet2 = new Wallet(Networks.testnet(), wallet2Mnemonic);
 
         if (backendType.equals(DEVKIT)) {
             poolId = "pool1wvqhvyrgwch4jq9aa84hc8q4kzvyq2z3xr6mpafkqmx9wce39zy";
@@ -92,7 +91,7 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -115,7 +114,7 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withSigner(SignerProviders.stakeKeySignerFrom(wallet1))
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
@@ -137,7 +136,7 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -158,7 +157,7 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withSigner(SignerProviders.stakeKeySignerFrom(wallet1))
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
@@ -181,7 +180,7 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -203,7 +202,7 @@ public class StakeTxIT extends QuickTxBaseIT {
 
         Result<String> result = quickTxBuilder.compose(tx)
                 .feePayer(wallet1.getBaseAddressString(0))
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) ?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier) : null)
@@ -231,7 +230,7 @@ public class StakeTxIT extends QuickTxBaseIT {
 
         Result<String> delgResult = quickTxBuilder.compose(delegTx)
                 .feePayer(wallet1.getBaseAddressString(0))
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) ?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier) : null)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
@@ -256,7 +255,7 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -274,7 +273,7 @@ public class StakeTxIT extends QuickTxBaseIT {
 
         Result<String> result = quickTxBuilder.compose(tx)
                 .feePayer(wallet1.getBaseAddressString(0))
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) ?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier) : null)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
@@ -297,7 +296,7 @@ public class StakeTxIT extends QuickTxBaseIT {
                 .from(wallet1);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
+                .withSigner(wallet1)
                 .withSigner(SignerProviders.stakeKeySignerFrom(wallet1))
                 .withSigner(SignerProviders.stakeKeySignerFrom(wallet2))
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
