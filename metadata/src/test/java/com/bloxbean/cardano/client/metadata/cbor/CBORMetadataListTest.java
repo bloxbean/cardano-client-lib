@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CBORMetadataListTest {
 
@@ -21,13 +22,16 @@ class CBORMetadataListTest {
         list.add("value5");
         list.add("value6");
         list.add("value7");
+        list.add("Extra Long string of more than 64 Bytes................................");
         System.out.println(list.toJson());
-        assertThat(list.size()).isEqualTo(7);
+        assertThat(list.size()).isEqualTo(8);
+
+        assertTrue(list.getValueAt(7) instanceof CBORMetadataList);
 
         list.removeItem("value5");
         list.removeItem(BigInteger.valueOf(4));
 
-        assertThat(list.size()).isEqualTo(5);
+        assertThat(list.size()).isEqualTo(6);
         assertThat(list.getValueAt(4)).isNotEqualTo("value5");
         assertThat(list.getValueAt(4)).isEqualTo("value7");
     }

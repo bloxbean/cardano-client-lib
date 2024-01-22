@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.metadata.MetadataList;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.util.StringUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -36,16 +37,26 @@ public class CBORMetadataList implements MetadataList {
 
     @Override
     public CBORMetadataList add(String value) {
-        checkLength(value);
-        array.add(new UnicodeString(value));
+        if (checkLength(value) > 64) {
+            CBORMetadataList cborMetadataList = new CBORMetadataList();
+            cborMetadataList.addAll(StringUtils.splitStringEveryNCharacters(value, 64));
+            array.add(cborMetadataList.getArray());
+        } else {
+            array.add(new UnicodeString(value));
+        }
         return this;
     }
 
     @Override
     public CBORMetadataList addAll(String[] value) {
         for (String str : value) {
-            checkLength(str);
-            array.add(new UnicodeString(str));
+            if (checkLength(str) > 64) {
+                CBORMetadataList cborMetadataList = new CBORMetadataList();
+                cborMetadataList.addAll(StringUtils.splitStringEveryNCharacters(str, 64));
+                array.add(cborMetadataList.getArray());
+            } else {
+                array.add(new UnicodeString(str));
+            }
         }
         return this;
     }

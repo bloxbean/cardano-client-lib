@@ -135,6 +135,8 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
