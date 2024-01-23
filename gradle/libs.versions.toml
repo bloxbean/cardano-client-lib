@@ -15,7 +15,6 @@ retrofit2 = "com.squareup.retrofit2:retrofit:2.9.0"
 retrofit2-converter-jackson = "com.squareup.retrofit2:converter-jackson:2.9.0"
 okhttp = "com.squareup.okhttp3:okhttp:4.12.0"
 
-yaci = "com.bloxbean.cardano:yaci:0.2.5"
 aiken-java-binding = "com.bloxbean.cardano:aiken-java-binding:0.0.8"
 
 google-auto-service="com.google.auto.service:auto-service:1.1.1"
