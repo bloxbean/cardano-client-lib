@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.ogmios;
+package com.bloxbean.cardano.client.backend.ogmios.websocket;
 
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.backend.api.*;
@@ -9,15 +9,15 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 
-public class OgmiosBackendService implements BackendService {
+public class Ogmios5BackendService implements BackendService {
 
     private final OgmiosWSClient wsClient;
 
-    protected OgmiosBackendService() {
+    protected Ogmios5BackendService() {
         wsClient = null;
     }
 
-    public OgmiosBackendService(String url) {
+    public Ogmios5BackendService(String url) {
         try {
             wsClient = new OgmiosWSClient(new URI(url));
             if (url.startsWith("wss://")) {
@@ -33,7 +33,7 @@ public class OgmiosBackendService implements BackendService {
 
     @Override
     public TransactionService getTransactionService() {
-        return new OgmiosTransactionService(wsClient);
+        return new Ogmios5TransactionService(wsClient);
     }
 
     @Override
@@ -68,7 +68,7 @@ public class OgmiosBackendService implements BackendService {
 
     @Override
     public EpochService getEpochService() {
-        return new OgmiosEpochService(wsClient);
+        return new Ogmios5EpochService(wsClient);
     }
 
     @Override

@@ -1,9 +1,8 @@
-package com.bloxbean.cardano.client.backend.ogmios;
+package com.bloxbean.cardano.client.backend.ogmios.websocket;
 
 import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.api.model.Result;
-import com.bloxbean.cardano.client.backend.api.TransactionService;
+import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,11 +11,13 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class OgmiosTransactionServiceIT extends OgmiosBaseTest{
-    TransactionService transactionService;
+public class Ogmios5TransactionServiceIT extends Ogmios5BaseTest {
+
+    Ogmios5TransactionService transactionService;
+
     @BeforeEach
     public void setup() {
-        transactionService = ogmiosBackendService.getTransactionService();
+        transactionService = (Ogmios5TransactionService) ogmios5BackendService.getTransactionService();
     }
 
     @Test

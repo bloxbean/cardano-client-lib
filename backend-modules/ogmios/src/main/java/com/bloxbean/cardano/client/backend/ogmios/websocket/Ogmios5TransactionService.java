@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.ogmios;
+package com.bloxbean.cardano.client.backend.ogmios.websocket;
 
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
@@ -23,11 +23,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-public class OgmiosTransactionService implements TransactionService {
+public class Ogmios5TransactionService implements TransactionService {
 
     private final OgmiosWSClient client;
 
-    public OgmiosTransactionService(OgmiosWSClient client) {
+    public Ogmios5TransactionService(OgmiosWSClient client) {
         this.client = client;
     }
 
