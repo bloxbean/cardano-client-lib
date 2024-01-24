@@ -1,7 +1,7 @@
-package com.bloxbean.cardano.client.backend.kupo.http;
+package com.bloxbean.cardano.client.supplier.kupo.http;
 
-import com.bloxbean.cardano.client.backend.kupo.model.KupoDatum;
-import com.bloxbean.cardano.client.backend.kupo.model.KupoUtxo;
+import com.bloxbean.cardano.client.supplier.kupo.model.KupoDatum;
+import com.bloxbean.cardano.client.supplier.kupo.model.KupoUtxo;
 import retrofit2.Call;
 import retrofit2.http.GET;
 import retrofit2.http.Path;

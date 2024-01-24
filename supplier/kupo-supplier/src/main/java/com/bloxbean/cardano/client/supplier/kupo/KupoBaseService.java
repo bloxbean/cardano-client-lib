@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.kupo;
+package com.bloxbean.cardano.client.supplier.kupo;
 
 import lombok.extern.slf4j.Slf4j;
 import retrofit2.Retrofit;

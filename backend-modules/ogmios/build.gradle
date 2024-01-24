@@ -2,6 +2,7 @@ dependencies {
     api project(':core')
     api project(':backend')
     api project(':supplier:ogmios-supplier')
+    api project(':supplier:kupo-supplier')
 
     api (libs.ogmios.java) {
         exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
