@@ -1,10 +1,10 @@
 package com.bloxbean.cardano.client.backend.koios.it;
 
-import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.backend.model.EpochContent;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.EpochService;
+import com.bloxbean.cardano.client.backend.model.EpochContent;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

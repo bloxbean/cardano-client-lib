@@ -13,6 +13,7 @@ include 'core'
 include 'function'
 include 'quicktx'
 include 'annotation-processor'
+include 'governance'
 
 //CIPs
 include 'cip'
@@ -21,6 +22,8 @@ include 'cip:cip25'
 include 'cip:cip8'
 include 'cip:cip27'
 include 'cip:cip30'
+include 'cip:cip67'
+include 'cip:cip68'
 
 //Backend modules
 include 'backend'

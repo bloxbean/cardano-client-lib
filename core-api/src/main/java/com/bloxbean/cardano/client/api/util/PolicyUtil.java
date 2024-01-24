@@ -20,10 +20,17 @@ public class PolicyUtil {
     private static final int SLOTS_PER_EPOCH = 5 * 24 * 60 * 60;
 
     public static Policy createEpochBasedTimeLockedPolicy(String name, long currentSlot, long epochs) throws CborSerializationException {
+        return createEpochBasedTimeLockedPolicy(name, currentSlot, epochs, SLOTS_PER_EPOCH);
+    }
+
+    public static Policy createEpochBasedTimeLockedPolicy(String name, long currentSlot, long epochs, Integer slotsPerEpoch) throws CborSerializationException {
+        if (slotsPerEpoch == null) {
+            slotsPerEpoch = SLOTS_PER_EPOCH;
+        }
         Keys keys = KeyGenUtil.generateKey();
         VerificationKey verificationKey = keys.getVkey();
         ScriptPubkey scriptPubkey = ScriptPubkey.create(verificationKey);
-        RequireTimeBefore requireTimeBefore = new RequireTimeBefore(currentSlot + SLOTS_PER_EPOCH * epochs);
+        RequireTimeBefore requireTimeBefore = new RequireTimeBefore(currentSlot + slotsPerEpoch * epochs);
         ScriptAll scriptAll = new ScriptAll().addScript(requireTimeBefore).addScript(scriptPubkey);
         return new Policy(name, scriptAll).addKey(keys.getSkey());
     }

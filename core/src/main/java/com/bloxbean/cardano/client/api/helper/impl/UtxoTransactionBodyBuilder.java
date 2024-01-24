@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
@@ -12,7 +13,6 @@ import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.model.TransactionRequest;
 import com.bloxbean.cardano.client.transaction.spec.*;
-import com.bloxbean.cardano.client.util.AssetUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Triple;
 import com.bloxbean.cardano.client.util.Tuple;
@@ -91,7 +91,7 @@ public class UtxoTransactionBodyBuilder {
                 detailsParams != null ? detailsParams.getNetworkId() : null,
                 null,
                 null,
-                null);
+                null, null, null, null, null);
     }
 
     public static TransactionBody buildTransferBody(List<PaymentTransaction> requests,
@@ -156,7 +156,7 @@ public class UtxoTransactionBodyBuilder {
                 detailParams != null ? detailParams.getNetworkId() : null,
                 null,
                 null,
-                null);
+                null, null, null, null, null);
     }
 
     private static Map<String, List<Amount>> mergeCosts(Map<String, BigInteger> costPerSender, Map<String, List<Amount>> requestedAmountPerSender){

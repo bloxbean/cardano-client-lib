@@ -46,8 +46,13 @@ public class CBORMetadataMap implements MetadataMap {
 
     @Override
     public CBORMetadataMap put(BigInteger key, String value) {
-        checkLength(value);
-        map.put(new UnsignedInteger(key), new UnicodeString(value));
+        if (checkLength(value) > 64) {
+            CBORMetadataList cborMetadataList = new CBORMetadataList();
+            cborMetadataList.addAll(StringUtils.splitStringEveryNCharacters(value, 64));
+            map.put(new UnsignedInteger(key), cborMetadataList.getArray());
+        } else {
+            map.put(new UnsignedInteger(key), new UnicodeString(value));
+        }
         return this;
     }
 

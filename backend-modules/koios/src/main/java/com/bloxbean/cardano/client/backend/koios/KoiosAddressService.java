@@ -4,13 +4,14 @@ import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
+import com.bloxbean.cardano.client.backend.model.AddressDetails;
 import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
 import com.bloxbean.cardano.client.backend.model.TxContentOutputAmount;
 import rest.koios.client.backend.api.address.AddressService;
 import rest.koios.client.backend.api.address.model.AddressInfo;
 import rest.koios.client.backend.api.address.model.AddressUtxo;
-import rest.koios.client.backend.api.common.Asset;
-import rest.koios.client.backend.api.common.TxHash;
+import rest.koios.client.backend.api.base.common.Asset;
+import rest.koios.client.backend.api.base.common.UTxO;
 import rest.koios.client.backend.factory.options.*;
 import rest.koios.client.backend.factory.options.filters.Filter;
 import rest.koios.client.backend.factory.options.filters.FilterType;
@@ -48,6 +49,11 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
+    }
+
+    @Override
+    public Result<AddressDetails> getAddressDetails(String address) throws ApiException {
+        throw new UnsupportedOperationException("Not yet supported");
     }
 
     private Result<AddressContent> convertToAddressContent(AddressInfo addressInfo) {
@@ -91,9 +97,9 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
     @Override
     public Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page, OrderEnum order, String from, String to) throws ApiException {
         try {
-            Option ordering = Order.by("block_height", SortType.ASC);
+            Option ordering = Order.by("block_time", SortType.ASC);
             if (order == OrderEnum.desc) {
-                ordering = Order.by("block_height", SortType.DESC);
+                ordering = Order.by("block_time", SortType.DESC);
             }
             Options options = Options.builder()
                     .option(Limit.of(count))
@@ -105,11 +111,11 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
             if (to != null && !to.isEmpty()) {
                 options.getOptionList().add(Filter.of("block_height", FilterType.LTE, to));
             }
-            rest.koios.client.backend.api.base.Result<List<TxHash>> transactionsResult = addressService.getAddressTransactions(List.of(address), options);
-            if (!transactionsResult.isSuccessful()) {
-                return Result.error(transactionsResult.getResponse()).code(transactionsResult.getCode());
+            rest.koios.client.backend.api.base.Result<List<UTxO>> addressUTxOsResult = addressService.getAddressUTxOs(List.of(address), true, options);
+            if (!addressUTxOsResult.isSuccessful()) {
+                return Result.error(addressUTxOsResult.getResponse()).code(addressUTxOsResult.getCode());
             }
-            return convertToAddressTransactionContent(transactionsResult.getValue());
+            return convertToAddressTransactionContent(addressUTxOsResult.getValue());
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         } catch (ParseException e) {
@@ -117,14 +123,14 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
         }
     }
 
-    private Result<List<AddressTransactionContent>> convertToAddressTransactionContent(List<TxHash> transactions) throws ParseException {
+    private Result<List<AddressTransactionContent>> convertToAddressTransactionContent(List<UTxO> utxos) throws ParseException {
         List<AddressTransactionContent> addressTransactionContents = new ArrayList<>();
-        for (TxHash txHash : transactions) {
+        for (UTxO utxo : utxos) {
             AddressTransactionContent addressTransactionContent = new AddressTransactionContent();
-            addressTransactionContent.setTxHash(txHash.getTxHash());
-//            addressTransactionContent.setTxIndex(); TODO
-            addressTransactionContent.setBlockHeight(txHash.getBlockHeight());
-            addressTransactionContent.setBlockTime(txHash.getBlockTime());
+            addressTransactionContent.setTxHash(utxo.getTxHash());
+            addressTransactionContent.setTxIndex(utxo.getTxIndex());
+            addressTransactionContent.setBlockHeight(utxo.getBlockHeight());
+            addressTransactionContent.setBlockTime(utxo.getBlockTime());
             addressTransactionContents.add(addressTransactionContent);
         }
         return Result.success("OK").withValue(addressTransactionContents).code(200);

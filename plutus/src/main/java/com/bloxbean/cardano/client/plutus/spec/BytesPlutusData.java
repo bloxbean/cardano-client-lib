@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.spec;
 
 import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.UnicodeString;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.serializers.BytesDataJsonDeserializer;
@@ -45,5 +46,12 @@ public class BytesPlutusData implements PlutusData {
         }
 
         return di;
+    }
+
+    public static BytesPlutusData deserialize(UnicodeString valueDI) throws CborDeserializationException {
+        if (valueDI == null)
+            return null;
+
+        return BytesPlutusData.of(valueDI.getString());
     }
 }

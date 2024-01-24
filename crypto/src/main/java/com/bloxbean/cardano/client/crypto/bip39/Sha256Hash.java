@@ -17,6 +17,7 @@
 
 package com.bloxbean.cardano.client.crypto.bip39;
 
+import com.bloxbean.cardano.client.crypto.Utils;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Ints;
 
