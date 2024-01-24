@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.Map;
 
 @Getter
@@ -58,21 +59,33 @@ public class ProtocolParametersDTO {
         protocolParams.setPoolDeposit(stakePoolDeposit.get("ada").get("lovelace").toString());
         protocolParams.setEMax((int) stakePoolRetirementEpochBound);
         protocolParams.setNOpt((int) desiredNumberOfStakePools);
-        protocolParams.setA0(stringToDecimal(stakePoolPledgeInfluence)); // TODO stakePoolPedge is "0/1" cannot convert to BigDecimal
+        protocolParams.setA0(stringToDecimal(stakePoolPledgeInfluence));
         protocolParams.setRho(stringToDecimal(monetaryExpansion));
         protocolParams.setTau(stringToDecimal(treasuryExpansion));
 //        protocolParams.setDecentralisationParam(stringToDecimal()); //Deprecated. Not there
 //        protocolParams.setExtraEntropy(); // Not there
         protocolParams.setProtocolMajorVer(version.get("major"));
         protocolParams.setProtocolMinorVer(version.get("minor"));
-//        protocolParams.setMinUtxo(); //TODO
+        protocolParams.setMinUtxo(String.valueOf(minUtxoDepositCoefficient));
         protocolParams.setMinPoolCost(minStakePoolCost.get("ada").get("lovelace").toString());
-//        protocolParams.setNonce(currentProtocolParameters.getProtocolParameters().getNonce()); //TODO
+//        protocolParams.setNonce(currentProtocolParameters.getProtocolParameters().getNonce()); // Not there
 
-//        Map<String, Map<String, Long>> costModels = new HashMap<>();
-//        costModels.put("PlutusV1", plutusCostModels);
-//        costModels.put("PlutusV2", plutusV2CostModel);
-//        protocolParams.setCostModels(costModels);
+        Map<String, Map<String, Long>> costModels = new HashMap<>();
+        costModels.put("PlutusV1",
+                new HashMap<>() {{
+                    for (int i = 0; i < plutusCostModels.get("plutus:v1").length; i++) {
+                        put(PlutusCostModelConstants.PLUTUS_V1_COST_MODEL[i], plutusCostModels.get("plutus:v1")[i]);
+                    }
+                }}
+        );
+        costModels.put("PlutusV2",
+                new HashMap<>() {{
+                    for (int i = 0; i < plutusCostModels.get("plutus:v2").length; i++) {
+                        put(PlutusCostModelConstants.PLUTUS_V2_COST_MODEL[i], plutusCostModels.get("plutus:v2")[i]);
+                    }
+                }}
+        );
+        protocolParams.setCostModels(costModels);
 
         protocolParams.setPriceMem(stringToDecimal(scriptExecutionPrices.getMemory()));
         protocolParams.setPriceStep(stringToDecimal(scriptExecutionPrices.getCpu())); // TODO
@@ -83,8 +96,8 @@ public class ProtocolParametersDTO {
         protocolParams.setMaxValSize(String.valueOf(maxValueSize.get("bytes").intValue()));
         protocolParams.setCollateralPercent(BigDecimal.valueOf(collateralPercentage));
         protocolParams.setMaxCollateralInputs((int) maxCollateralInputs);
-//        protocolParams.setCoinsPerUtxoSize(minUtxoDepositConstant.get("ada").get("lovelace").toString()); // TODO
-//        protocolParams.setCoinsPerUtxoWord(minUtxoDepositCoefficient); // TODO
+        protocolParams.setCoinsPerUtxoSize(String.valueOf(minUtxoDepositCoefficient));
+//        protocolParams.setCoinsPerUtxoWord(String.valueOf(minUtxoDepositCoefficient)); // deprecated
         return protocolParams;
     }
 

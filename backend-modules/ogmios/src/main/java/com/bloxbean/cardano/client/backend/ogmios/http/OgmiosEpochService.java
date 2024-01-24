@@ -23,17 +23,17 @@ public class OgmiosEpochService extends OgmiosBaseService implements EpochServic
 
     @Override
     public Result<EpochContent> getLatestEpoch() throws ApiException {
-        return null;
+        throw new UnsupportedOperationException("Not supported yet");
     }
 
     @Override
     public Result<EpochContent> getEpoch(Integer epoch) throws ApiException {
-        return null;
+        throw new UnsupportedOperationException("Not supported yet");
     }
 
     @Override
     public Result<ProtocolParams> getProtocolParameters(Integer epoch) throws ApiException {
-        return null;
+        throw new UnsupportedOperationException("Not supported yet");
     }
 
     @Override
@@ -43,12 +43,16 @@ public class OgmiosEpochService extends OgmiosBaseService implements EpochServic
         Call<BaseRequestDTO<ProtocolParametersDTO>> call = ogmiosHTTPApi.getProtocolParameters(request);
         try {
             Response<BaseRequestDTO<ProtocolParametersDTO>> response = call.execute();
-            if (response.isSuccessful()) {
-                ProtocolParams protocolParams = response.body().getResult().toProtocolParams();
-                return Result.success(response.toString()).withValue(protocolParams).code(response.code());
+            if (response.isSuccessful() && response.body().getResult() != null) {
+                return Result
+                        .success(response.toString())
+                        .withValue(response.body().getResult().toProtocolParams())
+                        .code(response.code());
             }
             else
-                return Result.error(response.errorBody().string()).code(response.code());
+                return Result
+                        .error(response.errorBody().string())
+                        .code(response.code());
 
         } catch (IOException e) {
             throw new ApiException("Error getting latest epoch", e);
