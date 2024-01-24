@@ -1,8 +1,6 @@
-package com.bloxbean.cardano.client.backend.ogmios.http.dto;
+package com.bloxbean.cardano.client.supplier.ogmios.dto;
 
-import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
-import io.adabox.model.query.response.models.ExecutionUnit;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

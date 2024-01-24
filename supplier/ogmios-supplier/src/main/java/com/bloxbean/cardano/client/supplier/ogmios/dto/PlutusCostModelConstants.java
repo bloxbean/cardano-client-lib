@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.ogmios.http.dto;
+package com.bloxbean.cardano.client.supplier.ogmios.dto;
 
 public class PlutusCostModelConstants {
 

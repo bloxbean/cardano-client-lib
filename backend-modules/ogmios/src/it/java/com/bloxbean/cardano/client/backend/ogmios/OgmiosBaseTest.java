@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.ogmios;
 
+import com.bloxbean.cardano.client.backend.KupmiosBackendService;
 import com.bloxbean.cardano.client.backend.kupo.KupoUtxoService;
 import com.bloxbean.cardano.client.backend.ogmios.http.OgmiosBackendService;
 

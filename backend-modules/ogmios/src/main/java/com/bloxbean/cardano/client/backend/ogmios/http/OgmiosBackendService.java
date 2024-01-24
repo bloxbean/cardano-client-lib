@@ -1,11 +1,14 @@
 package com.bloxbean.cardano.client.backend.ogmios.http;
 
 import com.bloxbean.cardano.client.backend.api.*;
+import lombok.Getter;
 
-public class OgmiosBackendService extends OgmiosBaseService implements BackendService {
+@Getter
+public class OgmiosBackendService implements BackendService {
+    private String baseUrl;
 
     public OgmiosBackendService(String baseUrl) {
-        super(baseUrl);
+        this.baseUrl = baseUrl;
     }
 
     @Override

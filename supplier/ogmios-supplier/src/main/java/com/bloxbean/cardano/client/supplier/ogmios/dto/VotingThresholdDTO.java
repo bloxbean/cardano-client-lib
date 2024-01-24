@@ -1,6 +1,5 @@
-package com.bloxbean.cardano.client.backend.ogmios.http.dto;
+package com.bloxbean.cardano.client.supplier.ogmios.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
 import lombok.Setter;

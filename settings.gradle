@@ -36,3 +36,4 @@ include 'integration-test'
 //supplier modules
 include 'supplier'
 include 'supplier:local'
+include 'supplier:ogmios-supplier'

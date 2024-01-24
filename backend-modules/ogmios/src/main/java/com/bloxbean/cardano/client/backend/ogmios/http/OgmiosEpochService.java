@@ -5,20 +5,13 @@ import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.EpochService;
 import com.bloxbean.cardano.client.backend.model.EpochContent;
-import com.bloxbean.cardano.client.backend.ogmios.http.dto.BaseRequestDTO;
-import com.bloxbean.cardano.client.backend.ogmios.http.dto.ProtocolParametersDTO;
-import retrofit2.Call;
-import retrofit2.Response;
+import com.bloxbean.cardano.client.supplier.ogmios.OgmiosProtocolParamSupplier;
 
-import java.io.IOException;
-
-public class OgmiosEpochService extends OgmiosBaseService implements EpochService  {
-    private final static String QUERY_PROTOCOL_PARAMS_METHOD = "queryLedgerState/protocolParameters";
-    private final OgmiosHTTPApi ogmiosHTTPApi;
+public class OgmiosEpochService implements EpochService  {
+    private final OgmiosProtocolParamSupplier ogmiosProtocolParamSupplier;
 
     public OgmiosEpochService(String baseUrl) {
-        super(baseUrl);
-        this.ogmiosHTTPApi = getRetrofit().create(OgmiosHTTPApi.class);
+        this.ogmiosProtocolParamSupplier = new OgmiosProtocolParamSupplier(baseUrl);
     }
 
     @Override
@@ -38,24 +31,16 @@ public class OgmiosEpochService extends OgmiosBaseService implements EpochServic
 
     @Override
     public Result<ProtocolParams> getProtocolParameters() throws ApiException {
-        BaseRequestDTO request = new BaseRequestDTO(QUERY_PROTOCOL_PARAMS_METHOD);
+        ProtocolParams protocolParams = ogmiosProtocolParamSupplier.getProtocolParams();
 
-        Call<BaseRequestDTO<ProtocolParametersDTO>> call = ogmiosHTTPApi.getProtocolParameters(request);
-        try {
-            Response<BaseRequestDTO<ProtocolParametersDTO>> response = call.execute();
-            if (response.isSuccessful() && response.body().getResult() != null) {
-                return Result
-                        .success(response.toString())
-                        .withValue(response.body().getResult().toProtocolParams())
-                        .code(response.code());
-            }
-            else
-                return Result
-                        .error(response.errorBody().string())
-                        .code(response.code());
-
-        } catch (IOException e) {
-            throw new ApiException("Error getting latest epoch", e);
+        Result<ProtocolParams> result;
+        if(protocolParams != null) {
+            return Result.success("suchess")
+                    .withValue(protocolParams)
+                    .code(200);
+        } else {
+            result = Result.error("Error fetching protocol params");
         }
+        return result;
     }
 }

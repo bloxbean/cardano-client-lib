@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.backend.ogmios.websocket;
 
 import com.bloxbean.cardano.client.backend.kupo.KupoUtxoService;
-import com.bloxbean.cardano.client.backend.ogmios.KupmiosBackendService;
+import com.bloxbean.cardano.client.backend.KupmiosBackendService;
 
 public class Ogmios5BaseTest {
     protected Ogmios5BackendService ogmios5BackendService;

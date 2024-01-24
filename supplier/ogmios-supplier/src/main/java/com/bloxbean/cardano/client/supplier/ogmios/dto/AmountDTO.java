@@ -1,6 +1,5 @@
-package com.bloxbean.cardano.client.backend.ogmios.http.dto;
+package com.bloxbean.cardano.client.supplier.ogmios.dto;
 
-import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;

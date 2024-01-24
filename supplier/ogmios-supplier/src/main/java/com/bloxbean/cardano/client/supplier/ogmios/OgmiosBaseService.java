@@ -1,12 +1,8 @@
-package com.bloxbean.cardano.client.backend.ogmios.http;
+package com.bloxbean.cardano.client.supplier.ogmios;
 
-import com.bloxbean.cardano.client.api.model.Result;
 import lombok.extern.slf4j.Slf4j;
-import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.jackson.JacksonConverterFactory;
-
-import java.io.IOException;
 
 @Slf4j
 public class OgmiosBaseService {

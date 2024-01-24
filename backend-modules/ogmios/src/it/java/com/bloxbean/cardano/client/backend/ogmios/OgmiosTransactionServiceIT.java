@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.EvaluationResult;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.KupmiosBackendService;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -48,6 +49,8 @@ public class OgmiosTransactionServiceIT extends OgmiosBaseTest{
                 .from(sender1Addr);
 
         Transaction transaction = quickTxBuilder.compose(tx).withSigner(SignerProviders.signerFrom(sender1)).buildAndSign();
+        byte[] serialize = transaction.serialize();
+        String s = HexUtil.encodeHexString(serialize);
         Result<List<EvaluationResult>> evaluationResults = transactionService.evaluateTx(transaction.serialize());
 
         assertThat(evaluationResults.isSuccessful()).isEqualTo(false);
