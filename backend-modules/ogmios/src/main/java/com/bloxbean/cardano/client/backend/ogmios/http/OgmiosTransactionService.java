@@ -32,7 +32,7 @@ public class OgmiosTransactionService extends OgmiosBaseService implements Trans
         Map<String, Map<String, String>> params = new HashMap();
         params.put("transaction",
         new HashMap() {{
-            put("cbor", Arrays.toString(cborData));
+            put("cbor", HexUtil.encodeHexString(cborData));
         }});
 
         BaseRequestDTO request = new BaseRequestDTO(SUBMIT_TRANSACTION_METHOD, params);
@@ -86,7 +86,7 @@ public class OgmiosTransactionService extends OgmiosBaseService implements Trans
                 }});
 
         BaseRequestDTO request = new BaseRequestDTO(EVALUATE_TRANSACTION_METHOD, params);
-        String string = request.toString();
+
         Call<BaseRequestDTO<List<ValidateTransactionDTO>>> call = ogmiosHTTPApi.validateTransaction(request);
         try {
             Response<BaseRequestDTO<List<ValidateTransactionDTO>>> response = call.execute();
