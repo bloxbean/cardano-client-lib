@@ -32,7 +32,17 @@ public class KupoUtxoSupplier extends KupoBaseService implements UtxoSupplier {
 
     @Override
     public List<Utxo> getPage(String address, Integer nrOfItems, Integer page, OrderEnum order) {
-        return getAll(address);
+        try {
+            Result result = getUtxos(address, page);
+            if(result.isSuccessful())
+                return (List<Utxo>) result.getValue();
+            else
+                return Collections.emptyList();
+
+        } catch (ApiException e) {
+            log.error("Error getting utxos for address: " + address, e);
+            return Collections.emptyList();
+        }
     }
 
     @Override

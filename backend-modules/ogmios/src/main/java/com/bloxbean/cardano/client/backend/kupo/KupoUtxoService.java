@@ -32,11 +32,8 @@ public class KupoUtxoService implements UtxoService {
 
     @Override
     public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException {
-        List<Utxo> all = kupoUtxoSupplier.getAll(address);
-        if (all == null || all.isEmpty())
-            return Result.error("Not Found").withValue(Collections.emptyList()).code(404);
-        else
-            return Result.success("OK").withValue(all).code(200);
+        List<Utxo> all = kupoUtxoSupplier.getPage(address, count, page, OrderEnum.asc);
+        return Result.success("OK").withValue(all).code(200);
     }
 
     @Override
@@ -46,12 +43,27 @@ public class KupoUtxoService implements UtxoService {
 
     @Override
     public Result<List<Utxo>> getUtxos(String address, String unit, int count, int page) throws ApiException {
-        return getUtxos(address, count, page);
+        Result<List<Utxo>> resultUtxos = getUtxos(address, count, page);
+        if (!resultUtxos.isSuccessful())
+            return resultUtxos;
+
+        List<Utxo> utxos = resultUtxos.getValue();
+        if (utxos == null || utxos.isEmpty())
+            return resultUtxos;
+
+        List<Utxo> assetUtxos = utxos.stream().filter(utxo ->
+                        utxo.getAmount().stream().filter(amount -> amount.getUnit().equals(unit)).findFirst().isPresent())
+                .collect(Collectors.toList());
+
+        if (!assetUtxos.isEmpty())
+            return Result.success("OK").withValue(assetUtxos).code(200);
+        else
+            return Result.error("Not Found").withValue(Collections.emptyList()).code(404);
     }
 
     @Override
     public Result<List<Utxo>> getUtxos(String address, String unit, int count, int page, OrderEnum order) throws ApiException {
-        return getUtxos(address, count, page);
+        return getUtxos(address, unit, count, page);
     }
 
     @Override
