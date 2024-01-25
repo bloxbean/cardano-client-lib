@@ -86,7 +86,7 @@ public class KupoUtxoSupplier extends KupoBaseService implements UtxoSupplier {
     }
 
     private Result getUtxos(String address, int page) throws ApiException {
-        if (page != 1)
+        if (page < 0 || page > 1) // to allow page 0 or 1
             return Result.success("OK").withValue(Collections.emptyList()).code(200);
 
         Call<List<KupoUtxo>> utxosCall = matchesApi.getUnspentMatches(address);

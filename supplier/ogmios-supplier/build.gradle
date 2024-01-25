@@ -8,6 +8,10 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
     }
     implementation(libs.okhttp)
+
+    integrationTestImplementation project(':core')
+    integrationTestImplementation project(':quicktx')
+    integrationTestImplementation project(':supplier:kupo-supplier')
 }
 
 publishing {
