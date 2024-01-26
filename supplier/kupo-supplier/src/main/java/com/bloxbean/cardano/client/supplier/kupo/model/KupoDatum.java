@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.kupo.model;
+package com.bloxbean.cardano.client.supplier.kupo.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;

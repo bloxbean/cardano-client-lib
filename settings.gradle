@@ -34,4 +34,6 @@ include 'backend-modules:ogmios'
 include 'integration-test'
 
 //supplier modules
-//include 'supplier'
+include 'supplier'
+include 'supplier:ogmios-supplier'
+include 'supplier:kupo-supplier'

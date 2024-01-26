@@ -1,31 +1,30 @@
-package com.bloxbean.cardano.client.backend.kupo;
+package com.bloxbean.cardano.client.supplier.ogmios;
 
 import lombok.extern.slf4j.Slf4j;
 import retrofit2.Retrofit;
 import retrofit2.converter.jackson.JacksonConverterFactory;
 
 @Slf4j
-public class KupoBaseService {
+public class OgmiosBaseService {
 
-    private final String kupoBaseUrl;
+    private final String baseUrl;
 
-    public KupoBaseService(String kupoBaseUrl) {
-        this.kupoBaseUrl = kupoBaseUrl;
+    public OgmiosBaseService(String baseUrl) {
+        this.baseUrl = baseUrl;
 
         if (log.isDebugEnabled()) {
-            log.debug("Kupo URL : " + kupoBaseUrl);
+            log.debug("Ogmios URL : " + baseUrl);
         }
     }
 
     protected Retrofit getRetrofit() {
         return new Retrofit.Builder()
-                .baseUrl(getKupoBaseUrl())
+                .baseUrl(getBaseUrl())
                 .addConverterFactory(JacksonConverterFactory.create())
                 .build();
     }
 
-    public String getKupoBaseUrl() {
-        return kupoBaseUrl;
+    public String getBaseUrl() {
+        return baseUrl;
     }
-
 }

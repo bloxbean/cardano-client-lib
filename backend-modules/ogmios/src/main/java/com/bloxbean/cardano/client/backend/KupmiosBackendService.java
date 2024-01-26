@@ -1,7 +1,8 @@
-package com.bloxbean.cardano.client.backend.ogmios;
+package com.bloxbean.cardano.client.backend;
 
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.kupo.KupoUtxoService;
+import com.bloxbean.cardano.client.backend.ogmios.http.OgmiosBackendService;
 
 /**
  * KupmiosBackendService is a combination of Kupo and Ogmios backend services.
@@ -10,9 +11,9 @@ import com.bloxbean.cardano.client.backend.kupo.KupoUtxoService;
 public class KupmiosBackendService extends OgmiosBackendService {
     private UtxoService kupoUtxoService;
 
-    public KupmiosBackendService(String ogmiosUrl, String kupoUrl) {
-        super(ogmiosUrl);
-        kupoUtxoService = new KupoUtxoService(kupoUrl);
+    public KupmiosBackendService(String ogmiosHttpUrl, String kupoHttpUrl) {
+        super(ogmiosHttpUrl);
+        kupoUtxoService = new KupoUtxoService(kupoHttpUrl);
     }
 
     @Override

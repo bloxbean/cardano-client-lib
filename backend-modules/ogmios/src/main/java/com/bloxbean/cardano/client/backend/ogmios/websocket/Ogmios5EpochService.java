@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.backend.ogmios;
+package com.bloxbean.cardano.client.backend.ogmios.websocket;
 
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
@@ -13,11 +13,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
-public class OgmiosEpochService implements EpochService {
+public class Ogmios5EpochService implements EpochService {
 
     private final OgmiosWSClient client;
 
-    public OgmiosEpochService(OgmiosWSClient client) {
+    public Ogmios5EpochService(OgmiosWSClient client) {
         this.client = client;
     }
 
