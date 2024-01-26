@@ -11,7 +11,7 @@ import java.util.Map;
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ScriptDTO {
+public class ScriptDto {
     private String language;
     private Map<String, String> json;
     private String cbor;

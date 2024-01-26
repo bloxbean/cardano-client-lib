@@ -9,7 +9,7 @@ import java.util.Map;
 @Getter
 @Setter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class VotingThresholdDTO {
+public class VotingThresholdDto {
 
     private String noConfidence;
     private Map<String, String> constitutionalCommittee;

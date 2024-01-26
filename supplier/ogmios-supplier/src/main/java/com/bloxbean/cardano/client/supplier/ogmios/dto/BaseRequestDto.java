@@ -11,7 +11,7 @@ import java.util.Map;
 @Data
 @NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class BaseRequestDTO<T> {
+public class BaseRequestDto<T> {
 
     private String jsonrpc = "2.0";
     private String method;
@@ -19,12 +19,12 @@ public class BaseRequestDTO<T> {
     private Map<String, Map<String, String>> params;
     private T result;
 
-    public BaseRequestDTO(String method) {
+    public BaseRequestDto(String method) {
         this.method = method;
     }
 
-    public BaseRequestDTO(String submitTransactionMethod, Map<String, Map<String, String>> params) {
-        this.method = submitTransactionMethod;
+    public BaseRequestDto(String method, Map<String, Map<String, String>> params) {
+        this.method = method;
         this.params = params;
     }
 

@@ -7,8 +7,8 @@ public class OgmiosBaseTest {
     protected OgmiosTransactionProcessor ogmiosTransactionProcessor;
     protected KupoUtxoSupplier kupoUtxoSupplier;
 
-    private final static String OGMIOS_URL = "http://localhost:1337/";
-    private final static String KUPO_URL = "http://localhost:1442/";
+    private final static String OGMIOS_URL = "http://ogmios-preprod:1337/";
+    private final static String KUPO_URL = "http://kupo-preprod:1442/";
 
     public OgmiosBaseTest() {
         this.ogmiosProtocolParamSupplier = new OgmiosProtocolParamSupplier(OGMIOS_URL);

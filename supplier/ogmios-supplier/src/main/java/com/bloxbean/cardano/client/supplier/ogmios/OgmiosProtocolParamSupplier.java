@@ -2,8 +2,8 @@ package com.bloxbean.cardano.client.supplier.ogmios;
 
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
-import com.bloxbean.cardano.client.supplier.ogmios.dto.BaseRequestDTO;
-import com.bloxbean.cardano.client.supplier.ogmios.dto.ProtocolParametersDTO;
+import com.bloxbean.cardano.client.supplier.ogmios.dto.BaseRequestDto;
+import com.bloxbean.cardano.client.supplier.ogmios.dto.ProtocolParametersDto;
 import lombok.extern.slf4j.Slf4j;
 import retrofit2.Call;
 import retrofit2.Response;
@@ -23,11 +23,11 @@ public class OgmiosProtocolParamSupplier extends OgmiosBaseService implements Pr
 
     @Override
     public ProtocolParams getProtocolParams() {
-        BaseRequestDTO request = new BaseRequestDTO(QUERY_PROTOCOL_PARAMS_METHOD);
+        BaseRequestDto request = new BaseRequestDto(QUERY_PROTOCOL_PARAMS_METHOD);
 
-        Call<BaseRequestDTO<ProtocolParametersDTO>> call = ogmiosHTTPApi.getProtocolParameters(request);
+        Call<BaseRequestDto<ProtocolParametersDto>> call = ogmiosHTTPApi.getProtocolParameters(request);
         try {
-            Response<BaseRequestDTO<ProtocolParametersDTO>> response = call.execute();
+            Response<BaseRequestDto<ProtocolParametersDto>> response = call.execute();
             if (response.isSuccessful() && response.body().getResult() != null)
                 return response.body().getResult().toProtocolParams();
             else

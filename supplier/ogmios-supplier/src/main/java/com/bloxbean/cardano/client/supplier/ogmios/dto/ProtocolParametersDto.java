@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.supplier.ogmios.dto;
 
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
+import com.bloxbean.cardano.client.plutus.util.PlutusOps;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -8,13 +9,14 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ProtocolParametersDTO {
+public class ProtocolParametersDto {
 
     private long minFeeCoefficient;
     private Map<String, Map<String, Long>> minFeeConstant; // TODO write own DTO for amount
@@ -32,15 +34,15 @@ public class ProtocolParametersDTO {
     private Map<String, Map<String, Long>> minUtxoDepositConstant;
     private int minUtxoDepositCoefficient;
     private Map<String, Long[]> plutusCostModels;
-    private ExecutionUnitDTO scriptExecutionPrices;
-    private ExecutionUnitDTO maxExecutionUnitsPerTransaction;
-    private ExecutionUnitDTO maxExecutionUnitsPerBlock;
+    private ExecutionUnitDto scriptExecutionPrices;
+    private ExecutionUnitDto maxExecutionUnitsPerTransaction;
+    private ExecutionUnitDto maxExecutionUnitsPerBlock;
     private Map<String, Integer> maxValueSize;
     private long collateralPercentage;
     private long maxCollateralInputs;
     private Map<String, Integer> version;
-    private VotingThresholdDTO stakePoolVotingThresholds;
-    private VotingThresholdDTO delegateRepresentativeVotingThresholds;
+    private VotingThresholdDto stakePoolVotingThresholds;
+    private VotingThresholdDto delegateRepresentativeVotingThresholds;
     private long constitutionalCommitteeMinSize;
     private long constitutionalCommitteeMaxTermLength;
     private Map<String, Map<String, Long>> governanceActionDeposit;
@@ -72,15 +74,17 @@ public class ProtocolParametersDTO {
         Map<String, Map<String, Long>> costModels = new HashMap<>();
         costModels.put("PlutusV1",
                 new HashMap<>() {{
+                    List<String> plutusOps = PlutusOps.getOperations(1);
                     for (int i = 0; i < plutusCostModels.get("plutus:v1").length; i++) {
-                        put(PlutusCostModelConstants.PLUTUS_V1_COST_MODEL[i], plutusCostModels.get("plutus:v1")[i]);
+                        put(plutusOps.get(i), plutusCostModels.get("plutus:v1")[i]);
                     }
                 }}
         );
         costModels.put("PlutusV2",
                 new HashMap<>() {{
+                    List<String> plutusOps = PlutusOps.getOperations(2);
                     for (int i = 0; i < plutusCostModels.get("plutus:v2").length; i++) {
-                        put(PlutusCostModelConstants.PLUTUS_V2_COST_MODEL[i], plutusCostModels.get("plutus:v2")[i]);
+                        put(plutusOps.get(i), plutusCostModels.get("plutus:v2")[i]);
                     }
                 }}
         );
@@ -102,6 +106,7 @@ public class ProtocolParametersDTO {
 
     /**
      * Convert a string to BigDecimal. String format :  a/b
+     *
      * @param str str
      * @return BigDecimal
      */

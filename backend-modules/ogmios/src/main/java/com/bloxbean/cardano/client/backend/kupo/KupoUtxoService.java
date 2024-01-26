@@ -1,26 +1,16 @@
 package com.bloxbean.cardano.client.backend.kupo;
 
 import com.bloxbean.cardano.client.api.common.OrderEnum;
-import com.bloxbean.cardano.client.api.exception.ApiException;
-import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.supplier.kupo.KupoUtxoSupplier;
-import com.bloxbean.cardano.client.supplier.kupo.http.MatchesApi;
-import com.bloxbean.cardano.client.supplier.kupo.model.KupoDatum;
-import com.bloxbean.cardano.client.supplier.kupo.model.KupoUtxo;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
-import retrofit2.Call;
-import retrofit2.Response;
 
-import java.io.IOException;
-import java.math.BigInteger;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
-
-import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 @Slf4j
 public class KupoUtxoService implements UtxoService {
@@ -31,18 +21,18 @@ public class KupoUtxoService implements UtxoService {
     }
 
     @Override
-    public Result<List<Utxo>> getUtxos(String address, int count, int page) throws ApiException {
+    public Result<List<Utxo>> getUtxos(String address, int count, int page) {
         List<Utxo> all = kupoUtxoSupplier.getPage(address, count, page, OrderEnum.asc);
         return Result.success("OK").withValue(all).code(200);
     }
 
     @Override
-    public Result<List<Utxo>> getUtxos(String address, int count, int page, OrderEnum order) throws ApiException {
+    public Result<List<Utxo>> getUtxos(String address, int count, int page, OrderEnum order) {
         return getUtxos(address, count, page);
     }
 
     @Override
-    public Result<List<Utxo>> getUtxos(String address, String unit, int count, int page) throws ApiException {
+    public Result<List<Utxo>> getUtxos(String address, String unit, int count, int page) {
         Result<List<Utxo>> resultUtxos = getUtxos(address, count, page);
         if (!resultUtxos.isSuccessful())
             return resultUtxos;
@@ -62,21 +52,17 @@ public class KupoUtxoService implements UtxoService {
     }
 
     @Override
-    public Result<List<Utxo>> getUtxos(String address, String unit, int count, int page, OrderEnum order) throws ApiException {
+    public Result<List<Utxo>> getUtxos(String address, String unit, int count, int page, OrderEnum order) {
         return getUtxos(address, unit, count, page);
     }
 
     @Override
-    public Result<Utxo> getTxOutput(String txHash, int outputIndex) throws ApiException {
+    public Result<Utxo> getTxOutput(String txHash, int outputIndex) {
         Optional<Utxo> txOutput = kupoUtxoSupplier.getTxOutput(txHash, outputIndex);
         if(txOutput.isPresent()) {
             return Result.success("OK").withValue(txOutput.get()).code(200);
         } else {
-            return Result.error("Error getting utxo").withValue(null).code(500);
+            return Result.error("Error getting utxo").withValue(null).code(404);
         }
     }
-
-
-
-
 }

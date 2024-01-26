@@ -11,9 +11,9 @@ import com.bloxbean.cardano.client.backend.ogmios.http.OgmiosBackendService;
 public class KupmiosBackendService extends OgmiosBackendService {
     private UtxoService kupoUtxoService;
 
-    public KupmiosBackendService(String ogmiosUrl, String kupoUrl) {
-        super(ogmiosUrl);
-        kupoUtxoService = new KupoUtxoService(kupoUrl);
+    public KupmiosBackendService(String ogmiosHttpUrl, String kupoHttpUrl) {
+        super(ogmiosHttpUrl);
+        kupoUtxoService = new KupoUtxoService(kupoHttpUrl);
     }
 
     @Override

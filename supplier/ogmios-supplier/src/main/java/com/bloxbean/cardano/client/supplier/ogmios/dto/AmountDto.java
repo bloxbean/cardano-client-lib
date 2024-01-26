@@ -7,8 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-public class AmountDTO {
-
+public class AmountDto {
     private String unit;
     private int quantity;
 }

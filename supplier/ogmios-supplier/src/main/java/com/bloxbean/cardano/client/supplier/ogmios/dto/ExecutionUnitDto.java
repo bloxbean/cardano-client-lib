@@ -10,7 +10,7 @@ import java.math.BigInteger;
 @Getter
 @Setter
 @NoArgsConstructor
-public class ExecutionUnitDTO {
+public class ExecutionUnitDto {
     private String memory;
     private String cpu;
 
