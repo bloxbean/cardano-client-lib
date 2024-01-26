@@ -2,7 +2,13 @@ dependencies {
     api project(':core')
     api project(':backend')
 
-    api (libs.koios.java)
+    api (libs.koios.java) {
+        exclude group: 'org.slf4j', module: 'slf4j-api'
+        exclude group: 'org.bouncycastle', module: 'bcprov-jdk15to18'
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations '
+    }
 }
 
 publishing {
