@@ -3,7 +3,7 @@ dependencies {
     api project(':function')
     api project(':backend')
 
-    integrationTestImplementation(libs.slf4j.log4j)
+    integrationTestImplementation(libs.slf4j.reload4j)
     integrationTestImplementation(libs.aiken.java.binding)
 
     integrationTestImplementation project(':')

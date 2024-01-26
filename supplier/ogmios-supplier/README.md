@@ -1,3 +1,3 @@
 ## Ogmios Supplier Module (cardano-client-supplier-ogmios)
 
-Ogmios supplier to deliver epoch and transaction functionalities via OgmiosHTTP API.
+Ogmios supplier to deliver protocol parameters and transaction submission/evaluation via OgmiosHTTP API.

@@ -1,3 +1,3 @@
-## Kupo Supplier Module (cardano-client-supplier-ogmios)
+## Kupo Supplier Module (cardano-client-supplier-kupo)
 
-Kupo supplier to deliver utxo functionalities via Kupo API.
+Kupo supplier to deliver utxos via Kupo API.
