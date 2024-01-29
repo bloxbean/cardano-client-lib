@@ -205,7 +205,7 @@ public class TxBuilderContextIT extends BaseITTest {
                 .addFile(NFTFile.create()
                         .name("file-1")
                         .mediaType("image/png")
-                        .src("ipfs/Qmcv6hwtmdVumrNeb42R1KmCEWdYWGcqNgs17Y3hj6CkP4"))
+                        .src("ipfs://Qmcv6hwtmdVumrNeb42R1KmCEWdYWGcqNgs17Y3hj6CkP4"))
                 .description("This is a test NFT");
 
         //NFT-2
@@ -222,7 +222,7 @@ public class TxBuilderContextIT extends BaseITTest {
                 .addFile(NFTFile.create()
                         .name("file-1")
                         .mediaType("image/png")
-                        .src("ipfs/Qmcv6hwtmdVumrNeb42R1KmCEWdYWGcqNgs17Y3hj6CkP4"))
+                        .src("ipfs://Qmcv6hwtmdVumrNeb42R1KmCEWdYWGcqNgs17Y3hj6CkP4"))
                 .description("This is a test NFT");
 
         NFTMetadata nftMetadata = NFTMetadata.create()
