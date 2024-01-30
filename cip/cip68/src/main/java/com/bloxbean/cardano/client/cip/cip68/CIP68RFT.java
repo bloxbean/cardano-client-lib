@@ -1,19 +1,25 @@
 package com.bloxbean.cardano.client.cip.cip68;
 
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.Map;
-import com.bloxbean.cardano.client.cip.cip25.NFTFile;
-import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
+import com.bloxbean.cardano.client.cip.cip68.common.CIP68Datum;
+import com.bloxbean.cardano.client.cip.cip68.common.CIP68File;
+import com.bloxbean.cardano.client.cip.cip68.common.CIP68TokenTemplate;
+import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.MapPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import lombok.NonNull;
+import lombok.SneakyThrows;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.bloxbean.cardano.client.cip.cip68.common.CIP68Util.toByteString;
 
 /**
  * Implementation of CIP-68 rich fungible token.
  * According to specification: https://developers.cardano.org/docs/governance/cardano-improvement-proposals/cip-0068/#444-rft-standard
  */
-public class CIP68RFT extends CIP68TokenTemplate<CIP68FT> {
+public class CIP68RFT extends CIP68TokenTemplate<CIP68RFT> {
 
     private static final int ASSET_NAME_LABEL = 444;
     private static final String IMAGE_KEY = "image";
@@ -22,14 +28,17 @@ public class CIP68RFT extends CIP68TokenTemplate<CIP68FT> {
 
     CIP68RFT() {
         super(ASSET_NAME_LABEL);
+        getDatum().setVersion(2);
     }
 
-    private CIP68RFT(Map map) {
-        super(map, ASSET_NAME_LABEL);
+    private CIP68RFT(CIP68Datum cip68Datum) {
+        super(ASSET_NAME_LABEL, cip68Datum);
+        getDatum().setVersion(2);
     }
 
     /**
      * Create instance of CIP68 RFT
+     *
      * @return
      */
     public static CIP68RFT create() {
@@ -38,68 +47,85 @@ public class CIP68RFT extends CIP68TokenTemplate<CIP68FT> {
 
     /**
      * Set image
+     *
      * @param image
      * @return adjusted CIP68RFT object
      */
     public CIP68RFT image(String image) {
-        put(IMAGE_KEY, image);
+        property(IMAGE_KEY, image);
         return this;
     }
 
     /**
      * get image
+     *
      * @return
      */
     public String getImage() {
-        return (String) get(IMAGE_KEY);
+        return getStringProperty(IMAGE_KEY);
     }
 
     /**
      * set decimals
+     *
      * @param decimals
      * @return adjusted CIP68RFT object
      */
     public CIP68RFT decimals(int decimals) {
-        put(DECIMALS_KEY, BigInteger.valueOf(decimals));
+        property(toByteString(DECIMALS_KEY), BigIntPlutusData.of(decimals));
         return this;
     }
 
     /**
      * get decimals
+     *
      * @return
      */
-    public int getDecimals() {
-        return (int) get(DECIMALS_KEY);
+    public Integer getDecimals() {
+        var decimalsPlutusData = (BigIntPlutusData) mapPlutusData.getMap().get(toByteString(DECIMALS_KEY));
+        if (decimalsPlutusData == null)
+            return null;
+        return decimalsPlutusData.getValue().intValue();
     }
 
     /**
      * Add file
-     * @param nftFile
+     *
+     * @param file
      * @return adjusted CIP68RFT object
      */
-    public CIP68RFT addFile(NFTFile nftFile) {
-        CBORMetadataList files = (CBORMetadataList) get(FILES_KEY);
-        if(files == null) {
-            files = new CBORMetadataList();
-            put(FILES_KEY, files);
+    public CIP68RFT addFile(@NonNull CIP68File file) {
+        ListPlutusData files = (ListPlutusData) getProperty(toByteString(FILES_KEY));
+        if (files == null) {
+            files = new ListPlutusData();
+            property(toByteString(FILES_KEY), files);
         }
-        files.add(nftFile);
+        files.add(file.toPlutusData());
 
         return this;
     }
 
     /**
      * get all files
+     *
      * @return
      */
-    public List<NFTFile> getFiles() {
-        CBORMetadataList files = (CBORMetadataList) get(FILES_KEY);
+    @SneakyThrows
+    public List<CIP68File> getFiles() {
+        ListPlutusData filesList = (ListPlutusData) getProperty(toByteString(FILES_KEY));
 
-        List<NFTFile> nftFiles = new ArrayList<>();
-        for (DataItem di : files.getArray().getDataItems()) {
-            NFTFile nftFile = NFTFile.create((Map) di);
-            nftFiles.add(nftFile);
+        List<CIP68File> files = new ArrayList<>();
+        for (PlutusData filePD : filesList.getPlutusDataList()) {
+            CIP68File file = CIP68File.create((MapPlutusData) filePD);
+            files.add(file);
         }
-        return nftFiles;
+        return files;
+    }
+
+
+    public static CIP68RFT fromDatum(byte[] datumBytes) {
+        CIP68RFT token = CIP68RFT.create();
+        token.populateFromDatumBytes(datumBytes);
+        return token;
     }
 }
