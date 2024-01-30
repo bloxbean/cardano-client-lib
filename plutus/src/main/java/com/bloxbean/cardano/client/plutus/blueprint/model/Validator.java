@@ -13,6 +13,7 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Validator {
     private String title;
+    private String description;
     private BlueprintDatum datum;
     private BlueprintDatum redeemer;
     private List<BlueprintDatum> parameters;
