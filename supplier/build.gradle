@@ -1,5 +1,6 @@
 dependencies {
-    api project(':supplier:local')
+    api project(':supplier:ogmios-supplier')
+    api project(':supplier:kupo-supplier')
 }
 
 publishing {

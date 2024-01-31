@@ -129,13 +129,21 @@ public class KoiosUtxoService implements UtxoService {
         return Result.success("OK").withValue(utxoList).code(200);
     }
 
+    /**
+     * Returns sublist of a page. If a page is empty and emptyList will be returned.
+     * @param list
+     * @param pageNumber
+     * @param pageSize
+     * @return
+     */
     public static List<AddressUtxo> getSubListByPage(List<AddressUtxo> list, int pageNumber, int pageSize) {
         int start = 0;
         int end;
 
-        if (pageNumber >= 0) {
+        if (pageNumber > 0) {
             start = pageSize * (pageNumber - 1);
-
+        } else if(pageNumber <= 0) {
+            return Collections.emptyList();
         }
         if (pageSize > 0) {
             end = start + pageSize;
@@ -143,10 +151,13 @@ public class KoiosUtxoService implements UtxoService {
             end = start;
         }
         if (list.size() < end + 1) {
-            end = list.size() - 1;
+            end = list.size();
         }
-        end = Math.max(end, 0);
-        return list.subList(start, end);
 
+        if(end < start) {
+            return Collections.emptyList();
+        } else {
+            return list.subList(start, end);
+        }
     }
 }

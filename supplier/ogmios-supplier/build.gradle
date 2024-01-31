@@ -1,0 +1,26 @@
+dependencies {
+    api project(':core-api')
+
+    implementation(libs.retrofit2) {
+        exclude group: 'com.squareup.okhttp3', module: 'okhttp'
+    }
+    implementation(libs.retrofit2.converter.jackson) {
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    }
+    implementation(libs.okhttp)
+
+    integrationTestImplementation project(':core')
+    integrationTestImplementation project(':quicktx')
+    integrationTestImplementation project(':supplier:kupo-supplier')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Supplier - Ogmios'
+                description = 'Cardano Client Lib - Ogmios Supplier Module'
+            }
+        }
+    }
+}

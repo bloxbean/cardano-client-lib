@@ -25,6 +25,18 @@ class DRepIdTest {
         assertThat(drepId).isEqualTo("drep1vlmeg4vu96detgkf5srw427363svqemth2xde2e2xp5ywfsx2gn");
     }
 
+    @Test
+    void fromKeyHash() {
+        String drepId = DRepId.fromKeyHash("74984fae4ca1715fa1f8759f9d871015ac87f449a85dea6cf9956da1");
+        assertThat(drepId).isEqualTo("drep1wjvyltjv59c4lg0cwk0empcszkkg0azf4pw75m8ej4k6zuqfvt5");
+    }
+
+    @Test
+    void fromScriptHash() {
+        String drepId = DRepId.fromScriptHash("41868c2b4e5289022a3a1f6f47f86823bc605c609d2c47a2db58e04a");
+        assertThat(drepId).isEqualTo("drep_script1gxrgc26w22ysy236rah507rgyw7xqhrqn5ky0gkmtrsy553rrq7");
+    }
+
     //TODO: Implement this
     @Test
     void toDrep() {

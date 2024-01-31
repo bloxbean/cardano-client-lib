@@ -8,19 +8,18 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
-import com.bloxbean.cardano.client.cip.cip25.NFTFile;
+import com.bloxbean.cardano.client.cip.cip68.CIP68FT;
 import com.bloxbean.cardano.client.cip.cip68.CIP68NFT;
+import com.bloxbean.cardano.client.cip.cip68.CIP68RFT;
 import com.bloxbean.cardano.client.cip.cip68.CIP68ReferenceToken;
+import com.bloxbean.cardano.client.cip.cip68.common.CIP68File;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
-import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
-import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
-import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -107,27 +106,33 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .build();
 
         CIP68NFT nft = CIP68NFT.create()
-                .name("CIP68-NFT")
+                .name("CIP68-NFT-" + System.currentTimeMillis())
                 .image("https://xyz.com/image1.png")
                 .description("This is my first CIP-68 NFT")
-                .addFile(NFTFile.create()
+                .addFile(CIP68File.create()
                         .mediaType("image/png")
                         .name("image1.png")
                         .src("https://xyz.com/image1.png")
-                );
+                )
+                .property("key1", "key1Value")
+                .property("key2", List.of("key2Value", "key2Value2"))
+                .property("key5", "key5Value");
 
+        nft.getDatum()
+                .extra(BytesPlutusData.of("Extra text"));
+
+        System.out.println(nft.toJson());
 
         CIP68ReferenceToken referenceToken = nft.getReferenceToken();
         Asset userToken = nft.getAsset(BigInteger.valueOf(1));
         Asset referenzToken = referenceToken.getAsset(BigInteger.valueOf(1));
 
+        PlutusData asPlutusData = referenceToken.getDatumAsPlutusData();
 
-        PlutusData asPlutusData = referenceToken.getMetadata().asPlutusData();
-
+        System.out.println(asPlutusData.serializeToHex());
 
         String userTokenReceiver = sender2Addr;
         String referenceTokenReceiver = AddressProvider.getEntAddress(mintingScript, Networks.preprod()).toBech32();
-
 
         ScriptTx scriptTx = new ScriptTx()
                 .mintAsset(mintingScript, List.of(referenzToken), PlutusData.unit(), referenceTokenReceiver, asPlutusData)
@@ -135,6 +140,8 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -142,6 +149,109 @@ public class ScriptTxIT extends TestDataBaseIT {
 
         checkIfUtxoAvailable(result1.getValue(), sender2Addr);
     }
+
+    @SneakyThrows
+    @Test
+    void alwaysTrueScript_cip68FTMinting() throws Exception {
+        PlutusV2Script mintingScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+
+        CIP68FT ft = CIP68FT.create()
+                .name("CIP68-FT-" + System.currentTimeMillis())
+                .ticker("GYU")
+                .url("https://xyz.com")
+                .logo("https://xyz.com/logo.png")
+                .decimals(6)
+                .description("This is my first CIP-68 FT")
+                .property("key1", "key1Value");
+
+        ft.getDatum()
+                .extra(BytesPlutusData.of("Extra text"));
+
+        System.out.println(ft.toJson());
+
+        CIP68ReferenceToken referenceToken = ft.getReferenceToken();
+        Asset userToken = ft.getAsset(BigInteger.valueOf(1000000000));
+        Asset referenzToken = referenceToken.getAsset(BigInteger.valueOf(1));
+
+        PlutusData asPlutusData = referenceToken.getDatumAsPlutusData();
+
+        System.out.println(asPlutusData.serializeToHex());
+
+        String userTokenReceiver = sender2Addr;
+        String referenceTokenReceiver = AddressProvider.getEntAddress(mintingScript, Networks.preprod()).toBech32();
+
+        ScriptTx scriptTx = new ScriptTx()
+                .mintAsset(mintingScript, List.of(referenzToken), PlutusData.unit(), referenceTokenReceiver, asPlutusData)
+                .mintAsset(mintingScript, List.of(userToken),PlutusData.unit(), userTokenReceiver);
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
+    @SneakyThrows
+    @Test
+    void alwaysTrueScript_cip68RFT() {
+        PlutusV2Script mintingScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+
+        CIP68RFT rft = CIP68RFT.create()
+                .name("CIP68-RFT-" + System.currentTimeMillis())
+                .image("https://xyz.com/image1.png")
+                .description("This is my first CIP-68 NFT")
+                .addFile(CIP68File.create()
+                        .mediaType("image/png")
+                        .name("image1.png")
+                        .src("https://xyz.com/image1.png")
+                )
+                .property("key1", "key1Value")
+                .property("key2", List.of("key2Value", "key2Value2"))
+                .property("key5", "key5Value");
+
+        rft.getDatum()
+                .extra(BytesPlutusData.of("Extra text"));
+
+        System.out.println(rft.toJson());
+
+        CIP68ReferenceToken referenceToken = rft.getReferenceToken();
+        Asset userToken = rft.getAsset(BigInteger.valueOf(1));
+        Asset referenzToken = referenceToken.getAsset(BigInteger.valueOf(1));
+
+        PlutusData asPlutusData = referenceToken.getDatumAsPlutusData();
+
+        System.out.println(asPlutusData.serializeToHex());
+
+        String userTokenReceiver = sender2Addr;
+        String referenceTokenReceiver = AddressProvider.getEntAddress(mintingScript, Networks.preprod()).toBech32();
+
+        ScriptTx scriptTx = new ScriptTx()
+                .mintAsset(mintingScript, List.of(referenzToken), PlutusData.unit(), referenceTokenReceiver, asPlutusData)
+                .mintAsset(mintingScript, List.of(userToken),PlutusData.unit(), userTokenReceiver);
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
 
     @Test
     void alwaysTrueScript_withRegularPayment() throws ApiException, InterruptedException {
