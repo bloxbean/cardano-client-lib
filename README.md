@@ -9,7 +9,7 @@
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-### **Latest Stable Version**: [0.5.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0)
+### **Latest Stable Version**: [0.5.1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.1)
 
 ### More details --> [Documentation](https://cardano-client.dev/)
 
@@ -21,6 +21,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 ### **Tutorials**
 - [Simple Ada transfer](https://cardano-client.dev/docs/gettingstarted/simple-transfer)
 - [Multisig transfer using Native Script](https://cardano-client.dev/docs/gettingstarted/multisig-quickstart)
+- [Governance Api](https://cardano-client.dev/docs/apis/governance-api)
 
 ### **Old Posts**
 
@@ -76,7 +77,10 @@ For fine-grained dependency management, add one or more below modules as require
 | [cip20](cip/cip20)                           | cardano-client-cip20                | [CIP 20 - Transaction message/comment metadata](https://cips.cardano.org/cips/cip20/) <br> **Dependencies:** metadata                                                                                                                               |
 | [cip25](cip/cip25)                           | cardano-client-cip25                | [CIP 25 - Media NFT Metadata Standard](https://cips.cardano.org/cips/cip25/) <br> **Dependencies:** metadata                                                                                                                                        |
 | [cip27](cip/cip27)                           | cardano-client-cip27                | [CIP 27 - CNFT Community Royalties Standard](https://cips.cardano.org/cips/cip27/) <br> **Dependencies:** cip25                                                                                                                                     |
-| [cip30](cip/cip30)                           | cardano-client-cip30                | [CIP 30 - Cardano dApp-Wallet Web Bridge](https://cips.cardano.org/cips/cip30/) <br> **Dependencies:** cip8, core                                                                                                                                   |
+| [cip30](cip/cip30)                           | cardano-client-cip30                | [CIP 30 - Cardano dApp-Wallet Web Bridge](https://cips.cardano.org/cips/cip30/) <br> **Dependencies:** cip8, core    <br/>                                                                                                                          |
+| [cip68](cip/cip68)                           | cardano-client-cip68                | [CIP 68 - Datum Metadata Standard](https://cips.cardano.org/cips/cip68/) <br> **Dependencies:** cip67, cip25, plutus, transaction-spec                                                                                                              | 
+| [ogmios-supplier](ogmios-supplier)           | cardano-client-ogmios-supplier      | Provides Ogmios specific implementation for ProtocolParamsSupplier and TransactionProcessor.                                                                                                                                                        |
+| [kupo-supplier](kupo-supplier)               | cardano-client-kupo-supplier        | Provides Kupo specific implementation for UtxoSupplier.                                                                                                                                                                                             |
 
 ## Use as a library in a Java Project
 
@@ -90,7 +94,7 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.5.0</version>
+            <version>0.5.1</version>
         </dependency>
 ```
 - Backend modules
@@ -101,21 +105,21 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.5.0</version>
+            <version>0.5.1</version>
         </dependency>
         
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>0.5.0</version>
+            <version>0.5.1</version>
         </dependency>
         
          <!-- For Ogmios / Kupo backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>0.5.0</version>
+            <version>0.5.1</version>
         </dependency>
 ```
 
@@ -123,27 +127,27 @@ For fine-grained dependency management, add one or more below modules as require
 
 - Core Module
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.5.0'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.5.1'
 ```
 - Backend modules
     - For backend support, use one of the following supported backend module
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.5.0'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.5.1'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.5.0'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.5.1'
 
 //For Ogmios / Kupo
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.5.0'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.5.1'
 
 ```
 
 
 ### For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.5.1-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+**SNAPSHOT_VERSION :** 0.5.2-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```
