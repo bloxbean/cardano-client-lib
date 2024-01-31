@@ -1,21 +1,28 @@
 package com.bloxbean.cardano.client.plutus.annotation.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemerNestedA;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.*;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemer;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemerConverter;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemerNestedANestedB;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Basic_typesRedeemer;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Basic_typesRedeemerConverter;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Hello_worldDatum;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Hello_worldDatumConverter;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Hello_worldRedeemer;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Hello_worldRedeemerConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Basic_typesRedeemer;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Basic_typesRedeemerConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemer;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemerConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemerNestedANestedB;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.List_StrRedeemer;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.List_StrRedeemerConverter;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.MapBPRedeemer;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.MapBPRedeemerConverter;
+import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.NestedAConstr;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
@@ -79,6 +86,34 @@ public class BluePrintTest {
         ConstrPlutusData plutusData = complex_structuresRedeemerConverter.toPlutusData(complex_structuresRedeemer);
         String s = plutusData.serializeToHex();
         assertEquals("d8799f4c48656c6c6f2c20576f726c64d8799f0a5348656c6c6f2c20576f726c642066726f6d2041d8799f145348656c6c6f2c20576f726c642066726f6d2042ffffff", plutusData.serializeToHex());
+    }
+
+    @Test
+    public void listTest() {
+        List_StrRedeemer list_strRedeemer = new List_StrRedeemer();
+        NestedAConstr nestedAConstr = new NestedAConstr();
+        nestedAConstr.setMsg("Hello, World");
+        list_strRedeemer.setSimpleList(List.of(List.of(nestedAConstr)));
+
+        List_StrRedeemerConverter list_strRedeemerConverter = new List_StrRedeemerConverter();
+        ConstrPlutusData plutusData = list_strRedeemerConverter.toPlutusData(list_strRedeemer);
+
+        assertEquals("d8799f9f9fd8799f4c48656c6c6f2c20576f726c64ffffffff", plutusData.serializeToHex());
+    }
+
+    @Test
+    public void mapTest() {
+        MapBPRedeemer mapBPRedeemer = new MapBPRedeemer();
+        Map<NestedAConstr, Integer> map = new java.util.HashMap<>();
+        NestedAConstr nestedAConstr = new NestedAConstr();
+        nestedAConstr.setMsg("Hello, World");
+        map.put(nestedAConstr, 10);
+        mapBPRedeemer.setMap(map);
+
+        MapBPRedeemerConverter mapBPRedeemerConverter = new MapBPRedeemerConverter();
+        ConstrPlutusData plutusData = mapBPRedeemerConverter.toPlutusData(mapBPRedeemer);
+
+        assertEquals("d8799fa1d8799f4c48656c6c6f2c20576f726c64ff0aff", plutusData.serializeToHex());
     }
 
 

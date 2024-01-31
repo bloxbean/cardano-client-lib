@@ -67,16 +67,19 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != list)
             throw new IllegalArgumentException("Schema is not of type list");
 
-        TypeName fieldClass = getListTypeName(schema);
+        TypeName fieldClass = getTypeNameForListParametrizedType(schema);
         return FieldSpec.builder(fieldClass, schema.getTitle())
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
     }
 
-    private TypeName getListTypeName(BlueprintSchema field) {
-        return ParameterizedTypeName.get(ClassName.get("java.util","List"), getInnerType(field.getItems()));
+    private TypeName getTypeNameForListParametrizedType(BlueprintSchema field) {
+        return ParameterizedTypeName.get(ClassName.get("java.util", "List"), getInnerType(field.getItems()));
+    }
 
+    private TypeName getTypeNameForMapParametrizedType(BlueprintSchema field) {
+        return ParameterizedTypeName.get(ClassName.get("java.util", "Map"), getInnerType(field.getKeys()), getInnerType(field.getValues()));
     }
 
     private TypeName getInnerType(BlueprintSchema items) {
@@ -95,7 +98,9 @@ public class DataTypeProcessUtil {
             case bool:
                 return TypeName.get(Boolean.class);
             case list:
-                return getListTypeName(items);
+                return getTypeNameForListParametrizedType(items);
+            case map:
+                return getTypeNameForMapParametrizedType(items);
             default:
                 return TypeName.get(String.class);
         }
@@ -171,6 +176,13 @@ public class DataTypeProcessUtil {
     }
 
     public FieldSpec processMapDataType(String javaDoc, BlueprintSchema schema, String className) {
-        return null;
+        if(schema.getDataType() != map)
+            throw new IllegalArgumentException("Schema is not of type map");
+
+        TypeName fieldClass = getTypeNameForMapParametrizedType(schema);
+        return FieldSpec.builder(fieldClass, schema.getTitle())
+                .addModifiers(Modifier.PRIVATE)
+                .addJavadoc(javaDoc)
+                .build();
     }
 }
