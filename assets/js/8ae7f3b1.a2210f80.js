@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[212],{8429:e=>{e.exports=JSON.parse('{"title":"Guides","slug":"/category/guides","permalink":"/docs/category/guides","navigation":{"previous":{"title":"CIP68 Datum Metadata Api","permalink":"/docs/apis/cip68-api"},"next":{"title":"NFT Minting","permalink":"/docs/guides/nft-minting"}}}')}}]);
