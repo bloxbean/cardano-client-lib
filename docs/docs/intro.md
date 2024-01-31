@@ -8,7 +8,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 :::info
 
-**Latest Stable Version**: [0.5.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.0)
+**Latest Stable Version**: [0.5.1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.1)
 
 :::
 
@@ -52,6 +52,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
     - Plutus smart contract call
     - Token minting with Plutus contract
     - Staking operations
+    - Governance transactions (Preview)
   
 #### Composable Functions
 - Composable functions to build transaction
@@ -74,6 +75,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 - [CIP8  - Message Signing](https://cips.cardano.org/cips/cip8/)
 - [CIP30  - dApp signData & verify](https://cips.cardano.org/cips/cip30/)
 - [CIP27  - CNFT Community Royalties Standard](https://cips.cardano.org/cips/cip27/)
+- [CIP68  - Datum Metadata Standard](https://cips.cardano.org/cips/cip68/)
 
 #### Metadata Builder
 - Helper to build Metadata
@@ -93,10 +95,10 @@ Out of box, the library currently supports integration with following providers 
     - **Status :** Stable
 - [Koios](https://www.koios.rest/)
     - **Module :** cardano-client-backend-koios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/koios/README.md)
-    - **Status :** Beta
+    - **Status :** Stable
 - [Ogmios](https://ogmios.dev/)
     - **Module :** cardano-client-backend-koios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/ogmios/README.md)
-    - **Status :** Beta
+    - **Status :** Stable
     - **Supported Apis :** submitTransaction, evaluateTx, Kupo support (UtxoService)
 
 **Following Backend apis are currently available**
