@@ -7,6 +7,7 @@ import com.google.auto.service.AutoService;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.*;
+import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
@@ -33,6 +34,11 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         Set<String> annotataions = new LinkedHashSet<String>();
         annotataions.add(Blueprint.class.getCanonicalName());
         return annotataions;
+    }
+
+    @Override
+    public SourceVersion getSupportedSourceVersion() {
+        return SourceVersion.latestSupported();
     }
 
     @Override
