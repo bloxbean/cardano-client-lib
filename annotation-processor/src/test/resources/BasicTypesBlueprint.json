@@ -50,6 +50,10 @@
             {
               "title": "owner",
               "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "action",
+              "$ref": "#/definitions/basic_types~1Enum"
             }
           ]
         }
@@ -72,6 +76,23 @@
               "$ref": "#/definitions/Int"
             }
           ]
+        }
+      ]
+    },
+    "basic_types/Enum": {
+      "title": "Enum",
+      "anyOf": [
+        {
+          "title": "Mint",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Burn",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
         }
       ]
     }

@@ -1,8 +1,14 @@
 package com.bloxbean.cardano.client.plutus.annotation.blueprint_processor;
 
+import co.nstant.in.cbor.model.ByteString;
+import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.common.model.Network;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.squareup.javapoet.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -45,9 +51,11 @@ public class ValidatorProcessor {
             fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getDatum().getSchema(), "Datum", title, ""));
         if(validator.getParameters() != null) {
             for (BlueprintDatum parameter : validator.getParameters()) {
-                fields.add(fieldSpecProcessor.createDatumFieldSpec(parameter.getSchema(), "Parameter", title, ""));
+                fields.add(fieldSpecProcessor.createDatumFieldSpec(parameter.getSchema(), "Parameter", title + parameter.getTitle(), ""));
             }
         }
+        List<MethodSpec> methods = new ArrayList<>();
+        methods.add(getScriptAddressMethodSpec());
 
         // building and saving of class
         TypeSpec build = TypeSpec.classBuilder(validatorClassName)
@@ -57,10 +65,23 @@ public class ValidatorProcessor {
                 .addAnnotation(AllArgsConstructor.class)
                 .addAnnotation(NoArgsConstructor.class)
                 .addFields(fields)
+                .addMethods(methods)
                 .build();
         JavaFileUtil.createJavaFile(packageName, build, validatorClassName, processingEnv);
     }
 
+    private MethodSpec getScriptAddressMethodSpec() {
+        MethodSpec getScriptAddress = MethodSpec.methodBuilder("getScriptAddress")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(String.class)
+                .addParameter(Network.class, "network")
+                .addException(CborDeserializationException.class)
+                .addStatement("$T compiledCodeAsByteString = new $T($T.decodeHexString(this.compiledCode))", ByteString.class, ByteString.class, HexUtil.class)
+                .addStatement("$T script = $T.deserialize(compiledCodeAsByteString)", PlutusV2Script.class, PlutusV2Script.class)
+                .addStatement("return $T.getEntAddress(script, network).toBech32()", AddressProvider.class)
+                .build();
+        return getScriptAddress;
+    }
 
 
     public static List<FieldSpec> getFieldSpecsForValidator(Validator validator) {

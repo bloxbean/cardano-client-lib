@@ -1,43 +1,22 @@
 package com.bloxbean.cardano.client.plutus.annotation.blueprint;
 
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemerNestedA;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.*;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemer;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemerConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.Complex_structuresRedeemerNestedANestedB;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Basic_typesRedeemer;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Basic_typesRedeemerConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Hello_worldDatum;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Hello_worldDatumConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Hello_worldRedeemer;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Hello_worldRedeemerConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.List_StrRedeemer;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.List_StrRedeemerConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.MapBPRedeemer;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.MapBPRedeemerConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.NestedAConstr;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 
 import static org.junit.Assert.assertEquals;
 
 public class BluePrintTest {
 
     @Test
-    public void test() throws ClassNotFoundException {
-//        Para
-
-        System.out.println("");
-    }
-
-
-    @Test
-    public void fillDatum() {
+    public void bytesTest() {
         Hello_worldDatum hello_worldDatum = new Hello_worldDatum();
         hello_worldDatum.setOwner(new byte[]{-88, -77, -72, 20, -90, 94, 94, 67, 119, 127, -119, -77, 12, -121, -22, -60, -29, 57, 106, -101, -100, 36, -51, 8, -42, 96, -108, -103});
         Hello_worldDatumConverter hello_worldDatumConverter = new Hello_worldDatumConverter();
@@ -47,9 +26,24 @@ public class BluePrintTest {
     }
 
     @Test
+    public void enumTest() {
+        Basic_typesDatum basic_typesDatum = new Basic_typesDatum();
+        Basic_typesDatumAction basic_typesDatumAction = new Basic_typesDatumAction();
+        basic_typesDatumAction.setBasic_typesDatumAction1Burn(new Basic_typesDatumAction1Burn());
+        basic_typesDatum.setAction(basic_typesDatumAction);
+        basic_typesDatum.setOwner("Hello, World".getBytes(StandardCharsets.UTF_8));
+
+        Basic_typesDatumConverter basic_typesDatumConverter = new Basic_typesDatumConverter();
+        ConstrPlutusData plutusData = basic_typesDatumConverter.toPlutusData(basic_typesDatum);
+
+        assertEquals("d8799f4c48656c6c6f2c20576f726c64d87a9fd87a80ffff", plutusData.serializeToHex());
+    }
+
+    @Test
     public void fillRedeemer() {
         Hello_worldRedeemer hello_worldRedeemer = new Hello_worldRedeemer();
         hello_worldRedeemer.setMsg("Hello, World".getBytes(StandardCharsets.UTF_8));
+
         Hello_worldRedeemerConverter hello_worldRedeemerConverter = new Hello_worldRedeemerConverter();
         ConstrPlutusData plutusData = hello_worldRedeemerConverter.toPlutusData(hello_worldRedeemer);
 
@@ -104,7 +98,7 @@ public class BluePrintTest {
     @Test
     public void mapTest() {
         MapBPRedeemer mapBPRedeemer = new MapBPRedeemer();
-        Map<NestedAConstr, Integer> map = new java.util.HashMap<>();
+        Map<NestedAConstr, Integer> map = new HashMap<>();
         NestedAConstr nestedAConstr = new NestedAConstr();
         nestedAConstr.setMsg("Hello, World");
         map.put(nestedAConstr, 10);

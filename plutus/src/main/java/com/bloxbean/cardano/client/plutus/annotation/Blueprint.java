@@ -10,9 +10,22 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 public @interface Blueprint {
 
+    /**
+     * Absolute file path
+     * @return
+     */
     String file() default "";
+
+    /**
+     * File in ressources
+     * @return
+     */
     String fileInRessources() default "";
+
+    /**
+     * Name of package the generated classes should be in
+     * @return
+     */
     String packageName() default "";
-    String prefix() default "";
 }
 

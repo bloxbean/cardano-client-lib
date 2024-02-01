@@ -30,11 +30,11 @@ public class DataTypeProcessUtil {
      * @param schema
      * @return
      */
-    public FieldSpec processIntegerDataType(String javaDoc, BlueprintSchema schema) {
+    public FieldSpec processIntegerDataType(String javaDoc, BlueprintSchema schema, String alternativeName) {
         if(schema.getDataType() != integer)
             throw new IllegalArgumentException("Schema is not of type integer");
-
-        return FieldSpec.builder(int.class, schema.getTitle())
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        return FieldSpec.builder(int.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
@@ -46,11 +46,11 @@ public class DataTypeProcessUtil {
      * @param schema
      * @return
      */
-    public FieldSpec processBytesDataType(String javaDoc, BlueprintSchema schema) {
+    public FieldSpec processBytesDataType(String javaDoc, BlueprintSchema schema, String alternativeName) {
         if(schema.getDataType() != bytes)
             throw new IllegalArgumentException("Schema is not of type bytes");
-
-        return FieldSpec.builder(byte[].class, schema.getTitle())
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        return FieldSpec.builder(byte[].class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
@@ -63,12 +63,12 @@ public class DataTypeProcessUtil {
      * @param schema
      * @return
      */
-    public FieldSpec processListDataType(String javaDoc, BlueprintSchema schema) {
+    public FieldSpec processListDataType(String javaDoc, BlueprintSchema schema, String alternativeName) {
         if(schema.getDataType() != list)
             throw new IllegalArgumentException("Schema is not of type list");
-
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
         TypeName fieldClass = getTypeNameForListParametrizedType(schema);
-        return FieldSpec.builder(fieldClass, schema.getTitle())
+        return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
@@ -90,7 +90,7 @@ public class DataTypeProcessUtil {
         }
         switch (items.getDataType()) {
             case bytes:
-                return TypeName.get(Byte[].class);
+                return TypeName.get(byte[].class);
             case integer:
                 return TypeName.get(Integer.class);
             case string:
@@ -112,11 +112,11 @@ public class DataTypeProcessUtil {
      * @param schema
      * @return
      */
-    public FieldSpec processBoolDataType(String javaDoc, BlueprintSchema schema) {
+    public FieldSpec processBoolDataType(String javaDoc, BlueprintSchema schema, String alternativeName) {
         if(schema.getDataType() != bool)
             throw new IllegalArgumentException("Schema is not of type boolean");
-
-        return FieldSpec.builder(boolean.class, schema.getTitle())
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        return FieldSpec.builder(boolean.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
@@ -128,22 +128,22 @@ public class DataTypeProcessUtil {
      * @param schema
      * @return
      */
-    public FieldSpec processStringDataType(String javaDoc, BlueprintSchema schema) {
+    public FieldSpec processStringDataType(String javaDoc, BlueprintSchema schema, String alternativeName) {
         if(schema.getDataType() != string)
             throw new IllegalArgumentException("Schema is not of type string");
-
-        return FieldSpec.builder(String.class, schema.getTitle())
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        return FieldSpec.builder(String.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
     }
 
-    public List<FieldSpec> processConstructorDataType(String javaDoc, BlueprintSchema schema, String className) {
+    public List<FieldSpec> processConstructorDataType(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         for (BlueprintSchema field : schema.getFields()) {
             if(field.getDataType() != null) {
                 javaDoc += " Index: " + field.getIndex() ;
-                specs.addAll(fieldSpecProcessor.CreateFieldSpecForDataTypes(javaDoc,  List.of(field), className));
+                specs.addAll(fieldSpecProcessor.CreateFieldSpecForDataTypes(javaDoc,  List.of(field), className, alternativeName));
             } else {
                 specs.add(fieldSpecProcessor.createDatumFieldSpec(field, "", field.getTitle(), className));
             }
@@ -175,12 +175,12 @@ public class DataTypeProcessUtil {
                 .build();
     }
 
-    public FieldSpec processMapDataType(String javaDoc, BlueprintSchema schema, String className) {
+    public FieldSpec processMapDataType(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         if(schema.getDataType() != map)
             throw new IllegalArgumentException("Schema is not of type map");
-
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
         TypeName fieldClass = getTypeNameForMapParametrizedType(schema);
-        return FieldSpec.builder(fieldClass, schema.getTitle())
+        return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();

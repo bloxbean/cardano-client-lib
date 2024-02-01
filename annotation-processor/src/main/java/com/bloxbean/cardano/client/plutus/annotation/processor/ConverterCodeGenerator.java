@@ -196,9 +196,11 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 case CONSTRUCTOR:
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
-                            .add(nullCheckStatement(field, fieldOrGetterName(field)))
-                            .addStatement("constr.getData().add(new $LConverter().toPlutusData(obj.$L))", field.getFieldType().getJavaType().getName(), fieldOrGetterName(field))
-                            .add("\n")
+                            .beginControlFlow("if(obj.$L != null)", fieldOrGetterName(field))
+                                .addStatement("constr.getData().add(new $LConverter().toPlutusData(obj.$L))", field.getFieldType().getJavaType().getName(), fieldOrGetterName(field))
+                                .addStatement("// Setting the alternative to the childs alternative to use this constructor")
+                                .addStatement("constr = $T.builder().alternative($L).data(constr.getData()).build()", ConstrPlutusData.class, field.getAlternative())
+                            .endControlFlow()
                             .build();
                     break;
                 case BOOL:

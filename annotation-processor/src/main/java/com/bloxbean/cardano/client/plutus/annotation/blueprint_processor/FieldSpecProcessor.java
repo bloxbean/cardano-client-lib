@@ -58,29 +58,29 @@ public class FieldSpecProcessor {
      * @param className
      * @return
      */
-    public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, BlueprintSchema schema, String className) {
+    public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         switch (schema.getDataType()) {
             case bytes:
-                specs.add(dataTypeProcessUtil.processBytesDataType(javaDoc, schema));
+                specs.add(dataTypeProcessUtil.processBytesDataType(javaDoc, schema, alternativeName));
                 break;
             case integer:
-                specs.add(dataTypeProcessUtil.processIntegerDataType(javaDoc, schema));
+                specs.add(dataTypeProcessUtil.processIntegerDataType(javaDoc, schema, alternativeName));
                 break;
             case bool:
-                specs.add(dataTypeProcessUtil.processBoolDataType(javaDoc, schema));
+                specs.add(dataTypeProcessUtil.processBoolDataType(javaDoc, schema, alternativeName));
                 break;
             case list:
-                specs.add(dataTypeProcessUtil.processListDataType(javaDoc, schema));
+                specs.add(dataTypeProcessUtil.processListDataType(javaDoc, schema, alternativeName));
                 break;
             case map:
-                specs.add(dataTypeProcessUtil.processMapDataType(javaDoc, schema, className));
+                specs.add(dataTypeProcessUtil.processMapDataType(javaDoc, schema, className, alternativeName));
                 break;
             case constructor:
-                specs.addAll(dataTypeProcessUtil.processConstructorDataType(javaDoc, schema, className));
+                specs.addAll(dataTypeProcessUtil.processConstructorDataType(javaDoc, schema, className, alternativeName));
                 break;
             case string:
-                specs.add(dataTypeProcessUtil.processStringDataType(javaDoc, schema));
+                specs.add(dataTypeProcessUtil.processStringDataType(javaDoc, schema, alternativeName));
                 break;
             default:
         }
@@ -94,10 +94,10 @@ public class FieldSpecProcessor {
      * @param className
      * @return
      */
-    public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, List<BlueprintSchema> schemas, String className) {
+    public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, List<BlueprintSchema> schemas, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         for (BlueprintSchema schema : schemas) {
-            specs.addAll(CreateFieldSpecForDataTypes(javaDoc, schema, className));
+            specs.addAll(CreateFieldSpecForDataTypes(javaDoc, schema, className, alternativeName));
         }
         return specs;
     }
@@ -112,7 +112,7 @@ public class FieldSpecProcessor {
      */
     public FieldSpec createDatumFieldSpec(BlueprintSchema schema, String suffix, String title, String prefix) {
         String classNameString = JavaFileUtil.buildClassName(schema, suffix, title, prefix);
-        TypeSpec redeemerJavaFile = createDatumTypeSpec(schema, classNameString);
+        TypeSpec redeemerJavaFile = createDatumTypeSpec(schema, classNameString, title);
 
         ClassName className = ClassName.get(annotation.packageName(), redeemerJavaFile.name);
         String fieldName = title + (schema.getDataType() == BlueprintDatatype.constructor ? String.valueOf(schema.getIndex()) : "") + suffix;
@@ -122,10 +122,10 @@ public class FieldSpecProcessor {
                 .build();
     }
 
-    private TypeSpec createDatumTypeSpec(BlueprintSchema schema, String className) {
+    private TypeSpec createDatumTypeSpec(BlueprintSchema schema, String className, String alternativeName) {
         Tuple<String, List<BlueprintSchema>> allInnerSchemas = FieldSpecProcessor.collectAllFields(schema);
-
-        List<FieldSpec> fields = CreateFieldSpecForDataTypes(allInnerSchemas._1, allInnerSchemas._2, className);
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        List<FieldSpec> fields = CreateFieldSpecForDataTypes(allInnerSchemas._1, allInnerSchemas._2, className, title);
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).addMember("alternative", "$L", schema.getIndex()).build();
 
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)

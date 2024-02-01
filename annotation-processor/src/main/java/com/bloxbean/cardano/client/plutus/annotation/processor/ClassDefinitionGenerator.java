@@ -75,6 +75,7 @@ public class ClassDefinitionGenerator {
                 VariableElement variableElement = (VariableElement) enclosedElement;
                 String fieldName = variableElement.getSimpleName().toString();
                 field.setName(fieldName);
+                field.setAlternative(getAlternative(fieldName));
 
                 ExecutableElement getter = findGetter(typeElement, variableElement);
                 ExecutableElement setter = findSetter(typeElement, variableElement);
@@ -121,6 +122,16 @@ public class ClassDefinitionGenerator {
         }
 
         return classDefinition;
+    }
+
+    private int getAlternative(String fieldName) {
+        Optional<TypeElement> first = typeElements.stream().filter(typeElement -> typeElement.getSimpleName().toString().toLowerCase().equals(fieldName.toLowerCase())).findFirst();
+        if(first.isPresent()) {
+            TypeElement typeElement = first.get();
+            return typeElement.getAnnotation(Constr.class).alternative();
+        } else {
+            return 0;
+        }
     }
 
     private FieldType detectFieldType(TypeName typeName, TypeMirror typeMirror) throws NotSupportedException {
