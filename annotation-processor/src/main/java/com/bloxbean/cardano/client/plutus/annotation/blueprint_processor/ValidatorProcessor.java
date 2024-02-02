@@ -24,6 +24,7 @@ public class ValidatorProcessor {
     private final Blueprint annotation;
     private final ProcessingEnvironment processingEnv;
     private final FieldSpecProcessor fieldSpecProcessor;
+    private final String VALIDATOR_CLASS_SUFFIX = "Validator";
 
     public ValidatorProcessor(Blueprint annotation, ProcessingEnvironment processingEnv) {
         this.annotation = annotation;
@@ -34,29 +35,30 @@ public class ValidatorProcessor {
     /**
      * Validator Definition will be converted to a Java class.
      * All definitions within are fields and/or seperate classes
-     * @param validator
+     * @param validator validator definition
      */
     public void processValidator(Validator validator) {
         // preparation of standard fields
         String packageName = annotation.packageName() + "." + validator.getTitle().split("\\.")[0];
         String title = validator.getTitle().split("\\.")[1];
         title = JavaFileUtil.firstUpperCase(title);
-        String validatorClassName = title + "Validator"; // ToDO need to check for valid names
+        
         List<FieldSpec> fields = ValidatorProcessor.getFieldSpecsForValidator(validator);
 
         // processing of fields
         if(validator.getRedeemer() != null)
-            fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getRedeemer().getSchema(), "Redeemer", title, ""));
+            fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getRedeemer().getSchema(), "Redeemer", title));
         if(validator.getDatum() != null)
-            fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getDatum().getSchema(), "Datum", title, ""));
+            fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getDatum().getSchema(), "Datum", title));
         if(validator.getParameters() != null) {
             for (BlueprintDatum parameter : validator.getParameters()) {
-                fields.add(fieldSpecProcessor.createDatumFieldSpec(parameter.getSchema(), "Parameter", title + parameter.getTitle(), ""));
+                fields.add(fieldSpecProcessor.createDatumFieldSpec(parameter.getSchema(), "Parameter", title + parameter.getTitle()));
             }
         }
         List<MethodSpec> methods = new ArrayList<>();
         methods.add(getScriptAddressMethodSpec());
 
+        String validatorClassName = title + VALIDATOR_CLASS_SUFFIX;
         // building and saving of class
         TypeSpec build = TypeSpec.classBuilder(validatorClassName)
                 .addModifiers(Modifier.PUBLIC)
@@ -76,6 +78,7 @@ public class ValidatorProcessor {
                 .returns(String.class)
                 .addParameter(Network.class, "network")
                 .addException(CborDeserializationException.class)
+                .addJavadoc("Returns the address of the validator script")
                 .addStatement("$T compiledCodeAsByteString = new $T($T.decodeHexString(this.compiledCode))", ByteString.class, ByteString.class, HexUtil.class)
                 .addStatement("$T script = $T.deserialize(compiledCodeAsByteString)", PlutusV2Script.class, PlutusV2Script.class)
                 .addStatement("return $T.getEntAddress(script, network).toBech32()", AddressProvider.class)

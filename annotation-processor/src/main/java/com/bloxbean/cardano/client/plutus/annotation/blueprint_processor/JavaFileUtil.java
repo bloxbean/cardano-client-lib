@@ -8,10 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.tools.JavaFileObject;
-import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
-import java.nio.file.Path;
 
 @Slf4j
 public class JavaFileUtil {
@@ -57,10 +55,5 @@ public class JavaFileUtil {
             className += String.valueOf(schema.getIndex());
         className += firstUpperCase(suffix); // ToDO need to check for valid names
         return className;
-    }
-
-    public static File getFileFromRessourcers(String s) {
-        Path resourceDirectory = Path.of("src", "test", "resources", s);
-        return resourceDirectory.toFile();
     }
 }

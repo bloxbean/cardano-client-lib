@@ -107,6 +107,17 @@ public class FieldSpecProcessor {
      * @param schema
      * @param suffix
      * @param title
+     * @return
+     */
+    public FieldSpec createDatumFieldSpec(BlueprintSchema schema, String suffix, String title) {
+        return createDatumFieldSpec(schema, suffix, title, "");
+    }
+
+    /**
+     * Creates a FieldSpec for a given schema
+     * @param schema
+     * @param suffix
+     * @param title
      * @param prefix
      * @return
      */

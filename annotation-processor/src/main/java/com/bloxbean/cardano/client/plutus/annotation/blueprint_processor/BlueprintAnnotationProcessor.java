@@ -11,6 +11,8 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
+import javax.tools.FileObject;
+import javax.tools.StandardLocation;
 import java.io.File;
 import java.util.*;
 
@@ -20,7 +22,6 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
 
     private Messager messager;
     private List<TypeElement> typeElements = new ArrayList<>();
-    private Blueprint annotation;
     private ValidatorProcessor validatorProcessor;
 
     @Override
@@ -43,35 +44,30 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        System.out.println("Processing Blueprint annotation");
-        for (TypeElement annotation : annotations) {
-            Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
-            for (Element element : elements) {
-                if (element instanceof TypeElement) {
-                    TypeElement typeElement = (TypeElement) element;
-                    typeElements.add(typeElement);
+        log.debug("Processing Blueprint annotation");
 
-                }
-            }
-        }
+        typeElements = getTypeElementsWithAnnotations(annotations, roundEnv);
 
         for(TypeElement typeElement : typeElements) {
-            annotation = typeElement.getAnnotation(Blueprint.class);
+            Blueprint annotation = typeElement.getAnnotation(Blueprint.class);
             if (annotation == null) {
                 log.error("Blueprint annotation not found for class {}", typeElement.getSimpleName());
                 return false;
             } else {
                 validatorProcessor = new ValidatorProcessor(annotation, processingEnv);
             }
-
-            File blueprintFile = getFile();
-
+            File blueprintFile = getFileFromAnnotation(annotation);
             if (blueprintFile == null || !blueprintFile.exists()) {
                 log.error("Blueprint file {} not found", annotation.fileInRessources());
                 return false;
             }
-            PlutusContractBlueprint plutusContractBlueprint = PlutusBlueprintLoader.loadBlueprint(blueprintFile);
-
+            PlutusContractBlueprint plutusContractBlueprint;
+            try {
+                plutusContractBlueprint = PlutusBlueprintLoader.loadBlueprint(blueprintFile);
+            } catch (Exception e) {
+                log.error("Error processing blueprint file {}", blueprintFile.getAbsolutePath(), e);
+                return false;
+            }
             for (Validator validator : plutusContractBlueprint.getValidators()) {
                 validatorProcessor.processValidator(validator);
             }
@@ -79,17 +75,41 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         return true;
     }
 
-    private File getFile() {
+    private List<TypeElement> getTypeElementsWithAnnotations(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        List<TypeElement> elementsList = new ArrayList<>();
+        for (TypeElement annotation : annotations) {
+            Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
+            for (Element element : elements) {
+                if (element instanceof TypeElement) {
+                    TypeElement typeElement = (TypeElement) element;
+                    elementsList.add(typeElement);
+
+                }
+            }
+        }
+        return elementsList;
+    }
+
+    private File getFileFromAnnotation(Blueprint annotation) {
         File blueprintFile = null;
         if(!annotation.file().isEmpty())
             blueprintFile = new File(annotation.file());
         if(!annotation.fileInRessources().isEmpty())
-            blueprintFile = JavaFileUtil.getFileFromRessourcers(annotation.fileInRessources());
+            blueprintFile = getFileFromRessourcers(annotation.fileInRessources());
         if(blueprintFile == null || !blueprintFile.exists()) {
             log.error("Blueprint file {} not found", annotation.file());
             return null;
         }
         return blueprintFile;
+    }
+
+    public File getFileFromRessourcers(String s) {
+        try {
+            FileObject resource = processingEnv.getFiler().getResource(StandardLocation.CLASS_PATH, "", s);
+            return new File(resource.toUri());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
 

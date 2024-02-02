@@ -13,7 +13,7 @@ import static com.google.testing.compile.Compiler.javac;
 public class BlueprintCompileTest {
 
     @Test
-    void nestedListMapCompile() throws Exception {
+    void nestedListMapCompile() {
         Compilation compilation =
                 javac()
                         .withProcessors(new BlueprintAnnotationProcessor())
@@ -28,7 +28,7 @@ public class BlueprintCompileTest {
         System.out.println(compilation.diagnostics());
         compilation.generatedFiles().forEach(javaFileObject -> {
             if (javaFileObject.getName().endsWith("class"))
-                return;;
+                return;
             System.out.println(javaFileObject.getName());
             try {
                 System.out.println(javaFileObject.getCharContent(true));
