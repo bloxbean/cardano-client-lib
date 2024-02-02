@@ -2,7 +2,9 @@ dependencies {
     api project(':plutus')
     api project(':address')
 
-    implementation(libs.google.auto.service)
+    implementation(libs.google.auto.service){
+        exclude group: 'com.google.guava', module: 'guava'
+    }
     api libs.javapoet
 
     testImplementation libs.google.testing.compile
