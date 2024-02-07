@@ -8,7 +8,10 @@ import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import org.apache.commons.collections4.ListUtils;
 import rest.koios.client.backend.api.base.common.Asset;
 import rest.koios.client.backend.api.transactions.TransactionsService;
-import rest.koios.client.backend.api.transactions.model.*;
+import rest.koios.client.backend.api.transactions.model.TxCertificate;
+import rest.koios.client.backend.api.transactions.model.TxIO;
+import rest.koios.client.backend.api.transactions.model.TxInfo;
+import rest.koios.client.backend.api.transactions.model.TxPlutusContract;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -91,9 +94,15 @@ public class KoiosTransactionService implements TransactionService {
         TransactionContent transactionContent = new TransactionContent();
         transactionContent.setHash(txInfo.getTxHash());
         transactionContent.setBlock(txInfo.getBlockHash());
-        transactionContent.setBlockHeight(txInfo.getBlockHeight());
-        transactionContent.setBlockTime(txInfo.getTxTimestamp());
-        transactionContent.setSlot(txInfo.getAbsoluteSlot());
+        if (txInfo.getBlockHeight() != null) {
+            transactionContent.setBlockHeight(txInfo.getBlockHeight().longValue());
+        }
+        if (txInfo.getTxTimestamp() != null) {
+            transactionContent.setBlockTime(txInfo.getTxTimestamp().longValue());
+        }
+        if (txInfo.getAbsoluteSlot() != null) {
+            transactionContent.setSlot(txInfo.getAbsoluteSlot().longValue());
+        }
         transactionContent.setIndex(txInfo.getTxBlockIndex());
         List<TxOutputAmount> txOutputAmountList = new ArrayList<>();
         txOutputAmountList.add(new TxOutputAmount(LOVELACE, txInfo.getTotalOutput()));
