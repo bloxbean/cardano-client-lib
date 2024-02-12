@@ -60,29 +60,34 @@ public class FieldSpecProcessor {
      */
     public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
-        switch (schema.getDataType()) {
-            case bytes:
-                specs.add(dataTypeProcessUtil.processBytesDataType(javaDoc, schema, alternativeName));
-                break;
-            case integer:
-                specs.add(dataTypeProcessUtil.processIntegerDataType(javaDoc, schema, alternativeName));
-                break;
-            case bool:
-                specs.add(dataTypeProcessUtil.processBoolDataType(javaDoc, schema, alternativeName));
-                break;
-            case list:
-                specs.add(dataTypeProcessUtil.processListDataType(javaDoc, schema, alternativeName));
-                break;
-            case map:
-                specs.add(dataTypeProcessUtil.processMapDataType(javaDoc, schema, className, alternativeName));
-                break;
-            case constructor:
-                specs.addAll(dataTypeProcessUtil.processConstructorDataType(javaDoc, schema, className, alternativeName));
-                break;
-            case string:
-                specs.add(dataTypeProcessUtil.processStringDataType(javaDoc, schema, alternativeName));
-                break;
-            default:
+        if(schema.getDataType() == null) { // Processing Anyplutusdata
+            specs.add(dataTypeProcessUtil.processPlutusDataType(javaDoc, schema, alternativeName));
+
+        } else {
+            switch (schema.getDataType()) {
+                case bytes:
+                    specs.add(dataTypeProcessUtil.processBytesDataType(javaDoc, schema, alternativeName));
+                    break;
+                case integer:
+                    specs.add(dataTypeProcessUtil.processIntegerDataType(javaDoc, schema, alternativeName));
+                    break;
+                case bool:
+                    specs.add(dataTypeProcessUtil.processBoolDataType(javaDoc, schema, alternativeName));
+                    break;
+                case list:
+                    specs.add(dataTypeProcessUtil.processListDataType(javaDoc, schema, alternativeName));
+                    break;
+                case map:
+                    specs.add(dataTypeProcessUtil.processMapDataType(javaDoc, schema, className, alternativeName));
+                    break;
+                case constructor:
+                    specs.addAll(dataTypeProcessUtil.processConstructorDataType(javaDoc, schema, className, alternativeName));
+                    break;
+                case string:
+                    specs.add(dataTypeProcessUtil.processStringDataType(javaDoc, schema, alternativeName));
+                    break;
+                default:
+            }
         }
         return specs;
     }

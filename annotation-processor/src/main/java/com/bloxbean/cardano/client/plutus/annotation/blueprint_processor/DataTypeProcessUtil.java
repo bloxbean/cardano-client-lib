@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.plutus.annotation.blueprint_processor;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.*;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -181,6 +182,16 @@ public class DataTypeProcessUtil {
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
         TypeName fieldClass = getTypeNameForMapParametrizedType(schema);
         return FieldSpec.builder(fieldClass, title)
+                .addModifiers(Modifier.PRIVATE)
+                .addJavadoc(javaDoc)
+                .build();
+    }
+
+    public FieldSpec processPlutusDataType(String javaDoc, BlueprintSchema schema, String alternativeName) {
+        if(schema.getDataType() != null)
+            throw new IllegalArgumentException("Schema is not of type plutusdata");
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        return FieldSpec.builder(PlutusData.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();

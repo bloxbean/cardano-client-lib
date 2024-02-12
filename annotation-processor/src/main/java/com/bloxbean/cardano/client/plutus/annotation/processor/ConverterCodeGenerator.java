@@ -178,6 +178,14 @@ public class ConverterCodeGenerator implements CodeGenerator {
                             .add("\n")
                             .build();
                     break;
+                case PLUTUSDATA:
+                    codeBlock = CodeBlock.builder()
+                            .add("//Field $L\n", field.getName())
+                            .add(nullCheckStatement(field, fieldOrGetterName(field)))
+                            .addStatement("constr.getData().add(obj.$L)", fieldOrGetterName(field))
+                            .add("\n")
+                            .build();
+                    break;
                 case OPTIONAL:
                     /*** Sample Optional Code
                     if (obj.isEmpty())
@@ -553,6 +561,12 @@ public class ConverterCodeGenerator implements CodeGenerator {
                         .add("//Field $L\n", field.getName())
                         .addStatement("var $LMap = (MapPlutusData)data.getPlutusDataList().get($L)", field.getName(), field.getIndex())
                         .add(generateMapDeserializeCode(field.getFieldType(), field.getName(), field.getName() + "Map", "entry"))
+                        .build();
+                break;
+            case PLUTUSDATA:
+                codeBlock = CodeBlock.builder()
+                        .add("//Field $L\n", field.getName())
+                        .add("var $L = data.getPlutusDataList().get($L);\n", field.getName(), field.getIndex())
                         .build();
                 break;
             case OPTIONAL:

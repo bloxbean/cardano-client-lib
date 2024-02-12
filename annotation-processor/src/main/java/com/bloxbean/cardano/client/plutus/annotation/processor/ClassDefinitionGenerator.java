@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.plutus.annotation.Enc;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusIgnore;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.NotSupportedException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
@@ -164,6 +165,9 @@ public class ClassDefinitionGenerator {
         } else if (typeName.equals(TypeName.BOOLEAN)) {
             fieldType.setType(Type.BOOL);
             fieldType.setJavaType(JavaType.BOOLEAN);
+        } else if (typeName.equals(TypeName.get(PlutusData.class))) {
+            fieldType.setType(Type.PLUTUSDATA);
+            fieldType.setJavaType(JavaType.PLUTUSDATA);
         } else if (typeName instanceof ParameterizedTypeName &&
                 (((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(List.class))
                         || isAssignableToList(typeMirror))) {
