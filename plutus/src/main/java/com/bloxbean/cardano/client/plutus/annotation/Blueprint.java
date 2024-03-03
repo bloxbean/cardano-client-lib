@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.plutus.annotation;
 
-import java.io.File;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -20,7 +19,7 @@ public @interface Blueprint {
      * File in ressources
      * @return
      */
-    String fileInRessources() default "";
+    String fileInResources() default "";
 
     /**
      * Name of package the generated classes should be in

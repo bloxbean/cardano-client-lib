@@ -58,7 +58,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             }
             File blueprintFile = getFileFromAnnotation(annotation);
             if (blueprintFile == null || !blueprintFile.exists()) {
-                log.error("Blueprint file {} not found", annotation.fileInRessources());
+                log.error("Blueprint file {} not found", annotation.fileInResources());
                 return false;
             }
             PlutusContractBlueprint plutusContractBlueprint;
@@ -94,8 +94,8 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         File blueprintFile = null;
         if(!annotation.file().isEmpty())
             blueprintFile = new File(annotation.file());
-        if(!annotation.fileInRessources().isEmpty())
-            blueprintFile = getFileFromRessourcers(annotation.fileInRessources());
+        if(!annotation.fileInResources().isEmpty())
+            blueprintFile = getFileFromRessourcers(annotation.fileInResources());
         if(blueprintFile == null || !blueprintFile.exists()) {
             log.error("Blueprint file {} not found", annotation.file());
             return null;
