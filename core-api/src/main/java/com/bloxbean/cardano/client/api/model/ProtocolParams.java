@@ -66,6 +66,8 @@ public class ProtocolParams {
     private BigDecimal pvtCommitteeNormal;
     private BigDecimal pvtCommitteeNoConfidence;
     private BigDecimal pvtHardForkInitiation;
+    @JsonProperty("pvt_p_p_security_group")
+    private BigDecimal pvtPPSecurityGroup;
 
     //Drep vote thresholds
     private BigDecimal dvtMotionNoConfidence;
@@ -90,5 +92,5 @@ public class ProtocolParams {
     private BigInteger govActionDeposit;
     private BigInteger drepDeposit;
     private Integer drepActivity;
-
+    private Integer minFeeRefScriptCostPerByte;
 }
