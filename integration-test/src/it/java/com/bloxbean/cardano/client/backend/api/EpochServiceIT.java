@@ -10,6 +10,9 @@ import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -71,7 +74,6 @@ public class EpochServiceIT extends BaseITTest {
         System.out.println(result);
 
         ProtocolParams protocolParams = result.getValue();
-        System.out.println(JsonUtil.getPrettyJson(protocolParams));
 
         assertThat(protocolParams, notNullValue());
         assertThat(protocolParams, notNullValue());
@@ -79,6 +81,32 @@ public class EpochServiceIT extends BaseITTest {
         assertThat(protocolParams.getCoinsPerUtxoSize(), is("4310"));
         assertThat(protocolParams.getEMax(), notNullValue());
         assertThat(protocolParams.getNOpt(), notNullValue());
+
+        /** Conway era parameters **/
+        /**
+        assertThat(protocolParams.getPvtMotionNoConfidence(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getPvtCommitteeNormal(),greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getPvtCommitteeNormal(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getPvtHardForkInitiation(), greaterThan(new BigDecimal(0)));
+
+        assertThat(protocolParams.getDvtMotionNoConfidence(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtCommitteeNormal(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtCommitteeNoConfidence(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtUpdateToConstitution(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtHardForkInitiation(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtPPNetworkGroup(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtPPEconomicGroup(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtPPTechnicalGroup(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtPPGovGroup(), greaterThan(new BigDecimal(0)));
+        assertThat(protocolParams.getDvtTreasuryWithdrawal(), greaterThan(new BigDecimal(0)));
+
+        assertThat(protocolParams.getCommitteeMinSize(), notNullValue());
+        assertThat(protocolParams.getCommitteeMaxTermLength(), greaterThan(0));
+        assertThat(protocolParams.getGovActionLifetime(), greaterThan(0));
+        assertThat(protocolParams.getGovActionDeposit(), greaterThan(BigInteger.ZERO));
+        assertThat(protocolParams.getDrepDeposit(), greaterThan(BigInteger.ZERO));
+        assertThat(protocolParams.getDrepActivity(), greaterThan(0));
+        **/
     }
 
     @Test
