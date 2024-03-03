@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.plutus.spec.Language;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 public class CostModelUtil {
 
@@ -627,8 +628,17 @@ public class CostModelUtil {
         if (costModelMap == null)
             return Optional.empty();
 
-        long[] costModel = costModelMap.entrySet().stream()
-                .sorted(Comparator.comparing(Map.Entry::getKey))
+        boolean sortByAsIntegerKey = costModelMap.containsKey("0") && costModelMap.containsKey("1");
+        Stream<Map.Entry<String, Long>> sortedStream;
+        if (sortByAsIntegerKey) {
+            sortedStream = costModelMap.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey(Comparator.comparing(Integer::valueOf)));
+        } else {
+            sortedStream = costModelMap.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey());
+        }
+
+        long[] costModel = sortedStream
                 .map(e -> e.getValue())
                 .mapToLong(x -> x)
                 .toArray();
