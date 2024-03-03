@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
+import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import lombok.AccessLevel;
@@ -47,6 +48,7 @@ public class TxBuilderContext {
 
     @Setter(AccessLevel.NONE)
     private boolean mergeOutputs = true;
+    private Language referenceInputLanguage = Language.PLUTUS_V2;
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
         this(utxoSupplier, protocolParamsSupplier.getProtocolParams());

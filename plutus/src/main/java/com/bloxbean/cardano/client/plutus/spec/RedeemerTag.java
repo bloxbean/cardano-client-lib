@@ -12,7 +12,11 @@ public enum RedeemerTag {
     @JsonProperty("cert")
     Cert(2),
     @JsonProperty("reward")
-    Reward(3);
+    Reward(3),
+    @JsonProperty("voting")
+    Voting(4),
+    @JsonProperty("proposing")
+    Proposing(5);
 
     public final int value;
 

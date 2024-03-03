@@ -49,6 +49,8 @@ public class CostMdls {
                     serializeV1(cborMap, costModel);
                 } else if (language == Language.PLUTUS_V2) {
                     serializeV2(cborMap, costModel);
+                } else if (language == Language.PLUTUS_V3) {
+                    serializeV2(cborMap, costModel);
                 } else
                     throw new CborSerializationException("Invalid language : " + language);
             }
