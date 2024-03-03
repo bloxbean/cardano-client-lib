@@ -2,11 +2,13 @@ package com.bloxbean.cardano.client.plutus.util;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.Array;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.List;
@@ -43,11 +45,23 @@ public class ScriptDataHashGenerator {
 
         byte[] encodedBytes;
         if (redeemers != null && redeemers.size() > 0) {
-            Array redeemerArray = new Array();
-            for (Redeemer redeemer : redeemers) {
-                redeemerArray.add(redeemer.serialize());
+
+            byte[] redeemerBytes;
+            if (EraSerializationConfig.INSTANCE.useConwayEraFormat()) {
+                Map redeemerMap = new Map();
+                for(Redeemer redeemer: redeemers) {
+                    var tuple = redeemer.serialize();
+                    redeemerMap.put(tuple._1, tuple._2);
+                }
+                redeemerBytes = CborSerializationUtil.serialize(redeemerMap);
+            } else {
+                Array redeemerArray = new Array();
+                for (Redeemer redeemer : redeemers) {
+                    redeemerArray.add(redeemer.serializePreConway());
+                }
+                redeemerBytes = CborSerializationUtil.serialize(redeemerArray);
             }
-            byte[] redeemerBytes = CborSerializationUtil.serialize(redeemerArray);
+
             encodedBytes = Bytes.concat(redeemerBytes, plutusDataBytes, langViewsBytes);
         } else {
             /**

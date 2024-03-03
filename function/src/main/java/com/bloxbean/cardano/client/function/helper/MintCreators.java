@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.function.helper;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.spec.Script;
@@ -62,6 +63,9 @@ public class MintCreators {
                 } else if (script instanceof PlutusV2Script) {
                     if (!transaction.getAuxiliaryData().getPlutusV2Scripts().contains(script))
                         transaction.getAuxiliaryData().getPlutusV2Scripts().add((PlutusV2Script) script);
+                } else if (script instanceof PlutusV3Script) {
+                    if (!transaction.getAuxiliaryData().getPlutusV3Scripts().contains(script))
+                        transaction.getAuxiliaryData().getPlutusV3Scripts().add((PlutusV3Script) script);
                 }
             }
 
@@ -74,6 +78,9 @@ public class MintCreators {
             } else if (script instanceof PlutusV2Script) {
                 if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(script))
                     transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) script);
+            } else if (script instanceof PlutusV3Script) {
+                if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(script))
+                    transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) script);
             }
         };
     }

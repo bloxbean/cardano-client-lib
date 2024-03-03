@@ -144,6 +144,9 @@ public class ScriptCallContextProviders {
             } else if (plutusScript instanceof PlutusV2Script) {
                 if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
                     transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+            } else if (plutusScript instanceof PlutusV3Script) {
+                if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript)) //To avoid duplicate script in list
+                    transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
             }
         };
     }
