@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
+import com.bloxbean.cardano.client.plutus.annotation.util.StringUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
@@ -41,8 +42,9 @@ public class ValidatorProcessor {
         // preparation of standard fields
         String packageName = annotation.packageName() + "." + validator.getTitle().split("\\.")[0];
         String title = validator.getTitle().split("\\.")[1];
+        title = StringUtil.snakeToCamel(title);
         title = JavaFileUtil.firstUpperCase(title);
-        
+
         List<FieldSpec> fields = ValidatorProcessor.getFieldSpecsForValidator(validator);
 
         // processing of fields

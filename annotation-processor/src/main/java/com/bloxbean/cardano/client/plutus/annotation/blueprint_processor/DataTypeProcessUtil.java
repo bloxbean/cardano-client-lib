@@ -11,6 +11,7 @@ import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.plutus.annotation.util.StringUtil.snakeToCamel;
 import static com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype.*;
 
 public class DataTypeProcessUtil {
@@ -35,6 +36,7 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != integer)
             throw new IllegalArgumentException("Schema is not of type integer");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        title = snakeToCamel(title);
         return FieldSpec.builder(int.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -51,6 +53,7 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != bytes)
             throw new IllegalArgumentException("Schema is not of type bytes");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        title = snakeToCamel(title);
         return FieldSpec.builder(byte[].class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -68,6 +71,7 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != list)
             throw new IllegalArgumentException("Schema is not of type list");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        title = snakeToCamel(title);
         TypeName fieldClass = getTypeNameForListParametrizedType(schema);
         return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
@@ -117,6 +121,7 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != bool)
             throw new IllegalArgumentException("Schema is not of type boolean");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        title = snakeToCamel(title);
         return FieldSpec.builder(boolean.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -133,6 +138,7 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != string)
             throw new IllegalArgumentException("Schema is not of type string");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        title = snakeToCamel(title);
         return FieldSpec.builder(String.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -144,7 +150,7 @@ public class DataTypeProcessUtil {
         for (BlueprintSchema field : schema.getFields()) {
             if(field.getDataType() != null) {
                 javaDoc += " Index: " + field.getIndex() ;
-                specs.addAll(fieldSpecProcessor.CreateFieldSpecForDataTypes(javaDoc,  List.of(field), className, alternativeName));
+                specs.addAll(fieldSpecProcessor.createFieldSpecForDataTypes(javaDoc,  List.of(field), className, alternativeName));
             } else {
                 specs.add(fieldSpecProcessor.createDatumFieldSpec(field, "", field.getTitle(), className));
             }
@@ -180,6 +186,7 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != map)
             throw new IllegalArgumentException("Schema is not of type map");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        title = snakeToCamel(title);
         TypeName fieldClass = getTypeNameForMapParametrizedType(schema);
         return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
@@ -191,6 +198,7 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != null)
             throw new IllegalArgumentException("Schema is not of type plutusdata");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        title = snakeToCamel(title);
         return FieldSpec.builder(PlutusData.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)

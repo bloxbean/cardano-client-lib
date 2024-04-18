@@ -58,7 +58,7 @@ public class FieldSpecProcessor {
      * @param className
      * @return
      */
-    public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
+    public List<FieldSpec> createFieldSpecForDataTypes(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         if(schema.getDataType() == null) { // Processing Anyplutusdata
             specs.add(dataTypeProcessUtil.processPlutusDataType(javaDoc, schema, alternativeName));
@@ -99,10 +99,10 @@ public class FieldSpecProcessor {
      * @param className
      * @return
      */
-    public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, List<BlueprintSchema> schemas, String className, String alternativeName) {
+    public List<FieldSpec> createFieldSpecForDataTypes(String javaDoc, List<BlueprintSchema> schemas, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         for (BlueprintSchema schema : schemas) {
-            specs.addAll(CreateFieldSpecForDataTypes(javaDoc, schema, className, alternativeName));
+            specs.addAll(createFieldSpecForDataTypes(javaDoc, schema, className, alternativeName));
         }
         return specs;
     }
@@ -141,7 +141,7 @@ public class FieldSpecProcessor {
     private TypeSpec createDatumTypeSpec(BlueprintSchema schema, String className, String alternativeName) {
         Tuple<String, List<BlueprintSchema>> allInnerSchemas = FieldSpecProcessor.collectAllFields(schema);
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
-        List<FieldSpec> fields = CreateFieldSpecForDataTypes(allInnerSchemas._1, allInnerSchemas._2, className, title);
+        List<FieldSpec> fields = createFieldSpecForDataTypes(allInnerSchemas._1, allInnerSchemas._2, className, title);
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).addMember("alternative", "$L", schema.getIndex()).build();
 
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
