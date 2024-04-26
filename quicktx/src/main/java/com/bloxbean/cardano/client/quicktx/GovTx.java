@@ -27,7 +27,7 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 @Slf4j
 public class GovTx {
     //TODO -- Read from protocol
-    public static final BigInteger DREP_REG_DEPOSIT = adaToLovelace(2.0);
+    public static final BigInteger DREP_REG_DEPOSIT = adaToLovelace(500.0);
     public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
 
     protected List<RegDRepCert> dRepRegistrations;
@@ -48,6 +48,27 @@ public class GovTx {
                 .drepCredential(drepCredential)
                 .anchor(anchor)
                 .coin(DREP_REG_DEPOSIT)
+                .build();
+
+        if (dRepRegistrations == null)
+            dRepRegistrations = new ArrayList<>();
+
+        dRepRegistrations.add(regDRepCert);
+        return this;
+    }
+
+    /**
+     * Register DRep
+     * @param drepCredential DRep credential
+     * @param drepRegDeposit Deposit amount configured for DRep registration in protocol params
+     * @param anchor Anchor
+     * @return GovTx
+     */
+    public GovTx registerDRep(@NonNull Credential drepCredential, @NonNull BigInteger drepRegDeposit, Anchor anchor) {
+        var regDRepCert = RegDRepCert.builder()
+                .drepCredential(drepCredential)
+                .anchor(anchor)
+                .coin(drepRegDeposit)
                 .build();
 
         if (dRepRegistrations == null)
