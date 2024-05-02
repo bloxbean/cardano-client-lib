@@ -336,6 +336,18 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Register a DRep
+     * @param drepCredential Credential
+     * @param drepRegDeposit DRep registration deposit amount configured in the protocol parameters
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public Tx registerDRep(@NonNull Credential drepCredential, BigInteger drepRegDeposit, Anchor anchor) {
+        govTx.registerDRep(drepCredential, drepRegDeposit, anchor);
+        return this;
+    }
+
+    /**
+     * Register a DRep
      * @param drepCredential
      * @return Tx
      */
