@@ -77,6 +77,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
 
         Result<String> result = quickTxBuilder.compose(drepRegTx)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender1.drepHdKeyPair()))
                 .complete();
 
         System.out.println("DRepId : " + sender1.drepId());

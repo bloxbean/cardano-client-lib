@@ -40,6 +40,7 @@ Tx drepRegTx = new Tx()
 
 Result<String> result = quickTxBuilder.compose(drepRegTx)
         .withSigner(SignerProviders.signerFrom(account))
+        .withSigner(SignerProviders.signerFrom(account.drepHdKeyPair()))
         .completeAndWait(s -> System.out.println(s));
 ```
 
