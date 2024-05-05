@@ -52,6 +52,11 @@ public class Ogmios5BackendService implements BackendService {
     }
 
     @Override
+    public PoolService getPoolService() {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
+
+    @Override
     public UtxoService getUtxoService() {
         throw new UnsupportedOperationException("Not supported yet");
     }
