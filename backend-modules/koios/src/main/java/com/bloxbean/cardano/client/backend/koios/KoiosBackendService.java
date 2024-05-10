@@ -48,6 +48,11 @@ public class KoiosBackendService implements BackendService {
     }
 
     @Override
+    public PoolService getPoolService() {
+        return new KoiosPoolService(backendServiceImpl.getPoolService());
+    }
+
+    @Override
     public TransactionService getTransactionService() {
         return new KoiosTransactionService(backendServiceImpl.getTransactionsService());
     }

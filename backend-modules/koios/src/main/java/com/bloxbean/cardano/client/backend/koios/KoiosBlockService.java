@@ -38,12 +38,12 @@ public class KoiosBlockService implements BlockService {
         try {
             rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.block.model.Block>>
                     blockList = blockService.getBlockList(Options.builder()
-                    .option(Limit.of(2))
+                    .option(Limit.of(1))
                     .build());
             if (!blockList.isSuccessful()) {
                 return Result.error(blockList.getResponse()).code(blockList.getCode());
             }
-            return convertToBlock(blockList.getValue());
+            return convertToBlock(blockList.getValue().get(0));
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
@@ -64,19 +64,19 @@ public class KoiosBlockService implements BlockService {
         }
     }
 
-    private Result<Block> convertToBlock(List<rest.koios.client.backend.api.block.model.Block> blocks) {
+    private Result<Block> convertToBlock(rest.koios.client.backend.api.block.model.Block bl) {
         Block block = new Block();
-        block.setTime(blocks.get(0).getBlockTime());
-        block.setHeight(blocks.get(0).getBlockHeight());
-        block.setHash(blocks.get(0).getHash());
-        block.setSlot(blocks.get(0).getAbsSlot());
-        block.setEpoch(blocks.get(0).getEpochNo());
-        block.setEpochSlot(blocks.get(0).getEpochSlot());
-        block.setSlotLeader(blocks.get(0).getPool());
-        block.setSize(blocks.get(0).getBlockSize());
-        block.setTxCount(blocks.get(0).getTxCount());
-        block.setBlockVrf(blocks.get(0).getVrfKey());
-        block.setPreviousBlock(blocks.get(1).getHash());
+        block.setTime(bl.getBlockTime());
+        block.setHeight(bl.getBlockHeight());
+        block.setHash(bl.getHash());
+        block.setSlot(bl.getAbsSlot());
+        block.setEpoch(bl.getEpochNo());
+        block.setEpochSlot(bl.getEpochSlot());
+        block.setSlotLeader(bl.getPool());
+        block.setSize(bl.getBlockSize());
+        block.setTxCount(bl.getTxCount());
+        block.setBlockVrf(bl.getVrfKey());
+        block.setPreviousBlock(bl.getParentHash());
         return Result.success("OK").withValue(block).code(200);
     }
 
