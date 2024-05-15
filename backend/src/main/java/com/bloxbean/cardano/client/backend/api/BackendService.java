@@ -31,6 +31,13 @@ public interface BackendService {
     NetworkInfoService getNetworkInfoService();
 
     /**
+     * Get getPoolService
+     *
+     * @return {@link PoolService}
+     */
+    PoolService getPoolService();
+
+    /**
      * Get Transaction service
      *
      * @return {@link TransactionService}
