@@ -45,7 +45,7 @@ public class BFBackendService extends BFBaseService implements BackendService {
 
     @Override
     public AccountService getAccountService() {
-        return new BFAccountService(getBaseUrl(), getProjectId());
+        return new BFAccountService(getBaseUrl(), getProjectId(), getAddressService());
     }
 
     @Override

@@ -123,6 +123,31 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
         }
     }
 
+    @Override
+    public Result<List<AddressTransactionContent>> getAllTransactions(String address, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException {
+        List<AddressTransactionContent> addressTransactionContents = new ArrayList<>();
+        int page = 1;
+        Result<List<AddressTransactionContent>> addressTransactionsResult = getTransactions(address, 1000, page, order, fromBlockHeight.toString(), toBlockHeight.toString());
+        while (addressTransactionsResult.isSuccessful()) {
+            addressTransactionContents.addAll(addressTransactionsResult.getValue());
+            if (addressTransactionsResult.getValue().size() != 1000) {
+                break;
+            } else {
+                page++;
+                addressTransactionsResult = getTransactions(address, 1000, page, order, fromBlockHeight.toString(), toBlockHeight.toString());
+            }
+        }
+        if (!addressTransactionsResult.isSuccessful()) {
+            return addressTransactionsResult;
+        } else {
+            addressTransactionContents.sort((o1, o2) ->
+                    order == OrderEnum.asc ?
+                            Long.compare(o1.getBlockHeight(), o2.getBlockHeight()) :
+                            Long.compare(o2.getBlockHeight(), o1.getBlockHeight()));
+            return Result.success(addressTransactionsResult.toString()).withValue(addressTransactionContents).code(addressTransactionsResult.code());
+        }
+    }
+
     private Result<List<AddressTransactionContent>> convertToAddressTransactionContent(List<TxHash> txHashes) throws ParseException {
         List<AddressTransactionContent> addressTransactionContents = new ArrayList<>();
         for (TxHash txHash : txHashes) {

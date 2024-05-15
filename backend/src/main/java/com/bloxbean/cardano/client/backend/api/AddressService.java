@@ -70,4 +70,14 @@ public interface AddressService {
     default Result<List<AddressTransactionContent>> getTransactions(String address, int count, int page, OrderEnum order, String from, String to) throws ApiException {
         return getTransactions(address, count, page, order);
     }
+
+    /**
+     * getAllTransactions
+     * @param address paymentAddress
+     * @param order order
+     * @param fromBlockHeight from block number
+     * @param toBlockHeight to block number
+     * @return List of {@link AddressTransactionContent}
+     */
+    Result<List<AddressTransactionContent>> getAllTransactions(String address, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException;
 }

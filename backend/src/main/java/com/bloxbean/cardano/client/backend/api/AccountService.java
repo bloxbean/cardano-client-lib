@@ -120,4 +120,25 @@ public interface AccountService {
      * @return List of Used Addresses
      */
     Result<List<AccountAsset>> getAccountAssets(String stakeAddress, int count, int page, OrderEnum order) throws ApiException;
+
+    /**
+     * Obtain information about transactions associated with a specific account.
+     * @param stakeAddress Bech32 stake address.
+     * @param count count
+     * @param page page
+     * @param order The ordering of items from the point of view of the blockchain, not the page listing itself. By default, we return oldest first, newest last.
+     * @param fromBlockHeight from block number
+     * @param toBlockHeight to block number
+     * @return List of {@link TransactionContent}
+     */
+    Result<List<AddressTransactionContent>> getAccountTransactions(String stakeAddress, int count, int page, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException;
+
+    /**
+     * Obtain All information about transactions associated with a specific account.
+     * @param stakeAddress Bech32 stake address.
+     * @param order The ordering of items from the point of view of the blockchain, not the page listing itself. By default, we return oldest first, newest last.
+     * @param fromBlockHeight from block number
+     * @return List of {@link TransactionContent}
+     */
+    Result<List<AddressTransactionContent>> getAllAccountTransactions(String stakeAddress, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException;
 }

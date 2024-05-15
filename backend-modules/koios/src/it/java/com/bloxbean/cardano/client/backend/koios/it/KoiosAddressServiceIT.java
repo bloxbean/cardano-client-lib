@@ -78,4 +78,16 @@ class KoiosAddressServiceIT extends KoiosBaseTest {
         assertTrue(txns.get(0).getBlockHeight() != 0);
         assertTrue(txns.get(0).getBlockTime() != 0);
     }
+
+    @Test
+    public void testGetAllTransactions() throws ApiException {
+        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
+        List<AddressTransactionContent> txns = addressService.getAllTransactions(address, OrderEnum.desc, 357475, 357479).getValue();
+
+        System.out.println(txns);
+        assertThat(txns.size()).isEqualTo(3);
+        assertEquals("002dbdb2d294a61c03ec7b0876bc5d40ec3ae07ef5b72d08c107cce7566c4f96", txns.get(0).getTxHash());
+        assertTrue(txns.get(0).getBlockHeight() != 0);
+        assertTrue(txns.get(0).getBlockTime() != 0);
+    }
 }

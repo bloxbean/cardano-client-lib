@@ -3,15 +3,15 @@ package com.bloxbean.cardano.client.backend.koios;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.model.AccountAddress;
+import com.bloxbean.cardano.client.backend.model.AccountAsset;
+import com.bloxbean.cardano.client.backend.model.AccountHistory;
 import com.bloxbean.cardano.client.backend.model.*;
 import rest.koios.client.backend.api.account.AccountService;
-import rest.koios.client.backend.api.account.model.AccountHistoryInner;
-import rest.koios.client.backend.api.account.model.AccountInfo;
-import rest.koios.client.backend.api.account.model.AccountReward;
-import rest.koios.client.backend.api.account.model.AccountRewards;
-import rest.koios.client.backend.factory.options.Limit;
-import rest.koios.client.backend.factory.options.Offset;
-import rest.koios.client.backend.factory.options.Options;
+import rest.koios.client.backend.api.account.model.*;
+import rest.koios.client.backend.factory.options.*;
+import rest.koios.client.backend.factory.options.filters.Filter;
+import rest.koios.client.backend.factory.options.filters.FilterType;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -251,6 +251,73 @@ public class KoiosAccountService implements com.bloxbean.cardano.client.backend.
         } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
             throw new ApiException(e.getMessage(), e);
         }
+    }
+
+    @Override
+    public Result<List<AddressTransactionContent>> getAccountTransactions(String stakeAddress, int count, int page, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException {
+        try {
+            Options options = Options.builder()
+                    .option(Limit.of(count))
+                    .option(Offset.of((long) (page - 1) * count))
+                    .build();
+            if (order != null) {
+                options.getOptionList().add(Order.by("block_height", order == OrderEnum.asc ? SortType.ASC : SortType.DESC));
+            }
+            if (toBlockHeight != null) {
+                options.getOptionList().add(Filter.of("block_height", FilterType.LTE, toBlockHeight.toString()));
+            }
+            rest.koios.client.backend.api.base.Result<List<rest.koios.client.backend.api.account.model.AccountTx>> accountTxsResult =
+                    accountService.getAccountTxs(stakeAddress, fromBlockHeight, options);
+            if (!accountTxsResult.isSuccessful()) {
+                return Result.error(accountTxsResult.getResponse()).code(accountTxsResult.getCode());
+            }
+            if (accountTxsResult.getValue().isEmpty()) {
+                return Result.error("Not Found").code(404);
+            }
+            return convertToAddressTransactionContent(accountTxsResult.getValue(), order);
+        } catch (rest.koios.client.backend.api.base.exception.ApiException e) {
+            throw new ApiException(e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Result<List<AddressTransactionContent>> getAllAccountTransactions(String stakeAddress, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException {
+        List<AddressTransactionContent> addressTransactionContents = new ArrayList<>();
+        int page = 1;
+        Result<List<AddressTransactionContent>> addressTransactionsResult = getAccountTransactions(stakeAddress, 1000, page, order, fromBlockHeight, toBlockHeight);
+        while (addressTransactionsResult.isSuccessful()) {
+            addressTransactionContents.addAll(addressTransactionsResult.getValue());
+            if (addressTransactionsResult.getValue().size() != 1000) {
+                break;
+            } else {
+                page++;
+                addressTransactionsResult = getAccountTransactions(stakeAddress, 1000, page, order, fromBlockHeight, toBlockHeight);
+            }
+        }
+        if (!addressTransactionsResult.isSuccessful()) {
+            return addressTransactionsResult;
+        } else {
+            return Result.success(addressTransactionsResult.toString()).withValue(addressTransactionContents).code(addressTransactionsResult.code());
+        }
+    }
+
+    private Result<List<AddressTransactionContent>> convertToAddressTransactionContent(List<AccountTx> accountTxs, OrderEnum order) {
+        List<AddressTransactionContent> transactionContents = new ArrayList<>();
+        if (accountTxs != null) {
+            accountTxs.forEach(accountTx -> {
+                AddressTransactionContent transactionContent = new AddressTransactionContent();
+                transactionContent.setTxHash(accountTx.getTxHash());
+                transactionContent.setBlockHeight(accountTx.getBlockHeight());
+                transactionContent.setBlockTime(accountTx.getBlockTime());
+                transactionContents.add(transactionContent);
+            });
+        }
+        Comparator<AddressTransactionContent> comparator = Comparator.comparing(AddressTransactionContent::getBlockHeight);
+        if (order != OrderEnum.asc) {
+            comparator = comparator.reversed();
+        }
+        transactionContents.sort(comparator);
+        return Result.success("OK").withValue(transactionContents).code(200);
     }
 
     private Result<List<AccountAsset>> convertToAccountAssets(List<rest.koios.client.backend.api.account.model.AccountAsset> accountAssetList) {
