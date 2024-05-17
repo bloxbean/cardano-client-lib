@@ -1,0 +1,101 @@
+{
+  "preamble": {
+    "title": "kammerlo/complex_structures",
+    "description": "Aiken contracts for project 'kammerlo/complex_structures'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.21-alpha+4b04517"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "complex_structures.complex_structures",
+      "redeemer": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/complex_structures~1Datum"
+        }
+      },
+      "compiledCode": "58c90100003232323232323232223253330064a229309b2b19299980319b87480000044c8c8c8c94ccc034c03c0084c92632533300b3370e90000008991919191919299980a180b00109924c64a66602466e1d20000011323232325333019301b002149858dcc9bae30190013019002375a602e00260200042c60200022c602800260280046e64dd7180900098090011bad3010001300900216300900116300d001300d002375c601600260080062c60080044600a6ea80048c00cdd5000ab9a5573aaae7955cfaba15745",
+      "hash": "1f9b29b74f7ad4866ccb142d6fbfab8931abb7e8113c163c47f49d86"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "String": {
+      "dataType": "#string"
+    },
+    "complex_structures/Datum": {
+      "title": "Datum",
+      "anyOf": [
+        {
+          "title": "Datum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "nestedA",
+              "$ref": "#/definitions/complex_structures~1NestedA"
+            }
+          ]
+        }
+      ]
+    },
+    "complex_structures/NestedA": {
+      "title": "NestedA",
+      "anyOf": [
+        {
+          "title": "NestedA",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "count",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "msg",
+              "$ref": "#/definitions/String"
+            },
+            {
+              "title": "nestedB",
+              "$ref": "#/definitions/complex_structures~1NestedB"
+            }
+          ]
+        }
+      ]
+    },
+    "complex_structures/NestedB": {
+      "title": "NestedB",
+      "anyOf": [
+        {
+          "title": "NestedB",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "count2",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "msg2",
+              "$ref": "#/definitions/String"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

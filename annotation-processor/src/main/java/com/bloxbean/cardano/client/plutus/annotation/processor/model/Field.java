@@ -15,4 +15,5 @@ public class Field {
     private FieldType fieldType;
     private boolean hashGetter;
     private String getterName;
+    private int alternative;
 }

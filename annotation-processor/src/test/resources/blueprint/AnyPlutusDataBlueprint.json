@@ -1,0 +1,57 @@
+{
+  "preamble": {
+    "title": "kammer/anyplutusdata",
+    "description": "Aiken contracts for project 'kammer/anyplutusdata'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.21-alpha+4b04517"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "anyplutusdata.anyplutusdata",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/test_module~1Foo"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5833010000323222253330044a22930a99802a491856616c696461746f722072657475726e65642066616c736500136565734ae701",
+      "hash": "52a21f2b4f282074cb6c5aefef20d18c25f3657ca348c73875810c37"
+    }
+    ],
+      "definitions": {
+        "Data": {
+          "title": "anyPlutusData",
+          "description": "Any Plutus data."
+        },
+        "Int": {
+          "dataType": "integer"
+        },
+        "test_module/Foo": {
+          "title": "Foo",
+          "anyOf": [
+            {
+              "title": "Foo",
+              "dataType": "constructor",
+              "index": 0,
+              "fields": [
+                {
+                  "title": "foo",
+                  "$ref": "#/definitions/Int"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
