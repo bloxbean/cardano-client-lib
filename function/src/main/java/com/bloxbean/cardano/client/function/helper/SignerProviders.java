@@ -7,6 +7,8 @@ import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.hdwallet.Wallet;
+import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 
 /**
  * Provides helper methods to get TxSigner function to sign a <code>{@link Transaction}</code> object
@@ -26,6 +28,19 @@ public class SignerProviders {
                 outputTxn = signer.sign(outputTxn);
             }
 
+            return outputTxn;
+        };
+    }
+
+    /**
+     * Function to sign a transaction using one or more <code>Wallet</code>
+     * @param wallet wallet(s) to sign the transaction
+     * @param walletUtxoSupplier <code>WalletUtxoSupplier</code> is needed to sign with the right addresses
+     * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
+     */
+    public static TxSigner signerFrom(Wallet wallet, WalletUtxoSupplier walletUtxoSupplier) {
+        return transaction -> {
+            Transaction outputTxn = wallet.sign(transaction, walletUtxoSupplier);
             return outputTxn;
         };
     }
@@ -107,6 +122,15 @@ public class SignerProviders {
                 outputTxn = signer.signWithDRepKey(outputTxn);
             }
 
+            return outputTxn;
+        };
+    }
+
+    public static TxSigner stakeKeySignerFrom(Wallet... wallets) {
+        return transaction -> {
+            Transaction outputTxn = transaction;
+            for (Wallet wallet : wallets)
+                outputTxn = wallet.signWithStakeKey(outputTxn);
             return outputTxn;
         };
     }
