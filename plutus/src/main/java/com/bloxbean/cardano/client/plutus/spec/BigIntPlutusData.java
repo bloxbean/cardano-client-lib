@@ -1,13 +1,12 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.NegativeInteger;
+import co.nstant.in.cbor.model.*;
 import co.nstant.in.cbor.model.Number;
-import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.serializers.BigIntDataJsonDeserializer;
 import com.bloxbean.cardano.client.plutus.spec.serializers.BigIntDataJsonSerializer;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
@@ -23,6 +22,14 @@ import java.math.BigInteger;
 @JsonDeserialize(using = BigIntDataJsonDeserializer.class)
 public class BigIntPlutusData implements PlutusData {
     private BigInteger value;
+
+    @JsonIgnore
+    @Getter(AccessLevel.NONE)
+    private boolean encodeAsByteString;
+
+    public BigIntPlutusData(BigInteger value) {
+        this.value = value;
+    }
 
     public static BigIntPlutusData deserialize(Number numberDI) throws CborDeserializationException {
         if (numberDI == null)
@@ -47,13 +54,30 @@ public class BigIntPlutusData implements PlutusData {
     public DataItem serialize() throws CborSerializationException {
         DataItem di = null;
         if (value != null) {
-            if (value.compareTo(BigInteger.ZERO) == 0 || value.compareTo(BigInteger.ZERO) == 1) {
-                di = new UnsignedInteger(value);
+            if (encodeAsByteString) {
+                if (value.compareTo(BigInteger.ZERO) == 0 || value.compareTo(BigInteger.ZERO) == 1) {
+                    byte[] bytes = value.toByteArray();
+                    di = new ByteString(bytes);
+                    di.setTag(new Tag(BIG_UINT_TAG));
+                } else {
+                    byte[] bytes = value.negate().toByteArray();
+                    di = new ByteString(bytes);
+                    di.setTag(new Tag(BIG_NINT_TAG));
+                }
             } else {
-                di = new NegativeInteger(value);
+                if (value.compareTo(BigInteger.ZERO) == 0 || value.compareTo(BigInteger.ZERO) == 1) {
+                    di = new UnsignedInteger(value);
+                } else {
+                    di = new NegativeInteger(value);
+                }
             }
         }
 
         return di;
+    }
+
+    public BigIntPlutusData encodeAsByteString(boolean flag) {
+        this.encodeAsByteString = flag;
+        return this;
     }
 }

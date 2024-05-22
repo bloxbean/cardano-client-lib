@@ -13,7 +13,11 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.NonNull;
 
+import java.math.BigInteger;
+
 public interface PlutusData {
+    int BIG_UINT_TAG = 2;
+    int BIG_NINT_TAG = 3;
 
 //    plutus_data = ; New
 //    constr<plutus_data>
@@ -41,7 +45,21 @@ public interface PlutusData {
         if (dataItem instanceof Number) {
             return BigIntPlutusData.deserialize((Number) dataItem);
         } else if (dataItem instanceof ByteString) {
-            return BytesPlutusData.deserialize((ByteString) dataItem);
+            var tag = dataItem.getTag();
+            if (tag != null) {
+                switch ((int)tag.getValue()) {
+                    case BIG_UINT_TAG:
+                        return BigIntPlutusData.of(new BigInteger(1, ((ByteString) dataItem).getBytes()))
+                                        .encodeAsByteString(true);
+                    case BIG_NINT_TAG:
+                        return BigIntPlutusData.of(new BigInteger(1, ((ByteString) dataItem).getBytes()).negate())
+                                .encodeAsByteString(true);
+                    default:
+                        return BytesPlutusData.deserialize((ByteString) dataItem);
+                }
+            } else {
+                return BytesPlutusData.deserialize((ByteString) dataItem);
+            }
         }  else if (dataItem instanceof UnicodeString) {
             return BytesPlutusData.deserialize(((UnicodeString) dataItem));
         } else if (dataItem instanceof Array) {
