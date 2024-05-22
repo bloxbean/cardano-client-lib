@@ -18,6 +18,7 @@ import java.math.BigInteger;
 public interface PlutusData {
     int BIG_UINT_TAG = 2;
     int BIG_NINT_TAG = 3;
+    BigInteger MINUS_ONE = BigInteger.valueOf(-1);
 
 //    plutus_data = ; New
 //    constr<plutus_data>
@@ -46,17 +47,9 @@ public interface PlutusData {
             return BigIntPlutusData.deserialize((Number) dataItem);
         } else if (dataItem instanceof ByteString) {
             var tag = dataItem.getTag();
-            if (tag != null) {
-                switch ((int)tag.getValue()) {
-                    case BIG_UINT_TAG:
-                        return BigIntPlutusData.of(new BigInteger(1, ((ByteString) dataItem).getBytes()))
-                                        .encodeAsByteString(true);
-                    case BIG_NINT_TAG:
-                        return BigIntPlutusData.of(new BigInteger(1, ((ByteString) dataItem).getBytes()).negate())
-                                .encodeAsByteString(true);
-                    default:
-                        return BytesPlutusData.deserialize((ByteString) dataItem);
-                }
+            if (tag != null &&
+                    (tag.getValue() == BIG_UINT_TAG || tag.getValue() == BIG_NINT_TAG)){
+                return BigIntPlutusData.deserialize((ByteString) dataItem);
             } else {
                 return BytesPlutusData.deserialize((ByteString) dataItem);
             }

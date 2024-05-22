@@ -2,11 +2,9 @@ package com.bloxbean.cardano.client.plutus.spec;
 
 import co.nstant.in.cbor.model.*;
 import co.nstant.in.cbor.model.Number;
-import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.serializers.BigIntDataJsonDeserializer;
 import com.bloxbean.cardano.client.plutus.spec.serializers.BigIntDataJsonSerializer;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
@@ -23,20 +21,32 @@ import java.math.BigInteger;
 public class BigIntPlutusData implements PlutusData {
     private BigInteger value;
 
-    @JsonIgnore
-    @Getter(AccessLevel.NONE)
-    private boolean encodeAsByteString;
-
-    public BigIntPlutusData(BigInteger value) {
-        this.value = value;
-    }
-
-    public static BigIntPlutusData deserialize(Number numberDI) throws CborDeserializationException {
+    public static BigIntPlutusData deserialize(Number numberDI) {
         if (numberDI == null)
             return null;
 
         return new BigIntPlutusData(numberDI.getValue());
     }
+
+    public static BigIntPlutusData deserialize(ByteString byteString) {
+        if (byteString == null)
+            return null;
+
+        var tag = byteString.getTag();
+        if (tag != null) {
+            switch ((int) tag.getValue()) {
+                case BIG_UINT_TAG:
+                    return BigIntPlutusData.of(new BigInteger(1, byteString.getBytes()));
+                case BIG_NINT_TAG:
+                    return BigIntPlutusData.of(MINUS_ONE.subtract(new BigInteger(1, byteString.getBytes())));
+                default:
+                    throw new IllegalArgumentException("Invalid tag for BigIntPlutusData");
+            }
+        } else {
+            throw new IllegalArgumentException("Missing tag for BigIntPlutusData");
+        }
+    }
+
 
     public static BigIntPlutusData of(int i) {
         return new BigIntPlutusData(BigInteger.valueOf(i));
@@ -54,30 +64,13 @@ public class BigIntPlutusData implements PlutusData {
     public DataItem serialize() throws CborSerializationException {
         DataItem di = null;
         if (value != null) {
-            if (encodeAsByteString) {
-                if (value.compareTo(BigInteger.ZERO) == 0 || value.compareTo(BigInteger.ZERO) == 1) {
-                    byte[] bytes = value.toByteArray();
-                    di = new ByteString(bytes);
-                    di.setTag(new Tag(BIG_UINT_TAG));
-                } else {
-                    byte[] bytes = value.negate().toByteArray();
-                    di = new ByteString(bytes);
-                    di.setTag(new Tag(BIG_NINT_TAG));
-                }
+            if (value.compareTo(BigInteger.ZERO) == 0 || value.compareTo(BigInteger.ZERO) == 1) {
+                di = new UnsignedInteger(value);
             } else {
-                if (value.compareTo(BigInteger.ZERO) == 0 || value.compareTo(BigInteger.ZERO) == 1) {
-                    di = new UnsignedInteger(value);
-                } else {
-                    di = new NegativeInteger(value);
-                }
+                di = new NegativeInteger(value);
             }
         }
 
         return di;
-    }
-
-    public BigIntPlutusData encodeAsByteString(boolean flag) {
-        this.encodeAsByteString = flag;
-        return this;
     }
 }
