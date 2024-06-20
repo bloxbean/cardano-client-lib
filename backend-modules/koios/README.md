@@ -34,10 +34,10 @@ BackendService backendService = new KoiosBackendService(<Koios Instance Url>);
 
 **Example:**
 
-BackendService using Global Testnet Koios endpoint.
+BackendService using the Koios public preprod endpoint.
 
 ```
-BackendService backendService = new KoiosBackendService(Constant.KOIOS_TESTNET_URL);
+BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREPROD_URL);
 ```
 
 **Note:** You can get other services from BackendService instance. For detailed api usage, check [cardano-client-lib](https://github.com/bloxbean/cardano-client-lib) project
