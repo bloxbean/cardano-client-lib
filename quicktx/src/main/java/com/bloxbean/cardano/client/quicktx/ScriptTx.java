@@ -678,7 +678,16 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
                     //update script input index
                     mintingContext.getRedeemer().setIndex(BigInteger.valueOf(index));
-                    transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
+
+                    transaction.getWitnessSet().getRedeemers()
+                            .stream().filter(redeemer -> redeemer.getTag() == mintingContext.getRedeemer().getTag()
+                                    && redeemer.getIndex() == mintingContext.getRedeemer().getIndex())
+                            .findFirst()
+                            .ifPresentOrElse(redeemer -> {
+                                //Do nothing
+                            }, () -> {
+                                transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
+                            });
                 }
             }));
         }
