@@ -587,7 +587,17 @@ public class CostModelUtil {
             4,
             117366,
             10475,
-            4
+            4,
+            1292075,
+            24469,
+            74,
+            0,
+            1,
+            936157,
+            49601,
+            237,
+            0,
+            1
     };
 
     public final static CostModel PlutusV1CostModel = new CostModel(Language.PLUTUS_V1, plutusV1Costs);
