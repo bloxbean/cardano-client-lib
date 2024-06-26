@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
@@ -26,9 +27,13 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 
 @Slf4j
 public class GovTx {
-    //TODO -- Read from protocol
-    public static final BigInteger DREP_REG_DEPOSIT = adaToLovelace(500.0);
-    public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
+    private static final BigInteger DEFAULT_DREP_REG_DEPOSIT = adaToLovelace(500.0);
+    private static final BigInteger DEFAULT_GOV_ACTION_DEPOSIT = adaToLovelace(50000);
+
+    private static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
+
+    protected BigInteger drepRegDeposit;
+    protected BigInteger govActionDeposit;
 
     protected List<RegDRepCert> dRepRegistrations;
     protected List<DRepDeregestrationContext> dRepDeregestrationContexts;
@@ -36,6 +41,21 @@ public class GovTx {
     protected List<CreateProposalContext> createProposalContexts;
     protected List<VotingProcedureContext> votingProcedureContexts;
     protected List<VoteDelegCert> voteDelegCerts;
+
+    public GovTx() {
+        drepRegDeposit = DEFAULT_DREP_REG_DEPOSIT;
+        govActionDeposit = DEFAULT_GOV_ACTION_DEPOSIT;
+    }
+
+    public GovTx(ProtocolParams protocolParams) {
+        if (protocolParams != null) {
+            drepRegDeposit = protocolParams.getDrepDeposit();
+            govActionDeposit = protocolParams.getGovActionDeposit();
+        } else {
+            drepRegDeposit = DEFAULT_DREP_REG_DEPOSIT;
+            govActionDeposit = DEFAULT_GOV_ACTION_DEPOSIT;
+        }
+    }
 
     /**
      * Register DRep
@@ -47,7 +67,7 @@ public class GovTx {
         var regDRepCert = RegDRepCert.builder()
                 .drepCredential(drepCredential)
                 .anchor(anchor)
-                .coin(DREP_REG_DEPOSIT)
+                .coin(drepRegDeposit)
                 .build();
 
         if (dRepRegistrations == null)
@@ -87,7 +107,7 @@ public class GovTx {
      */
     public GovTx unregisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount) {
         if (refundAmount == null)
-            refundAmount = DREP_REG_DEPOSIT;
+            refundAmount = drepRegDeposit;
 
         var unregDRepCert = UnregDRepCert.builder()
                 .drepCredential(drepCredential)
@@ -213,7 +233,7 @@ public class GovTx {
 
         if (dRepRegistrations != null && dRepRegistrations.size() > 0) {
             //Dummy pay to fromAddress to add deposit
-            Amount totalDRepRegistrationDepositAmount = Amount.lovelace(DREP_REG_DEPOSIT.multiply(BigInteger.valueOf(dRepRegistrations.size())));
+            Amount totalDRepRegistrationDepositAmount = Amount.lovelace(drepRegDeposit.multiply(BigInteger.valueOf(dRepRegistrations.size())));
             paymentContexts.add(new GovTx.PaymentContext(fromAddress, totalDRepRegistrationDepositAmount));
         }
 
@@ -252,8 +272,6 @@ public class GovTx {
 
             certificates.addAll(dRepRegistrations);
 
-            String drepRegDepositParam = DREP_REG_DEPOSIT.toString();//context.getProtocolParams().getKeyDeposit(); //TODO -- Get protocol param
-            BigInteger drepRegDeposit = new BigInteger(drepRegDepositParam);
             BigInteger totalDRepRegDeposit = drepRegDeposit.multiply(BigInteger.valueOf(dRepRegistrations.size()));
             log.debug("Total stakekey registration deposit: " + totalDRepRegDeposit);
 

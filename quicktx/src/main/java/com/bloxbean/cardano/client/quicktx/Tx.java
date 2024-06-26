@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -39,6 +40,11 @@ public class Tx extends AbstractTx<Tx> {
     public Tx() {
         stakeTx = new StakeTx();
         govTx = new GovTx();
+    }
+
+    public Tx(ProtocolParams protocolParams) {
+        stakeTx = new StakeTx(protocolParams);
+        govTx = new GovTx(protocolParams);
     }
 
     /**
