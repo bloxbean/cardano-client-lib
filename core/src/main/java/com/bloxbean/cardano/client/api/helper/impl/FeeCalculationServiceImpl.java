@@ -16,6 +16,7 @@ import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
+@Slf4j
 public class FeeCalculationServiceImpl implements FeeCalculationService {
     //A dummy fee which is used during regular fee calculation
     private final static BigInteger DUMMY_FEE = BigInteger.valueOf(170000);
@@ -207,6 +209,23 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
         scriptFee = scriptFee.setScale(0, RoundingMode.CEILING);
 
         return scriptFee.toBigInteger();
+    }
+
+    @Override
+    public BigInteger calculateReferenceScriptFee(long totalReferenceScriptBytes) throws ApiException {
+        var protocolParams = protocolParamsSupplier.getProtocolParams();
+        if(protocolParams == null)
+            throw new ApiException("Unable to fetch protocol parameters to calculate the fee");
+
+        Integer minFeeRefScriptCostPerByte;
+        if (protocolParams.getMinFeeRefScriptCostPerByte() != null) {
+            minFeeRefScriptCostPerByte = protocolParams.getMinFeeRefScriptCostPerByte();
+        } else {
+            minFeeRefScriptCostPerByte = protocolParams.getMinFeeA();
+            log.warn("minFeeRefScriptCostPerByte is not set in protocol parameters. Defaulting to minFeeA value. This may result in wrong fee calculation. Please set the minFeeRefScriptCostPerByte in the protocol parameters.");
+        }
+
+        return BigInteger.valueOf(minFeeRefScriptCostPerByte * totalReferenceScriptBytes);
     }
 
     private BigInteger doFeeCalculationFromTxnSize(byte[] bytes, ProtocolParams protocolParams) {
