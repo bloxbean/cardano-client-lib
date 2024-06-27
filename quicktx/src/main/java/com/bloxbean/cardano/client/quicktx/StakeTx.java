@@ -404,7 +404,7 @@ class StakeTx {
                 if (stakeKeyDeregestrationContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = stakeKeyDeregestrationContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(certificates.size() - 1));
+                    redeemer.setIndex(certificates.size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
 
@@ -451,7 +451,7 @@ class StakeTx {
                 if (stakeDelegationContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = stakeDelegationContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(certificates.size() - 1));
+                    redeemer.setIndex(certificates.size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
             }
@@ -479,7 +479,7 @@ class StakeTx {
                 if (withdrawalContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = withdrawalContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(txn.getBody().getWithdrawals().size() - 1));
+                    redeemer.setIndex(txn.getBody().getWithdrawals().size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
 

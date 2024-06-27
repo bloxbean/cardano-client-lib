@@ -419,6 +419,18 @@ public class Tx extends AbstractTx<Tx> {
     }
 
     /**
+     * Create a new governance proposal
+     * @param govAction GovAction
+     * @param rewardAccount return address for the deposit refund
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public Tx createProposal(@NonNull GovAction govAction, @NonNull String rewardAccount, Anchor anchor) {
+        govTx.createProposal(govAction, rewardAccount, anchor, null);
+        return this;
+    }
+
+    /**
      * Create a voting procedure
      * @param voter Voter
      * @param govActionId GovActionId

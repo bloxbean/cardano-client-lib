@@ -1,7 +1,9 @@
 package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -10,6 +12,12 @@ import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
+import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
+import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
+import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,6 +35,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     protected List<PlutusScript> mintingValidators;
     protected List<PlutusScript> certValidators;
     protected List<PlutusScript> rewardValidators;
+    protected List<PlutusScript> proposingValidators;
+    protected List<PlutusScript> votingValidators;
 
     protected List<SpendingContext> spendingContexts;
     protected List<MintingContext> mintingContexts;
@@ -35,6 +45,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     protected String fromAddress;
     private StakeTx stakeTx;
+    private GovTx govTx;
 
     public ScriptTx() {
         spendingContexts = new ArrayList<>();
@@ -43,8 +54,25 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         mintingValidators = new ArrayList<>();
         certValidators = new ArrayList<>();
         rewardValidators = new ArrayList<>();
+        proposingValidators = new ArrayList<>();
+        votingValidators = new ArrayList<>();
 
         stakeTx = new StakeTx();
+        govTx = new GovTx();
+    }
+
+    public ScriptTx(ProtocolParams protocolParams) {
+        spendingContexts = new ArrayList<>();
+        mintingContexts = new ArrayList<>();
+        spendingValidators = new ArrayList<>();
+        mintingValidators = new ArrayList<>();
+        certValidators = new ArrayList<>();
+        rewardValidators = new ArrayList<>();
+        proposingValidators = new ArrayList<>();
+        votingValidators = new ArrayList<>();
+
+        stakeTx = new StakeTx(protocolParams);
+        govTx = new GovTx(protocolParams);
     }
 
     /**
@@ -334,6 +362,26 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
+     * Attach a proposing validator script to the transaction
+     * @param plutusScript plutus script
+     * @return ScriptTx
+     */
+    public ScriptTx attachProposingValidator(PlutusScript plutusScript) {
+        proposingValidators.add(plutusScript);
+        return this;
+    }
+
+    /**
+     * Attach a voting validator script to the transaction
+     * @param plutusScript plutus script
+     * @return ScriptTx
+     */
+    public ScriptTx attachVotingValidator(PlutusScript plutusScript) {
+        votingValidators.add(plutusScript);
+        return this;
+    }
+
+    /**
      * Send change to the change address with the output datum.
      *
      * @param changeAddress change address
@@ -465,6 +513,82 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
+     * Register DRep
+     * @param drepCredential DRep credential
+     * @param anchor anchor
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx registerDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
+        govTx.registerDRep(drepCredential, anchor, redeemer);
+        return this;
+    }
+
+    /**
+     * Unregister DRep
+     * @param drepCredential DRep credential
+     * @param refundAddress refund address
+     * @param refundAmount refund amount
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount, PlutusData redeemer) {
+        govTx.unregisterDRep(drepCredential, refundAddress, refundAmount, redeemer);
+        return this;
+    }
+
+    /**
+     * Update DRep
+     * @param drepCredential DRep credential
+     * @param anchor anchor
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx updateDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
+        govTx.updateDRep(drepCredential, anchor, redeemer);
+        return this;
+    }
+
+    /**
+     * Create a proposal
+     * @param govAction gov action
+     * @param returnAddress return address
+     * @param anchor anchor
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx createProposal(GovAction govAction, @NonNull String returnAddress, Anchor anchor, PlutusData redeemer) {
+        govTx.createProposal(govAction, returnAddress, anchor, redeemer);
+        return this;
+    }
+
+    /**
+     * Create a vote
+     * @param voter voter
+     * @param govActionId gov action id
+     * @param vote vote
+     * @param anchor anchor
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor, PlutusData redeemer) {
+        govTx.createVote(voter, govActionId, vote, anchor, redeemer);
+        return this;
+    }
+
+    /**
+     * Delegate voting power to a DRep
+     * @param address address to delegate
+     * @param drep DRep
+     * @param redeemer redeemer
+     * @return
+     */
+    public ScriptTx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep, PlutusData redeemer) {
+        govTx.delegateVotingPowerTo(address, drep, redeemer);
+        return this;
+    }
+
+    /**
      * Send change to the change address with the output datum hash.
      *
      * @param changeAddress change address
@@ -517,7 +641,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                 if (scriptUtxo.isPresent()) {
                     int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
                     if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
-                        redeemer.setIndex(BigInteger.valueOf(scriptInputIndex));
+                        redeemer.setIndex(scriptInputIndex);
                     }
                 } else
                     throw new TxBuildException("No utxo found for redeemer. Something went wrong." + redeemer);
@@ -551,13 +675,21 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
         }
 
+        //gov related
+        Tuple<List<GovTx.PaymentContext>, TxBuilder> govBuildTuple =
+                govTx.build(getFromAddress(), getChangeAddress());
+        for (GovTx.PaymentContext paymentContext : govBuildTuple._1) {
+            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
+        }
+
         //Invoke common complete logic
         TxBuilder txBuilder = super.complete();
 
         txBuilder = txBuilder.andThen(prepareScriptCallContext());
 
-        //stake related
-        txBuilder = txBuilder.andThen(stakeBuildTuple._2);
+        //stake, gov related
+        txBuilder = txBuilder.andThen(stakeBuildTuple._2)
+                .andThen(govBuildTuple._2);
 
         return txBuilder;
     }
@@ -570,8 +702,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         txBuilder = txBuilderFromSpendingValidators(txBuilder);
         txBuilder = txBuilderFromMintingValidators(txBuilder);
-        txBuilder = txBuilderFromCertValidators(txBuilder);
-        txBuilder = txBuilderFromRewardValidators(txBuilder);
+        txBuilder = txBuilderFromValidators(txBuilder, certValidators);//txBuilderFromCertValidators(txBuilder);
+        txBuilder = txBuilderFromValidators(txBuilder, rewardValidators); //txBuilderFromRewardValidators(txBuilder);
+        txBuilder = txBuilderFromValidators(txBuilder, proposingValidators);//txBuilderFromProposingValidators(txBuilder);
+        txBuilder = txBuilderFromValidators(txBuilder, votingValidators);
 
         return txBuilder;
     }
@@ -695,30 +829,77 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return txBuilder;
     }
 
-    private TxBuilder txBuilderFromCertValidators(TxBuilder txBuilder) {
-        for (PlutusScript plutusScript : certValidators) {
-            txBuilder =
-                    txBuilder.andThen(((context, transaction) -> {
-                        if (transaction.getWitnessSet() == null)
-                            transaction.setWitnessSet(new TransactionWitnessSet());
-                        if (plutusScript instanceof PlutusV1Script) {
-                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV2Script) {
-                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV3Script) {
-                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-                        }
-                    }));
-        }
+//    private TxBuilder txBuilderFromCertValidators(TxBuilder txBuilder) {
+//        for (PlutusScript plutusScript : certValidators) {
+//            txBuilder =
+//                    txBuilder.andThen(((context, transaction) -> {
+//                        if (transaction.getWitnessSet() == null)
+//                            transaction.setWitnessSet(new TransactionWitnessSet());
+//                        if (plutusScript instanceof PlutusV1Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV2Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV3Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
+//                        }
+//                    }));
+//        }
+//
+//        return txBuilder;
+//    }
+//
+//    private TxBuilder txBuilderFromRewardValidators(TxBuilder txBuilder) {
+//        for (PlutusScript plutusScript : rewardValidators) {
+//            txBuilder =
+//                    txBuilder.andThen(((context, transaction) -> {
+//                        if (transaction.getWitnessSet() == null)
+//                            transaction.setWitnessSet(new TransactionWitnessSet());
+//                        if (plutusScript instanceof PlutusV1Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV2Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV3Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
+//                        }
+//                    }));
+//        }
+//
+//        return txBuilder;
+//    }
+//
+//    private TxBuilder txBuilderFromProposingValidators(TxBuilder txBuilder) {
+//        for (PlutusScript plutusScript : proposingValidators) {
+//            txBuilder =
+//                    txBuilder.andThen(((context, transaction) -> {
+//                        if (transaction.getWitnessSet() == null)
+//                            transaction.setWitnessSet(new TransactionWitnessSet());
+//                        if (plutusScript instanceof PlutusV1Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV2Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV3Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
+//                        }
+//                    }));
+//        }
+//
+//        return txBuilder;
+//    }
 
-        return txBuilder;
-    }
+    private TxBuilder txBuilderFromValidators(TxBuilder txBuilder, List<PlutusScript> validators) {
+        if (validators == null)
+            return txBuilder;
 
-    private TxBuilder txBuilderFromRewardValidators(TxBuilder txBuilder) {
-        for (PlutusScript plutusScript : rewardValidators) {
+        for (PlutusScript plutusScript : validators) {
             txBuilder =
                     txBuilder.andThen(((context, transaction) -> {
                         if (transaction.getWitnessSet() == null)
