@@ -21,6 +21,18 @@ public class Redeemer {
     private PlutusData data;
     private ExUnits exUnits;
 
+    /**
+     * This method is deprecated. Use setIndex(int index) instead.
+     */
+    @Deprecated(forRemoval = true)
+    public void setIndex(BigInteger index) {
+        this.index = index;
+    }
+
+    public void setIndex(int index) {
+        this.index = BigInteger.valueOf(index);
+    }
+
     public Array serializePreConway() throws CborSerializationException {
         Array redeemerArray = new Array();
 
@@ -144,11 +156,24 @@ public class Redeemer {
         }
 
         //Index
-        redeemer.setIndex(((UnsignedInteger) indexDI).getValue());
+        redeemer.setIndex(((UnsignedInteger) indexDI).getValue().intValue());
         redeemer.setData(PlutusData.deserialize(dataDI));
         redeemer.setExUnits(ExUnits.deserialize((Array) exUnitDI));
 
         return redeemer;
+    }
+
+    public static class RedeemerBuilder {
+        @Deprecated
+        public RedeemerBuilder index(BigInteger index) {
+            this.index = index;
+            return this;
+        }
+
+        public RedeemerBuilder index(int index) {
+            this.index = BigInteger.valueOf(index);
+            return this;
+        }
     }
 }
 
