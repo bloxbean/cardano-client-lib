@@ -32,8 +32,20 @@ class DRepIdTest {
     }
 
     @Test
+    void fromKeyHashBytes() {
+        String drepId = DRepId.fromKeyHash(HexUtil.decodeHexString("74984fae4ca1715fa1f8759f9d871015ac87f449a85dea6cf9956da1"));
+        assertThat(drepId).isEqualTo("drep1wjvyltjv59c4lg0cwk0empcszkkg0azf4pw75m8ej4k6zuqfvt5");
+    }
+
+    @Test
     void fromScriptHash() {
         String drepId = DRepId.fromScriptHash("41868c2b4e5289022a3a1f6f47f86823bc605c609d2c47a2db58e04a");
+        assertThat(drepId).isEqualTo("drep_script1gxrgc26w22ysy236rah507rgyw7xqhrqn5ky0gkmtrsy553rrq7");
+    }
+
+    @Test
+    void fromScriptHashBytes() {
+        String drepId = DRepId.fromScriptHash(HexUtil.decodeHexString("41868c2b4e5289022a3a1f6f47f86823bc605c609d2c47a2db58e04a"));
         assertThat(drepId).isEqualTo("drep_script1gxrgc26w22ysy236rah507rgyw7xqhrqn5ky0gkmtrsy553rrq7");
     }
 
