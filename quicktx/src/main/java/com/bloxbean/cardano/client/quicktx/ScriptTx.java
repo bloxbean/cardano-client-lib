@@ -758,7 +758,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                         throw new TxBuildException("Script utxo is not found in transaction inputs : " + spendingContext.scriptUtxo.getTxHash());
 
                     //update script input index
-                    spendingContext.getRedeemer().setIndex(BigInteger.valueOf(scriptInputIndex));
+                    spendingContext.getRedeemer().setIndex(scriptInputIndex);
                     transaction.getWitnessSet().getRedeemers().add(spendingContext.redeemer);
                 }
             }));
@@ -811,7 +811,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                         throw new TxBuildException("Policy id is not found in transaction mint : " + mintingContext.getPolicyId());
 
                     //update script input index
-                    mintingContext.getRedeemer().setIndex(BigInteger.valueOf(index));
+                    mintingContext.getRedeemer().setIndex(index);
 
                     transaction.getWitnessSet().getRedeemers()
                             .stream().filter(redeemer -> redeemer.getTag() == mintingContext.getRedeemer().getTag()
@@ -828,72 +828,6 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         return txBuilder;
     }
-
-//    private TxBuilder txBuilderFromCertValidators(TxBuilder txBuilder) {
-//        for (PlutusScript plutusScript : certValidators) {
-//            txBuilder =
-//                    txBuilder.andThen(((context, transaction) -> {
-//                        if (transaction.getWitnessSet() == null)
-//                            transaction.setWitnessSet(new TransactionWitnessSet());
-//                        if (plutusScript instanceof PlutusV1Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV2Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV3Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-//                        }
-//                    }));
-//        }
-//
-//        return txBuilder;
-//    }
-//
-//    private TxBuilder txBuilderFromRewardValidators(TxBuilder txBuilder) {
-//        for (PlutusScript plutusScript : rewardValidators) {
-//            txBuilder =
-//                    txBuilder.andThen(((context, transaction) -> {
-//                        if (transaction.getWitnessSet() == null)
-//                            transaction.setWitnessSet(new TransactionWitnessSet());
-//                        if (plutusScript instanceof PlutusV1Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV2Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV3Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-//                        }
-//                    }));
-//        }
-//
-//        return txBuilder;
-//    }
-//
-//    private TxBuilder txBuilderFromProposingValidators(TxBuilder txBuilder) {
-//        for (PlutusScript plutusScript : proposingValidators) {
-//            txBuilder =
-//                    txBuilder.andThen(((context, transaction) -> {
-//                        if (transaction.getWitnessSet() == null)
-//                            transaction.setWitnessSet(new TransactionWitnessSet());
-//                        if (plutusScript instanceof PlutusV1Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV2Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV3Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-//                        }
-//                    }));
-//        }
-//
-//        return txBuilder;
-//    }
 
     private TxBuilder txBuilderFromValidators(TxBuilder txBuilder, List<PlutusScript> validators) {
         if (validators == null)
