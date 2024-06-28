@@ -765,6 +765,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST)?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                .withReferenceScripts(sumScript)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
