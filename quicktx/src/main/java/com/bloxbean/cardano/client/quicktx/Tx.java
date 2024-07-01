@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -39,6 +40,11 @@ public class Tx extends AbstractTx<Tx> {
     public Tx() {
         stakeTx = new StakeTx();
         govTx = new GovTx();
+    }
+
+    public Tx(ProtocolParams protocolParams) {
+        stakeTx = new StakeTx(protocolParams);
+        govTx = new GovTx(protocolParams);
     }
 
     /**
@@ -409,6 +415,18 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx createProposal(@NonNull GovAction govAction, @NonNull BigInteger deposit, @NonNull String rewardAccount, Anchor anchor) {
         govTx.createProposal(govAction, deposit, rewardAccount, anchor);
+        return this;
+    }
+
+    /**
+     * Create a new governance proposal
+     * @param govAction GovAction
+     * @param rewardAccount return address for the deposit refund
+     * @param anchor Anchor
+     * @return Tx
+     */
+    public Tx createProposal(@NonNull GovAction govAction, @NonNull String rewardAccount, Anchor anchor) {
+        govTx.createProposal(govAction, rewardAccount, anchor, null);
         return this;
     }
 

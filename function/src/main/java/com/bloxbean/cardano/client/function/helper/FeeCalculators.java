@@ -14,6 +14,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 /**
  * Provides helper methods to get fee calculation {@link TxBuilder} transformer
  */
+@Slf4j
 public class FeeCalculators {
     private static Account dummyAccount;
 
@@ -88,7 +90,20 @@ public class FeeCalculators {
                 }
             }
 
-            BigInteger totalFee = baseFee.add(scriptFee);
+            BigInteger refScriptFee = BigInteger.ZERO;
+            if (transaction.getBody().getReferenceInputs() != null && transaction.getBody().getReferenceInputs().size() > 0) {
+                var refScripts = context.getRefScripts();
+                if (refScripts == null && refScripts.size() == 0) {
+                    log.warn("Reference inputs found, but reference scripts are not set in the context. This may result in wrong fee calculation. Please set the reference scripts in the context");
+                } else {
+                    int totalRefScriptBytes = refScripts.stream()
+                            .mapToInt(byteArray -> byteArray.length)
+                            .sum();
+                    refScriptFee = feeCalculationService.calculateReferenceScriptFee(totalRefScriptBytes);
+                }
+            }
+
+            BigInteger totalFee = baseFee.add(scriptFee).add(refScriptFee);
             tbody.setFee(totalFee);
 
             if (updateOutputWithFeeFunc == null) {

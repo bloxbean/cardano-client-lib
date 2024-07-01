@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressType;
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
@@ -32,10 +33,12 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
  */
 @Slf4j
 class StakeTx {
-    //TODO -- Read from protocol params
-    public static final BigInteger STAKE_KEY_REG_DEPOSIT = adaToLovelace(2.0);
-    private static final BigInteger POOL_REG_DEPOSIT = adaToLovelace(500);
-    public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
+    private static final BigInteger DEFAULT_STAKE_KEY_REG_DEPOSIT = adaToLovelace(2.0);
+    private static final BigInteger DEFAUlT_POOL_REG_DEPOSIT = adaToLovelace(500);
+    private static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
+
+    private BigInteger stakeKeyRegDeposit;
+    private BigInteger poolRegDeposit;
 
     protected List<StakeRegistration> stakeRegistrations;
     protected List<StakeKeyDeregestrationContext> stakeDeRegistrationContexts;
@@ -43,6 +46,21 @@ class StakeTx {
     protected List<WithdrawalContext> withdrawalContexts;
     protected List<PoolRegistrationContext> poolRegistrationContexts;
     protected List<PoolRetirement> poolRetirements;
+
+    public StakeTx() {
+        stakeKeyRegDeposit = DEFAULT_STAKE_KEY_REG_DEPOSIT;
+        poolRegDeposit = DEFAUlT_POOL_REG_DEPOSIT;
+    }
+
+    public StakeTx(ProtocolParams protocolParams) {
+        if (protocolParams != null) {
+            stakeKeyRegDeposit = new BigInteger(protocolParams.getKeyDeposit());
+            poolRegDeposit = new BigInteger(protocolParams.getPoolDeposit());
+        } else {
+            stakeKeyRegDeposit = DEFAULT_STAKE_KEY_REG_DEPOSIT;
+            poolRegDeposit = DEFAUlT_POOL_REG_DEPOSIT;
+        }
+    }
 
     /**
      * Register stake address
@@ -280,7 +298,7 @@ class StakeTx {
 
         if (stakeRegistrations != null && stakeRegistrations.size() > 0) {
             //Dummy pay to fromAddress to add deposit
-            Amount totalStakeDepositAmount = Amount.lovelace(STAKE_KEY_REG_DEPOSIT.multiply(BigInteger.valueOf(stakeRegistrations.size())));
+            Amount totalStakeDepositAmount = Amount.lovelace(stakeKeyRegDeposit.multiply(BigInteger.valueOf(stakeRegistrations.size())));
             paymentContexts.add(new PaymentContext(fromAddress, totalStakeDepositAmount));
         }
 
@@ -304,7 +322,7 @@ class StakeTx {
 
             if (poolRegistrations.size() > 0) {
                 //Dummy pay to fromAddress to add deposit
-                Amount totalPoolDepositAmount = Amount.lovelace(POOL_REG_DEPOSIT.multiply(BigInteger.valueOf(poolRegistrations.size())));
+                Amount totalPoolDepositAmount = Amount.lovelace(poolRegDeposit.multiply(BigInteger.valueOf(poolRegistrations.size())));
                 paymentContexts.add(new PaymentContext(fromAddress, totalPoolDepositAmount));
             }
         }
@@ -386,7 +404,7 @@ class StakeTx {
                 if (stakeKeyDeregestrationContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = stakeKeyDeregestrationContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(certificates.size() - 1));
+                    redeemer.setIndex(certificates.size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
 
@@ -396,10 +414,10 @@ class StakeTx {
                         .findFirst()
                         .ifPresentOrElse(to -> {
                             //Add deposit amount to the change address
-                            to.getValue().setCoin(to.getValue().getCoin().add(STAKE_KEY_REG_DEPOSIT));
+                            to.getValue().setCoin(to.getValue().getCoin().add(stakeKeyRegDeposit));
                         }, () -> {
                             TransactionOutput transactionOutput = new TransactionOutput(stakeKeyDeregestrationContext.refundAddress,
-                                    Value.builder().coin(STAKE_KEY_REG_DEPOSIT).build());
+                                    Value.builder().coin(stakeKeyRegDeposit).build());
                             txn.getBody().getOutputs().add(transactionOutput);
                         });
             }
@@ -433,7 +451,7 @@ class StakeTx {
                 if (stakeDelegationContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = stakeDelegationContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(certificates.size() - 1));
+                    redeemer.setIndex(certificates.size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
             }
@@ -461,7 +479,7 @@ class StakeTx {
                 if (withdrawalContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = withdrawalContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(txn.getBody().getWithdrawals().size() - 1));
+                    redeemer.setIndex(txn.getBody().getWithdrawals().size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
 
