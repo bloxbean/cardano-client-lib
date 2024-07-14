@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -59,20 +58,6 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         stakeTx = new StakeTx();
         govTx = new GovTx();
-    }
-
-    public ScriptTx(ProtocolParams protocolParams) {
-        spendingContexts = new ArrayList<>();
-        mintingContexts = new ArrayList<>();
-        spendingValidators = new ArrayList<>();
-        mintingValidators = new ArrayList<>();
-        certValidators = new ArrayList<>();
-        rewardValidators = new ArrayList<>();
-        proposingValidators = new ArrayList<>();
-        votingValidators = new ArrayList<>();
-
-        stakeTx = new StakeTx(protocolParams);
-        govTx = new GovTx(protocolParams);
     }
 
     /**
@@ -525,6 +510,17 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
+     * Register DRep
+     * @param drepCredential - DRep credential
+     * @param redeemer - redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx registerDRep(@NonNull Credential drepCredential, PlutusData redeemer) {
+        govTx.registerDRep(drepCredential, null, redeemer);
+        return this;
+    }
+
+    /**
      * Unregister DRep
      * @param drepCredential DRep credential
      * @param refundAddress refund address
@@ -534,6 +530,18 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount, PlutusData redeemer) {
         govTx.unregisterDRep(drepCredential, refundAddress, refundAmount, redeemer);
+        return this;
+    }
+
+    /**
+     * Unregister DRep
+     * @param drepCredential DRep credential
+     * @param refundAddress refund address
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, PlutusData redeemer) {
+        govTx.unregisterDRep(drepCredential, refundAddress, null, redeemer);
         return this;
     }
 
@@ -669,18 +677,18 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     @Override
     TxBuilder complete() {
         //stake related
-        Tuple<List<StakeTx.PaymentContext>, TxBuilder> stakeBuildTuple =
+        Tuple<List<DepositRefundContext>, TxBuilder> stakeBuildTuple =
                 stakeTx.build(getFromAddress(), getChangeAddress());
-        for (StakeTx.PaymentContext paymentContext : stakeBuildTuple._1) {
-            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
-        }
+
+        //Add stake deposit refund context
+        addDepositRefundContext(stakeBuildTuple._1);
 
         //gov related
-        Tuple<List<GovTx.PaymentContext>, TxBuilder> govBuildTuple =
+        Tuple<List<DepositRefundContext>, TxBuilder> govBuildTuple =
                 govTx.build(getFromAddress(), getChangeAddress());
-        for (GovTx.PaymentContext paymentContext : govBuildTuple._1) {
-            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
-        }
+
+        //Add gov deposit refund context
+        addDepositRefundContext(govBuildTuple._1);
 
         //Invoke common complete logic
         TxBuilder txBuilder = super.complete();
