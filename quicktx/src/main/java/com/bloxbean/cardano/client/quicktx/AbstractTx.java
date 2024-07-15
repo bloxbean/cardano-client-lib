@@ -39,6 +39,8 @@ public abstract class AbstractTx<T> {
     protected PlutusData changeData;
     protected String changeDatahash;
 
+    protected List<DepositRefundContext> depositRefundContexts;
+
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
      *
@@ -250,6 +252,16 @@ public abstract class AbstractTx<T> {
 
     TxBuilder complete() {
         TxOutputBuilder txOutputBuilder = null;
+
+        if (depositRefundContexts != null && depositRefundContexts.size() > 0) {
+            for (DepositRefundContext depositPaymentContext: depositRefundContexts) {
+                if (txOutputBuilder == null)
+                    txOutputBuilder = DepositRefundOutputBuilder.createFromDepositRefundContext(depositPaymentContext);
+                else
+                    txOutputBuilder = txOutputBuilder.and(DepositRefundOutputBuilder.createFromDepositRefundContext(depositPaymentContext));
+            }
+        }
+
         //Define outputs
         if (outputs != null) {
             for (TransactionOutput output : outputs) {
@@ -351,6 +363,15 @@ public abstract class AbstractTx<T> {
             multiAssets.add(new Tuple<>(script, ma._2.plus(multiAsset)));
         }, () -> {
             multiAssets.add(new Tuple<>(script, multiAsset));
+        });
+    }
+
+    protected void addDepositRefundContext(List<DepositRefundContext> _depositRefundContexts) {
+        if (this.depositRefundContexts == null)
+            this.depositRefundContexts = new ArrayList<>();
+
+        _depositRefundContexts.forEach(depositRefundContext -> {
+            this.depositRefundContexts.add(depositRefundContext);
         });
     }
 

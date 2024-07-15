@@ -79,7 +79,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         var anchor = new Anchor("https://pages.bloxbean.com/cardano-stake/bloxbean-pool.json",
                 HexUtil.decodeHexString("bafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
-        ScriptTx drepRegTx = new ScriptTx(protocolParams)
+        ScriptTx drepRegTx = new ScriptTx()
                 .registerDRep(scriptCredential, anchor, BigIntPlutusData.of(1))
                 .attachCertificateValidator(plutusScript);
 
@@ -121,7 +121,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         var anchor = new Anchor("https://update.com",
                 HexUtil.decodeHexString("bafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
-        ScriptTx tx = new ScriptTx(protocolParams)
+        ScriptTx tx = new ScriptTx()
                 .updateDRep(scriptCredential, anchor, BigIntPlutusData.of(1))
                 .attachCertificateValidator(plutusScript);
 
@@ -166,7 +166,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         var anchor = new Anchor("https://xyz.com",
                 HexUtil.decodeHexString("cafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
-        ScriptTx tx = new ScriptTx(protocolParamsSupplier.getProtocolParams())
+        ScriptTx tx = new ScriptTx()
                 .createProposal(parameterChange, sender1.stakeAddress(), anchor, BigIntPlutusData.of(1))
                 .attachProposingValidator(plutusScript);
 
@@ -292,7 +292,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         var scriptHash = plutusScript.getScriptHash();
         var scriptCredential = Credential.fromScript(scriptHash);
 
-        ScriptTx tx = new ScriptTx(protocolParams)
+        ScriptTx tx = new ScriptTx()
                 .unRegisterDRep(scriptCredential, sender1Addr, protocolParams.getDrepDeposit(), BigIntPlutusData.of(1))
                 .attachCertificateValidator(plutusScript);
 

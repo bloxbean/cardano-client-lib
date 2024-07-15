@@ -88,7 +88,7 @@ public class GovTxScriptTest extends QuickTxBaseTest {
         var anchor = new Anchor("https://test.com/test.json",
                 HexUtil.decodeHexString("bafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
-        ScriptTx drepRegTx = new ScriptTx(protocolParams)
+        ScriptTx drepRegTx = new ScriptTx()
                 .registerDRep(scriptCredential, anchor, BigIntPlutusData.of(1))
                 .attachCertificateValidator(plutusScript);
 
@@ -143,7 +143,7 @@ public class GovTxScriptTest extends QuickTxBaseTest {
         var anchor = new Anchor("https://test.com/test.json",
                 HexUtil.decodeHexString("bafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
-        ScriptTx drepUnRegisTx = new ScriptTx(protocolParams)
+        ScriptTx drepUnRegisTx = new ScriptTx()
                 .unRegisterDRep(scriptCredential, receiver1, BigInteger.valueOf(1000), BigIntPlutusData.of(1))
                 .attachCertificateValidator(plutusScript);
 
@@ -200,7 +200,7 @@ public class GovTxScriptTest extends QuickTxBaseTest {
         var anchor = new Anchor("https://test.com/test.json",
                 HexUtil.decodeHexString("bafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
-        ScriptTx drepUpdateTx = new ScriptTx(protocolParams)
+        ScriptTx drepUpdateTx = new ScriptTx()
                 .updateDRep(scriptCredential, anchor, BigIntPlutusData.of(1))
                 .attachCertificateValidator(plutusScript);
 
@@ -250,7 +250,7 @@ public class GovTxScriptTest extends QuickTxBaseTest {
                 .build();
         var scriptHash = plutusScript.getScriptHash();
 
-        ScriptTx voteDelgTx = new ScriptTx(protocolParams)
+        ScriptTx voteDelgTx = new ScriptTx()
                 .delegateVotingPowerTo(new Address(sender1), DRep.scriptHash(scriptHash), BigIntPlutusData.of(1))
                 .attachCertificateValidator(plutusScript);
 
@@ -310,7 +310,7 @@ public class GovTxScriptTest extends QuickTxBaseTest {
         var anchor = new Anchor("https://xyz.com",
                 HexUtil.decodeHexString("cafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
-        ScriptTx proposalTx = new ScriptTx(protocolParams)
+        ScriptTx proposalTx = new ScriptTx()
                 .createProposal(parameterChange, refundStakeAddr, anchor, BigIntPlutusData.of(1))
                 .attachProposingValidator(plutusScript);
 
@@ -372,7 +372,7 @@ public class GovTxScriptTest extends QuickTxBaseTest {
                 .type(VoterType.DREP_SCRIPT_HASH)
                 .build();
 
-        ScriptTx proposalTx = new ScriptTx(protocolParams)
+        ScriptTx proposalTx = new ScriptTx()
                 .createVote(voter, new GovActionId("12745f09b138d4d0a11a560b4591ebb830cf12336347606d2edbbf1893d395c6", 0), Vote.YES, anchor, BigIntPlutusData.of(1))
                 .attachVotingValidator(plutusScript);
 
