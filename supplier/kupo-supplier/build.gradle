@@ -1,0 +1,22 @@
+dependencies {
+    api project(':core-api')
+
+    implementation(libs.retrofit2) {
+        exclude group: 'com.squareup.okhttp3', module: 'okhttp'
+    }
+    implementation(libs.retrofit2.converter.jackson) {
+        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    }
+    implementation(libs.okhttp)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Supplier - Kupo'
+                description = 'Cardano Client Lib - Kupo Supplier Module'
+            }
+        }
+    }
+}

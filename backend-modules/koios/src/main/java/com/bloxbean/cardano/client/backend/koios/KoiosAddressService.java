@@ -11,7 +11,7 @@ import rest.koios.client.backend.api.address.AddressService;
 import rest.koios.client.backend.api.address.model.AddressInfo;
 import rest.koios.client.backend.api.address.model.AddressUtxo;
 import rest.koios.client.backend.api.base.common.Asset;
-import rest.koios.client.backend.api.base.common.UTxO;
+import rest.koios.client.backend.api.base.common.TxHash;
 import rest.koios.client.backend.factory.options.*;
 import rest.koios.client.backend.factory.options.filters.Filter;
 import rest.koios.client.backend.factory.options.filters.FilterType;
@@ -105,13 +105,13 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
                     .option(Limit.of(count))
                     .option(Offset.of((long) (page - 1) * count))
                     .option(ordering).build();
-            if (from != null && !from.isEmpty()) {
-                options.getOptionList().add(Filter.of("block_height", FilterType.GTE, from));
-            }
             if (to != null && !to.isEmpty()) {
                 options.getOptionList().add(Filter.of("block_height", FilterType.LTE, to));
             }
-            rest.koios.client.backend.api.base.Result<List<UTxO>> addressUTxOsResult = addressService.getAddressUTxOs(List.of(address), true, options);
+            if (from == null) {
+                from = "0";
+            }
+            rest.koios.client.backend.api.base.Result<List<TxHash>> addressUTxOsResult = addressService.getAddressTransactions(List.of(address), Integer.parseInt(from), options);
             if (!addressUTxOsResult.isSuccessful()) {
                 return Result.error(addressUTxOsResult.getResponse()).code(addressUTxOsResult.getCode());
             }
@@ -123,14 +123,38 @@ public class KoiosAddressService implements com.bloxbean.cardano.client.backend.
         }
     }
 
-    private Result<List<AddressTransactionContent>> convertToAddressTransactionContent(List<UTxO> utxos) throws ParseException {
+    @Override
+    public Result<List<AddressTransactionContent>> getAllTransactions(String address, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException {
         List<AddressTransactionContent> addressTransactionContents = new ArrayList<>();
-        for (UTxO utxo : utxos) {
+        int page = 1;
+        Result<List<AddressTransactionContent>> addressTransactionsResult = getTransactions(address, 1000, page, order, fromBlockHeight.toString(), toBlockHeight.toString());
+        while (addressTransactionsResult.isSuccessful()) {
+            addressTransactionContents.addAll(addressTransactionsResult.getValue());
+            if (addressTransactionsResult.getValue().size() != 1000) {
+                break;
+            } else {
+                page++;
+                addressTransactionsResult = getTransactions(address, 1000, page, order, fromBlockHeight.toString(), toBlockHeight.toString());
+            }
+        }
+        if (!addressTransactionsResult.isSuccessful()) {
+            return addressTransactionsResult;
+        } else {
+            addressTransactionContents.sort((o1, o2) ->
+                    order == OrderEnum.asc ?
+                            Long.compare(o1.getBlockHeight(), o2.getBlockHeight()) :
+                            Long.compare(o2.getBlockHeight(), o1.getBlockHeight()));
+            return Result.success(addressTransactionsResult.toString()).withValue(addressTransactionContents).code(addressTransactionsResult.code());
+        }
+    }
+
+    private Result<List<AddressTransactionContent>> convertToAddressTransactionContent(List<TxHash> txHashes) throws ParseException {
+        List<AddressTransactionContent> addressTransactionContents = new ArrayList<>();
+        for (TxHash txHash : txHashes) {
             AddressTransactionContent addressTransactionContent = new AddressTransactionContent();
-            addressTransactionContent.setTxHash(utxo.getTxHash());
-            addressTransactionContent.setTxIndex(utxo.getTxIndex());
-            addressTransactionContent.setBlockHeight(utxo.getBlockHeight());
-            addressTransactionContent.setBlockTime(utxo.getBlockTime());
+            addressTransactionContent.setTxHash(txHash.getTxHash());
+            addressTransactionContent.setBlockHeight(txHash.getBlockHeight());
+            addressTransactionContent.setBlockTime(txHash.getBlockTime());
             addressTransactionContents.add(addressTransactionContent);
         }
         return Result.success("OK").withValue(addressTransactionContents).code(200);

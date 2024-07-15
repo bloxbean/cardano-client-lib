@@ -27,7 +27,7 @@ const FeatureList = [
     description: (
       <>
         Java Api for <br/>
-        CIP-8, CIP-20, CIP-25, CIP-30 ...
+        CIP-8, CIP-20, CIP-25, CIP-30, CIP-67/68 ...
       </>
     ),
   },

@@ -147,4 +147,11 @@ public interface FeeCalculationService {
      * @return Estimated fee
      */
     BigInteger calculateScriptFee(List<ExUnits> exUnits, ProtocolParams protocolParams);
+
+    /**
+     * Calculate reference script fee
+     * @return Estimated fee
+     * @throws ApiException
+     */
+    BigInteger calculateReferenceScriptFee(long totalReferenceScriptBytes) throws ApiException;
 }

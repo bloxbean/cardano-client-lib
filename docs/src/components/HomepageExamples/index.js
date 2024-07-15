@@ -150,7 +150,6 @@ export default function HomepageExamples() {
                     <div className="alert alert--success" role="alert">
                         Simple <strong>declarative</strong> api to build and submit transactions.
                         <br/>
-                        Supported in <strong>v0.5.0-alpha.3 or later</strong>
                     </div>
                     <HomepageExample examples={quickTxExamples}/>
                 </TabItem>

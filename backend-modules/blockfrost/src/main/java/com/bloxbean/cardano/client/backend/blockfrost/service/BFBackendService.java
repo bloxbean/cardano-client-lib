@@ -24,6 +24,11 @@ public class BFBackendService extends BFBaseService implements BackendService {
     }
 
     @Override
+    public PoolService getPoolService() {
+        return new BFPoolService(getBaseUrl(), getProjectId());
+    }
+
+    @Override
     public TransactionService getTransactionService() {
         return new BFTransactionService(getBaseUrl(), getProjectId());
     }
@@ -40,7 +45,7 @@ public class BFBackendService extends BFBaseService implements BackendService {
 
     @Override
     public AccountService getAccountService() {
-        return new BFAccountService(getBaseUrl(), getProjectId());
+        return new BFAccountService(getBaseUrl(), getProjectId(), getAddressService());
     }
 
     @Override

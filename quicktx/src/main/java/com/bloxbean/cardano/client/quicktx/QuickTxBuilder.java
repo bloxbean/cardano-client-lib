@@ -25,6 +25,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
 import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import lombok.NonNull;
@@ -131,6 +132,8 @@ public class QuickTxBuilder {
         private TransactionEvaluator txnEvaluator;
         private UtxoSelectionStrategy utxoSelectionStrategy;
         private Verifier txVerifier;
+
+        private List<PlutusScript> referenceScripts;
 
         private boolean ignoreScriptCostEvaluationError = true;
 
@@ -256,6 +259,12 @@ public class QuickTxBuilder {
             //requiredSigners
             if (requiredSigners != null && !requiredSigners.isEmpty()) {
                 txBuilder = txBuilder.andThen(addRequiredSignersBuilder());
+            }
+
+            if (referenceScripts != null && !referenceScripts.isEmpty()) {
+                txBuilder = txBuilder.andThen((context, transaction) -> {
+                    referenceScripts.forEach(script -> context.addRefScripts(script));
+                });
             }
 
             if (preBalanceTrasformer != null)
@@ -667,6 +676,27 @@ public class QuickTxBuilder {
          */
         public TxContext ignoreScriptCostEvaluationError(boolean flag) {
             this.ignoreScriptCostEvaluationError = flag;
+            return this;
+        }
+
+        /**
+         * Set scripts used in reference inputs. From Conway era, reference script's size is also used during fee calculation.
+         * These scripts are not part of the transaction but used only in fee calculation.
+         *
+         * <p>
+         * If reference scripts are not set, the fee calculation may not be accurate.
+         * </p>
+         * @param scripts
+         * @return TxContext
+         */
+        public TxContext withReferenceScripts(PlutusScript... scripts) {
+            if (scripts == null || scripts.length == 0)
+                throw new TxBuildException("Reference scripts can't be null or empty");
+
+            if (referenceScripts == null)
+                referenceScripts = new ArrayList<>();
+
+            referenceScripts.addAll(Arrays.asList(scripts));
             return this;
         }
 

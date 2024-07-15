@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 /**
@@ -31,6 +32,10 @@ public class PlutusBlueprintUtil {
                         .build();
             } else if (plutusVersion.equals(PlutusVersion.v2)) {
                 return PlutusV2Script.builder()
+                        .cborHex(cborHex)
+                        .build();
+            } else if (plutusVersion.equals(PlutusVersion.v3)) {
+                return PlutusV3Script.builder()
                         .cborHex(cborHex)
                         .build();
             } else

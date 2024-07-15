@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.util.HexUtil;
 
 public class DRepId {
     public static final String DREP_ID_PREFIX = "drep";
+    public static final String DREP_ID_SCRIPT_PREFIX = "drep_script";
 
     public static String fromVerificationKey(VerificationKey verificationKey) {
         String keyHash = KeyGenUtil.getKeyHash(verificationKey);
@@ -23,7 +24,20 @@ public class DRepId {
     }
 
     public static String fromKeyHash(String keyHash) {
-        String drepId = Bech32.encode(HexUtil.decodeHexString(keyHash), DREP_ID_PREFIX);
+        return fromKeyHash(HexUtil.decodeHexString(keyHash));
+    }
+
+    public static String fromKeyHash(byte[] keyHash) {
+        String drepId = Bech32.encode(keyHash, DREP_ID_PREFIX);
+        return drepId;
+    }
+
+    public static String fromScriptHash(String scriptHash) {
+        return fromScriptHash(HexUtil.decodeHexString(scriptHash));
+    }
+
+    public static String fromScriptHash(byte[] scriptHash) {
+        String drepId = Bech32.encode(scriptHash, DREP_ID_SCRIPT_PREFIX);
         return drepId;
     }
 

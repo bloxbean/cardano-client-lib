@@ -419,4 +419,14 @@ public class AccountTest {
 
         assertThat(publicKey.getKeyData()).isEqualTo(childHdKeyPair.getPublicKey().getKeyData());
     }
+
+    @Test
+    void testDRepId() {
+        String mnemonicPhrase = "punch smile segment tumble sauce  oak mosquito clay service switch still federal chicken economy saddle galaxy reunion trust dinosaur demise illegal pupil trip lyrics";
+
+        Account account = new Account(Networks.testnet(), mnemonicPhrase);
+        String drepId = account.drepId();
+
+        assertThat(drepId).isEqualTo("drep18hf6wcv9aaq426duj8kcc5kp9pauz9ac8znh8jmckm80sf7fetw");
+    }
 }
