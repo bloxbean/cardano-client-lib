@@ -1,2 +1,2 @@
-com.bloxbean.cardano.client.plutus.annotation.blueprint_processor.BlueprintAnnotationProcessor
+com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.BlueprintAnnotationProcessor
 com.bloxbean.cardano.client.plutus.annotation.processor.ConstrAnnotationProcessor

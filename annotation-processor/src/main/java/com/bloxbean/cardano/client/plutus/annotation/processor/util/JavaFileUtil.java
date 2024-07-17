@@ -1,10 +1,11 @@
-package com.bloxbean.cardano.client.plutus.annotation.blueprint_processor;
+package com.bloxbean.cardano.client.plutus.annotation.processor.util;
 
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.text.CaseUtils;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.tools.JavaFileObject;
@@ -26,6 +27,18 @@ public class JavaFileUtil {
     }
 
     /**
+     * Converts a string to camel case
+     * @param s
+     * @return
+     */
+    public static String toCamelCase(String s) {
+        if (s == null || s.isEmpty())
+            return s;
+
+        return CaseUtils.toCamelCase(s, true, '_', ' ', '-');
+    }
+
+    /**
      * Creates a Java file from a TypeSpec with a given classname and package
      *
      * @param packageName
@@ -39,8 +52,10 @@ public class JavaFileUtil {
 
         JavaFileObject builderFile = null;
         try {
+
+            String fullClassName = packageName + "." + className;
             builderFile = processingEnv.getFiler()
-                    .createSourceFile(className);
+                    .createSourceFile(fullClassName);
             Writer writer = builderFile.openWriter();
             javaFile.writeTo(writer);
             writer.close();

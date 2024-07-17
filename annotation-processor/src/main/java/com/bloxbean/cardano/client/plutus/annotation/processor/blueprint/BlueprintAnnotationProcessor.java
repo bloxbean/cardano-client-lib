@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.plutus.annotation.blueprint_processor;
+package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;

@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.blueprint;
 
-import com.bloxbean.cardano.client.plutus.annotation.blueprint_processor.BlueprintAnnotationProcessor;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.BlueprintAnnotationProcessor;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
 import org.junit.jupiter.api.Test;

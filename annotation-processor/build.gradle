@@ -6,6 +6,7 @@ dependencies {
         exclude group: 'com.google.guava', module: 'guava'
     }
     api libs.javapoet
+    api libs.apache.common.text
 
     testImplementation libs.google.testing.compile
     testImplementation libs.lombok

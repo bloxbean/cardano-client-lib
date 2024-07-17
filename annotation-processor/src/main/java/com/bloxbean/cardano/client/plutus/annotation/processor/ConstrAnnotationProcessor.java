@@ -80,8 +80,10 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
                         JavaFile javaFile = JavaFile.builder(classDefinition.getPackageName(), typeSpec)
                                 .build();
 
+                        String fullClassName = classDefinition.getPackageName() + "." + classDefinition.getName();
+
                         JavaFileObject builderFile = processingEnv.getFiler()
-                                .createSourceFile(classDefinition.getName());
+                                .createSourceFile(fullClassName);
                         Writer writer = builderFile.openWriter();
                         javaFile.writeTo(writer);
                         writer.close();
