@@ -69,7 +69,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 return false;
             }
             for (Validator validator : plutusContractBlueprint.getValidators()) {
-                validatorProcessor.processValidator(validator);
+                validatorProcessor.processValidator(validator, plutusContractBlueprint.getPreamble().getPlutusVersion());
             }
         }
         return true;
