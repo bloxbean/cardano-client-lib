@@ -9,9 +9,6 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -54,12 +51,23 @@ public class ClassDefinitionGenerator {
         classDefinition.setName(serializationClassName);
         classDefinition.setObjType(typeElement.asType().toString());
 
-        boolean lombokData = typeElement.getAnnotation(Data.class) != null;
-        boolean lombokGetter = typeElement.getAnnotation(Getter.class) != null;
-        boolean lombokSetter = typeElement.getAnnotation(Setter.class) != null;
+        Class lombokDataClazz;
+        Class lombokGetterClazz;
+        Class lombokSetterClazz;
 
-        if (lombokData || (lombokGetter && lombokSetter)) {
-            classDefinition.setHasLombokAnnotation(true);
+        try {
+            lombokDataClazz = Class.forName("lombok.Data");
+            lombokGetterClazz = Class.forName("lombok.Getter");
+            lombokSetterClazz = Class.forName("lombok.Setter");
+
+            boolean lombokData = typeElement.getAnnotation(lombokDataClazz) != null;
+            boolean lombokGetter = typeElement.getAnnotation(lombokGetterClazz) != null;
+            boolean lombokSetter = typeElement.getAnnotation(lombokSetterClazz) != null;
+
+            if (lombokData || (lombokGetter && lombokSetter)) {
+                classDefinition.setHasLombokAnnotation(true);
+            }
+        } catch (Exception e) {
         }
 
         Constr plutusConstr = typeElement.getAnnotation(Constr.class);

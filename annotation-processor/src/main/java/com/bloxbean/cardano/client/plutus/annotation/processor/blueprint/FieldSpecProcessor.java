@@ -13,7 +13,7 @@ import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil.firstUpperCase;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
 
 public class FieldSpecProcessor {
 
@@ -146,49 +146,11 @@ public class FieldSpecProcessor {
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
                 .addModifiers(Modifier.PUBLIC)
                 .addFields(fields)
-                .addMethods(createMethodSpecsForGetterSetters(fields))
+                .addMethods(createMethodSpecsForGetterSetters(fields, false))
                 .addAnnotation(constrAnnotationBuilder);
 
         TypeSpec build = classBuilder.build();
         JavaFileUtil.createJavaFile(annotation.packageName(), build, className, processingEnv);
         return build;
-    }
-
-    private Iterable<MethodSpec> createMethodSpecsForGetterSetters(List<FieldSpec> fields) {
-        //Generate getter and setter methods. Also check if Boolean then generate isXXX method
-        List<MethodSpec> methods = new ArrayList<>();
-
-        for(FieldSpec field : fields) {
-            String fieldName = field.name;
-
-            if(field.type == TypeName.BOOLEAN) {
-                String methodName = "is" + firstUpperCase(fieldName);
-                MethodSpec isMethod = MethodSpec.methodBuilder(methodName)
-                        .addModifiers(Modifier.PUBLIC)
-                        .returns(TypeName.BOOLEAN)
-                        .addStatement("return this.$N", fieldName)
-                        .build();
-                methods.add(isMethod);
-            } else {
-                String methodName = "get" + firstUpperCase(fieldName);
-                MethodSpec getter = MethodSpec.methodBuilder(methodName)
-                        .addModifiers(Modifier.PUBLIC)
-                        .returns(field.type)
-                        .addStatement("return this.$N", fieldName)
-                        .build();
-                methods.add(getter);
-            }
-
-            String methodName = "set" + firstUpperCase(fieldName);
-            MethodSpec setter = MethodSpec.methodBuilder(methodName)
-                    .addModifiers(Modifier.PUBLIC)
-                    .returns(TypeName.VOID)
-                    .addParameter(field.type, fieldName)
-                    .addStatement("this.$N = $N", fieldName, fieldName)
-                    .build();
-            methods.add(setter);
-        }
-
-        return methods;
     }
 }

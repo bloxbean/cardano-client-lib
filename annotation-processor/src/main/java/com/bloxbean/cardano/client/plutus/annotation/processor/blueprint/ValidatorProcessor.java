@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Network;
-import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
@@ -11,9 +10,6 @@ import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.squareup.javapoet.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
@@ -21,6 +17,8 @@ import javax.lang.model.element.Modifier;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
 
 public class ValidatorProcessor {
 
@@ -38,7 +36,8 @@ public class ValidatorProcessor {
     /**
      * Validator Definition will be converted to a Java class.
      * All definitions within are fields and/or seperate classes
-     * @param validator validator definition
+     *
+     * @param validator     validator definition
      * @param plutusVersion plutus version
      */
     public void processValidator(Validator validator, PlutusVersion plutusVersion) {
@@ -46,7 +45,7 @@ public class ValidatorProcessor {
         String[] titleTokens = validator.getTitle().split("\\.");
         String pkgSuffix = null;
 
-        if(titleTokens.length > 1) {
+        if (titleTokens.length > 1) {
             pkgSuffix = titleTokens[0];
         }
 
@@ -59,19 +58,26 @@ public class ValidatorProcessor {
         String title = validatorName;
         title = JavaFileUtil.toCamelCase(title);
 
-        List<FieldSpec> fields = ValidatorProcessor.getFieldSpecsForValidator(validator);
+        List<FieldSpec> metaFields = ValidatorProcessor.getFieldSpecsForValidator(validator);
+        FieldSpec scriptAddrField = FieldSpec.builder(String.class, "scriptAddress")
+                .addModifiers(Modifier.PRIVATE)
+                .build();
 
+        List<FieldSpec> fields = new ArrayList<>();
         // processing of fields
-        if(validator.getRedeemer() != null)
+        if (validator.getRedeemer() != null)
             fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getRedeemer().getSchema(), "Redeemer", title));
-        if(validator.getDatum() != null)
+        if (validator.getDatum() != null)
             fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getDatum().getSchema(), "Datum", title));
-        if(validator.getParameters() != null) {
+        if (validator.getParameters() != null) {
             for (BlueprintDatum parameter : validator.getParameters()) {
                 fields.add(fieldSpecProcessor.createDatumFieldSpec(parameter.getSchema(), "Parameter", title + parameter.getTitle()));
             }
         }
+
         List<MethodSpec> methods = new ArrayList<>();
+        methods.addAll(createMethodSpecsForGetterSetters(metaFields, true));
+        methods.addAll(createMethodSpecsForGetterSetters(fields, false));
         methods.add(getScriptAddressMethodSpec(plutusVersion));
         methods.add(getPlutusScriptMethodSpec(plutusVersion));
 
@@ -80,9 +86,9 @@ public class ValidatorProcessor {
         TypeSpec build = TypeSpec.classBuilder(validatorClassName)
                 .addModifiers(Modifier.PUBLIC)
                 .addJavadoc("Auto generated code. DO NOT MODIFY")
-                .addAnnotation(Data.class)
-                .addAnnotation(AllArgsConstructor.class)
-                .addAnnotation(NoArgsConstructor.class)
+                .addMethod(getConstructorMethodSpec())
+                .addFields(metaFields)
+                .addField(scriptAddrField)
                 .addFields(fields)
                 .addMethods(methods)
                 .build();
@@ -93,15 +99,24 @@ public class ValidatorProcessor {
         }
     }
 
+    //Create constructor with Network parameter
+    private MethodSpec getConstructorMethodSpec() {
+        MethodSpec constructor = MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(Network.class, "network")
+                .addStatement("this.network = network")
+                .build();
+        return constructor;
+    }
+
     private MethodSpec getScriptAddressMethodSpec(PlutusVersion plutusVersion) {
         MethodSpec getScriptAddress = MethodSpec.methodBuilder("getScriptAddress")
                 .addModifiers(Modifier.PUBLIC)
                 .returns(String.class)
-                .addParameter(Network.class, "network")
-                .addException(CborDeserializationException.class)
                 .addJavadoc("Returns the address of the validator script")
                 .addStatement("var script = $T.getPlutusScriptFromCompiledCode(this.compiledCode, $T.$L)", PlutusBlueprintUtil.class, plutusVersion.getClass(), plutusVersion)
-                .addStatement("return $T.getEntAddress(script, network).toBech32()", AddressProvider.class)
+                .addStatement("if(scriptAddress == null) scriptAddress = $T.getEntAddress(script, network).toBech32()", AddressProvider.class)
+                .addStatement("return scriptAddress")
                 .build();
         return getScriptAddress;
     }
@@ -134,6 +149,11 @@ public class ValidatorProcessor {
                 .addModifiers(Modifier.PRIVATE)
                 .initializer("$S", validator.getHash())
                 .build());
+
+        fields.add(FieldSpec.builder(Network.class, "network")
+                .addModifiers(Modifier.PRIVATE)
+                .build());
+
         return fields;
     }
 
