@@ -21,6 +21,7 @@ public class BlueprintCompileTest {
                                 JavaFileObjects.forResource("blueprint/BasicTypesBlueprint.java"),
                                 JavaFileObjects.forResource("blueprint/ComplexTypesBlueprint.java"),
                                 JavaFileObjects.forResource("blueprint/HelloWorldBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/HelloWorldNoNSBlueprint.java"),
                                 JavaFileObjects.forResource("blueprint/ListBlueprint.java"),
                                 JavaFileObjects.forResource("blueprint/MapBlueprint.java"),
                                 JavaFileObjects.forResource("blueprint/AnyPlutusDataBlueprint.java")

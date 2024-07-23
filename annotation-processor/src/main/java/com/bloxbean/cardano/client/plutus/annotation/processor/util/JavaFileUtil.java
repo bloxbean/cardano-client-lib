@@ -8,8 +8,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.text.CaseUtils;
 
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.Element;
+import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import java.io.IOException;
 import java.io.Writer;
 
 @Slf4j
@@ -59,8 +60,9 @@ public class JavaFileUtil {
             Writer writer = builderFile.openWriter();
             javaFile.writeTo(writer);
             writer.close();
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Error creating validator class", e);
+            warn(processingEnv, null, "Error creating class: %s, package: %s, error: %s", className, packageName, e.getMessage());
         }
     }
 
@@ -70,5 +72,19 @@ public class JavaFileUtil {
             className += String.valueOf(schema.getIndex());
         className += firstUpperCase(suffix); // ToDO need to check for valid names
         return className;
+    }
+
+    private static void error(ProcessingEnvironment processingEnv, Element e, String msg, Object... args) {
+        processingEnv.getMessager().printMessage(
+                Diagnostic.Kind.ERROR,
+                String.format(msg, args),
+                e);
+    }
+
+    private static void warn(ProcessingEnvironment processingEnv, Element e, String msg, Object... args) {
+        processingEnv.getMessager().printMessage(
+                Diagnostic.Kind.WARNING,
+                String.format(msg, args),
+                e);
     }
 }

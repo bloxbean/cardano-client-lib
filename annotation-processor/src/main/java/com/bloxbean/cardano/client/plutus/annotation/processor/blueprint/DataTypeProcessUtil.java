@@ -145,7 +145,7 @@ public class DataTypeProcessUtil {
         for (BlueprintSchema field : schema.getFields()) {
             if(field.getDataType() != null) {
                 javaDoc += " Index: " + field.getIndex() ;
-                specs.addAll(fieldSpecProcessor.CreateFieldSpecForDataTypes(javaDoc,  List.of(field), className, alternativeName));
+                specs.addAll(fieldSpecProcessor.createFieldSpecForDataTypes(javaDoc,  List.of(field), className, alternativeName));
             } else {
                 specs.add(fieldSpecProcessor.createDatumFieldSpec(field, "", field.getTitle(), className));
             }

@@ -11,10 +11,10 @@ import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.ComplexStru
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.ComplexStructuresRedeemerConverter;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.ComplexStructuresRedeemerNestedA;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.ComplexStructuresRedeemerNestedANestedB;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.HelloWorldDatum;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.HelloWorldDatumConverter;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.HelloWorldRedeemer;
-import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.HelloWorldRedeemerConverter;
+import com.test.hello.HelloWorldDatum;
+import com.test.hello.HelloWorldDatumConverter;
+import com.test.hello.HelloWorldRedeemer;
+import com.test.hello.HelloWorldRedeemerConverter;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.ListStrRedeemer;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.MapbpRedeemer;
 import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.MapbpRedeemerConverter;

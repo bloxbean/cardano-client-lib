@@ -9,13 +9,16 @@ import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.squareup.javapoet.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
+import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,8 +43,20 @@ public class ValidatorProcessor {
      */
     public void processValidator(Validator validator, PlutusVersion plutusVersion) {
         // preparation of standard fields
-        String packageName = annotation.packageName() + "." + validator.getTitle().split("\\.")[0];
-        String title = validator.getTitle().split("\\.")[1];
+        String[] titleTokens = validator.getTitle().split("\\.");
+        String pkgSuffix = null;
+
+        if(titleTokens.length > 1) {
+            pkgSuffix = titleTokens[0];
+        }
+
+        String validatorName = titleTokens[titleTokens.length - 1];
+
+        String packageName = annotation.packageName();
+        if (pkgSuffix != null)
+            packageName = packageName + "." + pkgSuffix;
+
+        String title = validatorName;
         title = JavaFileUtil.toCamelCase(title);
 
         List<FieldSpec> fields = ValidatorProcessor.getFieldSpecsForValidator(validator);
@@ -58,6 +73,7 @@ public class ValidatorProcessor {
         }
         List<MethodSpec> methods = new ArrayList<>();
         methods.add(getScriptAddressMethodSpec(plutusVersion));
+        methods.add(getPlutusScriptMethodSpec(plutusVersion));
 
         String validatorClassName = title + VALIDATOR_CLASS_SUFFIX;
         // building and saving of class
@@ -70,7 +86,11 @@ public class ValidatorProcessor {
                 .addFields(fields)
                 .addMethods(methods)
                 .build();
-        JavaFileUtil.createJavaFile(packageName, build, validatorClassName, processingEnv);
+        try {
+            JavaFileUtil.createJavaFile(packageName, build, validatorClassName, processingEnv);
+        } catch (Exception e) {
+            error(null, "Error creating validator class : %s", e.getMessage());
+        }
     }
 
     private MethodSpec getScriptAddressMethodSpec(PlutusVersion plutusVersion) {
@@ -84,6 +104,15 @@ public class ValidatorProcessor {
                 .addStatement("return $T.getEntAddress(script, network).toBech32()", AddressProvider.class)
                 .build();
         return getScriptAddress;
+    }
+
+    private MethodSpec getPlutusScriptMethodSpec(PlutusVersion plutusVersion) {
+        MethodSpec getPlutusScript = MethodSpec.methodBuilder("getPlutusScript")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(PlutusScript.class)
+                .addStatement("return $T.getPlutusScriptFromCompiledCode(this.compiledCode, $T.$L)", PlutusBlueprintUtil.class, plutusVersion.getClass(), plutusVersion)
+                .build();
+        return getPlutusScript;
     }
 
 
@@ -106,5 +135,12 @@ public class ValidatorProcessor {
                 .initializer("$S", validator.getHash())
                 .build());
         return fields;
+    }
+
+    private void error(Element e, String msg, Object... args) {
+        processingEnv.getMessager().printMessage(
+                Diagnostic.Kind.ERROR,
+                String.format(msg, args),
+                e);
     }
 }

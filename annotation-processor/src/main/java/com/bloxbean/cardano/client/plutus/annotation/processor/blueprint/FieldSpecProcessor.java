@@ -6,16 +6,14 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.util.Tuple;
-import com.squareup.javapoet.AnnotationSpec;
-import com.squareup.javapoet.ClassName;
-import com.squareup.javapoet.FieldSpec;
-import com.squareup.javapoet.TypeSpec;
-import lombok.Data;
+import com.squareup.javapoet.*;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil.firstUpperCase;
 
 public class FieldSpecProcessor {
 
@@ -59,7 +57,7 @@ public class FieldSpecProcessor {
      * @param className
      * @return
      */
-    public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
+    public List<FieldSpec> createFieldSpecForDataTypes(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         if(schema.getDataType() == null) { // Processing Anyplutusdata
             specs.add(dataTypeProcessUtil.processPlutusDataType(javaDoc, schema, alternativeName));
@@ -100,10 +98,10 @@ public class FieldSpecProcessor {
      * @param className
      * @return
      */
-    public List<FieldSpec> CreateFieldSpecForDataTypes(String javaDoc, List<BlueprintSchema> schemas, String className, String alternativeName) {
+    public List<FieldSpec> createFieldSpecForDataTypes(String javaDoc, List<BlueprintSchema> schemas, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         for (BlueprintSchema schema : schemas) {
-            specs.addAll(CreateFieldSpecForDataTypes(javaDoc, schema, className, alternativeName));
+            specs.addAll(createFieldSpecForDataTypes(javaDoc, schema, className, alternativeName));
         }
         return specs;
     }
@@ -142,17 +140,55 @@ public class FieldSpecProcessor {
     private TypeSpec createDatumTypeSpec(BlueprintSchema schema, String className, String alternativeName) {
         Tuple<String, List<BlueprintSchema>> allInnerSchemas = FieldSpecProcessor.collectAllFields(schema);
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
-        List<FieldSpec> fields = CreateFieldSpecForDataTypes(allInnerSchemas._1, allInnerSchemas._2, className, title);
+        List<FieldSpec> fields = createFieldSpecForDataTypes(allInnerSchemas._1, allInnerSchemas._2, className, title);
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).addMember("alternative", "$L", schema.getIndex()).build();
 
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
                 .addModifiers(Modifier.PUBLIC)
                 .addFields(fields)
-                .addAnnotation(constrAnnotationBuilder)
-                .addAnnotation(Data.class);
+                .addMethods(createMethodSpecsForGetterSetters(fields))
+                .addAnnotation(constrAnnotationBuilder);
 
         TypeSpec build = classBuilder.build();
         JavaFileUtil.createJavaFile(annotation.packageName(), build, className, processingEnv);
         return build;
+    }
+
+    private Iterable<MethodSpec> createMethodSpecsForGetterSetters(List<FieldSpec> fields) {
+        //Generate getter and setter methods. Also check if Boolean then generate isXXX method
+        List<MethodSpec> methods = new ArrayList<>();
+
+        for(FieldSpec field : fields) {
+            String fieldName = field.name;
+
+            if(field.type == TypeName.BOOLEAN) {
+                String methodName = "is" + firstUpperCase(fieldName);
+                MethodSpec isMethod = MethodSpec.methodBuilder(methodName)
+                        .addModifiers(Modifier.PUBLIC)
+                        .returns(TypeName.BOOLEAN)
+                        .addStatement("return this.$N", fieldName)
+                        .build();
+                methods.add(isMethod);
+            } else {
+                String methodName = "get" + firstUpperCase(fieldName);
+                MethodSpec getter = MethodSpec.methodBuilder(methodName)
+                        .addModifiers(Modifier.PUBLIC)
+                        .returns(field.type)
+                        .addStatement("return this.$N", fieldName)
+                        .build();
+                methods.add(getter);
+            }
+
+            String methodName = "set" + firstUpperCase(fieldName);
+            MethodSpec setter = MethodSpec.methodBuilder(methodName)
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(TypeName.VOID)
+                    .addParameter(field.type, fieldName)
+                    .addStatement("this.$N = $N", fieldName, fieldName)
+                    .build();
+            methods.add(setter);
+        }
+
+        return methods;
     }
 }
