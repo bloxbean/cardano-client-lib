@@ -13,6 +13,7 @@ import java.util.List;
 public class ClassDefinition {
     private String packageName;
     private String name;
+    private String dataClassName;
     private String objType;
     private int alternative;
 

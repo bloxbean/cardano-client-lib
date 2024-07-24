@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
+import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
@@ -14,6 +15,10 @@ import com.squareup.javapoet.*;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.MirroredTypeException;
+import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,12 +28,14 @@ import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeG
 public class ValidatorProcessor {
 
     private final Blueprint annotation;
+    private final ExtendWith extendWith;
     private final ProcessingEnvironment processingEnv;
     private final FieldSpecProcessor fieldSpecProcessor;
     private final String VALIDATOR_CLASS_SUFFIX = "Validator";
 
-    public ValidatorProcessor(Blueprint annotation, ProcessingEnvironment processingEnv) {
+    public ValidatorProcessor(Blueprint annotation, ExtendWith extendWith, ProcessingEnvironment processingEnv) {
         this.annotation = annotation;
+        this.extendWith = extendWith;
         this.processingEnv = processingEnv;
         this.fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv);
     }
@@ -83,15 +90,27 @@ public class ValidatorProcessor {
 
         String validatorClassName = title + VALIDATOR_CLASS_SUFFIX;
         // building and saving of class
-        TypeSpec build = TypeSpec.classBuilder(validatorClassName)
+        var builder = TypeSpec.classBuilder(validatorClassName)
                 .addModifiers(Modifier.PUBLIC)
                 .addJavadoc("Auto generated code. DO NOT MODIFY")
                 .addMethod(getConstructorMethodSpec())
                 .addFields(metaFields)
                 .addField(scriptAddrField)
                 .addFields(fields)
-                .addMethods(methods)
-                .build();
+                .addMethods(methods);
+
+        if (extendWith != null) {
+            var extendWithTypeMirror = getExtendWithValue(extendWith);
+            TypeElement extendWithTypeElement = (TypeElement) ((DeclaredType) extendWithTypeMirror).asElement();
+
+            ClassName extendWithClassName = ClassName.get(extendWithTypeElement);
+            ClassName validatorTypeName = ClassName.get(packageName, validatorClassName);
+
+            ParameterizedTypeName parameterizedSuperClass = ParameterizedTypeName.get(extendWithClassName, validatorTypeName);
+            builder.superclass(parameterizedSuperClass);
+        }
+        var build = builder.build();
+
         try {
             JavaFileUtil.createJavaFile(packageName, build, validatorClassName, processingEnv);
         } catch (Exception e) {
@@ -157,10 +176,31 @@ public class ValidatorProcessor {
         return fields;
     }
 
+    private TypeMirror getExtendWithValue(ExtendWith extendWith) {
+        try {
+            // This will throw MirroredTypeException
+            extendWith.value();
+        } catch (MirroredTypeException e) {
+            return e.getTypeMirror();
+        }
+        return null;
+    }
+
+    private TypeMirror getTypeMirror(String type) {
+        try {
+            // This will throw MirroredTypeException
+            type.getClass();
+        } catch (MirroredTypeException e) {
+            return e.getTypeMirror();
+        }
+        return null;
+    }
+
     private void error(Element e, String msg, Object... args) {
         processingEnv.getMessager().printMessage(
                 Diagnostic.Kind.ERROR,
                 String.format(msg, args),
                 e);
     }
+
 }

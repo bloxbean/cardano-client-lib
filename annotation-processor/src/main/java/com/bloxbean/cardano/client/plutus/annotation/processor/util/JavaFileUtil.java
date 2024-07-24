@@ -61,7 +61,7 @@ public class JavaFileUtil {
             javaFile.writeTo(writer);
             writer.close();
         } catch (Exception e) {
-            log.error("Error creating validator class", e);
+            log.error("Error creating class : " + className, e);
             warn(processingEnv, null, "Error creating class: %s, package: %s, error: %s", className, packageName, e.getMessage());
         }
     }

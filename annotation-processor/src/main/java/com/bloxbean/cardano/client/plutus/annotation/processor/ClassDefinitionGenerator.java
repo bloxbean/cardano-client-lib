@@ -49,6 +49,7 @@ public class ClassDefinitionGenerator {
         ClassDefinition classDefinition = new ClassDefinition();
         classDefinition.setPackageName(packageName);
         classDefinition.setName(serializationClassName);
+        classDefinition.setDataClassName(className);
         classDefinition.setObjType(typeElement.asType().toString());
 
         Class lombokDataClazz;
