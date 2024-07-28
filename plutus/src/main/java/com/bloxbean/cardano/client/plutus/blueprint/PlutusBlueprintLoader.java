@@ -83,8 +83,9 @@ public class PlutusBlueprintLoader {
         BlueprintSchema blueprintSchema = schema;
         if(schema.getRef() != null) {
             String ref = getAndPrepare(schema);
+            var refDatumSchema = definitions.get(ref);
 
-            blueprintSchema.copyFrom(definitions.get(ref));
+            blueprintSchema.copyFrom(refDatumSchema);
         }
         blueprintSchema.setFields(extracted(definitions, blueprintSchema.getFields()));
         blueprintSchema.setAnyOf(extracted(definitions, blueprintSchema.getAnyOf()));

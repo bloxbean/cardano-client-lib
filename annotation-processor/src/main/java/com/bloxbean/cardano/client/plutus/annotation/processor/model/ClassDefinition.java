@@ -14,8 +14,14 @@ public class ClassDefinition {
     private String packageName;
     private String name;
     private String dataClassName;
+    private String implClassName;
+    private String converterClassName;
+    private boolean isAbstract;
     private String objType;
     private int alternative;
+
+    private String converterPackageName;
+    private String implPackageName;
 
     private boolean hasLombokAnnotation;
 
