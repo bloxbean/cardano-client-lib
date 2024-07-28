@@ -73,9 +73,17 @@ public class ValidatorProcessor {
         List<FieldSpec> fields = new ArrayList<>();
 
         //TODO -- Handle parameterized validators
-        /**
+
         // processing of fields
-        if (validator.getParameters() != null) {
+//        if (validator.getRedeemer() != null)
+//            fields.add(fieldSpecProcessor.createDatumFieldSpec("", validator.getRedeemer().getSchema(), "", validator.getRedeemer().getSchema().getTitle()));
+//            fieldSpecProcessor.createDatumFieldSpec("", "", validator.getRedeemer().getSchema(), "Redeemer", title);
+
+//        if (validator.getDatum() != null)
+//            fields.add(fieldSpecProcessor.createDatumFieldSpec("", validator.getDatum().getSchema(), "", validator.getDatum().getSchema().getTitle()));
+//            fieldSpecProcessor.createDatumFieldSpec("", "", validator.getDatum().getSchema(), "Datum", title);
+
+/**        if (validator.getParameters() != null) {
             for (BlueprintDatum parameter : validator.getParameters()) {
 //                fields.add(fieldSpecProcessor.createDatumFieldSpec("", parameter.getSchema(), "", parameter.getSchema().getTitle()));
                 fields.add(fieldSpecProcessor.createDatumFieldSpec("",parameter.getSchema(), "Parameter", title + parameter.getTitle()));
