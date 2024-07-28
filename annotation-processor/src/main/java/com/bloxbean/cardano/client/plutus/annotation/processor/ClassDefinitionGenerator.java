@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.CONVERTER;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.IMPL;
+
 /**
  * Generates ClassDefinition from the given TypeElement
  */
@@ -44,13 +47,21 @@ public class ClassDefinitionGenerator {
     public ClassDefinition getClassDefinition(TypeElement typeElement) {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
-        String serializationClassName = className + "Converter";
+        String converterClassName = className + CONVERTER;
 
         ClassDefinition classDefinition = new ClassDefinition();
         classDefinition.setPackageName(packageName);
-        classDefinition.setName(serializationClassName);
+        classDefinition.setName(className);
         classDefinition.setDataClassName(className);
+        classDefinition.setImplClassName(className + IMPL);
+        classDefinition.setConverterClassName(converterClassName);
         classDefinition.setObjType(typeElement.asType().toString());
+
+        typeElement.getModifiers().stream().filter(modifier -> modifier.equals(Modifier.ABSTRACT))
+                .findFirst().ifPresent(modifier -> classDefinition.setAbstract(true));
+
+        classDefinition.setConverterPackageName(getConverterPackageName(packageName));
+        classDefinition.setImplPackageName(getImplPackageName(packageName));
 
         Class lombokDataClazz;
         Class lombokGetterClazz;
@@ -308,5 +319,20 @@ public class ClassDefinitionGenerator {
             return true;
         else
             return false;
+    }
+
+    public static ClassName getConverterClassFromField(FieldType fieldType) {
+        ClassName fieldClass = ClassName.bestGuess(fieldType.getJavaType().getName());
+        String converterPkg = getConverterPackageName(fieldClass.packageName());
+        ClassName converterClass = ClassName.get(converterPkg, fieldClass.simpleName() + CONVERTER);
+        return converterClass;
+    }
+
+    private static String getConverterPackageName(String modelPackage) {
+        return modelPackage + ".converter";
+    }
+
+    private static String getImplPackageName(String modelPackage) {
+        return modelPackage + ".impl";
     }
 }

@@ -11,11 +11,9 @@ import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Annotation processor for Plutus Constr annotation. This annotation processor generates the Serilizer and Deserializer code
@@ -54,29 +52,57 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        List<TypeElement> interfaceElements = new ArrayList<>();
+
         for (TypeElement annotation : annotations) {
             Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
             for (Element element : elements) {
                 if (element instanceof TypeElement) {
                     TypeElement typeElement = (TypeElement) element;
                     typeElements.add(typeElement);
+
+                    if (typeElement.getKind().isInterface()) {
+                        interfaceElements.add(typeElement);
+                    }
                 }
             }
         }
 
         this.classDefinitionGenerator.setTypeElements(typeElements);
 
+        //Interface map
+        Map<TypeElement, List<ClassDefinition>> interfaceToConstructorsMap = new HashMap<>();
+
         for (TypeElement annotation : annotations) {
             Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
             for (Element element : elements) {
                 if (element instanceof TypeElement) {
                     TypeElement typeElement = (TypeElement) element;
+
+                    if (typeElement.getKind().isInterface()) {
+                        continue;
+                    }
+
                     ClassDefinition classDefinition = classDefinitionGenerator.getClassDefinition(typeElement);
+
+                    //check if the class implements any known Constr interface
+                    var interfaces = typeElement.getInterfaces();
+                    for (TypeMirror typeMirror : interfaces) {
+                        TypeElement interfaceElement = (TypeElement) processingEnv.getTypeUtils().asElement(typeMirror);
+                        if(interfaceElements.contains(interfaceElement)) {
+                            List<ClassDefinition> constructors = interfaceToConstructorsMap.get(interfaceElement);
+                            if(constructors == null) {
+                                constructors = new ArrayList<>();
+                                interfaceToConstructorsMap.put(interfaceElement, constructors);
+                            }
+                            constructors.add(classDefinition);
+                        }
+                    }
 
                     //Generate converter class
                     try {
                         TypeSpec typeSpec = serializerCodeGenerator.generate(classDefinition);
-                        JavaFileUtil.createJavaFile(classDefinition.getPackageName(), typeSpec, classDefinition.getName(), processingEnv);
+                        JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec, classDefinition.getConverterClassName(), processingEnv);
                     } catch (Exception e) {
                         e.printStackTrace();
                         log.error("Failed to generate serialization class: " + e.getMessage(), e);
@@ -86,7 +112,7 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
                     //Generate Data Impl class
                     try {
                         TypeSpec typeSpec = dataImplGenerator.generate(classDefinition);
-                        JavaFileUtil.createJavaFile(classDefinition.getPackageName(), typeSpec, classDefinition.getDataClassName() + "Impl", processingEnv);
+                        JavaFileUtil.createJavaFile(classDefinition.getImplPackageName(), typeSpec, classDefinition.getImplClassName(), processingEnv);
                     } catch (Exception e) {
                         e.printStackTrace();
                         log.error("Failed to generate DataImpl class: " + e.getMessage(), e);
@@ -96,6 +122,25 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
                 }
             }
         }
+
+        //Implement Converter for interfaces
+        for (Map.Entry<TypeElement, List<ClassDefinition>> entry : interfaceToConstructorsMap.entrySet()) {
+            TypeElement interfaceElement = entry.getKey();
+            List<ClassDefinition> constructors = entry.getValue();
+
+            ClassDefinition classDefinition = classDefinitionGenerator.getClassDefinition(interfaceElement);
+
+            //Generate converter class
+            try {
+                TypeSpec typeSpec = serializerCodeGenerator.generateInterfaceConverter(classDefinition, constructors);
+                JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec, classDefinition.getConverterClassName(), processingEnv);
+            } catch (Exception e) {
+                e.printStackTrace();
+                log.error("Failed to generate converter class: " + e.getMessage(), e);
+                error(interfaceElement, "Failed to generate converter class for " + interfaceElement.getQualifiedName());
+            }
+        }
+
         return true;
     }
 

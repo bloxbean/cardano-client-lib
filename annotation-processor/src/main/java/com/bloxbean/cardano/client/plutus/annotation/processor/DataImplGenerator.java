@@ -8,6 +8,8 @@ import com.squareup.javapoet.*;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
 
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
+
 public class DataImplGenerator implements CodeGenerator {
     private ProcessingEnvironment processingEnvironment;
 
@@ -17,9 +19,9 @@ public class DataImplGenerator implements CodeGenerator {
 
     @Override
     public TypeSpec generate(ClassDefinition classDef) {
-        String dataImplClass = classDef.getDataClassName() + "Impl";
+        String dataImplClass = classDef.getImplClassName();
 
-        ClassName converterClass = ClassName.bestGuess(classDef.getPackageName() + "." + classDef.getName());
+        ClassName converterClass = ClassName.bestGuess(classDef.getConverterPackageName() + "." + classDef.getConverterClassName());
         ClassName dataClass = ClassName.bestGuess(classDef.getPackageName() + "." + classDef.getDataClassName());
 
         //Data.class
@@ -41,7 +43,7 @@ public class DataImplGenerator implements CodeGenerator {
                 .build();
 
         return classBuilder
-                .addJavadoc("Auto generated code. DO NOT MODIFY")
+                .addJavadoc(GENERATED_CODE)
                 .addField(converterField)
                 .addMethod(constructor)
                 .addMethod(getToPlutusDataMethodSpec(dataClass))
