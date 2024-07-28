@@ -10,17 +10,17 @@ import java.util.Map.*;
 
 @Constr(alternative = 1)
 public class Model1 {
-    long l = 0L;
-    Integer a;
+    public long l = 0L;
+    public Integer a;
     private BigInteger b = BigInteger.valueOf(0);
-    BigInteger ccc = BigInteger.valueOf(0);
-    Optional<BigInteger> optBI;
-    Optional<Integer> optInt;
-    Optional<Model2> optMod2;
-    Optional<Long> optionalLong;
-    Optional<byte[]> bytes;
-    boolean bool;
-    Boolean boolObj;
+    public BigInteger ccc = BigInteger.valueOf(0);
+    public Optional<BigInteger> optBI;
+    public Optional<Integer> optInt;
+    public Optional<Model2> optMod2;
+    public Optional<Long> optionalLong;
+    public Optional<byte[]> bytes;
+    public boolean bool;
+    public Boolean boolObj;
 
     private boolean prvBool;
     private Boolean prvBoolObj;
@@ -28,13 +28,13 @@ public class Model1 {
     @Enc("hex")
     private String str;
 
-    List<String> list;
-    Model2 model2;
-    List<Model2> model2List;
-    ArrayList<Model2> model3List;
+    public List<String> list;
+    public Model2 model2;
+    public List<Model2> model2List;
+    public ArrayList<Model2> model3List;
     private Map<String, BigInteger> modelMap;
-    Map<Model1, Model2> modelMap2;
-    HashMap<Model1, Model2> modelMap3;
+    public Map<Model1, Model2> modelMap2;
+    public HashMap<Model1, Model2> modelMap3;
 
     public String getStr() {
         return str;
@@ -83,5 +83,7 @@ public class Model1 {
     public void setPrvBoolObj(Boolean prvBoolObj) {
         this.prvBoolObj = prvBoolObj;
     }
+
+
 }
 

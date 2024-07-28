@@ -86,8 +86,11 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 return false;
             }
 
+
+            Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions() != null? plutusContractBlueprint.getDefinitions()
+                    : Collections.EMPTY_MAP;
             //Create Data classes
-            for(Map.Entry<String, BlueprintSchema> definition: plutusContractBlueprint.getDefinitions().entrySet()) {
+            for(Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();
                 String[] titleTokens = key.split("\\/");
                 String ns = "";

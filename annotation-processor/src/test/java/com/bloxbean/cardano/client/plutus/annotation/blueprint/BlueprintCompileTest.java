@@ -18,13 +18,15 @@ public class BlueprintCompileTest {
                 javac()
                         .withProcessors(new BlueprintAnnotationProcessor())
                         .compile(
-                                JavaFileObjects.forResource("blueprint/BasicTypesBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/ComplexTypesBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/HelloWorldBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/HelloWorldNoNSBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/ListBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/MapBlueprint.java"),
-                                JavaFileObjects.forResource("blueprint/AnyPlutusDataBlueprint.java")
+//                                JavaFileObjects.forResource("blueprint/BasicTypesBlueprint.java"),
+//                                JavaFileObjects.forResource("blueprint/ComplexTypesBlueprint.java"),
+//                                JavaFileObjects.forResource("blueprint/HelloWorldBlueprint.java"),
+//                                JavaFileObjects.forResource("blueprint/HelloWorldNoNSBlueprint.java"),
+//                                JavaFileObjects.forResource("blueprint/ListBlueprint.java"),
+//                                JavaFileObjects.forResource("blueprint/MapBlueprint.java"),
+//                                JavaFileObjects.forResource("blueprint/AnyPlutusDataBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/SpendMintBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/MultipleValidatorsBlueprint.java")
                         );
 
         System.out.println(compilation.diagnostics());

@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.plutus.annotation;
 
 import com.bloxbean.cardano.client.plutus.annotation.model.NestedBasicModel;
-import com.bloxbean.cardano.client.plutus.annotation.model.NestedBasicModelConverter;
+import com.bloxbean.cardano.client.plutus.annotation.model.converter.NestedBasicModelConverter;
 import com.bloxbean.cardano.client.plutus.annotation.model.Vote;
 import org.junit.jupiter.api.Test;
 
