@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.plutus.blueprint.model;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,6 +15,10 @@ public class BlueprintSchema {
 
     @JsonAlias({"$ref", "ref"})
     private String ref;
+
+    @JsonIgnore
+    private BlueprintSchema refSchema;
+
     // for nested schemas
     private List<BlueprintSchema> anyOf;
     private List<BlueprintSchema> oneOf;
@@ -57,6 +62,8 @@ public class BlueprintSchema {
     private List<BlueprintSchema> fields;
 
     public void copyFrom(BlueprintSchema blueprintSchema) {
+        this.refSchema = blueprintSchema;
+
         this.anyOf = this.anyOf != null ? this.anyOf : blueprintSchema.anyOf;
         this.oneOf = this.oneOf != null ? this.oneOf : blueprintSchema.oneOf;
         this.allOf = this.allOf != null ? this.allOf : blueprintSchema.allOf;
