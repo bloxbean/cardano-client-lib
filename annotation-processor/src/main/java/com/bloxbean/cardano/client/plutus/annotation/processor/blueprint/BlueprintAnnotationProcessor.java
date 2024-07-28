@@ -107,7 +107,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 String interfaceName = null;
                 //For anyOf > 1, create an interface, if size == 1, create a class
                 //TODO -- What about allOf ??
-                if (schema.getAnyOf().size() > 1) {
+                if (schema.getAnyOf() != null && schema.getAnyOf().size() > 1) {
                     log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
                     //More than one constructor. So let's create an interface
                     fieldSpecProcessor.createDatumInterface(ns, dataClassName);
