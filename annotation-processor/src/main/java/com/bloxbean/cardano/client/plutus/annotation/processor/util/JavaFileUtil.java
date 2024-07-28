@@ -27,6 +27,12 @@ public class JavaFileUtil {
         return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
+    public static String firstLowerCase(String s) {
+        if(s == null || s.isEmpty())
+            return s;
+        return s.substring(0, 1).toLowerCase() + s.substring(1);
+    }
+
     /**
      * Converts a string to camel case
      * @param s
@@ -68,8 +74,6 @@ public class JavaFileUtil {
 
     public static String buildClassName(BlueprintSchema schema, String suffix, String title, String prefix) {
         String className = firstUpperCase(prefix) + firstUpperCase(title);
-        if(schema.getDataType() == BlueprintDatatype.constructor)
-            className += String.valueOf(schema.getIndex());
         className += firstUpperCase(suffix); // ToDO need to check for valid names
         return className;
     }

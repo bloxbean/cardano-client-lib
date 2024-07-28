@@ -87,7 +87,8 @@ public class DataTypeProcessUtil {
     private TypeName getInnerType(BlueprintSchema items) {
         if(items.getDataType() == null) // Case for constructor data type
         {
-            FieldSpec constr = fieldSpecProcessor.createDatumFieldSpec(items, "Constr", items.getTitle(), "");
+            //TODO
+            FieldSpec constr = fieldSpecProcessor.createDatumFieldSpec("", "", items, "Constr", items.getTitle(), "");
             return constr.type;
         }
         switch (items.getDataType()) {
@@ -140,18 +141,19 @@ public class DataTypeProcessUtil {
                 .build();
     }
 
-    public List<FieldSpec> processConstructorDataType(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
+    public List<FieldSpec> processConstructorDataType(String ns, String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         for (BlueprintSchema field : schema.getFields()) {
             if(field.getDataType() != null) {
                 javaDoc += " Index: " + field.getIndex() ;
-                specs.addAll(fieldSpecProcessor.createFieldSpecForDataTypes(javaDoc,  List.of(field), className, alternativeName));
+                specs.addAll(fieldSpecProcessor.createFieldSpecForDataTypes(ns, javaDoc,  List.of(field), className, alternativeName));
             } else {
-                specs.add(fieldSpecProcessor.createDatumFieldSpec(field, "", field.getTitle(), className));
+                //TODO
+                specs.add(fieldSpecProcessor.createDatumFieldSpec(ns, "", field, "", field.getTitle(), className));
             }
         }
         if(schema.getFields().isEmpty()) { // TODO Fields is empty that's why no mint or burn is generated Enums
-            specs.add(createEnumAndAddToFields(schema, className));
+            specs.add(createEnumAndAddToFields(ns, schema, className));
         }
         return specs;
     }
@@ -162,15 +164,20 @@ public class DataTypeProcessUtil {
      * @param className
      * @return
      */
-    private FieldSpec createEnumAndAddToFields(BlueprintSchema schema, String className) {
+    private FieldSpec createEnumAndAddToFields(String ns, BlueprintSchema schema, String className) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).addMember("alternative", "$L", schema.getIndex()).build();
-        String fieldName = className + String.valueOf(schema.getIndex()) + schema.getTitle();
+
+        String fieldName = JavaFileUtil.firstUpperCase(schema.getTitle());
+
         TypeSpec enumConstr = TypeSpec.classBuilder(fieldName)
                 .addAnnotation(constrAnnotationBuilder)
                 .addModifiers(Modifier.PUBLIC)
                 .build();
-        JavaFileUtil.createJavaFile(annotation.packageName(), enumConstr, enumConstr.name, processingEnv);
-        ClassName classIdentifier = ClassName.get(annotation.packageName(), enumConstr.name);
+
+        String pkg = getPackage(ns);
+
+        JavaFileUtil.createJavaFile(pkg, enumConstr, enumConstr.name, processingEnv);
+        ClassName classIdentifier = ClassName.get(pkg, enumConstr.name);
         return FieldSpec.builder(classIdentifier, fieldName)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc("Index: " + schema.getIndex())
@@ -196,5 +203,11 @@ public class DataTypeProcessUtil {
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
+    }
+
+    private String getPackage(String ns) {
+        String pkg = (ns != null && !ns.isEmpty())? annotation.packageName() + "." + ns + ".model"
+                : annotation.packageName() + ".model";
+        return pkg;
     }
 }

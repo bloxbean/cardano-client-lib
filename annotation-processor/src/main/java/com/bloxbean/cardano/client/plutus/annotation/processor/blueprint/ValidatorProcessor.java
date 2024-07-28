@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
-import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
@@ -24,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
 
 public class ValidatorProcessor {
 
@@ -71,16 +71,16 @@ public class ValidatorProcessor {
                 .build();
 
         List<FieldSpec> fields = new ArrayList<>();
+
+        //TODO -- Handle parameterized validators
+        /**
         // processing of fields
-        if (validator.getRedeemer() != null)
-            fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getRedeemer().getSchema(), "Redeemer", title));
-        if (validator.getDatum() != null)
-            fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getDatum().getSchema(), "Datum", title));
         if (validator.getParameters() != null) {
             for (BlueprintDatum parameter : validator.getParameters()) {
-                fields.add(fieldSpecProcessor.createDatumFieldSpec(parameter.getSchema(), "Parameter", title + parameter.getTitle()));
+//                fields.add(fieldSpecProcessor.createDatumFieldSpec("", parameter.getSchema(), "", parameter.getSchema().getTitle()));
+                fields.add(fieldSpecProcessor.createDatumFieldSpec("",parameter.getSchema(), "Parameter", title + parameter.getTitle()));
             }
-        }
+        }**/
 
         List<MethodSpec> methods = new ArrayList<>();
         methods.addAll(createMethodSpecsForGetterSetters(metaFields, true));
@@ -92,7 +92,7 @@ public class ValidatorProcessor {
         // building and saving of class
         var builder = TypeSpec.classBuilder(validatorClassName)
                 .addModifiers(Modifier.PUBLIC)
-                .addJavadoc("Auto generated code. DO NOT MODIFY")
+                .addJavadoc(GENERATED_CODE)
                 .addMethod(getConstructorMethodSpec())
                 .addFields(metaFields)
                 .addField(scriptAddrField)

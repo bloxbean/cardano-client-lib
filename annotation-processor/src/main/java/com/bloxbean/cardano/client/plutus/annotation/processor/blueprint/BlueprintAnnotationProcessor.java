@@ -2,8 +2,10 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
 import com.bloxbean.cardano.client.plutus.blueprint.model.*;
+import com.bloxbean.cardano.client.util.Tuple;
 import com.google.auto.service.AutoService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,6 +26,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
     private Messager messager;
     private List<TypeElement> typeElements = new ArrayList<>();
     private ValidatorProcessor validatorProcessor;
+    private FieldSpecProcessor fieldSpecProcessor;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -66,6 +69,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 return false;
             } else {
                 validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv);
+                fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv);
             }
 
 
@@ -81,9 +85,52 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 error(typeElement, "Error processing blueprint file %s", blueprintFile.getAbsolutePath(), e);
                 return false;
             }
+
+            //Create Data classes
+            for(Map.Entry<String, BlueprintSchema> definition: plutusContractBlueprint.getDefinitions().entrySet()) {
+                String key = definition.getKey();
+                String[] titleTokens = key.split("\\/");
+                String ns = "";
+
+                if (titleTokens.length > 1) {
+                    ns = titleTokens[0];
+                }
+
+                BlueprintSchema schema = definition.getValue();
+                String dataClassName = schema.getTitle();
+                if(dataClassName == null || dataClassName.isEmpty()) {
+                    continue;
+                }
+
+                dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+
+                String interfaceName = null;
+                //For anyOf > 1, create an interface, if size == 1, create a class
+                //TODO -- What about allOf ??
+                if (schema.getAnyOf().size() > 1) {
+                    log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
+                    //More than one constructor. So let's create an interface
+                    fieldSpecProcessor.createDatumInterface(ns, dataClassName);
+                    interfaceName = dataClassName;
+                }
+
+                Tuple<String, List<BlueprintSchema>> allFields = FieldSpecProcessor.collectAllFields(schema);
+                for(BlueprintSchema innerSchema: allFields._2) {
+                    dataClassName = schema.getTitle();
+                    if(dataClassName == null || dataClassName.isEmpty()) {
+                        continue;
+                    }
+
+                    dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+                    fieldSpecProcessor.createDatumFieldSpec(ns, interfaceName,  innerSchema, "", dataClassName);
+                }
+            }
+
+
             for (Validator validator : plutusContractBlueprint.getValidators()) {
                 validatorProcessor.processValidator(validator, plutusContractBlueprint.getPreamble().getPlutusVersion());
             }
+
         }
         return true;
     }

@@ -5,8 +5,10 @@ import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.squareup.javapoet.*;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
@@ -15,6 +17,7 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
 
+@Slf4j
 public class FieldSpecProcessor {
 
     private final ProcessingEnvironment processingEnv;
@@ -57,7 +60,7 @@ public class FieldSpecProcessor {
      * @param className
      * @return
      */
-    public List<FieldSpec> createFieldSpecForDataTypes(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
+    public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         if(schema.getDataType() == null) { // Processing Anyplutusdata
             specs.add(dataTypeProcessUtil.processPlutusDataType(javaDoc, schema, alternativeName));
@@ -80,7 +83,7 @@ public class FieldSpecProcessor {
                     specs.add(dataTypeProcessUtil.processMapDataType(javaDoc, schema, className, alternativeName));
                     break;
                 case constructor:
-                    specs.addAll(dataTypeProcessUtil.processConstructorDataType(javaDoc, schema, className, alternativeName));
+                    specs.addAll(dataTypeProcessUtil.processConstructorDataType(ns, javaDoc, schema, className, alternativeName));
                     break;
                 case string:
                     specs.add(dataTypeProcessUtil.processStringDataType(javaDoc, schema, alternativeName));
@@ -98,10 +101,10 @@ public class FieldSpecProcessor {
      * @param className
      * @return
      */
-    public List<FieldSpec> createFieldSpecForDataTypes(String javaDoc, List<BlueprintSchema> schemas, String className, String alternativeName) {
+    public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, List<BlueprintSchema> schemas, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
         for (BlueprintSchema schema : schemas) {
-            specs.addAll(createFieldSpecForDataTypes(javaDoc, schema, className, alternativeName));
+            specs.addAll(createFieldSpecForDataTypes(ns, javaDoc, schema, className, alternativeName));
         }
         return specs;
     }
@@ -113,8 +116,8 @@ public class FieldSpecProcessor {
      * @param title
      * @return
      */
-    public FieldSpec createDatumFieldSpec(BlueprintSchema schema, String suffix, String title) {
-        return createDatumFieldSpec(schema, suffix, title, "");
+    public FieldSpec createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String suffix, String title) {
+        return createDatumFieldSpec(ns, interfaceName, schema, suffix, title, "");
     }
 
     /**
@@ -125,32 +128,100 @@ public class FieldSpecProcessor {
      * @param prefix
      * @return
      */
-    public FieldSpec createDatumFieldSpec(BlueprintSchema schema, String suffix, String title, String prefix) {
+    //TODO - 1
+    public FieldSpec createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String suffix, String title, String prefix) {
         String classNameString = JavaFileUtil.buildClassName(schema, suffix, title, prefix);
-        TypeSpec redeemerJavaFile = createDatumTypeSpec(schema, classNameString, title);
+        TypeSpec redeemerJavaFile = createDatumTypeSpec(ns, interfaceName, schema, classNameString, title);
 
-        ClassName className = ClassName.get(annotation.packageName(), redeemerJavaFile.name);
+        var dataType = schema.getDataType();
+
+        String className = redeemerJavaFile.name;
+        //If Datatype is null, then get the type from inner schema
+        if (dataType == null) {
+            var anyOfs = schema.getAnyOf();
+           if (anyOfs != null && anyOfs.size() == 1) {
+               className = anyOfs.get(0).getTitle();
+           }
+        }
+
+        log.debug("---------- Inside createDatumFieldSpec ---------");
+        log.debug("ClasNameString : " + classNameString);
+        log.debug("RedeemerJavaFile : " + redeemerJavaFile.name);
+
+        if (schema.getRefSchema() != null) {
+            String refTitle = schema.getRefSchema().getTitle();
+            className = refTitle != null ? refTitle : className;
+        }
+
+        ClassName classNameType = ClassName.get(getPackageName(ns), className);
         String fieldName = title + (schema.getDataType() == BlueprintDatatype.constructor ? String.valueOf(schema.getIndex()) : "") + suffix;
 
-        return FieldSpec.builder(className, fieldName)
+        return FieldSpec.builder(classNameType, fieldName)
                 .addModifiers(Modifier.PRIVATE)
                 .build();
     }
 
-    private TypeSpec createDatumTypeSpec(BlueprintSchema schema, String className, String alternativeName) {
+    private TypeSpec createDatumTypeSpec(String ns, String interfaceName, BlueprintSchema schema, String className, String alternativeName) {
         Tuple<String, List<BlueprintSchema>> allInnerSchemas = FieldSpecProcessor.collectAllFields(schema);
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
-        List<FieldSpec> fields = createFieldSpecForDataTypes(allInnerSchemas._1, allInnerSchemas._2, className, title);
+        List<FieldSpec> fields = createFieldSpecForDataTypes(ns, allInnerSchemas._1, allInnerSchemas._2, className, title);
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).addMember("alternative", "$L", schema.getIndex()).build();
 
+        className = JavaFileUtil.firstUpperCase(title); //TODO
+
+        String pkg = getPackageName(ns);
+
+        ClassName datumClass = ClassName.get(pkg, className);
+        ClassName DataClazz = ClassName.get(Data.class);
+        ParameterizedTypeName parameterizedInterface = ParameterizedTypeName.get(DataClazz, datumClass);
+
         TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .addFields(fields)
+                .addSuperinterface(parameterizedInterface)
                 .addMethods(createMethodSpecsForGetterSetters(fields, false))
                 .addAnnotation(constrAnnotationBuilder);
 
+        if (interfaceName != null && !interfaceName.isEmpty()) {
+            ClassName interfaceTypeName = ClassName.get(pkg, interfaceName);
+            classBuilder.addSuperinterface(interfaceTypeName);
+        }
+
         TypeSpec build = classBuilder.build();
-        JavaFileUtil.createJavaFile(annotation.packageName(), build, className, processingEnv);
+
+        log.debug("---------- Inside createDatumTypeSpec ---------");
+        log.debug("Package: " + pkg);
+        log.debug("Class: " + className);
+        log.debug("Data type: " + schema.getDataType());
+
+        log.debug("\n");
+
+        if (schema.getDataType() != null) {
+            JavaFileUtil.createJavaFile(pkg, build, className, processingEnv);
+        }
+
+        return build;
+    }
+
+    private String getPackageName(String ns) {
+        String pkg = (ns != null && !ns.isEmpty())? annotation.packageName() + "." + ns + ".model"
+                : annotation.packageName() + ".model";
+        return pkg;
+    }
+
+    public TypeSpec createDatumInterface(String ns, String dataClassName) {
+        AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
+
+        String className = JavaFileUtil.firstUpperCase(dataClassName); //TODO
+        TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(constrAnnotationBuilder);
+
+        TypeSpec build = interfaceBuilder.build();
+        String pkg = getPackageName(ns);
+
+        JavaFileUtil.createJavaFile(pkg, build, className, processingEnv);
+
         return build;
     }
 }
