@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.plutus.annotation.blueprint.model;
+package com.bloxbean.cardano.client.plutus.annotation.it;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 

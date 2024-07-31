@@ -1,0 +1,100 @@
+{
+  "preamble": {
+    "title": "kammer/simplecontract",
+    "description": "Aiken contracts for project 'kammer/simplecontract'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.21-alpha+4b04517"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "basic_types.basic_types",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/basic_types~1Datum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/basic_types~1Redeemer"
+        }
+      },
+      "compiledCode": "58860100003232323232323232222323253330084a229309b2b19299980419b87480000044c8c8c8c94ccc03cc04400852616375a601e002601e0046e64dd7180680098030020b180300199299980399b87480000044c8c94ccc030c03800852616375c6018002600a0082c600a0064600a6ea80048c00cdd5000ab9a5573aaae7955cfaba157441",
+      "hash": "edd09ef476d3954fc6a3ac8e220c1f29c2e2dbaa03940c6dbd5ac62c"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "String": {
+      "dataType": "#string"
+    },
+    "basic_types/Datum": {
+      "title": "Datum",
+      "anyOf": [
+        {
+          "title": "Datum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "action",
+              "$ref": "#/definitions/basic_types~1Enum"
+            }
+          ]
+        }
+      ]
+    },
+    "basic_types/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/String"
+            },
+            {
+              "title": "counter",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "basic_types/Enum": {
+      "title": "Enum",
+      "anyOf": [
+        {
+          "title": "Mint",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Burn",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}
