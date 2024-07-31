@@ -42,7 +42,18 @@ public class JavaFileUtil {
         if (s == null || s.isEmpty())
             return s;
 
+        if(Character.isUpperCase(s.charAt(0))) {
+            return s;
+        }
+
         return CaseUtils.toCamelCase(s, true, '_', ' ', '-');
+    }
+
+    public static String toClassNameFormat(String s) {
+        if (s == null || s.isEmpty())
+            return s;
+
+        return firstUpperCase(toCamelCase(s));
     }
 
     /**

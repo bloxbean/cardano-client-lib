@@ -42,7 +42,7 @@ public class FieldSpecProcessor {
             return;
         }
 
-        dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+        dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
 
         String interfaceName = null;
         //For anyOf > 1, create an interface, if size == 1, create a class
@@ -61,7 +61,7 @@ public class FieldSpecProcessor {
                 continue;
             }
 
-            dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+            dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
             createDatumFieldSpec(ns, interfaceName, innerSchema, dataClassName);
         }
     }
@@ -77,7 +77,7 @@ public class FieldSpecProcessor {
         String dataClassName = schema.getTitle();
 
         if (dataClassName != null)
-            dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+            dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
 
         String pkg = getPackageName(ns);
 
@@ -94,7 +94,7 @@ public class FieldSpecProcessor {
             var anyOfSchema = schema.getAnyOf().get(0);
             dataClassName = anyOfSchema.getTitle();
             if (dataClassName != null) {
-                dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+                dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
 
                 return ClassName.get(pkg, dataClassName);
             }
@@ -138,7 +138,7 @@ public class FieldSpecProcessor {
     public ClassName createDatumInterface(String ns, String dataClassName) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
-        String className = JavaFileUtil.firstUpperCase(dataClassName); //TODO
+        String className = JavaFileUtil.toClassNameFormat(dataClassName); //TODO
         TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(constrAnnotationBuilder);
@@ -161,7 +161,7 @@ public class FieldSpecProcessor {
      * @return Tuple of FieldSpec and ClassName of the field
      */
     public Tuple<FieldSpec, ClassName> createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String title) {
-        String classNameString = JavaFileUtil.firstUpperCase(title);//JavaFileUtil.buildClassName(schema, suffix, title, prefix);
+        String classNameString = JavaFileUtil.toClassNameFormat(title);//JavaFileUtil.buildClassName(schema, suffix, title, prefix);
         TypeSpec redeemerJavaFile = createDatumTypeSpec(ns, interfaceName, schema);
 
         var dataType = schema.getDataType();
@@ -182,6 +182,7 @@ public class FieldSpecProcessor {
         if (schema.getRefSchema() != null) {
             String refTitle = schema.getRefSchema().getTitle();
             className = refTitle != null ? refTitle : className;
+            className = JavaFileUtil.toClassNameFormat(className);
         }
 
         ClassName classNameType = ClassName.get(getPackageName(ns), className);
@@ -209,7 +210,7 @@ public class FieldSpecProcessor {
 
         String title = schema.getTitle();
 
-        String className = JavaFileUtil.firstUpperCase(title); //TODO
+        String className = JavaFileUtil.toClassNameFormat(title); //TODO
 
         String pkg = getPackageName(ns);
 

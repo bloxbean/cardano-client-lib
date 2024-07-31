@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
@@ -93,15 +94,17 @@ public class ValidatorProcessor {
             fieldSpecProcessor.createDatumClass(pkgSuffix, datumSchema);
         }
 
-//            fields.add(fieldSpecProcessor.createDatumFieldSpec("", validator.getDatum().getSchema(), "", validator.getDatum().getSchema().getTitle()));
-//            fieldSpecProcessor.createDatumFieldSpec("", "", validator.getDatum().getSchema(), "Datum", title);
-
-/**        if (validator.getParameters() != null) {
+        if (validator.getParameters() != null && validator.getParameters().size() > 0) { //check for any inline schema
             for (BlueprintDatum parameter : validator.getParameters()) {
-//                fields.add(fieldSpecProcessor.createDatumFieldSpec("", parameter.getSchema(), "", parameter.getSchema().getTitle()));
-                fields.add(fieldSpecProcessor.createDatumFieldSpec("",parameter.getSchema(), "Parameter", title + parameter.getTitle()));
+                if (parameter.getSchema() != null && parameter.getSchema().getRef() == null) { //Looks like inline schema
+                    var parameterSchema = parameter.getSchema();
+                    if (parameterSchema.getTitle() == null)
+                        parameterSchema.setTitle(parameter.getTitle());
+
+                    fieldSpecProcessor.createDatumClass(pkgSuffix, parameterSchema);
+                }
             }
-        }**/
+        }
 
         List<MethodSpec> methods = new ArrayList<>();
         methods.addAll(createMethodSpecsForGetterSetters(metaFields, true));
