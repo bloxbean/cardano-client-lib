@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.quicktx.blueprint.extender.AbstractValidatorExtender;
 import com.squareup.javapoet.*;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -17,6 +18,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.MirroredTypeException;
+import javax.lang.model.type.MirroredTypesException;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
@@ -75,11 +77,22 @@ public class ValidatorProcessor {
         //TODO -- Handle parameterized validators
 
         // processing of fields
-//        if (validator.getRedeemer() != null)
-//            fields.add(fieldSpecProcessor.createDatumFieldSpec("", validator.getRedeemer().getSchema(), "", validator.getRedeemer().getSchema().getTitle()));
-//            fieldSpecProcessor.createDatumFieldSpec("", "", validator.getRedeemer().getSchema(), "Redeemer", title);
+        if (validator.getRedeemer() != null && validator.getRedeemer().getSchema() != null && validator.getRedeemer().getSchema().getRef() == null) { //Looks like inline schema
+            var redeemerSchema = validator.getRedeemer().getSchema();
+            if (redeemerSchema.getTitle() == null)
+                redeemerSchema.setTitle(validator.getRedeemer().getTitle());
 
-//        if (validator.getDatum() != null)
+            fieldSpecProcessor.createDatumClass(pkgSuffix, redeemerSchema);
+        }
+
+        if (validator.getDatum() != null && validator.getDatum().getSchema() != null && validator.getDatum().getSchema().getRef() == null) { //Looks like inline schema
+            var datumSchema = validator.getDatum().getSchema();
+            if (datumSchema.getTitle() == null)
+                datumSchema.setTitle(validator.getDatum().getTitle());
+
+            fieldSpecProcessor.createDatumClass(pkgSuffix, datumSchema);
+        }
+
 //            fields.add(fieldSpecProcessor.createDatumFieldSpec("", validator.getDatum().getSchema(), "", validator.getDatum().getSchema().getTitle()));
 //            fieldSpecProcessor.createDatumFieldSpec("", "", validator.getDatum().getSchema(), "Datum", title);
 
@@ -108,14 +121,21 @@ public class ValidatorProcessor {
                 .addMethods(methods);
 
         if (extendWith != null) {
-            var extendWithTypeMirror = getExtendWithValue(extendWith);
-            TypeElement extendWithTypeElement = (TypeElement) ((DeclaredType) extendWithTypeMirror).asElement();
-
-            ClassName extendWithClassName = ClassName.get(extendWithTypeElement);
+            var extendWithTypeMirros = getExtendWithValues(extendWith);
             ClassName validatorTypeName = ClassName.get(packageName, validatorClassName);
 
-            ParameterizedTypeName parameterizedSuperClass = ParameterizedTypeName.get(extendWithClassName, validatorTypeName);
+            for (TypeMirror extendWithTypeMirror : extendWithTypeMirros) {
+                TypeElement extendWithTypeElement = (TypeElement) ((DeclaredType) extendWithTypeMirror).asElement();
+                ClassName extendWithInterface = ClassName.get(extendWithTypeElement);
+                ParameterizedTypeName parameterizedInterface = ParameterizedTypeName.get(extendWithInterface, validatorTypeName);
+                builder.addSuperinterface(parameterizedInterface);
+            }
+
+            //Extend AbstractValidatorExtender
+            ClassName abstractExtenderClass = ClassName.get(AbstractValidatorExtender.class);
+            ParameterizedTypeName parameterizedSuperClass = ParameterizedTypeName.get(abstractExtenderClass, validatorTypeName);
             builder.superclass(parameterizedSuperClass);
+
         }
         var build = builder.build();
 
@@ -182,6 +202,15 @@ public class ValidatorProcessor {
                 .build());
 
         return fields;
+    }
+
+    private List<? extends TypeMirror> getExtendWithValues(ExtendWith extendWith) {
+        try {
+            extendWith.value();
+        } catch (MirroredTypesException ex) {
+            return ex.getTypeMirrors();
+        }
+        return null;
     }
 
     private TypeMirror getExtendWithValue(ExtendWith extendWith) {

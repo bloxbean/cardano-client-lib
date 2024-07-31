@@ -65,31 +65,30 @@ public class DataTypeProcessUtil {
      * @param schema
      * @return
      */
-    public FieldSpec processListDataType(String javaDoc, BlueprintSchema schema, String alternativeName) {
+    public FieldSpec processListDataType(String ns, String javaDoc, BlueprintSchema schema, String alternativeName) {
         if(schema.getDataType() != list)
             throw new IllegalArgumentException("Schema is not of type list");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
-        TypeName fieldClass = getTypeNameForListParametrizedType(schema);
+        TypeName fieldClass = getTypeNameForListParametrizedType(ns, schema);
         return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
     }
 
-    private TypeName getTypeNameForListParametrizedType(BlueprintSchema field) {
-        return ParameterizedTypeName.get(ClassName.get("java.util", "List"), getInnerType(field.getItems()));
+    private TypeName getTypeNameForListParametrizedType(String ns, BlueprintSchema field) {
+        return ParameterizedTypeName.get(ClassName.get("java.util", "List"), getInnerType(ns, field.getItems()));
     }
 
-    private TypeName getTypeNameForMapParametrizedType(BlueprintSchema field) {
-        return ParameterizedTypeName.get(ClassName.get("java.util", "Map"), getInnerType(field.getKeys()), getInnerType(field.getValues()));
+    private TypeName getTypeNameForMapParametrizedType(String ns, BlueprintSchema field) {
+        return ParameterizedTypeName.get(ClassName.get("java.util", "Map"), getInnerType(ns, field.getKeys()), getInnerType(ns, field.getValues()));
     }
 
-    private TypeName getInnerType(BlueprintSchema items) {
+    private TypeName getInnerType(String ns, BlueprintSchema items) {
         if(items.getDataType() == null) // Case for constructor data type
         {
-            //TODO
-            FieldSpec constr = fieldSpecProcessor.createDatumFieldSpec("", "", items, "Constr", items.getTitle(), "");
-            return constr.type;
+            TypeName typeName = fieldSpecProcessor.getInnerDatumClass(ns, items);
+            return typeName;
         }
         switch (items.getDataType()) {
             case bytes:
@@ -101,9 +100,9 @@ public class DataTypeProcessUtil {
             case bool:
                 return TypeName.get(Boolean.class);
             case list:
-                return getTypeNameForListParametrizedType(items);
+                return getTypeNameForListParametrizedType(ns, items);
             case map:
-                return getTypeNameForMapParametrizedType(items);
+                return getTypeNameForMapParametrizedType(ns, items);
             default:
                 return TypeName.get(String.class);
         }
@@ -146,10 +145,10 @@ public class DataTypeProcessUtil {
         for (BlueprintSchema field : schema.getFields()) {
             if(field.getDataType() != null) {
                 javaDoc += " Index: " + field.getIndex() ;
-                specs.addAll(fieldSpecProcessor.createFieldSpecForDataTypes(ns, javaDoc,  List.of(field), className, alternativeName));
+                specs.addAll(fieldSpecProcessor.createFieldSpecForDataTypes(ns, javaDoc,  List.of(field)));
             } else {
                 //TODO
-                specs.add(fieldSpecProcessor.createDatumFieldSpec(ns, "", field, "", field.getTitle(), className));
+                specs.add(fieldSpecProcessor.createDatumFieldSpec(ns, "", field, field.getTitle())._1);
             }
         }
         if(schema.getFields().isEmpty()) { // TODO Fields is empty that's why no mint or burn is generated Enums
@@ -176,7 +175,7 @@ public class DataTypeProcessUtil {
 
         String pkg = getPackage(ns);
 
-        JavaFileUtil.createJavaFile(pkg, enumConstr, enumConstr.name, processingEnv);
+    //TODO --remove    JavaFileUtil.createJavaFile(pkg, enumConstr, enumConstr.name, processingEnv);
         ClassName classIdentifier = ClassName.get(pkg, enumConstr.name);
         return FieldSpec.builder(classIdentifier, fieldName)
                 .addModifiers(Modifier.PRIVATE)
@@ -184,11 +183,11 @@ public class DataTypeProcessUtil {
                 .build();
     }
 
-    public FieldSpec processMapDataType(String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
+    public FieldSpec processMapDataType(String ns, String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         if(schema.getDataType() != map)
             throw new IllegalArgumentException("Schema is not of type map");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
-        TypeName fieldClass = getTypeNameForMapParametrizedType(schema);
+        TypeName fieldClass = getTypeNameForMapParametrizedType(ns, schema);
         return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)

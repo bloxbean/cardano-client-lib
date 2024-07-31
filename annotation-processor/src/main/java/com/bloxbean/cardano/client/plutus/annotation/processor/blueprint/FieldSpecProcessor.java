@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
-import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
 import com.bloxbean.cardano.client.util.Tuple;
@@ -31,20 +30,96 @@ public class FieldSpecProcessor {
     }
 
     /**
+     * Creates a Datum class for a given schema
+     * If the schema has anyOf &gt; 1, it creates an interface and a class for each of the anyOf
+     *
+     * @param ns     namespace or package suffix
+     * @param schema Definition schema to create Datum class
+     */
+    public void createDatumClass(String ns, BlueprintSchema schema) {
+        String dataClassName = schema.getTitle();
+        if (dataClassName == null || dataClassName.isEmpty()) {
+            return;
+        }
+
+        dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+
+        String interfaceName = null;
+        //For anyOf > 1, create an interface, if size == 1, create a class
+        //TODO -- What about allOf ??
+        if (schema.getAnyOf() != null && schema.getAnyOf().size() > 1) {
+            log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
+            //More than one constructor. So let's create an interface
+            createDatumInterface(ns, dataClassName);
+            interfaceName = dataClassName;
+        }
+
+        Tuple<String, List<BlueprintSchema>> allFields = FieldSpecProcessor.collectAllFields(schema);
+        for (BlueprintSchema innerSchema : allFields._2) {
+            dataClassName = schema.getTitle();
+            if (dataClassName == null || dataClassName.isEmpty()) {
+                continue;
+            }
+
+            dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+            createDatumFieldSpec(ns, interfaceName, innerSchema, dataClassName);
+        }
+    }
+
+    /**
+     * Get the inner class name for a given schema. This is currently used to find the generic types for list and map
+     *
+     * @param ns     namespace or package suffix
+     * @param schema schema to get the inner class name
+     * @return ClassName of the inner class
+     */
+    public ClassName getInnerDatumClass(String ns, BlueprintSchema schema) {
+        String dataClassName = schema.getTitle();
+
+        if (dataClassName != null)
+            dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+
+        String pkg = getPackageName(ns);
+
+        //For anyOf > 1, create an interface, if size == 1, create a class
+        //TODO -- What about allOf ??
+        if (schema.getAnyOf() != null && schema.getAnyOf().size() > 1) {
+            log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
+            //More than one constructor. So it's an interface
+
+            return ClassName.get(pkg, dataClassName);
+        }
+
+        if (schema.getAnyOf() != null && schema.getAnyOf().size() == 1) {
+            var anyOfSchema = schema.getAnyOf().get(0);
+            dataClassName = anyOfSchema.getTitle();
+            if (dataClassName != null) {
+                dataClassName = JavaFileUtil.firstUpperCase(dataClassName);
+
+                return ClassName.get(pkg, dataClassName);
+            }
+        }
+
+        //Otherwise
+        return ClassName.get(pkg, dataClassName);
+    }
+
+    /**
      * Collects all fields from a schema including the ones from allOf, anyOf, oneOf, noneOf and returns them as a list
+     *
      * @param schema schema to collect fields from
      * @return list of all fields
      */
     public static Tuple<String, List<BlueprintSchema>> collectAllFields(BlueprintSchema schema) {
         List<BlueprintSchema> toFields = new ArrayList<>();
         String javaDoc = "";
-        if(schema.getAllOf() != null) {
+        if (schema.getAllOf() != null) {
             toFields.addAll(schema.getAllOf());
             javaDoc = "AllOf";
-        } else if(schema.getAnyOf() != null) {
+        } else if (schema.getAnyOf() != null) {
             toFields.addAll(schema.getAnyOf());
             javaDoc = "AnyOf";
-        } else if(schema.getOneOf() != null) {
+        } else if (schema.getOneOf() != null) {
             toFields.addAll(schema.getOneOf());
             javaDoc = "OneOf";
         } else {
@@ -54,94 +129,50 @@ public class FieldSpecProcessor {
     }
 
     /**
-     * Creates a list of FieldSpecs for a given schema
-     * @param javaDoc
-     * @param schema
-     * @param className
-     * @return
+     * Creates a Datum interface for a given schema. This is used when a schema has anyOf &gt; 1
+     *
+     * @param ns            namespace or package suffix
+     * @param dataClassName name of the interface
+     * @return ClassName of the interface
      */
-    public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
-        List<FieldSpec> specs = new ArrayList<>();
-        if(schema.getDataType() == null) { // Processing Anyplutusdata
-            specs.add(dataTypeProcessUtil.processPlutusDataType(javaDoc, schema, alternativeName));
+    public ClassName createDatumInterface(String ns, String dataClassName) {
+        AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
-        } else {
-            switch (schema.getDataType()) {
-                case bytes:
-                    specs.add(dataTypeProcessUtil.processBytesDataType(javaDoc, schema, alternativeName));
-                    break;
-                case integer:
-                    specs.add(dataTypeProcessUtil.processIntegerDataType(javaDoc, schema, alternativeName));
-                    break;
-                case bool:
-                    specs.add(dataTypeProcessUtil.processBoolDataType(javaDoc, schema, alternativeName));
-                    break;
-                case list:
-                    specs.add(dataTypeProcessUtil.processListDataType(javaDoc, schema, alternativeName));
-                    break;
-                case map:
-                    specs.add(dataTypeProcessUtil.processMapDataType(javaDoc, schema, className, alternativeName));
-                    break;
-                case constructor:
-                    specs.addAll(dataTypeProcessUtil.processConstructorDataType(ns, javaDoc, schema, className, alternativeName));
-                    break;
-                case string:
-                    specs.add(dataTypeProcessUtil.processStringDataType(javaDoc, schema, alternativeName));
-                    break;
-                default:
-            }
-        }
-        return specs;
+        String className = JavaFileUtil.firstUpperCase(dataClassName); //TODO
+        TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(constrAnnotationBuilder);
+
+        TypeSpec build = interfaceBuilder.build();
+        String pkg = getPackageName(ns);
+
+        JavaFileUtil.createJavaFile(pkg, build, className, processingEnv);
+
+        return ClassName.get(pkg, className);
     }
 
     /**
-     * Creates a list of FieldSpecs for a given list of schemas
-     * @param javaDoc
-     * @param schemas
-     * @param className
-     * @return
+     * Creates a Datum field for a given schema. It also creates a Datum class for the schema if it's not already created
+     *
+     * @param ns            namespace or package suffix
+     * @param interfaceName Optional interface name if the schema has anyOf &gt; 1
+     * @param schema        schema to create Datum field
+     * @param title         title of the schema
+     * @return Tuple of FieldSpec and ClassName of the field
      */
-    public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, List<BlueprintSchema> schemas, String className, String alternativeName) {
-        List<FieldSpec> specs = new ArrayList<>();
-        for (BlueprintSchema schema : schemas) {
-            specs.addAll(createFieldSpecForDataTypes(ns, javaDoc, schema, className, alternativeName));
-        }
-        return specs;
-    }
-
-    /**
-     * Creates a FieldSpec for a given schema
-     * @param schema
-     * @param suffix
-     * @param title
-     * @return
-     */
-    public FieldSpec createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String suffix, String title) {
-        return createDatumFieldSpec(ns, interfaceName, schema, suffix, title, "");
-    }
-
-    /**
-     * Creates a FieldSpec for a given schema
-     * @param schema
-     * @param suffix
-     * @param title
-     * @param prefix
-     * @return
-     */
-    //TODO - 1
-    public FieldSpec createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String suffix, String title, String prefix) {
-        String classNameString = JavaFileUtil.buildClassName(schema, suffix, title, prefix);
-        TypeSpec redeemerJavaFile = createDatumTypeSpec(ns, interfaceName, schema, classNameString, title);
+    public Tuple<FieldSpec, ClassName> createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String title) {
+        String classNameString = JavaFileUtil.firstUpperCase(title);//JavaFileUtil.buildClassName(schema, suffix, title, prefix);
+        TypeSpec redeemerJavaFile = createDatumTypeSpec(ns, interfaceName, schema);
 
         var dataType = schema.getDataType();
-
         String className = redeemerJavaFile.name;
+
         //If Datatype is null, then get the type from inner schema
         if (dataType == null) {
             var anyOfs = schema.getAnyOf();
-           if (anyOfs != null && anyOfs.size() == 1) {
-               className = anyOfs.get(0).getTitle();
-           }
+            if (anyOfs != null && anyOfs.size() == 1) {
+                className = anyOfs.get(0).getTitle();
+            }
         }
 
         log.debug("---------- Inside createDatumFieldSpec ---------");
@@ -154,20 +185,31 @@ public class FieldSpecProcessor {
         }
 
         ClassName classNameType = ClassName.get(getPackageName(ns), className);
-        String fieldName = title + (schema.getDataType() == BlueprintDatatype.constructor ? String.valueOf(schema.getIndex()) : "") + suffix;
+        String fieldName = title; // + (schema.getDataType() == BlueprintDatatype.constructor ? String.valueOf(schema.getIndex()) : "") ;
 
-        return FieldSpec.builder(classNameType, fieldName)
+        var fieldSpec = FieldSpec.builder(classNameType, fieldName)
                 .addModifiers(Modifier.PRIVATE)
                 .build();
+
+        return new Tuple<>(fieldSpec, classNameType);
     }
 
-    private TypeSpec createDatumTypeSpec(String ns, String interfaceName, BlueprintSchema schema, String className, String alternativeName) {
+    private TypeSpec createDatumTypeSpec(String ns, String interfaceName, BlueprintSchema schema) {
         Tuple<String, List<BlueprintSchema>> allInnerSchemas = FieldSpecProcessor.collectAllFields(schema);
-        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
-        List<FieldSpec> fields = createFieldSpecForDataTypes(ns, allInnerSchemas._1, allInnerSchemas._2, className, title);
+
+        List<FieldSpec> fields = null;
+
+        if (schema.getDataType() != null) {
+            fields = createFieldSpecForDataTypes(ns, allInnerSchemas._1, allInnerSchemas._2);
+        } else {
+            fields = new ArrayList<>();
+        }
+
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).addMember("alternative", "$L", schema.getIndex()).build();
 
-        className = JavaFileUtil.firstUpperCase(title); //TODO
+        String title = schema.getTitle();
+
+        String className = JavaFileUtil.firstUpperCase(title); //TODO
 
         String pkg = getPackageName(ns);
 
@@ -198,30 +240,58 @@ public class FieldSpecProcessor {
 
         if (schema.getDataType() != null) {
             JavaFileUtil.createJavaFile(pkg, build, className, processingEnv);
+        } else {
+            log.debug("Datatype is null. Looks like we don't need to create a class for this schema");
         }
 
         return build;
     }
 
-    private String getPackageName(String ns) {
-        String pkg = (ns != null && !ns.isEmpty())? annotation.packageName() + "." + ns + ".model"
-                : annotation.packageName() + ".model";
-        return pkg;
+    public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, List<BlueprintSchema> schemas) {
+        List<FieldSpec> specs = new ArrayList<>();
+        for (BlueprintSchema schema : schemas) {
+            specs.addAll(createFieldSpecForDataTypes(ns, javaDoc, schema, "", schema.getTitle()));
+        }
+        return specs;
     }
 
-    public TypeSpec createDatumInterface(String ns, String dataClassName) {
-        AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
+    public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
+        List<FieldSpec> specs = new ArrayList<>();
+        if (schema.getDataType() == null) { // Processing Anyplutusdata
+            specs.add(dataTypeProcessUtil.processPlutusDataType(javaDoc, schema, alternativeName));
 
-        String className = JavaFileUtil.firstUpperCase(dataClassName); //TODO
-        TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
-                .addModifiers(Modifier.PUBLIC)
-                .addAnnotation(constrAnnotationBuilder);
+        } else {
+            switch (schema.getDataType()) {
+                case bytes:
+                    specs.add(dataTypeProcessUtil.processBytesDataType(javaDoc, schema, alternativeName));
+                    break;
+                case integer:
+                    specs.add(dataTypeProcessUtil.processIntegerDataType(javaDoc, schema, alternativeName));
+                    break;
+                case bool:
+                    specs.add(dataTypeProcessUtil.processBoolDataType(javaDoc, schema, alternativeName));
+                    break;
+                case list:
+                    specs.add(dataTypeProcessUtil.processListDataType(ns, javaDoc, schema, alternativeName));
+                    break;
+                case map:
+                    specs.add(dataTypeProcessUtil.processMapDataType(ns, javaDoc, schema, className, alternativeName));
+                    break;
+                case constructor:
+                    specs.addAll(dataTypeProcessUtil.processConstructorDataType(ns, javaDoc, schema, className, alternativeName));
+                    break;
+                case string:
+                    specs.add(dataTypeProcessUtil.processStringDataType(javaDoc, schema, alternativeName));
+                    break;
+                default:
+            }
+        }
+        return specs;
+    }
 
-        TypeSpec build = interfaceBuilder.build();
-        String pkg = getPackageName(ns);
-
-        JavaFileUtil.createJavaFile(pkg, build, className, processingEnv);
-
-        return build;
+    private String getPackageName(String ns) {
+        String pkg = (ns != null && !ns.isEmpty()) ? annotation.packageName() + "." + ns + ".model"
+                : annotation.packageName() + ".model";
+        return pkg;
     }
 }
