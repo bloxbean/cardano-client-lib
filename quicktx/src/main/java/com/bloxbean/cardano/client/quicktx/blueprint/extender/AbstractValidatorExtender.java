@@ -8,12 +8,11 @@ import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
-import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.util.Tuple;
 
 import java.util.Objects;
 
-public abstract class AbstractValidatorExtender<T> {
+public abstract class AbstractValidatorExtender<T> implements ValidatorExtender {
     protected UtxoSupplier utxoSupplier;
     protected ProtocolParamsSupplier protocolParamsSupplier;
     protected TransactionProcessor transactionProcessor;
@@ -57,8 +56,28 @@ public abstract class AbstractValidatorExtender<T> {
         return (T) this;
     }
 
-    protected abstract String getScriptAddress();
+    @Override
+    public UtxoSupplier getUtxoSupplier() {
+        return utxoSupplier;
+    }
 
-    protected abstract PlutusScript getPlutusScript();
+    @Override
+    public ProtocolParamsSupplier getProtocolParamsSupplier() {
+        return protocolParamsSupplier;
+    }
+
+    @Override
+    public TransactionProcessor getTransactionProcessor() {
+        return transactionProcessor;
+    }
+
+    @Override
+    public TransactionEvaluator getTransactionEvaluator() {
+        return txEvaluator;
+    }
+
+    public Tuple<String, Integer> getReferenceTxInput() {
+        return referenceTxInput;
+    }
 
 }

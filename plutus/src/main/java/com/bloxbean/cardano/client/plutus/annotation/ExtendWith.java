@@ -6,12 +6,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * ExtendWith annotation is used to specify the super class for the generated validator class from Blueprint annotation
+ * ExtendWith annotation is used to specify the interfaces for the generated validator class from Blueprint annotation
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface ExtendWith {
 
-    Class value();
+    Class[] value() default {};
 }
 
