@@ -13,16 +13,22 @@ dependencies {
     testImplementation libs.lombok
 
     testAnnotationProcessor project(':annotation-processor')
+
+    integrationTestImplementation libs.google.testing.compile
+    integrationTestImplementation libs.lombok
+    integrationTestAnnotationProcessor project(':annotation-processor')
 }
 
 sourceSets {
-    json {
-        resources {
-            srcDir('src/test/resources/')
+    integrationTest {
+        java {
+            srcDir 'src/it/java'
         }
-    }
-    test {
-        compileClasspath += sourceSets.json.output
+        resources {
+            srcDir 'src/it/resources'
+        }
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
+        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
     }
 }
 
