@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.plutus.annotation.blueprint;
+package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 //import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.*;
 //import com.bloxbean.cardano.client.plutus.annotation.blueprint.model.Datum;

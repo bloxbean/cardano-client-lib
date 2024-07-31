@@ -1,10 +1,10 @@
-package com.bloxbean.cardano.client.plutus.annotation;
+package com.bloxbean.cardano.client.plutus.annotation.processor;
 
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
-import com.bloxbean.cardano.client.plutus.annotation.model.A;
-import com.bloxbean.cardano.client.plutus.annotation.model.Student;
-import com.bloxbean.cardano.client.plutus.annotation.model.Subject;
-import com.bloxbean.cardano.client.plutus.annotation.model.converter.StudentConverter;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.A;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.Student;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.Subject;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.converter.StudentConverter;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.serializers.PlutusDataJsonConverter;
 import com.bloxbean.cardano.client.util.HexUtil;

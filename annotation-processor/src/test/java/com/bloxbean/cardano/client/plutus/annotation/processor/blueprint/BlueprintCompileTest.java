@@ -1,6 +1,5 @@
-package com.bloxbean.cardano.client.plutus.annotation.blueprint;
+package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.BlueprintAnnotationProcessor;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
 import org.junit.jupiter.api.Test;
@@ -18,15 +17,16 @@ public class BlueprintCompileTest {
                 javac()
                         .withProcessors(new BlueprintAnnotationProcessor())
                         .compile(
-//                                JavaFileObjects.forResource("blueprint/BasicTypesBlueprint.java")
-//                                JavaFileObjects.forResource("blueprint/ComplexTypesBlueprint.java"),
-//                                JavaFileObjects.forResource("blueprint/HelloWorldBlueprint.java"),
-//                                JavaFileObjects.forResource("blueprint/HelloWorldNoNSBlueprint.java")
-                                JavaFileObjects.forResource("blueprint/ListBlueprint.java")
-//                                JavaFileObjects.forResource("blueprint/MapBlueprint.java"),
-//                                JavaFileObjects.forResource("blueprint/AnyPlutusDataBlueprint.java"),
-//                                JavaFileObjects.forResource("blueprint/SpendMintBlueprint.java"),
-//                                JavaFileObjects.forResource("blueprint/MultipleValidatorsBlueprint.java")
+                                JavaFileObjects.forResource("blueprint/BasicTypesBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/ComplexTypesBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/HelloWorldBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/HelloWorldNoNSBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/ListBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/MapBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/AnyPlutusDataBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/SpendMintBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/MultipleValidatorsBlueprint.java"),
+                                JavaFileObjects.forResource("blueprint/ParameterizedValidatorBlueprint.java")
                         );
 
         System.out.println(compilation.diagnostics());

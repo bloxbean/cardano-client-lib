@@ -1,10 +1,5 @@
-package com.bloxbean.cardano.client.plutus.annotation;
+package com.bloxbean.cardano.client.plutus.annotation.processor;
 
-import com.bloxbean.cardano.client.plutus.annotation.model.BasicModel;
-import com.bloxbean.cardano.client.plutus.annotation.model.converter.BasicModelConverter;
-import org.junit.jupiter.api.Test;
-
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

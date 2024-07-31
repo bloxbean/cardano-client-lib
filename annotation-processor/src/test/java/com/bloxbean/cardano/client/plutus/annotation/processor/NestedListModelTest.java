@@ -1,9 +1,9 @@
-package com.bloxbean.cardano.client.plutus.annotation;
+package com.bloxbean.cardano.client.plutus.annotation.processor;
 
-import com.bloxbean.cardano.client.plutus.annotation.model.A;
-import com.bloxbean.cardano.client.plutus.annotation.model.NestedModel;
-import com.bloxbean.cardano.client.plutus.annotation.model.converter.NestedModelConverter;
-import com.bloxbean.cardano.client.plutus.annotation.model.Subject;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.A;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.NestedModel;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.Subject;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.converter.NestedModelConverter;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
