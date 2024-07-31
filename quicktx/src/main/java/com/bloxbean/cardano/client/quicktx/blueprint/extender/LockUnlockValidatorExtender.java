@@ -3,8 +3,6 @@ package com.bloxbean.cardano.client.quicktx.blueprint.extender;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.exception.CborRuntimeException;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
@@ -17,31 +15,11 @@ import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.ScriptRecei
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.TxResult;
 import lombok.NonNull;
 
-import java.math.BigInteger;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorExtender<T> {
-
-    /**
-     * Create a Tx to deploy the script. This will create an output with 1 lovelace and reference script bytes at script address.
-     * This Tx can be composed with other Tx to create the final transaction through {@link QuickTxBuilder#compose}}
-     *
-     * @param feePayerAddr Fee and min lovelace value payer address
-     * @return Tx
-     */
-    public Tx deployTx(String feePayerAddr) {
-        try {
-            Tx tx = new Tx()
-                    .payToAddress(getScriptAddress(), List.of(Amount.lovelace(BigInteger.valueOf(1))), getPlutusScript().scriptRefBytes())
-                    .from(feePayerAddr);
-            return tx;
-        } catch (CborSerializationException e) {
-            throw new CborRuntimeException(e.getMessage());
-        }
-    }
+public interface LockUnlockValidatorExtender<T> extends DeployValidatorExtender {
 
     /**
      * Create a {@link com.bloxbean.cardano.client.quicktx.QuickTxBuilder.TxContext} to deploy the script. This will create an output with 1 lovelace and reference script bytes at script address.
@@ -50,13 +28,13 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param feePayerAddr
      * @return TxContext
      */
-    public QuickTxBuilder.TxContext deployTxContext(String feePayerAddr) {
+    default QuickTxBuilder.TxContext deployTxContext(String feePayerAddr) {
         requireSuppliersNullCheck();
 
         Tx tx = deployTx(feePayerAddr);
 
         QuickTxBuilder quickTxBuilder =
-                new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+                new QuickTxBuilder(getUtxoSupplier(), getProtocolParamsSupplier(), getTransactionProcessor());
 
         return quickTxBuilder.compose(tx);
     }
@@ -69,7 +47,7 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param outputWriter Output writer
      * @return TxResult
      */
-    public TxResult deploy(String feePayerAddr, TxSigner txSigner,
+    default TxResult deploy(String feePayerAddr, TxSigner txSigner,
                            Consumer<String> outputWriter) {
         var txContext = deployTxContext(feePayerAddr);
 
@@ -93,7 +71,7 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param datum       Datum in the script output
      * @return Tx
      */
-    public Tx lockTx(String fromAddress, Amount amount, Data datum) {
+    default Tx lockTx(String fromAddress, Amount amount, Data datum) {
         return lockTx(fromAddress, List.of(amount), datum);
     }
 
@@ -106,7 +84,7 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param datum       Datum in the script output
      * @return Tx
      */
-    public Tx lockTx(String fromAddress, List<Amount> amounts, Data datum) {
+    default Tx lockTx(String fromAddress, List<Amount> amounts, Data datum) {
         Tx tx = new Tx()
                 .payToContract(getScriptAddress(), amounts, datum.toPlutusData())
                 .from(fromAddress);
@@ -122,11 +100,11 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param datum       Datum in the script output
      * @return TxContext
      */
-    public QuickTxBuilder.TxContext lockTxContext(String fromAddress, List<Amount> amounts, Data datum) {
+    default QuickTxBuilder.TxContext lockTxContext(String fromAddress, List<Amount> amounts, Data datum) {
         requireSuppliersNullCheck();
         Tx tx = lockTx(fromAddress, amounts, datum);
 
-        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(getUtxoSupplier(), getProtocolParamsSupplier(), getTransactionProcessor());
 
         var txContext = quickTxBuilder.compose(tx);
 
@@ -144,7 +122,7 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param outputWriter Writer for output messages
      * @return TxResult
      */
-    public TxResult lock(String fromAddress, List<Amount> amounts, Data datum, TxSigner txSigner, Consumer<String> outputWriter) {
+    default TxResult lock(String fromAddress, List<Amount> amounts, Data datum, TxSigner txSigner, Consumer<String> outputWriter) {
         var txContext = lockTxContext(fromAddress, amounts, datum);
 
         var result = txContext
@@ -168,7 +146,7 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param changeReceiver Change receiver details if any
      * @return ScriptTx
      */
-    public ScriptTx unlockTx(@NonNull Utxo scriptUtxo, List<Receiver> receivers, Data redeemer, ChangeReceiver changeReceiver) {
+    default ScriptTx unlockTx(@NonNull Utxo scriptUtxo, List<Receiver> receivers, Data redeemer, ChangeReceiver changeReceiver) {
         ScriptTx scriptTx = new ScriptTx()
                 .collectFrom(scriptUtxo, redeemer.toPlutusData());
 
@@ -181,8 +159,8 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
             }
         }
 
-        if (referenceTxInput != null) {
-            scriptTx.readFrom(referenceTxInput._1, referenceTxInput._2);
+        if (getReferenceTxInput() != null) {
+            scriptTx.readFrom(getReferenceTxInput()._1, getReferenceTxInput()._2);
         } else {
             scriptTx.attachSpendingValidator(getPlutusScript());
         }
@@ -208,29 +186,29 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param changeReceiver Change receiver details if any
      * @return TxContext
      */
-    public QuickTxBuilder.TxContext unlockTxContext(List<Receiver> receivers, String feePayer, Data datum, Data redeemer, ChangeReceiver changeReceiver) {
+    default QuickTxBuilder.TxContext unlockTxContext(List<Receiver> receivers, String feePayer, Data datum, Data redeemer, ChangeReceiver changeReceiver) {
         requireSuppliersNullCheck();
 
         try {
-            Optional<Utxo> scriptUtxo = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, getScriptAddress(), datum.toPlutusData());
+            Optional<Utxo> scriptUtxo = ScriptUtxoFinders.findFirstByInlineDatum(getUtxoSupplier(), getScriptAddress(), datum.toPlutusData());
             if (!scriptUtxo.isPresent()) {
                 throw new IllegalStateException("Script Utxo not found");
             }
 
             ScriptTx scriptTx = unlockTx(scriptUtxo.get(), receivers, redeemer, changeReceiver);
 
-            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(getUtxoSupplier(), getProtocolParamsSupplier(), getTransactionProcessor());
 
             var txContext = quickTxBuilder.compose(scriptTx);
 
             if (feePayer != null)
                 txContext.feePayer(feePayer);
 
-            if (txEvaluator != null) {
-                txContext.withTxEvaluator(txEvaluator);
+            if (getTransactionEvaluator() != null) {
+                txContext.withTxEvaluator(getTransactionEvaluator());
             }
 
-            if (referenceTxInput != null) {
+            if (getReferenceTxInput() != null) {
                 txContext.withReferenceScripts(getPlutusScript());
             }
 
@@ -253,7 +231,7 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
      * @param requiredSigners Required signers
      * @return
      */
-    public TxResult unlock(List<Receiver> receivers, String feePayer, Data datum, Data redeemer, TxSigner txSigner,
+    default TxResult unlock(List<Receiver> receivers, String feePayer, Data datum, Data redeemer, TxSigner txSigner,
                            ChangeReceiver changeReceiver, Consumer<String> outputWriter, Address... requiredSigners) {
 
         var txContext = unlockTxContext(receivers, feePayer, datum, redeemer, changeReceiver);
@@ -275,12 +253,6 @@ public abstract class LockUnlockValidatorExtender<T> extends AbstractValidatorEx
         } else {
             return TxResult.error(result.getResponse());
         }
-    }
-
-    private void requireSuppliersNullCheck() {
-        Objects.requireNonNull(utxoSupplier, "UtxoSupplier is required");
-        Objects.requireNonNull(protocolParamsSupplier, "ProtocolParamsSupplier is required");
-        Objects.requireNonNull(transactionProcessor, "TransactionProcessor is required");
     }
 
 }
