@@ -933,4 +933,73 @@ public class ConverterCodeGenerator implements CodeGenerator {
         else
             return ClassName.bestGuess(name);
     }
+
+    //-- Enum Converter Code Generation
+    public Optional<TypeSpec> generateEnumConverter(ClassDefinition classDefinition) {
+        if (!classDefinition.isEnum())
+            return Optional.empty();
+
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(classDefinition.getConverterClassName())
+                .addModifiers(Modifier.PUBLIC)
+                .superclass(BasePlutusDataConverter.class);
+
+        ClassName enumClassName = ClassName.get(classDefinition.getPackageName(), classDefinition.getDataClassName());
+
+        List<String> enumConstants = classDefinition.getEnumValues();
+
+        String parameterName = JavaFileUtil.firstLowerCase(enumClassName.simpleName());
+        //Generate toPlutusData method
+        MethodSpec.Builder toPlutusDataMethodBuilder = getEnumToPlutusData(enumClassName, parameterName, enumConstants);
+
+        //Generate fromPlutusData method
+        MethodSpec.Builder fromPlutusDataMethodBuilder = getEnumFromPlutusData(enumClassName, enumConstants);
+
+        var typeSpec = classBuilder
+                .addJavadoc(GENERATED_CODE)
+                .addMethod(toPlutusDataMethodBuilder.build())
+                .addMethod(fromPlutusDataMethodBuilder.build())
+                .addMethod(generateSerialize(classDefinition))
+                .addMethod(generateSerializeToHex(classDefinition))
+                .addMethod(generateDeserialize(classDefinition))
+                .addMethod(generateDeserializeFromHex(classDefinition))
+                .build();
+
+        return Optional.of(typeSpec);
+    }
+
+    private static MethodSpec.Builder getEnumFromPlutusData(ClassName enumClassName, List<String> enumConstants) {
+        MethodSpec.Builder fromPlutusDataMethodBuilder = MethodSpec.methodBuilder("fromPlutusData")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(enumClassName)
+                .addParameter(ConstrPlutusData.class, "constr");
+
+        fromPlutusDataMethodBuilder.addStatement("var data = constr.getData()");
+
+        for (int i = 0; i < enumConstants.size(); i++) {
+            String enumConstant = enumConstants.get(i);
+            fromPlutusDataMethodBuilder.beginControlFlow("if(constr.getAlternative() == $L)", i)
+                    .addStatement("return $T.$L", enumClassName, enumConstant)
+                    .endControlFlow();
+        }
+
+        fromPlutusDataMethodBuilder.addStatement("throw new $T($S + constr.getAlternative())", IllegalArgumentException.class, "Invalid alternative : ");
+        return fromPlutusDataMethodBuilder;
+    }
+
+    private static MethodSpec.Builder getEnumToPlutusData(ClassName enumClassName, String parameterName, List<String> enumConstants) {
+        MethodSpec.Builder toPlutusDataMethodBuilder = MethodSpec.methodBuilder("toPlutusData")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(ConstrPlutusData.class)
+                .addParameter(enumClassName, parameterName);
+
+        for (int i = 0; i < enumConstants.size(); i++) {
+            String enumConstant = enumConstants.get(i);
+            toPlutusDataMethodBuilder.beginControlFlow("if($L == $T.$L)", parameterName, enumClassName, enumConstant)
+                    .addStatement("return $T.builder().alternative($L).data($T.of()).build()", ConstrPlutusData.class, i, ListPlutusData.class);
+            toPlutusDataMethodBuilder.endControlFlow();
+        }
+
+        toPlutusDataMethodBuilder.addStatement("throw new $T($S + $L)", IllegalArgumentException.class, "Invalid enum value : ", parameterName);
+        return toPlutusDataMethodBuilder;
+    }
 }

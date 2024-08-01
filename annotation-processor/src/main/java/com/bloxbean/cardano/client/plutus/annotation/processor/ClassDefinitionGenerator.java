@@ -19,6 +19,7 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,6 +60,11 @@ public class ClassDefinitionGenerator {
 
         typeElement.getModifiers().stream().filter(modifier -> modifier.equals(Modifier.ABSTRACT))
                 .findFirst().ifPresent(modifier -> classDefinition.setAbstract(true));
+
+        //If typeElement is enum, get emum values
+        if(typeElement.getKind() == ElementKind.ENUM) {
+            processEnum(typeElement, classDefinition);
+        }
 
         classDefinition.setConverterPackageName(getConverterPackageName(packageName));
         classDefinition.setImplPackageName(getImplPackageName(packageName));
@@ -334,5 +340,23 @@ public class ClassDefinitionGenerator {
 
     private static String getImplPackageName(String modelPackage) {
         return modelPackage + ".impl";
+    }
+
+    private void processEnum(TypeElement typeElement, ClassDefinition classDefinition) {
+        // Log that we found an enum
+       log.debug("Found enum: " + typeElement.getQualifiedName());
+
+        classDefinition.setEnum(true);
+        List<String> enumValues = new ArrayList<>();
+        // Find all enum constants
+        for (Element enclosedElement : typeElement.getEnclosedElements()) {
+            if (enclosedElement.getKind() == ElementKind.ENUM_CONSTANT) {
+                VariableElement variableElement = (VariableElement) enclosedElement;
+                log.debug("Enum constant: " + variableElement.getSimpleName());
+                enumValues.add(variableElement.getSimpleName().toString());
+            }
+        }
+
+        classDefinition.setEnumValues(enumValues);
     }
 }

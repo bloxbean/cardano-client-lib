@@ -25,6 +25,9 @@ public class ClassDefinition {
 
     private boolean hasLombokAnnotation;
 
+    private boolean isEnum;
+    private List<String> enumValues;
+
     private List<Field> fields = new ArrayList<>();
 }
 

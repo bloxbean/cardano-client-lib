@@ -99,6 +99,17 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
                         }
                     }
 
+                    //Handle enum first
+                    //Only need to create Converter for now
+                    if (classDefinition.isEnum()) {
+                        serializerCodeGenerator.generateEnumConverter(classDefinition)
+                                        .ifPresent(typeSpec -> {
+                                            JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec,
+                                                    classDefinition.getConverterClassName(), processingEnv);
+                                        });
+                        continue;
+                    }
+
                     //Generate converter class
                     try {
                         TypeSpec typeSpec = serializerCodeGenerator.generate(classDefinition);

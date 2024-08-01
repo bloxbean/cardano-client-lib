@@ -154,5 +154,27 @@ public class ConstrAnnotationProcessorTest {
         });
         assertThat(compilation).succeeded();
     }
+
+    @Test
+    void enumCompile() throws Exception {
+        Compilation compilation =
+                javac()
+                        .withProcessors(new ConstrAnnotationProcessor())
+                        .compile(JavaFileObjects.forResource("UserAction.java"));
+
+        System.out.println(compilation.diagnostics());
+        compilation.generatedFiles().forEach(javaFileObject -> {
+            if (javaFileObject.getName().endsWith("class"))
+                return;;
+            System.out.println(javaFileObject.getName());
+            try {
+                System.out.println(javaFileObject.getCharContent(true));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
+        assertThat(compilation).succeeded();
+    }
 }
 
