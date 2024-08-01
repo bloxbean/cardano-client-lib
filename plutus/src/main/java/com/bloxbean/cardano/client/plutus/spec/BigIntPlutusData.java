@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.spec;
 
 import co.nstant.in.cbor.model.*;
 import co.nstant.in.cbor.model.Number;
+import com.bloxbean.cardano.client.common.cbor.custom.ChunkedByteString;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.serializers.BigIntDataJsonDeserializer;
 import com.bloxbean.cardano.client.plutus.spec.serializers.BigIntDataJsonSerializer;
@@ -10,6 +11,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
 import java.math.BigInteger;
+
+import static com.bloxbean.cardano.client.plutus.util.Bytes.getChunks;
 
 @Getter
 @AllArgsConstructor
@@ -64,13 +67,33 @@ public class BigIntPlutusData implements PlutusData {
     public DataItem serialize() throws CborSerializationException {
         DataItem di = null;
         if (value != null) {
-            if (value.compareTo(BigInteger.ZERO) == 0 || value.compareTo(BigInteger.ZERO) == 1) {
-                di = new UnsignedInteger(value);
+            if (value.bitLength() <= BYTES_LIMIT) {
+                if (value.signum() >= 0) {
+                    di = new UnsignedInteger(value);
+                } else {
+                    di = new NegativeInteger(value);
+                }
             } else {
-                di = new NegativeInteger(value);
+                byte[] bytes = value.toByteArray();
+                if (value.signum() < 0) {
+                    bytes = negateBytes(bytes);
+                    di = new ChunkedByteString(getChunks(bytes, BYTES_LIMIT));
+                    di.setTag(BIG_NINT_TAG);
+                } else {
+                    di = new ChunkedByteString(getChunks(bytes, BYTES_LIMIT));
+                    di.setTag(BIG_UINT_TAG);
+                }
             }
         }
 
         return di;
     }
+
+    private byte[] negateBytes(byte[] bytes) {
+        for (int i = 0; i < bytes.length; i++) {
+            bytes[i] = (byte) ~bytes[i];
+        }
+        return bytes;
+    }
+
 }

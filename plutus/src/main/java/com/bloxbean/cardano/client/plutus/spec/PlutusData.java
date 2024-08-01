@@ -20,6 +20,9 @@ public interface PlutusData {
     int BIG_NINT_TAG = 3;
     BigInteger MINUS_ONE = BigInteger.valueOf(-1);
 
+    int BYTES_LIMIT = 64;
+
+
 //    plutus_data = ; New
 //    constr<plutus_data>
 //  / { * plutus_data => plutus_data }

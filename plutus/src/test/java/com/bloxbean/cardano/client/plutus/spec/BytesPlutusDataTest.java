@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
 import co.nstant.in.cbor.CborException;
-import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnicodeString;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
@@ -39,5 +38,54 @@ public class BytesPlutusDataTest {
         BytesPlutusData bytesPlutusData = BytesPlutusData.of(testString);
 
         assertTrue(bytesPlutusData.equals(deserialize));
+    }
+
+    @Test
+    void byteStringChunkLessThan64bytes() {
+        var longBs = "1234567890";
+        var expected = "4a31323334353637383930";
+
+        var serHex = BytesPlutusData.of(longBs).serializeToHex();
+
+        assertThat(serHex).isEqualTo(expected);
+    }
+
+    @Test
+    void byteStringChunkLessThan64bytes_roundtrip() throws CborDeserializationException {
+        var longBs = "1234567890";
+
+        var serHex = BytesPlutusData.of(longBs).serializeToHex();
+        var deBytesPlutusData = (BytesPlutusData)PlutusData.deserialize(HexUtil.decodeHexString(serHex));
+        var deValue = deBytesPlutusData.getValue();
+        var deStr = new String(deValue);
+
+        assertThat(deStr).isEqualTo(longBs);
+    }
+
+    @Test
+    void byteStringChunkMoreThan64bytes() {
+        var longBs = "1234567890".repeat(7);
+        var expected =
+                "5f58403132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333446353637383930ff";
+
+        var serHex = BytesPlutusData.of(longBs).serializeToHex();
+
+        assertThat(serHex).isEqualTo(expected);
+    }
+
+
+    @Test
+    void byteStringChunkMoreThan64bytes_roundtrip() throws CborDeserializationException {
+        var longBs = "1234567890".repeat(7);
+        var expected =
+                "5f58403132333435363738393031323334353637383930313233343536373839303132333435363738393031323334353637383930313233343536373839303132333446353637383930ff";
+
+        var serHex = BytesPlutusData.of(longBs).serializeToHex();
+        var deBytesPlutusData = (BytesPlutusData) PlutusData.deserialize(HexUtil.decodeHexString(serHex));
+        var deValue = deBytesPlutusData.getValue();
+        var deStr = new String(deValue);
+
+        assertThat(serHex).isEqualTo(expected);
+        assertThat(deStr).isEqualTo(longBs);
     }
 }
