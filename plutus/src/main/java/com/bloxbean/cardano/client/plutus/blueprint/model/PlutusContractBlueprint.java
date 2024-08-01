@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Initial implementation of Plutus Contract Blueprint (CIP-57)
@@ -21,6 +22,7 @@ import java.util.List;
 public class PlutusContractBlueprint {
     private Preamble preamble;
     private List<Validator> validators;
+    private Map<String, BlueprintSchema> definitions;
 
     @JsonIgnore
     public PlutusScript getPlutusScript(String title) {

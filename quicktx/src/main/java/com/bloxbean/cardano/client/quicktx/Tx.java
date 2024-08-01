@@ -309,7 +309,7 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx registerDRep(@NonNull Account account, Anchor anchor) {
-        govTx.registerDRep(account.drepCredential(), anchor);
+        govTx.registerDRep(account.drepCredential(), anchor, null);
         return this;
     }
 
@@ -319,7 +319,7 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx registerDRep(@NonNull Account account) {
-        registerDRep(account, null);
+        govTx.registerDRep(account.drepCredential(), null, null);
         return this;
     }
 
@@ -330,19 +330,7 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
-        govTx.registerDRep(drepCredential, anchor);
-        return this;
-    }
-
-    /**
-     * Register a DRep
-     * @param drepCredential Credential
-     * @param drepRegDeposit DRep registration deposit amount configured in the protocol parameters
-     * @param anchor Anchor
-     * @return Tx
-     */
-    public Tx registerDRep(@NonNull Credential drepCredential, BigInteger drepRegDeposit, Anchor anchor) {
-        govTx.registerDRep(drepCredential, drepRegDeposit, anchor);
+        govTx.registerDRep(drepCredential, anchor, null);
         return this;
     }
 
@@ -352,19 +340,19 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx registerDRep(@NonNull Credential drepCredential) {
-        registerDRep(drepCredential, null);
+        govTx.registerDRep(drepCredential, null, null);
         return this;
     }
 
     /**
      * Unregister a DRep
      * @param drepCredential Credential
-     * @param refaundAddress Refund address
+     * @param refundAddress Refund address
      * @param refundAmount Refund amount
      * @return Tx
      */
-    public Tx unregisterDRep(@NonNull Credential drepCredential, String refaundAddress, BigInteger refundAmount) {
-        govTx.unregisterDRep(drepCredential, refaundAddress, refundAmount);
+    public Tx unregisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount) {
+        govTx.unregisterDRep(drepCredential, refundAddress, refundAmount, null);
         return this;
     }
 
@@ -374,7 +362,18 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx unregisterDRep(@NonNull Credential drepCredential) {
-        govTx.unregisterDRep(drepCredential, null, null);
+        govTx.unregisterDRep(drepCredential, null, null, null);
+        return this;
+    }
+
+    /**
+     * Unregister a DRep
+     * @param drepCredential Credential
+     * @param refundAddress Refund address
+     * @return Tx
+     */
+    public Tx unregisterDRep(@NonNull Credential drepCredential, @NonNull String refundAddress) {
+        govTx.unregisterDRep(drepCredential, refundAddress, null, null);
         return this;
     }
 
@@ -385,7 +384,7 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx updateDRep(@NonNull Credential drepCredential, Anchor anchor) {
-        govTx.updateDRep(drepCredential, anchor);
+        govTx.updateDRep(drepCredential, anchor, null);
         return this;
     }
 
@@ -395,20 +394,19 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx updateDRep(@NonNull Credential drepCredential) {
-        govTx.updateDRep(drepCredential, null);
+        govTx.updateDRep(drepCredential, null, null);
         return this;
     }
 
     /**
      * Create a new governance proposal
      * @param govAction GovAction
-     * @param deposit Deposit
      * @param rewardAccount return address for the deposit refund
      * @param anchor Anchor
      * @return Tx
      */
-    public Tx createProposal(@NonNull GovAction govAction, @NonNull BigInteger deposit, @NonNull String rewardAccount, Anchor anchor) {
-        govTx.createProposal(govAction, deposit, rewardAccount, anchor);
+    public Tx createProposal(@NonNull GovAction govAction, @NonNull String rewardAccount, Anchor anchor) {
+        govTx.createProposal(govAction, rewardAccount, anchor, null);
         return this;
     }
 
@@ -421,7 +419,7 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor) {
-        govTx.createVote(voter, govActionId, vote, anchor);
+        govTx.createVote(voter, govActionId, vote, anchor, null);
         return this;
     }
 
@@ -433,7 +431,7 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote) {
-        govTx.createVote(voter, govActionId, vote, null);
+        govTx.createVote(voter, govActionId, vote, null, null);
         return this;
     }
 
@@ -444,7 +442,7 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx delegateVotingPowerTo(@NonNull String address, @NonNull DRep drep) {
-        govTx.delegateVotingPowerTo(new Address(address), drep);
+        govTx.delegateVotingPowerTo(new Address(address), drep, null);
         return this;
     }
 
@@ -455,7 +453,7 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep) {
-        govTx.delegateVotingPowerTo(address, drep);
+        govTx.delegateVotingPowerTo(address, drep, null);
         return this;
     }
 
@@ -510,20 +508,18 @@ public class Tx extends AbstractTx<Tx> {
 
     @Override
     TxBuilder complete() {
-       Tuple<List<StakeTx.PaymentContext>, TxBuilder> stakeBuildTuple =
+       Tuple<List<DepositRefundContext>, TxBuilder> stakeBuildTuple =
                stakeTx.build(getFromAddress(), getChangeAddress());
 
-        for (StakeTx.PaymentContext paymentContext: stakeBuildTuple._1) {
-            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
-        }
+        //Add stake deposit refund contexts
+        addDepositRefundContext(stakeBuildTuple._1);
 
         //Gov txs
-        Tuple<List<GovTx.PaymentContext>, TxBuilder> govBuildTuple =
+        Tuple<List<DepositRefundContext>, TxBuilder> govBuildTuple =
                 govTx.build(getFromAddress(), getChangeAddress());
 
-        for (GovTx.PaymentContext paymentContext: govBuildTuple._1) {
-            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
-        }
+        //Add gov deposit refund contexts
+        addDepositRefundContext(govBuildTuple._1);
 
         TxBuilder txBuilder = super.complete();
 

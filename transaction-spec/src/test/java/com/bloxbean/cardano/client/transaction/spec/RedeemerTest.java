@@ -23,10 +23,10 @@ class RedeemerTest {
                         .mem(BigInteger.valueOf(1700))
                         .steps(BigInteger.valueOf(476468)).build()
                 ).build();
-        Array seArray = redeemer.serialize();
+        Array seArray = redeemer.serializePreConway();
 
-        Redeemer deRedeemer = Redeemer.deserialize(seArray);
-        Array deArray = deRedeemer.serialize();
+        Redeemer deRedeemer = Redeemer.deserializePreConway(seArray);
+        Array deArray = deRedeemer.serializePreConway();
 
         //ser, deser test
         assertThat(deArray).isEqualTo(seArray);

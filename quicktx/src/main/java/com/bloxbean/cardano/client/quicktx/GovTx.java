@@ -2,9 +2,12 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
-import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
@@ -22,59 +25,51 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
-
 @Slf4j
 public class GovTx {
-    //TODO -- Read from protocol
-    public static final BigInteger DREP_REG_DEPOSIT = adaToLovelace(500.0);
-    public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
-
-    protected List<RegDRepCert> dRepRegistrations;
+    protected List<DRepRegestrationContext> dRepRegistrationContexts;
     protected List<DRepDeregestrationContext> dRepDeregestrationContexts;
-    protected List<UpdateDRepCert> updateDrepCerts;
+    protected List<UpdateDRepContext> updateDRepContexts;
     protected List<CreateProposalContext> createProposalContexts;
     protected List<VotingProcedureContext> votingProcedureContexts;
-    protected List<VoteDelegCert> voteDelegCerts;
+    protected List<VotingDelegationContext> votingDelegationContexts;
 
-    /**
-     * Register DRep
-     * @param drepCredential DRep credential
-     * @param anchor Anchor
-     * @return GovTx
-     */
-    public GovTx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
-        var regDRepCert = RegDRepCert.builder()
-                .drepCredential(drepCredential)
-                .anchor(anchor)
-                .coin(DREP_REG_DEPOSIT)
-                .build();
+    public GovTx() {
 
-        if (dRepRegistrations == null)
-            dRepRegistrations = new ArrayList<>();
-
-        dRepRegistrations.add(regDRepCert);
-        return this;
     }
 
     /**
      * Register DRep
      * @param drepCredential DRep credential
-     * @param drepRegDeposit Deposit amount configured for DRep registration in protocol params
      * @param anchor Anchor
+     * @param redeemer Redeemer
      * @return GovTx
      */
-    public GovTx registerDRep(@NonNull Credential drepCredential, @NonNull BigInteger drepRegDeposit, Anchor anchor) {
+    public GovTx registerDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
         var regDRepCert = RegDRepCert.builder()
                 .drepCredential(drepCredential)
                 .anchor(anchor)
-                .coin(drepRegDeposit)
+                .coin(null)
                 .build();
 
-        if (dRepRegistrations == null)
-            dRepRegistrations = new ArrayList<>();
+        if (dRepRegistrationContexts == null)
+            dRepRegistrationContexts = new ArrayList<>();
 
-        dRepRegistrations.add(regDRepCert);
+        Redeemer _redeemer = null;
+        if (redeemer != null) {
+            _redeemer = Redeemer.builder()
+                    .tag(RedeemerTag.Cert)
+                    .data(redeemer)
+                    .index(BigInteger.valueOf(1)) //dummy value
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000)) // Some dummy value
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+        }
+
+        var drepRegistrationContext = new DRepRegestrationContext(regDRepCert, _redeemer);
+        dRepRegistrationContexts.add(drepRegistrationContext);
         return this;
     }
 
@@ -83,12 +78,10 @@ public class GovTx {
      * @param drepCredential DRep credential
      * @param refundAddress Refund address
      * @param refundAmount Refund amount
+     * @param redeemer Redeemer
      * @return GovTx
      */
-    public GovTx unregisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount) {
-        if (refundAmount == null)
-            refundAmount = DREP_REG_DEPOSIT;
-
+    public GovTx unregisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount, PlutusData redeemer) {
         var unregDRepCert = UnregDRepCert.builder()
                 .drepCredential(drepCredential)
                 .coin(refundAmount)
@@ -97,7 +90,20 @@ public class GovTx {
         if (dRepDeregestrationContexts == null)
             dRepDeregestrationContexts = new ArrayList<>();
 
-        dRepDeregestrationContexts.add(new DRepDeregestrationContext(unregDRepCert, refundAddress, refundAmount));
+        Redeemer _redeemer = null;
+        if (redeemer != null) {
+            _redeemer = Redeemer.builder()
+                    .tag(RedeemerTag.Cert)
+                    .data(redeemer)
+                    .index(BigInteger.valueOf(1)) //dummy value
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000)) // Some dummy value
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+        }
+
+        dRepDeregestrationContexts.add(new DRepDeregestrationContext(unregDRepCert, refundAddress, _redeemer));
         return this;
     }
 
@@ -105,36 +111,66 @@ public class GovTx {
      * Update DRep
      * @param drepCredential DRep credential
      * @param anchor Anchor
+     * @param redeemer Redeemer
      * @return GovTx
      */
-    public GovTx updateDRep(@NonNull Credential drepCredential, Anchor anchor) {
+    public GovTx updateDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
         var updateDRepCert = UpdateDRepCert.builder()
                 .drepCredential(drepCredential)
                 .anchor(anchor)
                 .build();
 
-        if (updateDrepCerts == null)
-            updateDrepCerts = new ArrayList<>();
+        if (updateDRepContexts == null)
+            updateDRepContexts = new ArrayList<>();
 
-        updateDrepCerts.add(updateDRepCert);
+        Redeemer _redeemer = null;
+        if (redeemer != null) {
+            _redeemer = Redeemer.builder()
+                    .tag(RedeemerTag.Cert)
+                    .data(redeemer)
+                    .index(BigInteger.valueOf(1)) //dummy value
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000)) // Some dummy value
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+        }
+
+        updateDRepContexts.add(new UpdateDRepContext(updateDRepCert, _redeemer));
         return this;
     }
 
     /**
      * Create Gov Action Proposal
      * @param govAction Gov Action
-     * @param deposit Deposit
-     * @param returnAddress Return stake address
+     * @param returnAddress Refund stake address
      * @param anchor Anchor
+     * @param redeemer Redeemer
      * @return GovTx
      */
-    public GovTx createProposal(@NonNull GovAction govAction, @NonNull BigInteger deposit, @NonNull String returnAddress, Anchor anchor) {
-        var createProposalContext = new CreateProposalContext(deposit, returnAddress, govAction, anchor);
-
+    public GovTx createProposal(@NonNull GovAction govAction, @NonNull String returnAddress, Anchor anchor, PlutusData redeemer) {
+        //TODO -- Add a check for only allowed GovAction types with policy
         if (createProposalContexts == null)
             createProposalContexts = new ArrayList<>();
 
+        Redeemer _redeemer = null;
+        if (redeemer != null) {
+            _redeemer = Redeemer.builder()
+                    .tag(RedeemerTag.Proposing)
+                    .data(redeemer)
+                    .index(BigInteger.valueOf(1)) //dummy value
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000)) // Some dummy value
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+        }
+
+        //TODO -- remove custom gov action deposit later
+        var createProposalContext = new CreateProposalContext(null, returnAddress, govAction, anchor, _redeemer);
+
         createProposalContexts.add(createProposalContext);
+
         return this;
     }
 
@@ -144,13 +180,27 @@ public class GovTx {
      * @param govActionId GovActionId
      * @param vote Vote
      * @param anchor Anchor
-     * @return Tx
+     * @param redeemer Redeemer
+     * @return GovTx
      */
-    public GovTx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor) {
+    public GovTx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor, PlutusData redeemer) {
         if (votingProcedureContexts == null)
             votingProcedureContexts = new ArrayList<>();
 
-        votingProcedureContexts.add(new VotingProcedureContext(voter, govActionId, new VotingProcedure(vote, anchor)));
+        Redeemer _redeemer = null;
+        if (redeemer != null) {
+            _redeemer = Redeemer.builder()
+                    .tag(RedeemerTag.Voting)
+                    .data(redeemer)
+                    .index(BigInteger.valueOf(1)) //dummy value
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000)) // Some dummy value
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+        }
+
+        votingProcedureContexts.add(new VotingProcedureContext(voter, govActionId, new VotingProcedure(vote, anchor), _redeemer));
         return this;
     }
 
@@ -158,9 +208,10 @@ public class GovTx {
      * Delegate Votes to DRep
      * @param address Address to delegate. Address should have delegation credential. So it should be a base address or stake address.
      * @param drep DRep to delegate
+     * @param redeemer Redeemer
      * @return GovTx
      */
-    public GovTx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep) {
+    public GovTx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep, PlutusData redeemer) {
         byte[] delegationHash = address.getDelegationCredentialHash()
                 .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
 
@@ -175,10 +226,23 @@ public class GovTx {
                 .drep(drep)
                 .build();
 
-        if (voteDelegCerts == null)
-            voteDelegCerts = new ArrayList<>();
+        if (votingDelegationContexts == null)
+            votingDelegationContexts = new ArrayList<>();
 
-        voteDelegCerts.add(voteDelegation);
+        Redeemer _redeemer = null;
+        if (redeemer != null) {
+            _redeemer = Redeemer.builder()
+                    .tag(RedeemerTag.Cert)
+                    .data(redeemer)
+                    .index(BigInteger.valueOf(1)) //dummy value
+                    .exUnits(ExUnits.builder()
+                            .mem(BigInteger.valueOf(10000)) // Some dummy value
+                            .steps(BigInteger.valueOf(1000))
+                            .build())
+                    .build();
+        }
+
+        votingDelegationContexts.add(new VotingDelegationContext(voteDelegation, _redeemer));
         return this;
     }
 
@@ -188,8 +252,8 @@ public class GovTx {
      * @param fromAddress
      * @return Tuple<List<PaymentContext>, TxBuilder>
      */
-    Tuple<List<GovTx.PaymentContext>, TxBuilder> build(String fromAddress, String changeAddress) {
-        List<GovTx.PaymentContext> paymentContexts = buildGovernancePayments(fromAddress, changeAddress);
+    Tuple<List<DepositRefundContext>, TxBuilder> build(String fromAddress, String changeAddress) {
+        List<DepositRefundContext> depositRefundContexts = buildGovernancePayments(fromAddress, changeAddress);
 
         TxBuilder txBuilder = (context, txn) -> {
         };
@@ -200,27 +264,27 @@ public class GovTx {
         txBuilder = buildCreateVotingProcedures(txBuilder);
         txBuilder = buildVoteDelegations(txBuilder);
 
-        return new Tuple<>(paymentContexts, txBuilder);
+        return new Tuple<>(depositRefundContexts, txBuilder);
     }
 
-    private List<GovTx.PaymentContext> buildGovernancePayments(String fromAddress, String changeAddress) {
-        List<GovTx.PaymentContext> paymentContexts = new ArrayList<>();
-        if ((dRepRegistrations == null || dRepRegistrations.size() == 0)
+    private List<DepositRefundContext> buildGovernancePayments(String fromAddress, String changeAddress) {
+        List<DepositRefundContext> depositRefundContexts = new ArrayList<>();
+
+        if ((dRepRegistrationContexts == null || dRepRegistrationContexts.size() == 0)
                 && (dRepDeregestrationContexts == null || dRepDeregestrationContexts.size() == 0)
                 && (createProposalContexts == null || createProposalContexts.size() == 0)) {
-            return paymentContexts;
+            return depositRefundContexts;
         }
 
-        if (dRepRegistrations != null && dRepRegistrations.size() > 0) {
-            //Dummy pay to fromAddress to add deposit
-            Amount totalDRepRegistrationDepositAmount = Amount.lovelace(DREP_REG_DEPOSIT.multiply(BigInteger.valueOf(dRepRegistrations.size())));
-            paymentContexts.add(new GovTx.PaymentContext(fromAddress, totalDRepRegistrationDepositAmount));
+        if (dRepRegistrationContexts != null && dRepRegistrationContexts.size() > 0) {
+            depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.DREP_REGISTRATION, dRepRegistrationContexts.size()));
         }
 
         if (dRepDeregestrationContexts != null && dRepDeregestrationContexts.size() > 0) {
-            paymentContexts.add(new GovTx.PaymentContext(fromAddress, DUMMY_MIN_OUTPUT_VAL)); //Dummy output to sender fromAddress to trigger input selection
+            depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.DREP_DEREGISTRATION));
         }
 
+        /**
         if (createProposalContexts != null && createProposalContexts.size() > 0) {
             var totalDeposit = createProposalContexts.stream()
                     .map(c -> c.deposit)
@@ -229,17 +293,20 @@ public class GovTx {
             if (totalDeposit.isPresent()) {
                 paymentContexts.add(new GovTx.PaymentContext(fromAddress, Amount.lovelace(totalDeposit.get())));
             }
+        }**/
+        if (createProposalContexts != null && createProposalContexts.size() > 0) {
+            depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.GOV_ACTION, createProposalContexts.size()));
         }
 
-        return paymentContexts;
+        return depositRefundContexts;
     }
 
     private TxBuilder buildDRepRegistration(TxBuilder txBuilder, String fromAddress) {
-        if (dRepRegistrations == null || dRepRegistrations.size() == 0)
+        if (dRepRegistrationContexts == null || dRepRegistrationContexts.size() == 0)
             return txBuilder;
 
         txBuilder = txBuilder.andThen((context, txn) -> {
-            if (dRepRegistrations == null || dRepRegistrations.size() == 0) {
+            if (dRepRegistrationContexts == null || dRepRegistrationContexts.size() == 0) {
                 return;
             }
 
@@ -250,12 +317,33 @@ public class GovTx {
                 txn.getBody().setCerts(certificates);
             }
 
-            certificates.addAll(dRepRegistrations);
+            for (DRepRegestrationContext dRepRegestrationContext: dRepRegistrationContexts) {
+                //set drep deposit from protocol params if not set
+                if (dRepRegestrationContext.getRegDrepCert().getCoin() == null) {
+                    var updatedDRepRegCert = RegDRepCert.builder()
+                            .drepCredential(dRepRegestrationContext.getRegDrepCert().getDrepCredential())
+                            .anchor(dRepRegestrationContext.getRegDrepCert().getAnchor())
+                            .coin(context.getProtocolParams().getDrepDeposit())
+                            .build();
+                    dRepRegestrationContext.setRegDrepCert(updatedDRepRegCert);
+                    certificates.add(updatedDRepRegCert);
+                } else {
+                    certificates.add(dRepRegestrationContext.getRegDrepCert());
+                }
 
-            String drepRegDepositParam = DREP_REG_DEPOSIT.toString();//context.getProtocolParams().getKeyDeposit(); //TODO -- Get protocol param
-            BigInteger drepRegDeposit = new BigInteger(drepRegDepositParam);
-            BigInteger totalDRepRegDeposit = drepRegDeposit.multiply(BigInteger.valueOf(dRepRegistrations.size()));
-            log.debug("Total stakekey registration deposit: " + totalDRepRegDeposit);
+                if (dRepRegestrationContext.redeemer != null) {
+                    //Add redeemer to witness set
+                    Redeemer redeemer = dRepRegestrationContext.redeemer;
+                    redeemer.setIndex(certificates.size() - 1);
+                    txn.getWitnessSet().getRedeemers().add(redeemer);
+                }
+            }
+
+            BigInteger totalDRepRegDeposit = dRepRegistrationContexts.stream()
+                    .map(c -> c.getRegDrepCert().getCoin())
+                    .reduce(BigInteger::add)
+                    .orElse(BigInteger.ZERO);
+            log.debug("Total drep registration deposit: " + totalDRepRegDeposit);
 
             txn.getBody().getOutputs()
                     .stream().filter(to -> to.getAddress().equals(fromAddress) && to.getValue().getCoin().compareTo(totalDRepRegDeposit) >= 0)
@@ -271,6 +359,7 @@ public class GovTx {
                     }, () -> {
                         throw new TxBuildException("Output for from address not found to remove deposit amount: " + fromAddress);
                     });
+
         });
         return txBuilder;
     }
@@ -296,10 +385,27 @@ public class GovTx {
             }
 
             for (DRepDeregestrationContext dRepDeregestrationContext : dRepDeregestrationContexts) {
-                certificates.add(dRepDeregestrationContext.getUnregDrepCert());
+                //If refund amt is null, set it from protocol params
+                if (dRepDeregestrationContext.getUnregDrepCert().getCoin() == null) {
+                    var unRegDrepCert = UnregDRepCert.builder()
+                            .drepCredential(dRepDeregestrationContext.getUnregDrepCert().getDrepCredential())
+                            .coin(context.getProtocolParams().getDrepDeposit())
+                            .build();
+                    dRepDeregestrationContext.setUnregDrepCert(unRegDrepCert);
+                    certificates.add(unRegDrepCert);
+                } else {
+                    certificates.add(dRepDeregestrationContext.getUnregDrepCert());
+                }
 
                 if (dRepDeregestrationContext.refundAddress == null)
                     dRepDeregestrationContext.refundAddress = fromAddress;
+
+                if (dRepDeregestrationContext.redeemer != null) {
+                    //Add redeemer to witness set
+                    Redeemer redeemer = dRepDeregestrationContext.redeemer;
+                    redeemer.setIndex(certificates.size() - 1);
+                    txn.getWitnessSet().getRedeemers().add(redeemer);
+                }
 
                 //Add deposit refund
                 txn.getBody().getOutputs()
@@ -307,10 +413,10 @@ public class GovTx {
                         .findFirst()
                         .ifPresentOrElse(to -> {
                             //Add deposit amount to the change address
-                            to.getValue().setCoin(to.getValue().getCoin().add(dRepDeregestrationContext.refundAmount));
+                            to.getValue().setCoin(to.getValue().getCoin().add(dRepDeregestrationContext.getUnregDrepCert().getCoin()));
                         }, () -> {
                             TransactionOutput transactionOutput = new TransactionOutput(dRepDeregestrationContext.refundAddress,
-                                    Value.builder().coin(dRepDeregestrationContext.refundAmount).build());
+                                    Value.builder().coin(dRepDeregestrationContext.getUnregDrepCert().getCoin()).build());
                             txn.getBody().getOutputs().add(transactionOutput);
                         });
             }
@@ -319,11 +425,11 @@ public class GovTx {
     }
 
     private TxBuilder buildDRepUpdate(TxBuilder txBuilder, String fromAddress) {
-        if (updateDrepCerts == null || updateDrepCerts.size() == 0)
+        if (updateDRepContexts == null || updateDRepContexts.size() == 0)
             return txBuilder;
 
         txBuilder = txBuilder.andThen((context, txn) -> {
-            if (updateDrepCerts == null || updateDrepCerts.size() == 0) {
+            if (updateDRepContexts == null || updateDRepContexts.size() == 0) {
                 return;
             }
 
@@ -334,7 +440,16 @@ public class GovTx {
                 txn.getBody().setCerts(certificates);
             }
 
-            certificates.addAll(updateDrepCerts);
+            for (UpdateDRepContext updateDRepContext: updateDRepContexts) {
+                certificates.add(updateDRepContext.getUpdateDRepCert());
+
+                if (updateDRepContext.redeemer != null) {
+                    //Add redeemer to witness set
+                    Redeemer redeemer = updateDRepContext.redeemer;
+                    redeemer.setIndex(certificates.size() - 1);
+                    txn.getWitnessSet().getRedeemers().add(redeemer);
+                }
+            }
         });
         return txBuilder;
     }
@@ -355,6 +470,9 @@ public class GovTx {
             }
 
             for (var proposal: createProposalContexts) {
+                if (proposal.deposit == null)
+                    proposal.setDeposit(context.getProtocolParams().getGovActionDeposit());
+
                 proposalProcedures.add(ProposalProcedure.builder()
                         .govAction(proposal.govAction)
                         .deposit(proposal.deposit)
@@ -362,6 +480,13 @@ public class GovTx {
                         .anchor(proposal.anchor)
                         .build()
                 );
+
+                if (proposal.redeemer != null) {
+                    //Add redeemer to witness set
+                    Redeemer redeemer = proposal.redeemer;
+                    redeemer.setIndex(proposalProcedures.size() - 1);
+                    txn.getWitnessSet().getRedeemers().add(redeemer);
+                }
             }
 
             var totalDeposit = createProposalContexts.stream()
@@ -403,8 +528,18 @@ public class GovTx {
                 txn.getBody().setVotingProcedures(votingProcedures);
             }
 
+            int index = 0;
             for (var votingProcedureContext : votingProcedureContexts) {
                 votingProcedures.add(votingProcedureContext.voter, votingProcedureContext.govActionId, votingProcedureContext.votingProcedure);
+
+                if (votingProcedureContext.redeemer != null) {
+                    //Add redeemer to witness set
+                    Redeemer redeemer = votingProcedureContext.redeemer;
+                    redeemer.setIndex(votingProcedures.getVoting().size() - 1);
+                    txn.getWitnessSet().getRedeemers().add(redeemer);
+                }
+
+                index++;
             }
         });
 
@@ -412,11 +547,11 @@ public class GovTx {
     }
 
     private TxBuilder buildVoteDelegations(TxBuilder txBuilder) {
-        if (voteDelegCerts == null || voteDelegCerts.size() == 0)
+        if (votingDelegationContexts == null || votingDelegationContexts.size() == 0)
             return txBuilder;
 
         txBuilder = txBuilder.andThen((context, txn) -> {
-            if (voteDelegCerts == null || voteDelegCerts.size() == 0) {
+            if (votingDelegationContexts == null || votingDelegationContexts.size() == 0) {
                 return;
             }
 
@@ -426,8 +561,15 @@ public class GovTx {
                 txn.getBody().setCerts(certificates);
             }
 
-            for (var voteDelegCert : voteDelegCerts) {
-                certificates.add(voteDelegCert);
+            for (var votingDelegationContext : votingDelegationContexts) {
+                certificates.add(votingDelegationContext.getVoteDelegCert());
+
+                if (votingDelegationContext.redeemer != null) {
+                    //Add redeemer to witness set
+                    Redeemer redeemer = votingDelegationContext.redeemer;
+                    redeemer.setIndex(certificates.size() - 1);
+                    txn.getWitnessSet().getRedeemers().add(redeemer);
+                }
             }
         });
 
@@ -436,17 +578,25 @@ public class GovTx {
 
     @Data
     @AllArgsConstructor
-    static class DRepDeregestrationContext {
-        private UnregDRepCert unregDrepCert;
-        private String refundAddress;
-        private BigInteger refundAmount;
+    static class DRepRegestrationContext {
+        private RegDRepCert regDrepCert;
+        private Redeemer redeemer;
     }
 
     @Data
     @AllArgsConstructor
-    static class PaymentContext {
-        private String address;
-        private Amount amount;
+    static class DRepDeregestrationContext {
+        private UnregDRepCert unregDrepCert;
+        private String refundAddress;
+//        private BigInteger refundAmount;
+        private Redeemer redeemer;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class UpdateDRepContext {
+        private UpdateDRepCert updateDRepCert;
+        private Redeemer redeemer;
     }
 
     @Data
@@ -456,6 +606,7 @@ public class GovTx {
         private String returnAddress; //stake address
         private GovAction govAction;
         private Anchor anchor;
+        private Redeemer redeemer;
     }
 
     @Data
@@ -464,6 +615,14 @@ public class GovTx {
         private Voter voter;
         private GovActionId govActionId;
         private VotingProcedure votingProcedure;
+        private Redeemer redeemer;
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class VotingDelegationContext {
+        private VoteDelegCert voteDelegCert;
+        private Redeemer redeemer;
     }
 
 }

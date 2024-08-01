@@ -13,16 +13,17 @@ import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
+import com.bloxbean.cardano.client.plutus.spec.Language;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Setter;
+import lombok.SneakyThrows;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Provides necessary services which are required to build the transaction
@@ -44,9 +45,11 @@ public class TxBuilderContext {
     //Stores utxos used in the transaction.
     //This list is cleared after each build() call.
     private Set<Utxo> utxos = new HashSet<>();
+    private Map<String, byte[]> refScripts = new HashMap<>();
 
     @Setter(AccessLevel.NONE)
     private boolean mergeOutputs = true;
+    private Language referenceInputLanguage = Language.PLUTUS_V2;
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
         this(utxoSupplier, protocolParamsSupplier.getProtocolParams());
@@ -159,6 +162,23 @@ public class TxBuilderContext {
         utxos.clear();
     }
 
+    @SneakyThrows
+    public void addRefScripts(PlutusScript plutusScript) {
+        refScripts.put(HexUtil.encodeHexString(plutusScript.getScriptHash()), plutusScript.scriptRefBytes());
+    }
+
+    public byte[] getRefScript(String scriptHash) {
+        return refScripts.get(scriptHash);
+    }
+
+    public List<byte[]> getRefScripts() {
+        return new ArrayList<>(refScripts.values());
+    }
+
+    public void clearRefScripts() {
+        refScripts.clear();
+    }
+
     public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
         return new TxBuilderContext(utxoSupplier, protocolParams);
     }
@@ -206,5 +226,6 @@ public class TxBuilderContext {
     private void clearTempStates() {
         clearMintMultiAssets();
         clearUtxos();
+        clearRefScripts();
     }
 }

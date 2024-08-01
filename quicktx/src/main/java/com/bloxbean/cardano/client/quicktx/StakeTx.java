@@ -25,24 +25,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
-
 /**
  * Class for Stake delegation specific transactions
  */
 @Slf4j
 class StakeTx {
-    //TODO -- Read from protocol params
-    public static final BigInteger STAKE_KEY_REG_DEPOSIT = adaToLovelace(2.0);
-    private static final BigInteger POOL_REG_DEPOSIT = adaToLovelace(500);
-    public static final Amount DUMMY_MIN_OUTPUT_VAL = Amount.ada(1.0);
-
     protected List<StakeRegistration> stakeRegistrations;
     protected List<StakeKeyDeregestrationContext> stakeDeRegistrationContexts;
     protected List<StakeDelegationContext> stakeDelegationContexts;
     protected List<WithdrawalContext> withdrawalContexts;
     protected List<PoolRegistrationContext> poolRegistrationContexts;
     protected List<PoolRetirement> poolRetirements;
+
+    public StakeTx() {
+    }
 
     /**
      * Register stake address
@@ -252,8 +248,8 @@ class StakeTx {
      * @param fromAddress
      * @return Tuple<List<PaymentContext>, TxBuilder>
      */
-    Tuple<List<PaymentContext>, TxBuilder> build(String fromAddress, String changeAddress) {
-        List<PaymentContext> paymentContexts = buildStakePayments(fromAddress, changeAddress);
+    Tuple<List<DepositRefundContext>, TxBuilder> build(String fromAddress, String changeAddress) {
+        List<DepositRefundContext> paymentContexts = buildStakePayments(fromAddress, changeAddress);
 
         TxBuilder txBuilder = (context, txn) -> {
         };
@@ -267,33 +263,33 @@ class StakeTx {
         return new Tuple<>(paymentContexts, txBuilder);
     }
 
-    private List<PaymentContext> buildStakePayments(String fromAddress, String changeAddress) {
-        List<PaymentContext> paymentContexts = new ArrayList<>();
+    private List<DepositRefundContext> buildStakePayments(String fromAddress, String changeAddress) {
+        List<DepositRefundContext> depositRefundContexts = new ArrayList<>();
         if ((stakeRegistrations == null || stakeRegistrations.size() == 0)
                 && (stakeDeRegistrationContexts == null || stakeDeRegistrationContexts.size() == 0)
                 && (stakeDelegationContexts == null || stakeDelegationContexts.size() == 0)
                 && (withdrawalContexts == null || withdrawalContexts.size() == 0)
                 && (poolRegistrationContexts == null || poolRegistrationContexts.size() == 0)
                 && (poolRetirements == null || poolRetirements.size() == 0)) {
-            return paymentContexts;
+            return depositRefundContexts;
         }
 
         if (stakeRegistrations != null && stakeRegistrations.size() > 0) {
-            //Dummy pay to fromAddress to add deposit
-            Amount totalStakeDepositAmount = Amount.lovelace(STAKE_KEY_REG_DEPOSIT.multiply(BigInteger.valueOf(stakeRegistrations.size())));
-            paymentContexts.add(new PaymentContext(fromAddress, totalStakeDepositAmount));
+            depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.STAKE_KEY_REGISTRATION, stakeRegistrations.size()));
         }
 
         if (stakeDeRegistrationContexts != null && stakeDeRegistrationContexts.size() > 0) {
-            paymentContexts.add(new PaymentContext(fromAddress, DUMMY_MIN_OUTPUT_VAL)); //Dummy output to sender fromAddress to trigger input selection
+            //Dummy output to sender fromAddress to trigger input selection
+            depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.STAKE_KEY_DEREGISTRATION));
         }
 
         if (stakeDelegationContexts != null && stakeDelegationContexts.size() > 0) {
-            paymentContexts.add(new PaymentContext(fromAddress, DUMMY_MIN_OUTPUT_VAL)); //Dummy output to sender fromAddress to trigger input selection
+            depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.DELGATION));
         }
 
         if (withdrawalContexts != null && withdrawalContexts.size() > 0) {
-            paymentContexts.add(new PaymentContext(fromAddress, DUMMY_MIN_OUTPUT_VAL)); //Dummy output to sender fromAddress to trigger input selection
+            //Dummy output to sender fromAddress to trigger input selection
+            depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.WITHDRAWAL));
         }
 
         if (poolRegistrationContexts != null && poolRegistrationContexts.size() > 0) {
@@ -303,17 +299,16 @@ class StakeTx {
                     .collect(Collectors.toList());
 
             if (poolRegistrations.size() > 0) {
-                //Dummy pay to fromAddress to add deposit
-                Amount totalPoolDepositAmount = Amount.lovelace(POOL_REG_DEPOSIT.multiply(BigInteger.valueOf(poolRegistrations.size())));
-                paymentContexts.add(new PaymentContext(fromAddress, totalPoolDepositAmount));
+                depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.POOL_REGISTRATION, poolRegistrations.size()));
             }
         }
 
         if (poolRetirements != null && poolRetirements.size() > 0) {
-            paymentContexts.add(new PaymentContext(fromAddress, DUMMY_MIN_OUTPUT_VAL)); //Dummy output to sender fromAddress to trigger input selection
+            //Dummy output to sender fromAddress to trigger input selection
+            depositRefundContexts.add(new DepositRefundContext(fromAddress, DepositRefundType.POOL_RETIREMENT));
         }
 
-        return paymentContexts;
+        return depositRefundContexts;
     }
 
     private TxBuilder buildStakeAddressRegistration(TxBuilder txBuilder, String fromAddress) {
@@ -377,6 +372,8 @@ class StakeTx {
                 txn.setWitnessSet(new TransactionWitnessSet());
             }
 
+            var stakeKeyRegDeposit = new BigInteger(context.getProtocolParams().getKeyDeposit());
+
             for (StakeKeyDeregestrationContext stakeKeyDeregestrationContext : stakeDeRegistrationContexts) {
                 certificates.add(stakeKeyDeregestrationContext.getStakeDeregistration());
 
@@ -386,7 +383,7 @@ class StakeTx {
                 if (stakeKeyDeregestrationContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = stakeKeyDeregestrationContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(certificates.size() - 1));
+                    redeemer.setIndex(certificates.size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
 
@@ -396,10 +393,10 @@ class StakeTx {
                         .findFirst()
                         .ifPresentOrElse(to -> {
                             //Add deposit amount to the change address
-                            to.getValue().setCoin(to.getValue().getCoin().add(STAKE_KEY_REG_DEPOSIT));
+                            to.getValue().setCoin(to.getValue().getCoin().add(stakeKeyRegDeposit));
                         }, () -> {
                             TransactionOutput transactionOutput = new TransactionOutput(stakeKeyDeregestrationContext.refundAddress,
-                                    Value.builder().coin(STAKE_KEY_REG_DEPOSIT).build());
+                                    Value.builder().coin(stakeKeyRegDeposit).build());
                             txn.getBody().getOutputs().add(transactionOutput);
                         });
             }
@@ -433,7 +430,7 @@ class StakeTx {
                 if (stakeDelegationContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = stakeDelegationContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(certificates.size() - 1));
+                    redeemer.setIndex(certificates.size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
             }
@@ -461,7 +458,7 @@ class StakeTx {
                 if (withdrawalContext.redeemer != null) {
                     //Add redeemer to witness set
                     Redeemer redeemer = withdrawalContext.redeemer;
-                    redeemer.setIndex(BigInteger.valueOf(txn.getBody().getWithdrawals().size() - 1));
+                    redeemer.setIndex(txn.getBody().getWithdrawals().size() - 1);
                     txn.getWitnessSet().getRedeemers().add(redeemer);
                 }
 

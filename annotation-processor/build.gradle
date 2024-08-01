@@ -1,14 +1,28 @@
 dependencies {
     api project(':plutus')
-    implementation(libs.google.auto.service) {
+    api project(':address')
+
+    implementation(libs.google.auto.service){
         exclude group: 'com.google.guava', module: 'guava'
     }
     api libs.javapoet
+    api libs.apache.common.text
 
     testImplementation libs.google.testing.compile
     testImplementation libs.lombok
 
     testAnnotationProcessor project(':annotation-processor')
+}
+
+sourceSets {
+    json {
+        resources {
+            srcDir('src/test/resources/')
+        }
+    }
+    test {
+        compileClasspath += sourceSets.json.output
+    }
 }
 
 publishing {
