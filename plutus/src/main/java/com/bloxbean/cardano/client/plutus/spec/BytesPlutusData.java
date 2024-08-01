@@ -1,8 +1,7 @@
 package com.bloxbean.cardano.client.plutus.spec;
 
-import co.nstant.in.cbor.model.ByteString;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.UnicodeString;
+import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.common.cbor.custom.ChunkedByteString;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.serializers.BytesDataJsonDeserializer;
@@ -12,6 +11,8 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
 import java.nio.charset.StandardCharsets;
+
+import static com.bloxbean.cardano.client.plutus.util.Bytes.getChunks;
 
 @Getter
 @AllArgsConstructor
@@ -38,11 +39,16 @@ public class BytesPlutusData implements PlutusData {
         return new BytesPlutusData(str.getBytes(StandardCharsets.UTF_8));
     }
 
+    //https://github.com/IntersectMBO/plutus/blob/441b76d9e9745dfedb2afc29920498bdf632f162/plutus-core/plutus-core/src/PlutusCore/Data.hs#L243
     @Override
     public DataItem serialize() throws CborSerializationException {
         DataItem di = null;
         if (value != null) {
-            di = new ByteString(value);
+            if (value.length <= BYTES_LIMIT) {
+                di = new ByteString(value);
+            } else { //More than 64, chunk it
+                di = new ChunkedByteString(getChunks(value, BYTES_LIMIT));
+            }
         }
 
         return di;
