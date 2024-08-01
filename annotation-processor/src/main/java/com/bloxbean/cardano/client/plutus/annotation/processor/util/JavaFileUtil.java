@@ -1,7 +1,5 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.util;
 
-import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
-import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +13,8 @@ import java.io.Writer;
 
 @Slf4j
 public class JavaFileUtil {
+
+    public static final String CARDANO_CLIENT_LIB_GENERATED_DIR = "cardano.client.lib.generated.dir";
 
     /**
      * First character has to be upper case when creating a new class
@@ -65,6 +65,8 @@ public class JavaFileUtil {
      * @param processingEnv
      */
     public static void createJavaFile(String packageName, TypeSpec build, String className, ProcessingEnvironment processingEnv) {
+        String generatedDir = processingEnv.getOptions().get(CARDANO_CLIENT_LIB_GENERATED_DIR);
+
         JavaFile javaFile = JavaFile.builder(packageName, build)
                 .build();
 
@@ -74,29 +76,28 @@ public class JavaFileUtil {
             String fullClassName = packageName + "." + className;
             builderFile = processingEnv.getFiler()
                     .createSourceFile(fullClassName);
-            Writer writer = builderFile.openWriter();
-            javaFile.writeTo(writer);
-            writer.close();
+
+            if (generatedDir == null) {
+                Writer writer = builderFile.openWriter();
+                javaFile.writeTo(writer);
+                writer.close();
+            } else {
+                javaFile.writeTo(new java.io.File(generatedDir));
+            }
         } catch (Exception e) {
             log.error("Error creating class : " + className, e);
             warn(processingEnv, null, "Error creating class: %s, package: %s, error: %s", className, packageName, e.getMessage());
         }
     }
 
-    public static String buildClassName(BlueprintSchema schema, String suffix, String title, String prefix) {
-        String className = firstUpperCase(prefix) + firstUpperCase(title);
-        className += firstUpperCase(suffix); // ToDO need to check for valid names
-        return className;
-    }
-
-    private static void error(ProcessingEnvironment processingEnv, Element e, String msg, Object... args) {
+    public static void error(ProcessingEnvironment processingEnv, Element e, String msg, Object... args) {
         processingEnv.getMessager().printMessage(
                 Diagnostic.Kind.ERROR,
                 String.format(msg, args),
                 e);
     }
 
-    private static void warn(ProcessingEnvironment processingEnv, Element e, String msg, Object... args) {
+    public static void warn(ProcessingEnvironment processingEnv, Element e, String msg, Object... args) {
         processingEnv.getMessager().printMessage(
                 Diagnostic.Kind.WARNING,
                 String.format(msg, args),
