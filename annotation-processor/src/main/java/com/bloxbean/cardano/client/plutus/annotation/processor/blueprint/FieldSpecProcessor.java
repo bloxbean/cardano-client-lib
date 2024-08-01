@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
 import com.bloxbean.cardano.client.util.Tuple;
@@ -44,6 +45,10 @@ public class FieldSpecProcessor {
 
         dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
 
+        //Check if Enum: Check if the schema has anyOf > 1 and each of the anyOf has 0 fields
+        if(createEnumIfPossible(ns, schema))
+            return;
+
         String interfaceName = null;
         //For anyOf > 1, create an interface, if size == 1, create a class
         //TODO -- What about allOf ??
@@ -64,6 +69,45 @@ public class FieldSpecProcessor {
             dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
             createDatumFieldSpec(ns, interfaceName, innerSchema, dataClassName);
         }
+    }
+
+    private boolean createEnumIfPossible(String ns, BlueprintSchema schema) {
+        if (schema.getAnyOf() == null || !(schema.getAnyOf().size() > 1))
+            return false;
+
+        if (schema.getFields() != null && schema.getFields().size() != 0)
+            return false;
+
+        //check if each of the anyOf has 0 fields
+        List<String> enumValues = new ArrayList<>();
+        for (BlueprintSchema anyOfSchema : schema.getAnyOf()) {
+            if (BlueprintDatatype.constructor != anyOfSchema.getDataType())
+                return false;
+
+            if (anyOfSchema.getTitle() == null || anyOfSchema.getTitle().isEmpty())
+                return false;
+
+            if (anyOfSchema.getFields() != null && anyOfSchema.getFields().size() > 0)
+                return false;
+
+                enumValues.add(anyOfSchema.getTitle());
+        }
+
+        String pkg = getPackageName(ns);
+        String enumClassName = JavaFileUtil.toClassNameFormat(schema.getTitle());
+
+        var enumConstrBuilder = TypeSpec.enumBuilder(enumClassName)
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(AnnotationSpec.builder(Constr.class).build());
+
+        //add enum values
+        for(String value: enumValues) {
+            enumConstrBuilder.addEnumConstant(value);
+        }
+
+        JavaFileUtil.createJavaFile(pkg, enumConstrBuilder.build(), enumClassName, processingEnv);
+
+        return true;
     }
 
     /**
