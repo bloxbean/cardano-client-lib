@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.common.MnemonicUtil;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
@@ -85,7 +86,8 @@ public class Account {
     public Account(Network network, DerivationPath derivationPath, Words noOfWords) {
         this.network = network;
         this.derivationPath = derivationPath;
-        generateNew(noOfWords);
+        this.mnemonic = MnemonicUtil.generateNew(noOfWords);
+        baseAddress();
     }
 
     /**
@@ -139,7 +141,7 @@ public class Account {
         this.mnemonic = mnemonic;
         this.accountKey = null;
         this.derivationPath = derivationPath;
-        validateMnemonic();
+        MnemonicUtil.validateMnemonic(this.mnemonic);
         baseAddress();
     }
 

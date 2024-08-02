@@ -13,6 +13,7 @@ include 'core'
 include 'function'
 include 'quicktx'
 include 'annotation-processor'
+include 'hd-wallet'
 include 'governance'
 
 //CIPs

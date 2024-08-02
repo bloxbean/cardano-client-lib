@@ -28,6 +28,8 @@ import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.hdwallet.Wallet;
+import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -95,6 +97,12 @@ public class QuickTxBuilder {
         );
     }
 
+    public QuickTxBuilder(BackendService backendService, UtxoSupplier utxoSupplier) {
+        this(utxoSupplier,
+                new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                new DefaultTransactionProcessor(backendService.getTransactionService()));
+    }
+
     /**
      * Create TxContext for the given txs
      *
@@ -136,6 +144,7 @@ public class QuickTxBuilder {
         private List<PlutusScript> referenceScripts;
 
         private boolean ignoreScriptCostEvaluationError = true;
+        private Wallet signerWallet;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -344,6 +353,11 @@ public class QuickTxBuilder {
             Transaction transaction = build();
             if (signers != null)
                 transaction = signers.sign(transaction);
+            if(signerWallet != null) {
+                if(!(utxoSupplier instanceof WalletUtxoSupplier))
+                    throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
+                transaction = signerWallet.sign(transaction, (WalletUtxoSupplier) utxoSupplier);
+            }
 
             return transaction;
         }
@@ -386,6 +400,10 @@ public class QuickTxBuilder {
         public Result<String> complete() {
             if (txList.length == 0)
                 throw new TxBuildException("At least one tx is required");
+
+            boolean txListContainsWallet = Arrays.stream(txList).anyMatch(abstractTx -> abstractTx.getFromWallet() != null);
+            if(txListContainsWallet && !(utxoSupplier instanceof WalletUtxoSupplier))
+                throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
 
             Transaction transaction = buildAndSign();
 
@@ -510,6 +528,15 @@ public class QuickTxBuilder {
                 this.signers = signer;
             else
                 this.signers = this.signers.andThen(signer);
+            return this;
+        }
+        /**
+         * Sign transaction with the given wallet
+         * @param wallet
+         * @return TxContext
+         */
+        public TxContext withSigner(Wallet wallet) {
+            this.signerWallet = wallet;
             return this;
         }
 

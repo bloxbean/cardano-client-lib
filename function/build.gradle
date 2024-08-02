@@ -1,5 +1,6 @@
 dependencies {
     api project(':core')
+    api project(':hd-wallet')
 }
 
 publishing {
