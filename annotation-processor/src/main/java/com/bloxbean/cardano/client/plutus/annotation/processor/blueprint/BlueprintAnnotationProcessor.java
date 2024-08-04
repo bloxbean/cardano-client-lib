@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
 import com.bloxbean.cardano.client.plutus.blueprint.model.*;
 import com.google.auto.service.AutoService;
@@ -136,6 +137,8 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             blueprintFile = getFileFromRessourcers(annotation.fileInResources());
         if(blueprintFile == null || !blueprintFile.exists()) {
             log.error("Blueprint file %s not found", annotation.file());
+            if (blueprintFile != null)
+                JavaFileUtil.warn(processingEnv, null, "Trying to find blueprint file at " + blueprintFile.getAbsolutePath());
             return null;
         }
         return blueprintFile;
@@ -146,6 +149,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             FileObject resource = processingEnv.getFiler().getResource(StandardLocation.CLASS_PATH, "", s);
             return new File(resource.toUri());
         } catch (Exception e) {
+            e.printStackTrace();
             return null;
         }
     }

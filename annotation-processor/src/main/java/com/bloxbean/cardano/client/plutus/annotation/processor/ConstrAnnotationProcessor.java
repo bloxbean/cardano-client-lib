@@ -107,17 +107,16 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
                                             JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec,
                                                     classDefinition.getConverterClassName(), processingEnv);
                                         });
-                        continue;
-                    }
-
-                    //Generate converter class
-                    try {
-                        TypeSpec typeSpec = serializerCodeGenerator.generate(classDefinition);
-                        JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec, classDefinition.getConverterClassName(), processingEnv);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        log.error("Failed to generate serialization class: " + e.getMessage(), e);
-                        error(typeElement, "Failed to generate serialization class for " + typeElement.getQualifiedName());
+                    } else {
+                        //Generate converter class
+                        try {
+                            TypeSpec typeSpec = serializerCodeGenerator.generate(classDefinition);
+                            JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec, classDefinition.getConverterClassName(), processingEnv);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            log.error("Failed to generate serialization class: " + e.getMessage(), e);
+                            error(typeElement, "Failed to generate serialization class for " + typeElement.getQualifiedName());
+                        }
                     }
 
                     //Generate Data Impl class

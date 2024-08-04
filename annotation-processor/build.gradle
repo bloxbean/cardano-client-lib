@@ -19,18 +19,6 @@ dependencies {
     integrationTestAnnotationProcessor project(':annotation-processor')
 }
 
-sourceSets {
-    integrationTest {
-        java {
-            srcDir 'src/it/java'
-        }
-        resources {
-            srcDir 'src/it/resources'
-        }
-        compileClasspath += sourceSets.main.output + sourceSets.test.output
-        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
-    }
-}
 
 publishing {
     publications {

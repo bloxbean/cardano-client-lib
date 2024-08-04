@@ -4,6 +4,9 @@ import com.bloxbean.cardano.client.api.model.Amount;
 
 import java.util.List;
 
+/**
+ * Represents a receiver of the validator's unlock transaction
+ */
 public class Receiver {
     protected String address;
     protected List<Amount> amounts;

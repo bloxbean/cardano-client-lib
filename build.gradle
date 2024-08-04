@@ -164,6 +164,13 @@ subprojects {
                     resources {
                         srcDirs = ['src/it/resources']
                     }
+
+                    compileClasspath += sourceSets.main.output + sourceSets.test.output
+                    runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+                }
+
+                tasks.named('processIntegrationTestResources') {
+                    duplicatesStrategy = DuplicatesStrategy.INCLUDE
                 }
 
                 dependencies {

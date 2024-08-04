@@ -2,6 +2,9 @@ package com.bloxbean.cardano.client.quicktx.blueprint.extender.common;
 
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 
+/**
+ * Represent a change receiver details
+ */
 public class ChangeReceiver {
     private String address;
     private PlutusData datum;
