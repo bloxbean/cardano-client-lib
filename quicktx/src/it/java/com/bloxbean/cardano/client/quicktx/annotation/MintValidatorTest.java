@@ -71,10 +71,6 @@ public class MintValidatorTest extends AnnotationTestBase {
                 .mint(ActionData.of(Action.Mint), mintAsset1, mintAsset2, mintAsset3, mintAsset4, mintAsset5, mintAsset6)
                 .feePayer(account.baseAddress())
                 .withSigner(SignerProviders.signerFrom(account))
-                .preBalanceTx((context, txn) -> {
-                    if (withReferenceInput)
-                        txn.getWitnessSet().getPlutusV2Scripts().remove(mintValidator.getPlutusScript());
-                })
                 .completeAndWait(System.out::println);
 
         System.out.println(txResult);
