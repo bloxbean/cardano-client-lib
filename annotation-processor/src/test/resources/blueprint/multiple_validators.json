@@ -1,0 +1,332 @@
+{
+  "preamble": {
+    "title": "satran/demo2",
+    "description": "Aiken contracts for project 'satran/demo2'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.29-alpha+16fb02e"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "basic.always_true",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/basic~1SuperDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/basic~1OurRedeemer"
+        }
+      },
+      "compiledCode": "59017401000032323232323223232232253330074a229309b2b2999802980198031baa00113232533300a300c002149858dd7180500098039baa00116533300330013004375400426464a66601060140042649319299980318020008991919192999806980780109924ca666014601060166ea800c4c8c94ccc03cc04400852616375a601e00260186ea800c5858dd698068009806801180580098041baa002153330063370e90010008991919192999806980780109924ca666014601060166ea800c4c8c94ccc03cc04400852616375c601e00260186ea800c5858dd698068009806801180580098041baa002153330063370e90020008991919192999806980780109924c64a66601660120022a66601c601a6ea8010526161533300b3370e900100089919299980818090010a4c2c6eb8c040004c034dd50020b18059baa00316375a601a002601a004601600260106ea800858c018dd50008b180400098029baa00216370e90002b9a5573aaae7955cfaba157441",
+      "hash": "2f3710799970b7ef7779ff1f50fdea51d70281543c3ac6f4b6eef2d3"
+    },
+    {
+      "title": "demo.another_validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/demo~1MyDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/demo~1MyRedeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "token_name",
+          "schema": {
+            "$ref": "#/definitions/ByteArray"
+          }
+        }
+      ],
+      "compiledCode": "58ed010000323232323232232232232253330083232533300a3371e6eb8c008c030dd5002a450d48656c6c6f2c20576f726c642100100114a06644646600200200644a66602000229404c94ccc038cdc79bae301200200414a226600600600260240026eb0c034c038c038c038c038c038c038c038c038c02cdd5180098059baa002375c600260166ea80188c0340045261365653330063370e900018039baa00113232533300b300d002149858dd7180580098041baa0011653330043370e900018029baa001132325333009300b002149858dd7180480098031baa00116375c002ae6955ceaab9e5573eae855d11",
+      "hash": "dbe896309e7d6c26e34d69fd4258a1519ed071992f6c79f403dd89fa"
+    },
+    {
+      "title": "demo.hello_world",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/demo~1MyDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/demo~1MyRedeemer"
+        }
+      },
+      "compiledCode": "58e901000032323232323223223225333006323253330083371e6eb8c008c028dd5002a4410d48656c6c6f2c20576f726c642100100114a06644646600200200644a66601c00229404c94ccc030cdc79bae301000200414a226600600600260200026eb0c02cc030c030c030c030c030c030c030c030c024dd5180098049baa002375c600260126ea80188c02c0045261365653330043370e900018029baa001132325333009300b002149858dd7180480098031baa0011653330023370e900018019baa0011323253330073009002149858dd7180380098021baa001165734aae7555cf2ab9f5742ae881",
+      "hash": "c1fe430f19ac248a8a7ea47db106002c4327e542c3fdc60ad6481103"
+    },
+    {
+      "title": "demo.mint_my_cool_token",
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/demo~1CoolTokenRedeemer"
+        }
+      },
+      "compiledCode": "585b010000323232323232232253330043371e6eb8c020c018dd5001a441067365637265740014984d9594ccc008cdc3a400060066ea80044c8c94ccc01cc02400852616375c600e00260086ea8004595cd2ab9d5573caae7d5d0aba21",
+      "hash": "673ba1cb1ac1320d62b7d108334d340838a685129fe0617060c1c2ca"
+    },
+    {
+      "title": "hello.hello_world",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/hello~1OurDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/hello~1OurRedeemer"
+        }
+      },
+      "compiledCode": "58a90100003232323232322322322533300653330063371e6eb8c028c020dd5001a4410d48656c6c6f2c20576f726c64210014a229405261365653330043370e900018029baa001132325333009300b002149858dd7180480098031baa001163253330033370e90000008a99980318029baa00214985854ccc00ccdc3a400400226464a66601060140042930b1bae3008001300537540042c60066ea80055cd2ab9d5573caae7d5d0aba21",
+      "hash": "686a922022241ea2569a9a56f46cedd7a4a54137b08c811c0177f620"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "basic/DoubleNestedA": {
+      "title": "DoubleNestedA",
+      "anyOf": [
+        {
+          "title": "DoubleNestedA",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "age",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "basic/DoubleNestedB": {
+      "title": "DoubleNestedB",
+      "anyOf": [
+        {
+          "title": "DoubleNestedB",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "name",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "basic/OurDatum": {
+      "title": "OurDatum",
+      "anyOf": [
+        {
+          "title": "NestedA",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "da",
+              "$ref": "#/definitions/basic~1DoubleNestedA"
+            },
+            {
+              "title": "ia",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        },
+        {
+          "title": "NestedB",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "db",
+              "$ref": "#/definitions/basic~1DoubleNestedB"
+            },
+            {
+              "title": "ib",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        },
+        {
+          "title": "NestedC",
+          "dataType": "constructor",
+          "index": 2,
+          "fields": [
+            {
+              "title": "u",
+              "$ref": "#/definitions/basic~1UserInfo"
+            },
+            {
+              "title": "ic",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "basic/OurRedeemer": {
+      "title": "OurRedeemer",
+      "anyOf": [
+        {
+          "title": "OurRedeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "basic/SuperDatum": {
+      "title": "SuperDatum",
+      "anyOf": [
+        {
+          "title": "SuperDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "su",
+              "$ref": "#/definitions/basic~1OurDatum"
+            }
+          ]
+        }
+      ]
+    },
+    "basic/UserInfo": {
+      "title": "UserInfo",
+      "anyOf": [
+        {
+          "title": "Guest",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "User",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "name",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "demo/CoolTokenRedeemer": {
+      "title": "CoolTokenRedeemer",
+      "anyOf": [
+        {
+          "title": "CoolTokenRedeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "guessed_word",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "demo/MyDatum": {
+      "title": "MyDatum",
+      "anyOf": [
+        {
+          "title": "MyDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "demo/MyRedeemer": {
+      "title": "MyRedeemer",
+      "anyOf": [
+        {
+          "title": "MyRedeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "hello/OurDatum": {
+      "title": "OurDatum",
+      "anyOf": [
+        {
+          "title": "NoOwner",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "MyOwner",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "hello/OurRedeemer": {
+      "title": "OurRedeemer",
+      "anyOf": [
+        {
+          "title": "OurRedeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

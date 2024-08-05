@@ -1,6 +1,7 @@
 dependencies {
     api project(':plutus')
     api project(':address')
+    api project(':quicktx')
 
     implementation(libs.google.auto.service){
         exclude group: 'com.google.guava', module: 'guava'
@@ -12,18 +13,12 @@ dependencies {
     testImplementation libs.lombok
 
     testAnnotationProcessor project(':annotation-processor')
+
+    integrationTestImplementation libs.google.testing.compile
+    integrationTestImplementation libs.lombok
+    integrationTestAnnotationProcessor project(':annotation-processor')
 }
 
-sourceSets {
-    json {
-        resources {
-            srcDir('src/test/resources/')
-        }
-    }
-    test {
-        compileClasspath += sourceSets.json.output
-    }
-}
 
 publishing {
     publications {

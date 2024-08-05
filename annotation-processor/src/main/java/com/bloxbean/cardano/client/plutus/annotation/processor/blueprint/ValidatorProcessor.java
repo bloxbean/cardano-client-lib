@@ -1,34 +1,44 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
-import co.nstant.in.cbor.model.ByteString;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Network;
-import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
+import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
-import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
-import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.quicktx.blueprint.extender.AbstractValidatorExtender;
 import com.squareup.javapoet.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.MirroredTypeException;
+import javax.lang.model.type.MirroredTypesException;
+import javax.lang.model.type.TypeMirror;
+import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
 
 public class ValidatorProcessor {
 
     private final Blueprint annotation;
+    private final ExtendWith extendWith;
     private final ProcessingEnvironment processingEnv;
     private final FieldSpecProcessor fieldSpecProcessor;
     private final String VALIDATOR_CLASS_SUFFIX = "Validator";
 
-    public ValidatorProcessor(Blueprint annotation, ProcessingEnvironment processingEnv) {
+    public ValidatorProcessor(Blueprint annotation, ExtendWith extendWith, ProcessingEnvironment processingEnv) {
         this.annotation = annotation;
+        this.extendWith = extendWith;
         this.processingEnv = processingEnv;
         this.fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv);
     }
@@ -36,55 +46,138 @@ public class ValidatorProcessor {
     /**
      * Validator Definition will be converted to a Java class.
      * All definitions within are fields and/or seperate classes
-     * @param validator validator definition
+     *
+     * @param validator     validator definition
+     * @param plutusVersion plutus version
      */
-    public void processValidator(Validator validator) {
+    public void processValidator(Validator validator, PlutusVersion plutusVersion) {
         // preparation of standard fields
-        String packageName = annotation.packageName() + "." + validator.getTitle().split("\\.")[0];
-        String title = validator.getTitle().split("\\.")[1];
+        String[] titleTokens = validator.getTitle().split("\\.");
+        String pkgSuffix = null;
+
+        if (titleTokens.length > 1) {
+            pkgSuffix = titleTokens[0];
+        }
+
+        String validatorName = titleTokens[titleTokens.length - 1];
+
+        String packageName = annotation.packageName();
+        if (pkgSuffix != null)
+            packageName = packageName + "." + pkgSuffix;
+
+        String title = validatorName;
         title = JavaFileUtil.toCamelCase(title);
 
-        List<FieldSpec> fields = ValidatorProcessor.getFieldSpecsForValidator(validator);
+        List<FieldSpec> metaFields = ValidatorProcessor.getFieldSpecsForValidator(validator);
+        FieldSpec scriptAddrField = FieldSpec.builder(String.class, "scriptAddress")
+                .addModifiers(Modifier.PRIVATE)
+                .build();
+
+        List<FieldSpec> fields = new ArrayList<>();
+
+        //TODO -- Handle parameterized validators
 
         // processing of fields
-        if(validator.getRedeemer() != null)
-            fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getRedeemer().getSchema(), "Redeemer", title));
-        if(validator.getDatum() != null)
-            fields.add(fieldSpecProcessor.createDatumFieldSpec(validator.getDatum().getSchema(), "Datum", title));
-        if(validator.getParameters() != null) {
+        if (validator.getRedeemer() != null && validator.getRedeemer().getSchema() != null && validator.getRedeemer().getSchema().getRef() == null) { //Looks like inline schema
+            var redeemerSchema = validator.getRedeemer().getSchema();
+            if (redeemerSchema.getTitle() == null)
+                redeemerSchema.setTitle(validator.getRedeemer().getTitle());
+
+            fieldSpecProcessor.createDatumClass(pkgSuffix, redeemerSchema);
+        }
+
+        if (validator.getDatum() != null && validator.getDatum().getSchema() != null && validator.getDatum().getSchema().getRef() == null) { //Looks like inline schema
+            var datumSchema = validator.getDatum().getSchema();
+            if (datumSchema.getTitle() == null)
+                datumSchema.setTitle(validator.getDatum().getTitle());
+
+            fieldSpecProcessor.createDatumClass(pkgSuffix, datumSchema);
+        }
+
+        if (validator.getParameters() != null && validator.getParameters().size() > 0) { //check for any inline schema
             for (BlueprintDatum parameter : validator.getParameters()) {
-                fields.add(fieldSpecProcessor.createDatumFieldSpec(parameter.getSchema(), "Parameter", title + parameter.getTitle()));
+                if (parameter.getSchema() != null && parameter.getSchema().getRef() == null) { //Looks like inline schema
+                    var parameterSchema = parameter.getSchema();
+                    if (parameterSchema.getTitle() == null)
+                        parameterSchema.setTitle(parameter.getTitle());
+
+                    fieldSpecProcessor.createDatumClass(pkgSuffix, parameterSchema);
+                }
             }
         }
+
         List<MethodSpec> methods = new ArrayList<>();
-        methods.add(getScriptAddressMethodSpec());
+        methods.addAll(createMethodSpecsForGetterSetters(metaFields, true));
+        methods.addAll(createMethodSpecsForGetterSetters(fields, false));
+        methods.add(getScriptAddressMethodSpec(plutusVersion));
+        methods.add(getPlutusScriptMethodSpec(plutusVersion));
 
         String validatorClassName = title + VALIDATOR_CLASS_SUFFIX;
         // building and saving of class
-        TypeSpec build = TypeSpec.classBuilder(validatorClassName)
+        var builder = TypeSpec.classBuilder(validatorClassName)
                 .addModifiers(Modifier.PUBLIC)
-                .addJavadoc("Auto generated code. DO NOT MODIFY")
-                .addAnnotation(Data.class)
-                .addAnnotation(AllArgsConstructor.class)
-                .addAnnotation(NoArgsConstructor.class)
+                .addJavadoc(GENERATED_CODE)
+                .addMethod(getConstructorMethodSpec())
+                .addFields(metaFields)
+                .addField(scriptAddrField)
                 .addFields(fields)
-                .addMethods(methods)
-                .build();
-        JavaFileUtil.createJavaFile(packageName, build, validatorClassName, processingEnv);
+                .addMethods(methods);
+
+        if (extendWith != null) {
+            var extendWithTypeMirros = getExtendWithValues(extendWith);
+            ClassName validatorTypeName = ClassName.get(packageName, validatorClassName);
+
+            for (TypeMirror extendWithTypeMirror : extendWithTypeMirros) {
+                TypeElement extendWithTypeElement = (TypeElement) ((DeclaredType) extendWithTypeMirror).asElement();
+                ClassName extendWithInterface = ClassName.get(extendWithTypeElement);
+                ParameterizedTypeName parameterizedInterface = ParameterizedTypeName.get(extendWithInterface, validatorTypeName);
+                builder.addSuperinterface(parameterizedInterface);
+            }
+
+            //Extend AbstractValidatorExtender
+            ClassName abstractExtenderClass = ClassName.get(AbstractValidatorExtender.class);
+            ParameterizedTypeName parameterizedSuperClass = ParameterizedTypeName.get(abstractExtenderClass, validatorTypeName);
+            builder.superclass(parameterizedSuperClass);
+
+        }
+        var build = builder.build();
+
+        try {
+            JavaFileUtil.createJavaFile(packageName, build, validatorClassName, processingEnv);
+        } catch (Exception e) {
+            error(null, "Error creating validator class : %s", e.getMessage());
+        }
     }
 
-    private MethodSpec getScriptAddressMethodSpec() {
+    //Create constructor with Network parameter
+    private MethodSpec getConstructorMethodSpec() {
+        MethodSpec constructor = MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(Network.class, "network")
+                .addStatement("this.network = network")
+                .build();
+        return constructor;
+    }
+
+    private MethodSpec getScriptAddressMethodSpec(PlutusVersion plutusVersion) {
         MethodSpec getScriptAddress = MethodSpec.methodBuilder("getScriptAddress")
                 .addModifiers(Modifier.PUBLIC)
                 .returns(String.class)
-                .addParameter(Network.class, "network")
-                .addException(CborDeserializationException.class)
                 .addJavadoc("Returns the address of the validator script")
-                .addStatement("$T compiledCodeAsByteString = new $T($T.decodeHexString(this.compiledCode))", ByteString.class, ByteString.class, HexUtil.class)
-                .addStatement("$T script = $T.deserialize(compiledCodeAsByteString)", PlutusV2Script.class, PlutusV2Script.class)
-                .addStatement("return $T.getEntAddress(script, network).toBech32()", AddressProvider.class)
+                .addStatement("var script = $T.getPlutusScriptFromCompiledCode(this.compiledCode, $T.$L)", PlutusBlueprintUtil.class, plutusVersion.getClass(), plutusVersion)
+                .addStatement("if(scriptAddress == null) scriptAddress = $T.getEntAddress(script, network).toBech32()", AddressProvider.class)
+                .addStatement("return scriptAddress")
                 .build();
         return getScriptAddress;
+    }
+
+    private MethodSpec getPlutusScriptMethodSpec(PlutusVersion plutusVersion) {
+        MethodSpec getPlutusScript = MethodSpec.methodBuilder("getPlutusScript")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(PlutusScript.class)
+                .addStatement("return $T.getPlutusScriptFromCompiledCode(this.compiledCode, $T.$L)", PlutusBlueprintUtil.class, plutusVersion.getClass(), plutusVersion)
+                .build();
+        return getPlutusScript;
     }
 
 
@@ -106,6 +199,48 @@ public class ValidatorProcessor {
                 .addModifiers(Modifier.PRIVATE)
                 .initializer("$S", validator.getHash())
                 .build());
+
+        fields.add(FieldSpec.builder(Network.class, "network")
+                .addModifiers(Modifier.PRIVATE)
+                .build());
+
         return fields;
     }
+
+    private List<? extends TypeMirror> getExtendWithValues(ExtendWith extendWith) {
+        try {
+            extendWith.value();
+        } catch (MirroredTypesException ex) {
+            return ex.getTypeMirrors();
+        }
+        return null;
+    }
+
+    private TypeMirror getExtendWithValue(ExtendWith extendWith) {
+        try {
+            // This will throw MirroredTypeException
+            extendWith.value();
+        } catch (MirroredTypeException e) {
+            return e.getTypeMirror();
+        }
+        return null;
+    }
+
+    private TypeMirror getTypeMirror(String type) {
+        try {
+            // This will throw MirroredTypeException
+            type.getClass();
+        } catch (MirroredTypeException e) {
+            return e.getTypeMirror();
+        }
+        return null;
+    }
+
+    private void error(Element e, String msg, Object... args) {
+        processingEnv.getMessager().printMessage(
+                Diagnostic.Kind.ERROR,
+                String.format(msg, args),
+                e);
+    }
+
 }

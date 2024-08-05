@@ -7,6 +7,6 @@ import java.util.*;
 
 @Constr(alternative = 1)
 public class NestedListMapModel {
-    List<List<String>> listOfList;
-    List<List<Map<String, List<String>>>> listOfListOfList;
+    public List<List<String>> listOfList;
+    public List<List<Map<String, List<String>>>> listOfListOfList;
 }

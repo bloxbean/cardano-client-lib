@@ -9,9 +9,6 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -22,9 +19,13 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.CONVERTER;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.IMPL;
 
 /**
  * Generates ClassDefinition from the given TypeElement
@@ -47,19 +48,44 @@ public class ClassDefinitionGenerator {
     public ClassDefinition getClassDefinition(TypeElement typeElement) {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
-        String serializationClassName = className + "Converter";
+        String converterClassName = className + CONVERTER;
 
         ClassDefinition classDefinition = new ClassDefinition();
         classDefinition.setPackageName(packageName);
-        classDefinition.setName(serializationClassName);
+        classDefinition.setName(className);
+        classDefinition.setDataClassName(className);
+        classDefinition.setImplClassName(className + IMPL);
+        classDefinition.setConverterClassName(converterClassName);
         classDefinition.setObjType(typeElement.asType().toString());
 
-        boolean lombokData = typeElement.getAnnotation(Data.class) != null;
-        boolean lombokGetter = typeElement.getAnnotation(Getter.class) != null;
-        boolean lombokSetter = typeElement.getAnnotation(Setter.class) != null;
+        typeElement.getModifiers().stream().filter(modifier -> modifier.equals(Modifier.ABSTRACT))
+                .findFirst().ifPresent(modifier -> classDefinition.setAbstract(true));
 
-        if (lombokData || (lombokGetter && lombokSetter)) {
-            classDefinition.setHasLombokAnnotation(true);
+        //If typeElement is enum, get emum values
+        if(typeElement.getKind() == ElementKind.ENUM) {
+            processEnum(typeElement, classDefinition);
+        }
+
+        classDefinition.setConverterPackageName(getConverterPackageName(packageName));
+        classDefinition.setImplPackageName(getImplPackageName(packageName));
+
+        Class lombokDataClazz;
+        Class lombokGetterClazz;
+        Class lombokSetterClazz;
+
+        try {
+            lombokDataClazz = Class.forName("lombok.Data");
+            lombokGetterClazz = Class.forName("lombok.Getter");
+            lombokSetterClazz = Class.forName("lombok.Setter");
+
+            boolean lombokData = typeElement.getAnnotation(lombokDataClazz) != null;
+            boolean lombokGetter = typeElement.getAnnotation(lombokGetterClazz) != null;
+            boolean lombokSetter = typeElement.getAnnotation(lombokSetterClazz) != null;
+
+            if (lombokData || (lombokGetter && lombokSetter)) {
+                classDefinition.setHasLombokAnnotation(true);
+            }
+        } catch (Exception e) {
         }
 
         Constr plutusConstr = typeElement.getAnnotation(Constr.class);
@@ -299,5 +325,38 @@ public class ClassDefinitionGenerator {
             return true;
         else
             return false;
+    }
+
+    public static ClassName getConverterClassFromField(FieldType fieldType) {
+        ClassName fieldClass = ClassName.bestGuess(fieldType.getJavaType().getName());
+        String converterPkg = getConverterPackageName(fieldClass.packageName());
+        ClassName converterClass = ClassName.get(converterPkg, fieldClass.simpleName() + CONVERTER);
+        return converterClass;
+    }
+
+    private static String getConverterPackageName(String modelPackage) {
+        return modelPackage + ".converter";
+    }
+
+    private static String getImplPackageName(String modelPackage) {
+        return modelPackage + ".impl";
+    }
+
+    private void processEnum(TypeElement typeElement, ClassDefinition classDefinition) {
+        // Log that we found an enum
+       log.debug("Found enum: " + typeElement.getQualifiedName());
+
+        classDefinition.setEnum(true);
+        List<String> enumValues = new ArrayList<>();
+        // Find all enum constants
+        for (Element enclosedElement : typeElement.getEnclosedElements()) {
+            if (enclosedElement.getKind() == ElementKind.ENUM_CONSTANT) {
+                VariableElement variableElement = (VariableElement) enclosedElement;
+                log.debug("Enum constant: " + variableElement.getSimpleName());
+                enumValues.add(variableElement.getSimpleName().toString());
+            }
+        }
+
+        classDefinition.setEnumValues(enumValues);
     }
 }

@@ -19,4 +19,36 @@ public class Model2 {
 
     @PlutusField
     BigInteger a;
+
+    public Long getL() {
+        return l;
+    }
+
+    public void setL(Long l) {
+        this.l = l;
+    }
+
+    public BigInteger getB() {
+        return b;
+    }
+
+    public void setB(BigInteger b) {
+        this.b = b;
+    }
+
+    public BigInteger getC() {
+        return c;
+    }
+
+    public void setC(BigInteger c) {
+        this.c = c;
+    }
+
+    public BigInteger getA() {
+        return a;
+    }
+
+    public void setA(BigInteger a) {
+        this.a = a;
+    }
 }

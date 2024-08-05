@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.plutus.annotation.BasePlutusDataConverter;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.squareup.javapoet.*;
@@ -11,10 +12,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
+
+import static com.bloxbean.cardano.client.plutus.annotation.processor.ClassDefinitionGenerator.getConverterClassFromField;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
 
 /**
  * Code generator for Plutus Data Converter
@@ -28,7 +29,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
     }
 
     public TypeSpec generate(ClassDefinition classDef) {
-        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(classDef.getName())
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(classDef.getConverterClassName())
                 .addModifiers(Modifier.PUBLIC)
                 .superclass(BasePlutusDataConverter.class);
 
@@ -37,7 +38,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
         MethodSpec fromPlutusDataMethod = generateFromPlutusDataMethod(classDef);
 
         return classBuilder
-                .addJavadoc("Auto generated code. DO NOT MODIFY")
+                .addJavadoc(GENERATED_CODE)
                 .addMethod(toPlutusDataMethod)
                 .addMethod(fromPlutusDataMethod)
                 .addMethod(generateSerialize(classDef))
@@ -45,6 +46,87 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 .addMethod(generateDeserialize(classDef))
                 .addMethod(generateDeserializeFromHex(classDef))
                 .build();
+    }
+
+    public TypeSpec generateInterfaceConverter(ClassDefinition classDef, List<ClassDefinition> constructors) {
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(classDef.getConverterClassName())
+                .addModifiers(Modifier.PUBLIC)
+                .superclass(BasePlutusDataConverter.class);
+
+        constructors.sort(Comparator.comparingInt(ClassDefinition::getAlternative));
+
+        String interfaceName = classDef.getDataClassName();
+        String paramName = JavaFileUtil.firstLowerCase(interfaceName);
+        ClassName interfaceTypeName = ClassName.get(classDef.getPackageName(), interfaceName);
+
+        //- toPlutusData method
+        MethodSpec.Builder toPlutusDataMethod = getInterfaceConverterToPlutusData(classDef, constructors, interfaceTypeName, paramName);
+
+        //- fromPlutusData method
+        MethodSpec.Builder fromPlutusDataMethod = getInterfaceConverterFromPlutusData(classDef, constructors);
+
+        return classBuilder
+                .addJavadoc(GENERATED_CODE)
+                .addMethod(toPlutusDataMethod.build())
+                .addMethod(fromPlutusDataMethod.build())
+                .addMethod(generateSerialize(classDef))
+                .addMethod(generateSerializeToHex(classDef))
+                .addMethod(generateDeserialize(classDef))
+                .addMethod(generateDeserializeFromHex(classDef))
+                .build();
+    }
+
+    private static MethodSpec.Builder getInterfaceConverterFromPlutusData(ClassDefinition classDef, List<ClassDefinition> constructors) {
+        ClassName className = ClassName.get(classDef.getPackageName(), classDef.getDataClassName());
+        MethodSpec.Builder fromPlutusDataMethod = MethodSpec.methodBuilder("fromPlutusData")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(className)
+                .addParameter(ConstrPlutusData.class, "constr");
+
+        for (ClassDefinition constructor : constructors) {
+            String converterClassName = constructor.getConverterClassName(); //constructor.getDataClassName() + CONVERTER;
+            String converterPkgName = constructor.getConverterPackageName();
+
+            ClassName constrConverterTypeName = ClassName.get(converterPkgName, converterClassName);
+
+            fromPlutusDataMethod.beginControlFlow("if(constr.getAlternative() == $L)", constructor.getAlternative())
+                    .addStatement("return new $T().fromPlutusData(constr)", constrConverterTypeName)
+                    .endControlFlow();
+        }
+
+        fromPlutusDataMethod.addStatement("throw new $T(\"Invalid alternative: \" + constr.getAlternative())", CborRuntimeException.class);
+        return fromPlutusDataMethod;
+    }
+
+    private static MethodSpec.Builder getInterfaceConverterToPlutusData(ClassDefinition classDef, List<ClassDefinition> constructors, ClassName interfaceTypeName, String paramName) {
+        MethodSpec.Builder toPlutusDataMethod = MethodSpec.methodBuilder("toPlutusData")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(ConstrPlutusData.class)
+                .addParameter(interfaceTypeName, paramName);
+
+        //  Objects.requireNonNull(ourDatum, "ourDatum cannot be null");
+        toPlutusDataMethod.addStatement("$T.requireNonNull($L, \"$L cannot be null\")", Objects.class, paramName, paramName);
+
+        for (ClassDefinition constructor : constructors) {
+            String converterClassName = constructor.getConverterClassName(); //constructor.getDataClassName() + CONVERTER;
+            String converterPkgName = constructor.getConverterPackageName();//JavaFileUtil.getConverterPackageName(constructor.getPackageName());
+
+            ClassName constrConverterTypeName = ClassName.get(converterPkgName, converterClassName);
+            ClassName constrTypeName = ClassName.get(constructor.getPackageName(), constructor.getDataClassName());
+
+            if (constructor.getFields().size() == 0) {
+                toPlutusDataMethod.beginControlFlow("if($L instanceof $T)", paramName, ClassName.get(classDef.getPackageName(), constructor.getDataClassName()))
+                        .addStatement("return new $T().toPlutusData(($T)$L)", ClassName.get(constructor.getPackageName(), constructor.getDataClassName()), ClassName.get(constructor.getPackageName(), constructor.getDataClassName()), paramName)
+                        .endControlFlow();
+            } else {
+                toPlutusDataMethod.beginControlFlow("if($L instanceof $T)", paramName, constrTypeName)
+                        .addStatement("return new $T().toPlutusData(($T)$L)", constrConverterTypeName, constrTypeName, paramName)
+                        .endControlFlow();
+            }
+        }
+        toPlutusDataMethod.addCode("\n");
+        toPlutusDataMethod.addStatement("throw new $T(\"Unsupported type: \" + $L.getClass())", CborRuntimeException.class, paramName);
+        return toPlutusDataMethod;
     }
 
     //-- serializeToHex(obj) method
@@ -202,10 +284,11 @@ public class ConverterCodeGenerator implements CodeGenerator {
                     break;
 
                 case CONSTRUCTOR:
+                    ClassName converterClass = getConverterClassFromField(field.getFieldType());
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
                             .beginControlFlow("if(obj.$L != null)", fieldOrGetterName(field))
-                                .addStatement("constr.getData().add(new $LConverter().toPlutusData(obj.$L))", field.getFieldType().getJavaType().getName(), fieldOrGetterName(field))
+                                .addStatement("constr.getData().add(new $T().toPlutusData(obj.$L))", converterClass, fieldOrGetterName(field))
                                 .addStatement("// Setting the alternative to the childs alternative to use this constructor")
                                 .addStatement("constr = $T.builder().alternative($L).data(constr.getData()).build()", ConstrPlutusData.class, field.getAlternative())
                             .endControlFlow()
@@ -248,7 +331,9 @@ public class ConverterCodeGenerator implements CodeGenerator {
             case BOOL:
                 return "toPlutusData(" + fieldOrGetterName + ")";
             default:
-                return String.format("new %sConverter().toPlutusData(%s)", itemType.getJavaType().getName(), fieldOrGetterName);
+                ClassName converterClassName = getConverterClassFromField(itemType);
+                String converterClazz = converterClassName.packageName() + "." + converterClassName.simpleName();
+                return String.format("new %s().toPlutusData(%s)", converterClazz, fieldOrGetterName);
         }
     }
 
@@ -487,6 +572,12 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 .returns(objTypeName)
                 .addParameter(ConstrPlutusData.class, "constr");
 
+        if (classDef.isAbstract()) {
+            //Use Impl class to instantiate
+            ClassName implClassName = ClassName.get(classDef.getImplPackageName(), classDef.getImplClassName());
+            objTypeName = implClassName;
+        }
+
         CodeBlock initObjCodeBlock = CodeBlock.builder()
                 .addStatement("var obj = new $T()", objTypeName)
                 .addStatement("var data = constr.getData()")
@@ -582,10 +673,11 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 break;
             case CONSTRUCTOR:
                 TypeName fieldTypeName = bestGuess(field.getFieldType().getJavaType().getName());
+                ClassName converterClazz = getConverterClassFromField(field.getFieldType());
                 codeBlock = CodeBlock.builder()
                         .add("//Field $L\n", field.getName())
-                        .addStatement("$T $L = new $LConverter().fromPlutusData((($T)data.getPlutusDataList().get($L)))",
-                                fieldTypeName, field.getName(), fieldTypeName, ConstrPlutusData.class, field.getIndex())
+                        .addStatement("$T $L = new $T().fromPlutusData((($T)data.getPlutusDataList().get($L)))",
+                                fieldTypeName, field.getName(), converterClazz, ConstrPlutusData.class, field.getIndex())
                         .build();
                 break;
             case BOOL:
@@ -797,7 +889,9 @@ public class ConverterCodeGenerator implements CodeGenerator {
             case BOOL:
                 return String.format("plutusDataToBoolean(%s)", fieldName);
             default:
-                return String.format("new %sConverter().fromPlutusData((ConstrPlutusData)%s)", itemType.getJavaType().getName(), fieldName);
+                ClassName converterClassName = getConverterClassFromField(itemType);
+                String converterClazz = converterClassName.packageName() + "." + converterClassName.simpleName();
+                return String.format("new %s().fromPlutusData((ConstrPlutusData)%s)", converterClazz, fieldName);
         }
 
         return "";
@@ -838,5 +932,74 @@ public class ConverterCodeGenerator implements CodeGenerator {
             return ArrayTypeName.of(TypeName.BYTE);
         else
             return ClassName.bestGuess(name);
+    }
+
+    //-- Enum Converter Code Generation
+    public Optional<TypeSpec> generateEnumConverter(ClassDefinition classDefinition) {
+        if (!classDefinition.isEnum())
+            return Optional.empty();
+
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(classDefinition.getConverterClassName())
+                .addModifiers(Modifier.PUBLIC)
+                .superclass(BasePlutusDataConverter.class);
+
+        ClassName enumClassName = ClassName.get(classDefinition.getPackageName(), classDefinition.getDataClassName());
+
+        List<String> enumConstants = classDefinition.getEnumValues();
+
+        String parameterName = JavaFileUtil.firstLowerCase(enumClassName.simpleName());
+        //Generate toPlutusData method
+        MethodSpec.Builder toPlutusDataMethodBuilder = getEnumToPlutusData(enumClassName, parameterName, enumConstants);
+
+        //Generate fromPlutusData method
+        MethodSpec.Builder fromPlutusDataMethodBuilder = getEnumFromPlutusData(enumClassName, enumConstants);
+
+        var typeSpec = classBuilder
+                .addJavadoc(GENERATED_CODE)
+                .addMethod(toPlutusDataMethodBuilder.build())
+                .addMethod(fromPlutusDataMethodBuilder.build())
+                .addMethod(generateSerialize(classDefinition))
+                .addMethod(generateSerializeToHex(classDefinition))
+                .addMethod(generateDeserialize(classDefinition))
+                .addMethod(generateDeserializeFromHex(classDefinition))
+                .build();
+
+        return Optional.of(typeSpec);
+    }
+
+    private static MethodSpec.Builder getEnumFromPlutusData(ClassName enumClassName, List<String> enumConstants) {
+        MethodSpec.Builder fromPlutusDataMethodBuilder = MethodSpec.methodBuilder("fromPlutusData")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(enumClassName)
+                .addParameter(ConstrPlutusData.class, "constr");
+
+        fromPlutusDataMethodBuilder.addStatement("var data = constr.getData()");
+
+        for (int i = 0; i < enumConstants.size(); i++) {
+            String enumConstant = enumConstants.get(i);
+            fromPlutusDataMethodBuilder.beginControlFlow("if(constr.getAlternative() == $L)", i)
+                    .addStatement("return $T.$L", enumClassName, enumConstant)
+                    .endControlFlow();
+        }
+
+        fromPlutusDataMethodBuilder.addStatement("throw new $T($S + constr.getAlternative())", IllegalArgumentException.class, "Invalid alternative : ");
+        return fromPlutusDataMethodBuilder;
+    }
+
+    private static MethodSpec.Builder getEnumToPlutusData(ClassName enumClassName, String parameterName, List<String> enumConstants) {
+        MethodSpec.Builder toPlutusDataMethodBuilder = MethodSpec.methodBuilder("toPlutusData")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(ConstrPlutusData.class)
+                .addParameter(enumClassName, parameterName);
+
+        for (int i = 0; i < enumConstants.size(); i++) {
+            String enumConstant = enumConstants.get(i);
+            toPlutusDataMethodBuilder.beginControlFlow("if($L == $T.$L)", parameterName, enumClassName, enumConstant)
+                    .addStatement("return $T.builder().alternative($L).data($T.of()).build()", ConstrPlutusData.class, i, ListPlutusData.class);
+            toPlutusDataMethodBuilder.endControlFlow();
+        }
+
+        toPlutusDataMethodBuilder.addStatement("throw new $T($S + $L)", IllegalArgumentException.class, "Invalid enum value : ", parameterName);
+        return toPlutusDataMethodBuilder;
     }
 }
