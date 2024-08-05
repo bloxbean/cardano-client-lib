@@ -134,7 +134,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         if(!annotation.file().isEmpty())
             blueprintFile = new File(annotation.file());
         if(!annotation.fileInResources().isEmpty())
-            blueprintFile = getFileFromRessourcers(annotation.fileInResources());
+            blueprintFile = getFileFromResources(annotation.fileInResources());
         if(blueprintFile == null || !blueprintFile.exists()) {
             log.error("Blueprint file %s not found", annotation.file());
             if (blueprintFile != null)
@@ -144,9 +144,19 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         return blueprintFile;
     }
 
-    public File getFileFromRessourcers(String s) {
+    public File getFileFromResources(String s) {
         try {
             FileObject resource = processingEnv.getFiler().getResource(StandardLocation.CLASS_PATH, "", s);
+            File f = new File(resource.toUri());
+            if (f.exists())
+                return f;
+        } catch (Exception e) {
+
+        }
+
+        //Not found in classpath. Try in class_output
+        try {
+            FileObject resource = processingEnv.getFiler().getResource(StandardLocation.CLASS_OUTPUT, "", s);
             return new File(resource.toUri());
         } catch (Exception e) {
             e.printStackTrace();
