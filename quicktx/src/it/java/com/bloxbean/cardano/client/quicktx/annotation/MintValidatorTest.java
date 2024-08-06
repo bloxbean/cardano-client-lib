@@ -2,14 +2,17 @@ package com.bloxbean.cardano.client.quicktx.annotation;
 
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.annotation.mint_validator.MintValidator;
 import com.bloxbean.cardano.client.quicktx.annotation.mint_validator.model.Action;
 import com.bloxbean.cardano.client.quicktx.annotation.mint_validator.model.impl.ActionData;
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.common.MintAsset;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,6 +43,18 @@ public class MintValidatorTest extends AnnotationTestBase {
     void testMintTxWithReferenceInput() {
         var validator = deploy(true);
         mintTx(validator, true);
+    }
+
+    @Test
+    void testMintToAddress() {
+        var validator = deploy(false);
+        mintToAddress(validator, false);
+    }
+
+    @Test
+    void testMintToContract() {
+        var validator = deploy(true);
+        mintToContract(validator, true);
     }
 
     private MintValidator deploy(boolean withReferenceInput) {
@@ -75,7 +90,6 @@ public class MintValidatorTest extends AnnotationTestBase {
 
         System.out.println(txResult);
         assertTrue(txResult.isSuccessful());
-
     }
 
     public void mintTx(MintValidator mintValidator, boolean withReferenceInput) {
@@ -104,4 +118,175 @@ public class MintValidatorTest extends AnnotationTestBase {
 
     }
 
+    private void mintToAddress(MintValidator mintValidator, boolean withReferenceInput) {
+
+        Asset asset1 = new Asset("MintToAddressToken1", BigInteger.valueOf(100));
+        Asset asset2 = new Asset("MintToAddressToken2", BigInteger.valueOf(100));
+        var txResult = mintValidator
+                .mintToAddress(ActionData.of(Action.Mint), List.of(asset1, asset2), receiver1)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+
+        Asset asset3 = new Asset("MintToAddressToken3", BigInteger.valueOf(3));
+        txResult = mintValidator
+                .mintToAddress(ActionData.of(Action.Mint), asset3, receiver1)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+
+    }
+
+    private void mintToContract(MintValidator mintValidator, boolean withReferenceInput) {
+
+        Asset asset1 = new Asset("MintToAddressToken1", BigInteger.valueOf(100));
+        Asset asset2 = new Asset("MintToAddressToken2", BigInteger.valueOf(200));
+
+        var txResult = mintValidator
+                .mintToContract(ActionData.of(Action.Mint), List.of(asset1, asset2), mintValidator.getScriptAddress(), () -> ConstrPlutusData.of(3))
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+
+        Asset asset3 = new Asset("MintToAddressToken3", BigInteger.valueOf(5));
+
+        txResult = mintValidator
+                .mintToContract(ActionData.of(Action.Mint), asset3, mintValidator.getScriptAddress(), () -> ConstrPlutusData.of(5))
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+
+        Asset asset4 = new Asset("MintToAddressToken4", BigInteger.valueOf(4));
+
+        txResult = mintValidator
+                .mintToContract(ActionData.of(Action.Mint), asset4, mintValidator.getScriptAddress(), ConstrPlutusData.of(4))
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+    }
+
+    @Test
+    void testMintAddressTx() {
+        var validator = deploy(false);
+        mintAddressTx(validator, false);
+    }
+
+    public void mintAddressTx(MintValidator mintValidator, boolean withReferenceInput) {
+        Asset asset1 = new Asset("MintToAddressToken1", BigInteger.valueOf(100));
+        Asset asset2 = new Asset("MintToAddressToken2", BigInteger.valueOf(200));
+
+        var tx = mintValidator
+                .mintToAddressTx(ActionData.of(Action.Mint), List.of(asset1, asset2), receiver1);
+
+        var txResult = new QuickTxBuilder(backendService)
+                .compose(tx)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .preBalanceTx((context, txn) -> {
+                    if (withReferenceInput)
+                        txn.getWitnessSet().getPlutusV2Scripts().remove(mintValidator.getPlutusScript());
+                })
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+
+        //--
+
+        Asset asset3 = new Asset("MintToAddressToken3", BigInteger.valueOf(900));
+        tx = mintValidator
+                .mintToAddressTx(ActionData.of(Action.Mint), asset3, receiver1);
+
+        txResult = new QuickTxBuilder(backendService)
+                .compose(tx)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .preBalanceTx((context, txn) -> {
+                    if (withReferenceInput)
+                        txn.getWitnessSet().getPlutusV2Scripts().remove(mintValidator.getPlutusScript());
+                })
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+    }
+
+    @Test
+    void testMintContractTx() {
+        var validator = deploy(false);
+        mintContractTx(validator, false);
+    }
+
+    public void mintContractTx(MintValidator mintValidator, boolean withReferenceInput) {
+        Asset asset1 = new Asset("MintToAddressToken1", BigInteger.valueOf(100));
+        Asset asset2 = new Asset("MintToAddressToken2", BigInteger.valueOf(200));
+
+        var tx = mintValidator
+                .mintToContractTx(ActionData.of(Action.Mint), List.of(asset1, asset2),
+                        mintValidator.getScriptAddress(), () -> ConstrPlutusData.of(444));
+
+        var txResult = new QuickTxBuilder(backendService)
+                .compose(tx)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .preBalanceTx((context, txn) -> {
+                    if (withReferenceInput)
+                        txn.getWitnessSet().getPlutusV2Scripts().remove(mintValidator.getPlutusScript());
+                })
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+
+        //--
+
+        Asset asset3 = new Asset("MintToAddressToken3", BigInteger.valueOf(900));
+        tx = mintValidator
+                .mintToContractTx(ActionData.of(Action.Mint), asset3, mintValidator.getScriptAddress(), ConstrPlutusData.of(555));
+
+        txResult = new QuickTxBuilder(backendService)
+                .compose(tx)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .preBalanceTx((context, txn) -> {
+                    if (withReferenceInput)
+                        txn.getWitnessSet().getPlutusV2Scripts().remove(mintValidator.getPlutusScript());
+                })
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+
+        Asset asset4 = new Asset("MintToAddressToken4", BigInteger.valueOf(4400));
+        tx = mintValidator
+                .mintToContractTx(ActionData.of(Action.Mint), asset4, mintValidator.getScriptAddress(), () -> ConstrPlutusData.of(666));
+
+        txResult = new QuickTxBuilder(backendService)
+                .compose(tx)
+                .feePayer(account.baseAddress())
+                .withSigner(SignerProviders.signerFrom(account))
+                .preBalanceTx((context, txn) -> {
+                    if (withReferenceInput)
+                        txn.getWitnessSet().getPlutusV2Scripts().remove(mintValidator.getPlutusScript());
+                })
+                .completeAndWait(System.out::println);
+
+        System.out.println(txResult);
+        assertTrue(txResult.isSuccessful());
+    }
 }
