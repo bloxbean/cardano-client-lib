@@ -28,6 +28,7 @@ import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.util.JsonUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -301,11 +302,18 @@ public class QuickTxBuilder {
                         return;
                     }
 
+                    //This is only applicable for ScriptTx for now, as default impl is empty for this method.
+                    for (AbstractTx tx: txList) {
+                        tx.preTxEvaluation(transaction);
+                    }
+
                     try {
                         ScriptCostEvaluators.evaluateScriptCost().apply(context, transaction);
                     } catch (Exception e) {
                         //Ignore as it could happen due to insufficient ada in utxo
                         log.warn("Error while evaluating script cost", e);
+                        if (log.isDebugEnabled())
+                            log.debug("Transaction : " + JsonUtil.getPrettyJson(transaction));
                         if (!ignoreScriptCostEvaluationError)
                             throw new TxBuildException("Error while evaluating script cost", e);
                     }

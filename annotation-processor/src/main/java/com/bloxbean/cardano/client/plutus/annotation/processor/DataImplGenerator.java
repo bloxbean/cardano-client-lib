@@ -51,11 +51,12 @@ public class DataImplGenerator implements CodeGenerator {
                                       ClassName dataClass) {
         FieldSpec converterField = FieldSpec.builder(converterClass, "converter")
                 .addModifiers(Modifier.PRIVATE)
+                .addModifiers(Modifier.STATIC)
+                .initializer("new $T()", converterClass)
                 .build();
 
         MethodSpec constructor = MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC)
-                .addStatement("this.converter = new $T()", converterClass)
                 .build();
 
         return classBuilder
@@ -64,6 +65,8 @@ public class DataImplGenerator implements CodeGenerator {
                 .addMethod(constructor)
                 .addMethod(getToPlutusDataMethodSpec(dataClass))
                 .addMethod(getFromPlutusDataMethodSpec(dataClass))
+                .addMethod(getDeserializeMethodByString(dataClass))
+                .addMethod(getDeserializeMethodByBytes(dataClass))
                 .build();
     }
 
@@ -80,14 +83,32 @@ public class DataImplGenerator implements CodeGenerator {
 
     private MethodSpec getFromPlutusDataMethodSpec(ClassName dataClass) {
         MethodSpec fromPlutusDataMethod = MethodSpec.methodBuilder("fromPlutusData")
-                .addModifiers(Modifier.PUBLIC)
-                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .returns(dataClass)
                 .addParameter(ClassName.get(ConstrPlutusData.class), "data")
                 .addStatement("return converter.fromPlutusData(data)")
                 .build();
-
         return fromPlutusDataMethod;
+    }
+
+    private MethodSpec getDeserializeMethodByString(ClassName dataClass) {
+        MethodSpec deserialize = MethodSpec.methodBuilder("deserialize")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(dataClass)
+                .addParameter(String.class, "cborHex")
+                .addStatement("return converter.deserialize(cborHex)")
+                .build();
+        return deserialize;
+    }
+
+    private MethodSpec getDeserializeMethodByBytes(ClassName dataClass) {
+        MethodSpec deserialize = MethodSpec.methodBuilder("deserialize")
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .returns(dataClass)
+                .addParameter(byte[].class, "cborBytes")
+                .addStatement("return converter.deserialize(cborBytes)")
+                .build();
+        return deserialize;
     }
 
     private TypeSpec generateEnumDataImpl(TypeSpec.Builder classBuilder,
@@ -101,14 +122,14 @@ public class DataImplGenerator implements CodeGenerator {
                 .build();
 
         FieldSpec converterField = FieldSpec.builder(converterClass, "converter")
-                .addModifiers(Modifier.PRIVATE)
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .initializer("new $T()", converterClass)
                 .build();
 
         MethodSpec constructor = MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PRIVATE)
                 .addParameter(dataClass, dataClassFieldName)
                 .addStatement("this.$N = $N", dataClassFieldName, dataClassFieldName)
-                .addStatement("this.converter = new $T()", converterClass)
                 .build();
 
         //--of method
@@ -127,15 +148,6 @@ public class DataImplGenerator implements CodeGenerator {
                 .addStatement("return converter.toPlutusData($N)", dataClassFieldName)
                 .build();
 
-        //--fromPlutusData
-        MethodSpec fromPlutusDataMethod = MethodSpec.methodBuilder("fromPlutusData")
-                .addModifiers(Modifier.PUBLIC)
-                .addAnnotation(Override.class)
-                .returns(dataClass)
-                .addParameter(ClassName.get(ConstrPlutusData.class), "data")
-                .addStatement("return converter.fromPlutusData(data)")
-                .build();
-
         return classBuilder
                 .addJavadoc(GENERATED_CODE)
                 .addField(dataClassFieldSpec)
@@ -143,7 +155,9 @@ public class DataImplGenerator implements CodeGenerator {
                 .addMethod(constructor)
                 .addMethod(ofMethod)
                 .addMethod(toPlutusDataMethod)
-                .addMethod(fromPlutusDataMethod)
+                .addMethod(getFromPlutusDataMethodSpec(dataClass))
+                .addMethod(getDeserializeMethodByString(dataClass))
+                .addMethod(getDeserializeMethodByBytes(dataClass))
                 .build();
     }
 

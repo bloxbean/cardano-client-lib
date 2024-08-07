@@ -21,6 +21,7 @@ import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+@Slf4j
 public class ScriptTx extends AbstractTx<ScriptTx> {
     protected List<PlutusScript> spendingValidators;
     protected List<PlutusScript> mintingValidators;
@@ -640,20 +642,33 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     @Override
     protected void postBalanceTx(Transaction transaction) {
-        if (spendingValidators != null && !spendingValidators.isEmpty()) {
+        if (spendingContexts != null && !spendingContexts.isEmpty()) {
             //Verify if redeemer indexes are correct, if not set the correct index
-            for (Redeemer redeemer : transaction.getWitnessSet().getRedeemers()) {
-                if (redeemer.getTag() != RedeemerTag.Spend)
-                    continue;
-                Optional<Utxo> scriptUtxo = getUtxoForRedeemer(redeemer);
-                if (scriptUtxo.isPresent()) {
-                    int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
-                    if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
-                        redeemer.setIndex(scriptInputIndex);
-                    }
-                } else
-                    throw new TxBuildException("No utxo found for redeemer. Something went wrong." + redeemer);
-            }
+            verifyAndAdjustRedeemerIndexes(transaction);
+        }
+    }
+
+    @Override
+    protected void preTxEvaluation(Transaction transaction) {
+        if (spendingContexts != null && !spendingContexts.isEmpty()) {
+            //Verify if redeemer indexes are correct, if not set the correct index
+            verifyAndAdjustRedeemerIndexes(transaction);
+        }
+    }
+
+    private void verifyAndAdjustRedeemerIndexes(Transaction transaction) {
+        for (Redeemer redeemer : transaction.getWitnessSet().getRedeemers()) {
+            if (redeemer.getTag() != RedeemerTag.Spend)
+                continue;
+            Optional<Utxo> scriptUtxo = getUtxoForRedeemer(redeemer);
+            if (scriptUtxo.isPresent()) {
+                int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
+                if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
+                    redeemer.setIndex(scriptInputIndex);
+                }
+                log.info("Sorting done for redeemer : " + redeemer);
+            } else
+                log.warn("No utxo found for redeemer. Something went wrong." + redeemer);
         }
     }
 

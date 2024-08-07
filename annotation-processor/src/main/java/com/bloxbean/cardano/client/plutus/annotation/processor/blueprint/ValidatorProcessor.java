@@ -2,6 +2,8 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.common.model.Network;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
@@ -11,6 +13,7 @@ import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.AbstractValidatorExtender;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.squareup.javapoet.*;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -69,9 +72,37 @@ public class ValidatorProcessor {
         title = JavaFileUtil.toCamelCase(title);
 
         List<FieldSpec> metaFields = ValidatorProcessor.getFieldSpecsForValidator(validator);
+
+        FieldSpec networkField = FieldSpec.builder(Network.class, "network")
+                .addModifiers(Modifier.PRIVATE)
+                .build();
+
         FieldSpec scriptAddrField = FieldSpec.builder(String.class, "scriptAddress")
                 .addModifiers(Modifier.PRIVATE)
                 .build();
+
+        FieldSpec plutusScriptField = FieldSpec.builder(PlutusScript.class, "plutusScript")
+                .addModifiers(Modifier.PRIVATE)
+                .build();
+
+        boolean isParameterizedValidator = isParameterizedValidator(validator);
+
+        FieldSpec applyParamCompiledCodeField = null;
+        FieldSpec applyParamHashField = null;
+        MethodSpec applyParamCompiledCodeGetter = null;
+        MethodSpec applyParamHashGetter = null;
+        if(isParameterizedValidator) {
+            applyParamCompiledCodeField = FieldSpec.builder(String.class, "applyParamCompiledCode")
+                    .addModifiers(Modifier.PRIVATE)
+                    .build();
+            applyParamHashField = FieldSpec.builder(String.class, "applyParamHash")
+                    .addModifiers(Modifier.PRIVATE)
+                    .build();
+
+            applyParamCompiledCodeGetter = getApplyParamCompiledCodeGetterMethodSpec();
+            applyParamHashGetter = getApplyParamHashGetterMethodSpec();
+
+        }
 
         List<FieldSpec> fields = new ArrayList<>();
 
@@ -107,21 +138,34 @@ public class ValidatorProcessor {
         }
 
         List<MethodSpec> methods = new ArrayList<>();
-        methods.addAll(createMethodSpecsForGetterSetters(metaFields, true));
         methods.addAll(createMethodSpecsForGetterSetters(fields, false));
+        methods.addAll(createMethodSpecsForGetterSetters(List.of(networkField), false));
         methods.add(getScriptAddressMethodSpec(plutusVersion));
-        methods.add(getPlutusScriptMethodSpec(plutusVersion));
+        methods.add(getPlutusScriptMethodSpec(plutusVersion, isParameterizedValidator));
+
+        if (isParameterizedValidator) {
+            methods.add(applyParamCompiledCodeGetter);
+            methods.add(applyParamHashGetter);
+        }
 
         String validatorClassName = title + VALIDATOR_CLASS_SUFFIX;
         // building and saving of class
         var builder = TypeSpec.classBuilder(validatorClassName)
                 .addModifiers(Modifier.PUBLIC)
                 .addJavadoc(GENERATED_CODE)
-                .addMethod(getConstructorMethodSpec())
+                .addMethod(getConstructorMethodSpec(isParameterizedValidator))
                 .addFields(metaFields)
+                .addField(networkField)
                 .addField(scriptAddrField)
                 .addFields(fields)
-                .addMethods(methods);
+                .addField(plutusScriptField);
+
+        if(isParameterizedValidator) {
+            builder.addField(applyParamCompiledCodeField);
+            builder.addField(applyParamHashField);
+        }
+
+        builder.addMethods(methods);
 
         if (extendWith != null) {
             var extendWithTypeMirros = getExtendWithValues(extendWith);
@@ -150,13 +194,24 @@ public class ValidatorProcessor {
     }
 
     //Create constructor with Network parameter
-    private MethodSpec getConstructorMethodSpec() {
-        MethodSpec constructor = MethodSpec.constructorBuilder()
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(Network.class, "network")
-                .addStatement("this.network = network")
-                .build();
-        return constructor;
+    private MethodSpec getConstructorMethodSpec(boolean isParameterizedValidator) {
+        if (isParameterizedValidator) {
+            MethodSpec constructor = MethodSpec.constructorBuilder()
+                    .addModifiers(Modifier.PUBLIC)
+                    .addParameter(Network.class, "network")
+                    .addParameter(String.class, "applyParamCompiledCode")
+                    .addStatement("this.network = network")
+                    .addStatement("this.applyParamCompiledCode = applyParamCompiledCode")
+                    .build();
+            return constructor;
+        }  else {
+            MethodSpec constructor = MethodSpec.constructorBuilder()
+                    .addModifiers(Modifier.PUBLIC)
+                    .addParameter(Network.class, "network")
+                    .addStatement("this.network = network")
+                    .build();
+            return constructor;
+        }
     }
 
     private MethodSpec getScriptAddressMethodSpec(PlutusVersion plutusVersion) {
@@ -164,44 +219,82 @@ public class ValidatorProcessor {
                 .addModifiers(Modifier.PUBLIC)
                 .returns(String.class)
                 .addJavadoc("Returns the address of the validator script")
-                .addStatement("var script = $T.getPlutusScriptFromCompiledCode(this.compiledCode, $T.$L)", PlutusBlueprintUtil.class, plutusVersion.getClass(), plutusVersion)
-                .addStatement("if(scriptAddress == null) scriptAddress = $T.getEntAddress(script, network).toBech32()", AddressProvider.class)
+                .beginControlFlow("if(scriptAddress == null)")
+                .addStatement("var script = getPlutusScript()")
+                .addStatement("scriptAddress = $T.getEntAddress(script, network).toBech32()", AddressProvider.class)
+                .endControlFlow()
                 .addStatement("return scriptAddress")
                 .build();
         return getScriptAddress;
     }
 
-    private MethodSpec getPlutusScriptMethodSpec(PlutusVersion plutusVersion) {
-        MethodSpec getPlutusScript = MethodSpec.methodBuilder("getPlutusScript")
+    private MethodSpec getPlutusScriptMethodSpec(PlutusVersion plutusVersion, boolean isParameterizedValidator) {
+        var builder = MethodSpec.methodBuilder("getPlutusScript")
                 .addModifiers(Modifier.PUBLIC)
-                .returns(PlutusScript.class)
-                .addStatement("return $T.getPlutusScriptFromCompiledCode(this.compiledCode, $T.$L)", PlutusBlueprintUtil.class, plutusVersion.getClass(), plutusVersion)
-                .build();
-        return getPlutusScript;
+                .returns(PlutusScript.class);
+
+        if (isParameterizedValidator) {
+            //Use beginControl flow to check if plutusScript is null
+            builder.beginControlFlow("if (plutusScript == null)");
+            builder.addStatement("plutusScript = $T.getPlutusScriptFromCompiledCode(this.applyParamCompiledCode, $T.$L)", PlutusBlueprintUtil.class, plutusVersion.getClass(), plutusVersion);
+            builder.endControlFlow();
+
+            builder.addStatement("return plutusScript");
+        } else {
+            builder.beginControlFlow("if (plutusScript == null)");
+            builder.addStatement("plutusScript = $T.getPlutusScriptFromCompiledCode(COMPILED_CODE, $T.$L)", PlutusBlueprintUtil.class, plutusVersion.getClass(), plutusVersion);
+            builder.endControlFlow();
+            builder.addStatement("return plutusScript");
+        }
+
+        return builder.build();
     }
 
+    private MethodSpec getApplyParamCompiledCodeGetterMethodSpec() {
+        MethodSpec getApplyParamCompiledCode = MethodSpec.methodBuilder("getApplyParamCompiledCode")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(String.class)
+                .addStatement("return applyParamCompiledCode")
+                .build();
+        return getApplyParamCompiledCode;
+    }
+
+    private MethodSpec getApplyParamHashGetterMethodSpec() {
+        MethodSpec getApplyParamHash = MethodSpec.methodBuilder("getApplyParamHash")
+                .addModifiers(Modifier.PUBLIC)
+                .addJavadoc("Returns the hash of the script after applying the parameters\n")
+                .addJavadoc("@throws CborRuntimeException if there is an error in getting the hash")
+                .returns(String.class)
+                .beginControlFlow("if (applyParamHash == null)")
+
+                .beginControlFlow("try")
+                    .addStatement("applyParamHash = $T.encodeHexString(getPlutusScript().getScriptHash())", HexUtil.class)
+                    .nextControlFlow("catch ($T e)", CborSerializationException.class)
+                        .addStatement("throw new $T(\"Error getting hash from compiled code\", e)", CborRuntimeException.class)
+                    .endControlFlow()
+                .endControlFlow()
+                .addStatement("return applyParamHash")
+                .build();
+        return getApplyParamHash;
+    }
 
     public static List<FieldSpec> getFieldSpecsForValidator(Validator validator) {
         List<FieldSpec> fields = new ArrayList<>();
-        fields.add(FieldSpec.builder(String.class, "title")
-                .addModifiers(Modifier.PRIVATE) // need to fix AnnotationProcessor for final variables
+        fields.add(FieldSpec.builder(String.class, "TITLE")
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL, Modifier.STATIC) // need to fix AnnotationProcessor for final variables
                 .initializer("$S", validator.getTitle())
                 .build());
-        fields.add(FieldSpec.builder(String.class, "description")
-                .addModifiers(Modifier.PRIVATE)
+        fields.add(FieldSpec.builder(String.class, "DESCRIPTION")
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL, Modifier.STATIC)
                 .initializer("$S", validator.getDescription())
                 .build());
-        fields.add(FieldSpec.builder(String.class, "compiledCode")
-                .addModifiers(Modifier.PRIVATE)
+        fields.add(FieldSpec.builder(String.class, "COMPILED_CODE")
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL, Modifier.STATIC)
                 .initializer("$S", validator.getCompiledCode())
                 .build());
-        fields.add(FieldSpec.builder(String.class, "hash")
-                .addModifiers(Modifier.PRIVATE)
+        fields.add(FieldSpec.builder(String.class, "HASH")
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL, Modifier.STATIC)
                 .initializer("$S", validator.getHash())
-                .build());
-
-        fields.add(FieldSpec.builder(Network.class, "network")
-                .addModifiers(Modifier.PRIVATE)
                 .build());
 
         return fields;
@@ -224,6 +317,10 @@ public class ValidatorProcessor {
             return e.getTypeMirror();
         }
         return null;
+    }
+
+    private static boolean isParameterizedValidator(Validator validator) {
+        return validator.getParameters() != null && validator.getParameters().size() > 0;
     }
 
     private TypeMirror getTypeMirror(String type) {

@@ -390,6 +390,14 @@ public abstract class AbstractTx<T> {
     protected abstract String getFromAddress();
 
     /**
+     * Perform pre Tx evaluation action. This is called before Script evaluation if any
+     * @param transaction
+     */
+    protected void preTxEvaluation(Transaction transaction) {
+
+    }
+
+    /**
      * Perform post balanceTx action
      *
      * @param transaction
