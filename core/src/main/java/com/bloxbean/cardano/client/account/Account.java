@@ -14,7 +14,9 @@ import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.governance.DRepId;
+import com.bloxbean.cardano.client.governance.keys.CommitteeColdKey;
+import com.bloxbean.cardano.client.governance.keys.CommitteeHotKey;
+import com.bloxbean.cardano.client.governance.keys.DRepKey;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -347,17 +349,75 @@ public class Account {
 
     public String drepId() {
         if (drepId == null || drepId.isEmpty()) {
-            var drepHdKeyPair = drepHdKeyPair();
-            var drepKeyHash = drepHdKeyPair.getPublicKey().getKeyHash();
-            drepId = DRepId.fromKeyHash(HexUtil.encodeHexString(drepKeyHash));
+            drepId = DRepKey.from(drepHdKeyPair()).dRepId();
         }
 
         return drepId;
     }
 
+    /**
+     * Get {@link DRepKey} from DRep Hd key pair {@link HdKeyPair}
+     * @return DRepKey
+     */
+    public DRepKey drepKey() {
+        return DRepKey.from(drepHdKeyPair());
+    }
+
     public Credential drepCredential() {
         var drepHdKeyPair = drepHdKeyPair();
         return Credential.fromKey(drepHdKeyPair.getPublicKey().getKeyHash());
+    }
+
+    /**
+     * Get Hd key pair for Constitutional Committee Cold Keys
+     * @return HdKeyPair
+     */
+    @JsonIgnore
+    public HdKeyPair committeeColdKeyPair() {
+        return getCommitteeColdKeyPair();
+    }
+
+    /**
+     * Get {@link CommitteeColdKey} from Constitutional Committee Cold Key Hd key pair
+     * @return CommitteeColdKey
+     */
+    public CommitteeColdKey committeeColdKey() {
+        return CommitteeColdKey.from(committeeColdKeyPair());
+    }
+
+    /**
+     * Get Credential for Constitutional Committee Cold Keys
+     * @return Credential
+     */
+    public Credential committeeColdCredential() {
+        var ccColdHdKeyPair = committeeColdKeyPair();
+        return Credential.fromKey(ccColdHdKeyPair.getPublicKey().getKeyHash());
+    }
+
+    /**
+     * Get Hd key pair for Constitutional Committee Hot Keys
+     * @return
+     */
+    @JsonIgnore
+    public HdKeyPair committeeHotKeyPair() {
+        return getCommitteeHotKeyPair();
+    }
+
+    /**
+     * Get {@link CommitteeHotKey} from Constitutional Committee Hot Key Hd key pair
+     * @return CommitteeHotKey
+     */
+    public CommitteeHotKey committeeHotKey() {
+        return CommitteeHotKey.from(committeeHotKeyPair());
+    }
+
+    /**
+     * Get Credential for Constitutional Committee Hot Keys
+     * @return Credential
+     */
+    public Credential committeeHotCredential() {
+        var ccHotHdKeyPair = committeeHotKeyPair();
+        return Credential.fromKey(ccHotHdKeyPair.getPublicKey().getKeyHash());
     }
 
     /**
@@ -398,8 +458,31 @@ public class Account {
         return TransactionSigner.INSTANCE.sign(transaction, getStakeKeyPair());
     }
 
+    /**
+     * Sign a transaction object with DRep key
+     * @param transaction Transaction
+     * @return Signed Transaction
+     */
     public Transaction signWithDRepKey(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getDRepKeyPair());
+    }
+
+    /**
+     * Sign a transaction object with Constitutional Committee Cold Key
+     * @param transaction Transaction
+     * @return Signed Transaction
+     */
+    public Transaction signWithCommitteeColdKey(Transaction transaction) {
+        return TransactionSigner.INSTANCE.sign(transaction, getCommitteeColdKeyPair());
+    }
+
+    /**
+     * Sign a transaction object with Constitutional Committee Hot Key
+     * @param transaction Transaction
+     * @return Signed Transaction
+     */
+    public Transaction signWithCommitteeHotKey(Transaction transaction) {
+        return TransactionSigner.INSTANCE.sign(transaction, getCommitteeHotKeyPair());
     }
 
     private void generateNew(Words noOfWords) {
@@ -467,6 +550,34 @@ public class Account {
     private HdKeyPair getDRepKeyPair() {
         HdKeyPair hdKeyPair;
         DerivationPath drepDerivationPath = DerivationPath.createDRepKeyDerivationPathForAccount(derivationPath.getAccount().getValue());
+
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, drepDerivationPath);
+        } else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, drepDerivationPath);
+        }
+
+        return hdKeyPair;
+    }
+
+    private HdKeyPair getCommitteeColdKeyPair() {
+        HdKeyPair hdKeyPair;
+        DerivationPath drepDerivationPath =
+                DerivationPath.createCommitteeColdKeyDerivationPathForAccount(derivationPath.getAccount().getValue());
+
+        if (mnemonic == null || mnemonic.trim().length() == 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, drepDerivationPath);
+        } else {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, drepDerivationPath);
+        }
+
+        return hdKeyPair;
+    }
+
+    private HdKeyPair getCommitteeHotKeyPair() {
+        HdKeyPair hdKeyPair;
+        DerivationPath drepDerivationPath =
+                DerivationPath.createCommitteeHotKeyDerivationPathForAccount(derivationPath.getAccount().getValue());
 
         if (mnemonic == null || mnemonic.trim().length() == 0) {
             hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, drepDerivationPath);
