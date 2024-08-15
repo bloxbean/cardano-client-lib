@@ -99,7 +99,7 @@ public class FeeCalculators {
                     int totalRefScriptBytes = refScripts.stream()
                             .mapToInt(byteArray -> byteArray.length)
                             .sum();
-                    refScriptFee = feeCalculationService.calculateReferenceScriptFee(totalRefScriptBytes);
+                    refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptBytes);
                 }
             }
 
