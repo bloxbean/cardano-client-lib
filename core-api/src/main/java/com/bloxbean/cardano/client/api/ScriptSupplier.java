@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.api;
 
+import com.bloxbean.cardano.client.api.model.ResultWrapper;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 
 /**
@@ -7,5 +8,5 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
  */
 @FunctionalInterface
 public interface ScriptSupplier {
-    PlutusScript getScript(String scriptHash);
+    ResultWrapper<PlutusScript> getScript(String scriptHash);
 }
