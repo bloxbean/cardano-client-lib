@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.function.helper;
 
+import com.bloxbean.cardano.client.api.ScriptSupplier;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.function.BaseTest;
 import com.bloxbean.cardano.client.account.Account;
@@ -10,10 +12,7 @@ import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
-import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
-import com.bloxbean.cardano.client.plutus.spec.ExUnits;
-import com.bloxbean.cardano.client.plutus.spec.Redeemer;
-import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
+import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.api.util.PolicyUtil;
@@ -31,6 +30,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.ONE_ADA;
@@ -45,6 +45,9 @@ class FeeCalculatorsTest extends BaseTest {
     UtxoSupplier utxoSupplier;
 
     @Mock
+    ScriptSupplier scriptSupplier;
+
+    @Mock
     FeeCalculationService feeCalculationService;
 
     ProtocolParams protocolParams;
@@ -52,9 +55,6 @@ class FeeCalculatorsTest extends BaseTest {
     @BeforeEach
     public void setup() throws IOException, ApiException {
         MockitoAnnotations.openMocks(this);
-
-        protocolParamJsonFile = "protocol-params.json";
-        protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
 
         protocolParamJsonFile = "protocol-params.json";
         protocolParams = (ProtocolParams) loadObjectFromJson("protocol-parameters", ProtocolParams.class);
@@ -360,4 +360,99 @@ class FeeCalculatorsTest extends BaseTest {
                 .isEqualTo(adaToLovelace(5).subtract(expectedFee));
     }
 
+
+    @Test
+    void feeCalculator_withRefScript() throws Exception {
+        BigInteger expectedFee = BigInteger.valueOf(18000);
+        BigInteger scriptFee = BigInteger.valueOf(1000);
+        BigInteger tierRefScriptFee = BigInteger.valueOf(5000);
+
+        given(feeCalculationService.calculateFee(any(Transaction.class))).willReturn(expectedFee);
+        given(feeCalculationService.calculateScriptFee(ArgumentMatchers.<List<ExUnits>>any())).willReturn(scriptFee);
+        given(feeCalculationService.tierRefScriptFee(any(Long.class))).willReturn(tierRefScriptFee);
+
+        given(utxoSupplier.getTxOutput("835262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0))
+                .willReturn(Optional.of(Utxo.builder()
+                        .referenceScriptHash("635262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561")
+                        .build()
+                ));
+        given(scriptSupplier.getScript("635262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561")).willReturn(
+                Optional.of(PlutusV2Script.builder()
+                        .type("PlutusScriptV2")
+                        .cborHex("4c4b0100002223300214a22941")
+                        .build()
+        ));
+
+
+        //prepare transaction
+        List<TransactionInput> inputs = List.of(
+                new TransactionInput("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0),
+                new TransactionInput("88c014d348bf1919c78a5cb87a5beed87729ff3f8a2019be040117a41a83e82e", 1)
+        );
+
+        String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+        Account account = new Account(Networks.testnet());
+        String sender = account.baseAddress();
+
+        Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("test", 1);
+        String unit = policy.getPolicyId() + HexUtil.encodeHexString("token1".getBytes(StandardCharsets.UTF_8));
+        MultiAsset ma = AssetUtil.getMultiAssetFromUnitAndAmount(unit, BigInteger.valueOf(800));
+        MultiAsset changeMa = AssetUtil.getMultiAssetFromUnitAndAmount(unit, BigInteger.valueOf(200));
+
+        List<TransactionOutput> outputs = List.of(
+                TransactionOutput.builder()
+                        .address(receiver)
+                        .value(Value.builder()
+                                .coin(ONE_ADA.multiply(BigInteger.valueOf(5)))
+                                .multiAssets(List.of(ma))
+                                .build()
+                        )
+                        .build(),
+                TransactionOutput.builder()
+                        .address(sender)
+                        .value(Value.builder()
+                                .coin(ONE_ADA.multiply(BigInteger.valueOf(3)))
+                                .multiAssets(List.of(changeMa))
+                                .build()
+                        )
+                        .build()
+        );
+
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams)
+                .setScriptSupplier(scriptSupplier);
+
+        context.setFeeCalculationService(feeCalculationService); //Mock FeeCalculationService
+
+        Transaction transaction = new Transaction();
+        TransactionBody body = TransactionBody.builder()
+                .inputs(inputs)
+                .outputs(outputs)
+                .referenceInputs(List.of(new TransactionInput("835262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0)))
+                .ttl(6500000).build();
+        transaction.setBody(body);
+        transaction.setAuxiliaryData(AuxiliaryData.builder()
+                .plutusV1Scripts(List.of())
+                .build());
+        transaction.setWitnessSet(new TransactionWitnessSet());
+        Redeemer redeemer = Redeemer.builder()
+                .index(BigInteger.ZERO)
+                .tag(RedeemerTag.Spend)
+                .data(BigIntPlutusData.of(7))
+                .exUnits(ExUnits.builder()
+                        .mem(BigInteger.valueOf(20001))
+                        .steps(BigInteger.valueOf(899))
+                        .build()
+                ).build();
+        transaction.getWitnessSet().getRedeemers().add(redeemer);
+        transaction.setValid(true);
+
+        //apply
+        TxBuilder txBuilder = FeeCalculators.feeCalculator(sender, 1);
+        txBuilder.apply(context, transaction);
+
+        //assert
+        assertThat(transaction.getBody().getFee()).isEqualTo(expectedFee.add(scriptFee).add(tierRefScriptFee));
+        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin())
+                .isEqualTo(ONE_ADA.multiply(BigInteger.valueOf(3)).subtract(expectedFee.add(scriptFee).add(tierRefScriptFee)));
+    }
 }

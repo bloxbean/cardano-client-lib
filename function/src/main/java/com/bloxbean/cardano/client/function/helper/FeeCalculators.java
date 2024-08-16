@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.util.ReferenceScriptUtil;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
@@ -93,8 +94,18 @@ public class FeeCalculators {
             BigInteger refScriptFee = BigInteger.ZERO;
             if (transaction.getBody().getReferenceInputs() != null && transaction.getBody().getReferenceInputs().size() > 0) {
                 var refScripts = context.getRefScripts();
-                if (refScripts == null && refScripts.size() == 0) {
-                    log.warn("Reference inputs found, but reference scripts are not set in the context. This may result in wrong fee calculation. Please set the reference scripts in the context");
+                if (refScripts == null || refScripts.size() == 0) {
+                    if (context.getScriptSupplier() != null) {
+                        long totalRefScriptsBytes =
+                                ReferenceScriptUtil.fetchAndCalculateReferenceScriptsSize(
+                                        context.getUtxoSupplier(),
+                                        context.getScriptSupplier(),
+                                        transaction);
+                        refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptsBytes);
+                    } else {
+                        log.debug("Script supplier is required to calculate reference script fee. " +
+                                "Alternatively, you can set reference scripts during building the transaction.");
+                    }
                 } else {
                     int totalRefScriptBytes = refScripts.stream()
                             .mapToInt(byteArray -> byteArray.length)

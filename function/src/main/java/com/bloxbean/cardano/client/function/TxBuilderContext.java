@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.ScriptSupplier;
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
@@ -33,6 +34,7 @@ import java.util.*;
 public class TxBuilderContext {
     private UtxoSupplier utxoSupplier;
     private ProtocolParams protocolParams;
+    private ScriptSupplier scriptSupplier;
     private UtxoSelectionStrategy utxoSelectionStrategy;
     private UtxoSelector utxoSelector;
     private FeeCalculationService feeCalculationService;
@@ -63,6 +65,24 @@ public class TxBuilderContext {
 
         this.feeCalculationService = new FeeCalculationServiceImpl(
                 new TransactionBuilder(utxoSupplier, () -> protocolParams));
+    }
+
+    /**
+     * Set ScriptSupplier
+     * @param scriptSupplier
+     * @return TxBuilderContext
+     */
+    public TxBuilderContext setScriptSupplier(ScriptSupplier scriptSupplier) {
+        this.scriptSupplier = scriptSupplier;
+        return this;
+    }
+
+    /**
+     * Get ScriptSupplier
+     * @return ScriptSupplier
+     */
+    public ScriptSupplier getScriptSupplier() {
+        return scriptSupplier;
     }
 
     /**
