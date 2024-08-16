@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.util;
+package com.bloxbean.cardano.client.api.model;
 
 import java.util.Optional;
 
