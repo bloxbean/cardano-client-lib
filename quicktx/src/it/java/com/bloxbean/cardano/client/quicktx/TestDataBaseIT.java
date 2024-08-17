@@ -7,16 +7,17 @@ import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.common.model.Networks;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
 public class TestDataBaseIT extends QuickTxBaseIT {
     BackendService backendService;
     UtxoSupplier utxoSupplier;
     ProtocolParamsSupplier protocolParamsSupplier;
-    Account sender1;
-    Account sender2;
-    String sender1Addr;
-    String sender2Addr;
+    static Account sender1;
+    static Account sender2;
+    static String sender1Addr;
+    static String sender2Addr;
 
     String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
     String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
@@ -24,13 +25,8 @@ public class TestDataBaseIT extends QuickTxBaseIT {
 
     QuickTxBuilder quickTxBuilder;
 
-    @BeforeEach
-    void setup() {
-        backendService = getBackendService();
-        utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
-        protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
-        quickTxBuilder = new QuickTxBuilder(backendService);
-
+    @BeforeAll
+    static void setupAll() {
         //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
         String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
         sender1 = new Account(Networks.testnet(), senderMnemonic);
@@ -40,5 +36,18 @@ public class TestDataBaseIT extends QuickTxBaseIT {
         String sender2Mnemonic = "access else envelope between rubber celery forum brief bubble notice stomach add initial avocado current net film aunt quick text joke chase robust artefact";
         sender2 = new Account(Networks.testnet(), sender2Mnemonic);
         sender2Addr = sender2.baseAddress();
+
+        if (backendType.equals(DEVKIT)) {
+            topUpFund(sender1Addr, 50000);
+            topUpFund(sender2Addr, 50000);
+        }
+    }
+
+    @BeforeEach
+    void setup() {
+        backendService = getBackendService();
+        utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+        quickTxBuilder = new QuickTxBuilder(backendService);
     }
 }
