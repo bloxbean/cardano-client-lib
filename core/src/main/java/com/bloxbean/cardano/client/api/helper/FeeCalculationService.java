@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -149,9 +150,22 @@ public interface FeeCalculationService {
     BigInteger calculateScriptFee(List<ExUnits> exUnits, ProtocolParams protocolParams);
 
     /**
-     * Calculate reference script fee
+     * Calculate reference script fee using tiered fee calculation. It uses the default values
+     * for size increment, multiplier. Minimum reference script cost per byte from protocol params.
+     *
+     * @param refScriptsSize Total reference scripts size
      * @return Estimated fee
      * @throws ApiException
      */
-    BigInteger calculateReferenceScriptFee(long totalReferenceScriptBytes) throws ApiException;
+    BigInteger tierRefScriptFee(long refScriptsSize) throws ApiException;
+
+    /**
+     * Calculate reference script fee
+     * @param multiplier Multiplier
+     * @param sizeIncrement Size increment in bytes
+     * @param minRefScriptCostPerByte Minimum reference script cost per byte
+     * @param refScriptsSize Total reference scripts size
+     * @return Tier reference script fee
+     */
+    BigInteger tierRefScriptFee(BigDecimal multiplier, int sizeIncrement, BigDecimal minRefScriptCostPerByte, long refScriptsSize);
 }

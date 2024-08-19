@@ -92,5 +92,5 @@ public class ProtocolParams {
     private BigInteger govActionDeposit;
     private BigInteger drepDeposit;
     private Integer drepActivity;
-    private Integer minFeeRefScriptCostPerByte;
+    private BigDecimal minFeeRefScriptCostPerByte;
 }

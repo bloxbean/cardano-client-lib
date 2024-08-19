@@ -1,18 +1,12 @@
 package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
-import com.bloxbean.cardano.client.api.TransactionEvaluator;
-import com.bloxbean.cardano.client.api.TransactionProcessor;
-import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.*;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
-import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
-import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.backend.api.*;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.ExcludeUtxoSelectionStrategy;
@@ -70,6 +64,8 @@ public class QuickTxBuilder {
     private TransactionProcessor transactionProcessor;
     private Consumer<Transaction> txInspector;
 
+    private ScriptSupplier backendScriptSupplier;
+
     /**
      * Create QuickTxBuilder
      *
@@ -77,10 +73,28 @@ public class QuickTxBuilder {
      * @param protocolParamsSupplier protocol params supplier
      * @param transactionProcessor   transaction processor
      */
-    public QuickTxBuilder(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier,
+    public QuickTxBuilder(UtxoSupplier utxoSupplier,
+                          ProtocolParamsSupplier protocolParamsSupplier,
                           TransactionProcessor transactionProcessor) {
         this.utxoSupplier = utxoSupplier;
         this.protocolParamsSupplier = protocolParamsSupplier;
+        this.transactionProcessor = transactionProcessor;
+    }
+
+    /**
+     * Create QuickTxBuilder
+     * @param utxoSupplier - utxo supplier to get utxos
+     * @param protocolParamsSupplier - protocol params supplier to get protocol parameters
+     * @param scriptSupplier - script supplier to get scripts
+     * @param transactionProcessor - transaction processor to submit transaction
+     */
+    public QuickTxBuilder(UtxoSupplier utxoSupplier,
+                          ProtocolParamsSupplier protocolParamsSupplier,
+                          ScriptSupplier scriptSupplier,
+                          TransactionProcessor transactionProcessor) {
+        this.utxoSupplier = utxoSupplier;
+        this.protocolParamsSupplier = protocolParamsSupplier;
+        this.backendScriptSupplier = scriptSupplier;
         this.transactionProcessor = transactionProcessor;
     }
 
@@ -92,6 +106,7 @@ public class QuickTxBuilder {
     public QuickTxBuilder(BackendService backendService) {
         this(new DefaultUtxoSupplier(backendService.getUtxoService()),
                 new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                new DefaultScriptSupplier(backendService.getScriptService()),
                 new DefaultTransactionProcessor(backendService.getTransactionService())
         );
     }
@@ -132,6 +147,7 @@ public class QuickTxBuilder {
 
         private TransactionEvaluator txnEvaluator;
         private UtxoSelectionStrategy utxoSelectionStrategy;
+        private ScriptSupplier scriptSupplier;
         private Verifier txVerifier;
 
         private List<PlutusScript> referenceScripts;
@@ -237,6 +253,9 @@ public class QuickTxBuilder {
             int totalSigners = getTotalSigners();
 
             TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier);
+            if (backendScriptSupplier != null)
+                txBuilderContext.setScriptSupplier(backendScriptSupplier);
+
             //Set merge outputs flag
             txBuilderContext.mergeOutputs(mergeOutputs);
 
@@ -249,6 +268,10 @@ public class QuickTxBuilder {
             //Set utxo selection strategy
             if (utxoSelectionStrategy != null)
                 txBuilderContext.setUtxoSelectionStrategy(utxoSelectionStrategy);
+
+            //override default script supplier
+            if (scriptSupplier != null)
+                txBuilderContext.setScriptSupplier(scriptSupplier);
 
             //If collateral inputs are set, exclude them from utxo selection
             if (collateralInputs != null && !collateralInputs.isEmpty()) {
@@ -581,6 +604,19 @@ public class QuickTxBuilder {
         public TxContext withUtxoSelectionStrategy(UtxoSelectionStrategy utxoSelectionStrategy) {
             this.utxoSelectionStrategy = utxoSelectionStrategy;
             return this;
+        }
+
+        /**
+         * Use the given {@link ScriptSupplier} to get script for the transaction
+         * For example: To calculate tier reference script fee when reference scripts are used in the transaction, script supplier can be used
+         * to get the reference scripts through the UtxoSupplier.
+         *
+         * @param scriptSupplier
+         * @return
+         */
+        public TxContext withScriptSupplier(ScriptSupplier scriptSupplier) {
+           this.scriptSupplier = scriptSupplier;
+           return this;
         }
 
         /**

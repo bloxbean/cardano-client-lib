@@ -212,20 +212,48 @@ public class FeeCalculationServiceImpl implements FeeCalculationService {
     }
 
     @Override
-    public BigInteger calculateReferenceScriptFee(long totalReferenceScriptBytes) throws ApiException {
+    public BigInteger tierRefScriptFee(long refScriptsSize) throws ApiException {
         var protocolParams = protocolParamsSupplier.getProtocolParams();
         if(protocolParams == null)
             throw new ApiException("Unable to fetch protocol parameters to calculate the fee");
 
-        Integer minFeeRefScriptCostPerByte;
+        BigDecimal minFeeRefScriptCostPerByte;
         if (protocolParams.getMinFeeRefScriptCostPerByte() != null) {
             minFeeRefScriptCostPerByte = protocolParams.getMinFeeRefScriptCostPerByte();
         } else {
-            minFeeRefScriptCostPerByte = protocolParams.getMinFeeA();
-            log.warn("minFeeRefScriptCostPerByte is not set in protocol parameters. Defaulting to minFeeA value. This may result in wrong fee calculation. Please set the minFeeRefScriptCostPerByte in the protocol parameters.");
+            minFeeRefScriptCostPerByte = BigDecimal.ZERO;
+            log.warn("No minFeeRefScriptCostPerByte found in protocol parameters. Using 0 as default value.");
         }
 
-        return BigInteger.valueOf(minFeeRefScriptCostPerByte * totalReferenceScriptBytes);
+        //https://github.com/IntersectMBO/cardano-ledger/blob/e77d4032a0b305baeabd5997df977ae579b2316e/eras/conway/impl/src/Cardano/Ledger/Conway/Tx.hs#L98
+        BigDecimal multiplier = BigDecimal.valueOf(1.2);
+        int sizeIncrement = 25_600; // 25KiB
+
+        return tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+    }
+
+    public BigInteger tierRefScriptFee(BigDecimal multiplier, int sizeIncrement, BigDecimal minRefScriptCostPerByte, long refScriptsSize) {
+        if (multiplier.compareTo(BigDecimal.ZERO) <= 0 || sizeIncrement <= 0) {
+            throw new IllegalArgumentException("Size increment and multiplier must be positive");
+        }
+
+        BigDecimal acc = BigDecimal.ZERO;
+        BigDecimal curTierPrice = minRefScriptCostPerByte;
+        long remainingSize = refScriptsSize;
+
+        while (remainingSize > 0) {
+            if (remainingSize < sizeIncrement) {
+                acc = acc.add(curTierPrice.multiply(BigDecimal.valueOf(remainingSize)));
+                remainingSize = 0;
+            } else {
+                acc = acc.add(curTierPrice.multiply(BigDecimal.valueOf(sizeIncrement)));
+                curTierPrice = curTierPrice.multiply(multiplier);
+                remainingSize -= sizeIncrement;
+            }
+        }
+
+        // Convert accumulated fee to BigInteger
+        return acc.setScale(0, RoundingMode.DOWN).toBigInteger();
     }
 
     private BigInteger doFeeCalculationFromTxnSize(byte[] bytes, ProtocolParams protocolParams) {

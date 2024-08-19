@@ -666,7 +666,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                 if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
                     redeemer.setIndex(scriptInputIndex);
                 }
-                log.info("Sorting done for redeemer : " + redeemer);
+                log.debug("Sorting done for redeemer : " + redeemer);
             } else
                 log.warn("No utxo found for redeemer. Something went wrong." + redeemer);
         }
