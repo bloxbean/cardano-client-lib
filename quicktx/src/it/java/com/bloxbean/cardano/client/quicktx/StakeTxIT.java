@@ -43,37 +43,31 @@ public class StakeTxIT extends QuickTxBaseIT {
     BackendService backendService;
     UtxoSupplier utxoSupplier;
     ProtocolParamsSupplier protocolParamsSupplier;
-    Account sender1;
-    Account sender2;
+    static Account sender1;
+    static Account sender2;
 
-    String sender1Addr;
-    String sender2Addr;
+    static String sender1Addr;
+    static String sender2Addr;
 
-    String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
-    String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+    static String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
+    static String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
-    String poolId;
+    static String poolId;
 
-    String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-    PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
+    static String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+    static PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
 
-    String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-    PlutusScript plutusScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
+    static String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+    static PlutusScript plutusScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
 
-    String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
-    String scriptStakeAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
-
+    static String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
+    static String scriptStakeAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
 
     QuickTxBuilder quickTxBuilder;
     ObjectMapper objectMapper = new ObjectMapper();
 
-    @BeforeEach
-    void setup() {
-        backendService = getBackendService();
-        utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
-        protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
-        quickTxBuilder = new QuickTxBuilder(backendService);
-
+    @BeforeAll
+    static void setupAll() {
         //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
         String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
         sender1 = new Account(Networks.testnet(), senderMnemonic);
@@ -89,6 +83,19 @@ public class StakeTxIT extends QuickTxBaseIT {
         } else {
             poolId = "pool1vqq4hdwrh442u97e2jh6k4xuscs3x5mqjjrn8daj36y7gt2rj85";
         }
+
+        if (backendType.equals(DEVKIT)) {
+            topUpFund(sender1Addr, 50000);
+            topUpFund(sender2Addr, 50000);
+        }
+    }
+
+    @BeforeEach
+    void setup() {
+        backendService = getBackendService();
+        utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+        quickTxBuilder = new QuickTxBuilder(backendService);
     }
 
     @Test

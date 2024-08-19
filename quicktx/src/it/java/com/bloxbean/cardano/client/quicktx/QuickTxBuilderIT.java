@@ -27,6 +27,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -43,22 +44,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class QuickTxBuilderIT extends QuickTxBaseIT {
     BackendService backendService;
-    Account sender1;
-    Account sender2;
+    static Account sender1;
+    static Account sender2;
 
-    String sender1Addr;
-    String sender2Addr;
+    static String sender1Addr;
+    static String sender2Addr;
 
-    String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
-    String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
-    String receiver3 = "addr_test1qqqvjp4ffcdqg3fmx0k8rwamnn06wp8e575zcv8d0m3tjn2mmexsnkxp7az774522ce4h3qs4tjp9rxjjm46qf339d9sk33rqn";
+    static String receiver1 = "addr_test1qz3s0c370u8zzqn302nppuxl840gm6qdmjwqnxmqxme657ze964mar2m3r5jjv4qrsf62yduqns0tsw0hvzwar07qasqeamp0c";
+    static String receiver2 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
+    static String receiver3 = "addr_test1qqqvjp4ffcdqg3fmx0k8rwamnn06wp8e575zcv8d0m3tjn2mmexsnkxp7az774522ce4h3qs4tjp9rxjjm46qf339d9sk33rqn";
 
     QuickTxBuilder quickTxBuilder;
 
-    @BeforeEach
-    void setup() {
-        backendService = getBackendService();
-        quickTxBuilder = new QuickTxBuilder(backendService);
+    @BeforeAll
+    static void setupAll() {
+        //Set the backend type
+        backendType = DEVKIT;
 
         //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
         String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
@@ -69,6 +70,17 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         String sender2Mnemonic = "access else envelope between rubber celery forum brief bubble notice stomach add initial avocado current net film aunt quick text joke chase robust artefact";
         sender2 = new Account(Networks.testnet(), sender2Mnemonic);
         sender2Addr = sender2.baseAddress();
+
+        if (backendType.equals(DEVKIT)) {
+            topUpFund(sender1Addr, 50000);
+            topUpFund(sender2Addr, 50000);
+        }
+    }
+
+    @BeforeEach
+    void setup() {
+        backendService = getBackendService();
+        quickTxBuilder = new QuickTxBuilder(backendService);
     }
 
     @Test
@@ -868,6 +880,38 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         System.out.println(result);
         assertTrue(result.isSuccessful());
         checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void donateToTreasury() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .donateToTreasury(BigInteger.ZERO, adaToLovelace(2))
+                .attachMetadata(MessageMetadata.create().add("This is a treasury donation message"))
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(System.out::println);
+
+        assertThat(result.isSuccessful()).isTrue();
+    }
+
+    @Test
+    void donate_withOtherPayment() {
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .donateToTreasury(BigInteger.ZERO, adaToLovelace(3.5))
+                .payToAddress(receiver1, Amount.ada(1.5))
+                .payToAddress(receiver2, Amount.ada(2.5))
+                .attachMetadata(MessageMetadata.create().add("This is a treasury donation message"))
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(System.out::println);
+
+        assertThat(result.isSuccessful()).isTrue();
     }
 
 }
