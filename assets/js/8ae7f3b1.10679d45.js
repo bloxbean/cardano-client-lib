@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[212],{8429:e=>{e.exports=JSON.parse('{"title":"Guides","slug":"/category/guides","permalink":"/docs/category/guides","navigation":{"previous":{"title":"Scalus Integration","permalink":"/docs/integrations/scalus-integration-api"},"next":{"title":"NFT Minting","permalink":"/docs/guides/nft-minting"}}}')}}]);

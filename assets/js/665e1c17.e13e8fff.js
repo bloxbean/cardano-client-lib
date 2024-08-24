@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[549],{2718:e=>{e.exports=JSON.parse('{"title":"Annotations","slug":"/category/annotations","permalink":"/docs/category/annotations","navigation":{"previous":{"title":"Governance Api","permalink":"/docs/apis/governance-api"},"next":{"title":"Dependencies","permalink":"/docs/annotations/dependencies"}}}')}}]);
