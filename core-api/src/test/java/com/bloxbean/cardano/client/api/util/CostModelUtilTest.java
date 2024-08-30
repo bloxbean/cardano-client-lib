@@ -59,4 +59,11 @@ class CostModelUtilTest {
 
         assertThat(v2CostModel).isEmpty();
     }
+
+    @Test
+    void getDefaultCostModels() {
+        assertThat(CostModelUtil.PlutusV1CostModel.getCosts()).hasSize(166);
+        assertThat(CostModelUtil.PlutusV2CostModel.getCosts()).hasSize(175);
+        assertThat(CostModelUtil.PlutusV3CostModel.getCosts()).hasSize(251);
+    }
 }
