@@ -87,6 +87,13 @@ public interface BackendService {
     ScriptService getScriptService();
 
     /**
+     * Get GovernanceService
+     *
+     * @return {@link GovernanceService}
+     */
+    GovernanceService getGovernanceService();
+
+    /**
      * Get TransactionHelperService
      *
      * @return {@link TransactionHelperService}

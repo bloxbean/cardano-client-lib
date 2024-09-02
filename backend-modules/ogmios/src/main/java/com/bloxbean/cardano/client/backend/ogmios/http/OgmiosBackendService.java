@@ -65,4 +65,9 @@ public class OgmiosBackendService implements BackendService {
     public ScriptService getScriptService() {
         throw new UnsupportedOperationException("Not supported yet");
     }
+
+    @Override
+    public GovernanceService getGovernanceService() {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
 }
