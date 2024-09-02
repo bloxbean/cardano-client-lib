@@ -86,4 +86,9 @@ public class KoiosBackendService implements BackendService {
     public ScriptService getScriptService() {
         return new KoiosScriptService(backendServiceImpl.getScriptService(), backendServiceImpl.getTransactionsService());
     }
+
+    @Override
+    public GovernanceService getGovernanceService() {
+        return new KoiosGovernanceService(backendServiceImpl.getGovernanceService());
+    }
 }

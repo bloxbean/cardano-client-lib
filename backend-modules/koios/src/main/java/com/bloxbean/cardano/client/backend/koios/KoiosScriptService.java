@@ -8,7 +8,6 @@ import com.bloxbean.cardano.client.util.StringUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import rest.koios.client.backend.api.script.ScriptService;
 import rest.koios.client.backend.api.script.model.DatumInfo;
-import rest.koios.client.backend.api.script.model.NativeScript;
 import rest.koios.client.backend.api.script.model.PlutusScript;
 import rest.koios.client.backend.api.script.model.ScriptInfo;
 import rest.koios.client.backend.api.transactions.TransactionsService;

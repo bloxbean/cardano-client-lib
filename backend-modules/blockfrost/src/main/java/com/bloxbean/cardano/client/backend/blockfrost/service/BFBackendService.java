@@ -62,4 +62,9 @@ public class BFBackendService extends BFBaseService implements BackendService {
     public ScriptService getScriptService() {
         return new BFScriptService(getBaseUrl(), getProjectId());
     }
+
+    @Override
+    public GovernanceService getGovernanceService() {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
 }

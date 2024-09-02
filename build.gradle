@@ -13,7 +13,6 @@ dependencies {
     api project(':function')
     api project(':cip')
     api project(':quicktx')
-
 }
 
 compileJava {
