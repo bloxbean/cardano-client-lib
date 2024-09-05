@@ -40,4 +40,9 @@ public class PlutusV1Script extends PlutusScript {
     public int getScriptType() {
         return 1;
     }
+
+    @Override
+    public Language getLanguage() {
+        return Language.PLUTUS_V1;
+    }
 }
