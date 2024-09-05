@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.plutus.spec.CostModel;
 import com.bloxbean.cardano.client.plutus.spec.Language;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -655,19 +656,20 @@ public class CostModelUtil {
         if (protocolParams.getCostModels() == null)
             return Optional.empty();
 
-        Map<String, Map<String, Long>> costModels = protocolParams.getCostModels();
-        Map<String, Long> costModelMap = costModels.get(languageKey);
+        LinkedHashMap<String, LinkedHashMap<String, Long>> costModels = protocolParams.getCostModels();
+        LinkedHashMap<String, Long> costModelMap = costModels.get(languageKey);
         if (costModelMap == null)
             return Optional.empty();
 
         boolean sortByAsIntegerKey = costModelMap.containsKey("0") && costModelMap.containsKey("1");
         Stream<Map.Entry<String, Long>> sortedStream;
         if (sortByAsIntegerKey) {
+            //Just to make sure the cost model sequence is correct, we sort by key if it is integer
             sortedStream = costModelMap.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey(Comparator.comparing(Integer::valueOf)));
         } else {
-            sortedStream = costModelMap.entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey());
+            //This should be already sorted, so no need to sort
+            sortedStream = costModelMap.entrySet().stream();
         }
 
         long[] costModel = sortedStream
