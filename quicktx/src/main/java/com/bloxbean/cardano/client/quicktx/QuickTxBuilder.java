@@ -17,6 +17,7 @@ import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
+import com.bloxbean.cardano.client.function.helper.ReferenceScriptResolver;
 import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
@@ -99,16 +100,20 @@ public class QuickTxBuilder {
     }
 
     /**
-     * Create QuickTxBuilder with backend service
+     * Create QuickTxBuilder from BackendService
      *
-     * @param backendService backend service
+     * @param backendService
      */
     public QuickTxBuilder(BackendService backendService) {
-        this(new DefaultUtxoSupplier(backendService.getUtxoService()),
-                new DefaultProtocolParamsSupplier(backendService.getEpochService()),
-                new DefaultScriptSupplier(backendService.getScriptService()),
-                new DefaultTransactionProcessor(backendService.getTransactionService())
-        );
+        this.utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        this.protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+        this.transactionProcessor = new DefaultTransactionProcessor(backendService.getTransactionService());
+
+        try {
+            this.backendScriptSupplier = new DefaultScriptSupplier(backendService.getScriptService());
+        } catch (UnsupportedOperationException e) {
+            //Not supported
+        }
     }
 
     /**
@@ -285,10 +290,9 @@ public class QuickTxBuilder {
                 txBuilder = txBuilder.andThen(addRequiredSignersBuilder());
             }
 
+            //set reference scripts if set
             if (referenceScripts != null && !referenceScripts.isEmpty()) {
-                txBuilder = txBuilder.andThen((context, transaction) -> {
-                    referenceScripts.forEach(script -> context.addRefScripts(script));
-                });
+                referenceScripts.forEach(script -> txBuilderContext.addRefScripts(script));
             }
 
             if (preBalanceTrasformer != null)
@@ -314,6 +318,11 @@ public class QuickTxBuilder {
             }
 
             if (containsScriptTx) {
+                //Resolve any reference scripts if any
+                if (referenceScripts == null || referenceScripts.isEmpty()) { //Resolve only if not set explicitly
+                    txBuilder = txBuilder.andThen(ReferenceScriptResolver.resolveReferenceScript());
+                }
+
                 txBuilder = txBuilder.andThen(((context, transaction) -> {
                     boolean negativeAmt = transaction.getBody().getOutputs()
                             .stream()
