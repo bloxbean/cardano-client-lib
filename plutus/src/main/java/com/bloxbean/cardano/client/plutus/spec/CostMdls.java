@@ -7,13 +7,13 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 public class CostMdls {
     private java.util.Map<Language, CostModel> costMdlsMap;
 
     public CostMdls() {
-        costMdlsMap = new HashMap<>();
+        costMdlsMap = new LinkedHashMap<>();
     }
 
     public void add(CostModel costModel) {
