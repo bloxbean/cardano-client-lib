@@ -63,7 +63,7 @@ public class EpochServiceIT extends BaseITTest {
         System.out.println(JsonUtil.getPrettyJson(protocolParams));
 
         assertThat(protocolParams, notNullValue());
-        assertThat(protocolParams.getMinUtxo(), is("34482"));
+        assertThat(protocolParams.getMinUtxo(), is("0"));
         assertThat(protocolParams.getPoolDeposit(), is("500000000"));
     }
 

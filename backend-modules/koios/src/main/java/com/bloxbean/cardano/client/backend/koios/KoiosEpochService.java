@@ -14,6 +14,7 @@ import rest.koios.client.backend.api.epoch.model.EpochInfo;
 import rest.koios.client.backend.api.epoch.model.EpochParams;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -178,6 +179,42 @@ public class KoiosEpochService implements EpochService {
         if (epochParams.getCoinsPerUtxoSize() != null) {
             protocolParams.setCoinsPerUtxoSize(epochParams.getCoinsPerUtxoSize());
         }
+        if (epochParams.getDvtPPNetworkGroup() != null) {
+            protocolParams.setDvtPPNetworkGroup(epochParams.getDvtPPNetworkGroup());
+        }
+        if (epochParams.getDvtPPEconomicGroup() != null) {
+            protocolParams.setDvtPPEconomicGroup(epochParams.getDvtPPEconomicGroup());
+        }
+        if (epochParams.getDvtPPTechnicalGroup() != null) {
+            protocolParams.setDvtPPTechnicalGroup(epochParams.getDvtPPTechnicalGroup());
+        }
+        if (epochParams.getDvtPPGovGroup() != null) {
+            protocolParams.setDvtPPGovGroup(epochParams.getDvtPPGovGroup());
+        }
+        if (epochParams.getDvtTreasuryWithdrawal() != null) {
+            protocolParams.setDvtTreasuryWithdrawal(epochParams.getDvtTreasuryWithdrawal());
+        }
+        if (epochParams.getCommitteeMinSize() != null) {
+            protocolParams.setCommitteeMinSize(epochParams.getCommitteeMinSize());
+        }
+        if (epochParams.getCommitteeMaxTermLength() != null) {
+            protocolParams.setCommitteeMaxTermLength(epochParams.getCommitteeMaxTermLength());
+        }
+        if (epochParams.getGovActionLifetime() != null) {
+            protocolParams.setGovActionLifetime(epochParams.getGovActionLifetime());
+        }
+        if (epochParams.getGovActionDeposit() != null) {
+            protocolParams.setGovActionDeposit(new BigInteger(epochParams.getGovActionDeposit()));
+        }
+        if (epochParams.getDrepDeposit() != null) {
+            protocolParams.setDrepDeposit(new BigInteger(epochParams.getDrepDeposit()));
+        }
+        if (epochParams.getDrepActivity() != null) {
+            protocolParams.setDrepActivity(epochParams.getDrepActivity());
+        }
+        if (epochParams.getMinFeeRefScriptCostPerByte() != null) {
+            protocolParams.setMinFeeRefScriptCostPerByte(epochParams.getMinFeeRefScriptCostPerByte());
+        }
         return Result.success("OK").withValue(protocolParams).code(200);
     }
 
@@ -197,6 +234,8 @@ public class KoiosEpochService implements EpochService {
             Map<String, Long> plutusV1CostModelsMap = new HashMap<>();
             final AtomicInteger plutusV2IndexHolder = new AtomicInteger();
             Map<String, Long> plutusV2CostModelsMap = new HashMap<>();
+            final AtomicInteger plutusV3IndexHolder = new AtomicInteger();
+            Map<String, Long> plutusV3CostModelsMap = new HashMap<>();
             result.forEach((key, value) -> {
                 if (key.equals("PlutusV1")) {
                     value.forEach(aLong -> {
@@ -211,6 +250,13 @@ public class KoiosEpochService implements EpochService {
                     });
                     res.put(key, plutusV2CostModelsMap);
                 }
+//                else if (key.equals("PlutusV3")) {
+//                    value.forEach(aLong -> {
+//                        final int index = plutusV3IndexHolder.getAndIncrement();
+//                        plutusV3CostModelsMap.put(PlutusOps.getOperations(3).get(index), aLong);
+//                    });
+//                    res.put(key, plutusV3CostModelsMap);
+//                } TODO Uncomment after adding V3_OPS
             });
         } catch (JsonProcessingException ignored) {}
         return res;

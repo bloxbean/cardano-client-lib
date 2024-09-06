@@ -10,11 +10,12 @@ import java.util.SortedMap;
 import java.util.stream.Collectors;
 
 public class PlutusOps {
-    private static ObjectMapper objectMapper = new ObjectMapper();
+
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     private static List<String> V1_OPS;
     private static List<String> V2_OPS;
 
-    private static String PLUTUS_V1_COSTS = "{\n" +
+    private static final String PLUTUS_V1_COSTS = "{\n" +
             "                        \"addInteger-cpu-arguments-intercept\": 205665,\n" +
             "                        \"addInteger-cpu-arguments-slope\": 812,\n" +
             "                        \"addInteger-memory-arguments-intercept\": 1,\n" +
@@ -183,7 +184,7 @@ public class PlutusOps {
             "                        \"verifyEd25519Signature-memory-arguments\": 10\n" +
             "                    }";
 
-    private static String PLUTUS_V2_COSTS = " {\n" +
+    private static final String PLUTUS_V2_COSTS = " {\n" +
             "                                    \"addInteger-cpu-arguments-intercept\": 205665,\n" +
             "                                    \"addInteger-cpu-arguments-slope\": 812,\n" +
             "                                    \"addInteger-memory-arguments-intercept\": 1,\n" +
