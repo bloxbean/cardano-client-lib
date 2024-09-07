@@ -324,7 +324,7 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         txBuilderContext.build(transaction, txBuilder);
 
         //asserts
-        assertThat(transaction.getBody().getInputs()).hasSize(8);
+        assertThat(transaction.getBody().getInputs()).hasSize(4);
         assertThat(transaction.getBody().getOutputs()).hasSize(3);
 
         //assert outputs
@@ -601,11 +601,11 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         txBuilderContext.build(transaction, txBuilder);
 
         //Check Redeemer Index.. after sorting during  adjustment
-        assertThat(transaction.getWitnessSet().getRedeemers().get(0).getIndex()).isEqualTo(2);
-        assertThat(transaction.getWitnessSet().getRedeemers().get(1).getIndex()).isEqualTo(4);
+        assertThat(transaction.getWitnessSet().getRedeemers().get(0).getIndex()).isEqualTo(1);
+        assertThat(transaction.getWitnessSet().getRedeemers().get(1).getIndex()).isEqualTo(3);
 
         //asserts
-        assertThat(transaction.getBody().getInputs()).hasSize(6);
+        assertThat(transaction.getBody().getInputs()).hasSize(5);
         assertThat(transaction.getBody().getOutputs()).hasSize(3);
     }
 

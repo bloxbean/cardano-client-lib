@@ -165,8 +165,10 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setPlutusDataList(Arrays.asList(plutusData));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV1CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelUtil.getLanguageViewsEncoding(PlutusV1CostModel));
+                Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         CBORMetadata cborMetadata = new CBORMetadata();
@@ -306,8 +308,11 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setPlutusDataList(Arrays.asList(plutusData));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV1CostModel);
+
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelUtil.getLanguageViewsEncoding(PlutusV1CostModel));
+                Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -434,8 +439,10 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setPlutusDataList(Arrays.asList(plutusData));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV1CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelUtil.getLanguageViewsEncoding(PlutusV1CostModel));
+                Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -569,8 +576,10 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setPlutusDataList(Arrays.asList(plutusData));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV1CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelUtil.getLanguageViewsEncoding(PlutusV1CostModel));
+                Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -702,8 +711,10 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setPlutusDataList(Arrays.asList(plutusData));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV1CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelUtil.getLanguageViewsEncoding(PlutusV1CostModel));
+                Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -833,8 +844,10 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setPlutusDataList(Arrays.asList(plutusData));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV1CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelUtil.getLanguageViewsEncoding(PlutusV1CostModel));
+                Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -964,8 +977,10 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setPlutusDataList(Arrays.asList(plutusData));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV1CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Arrays.asList(plutusData), CostModelUtil.getLanguageViewsEncoding(PlutusV1CostModel));
+                Arrays.asList(plutusData),  costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()
@@ -1117,8 +1132,10 @@ public class ContractTransactionIT extends BaseITTest {
         transactionWitnessSet.setPlutusV1Scripts(Arrays.asList(plutusScript));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV1CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Collections.emptyList(), CostModelUtil.getLanguageViewsEncoding(PlutusV1CostModel));
+                Collections.emptyList(), costMdls);
 
         body.setScriptDataHash(scriptDataHash);
 

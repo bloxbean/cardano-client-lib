@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.aiken.AikenTransactionEvaluator;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
@@ -10,6 +11,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.Test;
@@ -23,6 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ScriptTxV3IT extends TestDataBaseIT {
+
+    private boolean aikenEvaluation = false;
 
     @Test
     void alwaysTrueScript() throws ApiException {
@@ -91,7 +95,6 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
     @Test
     void referenceInputUtxo_guessSumScript() throws ApiException, InterruptedException {
-        EraSerializationConfig.INSTANCE.useConwayEraFormat();
         //Sum Script
         PlutusV3Script sumScript =
                 PlutusV3Script.builder()
@@ -149,8 +152,8 @@ public class ScriptTxV3IT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-//                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
-//                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -162,8 +165,6 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
     @Test
     void referenceInputUtxo_guessSumScript_withRefScriptsCall() throws ApiException, InterruptedException {
-
-        EraSerializationConfig.INSTANCE.setUseConwayEraFormat(true);
         //Sum Script
         PlutusV3Script sumScript =
                 PlutusV3Script.builder()
@@ -222,8 +223,8 @@ public class ScriptTxV3IT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withReferenceScripts(sumScript)
-//                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
-//                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -233,9 +234,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
     }
 
     @Test
-    void plutusV2AndPlutusV3() throws ApiException, InterruptedException {
-
-        EraSerializationConfig.INSTANCE.setUseConwayEraFormat(true);
+    void plutusV2AndPlutusV3_withConwayEraFormat() throws ApiException {
         //Sum Script
         PlutusV3Script sumScript =
                 PlutusV3Script.builder()

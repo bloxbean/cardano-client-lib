@@ -10,6 +10,8 @@ import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -269,6 +271,7 @@ public class AccountTest {
 
     @Test
     void testSign() throws CborSerializationException {
+        EraSerializationConfig.INSTANCE.setEra(Era.Babbage);
         TransactionBody txnBody = new TransactionBody();
 
         TransactionInput txnInput = new TransactionInput();

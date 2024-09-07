@@ -13,6 +13,8 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
@@ -930,6 +932,7 @@ public class CBORSerializationTest {
 
         @Test
         void testCompatibilityWithNamiWitness() throws Exception {
+            EraSerializationConfig.INSTANCE.setEra(Era.Babbage);
             String namiTxnHex = "84a300838258206deb8993fa4b541892b5b698fef4fbb9ea73265395b5837fe45581b37efb3b7a01825820297b1e742de3e7dd5f013424f5ff62d82fdf65f9d7194de1eff286a8232a196c00825820538586beedfbac419ca3a5983c0efa3f486ffddbebf053824abc778a55c06078000182825839005a512f32ebdd33cbb6525d9fe041b0044ecbb24dec402b5c2c8bf98a1bfb8f3e334b0d42cf6f28e536bcb3151d64484c5c78d47d849d4291821a0014851ea1581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da143434144194da8825839003175d03902583e82037438cc86732f6e539f803f9a8b2d4ee164b9d0c77e617030631811f60a1f8a8be26d65a57ff71825b336cc6b76361d821a003040c9a3581c0f39b76d79c90289b42af0a4759f04c2cb0adcc42ae19787ff8084eea14541444d494e01581c869708e97e418f1422e22f8b026559a565aab320184fdd98efff4f4ca14a2142466426544d6d704001581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da14343414414021a0002c8d5a0f5f6";
             String namiWitness = "a10081825820a5f73966e73d0bb9eadc75c5857eafd054a0202d716ac6dde00303ee9c0019e358402bfb7ba45583f5826e02d1cee544ab37398a72c0db5e01048f88ebd7c97deff7b49492be0f0edabebe67b14cb8b12a3e68c42cbb0b4970ec2e60919c3a5b6b02";
             String namiMnemonic = "round stomach concert dizzy pluck express inject seminar satoshi vote essence artist pink awful bubble frog bullet horror spoil risk false dolphin limit sock";
