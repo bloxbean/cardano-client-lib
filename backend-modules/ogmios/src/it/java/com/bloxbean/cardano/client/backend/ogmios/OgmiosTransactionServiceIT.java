@@ -18,7 +18,6 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.ScriptTx;
 import com.bloxbean.cardano.client.quicktx.Tx;
-import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,7 +73,6 @@ public class OgmiosTransactionServiceIT extends OgmiosBaseTest {
 
     @Test
     void referenceInputUtxo_guessSumScript() throws ApiException, InterruptedException {
-        EraSerializationConfig.INSTANCE.useConwayEraFormat();
         //Sum Script
         PlutusV3Script sumScript =
                 PlutusV3Script.builder()

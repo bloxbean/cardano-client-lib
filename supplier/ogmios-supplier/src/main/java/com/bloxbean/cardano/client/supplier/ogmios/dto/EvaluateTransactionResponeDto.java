@@ -34,6 +34,12 @@ public class EvaluateTransactionResponeDto {
             case "withdraw":
                 redeemerTag = RedeemerTag.Reward;
                 break;
+            case "vote":
+                redeemerTag = RedeemerTag.Voting;
+                break;
+            case "propose":
+                redeemerTag = RedeemerTag.Proposing;
+                break;
             default:
                 throw new IllegalStateException("Unexpected purpose value: " + validator.getPurpose());
         }
