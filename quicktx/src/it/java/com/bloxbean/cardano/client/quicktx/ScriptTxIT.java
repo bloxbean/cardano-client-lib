@@ -102,6 +102,7 @@ public class ScriptTxIT extends TestDataBaseIT {
 
     @Test
     void alwaysTrueScript_plutusV1_referenceInput() throws ApiException {
+        var defaultEra = EraSerializationConfig.INSTANCE.getEra();
         EraSerializationConfig.INSTANCE.setEra(Era.Babbage);
         PlutusV1Script plutusScript = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
@@ -157,6 +158,8 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
                 .getValue().getJsonValue().get("int").asInt();
         assertThat(randInt).isEqualTo(gottenValue);
+
+        EraSerializationConfig.INSTANCE.setEra(defaultEra);
     }
 
     @Test
