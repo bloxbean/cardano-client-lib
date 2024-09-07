@@ -7,13 +7,13 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 
-import java.util.LinkedHashMap;
+import java.util.TreeMap;
 
 public class CostMdls {
     private java.util.Map<Language, CostModel> costMdlsMap;
 
     public CostMdls() {
-        costMdlsMap = new LinkedHashMap<>();
+        costMdlsMap = new TreeMap<>();
     }
 
     public void add(CostModel costModel) {
@@ -26,7 +26,7 @@ public class CostMdls {
 
     public byte[] getLanguageViewEncoding() {
         try {
-            Map cborMap = serialize();
+            Map cborMap = serializeLanguageView();
 
             return CborSerializationUtil.serialize(cborMap);
         } catch (Exception ex) {
@@ -42,17 +42,28 @@ public class CostMdls {
         Map cborMap = new Map();
         try {
             for (java.util.Map.Entry<Language, CostModel> entry : costMdlsMap.entrySet()) {
+                CostModel costModel = entry.getValue();
+                serializeV2(cborMap, costModel);
+            }
+        } catch (Exception e) {
+            throw new CborSerializationException("Costmdls serialization error", e);
+        }
+        return cborMap;
+    }
+
+    //This serialization is used for language view
+    private Map serializeLanguageView() throws CborSerializationException {
+        Map cborMap = new Map();
+        try {
+            for (java.util.Map.Entry<Language, CostModel> entry : costMdlsMap.entrySet()) {
                 Language language = entry.getKey();
                 CostModel costModel = entry.getValue();
 
                 if (language == Language.PLUTUS_V1) {
                     serializeV1(cborMap, costModel);
-                } else if (language == Language.PLUTUS_V2) {
-                    serializeV2(cborMap, costModel);
-                } else if (language == Language.PLUTUS_V3) {
-                    serializeV2(cborMap, costModel);
-                } else
-                    throw new CborSerializationException("Invalid language : " + language);
+                } else {
+                    serializeV2(cborMap, costModel); //Plutus V2 and V3
+                }
             }
         } catch (Exception e) {
             throw new CborSerializationException("Costmdls serialization error", e);
@@ -73,6 +84,7 @@ public class CostMdls {
         cborMap.put(key, valueArr);
     }
 
+    //This is an old format of serialization. This is not used anymore. But kept for information only.
     private void serializeV1(Map cborMap, CostModel costModel) throws CborException {
         // For PlutusV1 (language id 0), the language view is the following:
         //   * the value of costmdls map at key 0 is encoded as an indefinite length
@@ -96,7 +108,6 @@ public class CostMdls {
         cborMap.put(keyByteStr, valueBS);
     }
 
-    //Only handles deserialization according to Babbage Era
     public static CostMdls deserialize(DataItem di) throws CborDeserializationException {
         Map map = (Map)di;
 
@@ -104,20 +115,26 @@ public class CostMdls {
         for (DataItem key: map.getKeys()) {
             Array costModelArr;
             int langKey;
+            int size;
             if (key.getMajorType() == MajorType.BYTE_STRING ) { //Looks like Plutus V1 old format. Plz refer to serializationV1 method
                 UnsignedInteger intKey = (UnsignedInteger) CborSerializationUtil.deserialize(((ByteString)key).getBytes());
                 langKey = intKey.getValue().intValue();
                 ByteString valueBS = (ByteString) map.get(key);
                 costModelArr = (Array) CborSerializationUtil.deserialize(valueBS.getBytes());
+                size = costModelArr.getDataItems().size() - 1; //Remove the BREAK
             } else {
                 langKey = ((UnsignedInteger)key).getValue().intValue();
                 costModelArr = (Array) map.get(key);
+                size = costModelArr.getDataItems().size();
             }
 
-            long[] costs = new long[costModelArr.getDataItems().size()];
+            long[] costs = new long[size];
             int index = 0;
             //iterate to build costmodel arr
             for (DataItem costItem: costModelArr.getDataItems()) {
+                if (costItem == Special.BREAK)
+                    continue;
+
                 long cost = 0;
                 if (costItem instanceof UnsignedInteger) {
                     cost = ((UnsignedInteger)costItem).getValue().longValue();
@@ -132,6 +149,8 @@ public class CostMdls {
                 language = Language.PLUTUS_V1;
             else if (langKey == 1)
                 language = Language.PLUTUS_V2;
+            else if (langKey == 2)
+                language = Language.PLUTUS_V3;
             else
                 throw new CborDeserializationException("De-serialization failed. Invalid language key : " + langKey);
 
