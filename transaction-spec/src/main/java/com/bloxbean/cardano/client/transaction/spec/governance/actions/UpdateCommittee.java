@@ -11,6 +11,7 @@ import java.util.*;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
 
 /**
  * {@literal
@@ -48,7 +49,7 @@ public class UpdateCommittee implements GovAction {
         else
             array.add(SimpleValue.NULL);
 
-        Array membersForRemovalArray = new Array();
+        Array membersForRemovalArray = createArray();
         for (Credential member: membersForRemoval) {
             membersForRemovalArray.add(CredentialSerializer.serialize(member));
         }

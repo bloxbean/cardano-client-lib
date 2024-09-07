@@ -3,16 +3,18 @@ package com.bloxbean.cardano.client.spec;
 public enum EraSerializationConfig {
     INSTANCE();
 
-    private boolean useConwayEraFormat = false;
+    private Era era;
 
     EraSerializationConfig() {
+        this.era = Era.Conway;
     }
 
-    public boolean useConwayEraFormat() {
-        return useConwayEraFormat;
+    public void setEra(Era era) {
+        this.era = era;
     }
 
-    public void setUseConwayEraFormat(boolean useConwayEraFormat) {
-        this.useConwayEraFormat = useConwayEraFormat;
+    public Era getEra() {
+        return era;
     }
+
 }

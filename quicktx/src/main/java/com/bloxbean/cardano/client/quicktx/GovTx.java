@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.transaction.spec.cert.*;
 import com.bloxbean.cardano.client.transaction.spec.governance.*;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
+import com.bloxbean.cardano.client.transaction.util.UniqueList;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -465,7 +466,7 @@ public class GovTx {
 
             var proposalProcedures = txn.getBody().getProposalProcedures();
             if (proposalProcedures == null) {
-                proposalProcedures = new ArrayList<>();
+                proposalProcedures = new UniqueList<>();
                 txn.getBody().setProposalProcedures(proposalProcedures);
             }
 

@@ -199,7 +199,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         TransactionInput transactionInput = new TransactionInput(txHash, outputIndex);
         if (referenceInputs == null)
             referenceInputs = new ArrayList<>();
-        referenceInputs.add(transactionInput);
+
+        if (!referenceInputs.contains(transactionInput))
+            referenceInputs.add(transactionInput);
         return this;
     }
 
