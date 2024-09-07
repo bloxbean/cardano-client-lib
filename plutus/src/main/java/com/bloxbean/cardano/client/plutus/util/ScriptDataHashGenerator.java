@@ -6,8 +6,11 @@ import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.plutus.spec.CostMdls;
+import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.util.HexUtil;
 
@@ -15,13 +18,12 @@ import java.util.List;
 
 public class ScriptDataHashGenerator {
 
-    public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, String languageViewsHex)
-            throws CborException, CborSerializationException {
-        return generate(redeemers, datums, HexUtil.decodeHexString(languageViewsHex));
-    }
-
-    public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, byte[] langViewsBytes)
+    public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, CostMdls costMdls)
             throws CborSerializationException, CborException {
+
+        //For workaround: https://github.com/bloxbean/cardano-client-lib/issues/426
+        boolean plutusV1Exists = costMdls.get(Language.PLUTUS_V1) != null;
+
         /**
          ; script data format:
          ; [ redeemers | datums | language views ]
@@ -47,7 +49,7 @@ public class ScriptDataHashGenerator {
         if (redeemers != null && redeemers.size() > 0) {
 
             byte[] redeemerBytes;
-            if (EraSerializationConfig.INSTANCE.useConwayEraFormat()) {
+            if (EraSerializationConfig.INSTANCE.getEra() == Era.Conway && !plutusV1Exists) {
                 Map redeemerMap = new Map();
                 for(Redeemer redeemer: redeemers) {
                     var tuple = redeemer.serialize();
@@ -62,10 +64,10 @@ public class ScriptDataHashGenerator {
                 redeemerBytes = CborSerializationUtil.serialize(redeemerArray);
             }
 
-            encodedBytes = Bytes.concat(redeemerBytes, plutusDataBytes, langViewsBytes);
+            encodedBytes = Bytes.concat(redeemerBytes, plutusDataBytes, costMdls.getLanguageViewEncoding());
         } else {
-            if (EraSerializationConfig.INSTANCE.useConwayEraFormat()) {
-                encodedBytes = Bytes.concat(HexUtil.decodeHexString("0xA0"), plutusDataBytes, langViewsBytes);
+            if (EraSerializationConfig.INSTANCE.getEra() == Era.Conway && !plutusV1Exists) {
+                encodedBytes = Bytes.concat(HexUtil.decodeHexString("0xA0"), plutusDataBytes, costMdls.getLanguageViewEncoding());
             } else { //Pre conway era
                 /**
                  ; Finally, note that in the case that a transaction includes datums but does not

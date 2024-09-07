@@ -77,7 +77,7 @@ public class ScriptDataHashCalculator {
             byte[] scriptDataHash;
             try {
                 scriptDataHash = ScriptDataHashGenerator.generate(transaction.getWitnessSet().getRedeemers(),
-                        transaction.getWitnessSet().getPlutusDataList(), costMdls.getLanguageViewEncoding());
+                        transaction.getWitnessSet().getPlutusDataList(), costMdls);
             } catch (CborSerializationException | CborException e) {
                 throw new CborRuntimeException(e);
             }
