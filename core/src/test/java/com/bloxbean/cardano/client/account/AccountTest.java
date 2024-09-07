@@ -271,7 +271,6 @@ public class AccountTest {
 
     @Test
     void testSign() throws CborSerializationException {
-        EraSerializationConfig.INSTANCE.setEra(Era.Babbage);
         TransactionBody txnBody = new TransactionBody();
 
         TransactionInput txnInput = new TransactionInput();
@@ -311,7 +310,7 @@ public class AccountTest {
 
         String signedTxnHex = signedTxn.serializeToHex();
 
-        String expectdSignTxn = "84a40081825820dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d010182825839000916a5fed4589d910691b85addf608dceee4d9d60d4c9a4d2a925026c3229b212ba7ef8643cd8f7e38d6279336d61a40d228b036f40feed61a004c4b40825839008c5bf0f2af6f1ef08bb3f6ec702dd16e1c514b7e1d12f7549b47db9f4d943c7af0aaec774757d4745d1a2c8dd3220e6ec2c9df23f757a2f81a3af6f8c6021a00059d5d031a018fb29aa100818258204d88ec934e586062c12302e7a5d40fb357035c1142730d8b5b172607d45c2f9f5840e627ac36d4699bb52611bfb49ebc772efe85a7315e15dc8aeae83696fd5d27b7d9c9635ba0bf1b091ad5dde1330117cb206427dfaf9adfe4b64ba574a9f30e04f5f6";
+        String expectdSignTxn = "84a400d9010281825820dcac27eed284adfa6ec02a6e8fa41f886faf267bff7a6e615df44ab8a311360d010182825839000916a5fed4589d910691b85addf608dceee4d9d60d4c9a4d2a925026c3229b212ba7ef8643cd8f7e38d6279336d61a40d228b036f40feed61a004c4b40825839008c5bf0f2af6f1ef08bb3f6ec702dd16e1c514b7e1d12f7549b47db9f4d943c7af0aaec774757d4745d1a2c8dd3220e6ec2c9df23f757a2f81a3af6f8c6021a00059d5d031a018fb29aa100d90102818258204d88ec934e586062c12302e7a5d40fb357035c1142730d8b5b172607d45c2f9f5840528517293953ab4d7239dc290f4dc847d72e52aea3ab7dbd0bd029db9c6fbffa1c98c1a6299e4591258a170857be1838987168469bb15efd69a7a35ae7ad8108f5f6";
         assertEquals(expectdSignTxn, signedTxnHex);
     }
 
