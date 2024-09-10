@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.Map;
+import java.util.LinkedHashMap;
 
 @Data
 @Builder
@@ -43,7 +43,7 @@ public class ProtocolParams {
     private String nonce;
 
     //Alonzo changes
-    private Map<String, Map<String, Long>> costModels;
+    private LinkedHashMap<String, LinkedHashMap<String, Long>> costModels;
     private BigDecimal priceMem;
     private BigDecimal priceStep;
     private String maxTxExMem;

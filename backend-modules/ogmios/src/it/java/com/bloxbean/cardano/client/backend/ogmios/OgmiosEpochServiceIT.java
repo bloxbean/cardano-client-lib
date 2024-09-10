@@ -7,6 +7,8 @@ import com.bloxbean.cardano.client.backend.api.EpochService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -29,5 +31,6 @@ public class OgmiosEpochServiceIT extends OgmiosBaseTest {
         assertEquals(protocolParams.getCollateralPercent().intValue(), 150);
         assertThat(protocolParams.getEMax()).isNotNull();
         assertThat(protocolParams.getNOpt()).isNotNull();
+        assertThat(protocolParams.getMinFeeRefScriptCostPerByte()).isEqualTo(BigDecimal.valueOf(15.0));
     }
 }

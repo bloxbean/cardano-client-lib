@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
 import com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures;
+import com.bloxbean.cardano.client.transaction.util.UniqueList;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,6 +20,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -26,7 +29,7 @@ import java.util.List;
 public class TransactionBody {
 
     @Builder.Default
-    private List<TransactionInput> inputs = new ArrayList<>();
+    private List<TransactionInput> inputs = new UniqueList<>();
 
     @Builder.Default
     private List<TransactionOutput> outputs = new ArrayList<>();
@@ -36,7 +39,7 @@ public class TransactionBody {
     private long ttl; //Optional
 
     @Builder.Default
-    private List<Certificate> certs = new ArrayList<>();
+    private List<Certificate> certs = new UniqueList<>();
 
     @Builder.Default
     private List<Withdrawal> withdrawals = new ArrayList<>();
@@ -52,10 +55,10 @@ public class TransactionBody {
     private byte[] scriptDataHash;
 
     @Builder.Default
-    private List<TransactionInput> collateral = new ArrayList<>();
+    private List<TransactionInput> collateral = new UniqueList<>();
 
     @Builder.Default
-    private List<byte[]> requiredSigners = new ArrayList<>();
+    private List<byte[]> requiredSigners = new UniqueList<>();
 
     private NetworkId networkId; // 1 or 0
 
@@ -65,7 +68,7 @@ public class TransactionBody {
     private BigInteger totalCollateral; //? 17
 
     @Builder.Default
-    private List<TransactionInput> referenceInputs = new ArrayList<>(); // ? 18
+    private List<TransactionInput> referenceInputs = new UniqueList<>(); // ? 18
 
     //Conway
     private VotingProcedures votingProcedures; //19
@@ -76,7 +79,7 @@ public class TransactionBody {
     public Map serialize() throws CborSerializationException, AddressExcepion {
         Map bodyMap = new Map();
 
-        Array inputsArray = new Array();
+        Array inputsArray = createArray();
         for (TransactionInput ti : inputs) {
             Array input = ti.serialize();
             inputsArray.add(input);
@@ -101,7 +104,7 @@ public class TransactionBody {
         }
 
         if (certs != null && certs.size() > 0) { //certs
-            Array certArray = new Array();
+            Array certArray = createArray();
             for (Certificate cert : certs) {
                 certArray.add(cert.serialize());
             }
@@ -143,7 +146,7 @@ public class TransactionBody {
 
         //collateral
         if (collateral != null && collateral.size() > 0) {
-            Array collateralArray = new Array();
+            Array collateralArray = createArray();
             for (TransactionInput ti : collateral) {
                 Array input = ti.serialize();
                 collateralArray.add(input);
@@ -153,7 +156,7 @@ public class TransactionBody {
 
         //required_signers
         if (requiredSigners != null && requiredSigners.size() > 0) {
-            Array requiredSignerArray = new Array();
+            Array requiredSignerArray = createArray();
             for (byte[] requiredSigner : requiredSigners) {
                 requiredSignerArray.add(new ByteString(requiredSigner));
             }
@@ -184,7 +187,7 @@ public class TransactionBody {
 
         //reference inputs
         if (referenceInputs != null && referenceInputs.size() > 0) {
-            Array referenceInputsArray = new Array();
+            Array referenceInputsArray = createArray();
             for (TransactionInput ti : referenceInputs) {
                 Array input = ti.serialize();
                 referenceInputsArray.add(input);
@@ -199,7 +202,7 @@ public class TransactionBody {
 
         //proposal procedures
         if (proposalProcedures != null && proposalProcedures.size() > 0) {
-            Array proposalProceduresArray = new Array();
+            Array proposalProceduresArray = createArray();
             for (var proposalProcedure : proposalProcedures) {
                 proposalProceduresArray.add(proposalProcedure.serialize());
             }
@@ -383,7 +386,7 @@ public class TransactionBody {
         if (proposalProceduresArray != null && proposalProceduresArray.getDataItems().size() > 0) {
             var proposalProceduresDIList = proposalProceduresArray.getDataItems();
 
-            List<ProposalProcedure> proposalProcedureList = new ArrayList<>();
+            List<ProposalProcedure> proposalProcedureList = new UniqueList<>();
             for (var proposalProcedureDI : proposalProceduresDIList) {
                 if (proposalProcedureDI == SimpleValue.BREAK) continue;
                 var proposalProcedure = ProposalProcedure.deserialize(proposalProcedureDI);

@@ -35,7 +35,7 @@ public class OgmiosEpochService implements EpochService  {
 
         Result<ProtocolParams> result;
         if(protocolParams != null) {
-            return Result.success("suchess")
+            return Result.success("success")
                     .withValue(protocolParams)
                     .code(200);
         } else {

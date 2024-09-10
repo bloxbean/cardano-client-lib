@@ -17,6 +17,7 @@ import java.net.Inet6Address;
 import java.util.*;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
 
 @Data
 @AllArgsConstructor
@@ -88,7 +89,7 @@ public class PoolRegistration implements Certificate {
         array.add(new ByteString(HexUtil.decodeHexString(rewardAccount)));
 
         //pool owners
-        Array poolOwnersArr = new Array();
+        Array poolOwnersArr = createArray();
         poolOwners.stream().forEach(poolOwner -> {
             poolOwnersArr.add(new ByteString(HexUtil.decodeHexString(poolOwner)));
         });

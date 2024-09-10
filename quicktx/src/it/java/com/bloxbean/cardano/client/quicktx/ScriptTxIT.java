@@ -20,6 +20,8 @@ import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -41,6 +43,125 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  addr_test1wqag3rt979nep9g2wtdwu8mr4gz6m4kjdpp5zp705km8wys6t2kla
  **/
 public class ScriptTxIT extends TestDataBaseIT {
+
+    private boolean aikenEvaluation = false;
+
+    @Test
+    void alwaysTrueScript_plutusV1() throws ApiException {
+        PlutusV1Script plutusScript = PlutusV1Script.builder()
+                .type("PlutusScriptV1")
+                .cborHex("4e4d01000033222220051200120011")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        Random rand = new Random();
+        int randInt = rand.nextInt();
+        BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData.getDatumHash())
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        Optional<Utxo> optionalUtxo  = ScriptUtxoFinders.findFirstByDatumHash(utxoSupplier, scriptAddress, plutusData.getDatumHash());
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(optionalUtxo.get(), plutusData, plutusData)
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .attachSpendingValidator(plutusScript)
+                .withChangeAddress(scriptAddress, plutusData);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withRequiredSigners(sender1.getBaseAddress())
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), receiver1);
+
+        // Example of getting the redeemer datum hash and then getting the datum values.
+        List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
+                .getTransactionRedeemers(result1.getValue()).getValue();
+
+        int gottenValue = getBackendService().getScriptService()
+                .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
+                .getValue().getJsonValue().get("int").asInt();
+        assertThat(randInt).isEqualTo(gottenValue);
+    }
+
+    @Test
+    void alwaysTrueScript_plutusV1_referenceInput() throws ApiException {
+        var defaultEra = EraSerializationConfig.INSTANCE.getEra();
+        EraSerializationConfig.INSTANCE.setEra(Era.Babbage);
+        PlutusV1Script plutusScript = PlutusV1Script.builder()
+                .type("PlutusScriptV1")
+                .cborHex("4e4d01000033222220051200120011")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        Random rand = new Random();
+        int randInt = rand.nextInt();
+        BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        //Create reference script and pay to contract
+        Tx tx = new Tx();
+        tx.payToAddress(receiver1, Amount.ada(1), plutusScript);
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData.getDatumHash())
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        var refUtxo = utxoSupplier.getTxOutput(result.getValue(), 0);
+
+        Optional<Utxo> optionalUtxo  = ScriptUtxoFinders.findFirstByDatumHash(utxoSupplier, scriptAddress, plutusData.getDatumHash());
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(optionalUtxo.get(), plutusData, plutusData)
+                .readFrom(refUtxo.get())
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .withChangeAddress(scriptAddress, plutusData);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withRequiredSigners(sender1.getBaseAddress())
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), receiver1);
+
+        // Example of getting the redeemer datum hash and then getting the datum values.
+        List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
+                .getTransactionRedeemers(result1.getValue()).getValue();
+
+        int gottenValue = getBackendService().getScriptService()
+                .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
+                .getValue().getJsonValue().get("int").asInt();
+        assertThat(randInt).isEqualTo(gottenValue);
+
+        EraSerializationConfig.INSTANCE.setEra(defaultEra);
+    }
+
     @Test
     void alwaysTrueScript() throws ApiException {
         PlutusV2Script plutusScript = PlutusV2Script.builder()
@@ -78,7 +199,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withRequiredSigners(sender1.getBaseAddress())
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .withVerifier(txn -> {
                     assertThat(txn.getBody().getRequiredSigners()).hasSize(1);
@@ -145,7 +266,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -194,7 +315,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -247,7 +368,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -306,7 +427,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .mergeOutputs(false)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -370,7 +491,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -416,7 +537,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(scriptAddress)
                 .collateralPayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -496,7 +617,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender2))
                 .mergeOutputs(false)
                 .withTxInspector(txn -> System.out.println(JsonUtil.getPrettyJson(txn)))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -573,7 +694,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withSigner(SignerProviders.signerFrom(sender2))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .mergeOutputs(false)
                 .completeAndWait(System.out::println);
@@ -654,7 +775,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withSigner(SignerProviders.signerFrom(sender2))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .mergeOutputs(false)
                 .completeAndWait(System.out::println);
@@ -694,7 +815,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender2))
                 .mergeOutputs(false)
                 .withTxInspector(tx -> System.out.println(JsonUtil.getPrettyJson(tx)))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -763,7 +884,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
                 .completeAndWait(System.out::println);
 
@@ -832,7 +953,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
                 .withReferenceScripts(sumScript)
                 .completeAndWait(System.out::println);
@@ -886,7 +1007,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .completeAndWait(System.out::println);
 
@@ -953,7 +1074,7 @@ public class ScriptTxIT extends TestDataBaseIT {
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                         new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                 .postBalanceTx((context, txn) -> {
                     txn.getWitnessSet().getPlutusV2Scripts().clear();
@@ -1070,7 +1191,7 @@ public class ScriptTxIT extends TestDataBaseIT {
             Result<String> result1 = quickTxBuilder.compose(scriptTx)
                     .feePayer(sender1Addr)
                     .withSigner(SignerProviders.signerFrom(sender1))
-                    .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                    .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                             new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                     .withVerifier(txn -> {
                         assertThat(txn.getWitnessSet().getPlutusDataList()).contains(plutusData);
@@ -1131,7 +1252,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                     .feePayer(sender1Addr)
                     .withSigner(SignerProviders.signerFrom(sender1))
                     .withCollateralInputs(new TransactionInput(payTxHash, 1), new TransactionInput(payTxHash, 2))
-                    .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                    .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                             new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                     .withVerifier(txn -> {
                         assertThat(txn.getBody().getCollateral()).hasSize(2);

@@ -47,4 +47,6 @@ public abstract class PlutusScript implements Script {
         return serializeAsDataItem().getBytes();
     }
 
+    public abstract Language getLanguage();
+
 }

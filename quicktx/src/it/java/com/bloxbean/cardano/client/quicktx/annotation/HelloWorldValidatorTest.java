@@ -510,18 +510,16 @@ public class HelloWorldValidatorTest extends AnnotationTestBase {
                 .withRequiredSigners(account.getBaseAddress(), account2.getBaseAddress())
                 .withSigner(SignerProviders.signerFrom(account))
                 .withSigner(SignerProviders.signerFrom(account2))
-                .withReferenceScripts(validator.getPlutusScript())
                 .withTxInspector((txn) -> {
                     System.out.println(JsonUtil.getPrettyJson(txn));
                 })
-                .ignoreScriptCostEvaluationError(true)
                 .completeAndWait(System.out::println);
 
         System.out.println(JsonUtil.getPrettyJson(txResult2));
 
         System.out.println(txResult2.getValue());
         System.out.println(txResult2.getResponse());
-//
+
         assertTrue(txResult2.isSuccessful());
     }
 

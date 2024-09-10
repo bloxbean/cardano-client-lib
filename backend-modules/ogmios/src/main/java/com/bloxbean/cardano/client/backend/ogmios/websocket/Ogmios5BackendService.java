@@ -9,6 +9,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 
+@Deprecated(forRemoval = true, since = "0.6.0")
+/**
+ * Ogmios5BackendService is deprecated and will be removed in the next release.
+ * Please use {@link com.bloxbean.cardano.client.backend.ogmios.http.OgmiosBackendService} instead.
+ */
 public class Ogmios5BackendService implements BackendService {
 
     private final OgmiosWSClient wsClient;

@@ -243,8 +243,10 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         transactionWitnessSet.setPlutusV2Scripts(Arrays.asList(plutusScript));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV2CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Collections.emptyList(), CostModelUtil.getLanguageViewsEncoding(PlutusV2CostModel));
+                Collections.emptyList(), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         MessageMetadata metadata = MessageMetadata.create()
@@ -466,8 +468,10 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV2CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Collections.emptyList(), CostModelUtil.getLanguageViewsEncoding(PlutusV2CostModel));
+                Collections.emptyList(), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         MessageMetadata metadata = MessageMetadata.create()

@@ -4,8 +4,10 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
+import com.bloxbean.cardano.client.transaction.util.UniqueList;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,35 +16,37 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 public class TransactionWitnessSet {
     @Builder.Default
-    private List<VkeyWitness> vkeyWitnesses = new ArrayList<>();
+    private List<VkeyWitness> vkeyWitnesses = new UniqueList<>();
 
     @Builder.Default
-    private List<NativeScript> nativeScripts = new ArrayList<>();
+    private List<NativeScript> nativeScripts = new UniqueList<>();
 
     @Builder.Default
-    private List<BootstrapWitness> bootstrapWitnesses = new ArrayList<>(); //Not implemented
+    private List<BootstrapWitness> bootstrapWitnesses = new UniqueList<>(); //Not implemented
 
     //Alonzo
     @Builder.Default
-    private List<PlutusV1Script> plutusV1Scripts = new ArrayList<>();
+    private List<PlutusV1Script> plutusV1Scripts = new UniqueList<>();
 
     @Builder.Default
-    private List<PlutusData> plutusDataList = new ArrayList<>();
+    private List<PlutusData> plutusDataList = new UniqueList<>();
 
     @Builder.Default
     private List<Redeemer> redeemers = new ArrayList<>();
 
     @Builder.Default
-    private List<PlutusV2Script> plutusV2Scripts = new ArrayList<>();
+    private List<PlutusV2Script> plutusV2Scripts = new UniqueList<>();
 
     @Builder.Default
-    private List<PlutusV3Script> plutusV3Scripts = new ArrayList<>();
+    private List<PlutusV3Script> plutusV3Scripts = new UniqueList<>();
 
     public Map serialize() throws CborSerializationException {
         //Array
@@ -100,7 +104,8 @@ public class TransactionWitnessSet {
         }
 
         if(redeemers != null && redeemers.size() > 0) {
-            if (EraSerializationConfig.INSTANCE.useConwayEraFormat()) { //Conway era
+            if (EraSerializationConfig.INSTANCE.getEra() == Era.Conway
+                    && (plutusV1Scripts == null || plutusV1Scripts.isEmpty())) { //Conway era and no plutus v1 scripts, use old array format
                 Map redeemerMap = new Map();
                 for(Redeemer redeemer: redeemers) {
                     var tuple = redeemer.serialize();
@@ -345,10 +350,4 @@ public class TransactionWitnessSet {
         }
     }
 
-    private Array createArray() {
-        Array array = new Array();
-        if (EraSerializationConfig.INSTANCE.useConwayEraFormat())
-            array.setTag(258);
-        return array;
-    }
 }

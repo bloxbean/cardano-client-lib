@@ -60,12 +60,14 @@ public class ScriptDataHashCalculator {
                 costMdls.add(costModel.orElse(PlutusV3CostModel));
             }
 
-            if (costMdls.isEmpty()) { //Check if costmodel can be decided from other fields //TODO Impl : Check what to do for v3 reference scripts
-                if (transaction.getBody().getReferenceInputs() != null
-                        && transaction.getBody().getReferenceInputs().size() > 0) { //If reference input is there, then plutus v2
-                    var refInputLanguage = ctx.getReferenceInputLanguage();
-                    Optional<CostModel> costModel = CostModelUtil.getCostModelFromProtocolParams(ctx.getProtocolParams(), refInputLanguage);
-                    costMdls.add(costModel.orElse(PlutusV2CostModel));
+            if (transaction.getBody().getReferenceInputs() != null
+                    && transaction.getBody().getReferenceInputs().size() > 0) { //If reference input is there, the check the language from that
+                if (!ctx.getRefScriptLanguages().isEmpty()) {
+                    for (Language language : ctx.getRefScriptLanguages()) {
+                        Optional<CostModel> costModel =
+                                CostModelUtil.getCostModelFromProtocolParams(ctx.getProtocolParams(), language);
+                        costMdls.add(costModel.orElseThrow(() -> new IllegalArgumentException("Cost model not found for language : " + language)));
+                    }
                 }
             }
         }
@@ -75,7 +77,7 @@ public class ScriptDataHashCalculator {
             byte[] scriptDataHash;
             try {
                 scriptDataHash = ScriptDataHashGenerator.generate(transaction.getWitnessSet().getRedeemers(),
-                        transaction.getWitnessSet().getPlutusDataList(), costMdls.getLanguageViewEncoding());
+                        transaction.getWitnessSet().getPlutusDataList(), costMdls);
             } catch (CborSerializationException | CborException e) {
                 throw new CborRuntimeException(e);
             }

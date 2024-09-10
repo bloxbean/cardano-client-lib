@@ -82,6 +82,18 @@ public abstract class AbstractTx<T> {
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
      *
+     * @param address address
+     * @param amount  Amount to send
+     * @param script  Reference Script
+     * @return T
+     */
+    public T payToAddress(String address, Amount amount, Script script) {
+        return payToAddress(address, List.of(amount), null, null, script, null);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     *
      * @param address        address
      * @param amounts        List of Amount to send
      * @param scriptRefBytes Reference Script bytes
