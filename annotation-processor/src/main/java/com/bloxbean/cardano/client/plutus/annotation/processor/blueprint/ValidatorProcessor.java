@@ -68,6 +68,8 @@ public class ValidatorProcessor {
         if (pkgSuffix != null)
             packageName = packageName + "." + pkgSuffix;
 
+        packageName = packageName.toLowerCase();
+
         String title = validatorName;
         title = JavaFileUtil.toCamelCase(title);
 
