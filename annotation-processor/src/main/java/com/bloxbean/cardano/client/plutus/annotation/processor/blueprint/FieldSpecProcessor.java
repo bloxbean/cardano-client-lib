@@ -337,6 +337,8 @@ public class FieldSpecProcessor {
     private String getPackageName(String ns) {
         String pkg = (ns != null && !ns.isEmpty()) ? annotation.packageName() + "." + ns + ".model"
                 : annotation.packageName() + ".model";
+
+        pkg = pkg.toLowerCase();
         return pkg;
     }
 }
