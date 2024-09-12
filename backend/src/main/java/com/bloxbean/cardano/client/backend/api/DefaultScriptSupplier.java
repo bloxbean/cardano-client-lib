@@ -20,6 +20,9 @@ public class DefaultScriptSupplier implements ScriptSupplier {
 
     @Override
     public Optional<PlutusScript> getScript(String scriptHash) {
+        if (scriptHash == null || scriptHash.isEmpty())
+            return Optional.empty();
+
         try {
             var result = scriptService.getPlutusScript(scriptHash);
             if (result.isSuccessful())
