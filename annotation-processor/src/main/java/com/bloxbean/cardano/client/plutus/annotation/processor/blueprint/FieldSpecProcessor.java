@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil.toPackageNameFormat;
 
 @Slf4j
 public class FieldSpecProcessor {
@@ -338,7 +339,6 @@ public class FieldSpecProcessor {
         String pkg = (ns != null && !ns.isEmpty()) ? annotation.packageName() + "." + ns + ".model"
                 : annotation.packageName() + ".model";
 
-        pkg = pkg.toLowerCase();
-        return pkg;
+        return toPackageNameFormat(pkg);
     }
 }

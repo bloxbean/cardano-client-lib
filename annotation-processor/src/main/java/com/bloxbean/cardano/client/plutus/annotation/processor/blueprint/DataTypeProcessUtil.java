@@ -13,6 +13,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil.toPackageNameFormat;
 import static com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype.*;
 
 public class DataTypeProcessUtil {
@@ -209,7 +210,6 @@ public class DataTypeProcessUtil {
         String pkg = (ns != null && !ns.isEmpty())? annotation.packageName() + "." + ns + ".model"
                 : annotation.packageName() + ".model";
 
-        pkg = pkg.toLowerCase();
-        return pkg;
+        return toPackageNameFormat(pkg);
     }
 }
