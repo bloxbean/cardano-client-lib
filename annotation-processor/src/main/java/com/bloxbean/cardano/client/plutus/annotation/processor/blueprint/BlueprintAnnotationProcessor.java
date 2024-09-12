@@ -81,6 +81,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             try {
                 plutusContractBlueprint = PlutusBlueprintLoader.loadBlueprint(blueprintFile);
             } catch (Exception e) {
+                e.printStackTrace();
                 error(typeElement, "Error processing blueprint file %s", blueprintFile.getAbsolutePath(), e);
                 return false;
             }
