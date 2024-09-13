@@ -30,6 +30,7 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil.toPackageNameFormat;
 
 public class ValidatorProcessor {
 
@@ -67,6 +68,8 @@ public class ValidatorProcessor {
         String packageName = annotation.packageName();
         if (pkgSuffix != null)
             packageName = packageName + "." + pkgSuffix;
+
+        packageName = toPackageNameFormat(packageName);
 
         String title = validatorName;
         title = JavaFileUtil.toCamelCase(title);

@@ -9,9 +9,11 @@ import com.squareup.javapoet.*;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil.toPackageNameFormat;
 import static com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype.*;
 
 public class DataTypeProcessUtil {
@@ -36,7 +38,7 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != integer)
             throw new IllegalArgumentException("Schema is not of type integer");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
-        return FieldSpec.builder(int.class, title)
+        return FieldSpec.builder(BigInteger.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
                 .build();
@@ -94,7 +96,7 @@ public class DataTypeProcessUtil {
             case bytes:
                 return TypeName.get(byte[].class);
             case integer:
-                return TypeName.get(Integer.class);
+                return TypeName.get(BigInteger.class);
             case string:
                 return TypeName.get(String.class);
             case bool:
@@ -207,6 +209,7 @@ public class DataTypeProcessUtil {
     private String getPackage(String ns) {
         String pkg = (ns != null && !ns.isEmpty())? annotation.packageName() + "." + ns + ".model"
                 : annotation.packageName() + ".model";
-        return pkg;
+
+        return toPackageNameFormat(pkg);
     }
 }

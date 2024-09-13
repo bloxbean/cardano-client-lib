@@ -56,6 +56,15 @@ public class JavaFileUtil {
         return firstUpperCase(toCamelCase(s));
     }
 
+    public static String toPackageNameFormat(String pkg) {
+        if (pkg == null) {
+            return null;
+        }
+
+        return pkg.toLowerCase().replace("-", "").replace("_", "");
+    }
+
+
     /**
      * Creates a Java file from a TypeSpec with a given classname and package
      *
