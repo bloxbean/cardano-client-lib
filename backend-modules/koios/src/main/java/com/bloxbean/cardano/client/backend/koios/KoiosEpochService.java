@@ -220,17 +220,16 @@ public class KoiosEpochService implements EpochService {
         try {
             costModelsJson = objectMapper.writeValueAsString(costModelsJsonNode);
         } catch (JsonProcessingException ignored) {}
-        try {
-            LinkedHashMap<String, LinkedHashMap<String, Long>> result2 = objectMapper.readValue(costModelsJson, new TypeReference<LinkedHashMap>() {});
-            return result2;
-        } catch (JsonProcessingException ignored) {}
+
         LinkedHashMap<String, LinkedHashMap<String, Long>> res = new LinkedHashMap<>();
         try {
-            LinkedHashMap<String, List<Long>> result = objectMapper.readValue(costModelsJson, new TypeReference<LinkedHashMap>() {});
+            LinkedHashMap<String, List<Long>> result = objectMapper.readValue(costModelsJson, new TypeReference<LinkedHashMap<String, List<Long>>>() {});
             final AtomicInteger plutusV1IndexHolder = new AtomicInteger();
             LinkedHashMap<String, Long> plutusV1CostModelsMap = new LinkedHashMap<>();
             final AtomicInteger plutusV2IndexHolder = new AtomicInteger();
             LinkedHashMap<String, Long> plutusV2CostModelsMap = new LinkedHashMap<>();
+            final AtomicInteger plutusV3IndexHolder = new AtomicInteger();
+            LinkedHashMap<String, Long> plutusV3CostModelsMap = new LinkedHashMap<>();
             result.forEach((key, value) -> {
                 if (key.equals("PlutusV1")) {
                     value.forEach(aLong -> {
@@ -244,6 +243,12 @@ public class KoiosEpochService implements EpochService {
                         plutusV2CostModelsMap.put(PlutusOps.getOperations(2).get(index), aLong);
                     });
                     res.put(key, plutusV2CostModelsMap);
+                }  else if (key.equals("PlutusV3")) {
+                    value.forEach(aLong -> {
+                        final int index = plutusV3IndexHolder.getAndIncrement();
+                        plutusV3CostModelsMap.put(PlutusOps.getOperations(3).get(index), aLong);
+                    });
+                    res.put(key, plutusV3CostModelsMap);
                 }
             });
         } catch (JsonProcessingException ignored) {}
