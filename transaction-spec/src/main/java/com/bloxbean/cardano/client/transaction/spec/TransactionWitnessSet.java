@@ -108,7 +108,7 @@ public class TransactionWitnessSet {
         }
 
         if(redeemers != null && redeemers.size() > 0) {
-            if (era == Era.Conway) { //Conway era and no plutus v1 scripts, use old array format
+            if (era == null || era.value >= Era.Conway.value) { //Conway era and no plutus v1 scripts, use old array format
                 Map redeemerMap = new Map();
                 for(Redeemer redeemer: redeemers) {
                     var tuple = redeemer.serialize();

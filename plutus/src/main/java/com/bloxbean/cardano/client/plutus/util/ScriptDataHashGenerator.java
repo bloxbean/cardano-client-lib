@@ -54,7 +54,7 @@ public class ScriptDataHashGenerator {
         if (redeemers != null && redeemers.size() > 0) {
 
             byte[] redeemerBytes;
-            if (era == Era.Conway) {
+            if (era.value >= Era.Conway.value) {
                 Map redeemerMap = new Map();
                 for(Redeemer redeemer: redeemers) {
                     var tuple = redeemer.serialize();
@@ -71,7 +71,7 @@ public class ScriptDataHashGenerator {
 
             encodedBytes = Bytes.concat(redeemerBytes, plutusDataBytes, costMdls.getLanguageViewEncoding());
         } else {
-            if (era == Era.Conway) {
+            if (era.value >= Era.Conway.value) {
                 encodedBytes = Bytes.concat(HexUtil.decodeHexString("0xA0"), plutusDataBytes, costMdls.getLanguageViewEncoding());
             } else { //Pre conway era
                 /**
