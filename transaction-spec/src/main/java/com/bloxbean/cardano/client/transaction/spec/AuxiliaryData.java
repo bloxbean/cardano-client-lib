@@ -11,6 +11,8 @@ import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationExcep
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -43,7 +45,11 @@ public class AuxiliaryData {
     private List<PlutusV3Script> plutusV3Scripts = new ArrayList<>();
 
     public DataItem serialize() throws CborSerializationException {
-        return getAuxiliaryData();
+        return serialize(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    public DataItem serialize(Era era) throws CborSerializationException {
+        return getAuxiliaryData(era);
     }
 
     public static AuxiliaryData deserialize(Map map) throws CborDeserializationException {
@@ -110,8 +116,13 @@ public class AuxiliaryData {
 
     @JsonIgnore
     public byte[] getAuxiliaryDataHash() throws MetadataSerializationException {
+        return getAuxiliaryDataHash(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    @JsonIgnore
+    public byte[] getAuxiliaryDataHash(Era era) throws MetadataSerializationException {
         try {
-            Map map = getAuxiliaryData();
+            Map map = getAuxiliaryData(era);
             byte[] encodedBytes = CborSerializationUtil.serialize(map);
 
             return Blake2bUtil.blake2bHash256(encodedBytes);
@@ -120,7 +131,7 @@ public class AuxiliaryData {
         }
     }
 
-    private Map getAuxiliaryData() throws CborSerializationException {
+    private Map getAuxiliaryData(Era era) throws CborSerializationException {
         Map map = new Map();
 
         //Shelley-mary format

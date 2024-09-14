@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.api.util.ReferenceScriptUtil;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -15,6 +14,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
@@ -150,17 +150,14 @@ public class FeeCalculators {
 
     private static Transaction createTransactionWithDummyWitnesses(Transaction transaction, int noOfSigners) {
         Transaction cloneTxn;
-        try {
-            BigInteger orginalFee = transaction.getBody().getFee();
-            transaction.getBody().setFee(BigInteger.valueOf(170000)); //To avoid any NPE due to null fee
 
-            cloneTxn = Transaction.deserialize(transaction.serialize());
+        BigInteger orginalFee = transaction.getBody().getFee();
+        transaction.getBody().setFee(BigInteger.valueOf(170000)); //To avoid any NPE due to null fee
 
-            //reset fee
-            transaction.getBody().setFee(orginalFee);
-        } catch (CborDeserializationException | CborSerializationException e) {
-            throw new CborRuntimeException("Error cloning the transaction", e);
-        }
+        cloneTxn = TransactionUtil.createCopy(transaction);
+
+        //reset fee
+        transaction.getBody().setFee(orginalFee);
 
         //Dummy account sign
         for (int i = 0; i < noOfSigners; i++) {

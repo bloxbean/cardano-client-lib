@@ -6,6 +6,8 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.metadata.Metadata;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -13,6 +15,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
@@ -20,7 +23,10 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@Slf4j
 public class Transaction {
+    private Era era;
+
     @Builder.Default
     private TransactionBody body = new TransactionBody();
 
@@ -66,19 +72,29 @@ public class Transaction {
     }
 
     public byte[] serialize() throws CborSerializationException {
+        if (era == null && this.getWitnessSet() != null
+                && this.getWitnessSet().getPlutusV1Scripts() != null && this.getWitnessSet().getPlutusV1Scripts().size() > 0) {
+            log.info("PlutusV1 scripts are used. Setting serialization era to Babbage");
+            this.setEra(Era.Babbage);
+        }
+
+        return serialize(era != null? era : EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    private byte[] serialize(Era era) throws CborSerializationException {
         try {
             if (auxiliaryData != null && body.getAuxiliaryDataHash() == null) {
-                byte[] auxiliaryDataHash = auxiliaryData.getAuxiliaryDataHash();
+                byte[] auxiliaryDataHash = auxiliaryData.getAuxiliaryDataHash(era);
                 body.setAuxiliaryDataHash(auxiliaryDataHash);
             }
 
             Array array = new Array();
-            Map bodyMap = body.serialize();
+            Map bodyMap = body.serialize(era);
             array.add(bodyMap);
 
             //witness
             if (witnessSet != null) {
-                Map witnessMap = witnessSet.serialize();
+                Map witnessMap = witnessSet.serialize(era);
                 array.add(witnessMap);
             } else {
                 Map witnessMap = new Map();
@@ -92,7 +108,7 @@ public class Transaction {
 
             //Auxiliary Data
             if (auxiliaryData != null) {
-                DataItem auxDataMap = auxiliaryData.serialize();
+                DataItem auxDataMap = auxiliaryData.serialize(era);
                 array.add(auxDataMap);
             } else
                 array.add(SimpleValue.NULL);

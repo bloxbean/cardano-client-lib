@@ -1,11 +1,9 @@
 package com.bloxbean.cardano.client.spec;
 
+/**
+ * List of Eras which can be used during transaction serialization
+ */
 public enum Era {
-    Byron(1),
-    Shelley(2),
-    Allegra(3),
-    Mary(4),
-    Alonzo(5),
     Babbage(6),
     Conway(7);
 

@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Withdrawal;
 import lombok.*;
 
@@ -42,7 +43,7 @@ public class TreasuryWithdrawalsAction implements GovAction {
 
     @Override
     @SneakyThrows
-    public Array serialize() {
+    public Array serialize(Era era) {
         Objects.requireNonNull(withdrawals);
 
         Array array = new Array();

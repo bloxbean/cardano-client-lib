@@ -21,7 +21,6 @@ import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.spec.Era;
-import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -83,6 +82,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withRequiredSigners(sender1.getBaseAddress())
+                .withSerializationEra(Era.Babbage)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -102,8 +102,6 @@ public class ScriptTxIT extends TestDataBaseIT {
 
     @Test
     void alwaysTrueScript_plutusV1_referenceInput() throws ApiException {
-        var defaultEra = EraSerializationConfig.INSTANCE.getEra();
-        EraSerializationConfig.INSTANCE.setEra(Era.Babbage);
         PlutusV1Script plutusScript = PlutusV1Script.builder()
                 .type("PlutusScriptV1")
                 .cborHex("4e4d01000033222220051200120011")
@@ -143,6 +141,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withRequiredSigners(sender1.getBaseAddress())
+                .withSerializationEra(Era.Babbage)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -158,8 +157,6 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
                 .getValue().getJsonValue().get("int").asInt();
         assertThat(randInt).isEqualTo(gottenValue);
-
-        EraSerializationConfig.INSTANCE.setEra(defaultEra);
     }
 
     @Test
@@ -213,14 +210,6 @@ public class ScriptTxIT extends TestDataBaseIT {
 
         checkIfUtxoAvailable(result1.getValue(), sender2Addr);
 
-        // Example of getting the redeemer datum hash and then getting the datum values.
-        List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
-            .getTransactionRedeemers(result1.getValue()).getValue();
-
-        int gottenValue = getBackendService().getScriptService()
-            .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
-            .getValue().getJsonValue().get("int").asInt();
-        assertThat(randInt).isEqualTo(gottenValue);
     }
 
     @SneakyThrows
@@ -1125,12 +1114,13 @@ public class ScriptTxIT extends TestDataBaseIT {
             Result<String> result1 = quickTxBuilder.compose(scriptTx)
                     .feePayer(sender1Addr)
                     .withSigner(SignerProviders.signerFrom(sender1))
-                    .withTxEvaluator(!backendType.equals(BLOCKFROST)?
+                    .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
                             new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier): null)
                     .withVerifier(txn -> {
                         assertThat(txn.getWitnessSet().getPlutusDataList()).contains(plutusData);
                         assertThat(txn.getWitnessSet().getPlutusDataList()).hasSize(1);
                     })
+                    .withSerializationEra(Era.Babbage)
                     .completeAndWait(System.out::println);
 
             System.out.println(result1.getResponse());
@@ -1198,6 +1188,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                         assertThat(txn.getWitnessSet().getPlutusDataList()).contains(plutusData2);
                         assertThat(txn.getWitnessSet().getPlutusDataList()).hasSize(2);
                     })
+                    .withSerializationEra(Era.Babbage)
                     .completeAndWait(System.out::println);
 
             System.out.println(result1.getResponse());

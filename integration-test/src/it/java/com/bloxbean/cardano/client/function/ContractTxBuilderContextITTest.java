@@ -25,20 +25,18 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.*;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.spec.Era;
-import com.bloxbean.cardano.client.spec.EraSerializationConfig;
-import com.bloxbean.cardano.client.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -67,10 +65,20 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
     ProtocolParams protocolParams;
     UtxoSupplier utxoSupplier;
 
-    Account sender;
-    String senderAddress;
+    static Account sender;
+    static String senderAddress;
 
-    Era defaultEra = null;
+    @BeforeAll
+    public static void setupAll() {
+        //addr_test1qpkcp26l47j2fp4crdl9n83zmnw84qrp64sd5w6fwesqt6g8sd9mcktl67rn2t0cth25ryflz59yfxlx636csng7hawstfp400
+        String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
+        sender = new Account(Networks.testnet(), senderMnemonic);
+        senderAddress = sender.baseAddress();
+
+        if (backendType.equals(DEVKIT)) {
+            topUpFund(senderAddress, 50000);
+        }
+    }
 
     @BeforeEach
     public void setup() throws ApiException {
@@ -85,23 +93,10 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         protocolParams = backendService.getEpochService().getProtocolParameters().getValue();
         utxoSupplier = new DefaultUtxoSupplier(utxoService);
-
-        //addr_test1qpkcp26l47j2fp4crdl9n83zmnw84qrp64sd5w6fwesqt6g8sd9mcktl67rn2t0cth25ryflz59yfxlx636csng7hawstfp400
-        String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
-        sender = new Account(Networks.testnet(), senderMnemonic);
-        senderAddress = sender.baseAddress();
-
-        if (backendType.equals(DEVKIT)) {
-            topUpFund(senderAddress, 50000);
-        }
-
-        defaultEra = EraSerializationConfig.INSTANCE.getEra();
-        EraSerializationConfig.INSTANCE.setEra(Era.Babbage);
     }
 
     @AfterEach
     public void cleanup() {
-        EraSerializationConfig.INSTANCE.setEra(defaultEra);
     }
 
     @Test
@@ -193,6 +188,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         TxSigner signer = SignerProviders.signerFrom(sender);
 
         Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .withSerializationEra(Era.Babbage)
                 .buildAndSign(builder, signer);
 
         Result<String> result = transactionService.submitTransaction(signedTxn.serialize());
@@ -316,14 +312,6 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
                 .and(sumContractOutput.outputBuilder())
                 .buildInputs(createFromUtxos(List.of(customGuessUtxo, sumScriptUtxo), senderAddress))
                 .andThen(collateralFrom(collateral, collateralIndex))
-                .andThen((context, t) -> {
-                    try {
-                        t.getBody().setTtl(getTtl());
-                        t.getBody().setNetworkId(NetworkId.TESTNET);
-                    } catch (Exception e) {
-                        throw new TxBuildException(e);
-                    }
-                })
                 .andThen(scriptCallContext(customGuessScript, customGuessUtxo, guess, guess, RedeemerTag.Spend, exUnits))
                 .andThen(scriptCallContext(sumScript, sumScriptUtxo, sumDatum, sumRedeemer, RedeemerTag.Spend, sumExUnits))
                 .andThen(balanceTx(senderAddress, 1));
@@ -331,6 +319,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         TxSigner signer = SignerProviders.signerFrom(sender);
 
         Transaction transaction = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .withSerializationEra(Era.Babbage)
                 .build(builder);
         Transaction signedTxn = signer.sign(transaction);
 
@@ -407,6 +396,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         TxSigner signer = SignerProviders.signerFrom(sender);
 
         Transaction signTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .withSerializationEra(Era.Babbage)
                 .buildAndSign(txBuilder, signer);
 
         System.out.println(signTxn);
@@ -475,6 +465,7 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
         TxSigner signer = SignerProviders.signerFrom(sender);
 
         Transaction signTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .withSerializationEra(Era.Babbage)
                 .buildAndSign(txBuilder, signer);
 
         System.out.println(signTxn);

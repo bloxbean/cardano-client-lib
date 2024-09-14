@@ -41,7 +41,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
 
     QuickTxBuilder quickTxBuilder;
 
-    static GovActionId lastGovActionId;
+    static GovActionId lastGovActionId = new GovActionId("1d9dce2addcf59a9b65d16c342368eb1e1d2b3ad2762e73c62f36380927cf898", 0);
 
     @Override
     public BackendService getBackendService() {
@@ -70,7 +70,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
 
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
-                .cborHex("49480100002221200101")
+                .cborHex("46450101002499")
                 .build();
 
         var scriptHash = plutusScript.getScriptHash();
@@ -112,7 +112,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
 
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
-                .cborHex("49480100002221200101")
+                .cborHex("46450101002499")
                 .build();
 
         var scriptHash = plutusScript.getScriptHash();
@@ -152,7 +152,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
 
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
-                .cborHex("49480100002221200101")
+                .cborHex("46450101002499")
                 .build();
 
         var parameterChange = new ParameterChangeAction();
@@ -192,7 +192,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
     void createVote() throws CborSerializationException {
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
-                .cborHex("49480100002221200101")
+                .cborHex("46450101002499")
                 .build();
 
         var scriptHash = plutusScript.getScriptHash();
@@ -232,7 +232,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         registerStakeKeys();
         PlutusV3Script drepPlutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
-                .cborHex("49480100002221200101")
+                .cborHex("46450101002499")
                 .build();
 
         var drepScriptHash = drepPlutusScript.getScriptHash();
@@ -286,7 +286,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
 
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
-                .cborHex("49480100002221200101")
+                .cborHex("46450101002499")
                 .build();
 
         var scriptHash = plutusScript.getScriptHash();

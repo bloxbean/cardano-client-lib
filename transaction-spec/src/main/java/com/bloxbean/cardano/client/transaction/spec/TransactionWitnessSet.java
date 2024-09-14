@@ -49,12 +49,16 @@ public class TransactionWitnessSet {
     private List<PlutusV3Script> plutusV3Scripts = new UniqueList<>();
 
     public Map serialize() throws CborSerializationException {
+        return serialize(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    public Map serialize(Era era) throws CborSerializationException {
         //Array
         //1. native script [ script_pubkey]
         //script_pubkey = (0, addr_keyhash)
         Map witnessMap = new Map();
         if(vkeyWitnesses != null && vkeyWitnesses.size() > 0) {
-            Array vkeyWitnessArray = createArray();
+            Array vkeyWitnessArray = createArray(era);
 
             for (VkeyWitness vkeyWitness : vkeyWitnesses) {
                 vkeyWitnessArray.add(vkeyWitness.serialize());
@@ -64,7 +68,7 @@ public class TransactionWitnessSet {
         }
 
         if(nativeScripts != null && nativeScripts.size() > 0) {
-            Array nativeScriptArray = createArray();
+            Array nativeScriptArray = createArray(era);
 
             for (NativeScript nativeScript : nativeScripts) {
                 nativeScriptArray.add(nativeScript.serializeAsDataItem());
@@ -74,7 +78,7 @@ public class TransactionWitnessSet {
         }
 
         if(bootstrapWitnesses != null && bootstrapWitnesses.size() > 0) {
-            Array bootstrapWitnessArray = createArray();
+            Array bootstrapWitnessArray = createArray(era);
 
             for(BootstrapWitness bootstrapWitness: bootstrapWitnesses) {
                 bootstrapWitnessArray.add(bootstrapWitness.serialize());
@@ -84,7 +88,7 @@ public class TransactionWitnessSet {
         }
 
         if(plutusV1Scripts != null && plutusV1Scripts.size() > 0) {
-            Array plutusScriptArray = createArray();
+            Array plutusScriptArray = createArray(era);
 
             for(PlutusV1Script plutusScript: plutusV1Scripts) {
                 plutusScriptArray.add(plutusScript.serializeAsDataItem());
@@ -94,7 +98,7 @@ public class TransactionWitnessSet {
         }
 
         if(plutusDataList != null && plutusDataList.size() > 0) {
-            Array plutusdataArray = createArray();
+            Array plutusdataArray = createArray(era);
 
             for(PlutusData plutusData: plutusDataList) {
                 plutusdataArray.add(plutusData.serialize());
@@ -104,8 +108,7 @@ public class TransactionWitnessSet {
         }
 
         if(redeemers != null && redeemers.size() > 0) {
-            if (EraSerializationConfig.INSTANCE.getEra() == Era.Conway
-                    && (plutusV1Scripts == null || plutusV1Scripts.isEmpty())) { //Conway era and no plutus v1 scripts, use old array format
+            if (era == Era.Conway) { //Conway era and no plutus v1 scripts, use old array format
                 Map redeemerMap = new Map();
                 for(Redeemer redeemer: redeemers) {
                     var tuple = redeemer.serialize();
@@ -125,7 +128,7 @@ public class TransactionWitnessSet {
 
         //Plutus v2 script -- Babbage era
         if(plutusV2Scripts != null && plutusV2Scripts.size() > 0) {
-            Array plutusV2ScriptArray = createArray();
+            Array plutusV2ScriptArray = createArray(era);
 
             for(PlutusV2Script plutusV2Script: plutusV2Scripts) {
                 plutusV2ScriptArray.add(plutusV2Script.serializeAsDataItem());
@@ -136,7 +139,7 @@ public class TransactionWitnessSet {
 
         //Plutus v3 script -- Conway era
         if(plutusV3Scripts != null && plutusV3Scripts.size() > 0) {
-            Array plutusV3ScriptArray = createArray();
+            Array plutusV3ScriptArray = createArray(era);
 
             for(PlutusV3Script plutusV3Script: plutusV3Scripts) {
                 plutusV3ScriptArray.add(plutusV3Script.serializeAsDataItem());

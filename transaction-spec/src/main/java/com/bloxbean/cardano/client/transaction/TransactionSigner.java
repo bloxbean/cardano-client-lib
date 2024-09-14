@@ -35,7 +35,9 @@ public enum TransactionSigner {
     public Transaction sign(@NonNull Transaction transaction, @NonNull HdKeyPair hdKeyPair) {
         try {
             byte[] signedTxBytes = sign(transaction.serialize(), hdKeyPair);
-            return Transaction.deserialize(signedTxBytes);
+            var signedTx = Transaction.deserialize(signedTxBytes);
+            signedTx.setEra(transaction.getEra());
+            return signedTx;
         } catch (CborSerializationException | CborDeserializationException e) {
             throw new CborRuntimeException(e);
         }
@@ -51,7 +53,9 @@ public enum TransactionSigner {
     public Transaction sign(Transaction transaction, SecretKey secretKey) {
         try {
             byte[] signedTxBytes = sign(transaction.serialize(), secretKey);
-            return Transaction.deserialize(signedTxBytes);
+            var signedTx = Transaction.deserialize(signedTxBytes);
+            signedTx.setEra(transaction.getEra());
+            return signedTx;
         } catch (CborSerializationException | CborDeserializationException e) {
             throw new CborRuntimeException(e);
         }

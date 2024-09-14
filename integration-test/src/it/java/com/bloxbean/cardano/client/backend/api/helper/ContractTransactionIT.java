@@ -32,6 +32,7 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
 import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.model.PaymentTransaction;
 import com.bloxbean.cardano.client.transaction.model.TransactionDetailsParams;
@@ -167,7 +168,7 @@ public class ContractTransactionIT extends BaseITTest {
 
         var costMdls = new CostMdls();
         costMdls.add(CostModelUtil.PlutusV1CostModel);
-        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
+        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer),
                 Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
@@ -311,7 +312,7 @@ public class ContractTransactionIT extends BaseITTest {
         var costMdls = new CostMdls();
         costMdls.add(CostModelUtil.PlutusV1CostModel);
 
-        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
+        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer),
                 Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
@@ -441,7 +442,7 @@ public class ContractTransactionIT extends BaseITTest {
 
         var costMdls = new CostMdls();
         costMdls.add(CostModelUtil.PlutusV1CostModel);
-        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
+        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer),
                 Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
@@ -578,7 +579,7 @@ public class ContractTransactionIT extends BaseITTest {
 
         var costMdls = new CostMdls();
         costMdls.add(CostModelUtil.PlutusV1CostModel);
-        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
+        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer),
                 Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
@@ -713,7 +714,7 @@ public class ContractTransactionIT extends BaseITTest {
 
         var costMdls = new CostMdls();
         costMdls.add(CostModelUtil.PlutusV1CostModel);
-        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
+        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer),
                 Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
@@ -846,7 +847,7 @@ public class ContractTransactionIT extends BaseITTest {
 
         var costMdls = new CostMdls();
         costMdls.add(CostModelUtil.PlutusV1CostModel);
-        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
+        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer),
                 Arrays.asList(plutusData), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
@@ -979,7 +980,7 @@ public class ContractTransactionIT extends BaseITTest {
 
         var costMdls = new CostMdls();
         costMdls.add(CostModelUtil.PlutusV1CostModel);
-        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
+        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer),
                 Arrays.asList(plutusData),  costMdls);
         body.setScriptDataHash(scriptDataHash);
 
@@ -1134,7 +1135,7 @@ public class ContractTransactionIT extends BaseITTest {
 
         var costMdls = new CostMdls();
         costMdls.add(CostModelUtil.PlutusV1CostModel);
-        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
+        byte[] scriptDataHash = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer),
                 Collections.emptyList(), costMdls);
 
         body.setScriptDataHash(scriptDataHash);
@@ -1393,7 +1394,10 @@ public class ContractTransactionIT extends BaseITTest {
     private long getTtl() throws ApiException {
         Block block = blockService.getLatestBlock().getValue();
         long slot = block.getSlot();
-        return slot + 2000;
+        if (backendType.equals(DEVKIT))
+            return slot + 50;
+        else
+            return slot + 2000;
     }
 
     private void waitForTransaction(Result<String> result) {

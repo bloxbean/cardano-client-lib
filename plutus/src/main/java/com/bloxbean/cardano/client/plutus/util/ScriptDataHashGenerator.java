@@ -7,7 +7,6 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
-import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.spec.Era;
@@ -20,9 +19,15 @@ public class ScriptDataHashGenerator {
 
     public static byte[] generate(List<Redeemer> redeemers, List<PlutusData> datums, CostMdls costMdls)
             throws CborSerializationException, CborException {
+        return generate(null, redeemers, datums, costMdls);
+    }
 
-        //For workaround: https://github.com/bloxbean/cardano-client-lib/issues/426
-        boolean plutusV1Exists = costMdls.get(Language.PLUTUS_V1) != null;
+    public static byte[] generate(Era era, List<Redeemer> redeemers, List<PlutusData> datums, CostMdls costMdls)
+            throws CborSerializationException, CborException {
+
+        if (era == null)
+            era = EraSerializationConfig.INSTANCE.getEra();
+
 
         /**
          ; script data format:
@@ -49,7 +54,7 @@ public class ScriptDataHashGenerator {
         if (redeemers != null && redeemers.size() > 0) {
 
             byte[] redeemerBytes;
-            if (EraSerializationConfig.INSTANCE.getEra() == Era.Conway && !plutusV1Exists) {
+            if (era == Era.Conway) {
                 Map redeemerMap = new Map();
                 for(Redeemer redeemer: redeemers) {
                     var tuple = redeemer.serialize();
@@ -66,7 +71,7 @@ public class ScriptDataHashGenerator {
 
             encodedBytes = Bytes.concat(redeemerBytes, plutusDataBytes, costMdls.getLanguageViewEncoding());
         } else {
-            if (EraSerializationConfig.INSTANCE.getEra() == Era.Conway && !plutusV1Exists) {
+            if (era == Era.Conway) {
                 encodedBytes = Bytes.concat(HexUtil.decodeHexString("0xA0"), plutusDataBytes, costMdls.getLanguageViewEncoding());
             } else { //Pre conway era
                 /**

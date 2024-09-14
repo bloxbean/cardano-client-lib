@@ -49,6 +49,85 @@ public class StakeTransactionIT extends BaseITTest {
 
     ProtocolParams protocolParams;
 
+    static String senderMnemonic1 = "song dignity manage hub picture rival thumb gain picture leave rich axis eight scheme coral vendor guard paper report come cat draw educate group";
+    private static Account senderAccount1;
+    private static String senderAddr1;
+
+    static String senderMnemonic2 = "song dignity manage hub picture rival thumb gain picture leave rich axis eight scheme coral vendor guard paper report come cat draw educate group";
+
+    static Account senderAccount2;
+    static String senderAddr2;
+
+    static String senderMnemonic3 = "song dignity manage hub picture rival thumb gain picture leave rich axis eight scheme coral vendor guard paper report come cat draw educate group";
+    static Account senderAccount3;
+    static String senderAddr3;
+
+    static String senderMnemonic4 = "farm hunt wasp believe happy palm skull apple execute paddle asthma absorb misery unlock broom turkey few dry focus vacuum novel crumble dish token";
+    static Account senderAccount4;
+    static String senderAddr4;
+
+    static String senderMnemonic5 = "farm hunt wasp believe happy palm skull apple execute paddle asthma absorb misery unlock broom turkey few dry focus vacuum novel crumble dish token";
+    static Account senderAccount5;
+    static String senderAddr5;
+
+    static String senderMnemonic6 = "limb myself better pyramid home measure quality smile also reveal used sleep kind trend destroy output guide test memory clever spoil polar salon artist";
+    static Account senderAccount6;
+    static String senderAddr6;
+
+    static String senderMnemonic7 = "ready tree spawn ozone permit vacuum weasel lunar foster letter income melody chalk cat define lecture seek biology small lesson require artwork exact gorilla";
+    static Account senderAccount7;
+    static String senderAddr7;
+
+    static String senderMnemonic8 = "ready tree spawn ozone permit vacuum weasel lunar foster letter income melody chalk cat define lecture seek biology small lesson require artwork exact gorilla";
+    static Account senderAccount8;
+    static String senderAddr8;
+
+    static String senderMnemonic9 = "ready tree spawn ozone permit vacuum weasel lunar foster letter income melody chalk cat define lecture seek biology small lesson require artwork exact gorilla";
+    static Account senderAccount9;
+    static String senderAddr9;
+
+    @BeforeAll
+    public static void setupAll() {
+        senderAccount1 = new Account(Networks.testnet(), senderMnemonic1);
+        senderAddr1 = senderAccount1.baseAddress();
+
+        senderAccount2 = new Account(Networks.testnet(), senderMnemonic2);
+        senderAddr2 = senderAccount2.baseAddress();
+
+        senderAccount3 = new Account(Networks.testnet(), senderMnemonic3);
+        senderAddr3 = senderAccount3.baseAddress();
+
+        senderAccount4 = new Account(Networks.testnet(), senderMnemonic4);
+        senderAddr4 = senderAccount4.baseAddress();
+
+        senderAccount5 = new Account(Networks.testnet(), senderMnemonic5);
+        senderAddr5 = senderAccount5.baseAddress();
+
+        senderAccount6 = new Account(Networks.testnet(), senderMnemonic6);
+        senderAddr6 = senderAccount6.baseAddress();
+
+        senderAccount7 = new Account(Networks.testnet(), senderMnemonic7);
+        senderAddr7 = senderAccount7.baseAddress();
+
+        senderAccount8 = new Account(Networks.testnet(), senderMnemonic8);
+        senderAddr8 = senderAccount8.baseAddress();
+
+        senderAccount9 = new Account(Networks.testnet(), senderMnemonic9);
+        senderAddr9 = senderAccount9.baseAddress();
+
+        if (backendType.equals(DEVKIT)) {
+            topUpFund(senderAddr1, 50000);
+            topUpFund(senderAddr2, 50000);
+            topUpFund(senderAddr3, 50000);
+            topUpFund(senderAddr4, 50000);
+            topUpFund(senderAddr5, 50000);
+            topUpFund(senderAddr6, 50000);
+            topUpFund(senderAddr7, 50000);
+            topUpFund(senderAddr8, 50000);
+            topUpFund(senderAddr9, 50000);
+        }
+    }
+
     @BeforeEach
     public void setup() throws ApiException {
         protocolParams = getBackendService().getEpochService().getProtocolParameters().getValue();
@@ -57,23 +136,18 @@ public class StakeTransactionIT extends BaseITTest {
     @Test
     @Order(1)
     void testStakeRegistration_addressKeyAsStakeKey() throws ApiException, CborSerializationException {
-        String senderMnemonic = "song dignity manage hub picture rival thumb gain picture leave rich axis eight scheme coral vendor guard paper report come cat draw educate group";
-
-        Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddr = senderAccount.baseAddress();
-
         //protocol params
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
         UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
-        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
+        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr2, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
 
-        HdKeyPair stakeHdKeyPair = senderAccount.stakeHdKeyPair();
+        HdKeyPair stakeHdKeyPair = senderAccount2.stakeHdKeyPair();
         byte[] stakePublicKey = stakeHdKeyPair.getPublicKey().getKeyData();
 
         //-- Stake key registration
@@ -83,19 +157,19 @@ public class StakeTransactionIT extends BaseITTest {
         };
 
         TxBuilder builder = txOutBuilder
-                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr))
+                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr2))
                 .andThen((context, txn) -> {
                     txn.getBody().getCerts().add(stakeRegistration);
                 })
                 .andThen((context, txn) -> {
-                    txn.getBody().getOutputs().stream().filter(transactionOutput -> senderAddr.equals(transactionOutput.getAddress()))
+                    txn.getBody().getOutputs().stream().filter(transactionOutput -> senderAddr2.equals(transactionOutput.getAddress()))
                             .findFirst()
                             .ifPresent(transactionOutput -> transactionOutput.getValue().setCoin(transactionOutput.getValue().getCoin().subtract(deposit)));
                 })
-                .andThen(feeCalculator(senderAddr, 2))
-                .andThen(adjustChangeOutput(senderAddr, 2));
+                .andThen(feeCalculator(senderAddr2, 2))
+                .andThen(adjustChangeOutput(senderAddr2, 2));
 
-        TxSigner signer = SignerProviders.signerFrom(senderAccount);
+        TxSigner signer = SignerProviders.signerFrom(senderAccount2);
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()),
                 new DefaultProtocolParamsSupplier(getBackendService().getEpochService()))
@@ -111,23 +185,18 @@ public class StakeTransactionIT extends BaseITTest {
     @Test
     @Order(2)
     void testStakeDelegation_addressKeyAsStakeKey() throws ApiException, CborSerializationException {
-        String senderMnemonic = "song dignity manage hub picture rival thumb gain picture leave rich axis eight scheme coral vendor guard paper report come cat draw educate group";
-
-        Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddr = senderAccount.baseAddress();
-
         //protocol params
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
         UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
-        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
+        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr1, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
 
-        HdKeyPair stakeHdKeyPair = senderAccount.stakeHdKeyPair();
+        HdKeyPair stakeHdKeyPair = senderAccount1.stakeHdKeyPair();
         byte[] stakePublicKey = stakeHdKeyPair.getPublicKey().getKeyData();
 
         //-- Stake key delegation
@@ -141,16 +210,16 @@ public class StakeTransactionIT extends BaseITTest {
         };
 
         TxBuilder builder = txOutBuilder
-                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr))
+                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr1))
                 .andThen((context, txn) -> {
                     txn.getBody().getCerts().add(stakeDelegation);
                 })
                 .andThen(AuxDataProviders.metadataProvider(metadata))
-                .andThen(feeCalculator(senderAddr, 2))
-                .andThen(adjustChangeOutput(senderAddr, 2));
+                .andThen(feeCalculator(senderAddr1, 2))
+                .andThen(adjustChangeOutput(senderAddr1, 2));
 
-        TxSigner signer = SignerProviders.signerFrom(senderAccount)
-                .andThen(transaction -> senderAccount.signWithStakeKey(transaction));
+        TxSigner signer = SignerProviders.signerFrom(senderAccount1)
+                .andThen(transaction -> senderAccount1.signWithStakeKey(transaction));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -165,23 +234,18 @@ public class StakeTransactionIT extends BaseITTest {
     @Test
     @Order(3)
     void testStakeDeRegistration_addressKeyAsStakeKey() throws ApiException, CborSerializationException {
-        String senderMnemonic = "song dignity manage hub picture rival thumb gain picture leave rich axis eight scheme coral vendor guard paper report come cat draw educate group";
-
-        Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddr = senderAccount.baseAddress();
-
         //protocol params
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
         UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
-        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
+        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr3, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
 
-        HdKeyPair stakeHdKeyPair = senderAccount.stakeHdKeyPair();
+        HdKeyPair stakeHdKeyPair = senderAccount3.stakeHdKeyPair();
         byte[] stakePublicKey = stakeHdKeyPair.getPublicKey().getKeyData();
 
         //-- Stake key deregistration
@@ -191,19 +255,19 @@ public class StakeTransactionIT extends BaseITTest {
         };
 
         TxBuilder builder = txOutBuilder
-                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr))
+                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr3))
                 .andThen((context, txn) -> {
                     txn.getBody().getCerts().add(stakeRegistration);
                 })
                 .andThen((context, txn) -> {
-                    txn.getBody().getOutputs().stream().filter(transactionOutput -> senderAddr.equals(transactionOutput.getAddress()))
+                    txn.getBody().getOutputs().stream().filter(transactionOutput -> senderAddr3.equals(transactionOutput.getAddress()))
                             .findFirst()
                             .ifPresent(transactionOutput -> transactionOutput.getValue().setCoin(transactionOutput.getValue().getCoin().add(deposit)));
                 })
-                .andThen(feeCalculator(senderAddr, 2))
-                .andThen(adjustChangeOutput(senderAddr, 2));
+                .andThen(feeCalculator(senderAddr3, 2))
+                .andThen(adjustChangeOutput(senderAddr3, 2));
 
-        TxSigner signer = SignerProviders.signerFrom(senderAccount)
+        TxSigner signer = SignerProviders.signerFrom(senderAccount3)
                 .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, stakeHdKeyPair));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
@@ -221,24 +285,18 @@ public class StakeTransactionIT extends BaseITTest {
     @Test
     @Order(4)
     void testStakeDelegationAnotherAccount() throws ApiException, CborSerializationException {
-        String senderMnemonic = "farm hunt wasp believe happy palm skull apple execute paddle asthma absorb misery unlock broom turkey few dry focus vacuum novel crumble dish token";
-
-        Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddr = senderAccount.baseAddress();
-        System.out.println(senderAddr);
-
         //protocol params
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
         UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
-        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
+        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr4, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
 
-        HdKeyPair stakeHdKeyPair = senderAccount.stakeHdKeyPair();
+        HdKeyPair stakeHdKeyPair = senderAccount4.stakeHdKeyPair();
         byte[] stakePublicKey = stakeHdKeyPair.getPublicKey().getKeyData();
 
         //-- Stake key delegation
@@ -252,16 +310,16 @@ public class StakeTransactionIT extends BaseITTest {
         };
 
         TxBuilder builder = txOutBuilder
-                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr))
+                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr4))
                 .andThen((context, txn) -> {
                     txn.getBody().getCerts().add(stakeDelegation);
                 })
                 .andThen(AuxDataProviders.metadataProvider(metadata))
-                .andThen(feeCalculator(senderAddr, 2))
-                .andThen(adjustChangeOutput(senderAddr, 2));
+                .andThen(feeCalculator(senderAddr4, 2))
+                .andThen(adjustChangeOutput(senderAddr4, 2));
 
-        TxSigner signer = SignerProviders.signerFrom(senderAccount)
-                .andThen(transaction -> senderAccount.signWithStakeKey(transaction));
+        TxSigner signer = SignerProviders.signerFrom(senderAccount4)
+                .andThen(transaction -> senderAccount4.signWithStakeKey(transaction));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -275,34 +333,26 @@ public class StakeTransactionIT extends BaseITTest {
 
     @Test
     void testWithdrawal() throws ApiException, CborSerializationException {
-        String senderMnemonic = "farm hunt wasp believe happy palm skull apple execute paddle asthma absorb misery unlock broom turkey few dry focus vacuum novel crumble dish token";
-
-        Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddr = senderAccount.baseAddress();
-
-        String senderMnemonic2 = "limb myself better pyramid home measure quality smile also reveal used sleep kind trend destroy output guide test memory clever spoil polar salon artist";
-        Account senderAccount2 = new Account(Networks.testnet(), senderMnemonic2);
-
         //protocol params
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
         UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
-        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
+        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr5, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
 
         //-- Stake addresses
-        String stakeAddress = senderAccount.stakeAddress();
-        String stakeAddress2 = senderAccount2.stakeAddress();
+        String stakeAddress = senderAccount5.stakeAddress();
+        String stakeAddress2 = senderAccount6.stakeAddress();
 
         TxOutputBuilder txOutBuilder = (context, outputs) -> {
         };
 
         TxBuilder builder = txOutBuilder
-                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr))
+                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr5))
                 .andThen((context, txn) -> {
                     //Currently zero for testing as there is no reward available. But update this value later once reward is available.
                     BigInteger rewardAmt = BigInteger.ZERO;
@@ -311,12 +361,12 @@ public class StakeTransactionIT extends BaseITTest {
                     //Add reward amount to output
                     txn.getBody().getOutputs().get(0).getValue().getCoin().add(rewardAmt);
                 })
-                .andThen(feeCalculator(senderAddr, 3))
-                .andThen(adjustChangeOutput(senderAddr, 3));
+                .andThen(feeCalculator(senderAddr5, 3))
+                .andThen(adjustChangeOutput(senderAddr5, 3));
 
-        TxSigner signer = SignerProviders.signerFrom(senderAccount)
-                .andThen(transaction -> senderAccount.signWithStakeKey(transaction))
-                .andThen(transaction -> senderAccount2.signWithStakeKey(transaction));
+        TxSigner signer = SignerProviders.signerFrom(senderAccount5)
+                .andThen(transaction -> senderAccount5.signWithStakeKey(transaction))
+                .andThen(transaction -> senderAccount6.signWithStakeKey(transaction));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -331,18 +381,13 @@ public class StakeTransactionIT extends BaseITTest {
     @Test
     @Order(5)
     void testStakeRegistration_scriptHashAsStakeKey() throws ApiException, CborSerializationException, IOException {
-        String senderMnemonic = "ready tree spawn ozone permit vacuum weasel lunar foster letter income melody chalk cat define lecture seek biology small lesson require artwork exact gorilla";
-
-        Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddr = senderAccount.baseAddress();
-
         //protocol params
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
         UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
-        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
+        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr7, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
@@ -358,19 +403,19 @@ public class StakeTransactionIT extends BaseITTest {
         };
 
         TxBuilder builder = txOutBuilder
-                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr))
+                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr7))
                 .andThen((context, txn) -> {
                     txn.getBody().getCerts().add(stakeRegistration);
                 })
                 .andThen((context, txn) -> {
-                    txn.getBody().getOutputs().stream().filter(transactionOutput -> senderAddr.equals(transactionOutput.getAddress()))
+                    txn.getBody().getOutputs().stream().filter(transactionOutput -> senderAddr7.equals(transactionOutput.getAddress()))
                             .findFirst()
                             .ifPresent(transactionOutput -> transactionOutput.getValue().setCoin(transactionOutput.getValue().getCoin().subtract(deposit)));
                 })
-                .andThen(feeCalculator(senderAddr, 1))
-                .andThen(adjustChangeOutput(senderAddr, 1));
+                .andThen(feeCalculator(senderAddr7, 1))
+                .andThen(adjustChangeOutput(senderAddr7, 1));
 
-        TxSigner signer = SignerProviders.signerFrom(senderAccount);
+        TxSigner signer = SignerProviders.signerFrom(senderAccount7);
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -385,13 +430,10 @@ public class StakeTransactionIT extends BaseITTest {
     @Test
     @Order(6)
     void testStakeDelegation_scriptHashAsStakeKey() throws Exception {
-        String stakingPaymentAccountMnemonic = "ready tree spawn ozone permit vacuum weasel lunar foster letter income melody chalk cat define lecture seek biology small lesson require artwork exact gorilla";
-        Account stakingPaymentAccount = new Account(Networks.testnet(), stakingPaymentAccountMnemonic);
-
         Policy policy = loadJsonPolicyScript(STAKEREGISTRATION_POLICY_JSON);
 
         //Get a address for payment key (Account at address 0) and Script as delegation key
-        Address address = AddressProvider.getBaseAddress(stakingPaymentAccount.hdKeyPair().getPublicKey(), policy.getPolicyScript(), Networks.testnet());
+        Address address = AddressProvider.getBaseAddress(senderAccount8.hdKeyPair().getPublicKey(), policy.getPolicyScript(), Networks.testnet());
         String baseAddress = address.toBech32();
         System.out.println(baseAddress);
 
@@ -445,18 +487,13 @@ public class StakeTransactionIT extends BaseITTest {
     @Test
     @Order(7)
     void testStakeDeRegistration_scriptHashAsStakeKey() throws ApiException, CborSerializationException, IOException {
-        String senderMnemonic = "ready tree spawn ozone permit vacuum weasel lunar foster letter income melody chalk cat define lecture seek biology small lesson require artwork exact gorilla";
-
-        Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddr = senderAccount.baseAddress();
-
         //protocol params
         String depositStr = getBackendService().getEpochService().getProtocolParameters().getValue().getKeyDeposit();
         BigInteger deposit = new BigInteger(depositStr);
 
         UtxoSelectionStrategy selectionStrategy = new DefaultUtxoSelectionStrategyImpl(new DefaultUtxoSupplier(getBackendService().getUtxoService()));
 
-        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
+        List<Utxo> utxos = selectionStrategy.selectUtxos(senderAddr9, LOVELACE, deposit.add(adaToLovelace(2)), Collections.EMPTY_SET);
 
         if (utxos == null || utxos.size() == 0)
             throw new RuntimeException("No utxo found");
@@ -472,22 +509,22 @@ public class StakeTransactionIT extends BaseITTest {
         };
 
         TxBuilder builder = txOutBuilder
-                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr))
+                .buildInputs(InputBuilders.createFromUtxos(utxos, senderAddr9))
                 .andThen((context, txn) -> {
                     txn.getBody().getCerts().add(stakeDeregistration);
                 })
                 .andThen((context, txn) -> {
-                    txn.getBody().getOutputs().stream().filter(transactionOutput -> senderAddr.equals(transactionOutput.getAddress()))
+                    txn.getBody().getOutputs().stream().filter(transactionOutput -> senderAddr9.equals(transactionOutput.getAddress()))
                             .findFirst()
                             .ifPresent(transactionOutput -> transactionOutput.getValue().setCoin(transactionOutput.getValue().getCoin().add(deposit)));
                 })
                 .andThen((context, txn) -> {
                     txn.getWitnessSet().getNativeScripts().add(policy.getPolicyScript());
                 })
-                .andThen(feeCalculator(senderAddr, 3))
-                .andThen(adjustChangeOutput(senderAddr, 3));
+                .andThen(feeCalculator(senderAddr9, 3))
+                .andThen(adjustChangeOutput(senderAddr9, 3));
 
-        TxSigner signer = SignerProviders.signerFrom(senderAccount)
+        TxSigner signer = SignerProviders.signerFrom(senderAccount9)
                 .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(0)))
                 .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(1)));
 
