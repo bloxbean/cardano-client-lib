@@ -35,7 +35,7 @@ public class ScriptCostEvaluators {
                 throw new TxBuildException("Transaction evaluator is not set. Transaction evaluator is required to calculate script cost");
 
             try {
-                Result<List<EvaluationResult>> evaluationResult = transactionEvaluator.evaluateTx(transaction.serialize());
+                Result<List<EvaluationResult>> evaluationResult = transactionEvaluator.evaluateTx(transaction.serialize(ctx.getSerializationEra()));
                 if (!evaluationResult.isSuccessful())
                     throw new TxBuildException("Failed to compute script cost : " + evaluationResult.getResponse());
 

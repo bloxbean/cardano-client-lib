@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
 import lombok.*;
 
@@ -22,7 +23,7 @@ public class AuthCommitteeHotCert implements Certificate {
     private Credential committeeHotCredential;
 
     @Override
-    public Array serialize() throws CborSerializationException {
+    public Array serialize(Era era) throws CborSerializationException {
         Objects.requireNonNull(committeeColdCredential);
         Objects.requireNonNull(committeeHotCredential);
 

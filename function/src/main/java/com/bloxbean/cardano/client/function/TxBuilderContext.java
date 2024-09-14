@@ -16,14 +16,13 @@ import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.Setter;
-import lombok.SneakyThrows;
+import lombok.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -55,6 +54,9 @@ public class TxBuilderContext {
 
     @Setter(AccessLevel.NONE)
     private boolean mergeOutputs = true;
+
+    @Getter(AccessLevel.NONE)
+    private Era serializationEra;
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
         this(utxoSupplier, protocolParamsSupplier.getProtocolParams());
@@ -161,6 +163,13 @@ public class TxBuilderContext {
     public TxBuilderContext mergeOutputs(boolean mergeOutputs) {
         this.mergeOutputs = mergeOutputs;
         return this;
+    }
+
+    public Era getSerializationEra() {
+        if (serializationEra == null)
+            return EraSerializationConfig.INSTANCE.getEra();
+        else
+            return serializationEra;
     }
 
     /**

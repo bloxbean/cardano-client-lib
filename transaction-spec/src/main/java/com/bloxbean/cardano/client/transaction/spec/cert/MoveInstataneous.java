@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.transaction.spec.cert;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import lombok.*;
 
 import java.math.BigInteger;
@@ -32,7 +33,7 @@ public class MoveInstataneous implements Certificate {
     private java.util.Map<StakeCredential, BigInteger> stakeCredentialCoinMap; //funds are moved to stake credentials
 
     @Override
-    public Array serialize() throws CborSerializationException {
+    public Array serialize(Era era) throws CborSerializationException {
         Array array = new Array();
         array.add(new UnsignedInteger(6));
 

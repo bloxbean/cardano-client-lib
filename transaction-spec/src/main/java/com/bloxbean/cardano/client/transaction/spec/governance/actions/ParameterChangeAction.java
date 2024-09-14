@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
 import co.nstant.in.cbor.model.*;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate;
 import lombok.*;
 
@@ -24,7 +25,7 @@ public class ParameterChangeAction implements GovAction {
 
     @Override
     @SneakyThrows
-    public Array serialize() {
+    public Array serialize(Era era) {
         Objects.requireNonNull(protocolParamUpdate);
 
         Array array = new Array();

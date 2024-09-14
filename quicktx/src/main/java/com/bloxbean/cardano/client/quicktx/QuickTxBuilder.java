@@ -21,6 +21,7 @@ import com.bloxbean.cardano.client.function.helper.ReferenceScriptResolver;
 import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
 import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -158,6 +159,7 @@ public class QuickTxBuilder {
         private List<PlutusScript> referenceScripts;
 
         private boolean ignoreScriptCostEvaluationError = true;
+        private Era serializationEra;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -277,6 +279,9 @@ public class QuickTxBuilder {
             //override default script supplier
             if (scriptSupplier != null)
                 txBuilderContext.setScriptSupplier(scriptSupplier);
+
+            if (serializationEra != null)
+                txBuilderContext.setSerializationEra(serializationEra);
 
             //If collateral inputs are set, exclude them from utxo selection
             if (collateralInputs != null && !collateralInputs.isEmpty()) {
@@ -436,7 +441,8 @@ public class QuickTxBuilder {
                 txVerifier.verify(transaction);
 
             try {
-                Result<String> result = transactionProcessor.submitTransaction(transaction.serialize());
+                var serializedBytes = serializationEra != null? transaction.serialize(serializationEra): transaction.serialize();
+                Result<String> result = transactionProcessor.submitTransaction(serializedBytes);
                 if (!result.isSuccessful()) {
                     log.error("Transaction : " + transaction);
                 }
@@ -729,6 +735,17 @@ public class QuickTxBuilder {
          */
         public TxContext ignoreScriptCostEvaluationError(boolean flag) {
             this.ignoreScriptCostEvaluationError = flag;
+            return this;
+        }
+
+        /**
+         * Set the serialization era for the transaction.
+         *
+         * @param era The serialization era to set.
+         * @return The TxContext object.
+         */
+        public TxContext withSerializationEra(Era era) {
+            this.serializationEra = era;
             return this;
         }
 

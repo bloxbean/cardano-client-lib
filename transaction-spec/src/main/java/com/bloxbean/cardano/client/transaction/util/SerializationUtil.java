@@ -8,10 +8,11 @@ public final class SerializationUtil {
 
     //Create an array to represent set in Cardano
     //For Conway era or later, set the tag to 258
-    public static Array createArray() {
+    public static Array createArray(Era era) {
         Array array = new Array();
-        if (EraSerializationConfig.INSTANCE.getEra() == Era.Conway)
+        if (era == Era.Conway) {
             array.setTag(258);
+        }
         return array;
     }
 }

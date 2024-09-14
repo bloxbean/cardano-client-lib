@@ -6,6 +6,7 @@ import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
 import lombok.*;
@@ -30,7 +31,7 @@ public class RegDRepCert implements Certificate {
     private Anchor anchor;
 
     @Override
-    public Array serialize() throws CborSerializationException {
+    public Array serialize(Era era) throws CborSerializationException {
         Objects.requireNonNull(drepCredential);
         Objects.requireNonNull(coin);
 
