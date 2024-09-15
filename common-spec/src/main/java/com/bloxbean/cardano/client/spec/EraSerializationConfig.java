@@ -9,10 +9,6 @@ public enum EraSerializationConfig {
         this.era = Era.Conway;
     }
 
-    public void setEra(Era era) {
-        this.era = era;
-    }
-
     public Era getEra() {
         return era;
     }

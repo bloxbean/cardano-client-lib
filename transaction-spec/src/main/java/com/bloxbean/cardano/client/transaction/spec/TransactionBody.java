@@ -5,6 +5,8 @@ import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.exception.AddressExcepion;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.spec.NetworkId;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
@@ -77,9 +79,13 @@ public class TransactionBody {
     private BigInteger donation; //22
 
     public Map serialize() throws CborSerializationException, AddressExcepion {
+        return serialize(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    public Map serialize(Era era) throws CborSerializationException, AddressExcepion {
         Map bodyMap = new Map();
 
-        Array inputsArray = createArray();
+        Array inputsArray = createArray(era);
         for (TransactionInput ti : inputs) {
             Array input = ti.serialize();
             inputsArray.add(input);
@@ -104,9 +110,9 @@ public class TransactionBody {
         }
 
         if (certs != null && certs.size() > 0) { //certs
-            Array certArray = createArray();
+            Array certArray = createArray(era);
             for (Certificate cert : certs) {
-                certArray.add(cert.serialize());
+                certArray.add(cert.serialize(era));
             }
 
             bodyMap.put(new UnsignedInteger(4), certArray);
@@ -146,7 +152,7 @@ public class TransactionBody {
 
         //collateral
         if (collateral != null && collateral.size() > 0) {
-            Array collateralArray = createArray();
+            Array collateralArray = createArray(era);
             for (TransactionInput ti : collateral) {
                 Array input = ti.serialize();
                 collateralArray.add(input);
@@ -156,7 +162,7 @@ public class TransactionBody {
 
         //required_signers
         if (requiredSigners != null && requiredSigners.size() > 0) {
-            Array requiredSignerArray = createArray();
+            Array requiredSignerArray = createArray(era);
             for (byte[] requiredSigner : requiredSigners) {
                 requiredSignerArray.add(new ByteString(requiredSigner));
             }
@@ -187,7 +193,7 @@ public class TransactionBody {
 
         //reference inputs
         if (referenceInputs != null && referenceInputs.size() > 0) {
-            Array referenceInputsArray = createArray();
+            Array referenceInputsArray = createArray(era);
             for (TransactionInput ti : referenceInputs) {
                 Array input = ti.serialize();
                 referenceInputsArray.add(input);
@@ -202,7 +208,7 @@ public class TransactionBody {
 
         //proposal procedures
         if (proposalProcedures != null && proposalProcedures.size() > 0) {
-            Array proposalProceduresArray = createArray();
+            Array proposalProceduresArray = createArray(era);
             for (var proposalProcedure : proposalProcedures) {
                 proposalProceduresArray.add(proposalProcedure.serialize());
             }

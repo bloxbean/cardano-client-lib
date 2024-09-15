@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.spec.Era;
 import lombok.*;
 
 import java.util.List;
@@ -22,7 +23,7 @@ public class NoConfidence implements GovAction {
     private GovActionId prevGovActionId;
 
     @Override
-    public Array serialize() {
+    public Array serialize(Era era) {
         Array array = new Array();
         array.add(new UnsignedInteger(3));
 

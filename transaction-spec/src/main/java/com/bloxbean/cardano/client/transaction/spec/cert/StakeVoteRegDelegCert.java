@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.*;
@@ -29,7 +30,7 @@ public class StakeVoteRegDelegCert implements Certificate {
     private BigInteger coin;
 
     @Override
-    public Array serialize() throws CborSerializationException {
+    public Array serialize(Era era) throws CborSerializationException {
         Objects.requireNonNull(stakeCredential);
         Objects.requireNonNull(poolKeyHash);
         Objects.requireNonNull(drep);

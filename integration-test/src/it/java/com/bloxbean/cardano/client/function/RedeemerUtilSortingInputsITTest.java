@@ -19,6 +19,7 @@ import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -44,8 +45,20 @@ public class RedeemerUtilSortingInputsITTest extends BaseITTest {
     ProtocolParams protocolParams;
     UtxoSupplier utxoSupplier;
 
-    Account sender;
-    String senderAddress;
+    static Account sender;
+    static String senderAddress;
+
+    @BeforeAll
+    public static void setupAll() {
+        //addr_test1qrurqpg3dxvkk4g45negeyaj7gju4mp3napqf36jsek9nw7xdzk39aguj8rcmq3es5ym6z7vgv6xungaypq56r72t2wq9ypt03
+        String senderMnemonic = "olive that walk sorry chat leisure attract river adult void host brand student income spy charge roast kiss balcony craft crouch kite agree south";
+        sender = new Account(Networks.testnet(), senderMnemonic);
+        senderAddress = sender.baseAddress();
+
+        if (backendType.equals(DEVKIT)) {
+            topUpFund(senderAddress, 50000);
+        }
+    }
 
     @BeforeEach
     public void setup() throws ApiException {
@@ -54,11 +67,6 @@ public class RedeemerUtilSortingInputsITTest extends BaseITTest {
         transactionService = backendService.getTransactionService();
         protocolParams = backendService.getEpochService().getProtocolParameters().getValue();
         utxoSupplier = new DefaultUtxoSupplier(utxoService);
-
-        //addr_test1qrurqpg3dxvkk4g45negeyaj7gju4mp3napqf36jsek9nw7xdzk39aguj8rcmq3es5ym6z7vgv6xungaypq56r72t2wq9ypt03
-        String senderMnemonic = "olive that walk sorry chat leisure attract river adult void host brand student income spy charge roast kiss balcony craft crouch kite agree south";
-        sender = new Account(Networks.testnet(), senderMnemonic);
-        senderAddress = sender.baseAddress();
     }
 
     @Test

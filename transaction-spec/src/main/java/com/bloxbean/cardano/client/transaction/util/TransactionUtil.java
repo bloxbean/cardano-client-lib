@@ -21,6 +21,7 @@ public class TransactionUtil {
     public static Transaction createCopy(Transaction transaction) {
         try {
             Transaction cloneTxn = Transaction.deserialize(transaction.serialize());
+            cloneTxn.setEra(transaction.getEra());
             return cloneTxn;
         } catch (CborDeserializationException e) {
             throw new CborRuntimeException(e);

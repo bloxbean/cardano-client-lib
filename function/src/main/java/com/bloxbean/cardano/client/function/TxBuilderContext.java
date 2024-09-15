@@ -16,14 +16,12 @@ import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
 import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.Setter;
-import lombok.SneakyThrows;
+import lombok.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -55,6 +53,10 @@ public class TxBuilderContext {
 
     @Setter(AccessLevel.NONE)
     private boolean mergeOutputs = true;
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private Era serializationEra;
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
         this(utxoSupplier, protocolParamsSupplier.getProtocolParams());
@@ -164,6 +166,24 @@ public class TxBuilderContext {
     }
 
     /**
+     * Set the serialization era for the transaction
+     * @param era
+     * @return TxBuilderContext
+     */
+    public TxBuilderContext withSerializationEra(Era era) {
+        this.serializationEra = era;
+        return this;
+    }
+
+    /**
+     * Get the serialization era for the transaction
+     * @return Era or null if not set
+     */
+    public Era getSerializationEra() {
+        return serializationEra;
+    }
+
+    /**
      * @deprecated
      * Use {@link #withCostMdls(CostMdls)} instead
      * @param costMdls
@@ -235,6 +255,7 @@ public class TxBuilderContext {
      */
     public Transaction build(TxBuilder txBuilder) {
         Transaction transaction = new Transaction();
+        transaction.setEra(getSerializationEra());
         txBuilder.apply(this, transaction);
         clearTempStates();
         return transaction;

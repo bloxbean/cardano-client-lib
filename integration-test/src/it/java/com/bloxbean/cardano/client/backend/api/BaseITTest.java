@@ -20,11 +20,11 @@ import java.util.Optional;
 
 public class BaseITTest {
     public static final String DEVKIT_ADMIN_BASE_URL = "http://localhost:10000/";
-    protected String BLOCKFROST = "blockfrost";
-    protected String KOIOS = "koios";
-    protected String OGMIOS = "ogmios";
-    protected String DEVKIT = "devkit";
-    protected String backendType = BLOCKFROST;
+    protected static String BLOCKFROST = "blockfrost";
+    protected static String KOIOS = "koios";
+    protected static String OGMIOS = "ogmios";
+    protected static String DEVKIT = "devkit";
+    protected static String backendType = BLOCKFROST;
 
     public BackendService getBackendService() {
         if (BLOCKFROST.equals(backendType)) {

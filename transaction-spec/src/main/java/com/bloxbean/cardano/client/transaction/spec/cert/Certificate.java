@@ -7,6 +7,8 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.List;
@@ -92,7 +94,11 @@ public interface Certificate {
         return certificate;
     }
 
-    Array serialize() throws CborSerializationException;
+    default Array serialize() throws CborSerializationException {
+        return serialize(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    Array serialize(Era era) throws CborSerializationException;
 
     default String getCborHex() throws CborSerializationException {
         try {
