@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.util.Arrays;
 
+import static com.bloxbean.cardano.client.api.util.CostModelUtil.PlutusV1CostModel;
+import static com.bloxbean.cardano.client.api.util.CostModelUtil.PlutusV2CostModel;
 import static org.assertj.core.api.Assertions.assertThat;
 
 //TODO -- Move this test to spec module later
@@ -62,6 +64,162 @@ class ScriptDataHashGeneratorTest {
         System.out.println(hash);
 
         assertThat(hash).isEqualTo("57240d358f8ab6128c4a66340271e4fec39b4971232add308f01a5809313adcf");
+    }
+
+    @Test
+    void generate_plutusV1_noEraSet() throws CborException, CborSerializationException {
+        ListPlutusData listPlutusData = new ListPlutusData();
+        PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
+        listPlutusData.add(plutusData);
+
+        Redeemer redeemer = Redeemer.builder()
+                .tag(RedeemerTag.Spend)
+                .index(BigInteger.valueOf(1))
+                .data(new BigIntPlutusData(new BigInteger("2000")))
+                .exUnits(ExUnits.builder()
+                        .mem(BigInteger.valueOf(0))
+                        .steps(BigInteger.valueOf(0))
+                        .build()
+                ).build();
+
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Arrays.asList(redeemer), Arrays.asList(plutusData), costMdls);
+        String hash = HexUtil.encodeHexString(hashBytes);
+        System.out.println(hash);
+
+        assertThat(hash).isEqualTo("57240d358f8ab6128c4a66340271e4fec39b4971232add308f01a5809313adcf");
+    }
+
+    @Test
+    void generate_plutusV1_eraSet_shouldNotUseBabbageEra() throws CborException, CborSerializationException { //negative test
+        ListPlutusData listPlutusData = new ListPlutusData();
+        PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
+        listPlutusData.add(plutusData);
+
+        Redeemer redeemer = Redeemer.builder()
+                .tag(RedeemerTag.Spend)
+                .index(BigInteger.valueOf(1))
+                .data(new BigIntPlutusData(new BigInteger("2000")))
+                .exUnits(ExUnits.builder()
+                        .mem(BigInteger.valueOf(0))
+                        .steps(BigInteger.valueOf(0))
+                        .build()
+                ).build();
+
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Era.Conway, Arrays.asList(redeemer), Arrays.asList(plutusData), costMdls);
+        String hash = HexUtil.encodeHexString(hashBytes);
+        System.out.println(hash);
+
+        assertThat(hash).isNotEqualTo("57240d358f8ab6128c4a66340271e4fec39b4971232add308f01a5809313adcf");
+    }
+
+    @Test
+    void generate_plutusV2() throws CborException, CborSerializationException {
+        ListPlutusData listPlutusData = new ListPlutusData();
+        PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
+        listPlutusData.add(plutusData);
+
+        Redeemer redeemer = Redeemer.builder()
+                .tag(RedeemerTag.Spend)
+                .index(BigInteger.valueOf(1))
+                .data(new BigIntPlutusData(new BigInteger("2000")))
+                .exUnits(ExUnits.builder()
+                        .mem(BigInteger.valueOf(0))
+                        .steps(BigInteger.valueOf(0))
+                        .build()
+                ).build();
+
+        var _costMdls = new CostMdls();
+        _costMdls.add(PlutusV2CostModel);
+
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Arrays.asList(redeemer), Arrays.asList(plutusData), _costMdls);
+        String hash = HexUtil.encodeHexString(hashBytes);
+        System.out.println(hash);
+
+        assertThat(hash).isEqualTo("83d39add124e06e9cf8c4fee28c8b8063932c4bdfc3d4900fb08f49beffef601");
+    }
+
+    @Test
+    void generate_plutusV2_eraSetToBabbage() throws CborException, CborSerializationException { //negative test
+        ListPlutusData listPlutusData = new ListPlutusData();
+        PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
+        listPlutusData.add(plutusData);
+
+        Redeemer redeemer = Redeemer.builder()
+                .tag(RedeemerTag.Spend)
+                .index(BigInteger.valueOf(1))
+                .data(new BigIntPlutusData(new BigInteger("2000")))
+                .exUnits(ExUnits.builder()
+                        .mem(BigInteger.valueOf(0))
+                        .steps(BigInteger.valueOf(0))
+                        .build()
+                ).build();
+
+        var _costMdls = new CostMdls();
+        _costMdls.add(PlutusV2CostModel);
+
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer), Arrays.asList(plutusData), _costMdls);
+        String hash = HexUtil.encodeHexString(hashBytes);
+        System.out.println(hash);
+
+        assertThat(hash).isNotEqualTo("83d39add124e06e9cf8c4fee28c8b8063932c4bdfc3d4900fb08f49beffef601");
+    }
+
+    @Test
+    void generate_plutusV2_eraSetToConway() throws CborException, CborSerializationException {
+        ListPlutusData listPlutusData = new ListPlutusData();
+        PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
+        listPlutusData.add(plutusData);
+
+        Redeemer redeemer = Redeemer.builder()
+                .tag(RedeemerTag.Spend)
+                .index(BigInteger.valueOf(1))
+                .data(new BigIntPlutusData(new BigInteger("2000")))
+                .exUnits(ExUnits.builder()
+                        .mem(BigInteger.valueOf(0))
+                        .steps(BigInteger.valueOf(0))
+                        .build()
+                ).build();
+
+        var _costMdls = new CostMdls();
+        _costMdls.add(PlutusV2CostModel);
+
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Era.Conway, Arrays.asList(redeemer), Arrays.asList(plutusData), _costMdls);
+        String hash = HexUtil.encodeHexString(hashBytes);
+        System.out.println(hash);
+
+        assertThat(hash).isEqualTo("83d39add124e06e9cf8c4fee28c8b8063932c4bdfc3d4900fb08f49beffef601");
+    }
+
+    @Test
+    void generate_plutusV2_emptyRedeemer() throws CborException, CborSerializationException {
+        ListPlutusData listPlutusData = new ListPlutusData();
+        PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
+        listPlutusData.add(plutusData);
+
+        var _costMdls = new CostMdls();
+        _costMdls.add(PlutusV2CostModel);
+
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Era.Conway, Arrays.asList(), Arrays.asList(plutusData), _costMdls);
+        String hash = HexUtil.encodeHexString(hashBytes);
+        System.out.println(hash);
+
+        assertThat(hash).isEqualTo("62d142288edfbd6b5bceec2bd476a22e6856c0904fcf26116fc4dd54440c038e");
+    }
+
+    @Test
+    void generate_plutusV1_emptyRedeemer() throws CborException, CborSerializationException {
+        ListPlutusData listPlutusData = new ListPlutusData();
+        PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
+        listPlutusData.add(plutusData);
+
+        var _costMdls = new CostMdls();
+        _costMdls.add(PlutusV1CostModel);
+
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Arrays.asList(), Arrays.asList(plutusData), _costMdls);
+        String hash = HexUtil.encodeHexString(hashBytes);
+        System.out.println(hash);
+
+        assertThat(hash).isEqualTo("d6e05995f657a2bf1a3dd246756733f9e680487df08c5d958617e5eec70b9fc2");
     }
 
     @Test

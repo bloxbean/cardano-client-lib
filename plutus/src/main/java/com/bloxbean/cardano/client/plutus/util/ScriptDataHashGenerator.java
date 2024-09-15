@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
+import com.bloxbean.cardano.client.plutus.spec.Language;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.spec.Era;
@@ -25,8 +26,14 @@ public class ScriptDataHashGenerator {
     public static byte[] generate(Era era, List<Redeemer> redeemers, List<PlutusData> datums, CostMdls costMdls)
             throws CborSerializationException, CborException {
 
-        if (era == null)
+        //For workaround: https://github.com/bloxbean/cardano-client-lib/issues/426
+        boolean plutusV1Exists = costMdls.get(Language.PLUTUS_V1) != null;
+
+        if (era == null && plutusV1Exists){ //If era is not set and PlutusV1 exists, set era to Babbage
+            era = Era.Babbage;
+        } else if (era == null) {
             era = EraSerializationConfig.INSTANCE.getEra();
+        }
 
 
         /**

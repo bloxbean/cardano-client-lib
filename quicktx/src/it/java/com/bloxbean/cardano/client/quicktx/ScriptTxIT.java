@@ -82,7 +82,6 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withRequiredSigners(sender1.getBaseAddress())
-                .withSerializationEra(Era.Babbage)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
