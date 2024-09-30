@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 @Getter
 @AllArgsConstructor
@@ -22,7 +23,7 @@ import java.util.HashMap;
 public class MapPlutusData implements PlutusData {
 
     @Builder.Default
-    private java.util.Map<PlutusData, PlutusData> map = new HashMap<>();
+    private java.util.Map<PlutusData, PlutusData> map = new LinkedHashMap<>();
 
     public static MapPlutusData deserialize(Map mapDI) throws CborDeserializationException {
         if (mapDI == null) {
