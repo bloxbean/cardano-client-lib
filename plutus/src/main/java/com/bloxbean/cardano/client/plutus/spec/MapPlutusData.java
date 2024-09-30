@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 
 @Getter
@@ -43,7 +42,7 @@ public class MapPlutusData implements PlutusData {
 
     public MapPlutusData put(PlutusData key, PlutusData value) {
         if (map == null)
-            map = new HashMap<>();
+            map = new LinkedHashMap<>();
 
         map.put(key, value);
 
