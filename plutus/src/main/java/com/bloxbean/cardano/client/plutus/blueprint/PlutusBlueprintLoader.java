@@ -86,6 +86,9 @@ public class PlutusBlueprintLoader {
             var refDatumSchema = definitions.get(ref);
 
             blueprintSchema.copyFrom(refDatumSchema);
+
+            if (blueprintSchema.getDataType() == null && ref.startsWith("Option$"))
+                blueprintSchema.setDataType(BlueprintDatatype.option);
         }
         blueprintSchema.setFields(extracted(definitions, blueprintSchema.getFields()));
         blueprintSchema.setAnyOf(extracted(definitions, blueprintSchema.getAnyOf()));

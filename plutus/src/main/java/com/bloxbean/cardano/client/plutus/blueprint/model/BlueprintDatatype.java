@@ -15,6 +15,8 @@ public enum BlueprintDatatype {
     string,
     @JsonAlias({"boolean", "#boolean", "bool", "#bool"})
     bool,
-     @JsonAlias({"unit", "#unit"})
+     @JsonAlias({"pair", "#pair"})
     pair,
+    //custom type for Aiken, Helios
+    option
 }

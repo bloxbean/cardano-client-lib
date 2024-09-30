@@ -44,6 +44,12 @@ public class FieldSpecProcessor {
             return;
         }
 
+        //Check if it's an Option, then also return
+        if ("Option".equals(dataClassName)) {
+            if(isOptionType(schema))
+                return;
+        }
+
         dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
 
         //Check if Enum: Check if the schema has anyOf > 1 and each of the anyOf has 0 fields
@@ -70,6 +76,29 @@ public class FieldSpecProcessor {
             dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
             createDatumFieldSpec(ns, interfaceName, innerSchema, dataClassName);
         }
+    }
+
+    private boolean isOptionType(BlueprintSchema schema) {
+        //It's an option type if it has two anyOfs with first one as Some and second one as None
+        if(schema.getAnyOf() == null || schema.getAnyOf().size() != 2)
+            return false;
+
+        BlueprintSchema someSchema = schema.getAnyOf().get(0);
+        BlueprintSchema noneSchema = schema.getAnyOf().get(1);
+
+        if(someSchema.getTitle() == null || noneSchema.getTitle() == null)
+            return false;
+
+        if(!"Some".equals(someSchema.getTitle()) || !"None".equals(noneSchema.getTitle()))
+            return false;
+
+        if(someSchema.getFields() == null || someSchema.getFields().size() != 1)
+            return false;
+
+        if(noneSchema.getFields() != null && noneSchema.getFields().size() != 0)
+            return false;
+
+        return true;
     }
 
     private boolean createEnumIfPossible(String ns, BlueprintSchema schema) {
@@ -328,6 +357,9 @@ public class FieldSpecProcessor {
                     break;
                 case string:
                     specs.add(dataTypeProcessUtil.processStringDataType(javaDoc, schema, alternativeName));
+                    break;
+                case option:
+                    specs.add(dataTypeProcessUtil.processOptionDataType(ns, javaDoc, schema, alternativeName));
                     break;
                 default:
             }

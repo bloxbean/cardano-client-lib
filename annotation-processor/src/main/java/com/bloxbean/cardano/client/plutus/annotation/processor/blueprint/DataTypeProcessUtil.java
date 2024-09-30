@@ -78,12 +78,39 @@ public class DataTypeProcessUtil {
                 .build();
     }
 
+    public FieldSpec processOptionDataType(String ns, String javaDoc, BlueprintSchema schema, String alternativeName) {
+        if(schema.getDataType() != option)
+            throw new IllegalArgumentException("Schema is not of type option");
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        TypeName fieldClass = getTypeNameForOptionParametrizedType(ns, schema);
+        return FieldSpec.builder(fieldClass, title)
+                .addModifiers(Modifier.PRIVATE)
+                .addJavadoc(javaDoc)
+                .build();
+    }
+
     private TypeName getTypeNameForListParametrizedType(String ns, BlueprintSchema field) {
         return ParameterizedTypeName.get(ClassName.get("java.util", "List"), getInnerType(ns, field.getItems()));
     }
 
     private TypeName getTypeNameForMapParametrizedType(String ns, BlueprintSchema field) {
         return ParameterizedTypeName.get(ClassName.get("java.util", "Map"), getInnerType(ns, field.getKeys()), getInnerType(ns, field.getValues()));
+    }
+
+    private TypeName getTypeNameForOptionParametrizedType(String ns, BlueprintSchema field) {
+        var anyOfs = field.getAnyOf();
+        if (anyOfs == null || anyOfs.size() != 2)
+            throw new IllegalArgumentException("Option type should have 2 anyOfs");
+
+        //Get the first anyof with Some title
+        BlueprintSchema someSchema = anyOfs.stream().filter(s -> s.getTitle().equals("Some")).findFirst().orElse(null);
+        if(someSchema == null)
+            throw new IllegalArgumentException("Option type should have a Some type");
+
+        if (someSchema.getFields().size() > 1)
+            throw new IllegalArgumentException("Option type should have only one field in Some type");
+
+        return ParameterizedTypeName.get(ClassName.get("java.util", "Optional"), getInnerType(ns, someSchema.getFields().get(0)));
     }
 
     private TypeName getInnerType(String ns, BlueprintSchema items) {
@@ -105,6 +132,8 @@ public class DataTypeProcessUtil {
                 return getTypeNameForListParametrizedType(ns, items);
             case map:
                 return getTypeNameForMapParametrizedType(ns, items);
+            case option:
+                return getTypeNameForOptionParametrizedType(ns, items);
             default:
                 return TypeName.get(String.class);
         }
