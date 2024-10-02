@@ -50,6 +50,11 @@ public class FieldSpecProcessor {
                 return;
         }
 
+        if ("Pair".equals(dataClassName)) {
+            if (schema.getDataType() == BlueprintDatatype.pair)
+                return;
+        }
+
         dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
 
         //Check if Enum: Check if the schema has anyOf > 1 and each of the anyOf has 0 fields
@@ -360,6 +365,9 @@ public class FieldSpecProcessor {
                     break;
                 case option:
                     specs.add(dataTypeProcessUtil.processOptionDataType(ns, javaDoc, schema, alternativeName));
+                    break;
+                case pair:
+                    specs.add(dataTypeProcessUtil.processPairDataType(ns, javaDoc, schema, alternativeName));
                     break;
                 default:
             }

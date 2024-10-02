@@ -89,6 +89,17 @@ public class DataTypeProcessUtil {
                 .build();
     }
 
+    public FieldSpec processPairDataType(String ns, String javaDoc, BlueprintSchema schema, String alternativeName) {
+        if(schema.getDataType() != pair)
+            throw new IllegalArgumentException("Schema is not of type pair");
+        String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+        TypeName fieldClass = getTypeNameForPairParametrizedType(ns, schema);
+        return FieldSpec.builder(fieldClass, title)
+                .addModifiers(Modifier.PRIVATE)
+                .addJavadoc(javaDoc)
+                .build();
+    }
+
     private TypeName getTypeNameForListParametrizedType(String ns, BlueprintSchema field) {
         return ParameterizedTypeName.get(ClassName.get("java.util", "List"), getInnerType(ns, field.getItems()));
     }
@@ -113,6 +124,16 @@ public class DataTypeProcessUtil {
         return ParameterizedTypeName.get(ClassName.get("java.util", "Optional"), getInnerType(ns, someSchema.getFields().get(0)));
     }
 
+    private TypeName getTypeNameForPairParametrizedType(String ns, BlueprintSchema schema) {
+        var left = schema.getLeft();
+        var right = schema.getRight();
+
+        if(left == null || right == null)
+            throw new IllegalArgumentException("Pair type should have left and right fields");
+
+        return ParameterizedTypeName.get(ClassName.get("com.bloxbean.cardano.client.plutus.blueprint.type", "Pair"), getInnerType(ns, left), getInnerType(ns, right));
+    }
+
     private TypeName getInnerType(String ns, BlueprintSchema items) {
         if(items.getDataType() == null) // Case for constructor data type
         {
@@ -134,6 +155,8 @@ public class DataTypeProcessUtil {
                 return getTypeNameForMapParametrizedType(ns, items);
             case option:
                 return getTypeNameForOptionParametrizedType(ns, items);
+            case pair:
+                return getTypeNameForPairParametrizedType(ns, items);
             default:
                 return TypeName.get(String.class);
         }
@@ -175,7 +198,6 @@ public class DataTypeProcessUtil {
         List<FieldSpec> specs = new ArrayList<>();
         for (BlueprintSchema field : schema.getFields()) {
             if(field.getDataType() != null) {
-                javaDoc += " Index: " + field.getIndex() ;
                 specs.addAll(fieldSpecProcessor.createFieldSpecForDataTypes(ns, javaDoc,  List.of(field)));
             } else {
                 //TODO

@@ -2,12 +2,10 @@ package com.bloxbean.cardano.client.plutus.blueprint.model;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
-import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -61,6 +59,10 @@ public class BlueprintSchema {
     private int index;
     private List<BlueprintSchema> fields;
 
+    // Datatype = "pair"
+    private BlueprintSchema left;
+    private BlueprintSchema right;
+
     public void copyFrom(BlueprintSchema blueprintSchema) {
         this.refSchema = blueprintSchema;
 
@@ -88,5 +90,7 @@ public class BlueprintSchema {
         this.values = this.values != null ? this.values : blueprintSchema.values;
         this.index = this.index != 0 ? this.index : blueprintSchema.index;
         this.fields = this.fields != null ? this.fields : blueprintSchema.fields;
+        this.left = this.left != null ? this.left : blueprintSchema.left;
+        this.right = this.right != null ? this.right : blueprintSchema.right;
     }
 }
