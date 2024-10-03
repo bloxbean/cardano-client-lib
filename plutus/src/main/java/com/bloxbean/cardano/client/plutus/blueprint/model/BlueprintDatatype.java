@@ -18,5 +18,9 @@ public enum BlueprintDatatype {
      @JsonAlias({"pair", "#pair"})
     pair,
     //custom type for Aiken, Helios
-    option
+    option;
+
+    public boolean isPrimitiveType() {
+        return this == integer || this == bytes || this == string || this == bool;
+    }
 }

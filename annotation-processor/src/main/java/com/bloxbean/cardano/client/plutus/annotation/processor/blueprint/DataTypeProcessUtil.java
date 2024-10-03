@@ -38,6 +38,8 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != integer)
             throw new IllegalArgumentException("Schema is not of type integer");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(BigInteger.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -54,6 +56,8 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != bytes)
             throw new IllegalArgumentException("Schema is not of type bytes");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(byte[].class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -72,6 +76,8 @@ public class DataTypeProcessUtil {
             throw new IllegalArgumentException("Schema is not of type list");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
         TypeName fieldClass = getTypeNameForListParametrizedType(ns, schema);
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -83,6 +89,8 @@ public class DataTypeProcessUtil {
             throw new IllegalArgumentException("Schema is not of type option");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
         TypeName fieldClass = getTypeNameForOptionParametrizedType(ns, schema);
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -94,6 +102,8 @@ public class DataTypeProcessUtil {
             throw new IllegalArgumentException("Schema is not of type pair");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
         TypeName fieldClass = getTypeNameForPairParametrizedType(ns, schema);
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -140,7 +150,8 @@ public class DataTypeProcessUtil {
             TypeName typeName = fieldSpecProcessor.getInnerDatumClass(ns, items);
             return typeName;
         }
-        switch (items.getDataType()) {
+        var dataType = items.getDataType();
+        switch (dataType) {
             case bytes:
                 return TypeName.get(byte[].class);
             case integer:
@@ -172,6 +183,8 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != bool)
             throw new IllegalArgumentException("Schema is not of type boolean");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(boolean.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -188,6 +201,8 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != string)
             throw new IllegalArgumentException("Schema is not of type string");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(String.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -241,6 +256,8 @@ public class DataTypeProcessUtil {
             throw new IllegalArgumentException("Schema is not of type map");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
         TypeName fieldClass = getTypeNameForMapParametrizedType(ns, schema);
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(fieldClass, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)
@@ -251,6 +268,8 @@ public class DataTypeProcessUtil {
         if(schema.getDataType() != null)
             throw new IllegalArgumentException("Schema is not of type plutusdata");
         String title = schema.getTitle() == null ? alternativeName : schema.getTitle();
+
+        title = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(title));
         return FieldSpec.builder(PlutusData.class, title)
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(javaDoc)

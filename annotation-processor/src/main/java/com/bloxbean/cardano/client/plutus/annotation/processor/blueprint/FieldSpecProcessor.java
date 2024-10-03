@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
@@ -34,13 +35,24 @@ public class FieldSpecProcessor {
     /**
      * Creates a Datum class for a given schema
      * If the schema has anyOf &gt; 1, it creates an interface and a class for each of the anyOf
-     *
+     * This is the main method called to create Datum classes from BlueprintAnnotationProcessor
      * @param ns     namespace or package suffix
      * @param schema Definition schema to create Datum class
      */
     public void createDatumClass(String ns, BlueprintSchema schema) {
         String dataClassName = schema.getTitle();
         if (dataClassName == null || dataClassName.isEmpty()) {
+            return;
+        }
+
+        //If there is no fields, then it's just an alias. So ignore class generation
+        if(schema.getDataType() != null && schema.getDataType().isPrimitiveType()
+                && schema.getItems() == null
+                && (schema.getFields() == null || schema.getFields().size() == 0)
+                && (schema.getAnyOf() == null || schema.getAnyOf().size() == 0)
+                && (schema.getAllOf() == null || schema.getAllOf().size() == 0)
+                && (schema.getOneOf() == null || schema.getOneOf().size() == 0)
+                && (schema.getNotOf() == null || schema.getNotOf().size() == 0)) {
             return;
         }
 
@@ -57,6 +69,7 @@ public class FieldSpecProcessor {
 
         dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
 
+
         //Check if Enum: Check if the schema has anyOf > 1 and each of the anyOf has 0 fields
         if(createEnumIfPossible(ns, schema))
             return;
@@ -67,7 +80,7 @@ public class FieldSpecProcessor {
         if (schema.getAnyOf() != null && schema.getAnyOf().size() > 1) {
             log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
             //More than one constructor. So let's create an interface
-            createDatumInterface(ns, dataClassName);
+            createDatumInterface(ns, dataClassName, schema);
             interfaceName = dataClassName;
         }
 
@@ -158,7 +171,8 @@ public class FieldSpecProcessor {
         if (dataClassName != null)
             dataClassName = JavaFileUtil.toClassNameFormat(dataClassName);
 
-        String pkg = getPackageName(ns);
+        String finalNS = BlueprintUtil.getNSFromReference(schema.getRef());
+        String pkg = getPackageName(finalNS);
 
         //For anyOf > 1, create an interface, if size == 1, create a class
         //TODO -- What about allOf ??
@@ -214,7 +228,7 @@ public class FieldSpecProcessor {
      * @param dataClassName name of the interface
      * @return ClassName of the interface
      */
-    public ClassName createDatumInterface(String ns, String dataClassName) {
+    public ClassName createDatumInterface(String ns, String dataClassName, BlueprintSchema schema) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
         String className = JavaFileUtil.toClassNameFormat(dataClassName); //TODO
@@ -243,16 +257,7 @@ public class FieldSpecProcessor {
         String classNameString = JavaFileUtil.toClassNameFormat(title);//JavaFileUtil.buildClassName(schema, suffix, title, prefix);
         TypeSpec redeemerJavaFile = createDatumTypeSpec(ns, interfaceName, schema);
 
-        var dataType = schema.getDataType();
         String className = redeemerJavaFile.name;
-
-        //If Datatype is null, then get the type from inner schema
-        if (dataType == null) {
-            var anyOfs = schema.getAnyOf();
-            if (anyOfs != null && anyOfs.size() == 1) {
-                className = anyOfs.get(0).getTitle();
-            }
-        }
 
         log.debug("---------- Inside createDatumFieldSpec ---------");
         log.debug("ClasNameString : " + classNameString);
@@ -264,9 +269,13 @@ public class FieldSpecProcessor {
             className = JavaFileUtil.toClassNameFormat(className);
         }
 
-        ClassName classNameType = ClassName.get(getPackageName(ns), className);
-        String fieldName = title; // + (schema.getDataType() == BlueprintDatatype.constructor ? String.valueOf(schema.getIndex()) : "") ;
+        String finalNS = BlueprintUtil.getNSFromReference(schema.getRef());;
+        String pkg = getPackageName(finalNS);
 
+        ClassName classNameType = ClassName.get(pkg, className);
+
+        String fieldName = title; // + (schema.getDataType() == BlueprintDatatype.constructor ? String.valueOf(schema.getIndex()) : "") ;
+        fieldName = JavaFileUtil.firstLowerCase(JavaFileUtil.toCamelCase(fieldName));
         var fieldSpec = FieldSpec.builder(classNameType, fieldName)
                 .addModifiers(Modifier.PRIVATE)
                 .build();
@@ -337,11 +346,12 @@ public class FieldSpecProcessor {
 
     public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         List<FieldSpec> specs = new ArrayList<>();
-        if (schema.getDataType() == null) { // Processing Anyplutusdata
-            specs.add(dataTypeProcessUtil.processPlutusDataType(javaDoc, schema, alternativeName));
 
+        var schemaType = schema.getDataType();
+        if (schemaType == null) { // Processing Anyplutusdata
+            specs.add(dataTypeProcessUtil.processPlutusDataType(javaDoc, schema, alternativeName));
         } else {
-            switch (schema.getDataType()) {
+            switch (schemaType) {
                 case bytes:
                     specs.add(dataTypeProcessUtil.processBytesDataType(javaDoc, schema, alternativeName));
                     break;
