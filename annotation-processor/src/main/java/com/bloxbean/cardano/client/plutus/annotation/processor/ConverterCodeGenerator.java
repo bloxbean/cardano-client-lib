@@ -292,8 +292,6 @@ public class ConverterCodeGenerator implements CodeGenerator {
                             .add("//Field $L\n", field.getName())
                             .beginControlFlow("if(obj.$L != null)", fieldOrGetterName(field))
                                 .addStatement("constr.getData().add(new $T().toPlutusData(obj.$L))", converterClass, fieldOrGetterName(field))
-                                .addStatement("// Setting the alternative to the childs alternative to use this constructor")
-                                .addStatement("constr = $T.builder().alternative($L).data(constr.getData()).build()", ConstrPlutusData.class, field.getAlternative())
                             .endControlFlow()
                             .build();
                     break;
