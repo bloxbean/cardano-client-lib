@@ -1,0 +1,187 @@
+{
+  "preamble": {
+    "title": "satya/hello6",
+    "description": "Aiken contracts for project 'satya/hello6'",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.3+3d77b5c"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "hello6.option_test.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/hello6~1Datum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/hello6~1Redeemer"
+        }
+      },
+      "compiledCode": "590214010100323232323232253330023232323232533233008300130093754004264646464a6646601a6002601c6ea80204c8c8c8c8c8c8c8c94ccc060c0680084c8c94ccc05cc02c0044c8c94ccc070c0780085401058dd7180e000980c9baa0091533301730100011533301a301937540122a0042c2c602e6ea80204cc028014894ccc0680084c8c94ccc064c0340044c8c94ccc078c0800084c8c94ccc074c04400454ccc080c07cdd50018a8010b0a99980e980b0008a999810180f9baa003150021616301d37540042a0082c603c00260366ea801c54ccc064c04800454ccc070c06cdd50038a8010b0b180c9baa00613300c00322533301c00215333019300d301a375401e26464a666036601e60386ea80044c94ccc07000c400452819b8f375c603e603a6ea800522010548656c6c6f0016301e301c375402a66e1cdd6980e980d9baa301d301b375401e90020b0999119299980e180800089919299981098118010a8020b1bad3021001301e37540062a666038602a0022a66603e603c6ea800c540085858c070dd5001180e80109800980f0010991801180e8019bad301b00216375860300026030004602c002602c0046eb0c050004c050008c048004c03cdd50041b87480005888c8cc00400400c88cc00c004c008008c038c03c008c034004c028dd50011b874800858c028c02c008c024004c024008c01c004c010dd50008a4c26cacae6955ceaab9e5573eae855d11",
+      "hash": "259dcba0e8629ce7acabb4e4424f9da53be27aa2f5ee32c323fa0963"
+    },
+    {
+      "title": "hello6.option_test.else",
+      "compiledCode": "590214010100323232323232253330023232323232533233008300130093754004264646464a6646601a6002601c6ea80204c8c8c8c8c8c8c8c94ccc060c0680084c8c94ccc05cc02c0044c8c94ccc070c0780085401058dd7180e000980c9baa0091533301730100011533301a301937540122a0042c2c602e6ea80204cc028014894ccc0680084c8c94ccc064c0340044c8c94ccc078c0800084c8c94ccc074c04400454ccc080c07cdd50018a8010b0a99980e980b0008a999810180f9baa003150021616301d37540042a0082c603c00260366ea801c54ccc064c04800454ccc070c06cdd50038a8010b0b180c9baa00613300c00322533301c00215333019300d301a375401e26464a666036601e60386ea80044c94ccc07000c400452819b8f375c603e603a6ea800522010548656c6c6f0016301e301c375402a66e1cdd6980e980d9baa301d301b375401e90020b0999119299980e180800089919299981098118010a8020b1bad3021001301e37540062a666038602a0022a66603e603c6ea800c540085858c070dd5001180e80109800980f0010991801180e8019bad301b00216375860300026030004602c002602c0046eb0c050004c050008c048004c03cdd50041b87480005888c8cc00400400c88cc00c004c008008c038c03c008c034004c028dd50011b874800858c028c02c008c024004c024008c01c004c010dd50008a4c26cacae6955ceaab9e5573eae855d11",
+      "hash": "259dcba0e8629ce7acabb4e4424f9da53be27aa2f5ee32c323fa0963"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "List$Int": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/Int"
+      }
+    },
+    "List$Option$Int": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/Option$Int"
+      }
+    },
+    "Option$ByteArray": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "Option$Int": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "Option$hello6/Action": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "description": "An optional value.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/hello6~1Action"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "description": "Nothing.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "hello6/Action": {
+      "title": "Action",
+      "anyOf": [
+        {
+          "title": "Mint",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Burn",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "hello6/Datum": {
+      "title": "Datum",
+      "anyOf": [
+        {
+          "title": "Datum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "count",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "hello6/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/Option$ByteArray"
+            },
+            {
+              "title": "list",
+              "$ref": "#/definitions/List$Int"
+            },
+            {
+              "title": "act",
+              "$ref": "#/definitions/Option$hello6~1Action"
+            },
+            {
+              "title": "act2",
+              "$ref": "#/definitions/List$Option$Int"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

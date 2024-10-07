@@ -86,6 +86,9 @@ public class PlutusBlueprintLoader {
             var refDatumSchema = definitions.get(ref);
 
             blueprintSchema.copyFrom(refDatumSchema);
+
+            if (blueprintSchema.getDataType() == null && ref.startsWith("Option$"))
+                blueprintSchema.setDataType(BlueprintDatatype.option);
         }
         blueprintSchema.setFields(extracted(definitions, blueprintSchema.getFields()));
         blueprintSchema.setAnyOf(extracted(definitions, blueprintSchema.getAnyOf()));
@@ -95,6 +98,12 @@ public class PlutusBlueprintLoader {
             blueprintSchema.setKeys(extracted(definitions, List.of(blueprintSchema.getKeys())).get(0));
         if(blueprintSchema.getValues() != null)
             blueprintSchema.setValues(extracted(definitions, List.of(blueprintSchema.getValues())).get(0));
+
+        if (blueprintSchema.getLeft() != null)
+            blueprintSchema.setLeft(extracted(definitions, List.of(blueprintSchema.getLeft())).get(0));
+
+        if (blueprintSchema.getRight() != null)
+            blueprintSchema.setRight(extracted(definitions, List.of(blueprintSchema.getRight())).get(0));
         return blueprintSchema;
     }
 

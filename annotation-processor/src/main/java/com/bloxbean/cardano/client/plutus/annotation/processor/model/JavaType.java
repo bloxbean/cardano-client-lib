@@ -21,6 +21,8 @@ public class JavaType {
     public final static JavaType BOOLEAN = new JavaType("boolean", false);
     public final static JavaType PLUTUSDATA = new JavaType("plutusdata", false);
 
+    public final static JavaType PAIR = new JavaType("pair", false);
+
     private String name;
     private boolean userDefined;
     public JavaType(String name, boolean userDefined) {

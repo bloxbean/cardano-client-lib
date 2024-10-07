@@ -18,6 +18,8 @@ import javax.tools.StandardLocation;
 import java.io.File;
 import java.util.*;
 
+import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.getNSFromReferenceKey;
+
 @AutoService(Processor.class)
 @Slf4j
 public class BlueprintAnnotationProcessor extends AbstractProcessor {
@@ -92,16 +94,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             //Create Data classes
             for(Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();
-                String[] titleTokens = key.split("\\/");
-                String ns = "";
-
-                if (titleTokens.length > 1) {
-                    ns = titleTokens[0];
-                }
-
-                if (ns != null && !ns.isEmpty()) {
-                    ns = ns.toLowerCase();
-                }
+                String ns = getNSFromReferenceKey(key);
 
                 fieldSpecProcessor.createDatumClass(ns, definition.getValue());
             }

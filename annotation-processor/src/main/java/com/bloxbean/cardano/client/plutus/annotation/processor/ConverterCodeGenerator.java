@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
 import com.squareup.javapoet.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -282,15 +283,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
                      ****/
                     codeBlock = generateOptionalSerializationCode(field);
                     break;
-
+                case PAIR:
+                    codeBlock = generatePairSerializationCode(field);
+                    break;
                 case CONSTRUCTOR:
                     ClassName converterClass = getConverterClassFromField(field.getFieldType());
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
                             .beginControlFlow("if(obj.$L != null)", fieldOrGetterName(field))
                                 .addStatement("constr.getData().add(new $T().toPlutusData(obj.$L))", converterClass, fieldOrGetterName(field))
-                                .addStatement("// Setting the alternative to the childs alternative to use this constructor")
-                                .addStatement("constr = $T.builder().alternative($L).data(constr.getData()).build()", ConstrPlutusData.class, field.getAlternative())
                             .endControlFlow()
                             .build();
                     break;
@@ -414,7 +415,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
         FieldType valueType = fieldType.getGenericTypes().get(1);
 
         CodeBlock.Builder codeBlockBuilder = CodeBlock.builder();
-        codeBlockBuilder.addStatement("$T $L = $T.builder().build();", MapPlutusData.class, outputVarName, MapPlutusData.class)
+        codeBlockBuilder.addStatement("$T $L = $T.builder().build()", MapPlutusData.class, outputVarName, MapPlutusData.class)
                 .beginControlFlow("for(var $L: $L.entrySet())", entryVarName, mapObjectName);
 
         String keyOutputVarName = outputVarName + "_$key";
@@ -557,6 +558,131 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 .build();
     }
 
+    /**
+     * Generates a {@link CodeBlock} for serializing a pair field.
+     *
+     * @param field the field for which the serialization code needs to be generated
+     *
+     * @return a {@link CodeBlock} containing the serialization code
+     */
+    private CodeBlock generatePairSerializationCode(Field field) {
+        FieldType fieldType = field.getFieldType();
+        String fieldName = field.getName();
+        String fieldOrGetterName = fieldOrGetterName(field);
+
+        return generatePairSerializationCode(fieldType, fieldName, fieldOrGetterName);
+    }
+
+    /**
+     * Generates serialization code for a Pair type field.
+     *
+     * @param fieldType the type of the field being serialized, which should be a Pair with defined generic types
+     * @param fieldName the name of the field
+     * @param fieldOrGetterName the name of the field or getter method to access the field's value in the object
+     * @return CodeBlock containing the serialization code for the Pair type field
+     */
+    // This only handles top level Pair serialization. Nested Pair serialization is handled by generateNestedPairSerializationCode()
+    private CodeBlock generatePairSerializationCode(FieldType fieldType, String fieldName, String fieldOrGetterName) {
+        FieldType firstType = fieldType.getGenericTypes().get(0);
+        FieldType secondType = fieldType.getGenericTypes().get(1);
+        CodeBlock firstNestedBlock;
+        CodeBlock secondNestedBlock;
+        String firstNestedVarName = fieldName + "_$nested_first";
+        String secondNestedVarName = fieldName + "_$nested_second";
+        if (!firstType.isCollection()) {
+            firstNestedBlock = CodeBlock.builder()
+                    .add("var $L=$L;",firstNestedVarName,
+                            toPlutusDataCodeBlock(firstType, "obj." + fieldOrGetterName + ".getFirst()"))
+                    .build();
+        } else {
+            if (firstType.isList()) {
+                firstNestedBlock = generateNestedListCode(firstType, fieldName, firstNestedVarName, "item", "obj." + fieldOrGetterName + ".getFirst()");
+            } else if (firstType.isMap()) {
+                firstNestedBlock = generateNestedMapCode(firstType, firstNestedVarName, "entry", "obj." + fieldOrGetterName + ".getFirst()");
+            } else {
+                throw new RuntimeException("Unsupported type " + firstType);
+            }
+        }
+
+        if (!secondType.isCollection()) {
+            secondNestedBlock = CodeBlock.builder()
+                    .add("var $L=$L;",secondNestedVarName,
+                            toPlutusDataCodeBlock(secondType, "obj." + fieldOrGetterName + ".getSecond()"))
+                    .build();
+        } else {
+            if (secondType.isList()) {
+                secondNestedBlock = generateNestedListCode(secondType, fieldName, secondNestedVarName, "item", "obj." + fieldOrGetterName + ".getSecond()");
+            } else if (secondType.isMap()) {
+                secondNestedBlock = generateNestedMapCode(secondType, secondNestedVarName, "entry", "obj." + fieldOrGetterName + ".getSecond()");
+            } else {
+                throw new RuntimeException("Unsupported type " + secondType);
+            }
+        }
+
+        return CodeBlock.builder()
+                .add("//Field $L\n", fieldName)
+                .add(nullCheckStatement(fieldName, fieldOrGetterName))
+                .add(firstNestedBlock)
+                .add("\n")
+                .add(secondNestedBlock)
+                .add("\n")
+                .addStatement("$T $LPair = $T.builder().build()", ListPlutusData.class, fieldName, ListPlutusData.class)
+                .addStatement("$LPair.add($L)", fieldName, firstNestedVarName)
+                .addStatement("$LPair.add($L)", fieldName, secondNestedVarName)
+                .addStatement("//Add the pair to the constructor")
+                .addStatement("constr.getData().add($LPair)", fieldName)
+                .add("\n")
+                .build();
+    }
+
+    //Not used currently. This is for nested Pair serialization
+    /**
+    private CodeBlock generateNestedPairSerializationCode(FieldType genericType, String varName, String returnVarName) {
+        FieldType firstType = genericType.getGenericTypes().get(0);
+        FieldType secondType = genericType.getGenericTypes().get(1);
+
+        CodeBlock firstNestedBlock;
+        CodeBlock secondNestedBlock;
+
+        String firstNestedVarName = varName + "_$nested_first";
+        String secondNestedVarName = varName + "_$nested_second";
+
+        if (!firstType.isCollection()) {
+            firstNestedBlock = CodeBlock.builder()
+                    .add("var $L=$L;",firstNestedVarName,
+                            toPlutusDataCodeBlock(firstType, varName + ".getFirst()"))
+                    .build();
+        } else {
+            if (firstType.isList()) {
+                String innerLoopVarName = varName + "_$inner";
+                firstNestedBlock = generateNestedListCode(firstType, varName, firstNestedVarName, innerLoopVarName, varName + ".getFirst()");
+            } else if (firstType.isMap()) {
+                String innerEntryVarName = varName + "_$inner";
+                firstNestedBlock = generateNestedMapCode(firstType, firstNestedVarName, innerEntryVarName, varName + ".getFirst()");
+            } else {
+                throw new RuntimeException("Unsupported type " + firstType);
+            }
+        }
+
+        if (!secondType.isCollection()) {
+            secondNestedBlock = CodeBlock.builder()
+                    .add("var $L=$L;",secondNestedVarName,
+                            toPlutusDataCodeBlock(secondType, varName + ".getSecond()"))
+                    .build();
+        } else {
+            if (secondType.isList()) {
+                String innerLoopVarName = varName + "_$inner";
+                secondNestedBlock = generateNestedListCode(secondType, varName, secondNestedVarName, innerLoopVarName, varName + ".getSecond()");
+            } else if (secondType.isMap()) {
+                String innerEntryVarName = varName + "_$inner";
+                secondNestedBlock = generateNestedMapCode(secondType, secondNestedVarName, innerEntryVarName, varName + ".getSecond()");
+            } else {
+                throw new RuntimeException("Unsupported type " + secondType);
+            }
+        }
+        return null;
+    } **/
+
     // ---- Deserialize methods
 
     /**
@@ -670,6 +796,9 @@ public class ConverterCodeGenerator implements CodeGenerator {
 //                }
 
                 codeBlock = generateOptionalDeserializationCode(field);
+                break;
+            case PAIR:
+                codeBlock = generatePairDeserializationCode(field);
                 break;
             case CONSTRUCTOR:
                 TypeName fieldTypeName = bestGuess(field.getFieldType().getJavaType().getName());
@@ -864,6 +993,59 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 .addStatement("$L = Optional.ofNullable($L)",
                         outputVarName, nestedVarName)
                 .endControlFlow()
+                .add("\n")
+                .build();
+    }
+
+    /**
+     * Generates code for deserializing a field that is of type Pair. The method handles the deserialization
+     * of the first and second elements within the Pair, accommodating different types such as lists and maps.
+     *
+     * @param field the Field object representing the Pair to be deserialized, including its type information
+     * @return a CodeBlock containing the generated deserialization code for the given Pair field
+     */
+    private CodeBlock generatePairDeserializationCode(Field field) {
+        CodeBlock firstNestedBlock = null;
+        CodeBlock secondNestedBlock = null;
+
+        String firstNestedVarName = field.getName() + "_$nested_first";
+        String secondNestedVarName = field.getName() + "_$nested_second";
+
+        FieldType firstType = field.getFieldType().getGenericTypes().get(0);
+        FieldType secondType = field.getFieldType().getGenericTypes().get(1);
+
+        if (firstType.isList()) {
+            firstNestedBlock = generateListDeserializeCode(firstType, firstNestedVarName, field.getName() + "PlutusDataFirst", "item");
+        } else if (firstType.isMap()) {
+            firstNestedBlock = generateMapDeserializeCode(firstType, firstNestedVarName, field.getName() + "PlutusDataFirst", "entry");
+        } else {
+            firstNestedBlock = CodeBlock.builder()
+                    .addStatement("var $L=$L;",firstNestedVarName,
+                            fromPlutusDataToObj(firstType, field.getName() + "PlutusDataFirst"))
+                    .build();
+        }
+
+        if (secondType.isList()) {
+            secondNestedBlock = generateListDeserializeCode(secondType, secondNestedVarName, field.getName() + "PlutusDataSecond", "item");
+        } else if (secondType.isMap()) {
+            secondNestedBlock = generateMapDeserializeCode(secondType, secondNestedVarName, field.getName() + "PlutusDataSecond", "entry");
+        } else {
+            secondNestedBlock = CodeBlock.builder()
+                    .addStatement("var $L=$L;",secondNestedVarName,
+                            fromPlutusDataToObj(secondType, field.getName() + "PlutusDataSecond"))
+                    .build();
+        }
+
+        return CodeBlock.builder()
+                .add("//Field $L\n", field.getName())
+                .addStatement("var $LList = (ListPlutusData)data.getPlutusDataList().get($L)", field.getName(), field.getIndex())
+                .addStatement("var $LPlutusDataFirst = $LList.getPlutusDataList().get(0)", field.getName(), field.getName())
+                .addStatement("var $LPlutusDataSecond = $LList.getPlutusDataList().get(1)", field.getName(), field.getName())
+                .add(firstNestedBlock)
+                .add("\n")
+                .add(secondNestedBlock)
+                .add("\n")
+                .addStatement("var $L = new $T($L, $L)", field.getName(), Pair.class, firstNestedVarName, secondNestedVarName)
                 .add("\n")
                 .build();
     }
