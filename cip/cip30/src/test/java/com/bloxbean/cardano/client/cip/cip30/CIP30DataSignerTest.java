@@ -94,7 +94,7 @@ class CIP30DataSignerTest {
 
     @Test
     void signDataHashedPayload() throws DataSignError {
-        byte[] payload = Blake2bUtil.blake2bHash224("Hello World".getBytes());
+        byte[] payload = "Hello World".getBytes();
 
         Address address = new Address(account.baseAddress());
         DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(address.getBytes(), payload, account, true);

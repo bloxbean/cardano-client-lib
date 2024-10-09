@@ -9,7 +9,6 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.cip.cip8.*;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.config.Configuration;
-import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Test;
 
@@ -48,8 +47,8 @@ class COSESign1BuilderTest extends COSEBaseTest {
         COSESign1 coseSign1 = coseSign1Builder.build(signedSigStructure);
         String serHex = HexUtil.encodeHexString(coseSign1.serializeAsBytes());
 
-        //This hex is the result from message-signing rust impl.
-        String expected = "8447a2010e033903e7a2386371536f6d65206865616465722076616c756566686173686564f5581c19790463ef4ad09bdb724e3a6550c640593d4870f6e192ac8147f35d58400a448415208ba496d5cd58407a05269b8f0fd14a3c690b761b03c58e2ac70dd36a6bb9d0e03c5baa9d68da99af4be2a8245892325535ec3656435505ba182703";
+        //This hex is the result from message-signing rust impl. (Check cose_sign1_builder.rs)
+        String expected = "8447a2010e033903e7a2386371536f6d65206865616465722076616c756566686173686564f5581c19790463ef4ad09bdb724e3a6550c640593d4870f6e192ac8147f35d58400a810f4fef824d98bb3d08a93f32b2bffb236ecc87100142911605509b953701b0680ce347a13d54e6f626c1f368e69e422d75870db21f8c8ad9f1e40f51ca04";
         COSESign1 coseSign12 = COSESign1.deserialize(CborDecoder.decode(HexUtil.decodeHexString(serHex)).get(0));
 
         System.out.println("Serialized Hex: " + serHex.length());

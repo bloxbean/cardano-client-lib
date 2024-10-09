@@ -90,14 +90,9 @@ public enum CIP30DataSigner {
                     .keyId(addressBytes)
                     .addOtherHeader(ADDRESS_KEY, new ByteString(addressBytes));
 
-            HeaderMap unprotectedHeaderMap = new HeaderMap();
-            if (hashedPayload) {
-                unprotectedHeaderMap.addOtherHeader("hashed", SimpleValue.TRUE);
-            }
-
             Headers headers = new Headers()
                     ._protected(new ProtectedHeaderMap(protectedHeaderMap))
-                    .unprotected(unprotectedHeaderMap);
+                    .unprotected(new HeaderMap());
 
             COSESign1Builder coseSign1Builder = new COSESign1Builder(headers, payload, false).hashed(hashedPayload);
 
