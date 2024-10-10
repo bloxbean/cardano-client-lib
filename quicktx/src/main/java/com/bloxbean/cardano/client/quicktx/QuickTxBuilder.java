@@ -16,10 +16,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
-import com.bloxbean.cardano.client.function.helper.ReferenceScriptResolver;
-import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
-import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
+import com.bloxbean.cardano.client.function.helper.*;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
@@ -160,6 +157,7 @@ public class QuickTxBuilder {
 
         private boolean ignoreScriptCostEvaluationError = true;
         private Era serializationEra;
+        private boolean removeDuplicateScriptWitnesses = false;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -359,6 +357,10 @@ public class QuickTxBuilder {
 
             //Balance outputs
             txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
+
+            if (containsScriptTx && removeDuplicateScriptWitnesses) {
+                txBuilder = txBuilder.andThen(DuplicateScriptWitnessChecker.removeDuplicateScriptWitnesses());
+            }
 
             if (postBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(postBalanceTrasformer);
@@ -770,6 +772,19 @@ public class QuickTxBuilder {
         }
 
         /**
+         * Set whether to remove duplicate script witnesses from the transaction. Default is false.
+         * If set to true, the builder will remove duplicate script witnesses from the transaction if the same script ref is there
+         * in inputs or reference inputs. This is to avoid ExtraneousScriptWitnessesUTXOW error.
+         *
+         * @param remove boolean flag indicating whether to remove duplicate script witnesses
+         * @return TxContext the current TxContext instance.
+         */
+        public TxContext removeDuplicateScriptWitnesses(boolean remove) {
+            this.removeDuplicateScriptWitnesses = remove;
+            return this;
+        }
+
+        /**
          * TxBuilder to set start validity interval and ttl for the transaction
          * @param txBuilder TxBuilder
          * @return TxBuilder
@@ -787,4 +802,5 @@ public class QuickTxBuilder {
                 return txBuilder;
         }
     }
+
 }
