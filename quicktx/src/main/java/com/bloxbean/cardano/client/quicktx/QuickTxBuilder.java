@@ -32,6 +32,8 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -538,6 +540,99 @@ public class QuickTxBuilder {
             logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
             return result;
         }
+
+        /**
+         * Completes the task and waits asynchronously with a specified timeout duration and a logging function.
+         *
+         * @return a CompletableFuture containing the result of the completion task.
+         */
+        public CompletableFuture<Result<String>> completeAndWaitAsync() {
+            return completeAndWaitAsync(Duration.ofSeconds(2), (msg) -> log.info(msg));
+        }
+
+        /**
+         * Submit the transaction and return a CompletableFuture containing a Result that wraps a txHash if the operation is successful.
+         *
+         * @param logConsumer a consumer that processes log messages. It must not be null.
+         * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
+         */
+        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Consumer<String> logConsumer) {
+            return completeAndWaitAsync(Duration.ofSeconds(2), logConsumer);
+        }
+
+        /**
+         * Submit the transaction and return a CompletableFuture containing a Result that wraps a txHash if the operation is successful.
+         *
+         * @param executor the executor to use for asynchronous execution. It must not be null.
+         * @return
+         */
+        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Executor executor) {
+            return completeAndWaitAsync(Duration.ofSeconds(2), (msg) -> log.info(msg), executor);
+        }
+
+        /**
+         * Submit the transaction and return a CompletableFuture containing a Result that wraps a txHash if the operation is successful.
+         *
+         * @param logConsumer a consumer that processes log messages. It must not be null.
+         * @param executor the executor to use for asynchronous execution. It must not be null.
+         * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
+         */
+        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Consumer<String> logConsumer, @NonNull Executor executor) {
+            return completeAndWaitAsync(Duration.ofSeconds(2), logConsumer, executor);
+        }
+
+        /**
+         * Submit the transaction and return a CompletableFuture containing a Result that wraps a txHash if the operation is successful.
+         *
+         * @param checkInterval the interval to check if the transaction is included in the block. It must not be null.
+         * @param logConsumer a consumer that processes log messages. It must not be null.
+         * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
+         */
+        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Duration checkInterval,
+                                                                      @NonNull Consumer<String> logConsumer) {
+            return CompletableFuture.supplyAsync(() -> completeAndWait(Duration.ofSeconds(300), checkInterval, logConsumer));
+        }
+
+        /**
+         * Submit the transaction and return a CompletableFuture containing a Result that wraps a txHash if the operation is successful.
+         *
+         * @param checkInterval the interval to check if the transaction is included in the block. It must not be null.
+         * @param logConsumer a consumer that processes log messages. It must not be null.
+         * @param executor the executor to use for asynchronous execution. It must not be null.
+         * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
+         */
+        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Duration checkInterval,
+                                                                      @NonNull Consumer<String> logConsumer, @NonNull Executor executor) {
+
+            return CompletableFuture.supplyAsync(() -> {
+                Result<String> result = complete();
+                if (!result.isSuccessful())
+                    return result;
+
+                logConsumer.accept(showStatus(Constant.STATUS_SUBMITTED, result.getValue()));
+                String txHash = result.getValue();
+                try {
+                    if (result.isSuccessful()) { //Wait for transaction to be included in the block
+                        while (true) {
+                            Optional<Utxo> utxoOptional = utxoSupplier.getTxOutput(txHash, 0);
+                            if (utxoOptional.isPresent()) {
+                                logConsumer.accept(showStatus(Constant.STATUS_CONFIRMED, txHash));
+                                return result;
+                            }
+
+                            Thread.sleep(checkInterval.toMillis());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Error while waiting for transaction to be included in the block. TxHash : " + txHash, e);
+                    logConsumer.accept("Error while waiting for transaction to be included in the block. TxHash : " + txHash);
+                }
+
+                logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
+                return result;
+            });
+        }
+
 
         private String showStatus(String status, String txHash) {
             return String.format("[%s] Tx: %s", status, txHash);

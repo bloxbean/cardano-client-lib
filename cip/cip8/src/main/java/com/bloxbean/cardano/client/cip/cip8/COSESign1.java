@@ -113,3 +113,4 @@ public class COSESign1 implements COSEItem {
                 .externalAad(externalAad);
     }
 }
+
