@@ -60,14 +60,11 @@ public class ScriptDataHashCalculator {
                 costMdls.add(costModel.orElse(PlutusV3CostModel));
             }
 
-            if (transaction.getBody().getReferenceInputs() != null
-                    && transaction.getBody().getReferenceInputs().size() > 0) { //If reference input is there, the check the language from that
-                if (!ctx.getRefScriptLanguages().isEmpty()) {
-                    for (Language language : ctx.getRefScriptLanguages()) {
-                        Optional<CostModel> costModel =
-                                CostModelUtil.getCostModelFromProtocolParams(ctx.getProtocolParams(), language);
-                        costMdls.add(costModel.orElseThrow(() -> new IllegalArgumentException("Cost model not found for language : " + language)));
-                    }
+            if (!ctx.getRefScriptLanguages().isEmpty()) {
+                for (Language language : ctx.getRefScriptLanguages()) {
+                    Optional<CostModel> costModel =
+                            CostModelUtil.getCostModelFromProtocolParams(ctx.getProtocolParams(), language);
+                    costMdls.add(costModel.orElseThrow(() -> new IllegalArgumentException("Cost model not found for language : " + language)));
                 }
             }
         }

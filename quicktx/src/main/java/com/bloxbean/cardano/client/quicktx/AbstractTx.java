@@ -164,6 +164,18 @@ public abstract class AbstractTx<T> {
         return payToAddress(address, amounts, null, datum, refScript, null);
     }
 
+    /**
+     * Add an output at a contract address with specified amount, inline datum, and a reference script.
+     *
+     * @param address   the contract address to which the amount will be sent
+     * @param amount    the amount to be sent to the contract address
+     * @param datum     Plutus data
+     * @param refScript Reference Script
+     * @return T
+     */
+    public T payToContract(String address, Amount amount, PlutusData datum, Script refScript) {
+        return payToAddress(address, List.of(amount), null, datum, refScript, null);
+    }
 
     /**
      * Add an output at contract address with amounts, inline datum and reference script bytes.

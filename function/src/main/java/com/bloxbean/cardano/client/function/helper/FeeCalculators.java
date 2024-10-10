@@ -91,17 +91,47 @@ public class FeeCalculators {
                 }
             }
 
+            //Check if script transaction (i.e; script datashash is set) and any input utxos has reference script.
+            //If yes, we need to calculate reference script fee for input utxos as well
+            //https://github.com/bloxbean/cardano-client-lib/issues/450
+            long totalRefScriptBytesInInputs = 0;
+            if (transaction.getBody().getScriptDataHash() != null && context.getUtxos() != null) {
+                //Find the inputs with reference script hash, but reference script is not there in the context
+                var inputWithScriptRefToBeFetched = context.getUtxos().stream()
+                        .filter(utxo -> utxo.getReferenceScriptHash() != null)
+                        .filter(utxo -> context.getRefScript(utxo.getReferenceScriptHash()).isEmpty())
+                        .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
+                        .collect(Collectors.toSet());
+
+                //Find the size of all available reference script bytes in the context for the inputs
+                var inputRefScriptSize = context.getUtxos().stream()
+                        .filter(utxo -> utxo.getReferenceScriptHash() != null)
+                        .flatMap(utxo -> context.getRefScript(utxo.getReferenceScriptHash()).stream())
+                        .mapToLong(bytes -> bytes.length)
+                        .sum();
+
+                //Fetch the missing reference scripts and calculate the size
+                if (inputWithScriptRefToBeFetched != null && inputWithScriptRefToBeFetched.size() > 0) {
+                    totalRefScriptBytesInInputs = inputRefScriptSize + ReferenceScriptUtil.totalRefScriptsSizeInInputs(
+                            context.getUtxoSupplier(),
+                            context.getScriptSupplier(),
+                            inputWithScriptRefToBeFetched);
+                } else {
+                    totalRefScriptBytesInInputs = inputRefScriptSize;
+                }
+            }
+
             BigInteger refScriptFee = BigInteger.ZERO;
             if (transaction.getBody().getReferenceInputs() != null && transaction.getBody().getReferenceInputs().size() > 0) {
                 var refScripts = context.getRefScripts();
                 if (refScripts == null || refScripts.size() == 0) {
                     if (context.getScriptSupplier() != null) {
                         long totalRefScriptsBytes =
-                                ReferenceScriptUtil.fetchAndCalculateReferenceScriptsSize(
+                                ReferenceScriptUtil.totalRefScriptsSizeInRefInputs(
                                         context.getUtxoSupplier(),
                                         context.getScriptSupplier(),
                                         transaction);
-                        refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptsBytes);
+                        refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptsBytes + totalRefScriptBytesInInputs);
                     } else {
                         log.debug("Script supplier is required to calculate reference script fee. " +
                                 "Alternatively, you can set reference scripts during building the transaction.");
@@ -110,8 +140,11 @@ public class FeeCalculators {
                     int totalRefScriptBytes = refScripts.stream()
                             .mapToInt(byteArray -> byteArray.length)
                             .sum();
-                    refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptBytes);
+                    refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptBytes + totalRefScriptBytesInInputs);
                 }
+            } else {
+                if (totalRefScriptBytesInInputs > 0)
+                    refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptBytesInInputs);
             }
 
             BigInteger totalFee = baseFee.add(scriptFee).add(refScriptFee);

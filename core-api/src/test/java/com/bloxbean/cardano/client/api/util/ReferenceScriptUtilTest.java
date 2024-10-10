@@ -29,7 +29,7 @@ class ReferenceScriptUtilTest {
     private ScriptSupplier scriptSupplier;
 
     @Test
-    void fetchAndCalculateReferenceScriptsSize() throws CborSerializationException {
+    void totalRefScriptsSizeInRefInputs() throws CborSerializationException {
 
         var transactionBody = TransactionBody.builder()
                 .referenceInputs(List.of(
@@ -77,7 +77,7 @@ class ReferenceScriptUtilTest {
         given(scriptSupplier.getScript("script3")).willReturn(
                 Optional.of(script3));
 
-        var refScriptsSize = ReferenceScriptUtil.fetchAndCalculateReferenceScriptsSize(utxoSupplier, scriptSupplier, transaction);
+        var refScriptsSize = ReferenceScriptUtil.totalRefScriptsSizeInRefInputs(utxoSupplier, scriptSupplier, transaction);
 
         long expectedSize = script1.scriptRefBytes().length + script2.scriptRefBytes().length + script3.scriptRefBytes().length;
 
@@ -85,7 +85,7 @@ class ReferenceScriptUtilTest {
     }
 
     @Test
-    void fetchAndCalculateReferenceScriptsSize_includesNoScriptInTx() throws CborSerializationException {
+    void totalRefScriptsSizeInRefInputs_includesNoScriptInTx() throws CborSerializationException {
 
         var transactionBody = TransactionBody.builder()
                 .referenceInputs(List.of(
@@ -125,7 +125,7 @@ class ReferenceScriptUtilTest {
         given(scriptSupplier.getScript("script3")).willReturn(
                 Optional.of(script3));
 
-        var refScriptsSize = ReferenceScriptUtil.fetchAndCalculateReferenceScriptsSize(utxoSupplier, scriptSupplier, transaction);
+        var refScriptsSize = ReferenceScriptUtil.totalRefScriptsSizeInRefInputs(utxoSupplier, scriptSupplier, transaction);
 
         long expectedSize = script1.scriptRefBytes().length + script3.scriptRefBytes().length;
 
@@ -133,7 +133,7 @@ class ReferenceScriptUtilTest {
     }
 
     @Test
-    void fetchAndCalculateReferenceScriptsSize_singleScript() throws CborSerializationException {
+    void totalRefScriptsSizeInRefInputs_singleScript() throws CborSerializationException {
 
         var transactionBody = TransactionBody.builder()
                 .referenceInputs(List.of(
@@ -157,7 +157,7 @@ class ReferenceScriptUtilTest {
         given(scriptSupplier.getScript("script1")).willReturn(
                 Optional.of(script1));
 
-        var refScriptsSize = ReferenceScriptUtil.fetchAndCalculateReferenceScriptsSize(utxoSupplier, scriptSupplier, transaction);
+        var refScriptsSize = ReferenceScriptUtil.totalRefScriptsSizeInRefInputs(utxoSupplier, scriptSupplier, transaction);
 
         long expectedSize = script1.scriptRefBytes().length;
 
@@ -165,7 +165,7 @@ class ReferenceScriptUtilTest {
     }
 
     @Test
-    void fetchAndCalculateReferenceScriptsSize_noScript() throws CborSerializationException {
+    void totalRefScriptsSizeInRefInputs_noScript() throws CborSerializationException {
 
         var transactionBody = TransactionBody.builder()
                 .referenceInputs(List.of(
@@ -180,7 +180,7 @@ class ReferenceScriptUtilTest {
                 .willReturn(Optional.of(Utxo.builder()
                         .build()));
 
-        var refScriptsSize = ReferenceScriptUtil.fetchAndCalculateReferenceScriptsSize(utxoSupplier, scriptSupplier, transaction);
+        var refScriptsSize = ReferenceScriptUtil.totalRefScriptsSizeInRefInputs(utxoSupplier, scriptSupplier, transaction);
 
         assertThat(refScriptsSize).isEqualTo(0);
     }

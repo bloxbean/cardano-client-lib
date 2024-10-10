@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.util;
 
+import java.util.function.Supplier;
+
 /**
  * A utility class that encapsulates a computation that may either result in a successful value
  * or throw an exception. This class provides a way to handle checked exceptions in a functional
@@ -55,6 +57,37 @@ public class Try<T> {
     public T get() {
         if (exception != null) {
             throw new RuntimeException(exception);
+        }
+        return result;
+    }
+
+    /**
+     * Returns the result of the computation if successful, or the specified default value
+     * if an exception occurred during the computation.
+     *
+     * @param defaultValue The value to return if the computation resulted in an exception.
+     * @return The result of the computation, or the provided default value if an exception occurred.
+     */
+    public T getOrElse(T defaultValue) {
+        if (exception != null) {
+            return defaultValue;
+        }
+        return result;
+    }
+
+    /**
+     * Returns the result of the computation if successful, or throws the specified exception
+     * if an exception was thrown during the computation.
+     *
+     * @param exceptionSupplier A Supplier that provides the exception to be thrown if
+     *                          the computation resulted in an exception.
+     * @return The result of the computation.
+     * @throws RuntimeException The exception provided by the exceptionSupplier if the
+     *                          computation resulted in an exception.
+     */
+    public T orElseThrow(Supplier<? extends RuntimeException> exceptionSupplier) {
+        if (exception != null) {
+            throw exceptionSupplier.get();
         }
         return result;
     }
