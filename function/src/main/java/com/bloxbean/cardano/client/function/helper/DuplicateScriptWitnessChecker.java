@@ -38,6 +38,9 @@ public class DuplicateScriptWitnessChecker {
     }
 
     private static void removeDuplicateScripts(List<? extends PlutusScript> scripts, Set<String> refScriptHashes) {
+        if (scripts == null || scripts.isEmpty())
+            return;
+
         scripts.removeIf(plutusScript ->
                 Try.of(() -> refScriptHashes.contains(HexUtil.encodeHexString(plutusScript.getScriptHash())))
                         .getOrElse(false)
