@@ -225,6 +225,19 @@ public class TxBuilderContext {
                 .collect(Collectors.toList());
     }
 
+    public Set<String> getRefScriptHashes() {
+        var refScriptInUtxos = utxos.stream()
+                .filter(utxo -> utxo.getReferenceScriptHash() != null)
+                .map(utxo -> utxo.getReferenceScriptHash())
+                .collect(Collectors.toSet());
+
+        var hashes = new HashSet<String>();
+        hashes.addAll(refScripts.keySet());
+        hashes.addAll(refScriptInUtxos);
+
+        return hashes;
+    }
+
     public List<Language> getRefScriptLanguages() {
         if (refScripts.size() == 0)
             return Collections.emptyList();
