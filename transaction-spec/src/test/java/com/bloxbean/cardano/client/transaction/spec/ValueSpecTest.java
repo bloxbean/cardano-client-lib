@@ -485,7 +485,7 @@ class ValueSpecTest {
         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
         BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
         Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
-        Value actual = value.add("ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9506f6c795065657237353436", hundredMil);
+        Value actual = value.add("ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9.506f6c795065657237353436", hundredMil);
 
         Value expected = value
                 .toBuilder()
@@ -609,7 +609,7 @@ class ValueSpecTest {
         value = value.add(policyId, "0x506f6c795065657237353436", hundredMil);
         String assetName = new String(HexUtil.decodeHexString("506f6c795065657237353436"));
         value = value.add(policyId, assetName, hundredMil);
-        BigInteger actual = value.amountOf("4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e");
+        BigInteger actual = value.amountOf("4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd.546f6b68756e");
         Assertions.assertEquals(BigInteger.ZERO, actual);
     }
 
@@ -650,10 +650,10 @@ class ValueSpecTest {
 
     @ParameterizedTest
     @CsvSource({
-            "0,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,1000000,true",
+            "0,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd.546f6b68756e,1000000,true",
             "0,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,-1000000,false",
             "-1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,1000000,false",
-            "-1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,-1000000,false",
+            "-1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd.546f6b68756e,-1000000,false",
             "1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,0,true",
     })
     public void isPositiveParametric(String lovelace, String unit, String tokenAmount, boolean outcome) {
