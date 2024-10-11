@@ -71,11 +71,16 @@ public class Asset {
      * @param that
      * @return a new Asset as sum of this value and the one passed as parameter
      */
-    public Asset plus(Asset that) {
+    public Asset add(Asset that) {
         if (!Arrays.equals(getNameAsBytes(), that.getNameAsBytes())) {
             throw new IllegalArgumentException("Trying to add Assets with different name");
         }
         return Asset.builder().name(getNameAsHex()).value(getValue().add(that.getValue())).build();
+    }
+
+    @Deprecated
+    public Asset plus(Asset that) {
+        return this.add(that);
     }
 
     /**
@@ -83,11 +88,16 @@ public class Asset {
      * @param that
      * @return a new Asset as subtract of this value and the one passed as parameter
      */
-    public Asset minus(Asset that) {
+    public Asset subtract(Asset that) {
         if (!Arrays.equals(getNameAsBytes(), that.getNameAsBytes())) {
             throw new IllegalArgumentException("Trying to add Assets with different name");
         }
         return Asset.builder().name(getName()).value(getValue().subtract(that.getValue())).build();
+    }
+
+    @Deprecated
+    public Asset minus(Asset that) {
+        return this.subtract(that);
     }
 
     @Override

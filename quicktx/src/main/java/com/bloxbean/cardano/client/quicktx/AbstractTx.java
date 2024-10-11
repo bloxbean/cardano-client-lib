@@ -209,7 +209,7 @@ public abstract class AbstractTx<T> {
                 Tuple<String, String> policyAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
                 Asset asset = new Asset(policyAssetName._2, amount.getQuantity());
                 MultiAsset multiAsset = new MultiAsset(policyAssetName._1, List.of(asset));
-                Value newValue = transactionOutput.getValue().plus(new Value(BigInteger.ZERO, List.of(multiAsset)));
+                Value newValue = transactionOutput.getValue().add(new Value(BigInteger.ZERO, List.of(multiAsset)));
                 transactionOutput.setValue(newValue);
             }
         }
@@ -432,7 +432,7 @@ public abstract class AbstractTx<T> {
             }
         }).findFirst().ifPresentOrElse(ma -> {
             multiAssets.remove(ma);
-            multiAssets.add(new Tuple<>(script, ma._2.plus(multiAsset)));
+            multiAssets.add(new Tuple<>(script, ma._2.add(multiAsset)));
         }, () -> {
             multiAssets.add(new Tuple<>(script, multiAsset));
         });

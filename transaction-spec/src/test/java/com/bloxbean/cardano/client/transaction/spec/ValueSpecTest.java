@@ -6,6 +6,8 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -25,7 +27,7 @@ class ValueSpecTest {
         Value lovelaceValue2 = new Value();
         lovelaceValue2.setCoin(BigInteger.valueOf(1500000L));
 
-        Value actualValue = lovelaceValue1.plus(lovelaceValue2);
+        Value actualValue = lovelaceValue1.add(lovelaceValue2);
         Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(2500000L));
         expectedValue.setMultiAssets(Arrays.asList());
@@ -41,7 +43,7 @@ class ValueSpecTest {
 
         Value multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets).build();
 
-        Value actualValue = lovelaceValue.plus(multiAssetValue);
+        Value actualValue = lovelaceValue.add(multiAssetValue);
         Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
         expectedValue.setMultiAssets(testMultiAssets);
@@ -58,7 +60,7 @@ class ValueSpecTest {
 
         Value multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
 
-        Value actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
+        Value actualValue = lovelaceAndMultiAssetValue.add(multiAssetValue);
         Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
 
@@ -77,7 +79,7 @@ class ValueSpecTest {
 
         Value multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
 
-        Value actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
+        Value actualValue = lovelaceAndMultiAssetValue.add(multiAssetValue);
         Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
 
@@ -96,7 +98,7 @@ class ValueSpecTest {
 
         Value multiAssetValue = Value.builder().coin(BigInteger.ZERO).multiAssets(testMultiAssets2).build();
 
-        Value actualValue = lovelaceAndMultiAssetValue.plus(multiAssetValue);
+        Value actualValue = lovelaceAndMultiAssetValue.add(multiAssetValue);
         Value expectedValue = new Value();
         expectedValue.setCoin(BigInteger.valueOf(1000000L));
         expectedValue.setMultiAssets(MultiAsset.mergeMultiAssetLists(testMultiAssets1, testMultiAssets2));
@@ -126,11 +128,11 @@ class ValueSpecTest {
 
         Value value2 = Value.builder().coin(BigInteger.valueOf(2000000L)).multiAssets(multiAssetList2).build();
 
-        List<MultiAsset> expectedMultiAssetList = Arrays.asList(l1multiAsset1.minus(l2multiAsset1), l1multiAsset2.minus(l2multiAsset2));
+        List<MultiAsset> expectedMultiAssetList = Arrays.asList(l1multiAsset1.subtract(l2multiAsset1), l1multiAsset2.subtract(l2multiAsset2));
         Value expectedValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(expectedMultiAssetList).build();
 
         assertThat(MultiAsset.subtractMultiAssetLists(multiAssetList1, multiAssetList2)).isEqualTo(expectedMultiAssetList);
-        assertThat(value1.minus(value2)).isEqualTo(expectedValue);
+        assertThat(value1.subtract(value2)).isEqualTo(expectedValue);
     }
 
     @Test
@@ -156,11 +158,11 @@ class ValueSpecTest {
 
         Value value2 = Value.builder().coin(BigInteger.valueOf(2000000L)).multiAssets(multiAssetList2).build();
 
-        List<MultiAsset> expectedMultiAssetList = Arrays.asList(l1multiAsset1.minus(l2multiAsset1), l1multiAsset2.minus(l2multiAsset2), l1multiAsset3);
+        List<MultiAsset> expectedMultiAssetList = Arrays.asList(l1multiAsset1.subtract(l2multiAsset1), l1multiAsset2.subtract(l2multiAsset2), l1multiAsset3);
         Value expectedValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(expectedMultiAssetList).build();
 
         assertThat(MultiAsset.subtractMultiAssetLists(multiAssetList1, multiAssetList2)).isEqualTo(expectedMultiAssetList);
-        assertThat(value1.minus(value2)).isEqualTo(expectedValue);
+        assertThat(value1.subtract(value2)).isEqualTo(expectedValue);
     }
 
     @Test
@@ -209,7 +211,7 @@ class ValueSpecTest {
     }
 
     @Test
-    void minusWhenNoAssetsLeft() {
+    void subtractWhenNoAssetsLeft() {
         Asset l1asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(1)).build();
         Asset l1asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(1)).build();
         Asset l1Asset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(1)).build();
@@ -223,14 +225,14 @@ class ValueSpecTest {
         Value value = new Value(BigInteger.valueOf(100), List.of(multiAsset));
         Value valueToSubstract = new Value(BigInteger.valueOf(20), List.of(multiAsset));
 
-        Value result = value.minus(valueToSubstract);
+        Value result = value.subtract(valueToSubstract);
 
-       assertThat(result.getCoin()).isEqualTo(BigInteger.valueOf(80));
-       assertThat(result.getMultiAssets()).isEmpty();
+        assertThat(result.getCoin()).isEqualTo(BigInteger.valueOf(80));
+        assertThat(result.getMultiAssets()).isEmpty();
     }
 
     @Test
-    void minusWithAssetWithZeroValueInResult_shouldBeRemoved() {
+    void subtractWithAssetWithZeroValueInResult_shouldBeRemoved() {
         Asset l1asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(5)).build();
         Asset l1asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(1)).build();
         Asset l1Asset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(10)).build();
@@ -251,16 +253,16 @@ class ValueSpecTest {
         Value value1 = new Value(BigInteger.valueOf(100), List.of(multiAsset1));
         Value valueToSubstract = new Value(BigInteger.valueOf(20), List.of(multiAsset2));
 
-        Value result = value1.minus(valueToSubstract);
+        Value result = value1.subtract(valueToSubstract);
 
         Value expectedValue = Value.builder()
                 .coin(BigInteger.valueOf(80))
                 .multiAssets(List.of(MultiAsset.builder()
                         .policyId("policy-1")
                         .assets(List.of(
-                                new Asset("asset1", BigInteger.valueOf(3)),
-                                new Asset("asset3", BigInteger.valueOf(10)),
-                                new Asset("asset4", BigInteger.valueOf(20))
+                                        new Asset("asset1", BigInteger.valueOf(3)),
+                                        new Asset("asset3", BigInteger.valueOf(10)),
+                                        new Asset("asset4", BigInteger.valueOf(20))
                                 )
                         ).build()
                 )).build();
@@ -457,4 +459,208 @@ class ValueSpecTest {
         Assertions.assertEquals(expected, actual);
         Assertions.assertEquals(value, Value.deserialize(CborDecoder.decode(HexUtil.decodeHexString(actual)).get(0)));
     }
+
+
+    @Test
+    public void addSingleToken() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
+        Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
+        Value value1 = value.add(policyId, "0x506f6c795065657237353436", hundredMil);
+        String assetName = new String(HexUtil.decodeHexString("506f6c795065657237353436"));
+        Value actual = value1.add(policyId, assetName, hundredMil);
+
+        Value expected = value
+                .toBuilder()
+                .multiAssets(List.of(MultiAsset.builder()
+                        .policyId(policyId)
+                        .assets(List.of(Asset.builder().name("0x506f6c795065657237353436").value(BigInteger.valueOf(200_000_000L)).build()))
+                        .build()))
+                .build();
+        Assertions.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void addSingleTokenUnit() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
+        Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
+        Value actual = value.add("ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9506f6c795065657237353436", hundredMil);
+
+        Value expected = value
+                .toBuilder()
+                .multiAssets(List.of(MultiAsset.builder()
+                        .policyId(policyId)
+                        .assets(List.of(Asset.builder().name("0x506f6c795065657237353436").value(BigInteger.valueOf(100_000_000L)).build()))
+                        .build()))
+                .build();
+        Assertions.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void subtractSingleToken() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        String assetNameHex = "0x506f6c795065657237353436";
+        String assetName = new String(HexUtil.decodeHexString(assetNameHex));
+        Value actual = Value.builder()
+                .coin(BigInteger.valueOf(10_000_000L))
+                .multiAssets(List.of(
+                        MultiAsset.builder()
+                                .policyId(policyId)
+                                .assets(List.of(Asset.builder()
+                                        .name(assetNameHex)
+                                        .value(BigInteger.valueOf(300_000_000L))
+                                        .build()))
+                                .build()
+                ))
+                .build();
+        actual = actual.subtract(policyId, assetNameHex, BigInteger.valueOf(100_000_000L));
+        actual = actual.subtract(policyId, assetName, BigInteger.valueOf(100_000_000L));
+
+        Value expected = Value.builder()
+                .coin(BigInteger.valueOf(10_000_000L))
+                .multiAssets(List.of(
+                        MultiAsset.builder()
+                                .policyId(policyId)
+                                .assets(List.of(Asset.builder()
+                                        .name(assetNameHex)
+                                        .value(BigInteger.valueOf(100_000_000L))
+                                        .build()))
+                                .build()
+                ))
+                .build();
+        Assertions.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void subtractSingleTokenUnit() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        String assetNameHex = "0x506f6c795065657237353436";
+        Value actual = Value.builder()
+                .coin(BigInteger.valueOf(10_000_000L))
+                .multiAssets(List.of(
+                        MultiAsset.builder()
+                                .policyId(policyId)
+                                .assets(List.of(Asset.builder()
+                                        .name(assetNameHex)
+                                        .value(BigInteger.valueOf(300_000_000L))
+                                        .build()))
+                                .build()
+                ))
+                .build();
+        actual = actual.subtract("ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9506f6c795065657237353436", BigInteger.valueOf(200_000_000L));
+
+        Value expected = Value.builder()
+                .coin(BigInteger.valueOf(10_000_000L))
+                .multiAssets(List.of(
+                        MultiAsset.builder()
+                                .policyId(policyId)
+                                .assets(List.of(Asset.builder()
+                                        .name(assetNameHex)
+                                        .value(BigInteger.valueOf(100_000_000L))
+                                        .build()))
+                                .build()
+                ))
+                .build();
+        Assertions.assertEquals(expected, actual);
+    }
+
+    @Test
+    public void amountOfExistingTokenIsCorrect() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
+        Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
+        value = value.add(policyId, "0x506f6c795065657237353436", hundredMil);
+        String assetName = new String(HexUtil.decodeHexString("506f6c795065657237353436"));
+        value = value.add(policyId, assetName, hundredMil);
+        BigInteger actual = value.amountOf(policyId, "0x506f6c795065657237353436");
+        Assertions.assertEquals(BigInteger.valueOf(200_000_000L), actual);
+    }
+
+    @Test
+    public void amountOfMissingTokenIsZero() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
+        Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
+        value = value.add(policyId, "0x506f6c795065657237353436", hundredMil);
+        String assetName = new String(HexUtil.decodeHexString("506f6c795065657237353436"));
+        value = value.add(policyId, assetName, hundredMil);
+        BigInteger actual = value.amountOf("4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd", "0x546f6b68756e");
+        Assertions.assertEquals(BigInteger.ZERO, actual);
+    }
+
+    @Test
+    public void amountOfExistingTokenFromUnitIsCorrect() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
+        Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
+        value = value.add(policyId, "0x506f6c795065657237353436", hundredMil);
+        String assetName = new String(HexUtil.decodeHexString("506f6c795065657237353436"));
+        value = value.add(policyId, assetName, hundredMil);
+        BigInteger actual = value.amountOf("ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9506f6c795065657237353436");
+        Assertions.assertEquals(BigInteger.valueOf(200_000_000L), actual);
+    }
+
+    @Test
+    public void amountOfMissingTokenFromUnitIsZero() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
+        Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
+        value = value.add(policyId, "0x506f6c795065657237353436", hundredMil);
+        String assetName = new String(HexUtil.decodeHexString("506f6c795065657237353436"));
+        value = value.add(policyId, assetName, hundredMil);
+        BigInteger actual = value.amountOf("4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e");
+        Assertions.assertEquals(BigInteger.ZERO, actual);
+    }
+
+    @Test
+    public void isZero1() {
+        Assertions.assertTrue(Value.builder().build().isZero());
+    }
+
+    @Test
+    public void isZero2() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        String assetNameHex = "0x506f6c795065657237353436";
+        Value value = Value.builder()
+                .coin(BigInteger.valueOf(10_000_000L))
+                .multiAssets(List.of(
+                        MultiAsset.builder()
+                                .policyId(policyId)
+                                .assets(List.of(Asset.builder()
+                                        .name(assetNameHex)
+                                        .value(BigInteger.valueOf(100_000_000L))
+                                        .build()))
+                                .build()
+                ))
+                .build();
+        Assertions.assertTrue(value.subtract(value).isZero());
+    }
+
+    @Test
+    public void isPositiveAdaOnly() {
+        Assertions.assertTrue(Value.builder().build().isPositive());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,true", "1000000,true", "-1000000,false"})
+    public void isPositiveAdaOnlyParametric(String amount, boolean outcome) {
+        Assertions.assertEquals(Value.builder().coin(BigInteger.valueOf(Long.parseLong(amount))).build().isPositive(), outcome);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "0,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,1000000,true",
+            "0,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,-1000000,false",
+            "-1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,1000000,false",
+            "-1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,-1000000,false",
+            "1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd546f6b68756e,0,true",
+    })
+    public void isPositiveParametric(String lovelace, String unit, String tokenAmount, boolean outcome) {
+        Value value = Value.builder().coin(BigInteger.valueOf(Long.parseLong(lovelace))).build();
+        value = value.add(unit, BigInteger.valueOf(Long.parseLong(tokenAmount)));
+        Assertions.assertEquals(value.isPositive(), outcome);
+    }
+
+
 }
