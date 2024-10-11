@@ -189,9 +189,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
             Result<String> result = quickTxBuilder.compose(tx)
                     .withSigner(SignerProviders.signerFrom(sender1))
                     .withSigner(SignerProviders.signerFrom(policy))
-                    .postBalanceTx((context, txn) -> {
-                        txn.getWitnessSet().getNativeScripts().clear();
-                    }).completeAndWait();
+                    .removeDuplicateScriptWitnesses(true)
+                    .completeAndWait();
 
             System.out.println(result);
             assertTrue(result.isSuccessful());
