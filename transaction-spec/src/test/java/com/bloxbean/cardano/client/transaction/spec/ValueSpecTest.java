@@ -10,10 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -460,6 +457,43 @@ class ValueSpecTest {
         Assertions.assertEquals(value, Value.deserialize(CborDecoder.decode(HexUtil.decodeHexString(actual)).get(0)));
     }
 
+    @Test
+    public void addLovelace() {
+        Value expectedValue = Value.builder().coin(BigInteger.valueOf(110_000_000L)).build();
+        Value actualValue = Value.fromLovelace(BigInteger.valueOf(100_000_000L))
+                .addLovelace(BigInteger.valueOf(10_000_000L));
+        Assertions.assertEquals(expectedValue, actualValue);
+    }
+
+
+     @Test
+    public void addLovelaceWithToken() {
+
+         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+         Asset asset = Asset.builder().name("0x506f6c795065657237353436").value(BigInteger.valueOf(100_000_000L)).build();
+         List<Asset> assets = new ArrayList<>();
+         assets.add(asset);
+
+         Value expectedValue = Value.builder()
+                 .coin(BigInteger.valueOf(110_000_000L))
+                 .multiAssets(List.of(MultiAsset.builder()
+                         .policyId(policyId)
+                         .assets(assets)
+                         .build()))
+                 .build();
+
+         Value actualValue = Value.builder()
+                 .coin(BigInteger.valueOf(100_000_000L))
+                 .multiAssets(List.of(MultiAsset.builder()
+                         .policyId(policyId)
+                         .assets(assets)
+                         .build()))
+                 .build()
+                 .addLovelace(BigInteger.valueOf(10_000_000L));
+         Assertions.assertEquals(expectedValue, actualValue);
+
+    }
+
 
     @Test
     public void addSingleToken() {
@@ -496,6 +530,42 @@ class ValueSpecTest {
                 .build();
         Assertions.assertEquals(expected, actual);
     }
+
+
+    @Test
+    public void subtractLovelace() {
+        Value expectedValue = Value.builder().coin(BigInteger.valueOf(90_000_000L)).build();
+        Value actualValue = Value.fromLovelace(BigInteger.valueOf(100_000_000L))
+                .subtractLovelace(BigInteger.valueOf(10_000_000L));
+        Assertions.assertEquals(expectedValue, actualValue);
+    }
+
+    @Test
+    public void subtractLovelaceWithTokens() {
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        Asset asset = Asset.builder().name("0x506f6c795065657237353436").value(BigInteger.valueOf(100_000_000L)).build();
+        List<Asset> assets = new ArrayList<>();
+        assets.add(asset);
+
+        Value expectedValue = Value.builder()
+                .coin(BigInteger.valueOf(90_000_000L))
+                .multiAssets(List.of(MultiAsset.builder()
+                        .policyId(policyId)
+                        .assets(assets)
+                        .build()))
+                .build();
+
+        Value actualValue = Value.builder()
+                .coin(BigInteger.valueOf(100_000_000L))
+                .multiAssets(List.of(MultiAsset.builder()
+                        .policyId(policyId)
+                        .assets(assets)
+                        .build()))
+                .build()
+                .subtractLovelace(BigInteger.valueOf(10_000_000L));
+        Assertions.assertEquals(expectedValue, actualValue);
+    }
+
 
     @Test
     public void subtractSingleToken() {
@@ -643,7 +713,11 @@ class ValueSpecTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"0,true", "1000000,true", "-1000000,false"})
+    @CsvSource({
+            "0,true",
+            "1000000,true",
+            "-1000000,false"
+    })
     public void isPositiveAdaOnlyParametric(String amount, boolean outcome) {
         Assertions.assertEquals(Value.builder().coin(BigInteger.valueOf(Long.parseLong(amount))).build().isPositive(), outcome);
     }

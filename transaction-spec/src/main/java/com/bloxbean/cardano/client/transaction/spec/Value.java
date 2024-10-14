@@ -234,6 +234,11 @@ public class Value {
         return this.subtract(that);
     }
 
+
+    public Value subtractLovelace(BigInteger amount) {
+        return this.subtract(fromLovelace(amount));
+    }
+
     public Value subtract(String policyId, String assetName, BigInteger amount) {
         return this.subtract(from(policyId, assetName, amount));
     }
