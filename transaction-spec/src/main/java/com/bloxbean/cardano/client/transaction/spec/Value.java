@@ -293,7 +293,7 @@ public class Value {
      * @return true if amount for each asset is non negative
      */
     public boolean isPositive() {
-        boolean isCoinPositive = coin.longValue() >= 0;
+        boolean isCoinPositive = coin.signum() >= 0;
         boolean allAssetsPositive = multiAssets == null || multiAssets.isEmpty() ||
                 multiAssets.stream().allMatch(multiAsset -> multiAsset.getAssets().stream().allMatch(asset -> asset.getValue().signum() >= 0));
         return isCoinPositive && allAssetsPositive;
