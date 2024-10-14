@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.api.util;
+package com.bloxbean.cardano.client.transaction.util;
 
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;

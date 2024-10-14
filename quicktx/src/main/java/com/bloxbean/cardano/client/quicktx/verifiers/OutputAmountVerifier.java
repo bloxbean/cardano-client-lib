@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.quicktx.verifiers;
 
 import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.api.util.AssetUtil;
+import com.bloxbean.cardano.client.transaction.util.AssetUtil;
 import com.bloxbean.cardano.client.quicktx.Verifier;
 import com.bloxbean.cardano.client.quicktx.VerifierException;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;

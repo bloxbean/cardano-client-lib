@@ -13,7 +13,7 @@ import static com.bloxbean.cardano.client.crypto.Blake2bUtil.blake2bHash160;
 
 @Deprecated(forRemoval = true)
 /**
- * @deprecated Use {@link com.bloxbean.cardano.client.api.util.AssetUtil} instead
+ * @deprecated Use {@link com.bloxbean.cardano.client.transaction.util.AssetUtil} instead
  */
 public class AssetUtil {
 
