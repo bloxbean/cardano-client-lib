@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
@@ -214,13 +216,24 @@ public class Value {
         BigInteger sumCoin = (getCoin() == null ? BigInteger.ZERO.subtract(that.getCoin()) : getCoin().subtract(that.getCoin()));
         List<MultiAsset> difMultiAssets = MultiAsset.subtractMultiAssetLists(getMultiAssets(), that.getMultiAssets());
 
-        //Remove all asset with value == 0
-        difMultiAssets.forEach(multiAsset ->
-                multiAsset.getAssets().removeIf(asset -> BigInteger.ZERO.equals(asset.getValue())));
-        //Remove multiasset if there's no asset
-        difMultiAssets.removeIf(multiAsset -> multiAsset.getAssets() == null || multiAsset.getAssets().isEmpty());
+        List<MultiAsset> filteredMultiAssets = difMultiAssets
+                .stream()
+                .flatMap(multiAsset -> {
+                    List<Asset> assets = multiAsset
+                            .getAssets()
+                            .stream()
+                            .filter(asset -> !asset.getValue().equals(BigInteger.ZERO))
+                            .collect(Collectors.toList());
+                    if (!assets.isEmpty()) {
+                        multiAsset.setAssets(assets);
+                        return Stream.of(multiAsset);
+                    } else {
+                        return Stream.empty();
+                    }
+                })
+                .collect(Collectors.toList());
 
-        return Value.builder().coin(sumCoin).multiAssets(difMultiAssets).build();
+        return Value.builder().coin(sumCoin).multiAssets(filteredMultiAssets).build();
     }
 
     /**
