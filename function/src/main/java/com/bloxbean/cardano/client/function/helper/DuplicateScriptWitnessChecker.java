@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.function.TxBuilder;
-import com.bloxbean.cardano.client.spec.Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Try;
 
@@ -29,7 +29,6 @@ public class DuplicateScriptWitnessChecker {
 
             //Remove duplicate script from witness set
             if (refScriptHashes != null && !refScriptHashes.isEmpty()) {
-                removeDuplicateScripts(txn.getWitnessSet().getNativeScripts(), refScriptHashes);
                 removeDuplicateScripts(txn.getWitnessSet().getPlutusV1Scripts(), refScriptHashes);
                 removeDuplicateScripts(txn.getWitnessSet().getPlutusV2Scripts(), refScriptHashes);
                 removeDuplicateScripts(txn.getWitnessSet().getPlutusV3Scripts(), refScriptHashes);
@@ -38,7 +37,7 @@ public class DuplicateScriptWitnessChecker {
         };
     }
 
-    private static void removeDuplicateScripts(List<? extends Script> scripts, Set<String> refScriptHashes) {
+    private static void removeDuplicateScripts(List<? extends PlutusScript> scripts, Set<String> refScriptHashes) {
         if (scripts == null || scripts.isEmpty())
             return;
 
