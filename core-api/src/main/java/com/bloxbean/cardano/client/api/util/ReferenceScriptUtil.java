@@ -1,17 +1,10 @@
 package com.bloxbean.cardano.client.api.util;
 
-import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.api.ScriptSupplier;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
-import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
-import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
-import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Try;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 
@@ -89,32 +82,6 @@ public class ReferenceScriptUtil {
             allPlutusScripts.addAll(inputPlutusScripts);
 
             return allPlutusScripts.stream().collect(Collectors.toList());
-        }
-    }
-
-    public static Script deserializeScriptRef(byte[] scriptRefBytes) {
-        Array scriptArray = (Array) CborSerializationUtil.deserialize(scriptRefBytes);
-
-        List<DataItem> dataItemList = scriptArray.getDataItems();
-        if (dataItemList == null || dataItemList.size() == 0 || dataItemList.size() < 2) {
-            throw new CborRuntimeException("Reference Script deserialization failed. Invalid no of DataItem : " + dataItemList.size());
-        }
-
-        int type = ((UnsignedInteger) dataItemList.get(0)).getValue().intValue();
-
-        try {
-            switch (type) {
-                case 0:
-                    return NativeScript.deserializeScriptRef(scriptRefBytes);
-                case 1:
-                case 2:
-                case 3:
-                    return PlutusScript.deserializeScriptRef(scriptRefBytes);
-                default:
-                    throw new CborRuntimeException("Invalid script type : " + type);
-            }
-        } catch (Exception e) {
-            throw new CborRuntimeException("Reference Script deserialization failed.", e);
         }
     }
 
