@@ -4,15 +4,18 @@ import com.bloxbean.cardano.client.api.util.ReferenceScriptUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 
 /**
- * Helper class to return a {@link TxBuilder} to resolve reference scripts in tx's reference inputs and inputs
+ * Helper class to return a {@link TxBuilder} to resolve reference scripts in tx's reference inputs
  */
 public class ReferenceScriptResolver {
 
     public static TxBuilder resolveReferenceScript() {
         return (context, txn) -> {
-            var inputUtxos = context.getUtxos();
+            var refInputs = txn.getBody().getReferenceInputs();
+            if (refInputs == null || refInputs.isEmpty()) {
+                return;
+            }
 
-            ReferenceScriptUtil.resolveReferenceScripts(context.getUtxoSupplier(), context.getScriptSupplier(), txn, inputUtxos)
+            ReferenceScriptUtil.resolveReferenceScripts(context.getUtxoSupplier(), context.getScriptSupplier(), txn)
                     .forEach(script -> {
                         if (script != null) {
                             context.addRefScripts(script);

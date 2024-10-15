@@ -198,7 +198,6 @@ public class ChangeOutputAdjustments {
             transaction.getBody().getInputs()
                     .add(new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()));
             UtxoUtil.copyUtxoValuesToOutput(outputToAdjust, utxo);
-            context.addUtxo(utxo);
         });
 
         //As transaction is changed now, fee calculation is required.
