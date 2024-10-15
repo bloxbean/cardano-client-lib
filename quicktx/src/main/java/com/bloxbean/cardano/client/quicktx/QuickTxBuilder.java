@@ -228,6 +228,7 @@ public class QuickTxBuilder {
             TxBuilder txBuilder = (context, txn) -> {
             };
             boolean containsScriptTx = false;
+            boolean hasMultiAssetMint = false;
 
             Set<String> fromAddresses = new HashSet<>();
             for (AbstractTx tx : txList) {
@@ -253,6 +254,8 @@ public class QuickTxBuilder {
 
                 if (tx instanceof ScriptTx)
                     containsScriptTx = true;
+
+                hasMultiAssetMint = hasMultiAssetMint || tx.hasMultiAssetMinting();
             }
 
             int totalSigners = getTotalSigners();
@@ -358,7 +361,7 @@ public class QuickTxBuilder {
             //Balance outputs
             txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
 
-            if (containsScriptTx && removeDuplicateScriptWitnesses) {
+            if ((containsScriptTx || hasMultiAssetMint) && removeDuplicateScriptWitnesses) {
                 txBuilder = txBuilder.andThen(DuplicateScriptWitnessChecker.removeDuplicateScriptWitnesses());
             }
 

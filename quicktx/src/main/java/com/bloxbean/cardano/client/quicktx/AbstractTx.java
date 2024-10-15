@@ -291,6 +291,15 @@ public abstract class AbstractTx<T> {
         return (T) this;
     }
 
+    /**
+     * Checks if the transaction has any multi-asset minting or burning.
+     *
+     * @return true if there are multi-assets to be minted; false otherwise
+     */
+    boolean hasMultiAssetMinting() {
+        return multiAssets != null && !multiAssets.isEmpty();
+    }
+
     TxBuilder complete() {
         TxOutputBuilder txOutputBuilder = null;
 
