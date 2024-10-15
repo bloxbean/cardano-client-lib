@@ -159,6 +159,47 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         }
 
         @Test
+        void minting_withScriptRef() throws CborSerializationException {
+            Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
+
+            String assetName = "MyAsset";
+            BigInteger qty = BigInteger.valueOf(1000);
+
+            Tx tx1 = new Tx()
+                    .payToAddress(sender1Addr, Amount.ada(5), policy.getPolicyScript())
+                    .from(sender1Addr);
+
+            Result<String> result1 = quickTxBuilder.compose(tx1)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withTxInspector(tx -> {
+                        System.out.println(JsonUtil.getPrettyJson(tx));
+                    })
+                    .completeAndWait();
+
+            System.out.println(result1);
+            assertThat(result1.isSuccessful()).isTrue();
+
+            checkIfUtxoAvailable(result1.getValue(), sender1Addr);
+
+            Tx tx = new Tx()
+                    .mintAssets(policy.getPolicyScript(), new Asset(assetName, qty), sender1.baseAddress())
+                    .attachMetadata(MessageMetadata.create().add("Minting tx"))
+                    .from(sender1.baseAddress());
+
+            Result<String> result = quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .withSigner(SignerProviders.signerFrom(policy))
+                    .removeDuplicateScriptWitnesses(true)
+                    .completeAndWait();
+
+            System.out.println(result);
+            assertTrue(result.isSuccessful());
+            waitForTransaction(result);
+
+            checkIfUtxoAvailable(result.getValue(), sender1Addr);
+        }
+
+        @Test
         void minting_withTransfer() throws CborSerializationException {
             Policy policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
             String assetName = "MyAsset";
