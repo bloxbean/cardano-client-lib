@@ -26,11 +26,17 @@ public class COSESignBuilder {
     public SigStructure makeDataToSign() {
         Headers headersCopy = headers.copy();
 
+        byte[] finalPayload;
+        if (isPayloadExternal) {
+            finalPayload = payload.clone();
+        } else
+            finalPayload = hashed? Blake2bUtil.blake2bHash224(payload): payload.clone();
+
         return new SigStructure()
                 .sigContext(SigContext.Signature)
                 .bodyProtected(headersCopy._protected())
                 .externalAad(externalAad != null ? externalAad.clone() : new byte[0])
-                .payload(payload.clone());
+                .payload(finalPayload);
     }
 
     public COSESign build(List<COSESignature> coseSignatures) {

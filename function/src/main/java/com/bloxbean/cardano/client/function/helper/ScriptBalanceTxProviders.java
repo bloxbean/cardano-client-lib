@@ -47,10 +47,10 @@ public class ScriptBalanceTxProviders {
             transaction.getBody().getOutputs().stream()
                     .filter(output -> feePayer.equals(output.getAddress()))
                     .max((to1, to2) -> to1.getValue().getCoin().compareTo(to2.getValue().getCoin()))
-                    .ifPresent(transactionOutput -> transactionOutput.setValue(transactionOutput.getValue().plus(Value.builder().coin(fee).build())));
+                    .ifPresent(transactionOutput -> transactionOutput.setValue(transactionOutput.getValue().add(Value.builder().coin(fee).build())));
 
             Value newCollateralReturnValue = transaction.getBody().getCollateralReturn()
-                    .getValue().plus(Value.builder().coin(transaction.getBody().getTotalCollateral()).build());
+                    .getValue().add(Value.builder().coin(transaction.getBody().getTotalCollateral()).build());
             transaction.getBody().getCollateralReturn().setValue(newCollateralReturnValue);
             transaction.getBody().setTotalCollateral(BigInteger.valueOf(1000000)); //reset total collateral. some dummy value
 

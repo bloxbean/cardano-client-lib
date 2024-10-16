@@ -35,6 +35,7 @@ class COSESign1BuilderTest extends COSEBaseTest {
                 .unprotected(unpHeadermap);
 
         byte[] payload = "Hello World".getBytes();
+        System.out.println("Payload: " + HexUtil.encodeHexString(payload));
         COSESign1Builder coseSign1Builder = new COSESign1Builder(headers, payload, false)
                 .hashed(true);
 
@@ -45,11 +46,13 @@ class COSESign1BuilderTest extends COSEBaseTest {
 
         COSESign1 coseSign1 = coseSign1Builder.build(signedSigStructure);
         String serHex = HexUtil.encodeHexString(coseSign1.serializeAsBytes());
-        System.out.println(serHex);
 
-        //This hex is the result from message-signing rust impl.
-        String expected = "8447a2010e033903e7a2386371536f6d65206865616465722076616c756566686173686564f5581c19790463ef4ad09bdb724e3a6550c640593d4870f6e192ac8147f35d58400a448415208ba496d5cd58407a05269b8f0fd14a3c690b761b03c58e2ac70dd36a6bb9d0e03c5baa9d68da99af4be2a8245892325535ec3656435505ba182703";
+        //This hex is the result from message-signing rust impl. (Check cose_sign1_builder.rs)
+        String expected = "8447a2010e033903e7a2386371536f6d65206865616465722076616c756566686173686564f5581c19790463ef4ad09bdb724e3a6550c640593d4870f6e192ac8147f35d58400a810f4fef824d98bb3d08a93f32b2bffb236ecc87100142911605509b953701b0680ce347a13d54e6f626c1f368e69e422d75870db21f8c8ad9f1e40f51ca04";
         COSESign1 coseSign12 = COSESign1.deserialize(CborDecoder.decode(HexUtil.decodeHexString(serHex)).get(0));
+
+        System.out.println("Serialized Hex: " + serHex.length());
+        System.out.println("Expected Hex: " + expected.length());
 
         assertThat(serHex).isEqualTo(expected);
         assertThat(coseSign12).isEqualTo(coseSign1);
@@ -130,7 +133,6 @@ class COSESign1BuilderTest extends COSEBaseTest {
 
         COSESign1 coseSign1 = coseSign1Builder.build(signedSigStructure);
         String serHex = HexUtil.encodeHexString(coseSign1.serializeAsBytes());
-        System.out.println(serHex);
 
         //This hex is the result from message-signing rust impl.
         String expected = "8458baa7010e02816d637269746963616c6974792d31033903e704430102030543040506064304050607828340a10281055840030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303038340a20103028108584005050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505aa01181802816d637269746963616c6974792d32033907cf04430102030543040506064304050607828340a10281145840030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303038340a20103028108584005050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505050505386371736f6d65206865616465722076616c7565646b6579314307080966686173686564f5f65840ba0e7cb56486b33c1fc3fb2730968cf46b9215bcf57dfdec15102cad72391b4ac2f5c6a23fe3e2545b6d0d2381fc5fbb090467e02f74d57eee8380b8cf9d1605";

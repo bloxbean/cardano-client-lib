@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.plutus.annotation.PlutusIgnore;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.NotSupportedException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
@@ -224,6 +225,17 @@ public class ClassDefinitionGenerator {
             fieldType.setType(Type.OPTIONAL);
             fieldType.setJavaType(JavaType.OPTIONAL);
             fieldType.getGenericTypes().add(detectFieldType(itemType, null));
+        } else if (typeName instanceof ParameterizedTypeName
+                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Pair.class))) {
+            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
+            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
+            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
+
+            fieldType.setType(Type.PAIR);
+            fieldType.setJavaType(JavaType.PAIR);
+            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
+            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
+
         } else {
             if (isSupportedType(typeName, typeMirror)) {
                 fieldType.setType(Type.CONSTRUCTOR);

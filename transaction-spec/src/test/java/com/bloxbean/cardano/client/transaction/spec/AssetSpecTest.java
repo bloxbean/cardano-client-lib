@@ -16,7 +16,7 @@ class AssetSpecTest {
         Asset asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(100L)).build();
         Asset asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
 
-        assertThat(asset1.plus(asset2)).isEqualTo(Asset.builder().name("asset").value(BigInteger.valueOf(300L)).build());
+        assertThat(asset1.add(asset2)).isEqualTo(Asset.builder().name("asset").value(BigInteger.valueOf(300L)).build());
     }
 
     @Test
@@ -24,23 +24,23 @@ class AssetSpecTest {
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
         Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
 
-        assertThrows(IllegalArgumentException.class, () -> asset1.plus(asset2));
+        assertThrows(IllegalArgumentException.class, () -> asset1.add(asset2));
     }
 
     @Test
-    void minusSameAsset() {
+    void subtractSameAsset() {
         Asset asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
 
-        assertThat(asset1.minus(asset2)).isEqualTo((Asset.builder().name("asset").value(BigInteger.valueOf(500L)).build()));
+        assertThat(asset1.subtract(asset2)).isEqualTo((Asset.builder().name("asset").value(BigInteger.valueOf(500L)).build()));
     }
 
     @Test
-    void minusDifferentAssetThrowsError() {
+    void subtractDifferentAssetThrowsError() {
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
 
-        assertThrows(IllegalArgumentException.class, () -> asset1.minus(asset2));
+        assertThrows(IllegalArgumentException.class, () -> asset1.subtract(asset2));
     }
 
     @Test

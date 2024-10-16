@@ -239,7 +239,7 @@ public class TxBuilderContextTest extends OgmiosBaseTest {
                 .assetName(LOVELACE)
                 .qty(adaToLovelace(4)).build();
 
-        MultiAsset mergeMultiAsset = multiAsset1.plus(multiAsset2);
+        MultiAsset mergeMultiAsset = multiAsset1.add(multiAsset2);
 
         //Create TxBuilder function
         TxBuilder txBuilder =
@@ -337,7 +337,7 @@ public class TxBuilderContextTest extends OgmiosBaseTest {
                 .assetName(LOVELACE)
                 .qty(adaToLovelace(4)).build();
 
-        MultiAsset mergeMultiAsset = multiAsset1.plus(multiAsset2);
+        MultiAsset mergeMultiAsset = multiAsset1.add(multiAsset2);
 
         //Create TxBuilder function
         TxBuilder txBuilder =
@@ -450,7 +450,7 @@ public class TxBuilderContextTest extends OgmiosBaseTest {
                 .assetName(LOVELACE)
                 .qty(adaToLovelace(4)).build();
 
-        MultiAsset mergeMultiAsset = multiAsset1.plus(multiAsset2);
+        MultiAsset mergeMultiAsset = multiAsset1.add(multiAsset2);
 
         //Create TxBuilder function
         TxBuilder txBuilder =

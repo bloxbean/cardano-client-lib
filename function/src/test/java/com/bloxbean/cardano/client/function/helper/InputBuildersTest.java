@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
-import com.bloxbean.cardano.client.api.util.AssetUtil;
+import com.bloxbean.cardano.client.transaction.util.AssetUtil;
 import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import com.bloxbean.cardano.client.function.BaseTest;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
@@ -387,7 +387,7 @@ class InputBuildersTest extends BaseTest {
 
                                                 //These two have same policy id
                                                 AssetUtil.getMultiAssetFromUnitAndAmount("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e", BigInteger.valueOf(7500))
-                                                        .plus(AssetUtil.getMultiAssetFromUnitAndAmount("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96926174636f766e", BigInteger.valueOf(8000)))
+                                                        .add(AssetUtil.getMultiAssetFromUnitAndAmount("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96926174636f766e", BigInteger.valueOf(8000)))
                                         )
                                 )
                                 .build())

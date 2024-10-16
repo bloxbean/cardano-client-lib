@@ -33,7 +33,7 @@ public class ProtectedHeaderMap implements COSEItem {
         } else {
             throw new CborRuntimeException(
                     String.format("Deserialization error: Invalid type for ProtectedHeaderMap, type: %s, " +
-                            "expected type: ByteString" + dataItem.getMajorType()));
+                            "expected type: ByteString",  dataItem.getMajorType()));
         }
     }
 
