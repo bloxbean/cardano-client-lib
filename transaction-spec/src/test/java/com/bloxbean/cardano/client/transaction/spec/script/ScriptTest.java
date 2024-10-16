@@ -370,7 +370,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testScriptAtLeastWithMaxLongRequires() throws Exception {
+    void testScriptAtLeastWithMaxLongRequires() throws Exception {
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(9223372036854775807L);
         ScriptPubkey scriptPubkey = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         scriptAtLeast.addScript(scriptPubkey);
