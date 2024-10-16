@@ -1,11 +1,14 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
+import co.nstant.in.cbor.model.Array;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -13,12 +16,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.math.BigInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ScriptTest {
 
@@ -351,5 +353,36 @@ class ScriptTest {
         Keys keys2 = objectMapper.readValue(keysJson,Keys.class);
 
         assertEquals(keys1,keys2);
+    }
+
+    @Test
+    public void testScriptAtLeastWithNegativeRequires() throws Exception {
+        String cborHex = "820083031affffb5ff858202828200581c1c12f03c1ef2e935acc35ec2e6f96c650fd3bfba3e96550504d5336183031afff6b79a8182051a0005561382051a0003dd4683031a000491b58182041a0004dc05820180820180";
+        NativeScript scriptAtLeast = NativeScript.deserializeScriptRef(HexUtil.decodeHexString(cborHex));
+
+        var scriptHash = scriptAtLeast.getScriptHash();
+
+        var reSerHex = HexUtil.encodeHexString(scriptAtLeast.scriptRefBytes());
+
+        assertThat(reSerHex, is(cborHex));
+        assertNotNull(scriptHash);
+        assertThat(HexUtil.encodeHexString(scriptHash), is("f711cc44f1611e6784f13ca21a0863ed2923d065d4493ef24246ea46"));
+    }
+
+    @Test
+    public void testScriptAtLeastWithMaxLongRequires() throws Exception {
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(9223372036854775807L);
+        ScriptPubkey scriptPubkey = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
+        scriptAtLeast.addScript(scriptPubkey);
+
+        var serHex = HexUtil.encodeHexString(scriptAtLeast.serialize());
+        //remove type byte from serHex. As first byte is type byte
+        String serializedBodyHex = serHex.substring(2);
+
+        var deScriptAtLeast = (ScriptAtLeast) NativeScript.deserialize((Array) CborSerializationUtil.deserialize(HexUtil.decodeHexString(serializedBodyHex)));
+        var deSerHex = HexUtil.encodeHexString(deScriptAtLeast.serialize());
+
+        assertThat(deSerHex, is(serHex));
+        assertThat(deScriptAtLeast.getRequired().compareTo(BigInteger.valueOf(9223372036854775807L)), is(0));
     }
 }
