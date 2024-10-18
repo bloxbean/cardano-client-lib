@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.api.util.AssetUtil;
+import com.bloxbean.cardano.client.transaction.util.AssetUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -221,7 +221,7 @@ public abstract class AbstractTx<T> {
                 Tuple<String, String> policyAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
                 Asset asset = new Asset(policyAssetName._2, amount.getQuantity());
                 MultiAsset multiAsset = new MultiAsset(policyAssetName._1, List.of(asset));
-                Value newValue = transactionOutput.getValue().plus(new Value(BigInteger.ZERO, List.of(multiAsset)));
+                Value newValue = transactionOutput.getValue().add(new Value(BigInteger.ZERO, List.of(multiAsset)));
                 transactionOutput.setValue(newValue);
             }
         }
@@ -453,7 +453,7 @@ public abstract class AbstractTx<T> {
             }
         }).findFirst().ifPresentOrElse(ma -> {
             multiAssets.remove(ma);
-            multiAssets.add(new Tuple<>(script, ma._2.plus(multiAsset)));
+            multiAssets.add(new Tuple<>(script, ma._2.add(multiAsset)));
         }, () -> {
             multiAssets.add(new Tuple<>(script, multiAsset));
         });

@@ -4,7 +4,7 @@ import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.api.util.AssetUtil;
+import com.bloxbean.cardano.client.transaction.util.AssetUtil;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.common.CardanoConstants;
 import com.bloxbean.cardano.client.common.MinAdaCalculator;
@@ -234,7 +234,7 @@ public class UtxoTransactionBodyBuilder {
                         if(matchingAsset.isPresent()){
                             // update matchingAsset
                             assetAmountsForPolicy.remove(matchingAsset.get());
-                            assetAmountsForPolicy.add(matchingAsset.get().plus(toAsset(utxoAmt)));
+                            assetAmountsForPolicy.add(matchingAsset.get().add(toAsset(utxoAmt)));
                         }else{
                             // add new asset to matchingMultiAsset
                             assetAmountsForPolicy.add(new Asset(policyIdAssetName._2, utxoQty));

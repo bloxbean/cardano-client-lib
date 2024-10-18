@@ -24,12 +24,12 @@ class MultiAssetSpecTest {
         MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, moreAsset2)).build();
 
         MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(
-                asset1.plus(asset1),
-                asset2.plus(moreAsset2)
+                asset1.add(asset1),
+                asset2.add(moreAsset2)
         )).build();
 
-        assertThat(multiAsset1.plus(multiAsset2), equalTo(expectedMultiAsset));
-        assertEquals(multiAsset1.plus(multiAsset2).hashCode(), expectedMultiAsset.hashCode());
+        assertThat(multiAsset1.add(multiAsset2), equalTo(expectedMultiAsset));
+        assertEquals(multiAsset1.add(multiAsset2).hashCode(), expectedMultiAsset.hashCode());
     }
 
     @Test
@@ -41,11 +41,11 @@ class MultiAssetSpecTest {
         MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, moreAsset2)).build();
 
         MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(
-                asset1.plus(asset1),
-                asset2.plus(moreAsset2)
+                asset1.add(asset1),
+                asset2.add(moreAsset2)
         )).build();
 
-        assertThat(multiAsset1.plus(multiAsset2), equalTo(expectedMultiAsset));
+        assertThat(multiAsset1.add(multiAsset2), equalTo(expectedMultiAsset));
     }
 
     @Test
@@ -53,7 +53,7 @@ class MultiAssetSpecTest {
         MultiAsset multiAsset1 = MultiAsset.builder().policyId("policy1").assets(Arrays.asList()).build();
         MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy2").assets(Arrays.asList()).build();
 
-        assertThrows(IllegalArgumentException.class, () -> multiAsset1.plus(multiAsset2));
+        assertThrows(IllegalArgumentException.class, () -> multiAsset1.add(multiAsset2));
     }
 
     @Test
@@ -65,11 +65,11 @@ class MultiAssetSpecTest {
         MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, moreAsset2)).build();
 
         MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(
-                asset1.minus(asset1),
-                asset2.minus(moreAsset2)
+                asset1.subtract(asset1),
+                asset2.subtract(moreAsset2)
         )).build();
 
-        assertThat(multiAsset1.minus(multiAsset2), equalTo(expectedMultiAsset));
+        assertThat(multiAsset1.subtract(multiAsset2), equalTo(expectedMultiAsset));
     }
 
     @Test
@@ -81,11 +81,11 @@ class MultiAssetSpecTest {
         MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, moreAsset2)).build();
 
         MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(
-                asset1.minus(asset1),
-                asset2.minus(moreAsset2)
+                asset1.subtract(asset1),
+                asset2.subtract(moreAsset2)
         )).build();
 
-        assertThat(multiAsset1.minus(multiAsset2), equalTo(expectedMultiAsset));
+        assertThat(multiAsset1.subtract(multiAsset2), equalTo(expectedMultiAsset));
     }
 
     @Test
@@ -98,20 +98,20 @@ class MultiAssetSpecTest {
         MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, moreAsset2)).build();
 
         MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(
-                asset1.minus(asset1),
-                asset2.minus(moreAsset2),
+                asset1.subtract(asset1),
+                asset2.subtract(moreAsset2),
                 asset3
         )).build();
 
-        assertThat(multiAsset1.minus(multiAsset2), equalTo(expectedMultiAsset));
+        assertThat(multiAsset1.subtract(multiAsset2), equalTo(expectedMultiAsset));
     }
 
     @Test
-    void minusMultiAssetWithDifferentPolicyThrowsError() {
+    void subtractMultiAssetWithDifferentPolicyThrowsError() {
         MultiAsset multiAsset1 = MultiAsset.builder().policyId("policy1").assets(Arrays.asList()).build();
         MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy2").assets(Arrays.asList()).build();
 
-        assertThrows(IllegalArgumentException.class, () -> multiAsset1.minus(multiAsset2));
+        assertThrows(IllegalArgumentException.class, () -> multiAsset1.subtract(multiAsset2));
     }
 
     @Test
