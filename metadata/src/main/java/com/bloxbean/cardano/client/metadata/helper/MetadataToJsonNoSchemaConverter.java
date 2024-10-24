@@ -97,7 +97,9 @@ public class MetadataToJsonNoSchemaConverter {
     }
 
     private static Object processValue(DataItem valueItem) {
-        if(UNSIGNED_INTEGER.equals(valueItem.getMajorType())){
+        if (valueItem == SimpleValue.NULL) {
+            return null;
+        } else if(UNSIGNED_INTEGER.equals(valueItem.getMajorType())){
             return ((UnsignedInteger)valueItem).getValue();
         } else if(NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
             return ((NegativeInteger)valueItem).getValue();
