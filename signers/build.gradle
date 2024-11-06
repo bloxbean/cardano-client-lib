@@ -1,0 +1,25 @@
+dependencies {
+    api project(':signers:keystone')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Signer Modules'
+                description = 'Cardano Client Lib - Signer Modules'
+            }
+        }
+    }
+}
+
+subprojects {
+    archivesBaseName = 'cardano-client-signer-' + project.name
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                artifactId 'cardano-client-signer-' + project.name
+            }
+        }
+    }
+}

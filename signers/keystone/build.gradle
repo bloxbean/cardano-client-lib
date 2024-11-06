@@ -1,0 +1,13 @@
+dependencies {
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Signer - Keystone'
+                description = 'Cardano Client Lib - Keystone Signer Module'
+            }
+        }
+    }
+}
