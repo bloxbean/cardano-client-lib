@@ -164,6 +164,18 @@ public abstract class AbstractTx<T> {
         return payToAddress(address, amounts, null, datum, refScript, null);
     }
 
+    /**
+     * Add an output at a contract address with specified amount, inline datum, and a reference script.
+     *
+     * @param address   the contract address to which the amount will be sent
+     * @param amount    the amount to be sent to the contract address
+     * @param datum     Plutus data
+     * @param refScript Reference Script
+     * @return T
+     */
+    public T payToContract(String address, Amount amount, PlutusData datum, Script refScript) {
+        return payToAddress(address, List.of(amount), null, datum, refScript, null);
+    }
 
     /**
      * Add an output at contract address with amounts, inline datum and reference script bytes.
@@ -277,6 +289,15 @@ public abstract class AbstractTx<T> {
         else
             this.txMetadata = this.txMetadata.merge(metadata);
         return (T) this;
+    }
+
+    /**
+     * Checks if the transaction has any multi-asset minting or burning.
+     *
+     * @return true if there are multi-assets to be minted; false otherwise
+     */
+    boolean hasMultiAssetMinting() {
+        return multiAssets != null && !multiAssets.isEmpty();
     }
 
     TxBuilder complete() {

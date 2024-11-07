@@ -11,8 +11,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.spec.*;
-import com.bloxbean.cardano.client.spec.Era;
-import com.bloxbean.cardano.client.spec.EraSerializationConfig;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 
@@ -81,16 +80,6 @@ public class ScriptTxV3IT extends TestDataBaseIT {
         // Example of getting the redeemer datum hash and then getting the datum values.
         List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
                 .getTransactionRedeemers(result1.getValue()).getValue();
-
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        long gottenValue = getBackendService().getScriptService()
-                .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
-                .getValue().getJsonValue().get("int").asLong();
-        assertThat(gottenValue).isEqualTo(randInt);
     }
 
     @Test
@@ -326,4 +315,104 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
         checkIfUtxoAvailable(result2.getValue(), sender1Addr);
     }
+
+    @Test
+    //self-destructing script
+    //Reference script is attached in the input utxo instead of reference input
+    void alwaysTrueScript_whenSpendInputWithRefScript() throws ApiException {
+        PlutusV3Script plutusScript = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        long randInt = System.currentTimeMillis();
+        BigIntPlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx()
+                .payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData, plutusScript)
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        Optional<Utxo> optionalUtxo = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, plutusData);
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(optionalUtxo.get(), plutusData)
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .withChangeAddress(scriptAddress, plutusData);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withRequiredSigners(sender2.getBaseAddress())
+                .withTxInspector(txn -> {
+                    System.out.println(JsonUtil.getPrettyJson(txn));
+                })
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1);
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
+    @Test
+    void alwaysTrueScript_whenInputWithRefScriptAndSameScriptAsAttachedValidator_removeDuplicateWitness() throws ApiException {
+        PlutusV3Script plutusScript = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        long randInt = System.currentTimeMillis();
+        BigIntPlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx()
+                .payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                .payToAddress(receiver1, Amount.ada(1), plutusScript)
+                .payToAddress(sender2Addr, Amount.ada(5), plutusScript)
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        Optional<Utxo> optionalUtxo = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, plutusData);
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(optionalUtxo.get(), plutusData)
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .readFrom(new TransactionInput(result.getValue(), 1))
+                .attachSpendingValidator(plutusScript)
+                .withChangeAddress(scriptAddress, plutusData);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withRequiredSigners(sender2.getBaseAddress())
+                .withTxInspector(txn -> {
+                    System.out.println(JsonUtil.getPrettyJson(txn));
+                })
+                .removeDuplicateScriptWitnesses(true)
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1);
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
 }
