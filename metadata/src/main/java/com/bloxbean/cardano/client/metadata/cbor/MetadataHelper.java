@@ -8,9 +8,9 @@ import java.nio.charset.StandardCharsets;
 
 @Slf4j
 public class MetadataHelper {
-    private final static int BIG_UINT_TAG = 2;
-    private final static int BIG_NINT_TAG = 3;
-    private final static BigInteger MINUS_ONE = BigInteger.valueOf(-1);
+    private static final int BIG_UINT_TAG = 2;
+    private static final int BIG_NINT_TAG = 3;
+    private static final BigInteger MINUS_ONE = BigInteger.valueOf(-1);
 
     public static Object extractActualValue(DataItem dataItem) {
         if (dataItem instanceof UnicodeString) {
@@ -63,13 +63,11 @@ public class MetadataHelper {
 
     public static Object parseByteString(ByteString valueItem) {
         var tag = valueItem.getTag();
-        if (tag != null &&
-                (tag.getValue() == BIG_UINT_TAG || tag.getValue() == BIG_NINT_TAG)){
-            switch ((int) tag.getValue()) {
-                case BIG_UINT_TAG:
-                    return new BigInteger(1, valueItem.getBytes());
-                case BIG_NINT_TAG:
-                    return MINUS_ONE.subtract(new BigInteger(1, valueItem.getBytes()));
+        if (tag != null){
+            if (tag.getValue() == BIG_UINT_TAG) {
+                return new BigInteger(1, valueItem.getBytes());
+            } else if (tag.getValue() == BIG_NINT_TAG) {
+                return MINUS_ONE.subtract(new BigInteger(1, valueItem.getBytes()));
             }
         }
 
