@@ -1,0 +1,70 @@
+[
+  {
+    "date": "2023-10-03",
+    "number": "TRANSFER3",
+    "batch_id": "2c45663f4ab1b7b709ecdf9a6376f9caf0ebce5ebe21a4917519f1af24dd4852",
+    "id": "48335c2b63cffcef2a3cd0678b65c4fb16420f51110033024209957fbd58ec4e",
+    "type": "Transfer",
+    "items": [
+      {
+        "amount": "2000000.00",
+        "event_code": {
+          "code": "99001100",
+          "name": "Payment to Transit Clearing"
+        },
+        "project": {
+          "cust_code": "AN 000002 2023",
+          "name": "Accounting Ledger on the Blockchain"
+        },
+        "cost_center": {
+          "cust_code": "3000",
+          "name": "Operations"
+        },
+        "document": {
+          "number": "TRX-0003",
+          "vat": {
+            "cust_code": "CH-VH-3.8",
+            "rate": "3.8"
+          },
+          "currency": {
+            "cust_code": "USD",
+            "id": "ISO_4217:USD"
+          },
+          "counterparty": {
+            "cust_code": "test_vendor1",
+            "type": "VENDOR"
+          }
+        },
+        "id": "9c6e241e1136e20e3b5033861156a1e453dce463575ebbebaa813e2af73fa95c",
+        "fx_rate": "0.91277"
+      }
+    ],
+    "accounting_period": "2023-10"
+  },
+  {
+    "date": "2023-10-09",
+    "number": "TRANSFER5",
+    "batch_id": "2c45663f4ab1b7b709ecdf9a6376f9caf0ebce5ebe21a4917519f1af24dd4852",
+    "id": "012ae0309054b03a3bd2d3dee3741d88a89b6ea55cadb9da7f7e9c6158eaf93a",
+    "type": "Transfer",
+    "items": [
+      {
+        "amount": "1000000.00",
+        "event_code": {
+          "code": "11001100",
+          "name": "Bank Transfer"
+        },
+        "document": {
+          "number": "TRX-0005",
+          "currency": {
+            "cust_code": "ADA",
+            "id": "ISO_24165:ADA"
+          }
+        },
+        "id": "f0fc7b88b6288bdd248f9db932c6a14ea7d28cef234d11ae91ca07f9bfa3c440",
+        "fx_rate": "0.85805"
+      }
+    ],
+    "accounting_period": "2023-10"
+  }
+]
