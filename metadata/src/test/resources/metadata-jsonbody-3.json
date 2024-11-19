@@ -1,0 +1,8 @@
+{
+  "date": "2023-10-03",
+  "number": 5678888,
+  "batch_id": "2c45663f4ab1b7b709ecdf9a6376f9caf0ebce5ebe21a4917519f1af24dd4852",
+  "id": "48335c2b63cffcef2a3cd0678b65c4fb16420f51110033024209957fbd58ec4e",
+  "types": ["abc", "xyz"],
+  "description": "Payment to Transit Clearing. Accounting Ledger on the Blockchain. Bank Transfer. This is a description with more than 64 bytes"
+}

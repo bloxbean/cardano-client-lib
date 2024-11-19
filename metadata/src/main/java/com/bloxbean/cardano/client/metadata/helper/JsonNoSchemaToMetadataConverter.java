@@ -10,10 +10,7 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.NumericNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
+import com.fasterxml.jackson.databind.node.*;
 
 import java.math.BigInteger;
 import java.util.Iterator;
@@ -67,7 +64,7 @@ public class JsonNoSchemaToMetadataConverter {
         return metadata;
     }
 
-    private static CBORMetadataList parseArrayNode(ArrayNode value) {
+    public static CBORMetadataList parseArrayNode(ArrayNode value) {
         CBORMetadataList metadataList = new CBORMetadataList();
         Iterator<JsonNode> fields = value.elements();
 
@@ -95,7 +92,7 @@ public class JsonNoSchemaToMetadataConverter {
         return metadataList;
     }
 
-    private static CBORMetadataMap parseObjectNode(ObjectNode jsonObj) {
+    public static CBORMetadataMap parseObjectNode(ObjectNode jsonObj) {
         CBORMetadataMap metadataMap = new CBORMetadataMap();
         Iterator<String> fields = jsonObj.fieldNames();
 
@@ -104,7 +101,9 @@ public class JsonNoSchemaToMetadataConverter {
             JsonNode nd = jsonObj.get(field);
 
             Object cborValue = processValueNode(nd);
-            if (cborValue instanceof CBORMetadataMap) {
+            if (cborValue == null) {
+                metadataMap.put(field, (String)null);
+            } else if (cborValue instanceof CBORMetadataMap) {
                 metadataMap.put(field, (CBORMetadataMap) cborValue);
             } else if (cborValue instanceof CBORMetadataList) {
                 metadataMap.put(field, (CBORMetadataList) cborValue);
@@ -148,6 +147,8 @@ public class JsonNoSchemaToMetadataConverter {
         } else if(value instanceof NumericNode) {
             BigInteger valueInt = ((NumericNode)value).bigIntegerValue();
             return valueInt;
+        } else if (value instanceof NullNode) {
+            return null;
         } else {
             throw new JsonMetadaException("Invalid value or value not recognized : " + value);
         }
