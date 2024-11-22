@@ -470,7 +470,7 @@ class ValueSpecTest {
     }
 
     @Test
-    public void addLovelace() {
+    void addLovelace() {
         Value expectedValue = Value.builder().coin(BigInteger.valueOf(110_000_000L)).build();
         Value actualValue = Value.fromCoin(BigInteger.valueOf(100_000_000L))
                 .addCoin(BigInteger.valueOf(10_000_000L));
@@ -479,7 +479,7 @@ class ValueSpecTest {
 
 
      @Test
-    public void addLovelaceWithToken() {
+     void addLovelaceWithToken() {
 
          String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
          Asset asset = Asset.builder().name("0x506f6c795065657237353436").value(BigInteger.valueOf(100_000_000L)).build();
@@ -508,7 +508,7 @@ class ValueSpecTest {
 
 
     @Test
-    public void addSingleToken() {
+    void addSingleToken() {
         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
         BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
         Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
@@ -527,7 +527,7 @@ class ValueSpecTest {
     }
 
     @Test
-    public void subtractLovelace() {
+    void subtractLovelace() {
         Value expectedValue = Value.builder().coin(BigInteger.valueOf(90_000_000L)).build();
         Value actualValue = Value.fromCoin(BigInteger.valueOf(100_000_000L))
                 .substractCoin(BigInteger.valueOf(10_000_000L));
@@ -535,7 +535,7 @@ class ValueSpecTest {
     }
 
     @Test
-    public void subtractLovelaceWithTokens() {
+    void subtractLovelaceWithTokens() {
         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
         Asset asset = Asset.builder().name("0x506f6c795065657237353436").value(BigInteger.valueOf(100_000_000L)).build();
         List<Asset> assets = new ArrayList<>();
@@ -562,7 +562,7 @@ class ValueSpecTest {
 
 
     @Test
-    public void subtractSingleToken() {
+    void subtractSingleToken() {
         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
         String assetNameHex = "0x506f6c795065657237353436";
         String assetName = new String(HexUtil.decodeHexString(assetNameHex));
@@ -597,7 +597,7 @@ class ValueSpecTest {
     }
 
     @Test
-    public void amountOfExistingTokenIsCorrect() {
+    void amountOfExistingTokenIsCorrect() {
         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
         BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
         Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
@@ -609,7 +609,7 @@ class ValueSpecTest {
     }
 
     @Test
-    public void amountOfMissingTokenIsZero() {
+    void amountOfMissingTokenIsZero() {
         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
         BigInteger hundredMil = BigInteger.valueOf(100_000_000L);
         Value value = Value.builder().coin(BigInteger.valueOf(10_000_000L)).build();
@@ -621,12 +621,12 @@ class ValueSpecTest {
     }
 
     @Test
-    public void isZero1() {
+    void isZero1() {
         Assertions.assertTrue(Value.builder().build().isZero());
     }
 
     @Test
-    public void isZero2() {
+    void isZero2() {
         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
         String assetNameHex = "0x506f6c795065657237353436";
         Value value = Value.builder()
@@ -645,7 +645,7 @@ class ValueSpecTest {
     }
 
     @Test
-    public void isPositiveAdaOnly() {
+    void isPositiveAdaOnly() {
         Assertions.assertTrue(Value.builder().build().isPositive());
     }
 
@@ -655,7 +655,7 @@ class ValueSpecTest {
             "1000000,true",
             "-1000000,false"
     })
-    public void isPositiveAdaOnlyParametric(String amount, boolean outcome) {
+    void isPositiveAdaOnlyParametric(String amount, boolean outcome) {
         Assertions.assertEquals(Value.builder().coin(BigInteger.valueOf(Long.parseLong(amount))).build().isPositive(), outcome);
     }
 
@@ -667,7 +667,7 @@ class ValueSpecTest {
             "-1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd,0x546f6b68756e,-1000000,false",
             "1000000,4247d5091db82330100904963ab8d0850976c80d3f1b927e052e07bd,0x546f6b68756e,0,true",
     })
-    public void isPositiveParametric(String lovelace, String policyId, String assetName, String tokenAmount, boolean outcome) {
+    void isPositiveParametric(String lovelace, String policyId, String assetName, String tokenAmount, boolean outcome) {
         Value value = Value.builder().coin(BigInteger.valueOf(Long.parseLong(lovelace))).build();
         value = value.add(policyId, assetName, BigInteger.valueOf(Long.parseLong(tokenAmount)));
         Assertions.assertEquals(value.isPositive(), outcome);

@@ -156,11 +156,13 @@ public class Value {
 
     /**
      * Use add(Value that) instead
+     * @deprecated
+     * <p>Use {@link #add(Value)} instead</p>
      *
      * @param that
      * @return
      */
-    @Deprecated
+    @Deprecated(since = "0.6.3")
     public Value plus(Value that) {
         return this.add(that);
     }
@@ -239,11 +241,13 @@ public class Value {
 
     /**
      * Use minus(Value that) instead
+     * @deprecated
+     * <p>Use {@link #subtract(Value)} instead</p>
      *
      * @param that
      * @return
      */
-    @Deprecated
+    @Deprecated(since = "0.6.3")
     public Value minus(Value that) {
         return this.subtract(that);
     }

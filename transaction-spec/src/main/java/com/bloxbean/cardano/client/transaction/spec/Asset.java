@@ -62,7 +62,16 @@ public class Asset {
         return Asset.builder().name(getNameAsHex()).value(getValue().add(that.getValue())).build();
     }
 
-    @Deprecated
+    /**
+     * Returns a new asset that is the sum of this asset and the provided asset.
+     *
+     * @deprecated
+     * <p>Use {@link #add(Asset)} instead</p>
+     *
+     * @param that the asset to be added to this asset
+     * @return a new Asset representing the sum of this asset and the provided asset
+     */
+    @Deprecated(since = "0.6.3")
     public Asset plus(Asset that) {
         return this.add(that);
     }
@@ -79,7 +88,15 @@ public class Asset {
         return Asset.builder().name(getName()).value(getValue().subtract(that.getValue())).build();
     }
 
-    @Deprecated
+    /**
+     * Returns a new asset that is a subtraction of this asset and the provided asset.
+     * @deprecated
+     * <p>Use {@link #subtract(Asset)} instead</p>
+     *
+     * @param that the asset to be subtracted from this asset
+     * @return a new Asset representing the difference between this asset and the provided asset
+     */
+    @Deprecated(since = "0.6.3")
     public Asset minus(Asset that) {
         return this.subtract(that);
     }

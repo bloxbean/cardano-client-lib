@@ -151,7 +151,15 @@ public class MultiAsset {
         return MultiAsset.builder().policyId(getPolicyId()).assets(mergedAssets).build();
     }
 
-    @Deprecated
+    /**
+     * Sums a Multi Asset to another. If an Asset is already present, sums the amounts.
+     * @deprecated
+     * <p>Use {@link #add(MultiAsset)} instead </p>
+     *
+     * @param that {@link MultiAsset} to Sum with
+     * @return {@link MultiAsset} as Sum result
+     */
+    @Deprecated(since = "0.6.3")
     public MultiAsset plus(MultiAsset that) {
         return this.add(that);
     }
@@ -178,6 +186,15 @@ public class MultiAsset {
         return MultiAsset.builder().policyId(getPolicyId()).assets(assetsResult).build();
     }
 
+    /**
+     * Subtracts a Multi Asset from another. If an Asset is already present, subtract the amounts.
+     * @deprecated
+     * <p>Use {@link #subtract(MultiAsset)} instead</p>
+     *
+     * @param that {@link MultiAsset} to Subtract by
+     * @return {@link MultiAsset} as Difference result
+     */
+    @Deprecated(since = "0.6.3")
     public MultiAsset minus(MultiAsset that) {
         return this.subtract(that);
     }
