@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
-import com.bloxbean.cardano.client.transaction.util.AssetUtil;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.api.util.PolicyUtil;
 import com.bloxbean.cardano.client.function.BaseTest;
 import com.bloxbean.cardano.client.api.UtxoSupplier;

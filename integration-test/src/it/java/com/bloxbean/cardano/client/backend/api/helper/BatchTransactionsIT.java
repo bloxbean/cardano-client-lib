@@ -9,7 +9,7 @@ import com.bloxbean.cardano.client.api.helper.TransactionBuilder;
 import com.bloxbean.cardano.client.api.helper.TransactionHelperService;
 import com.bloxbean.cardano.client.api.helper.model.TransactionResult;
 import com.bloxbean.cardano.client.api.model.Result;
-import com.bloxbean.cardano.client.transaction.util.AssetUtil;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.backend.api.*;
 import com.bloxbean.cardano.client.backend.model.Block;
 import com.bloxbean.cardano.client.backend.model.TransactionContent;

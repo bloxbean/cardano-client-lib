@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.api.ScriptSupplier;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.transaction.util.AssetUtil;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.function.BaseTest;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.exception.ApiException;

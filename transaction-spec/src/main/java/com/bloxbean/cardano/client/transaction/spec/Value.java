@@ -4,7 +4,6 @@ import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
-import com.bloxbean.cardano.client.transaction.util.AssetUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,8 +17,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 @Data
 @AllArgsConstructor
@@ -171,26 +168,18 @@ public class Value {
         return this.add(that);
     }
 
-    public Value addLovelace(BigInteger amount) {
-        return this.add(fromLovelace(amount));
-    }
-
     public Value add(String policyId, String assetName, BigInteger amount) {
         return this.add(from(policyId, assetName, amount));
     }
 
     public Value add(String unit, BigInteger amount) {
-        if (unit == null || LOVELACE.equals(unit)) {
-            return add(fromLovelace(amount));
-        } else {
-            Tuple<String, String> policyAndAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
-            return this.add(from(policyAndAssetName._1, policyAndAssetName._2, amount));
-        }
+        Tuple<String, String> policyAndAssetName = getPolicyAndAssetName(unit);
+        return this.add(from(policyAndAssetName._1, policyAndAssetName._2, amount));
     }
 
 
     public static Value from(String policyId, String assetName, BigInteger amount) {
-        if (policyId == null || policyId.isBlank()) {
+        if ((policyId != null && policyId.equals("lovelace")) || (assetName != null && assetName.equals("lovelace"))) {
             return fromLovelace(amount);
         } else {
             return Value.builder()
@@ -257,12 +246,8 @@ public class Value {
     }
 
     public Value subtract(String unit, BigInteger amount) {
-        if (unit == null || LOVELACE.equals(unit)) {
-            return subtract(fromLovelace(amount));
-        } else {
-            Tuple<String, String> policyAndAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
-            return subtract(from(policyAndAssetName._1, policyAndAssetName._2, amount));
-        }
+        Tuple<String, String> policyAndAssetName = getPolicyAndAssetName(unit);
+        return this.subtract(from(policyAndAssetName._1, policyAndAssetName._2, amount));
     }
 
 
@@ -279,8 +264,15 @@ public class Value {
     }
 
     public BigInteger amountOf(String unit) {
-        Tuple<String, String> policyAndAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
+        Tuple<String, String> policyAndAssetName = getPolicyAndAssetName(unit);
         return amountOf(policyAndAssetName._1, policyAndAssetName._2);
+    }
+
+    private Tuple<String, String> getPolicyAndAssetName(String unit) {
+        String sanitisedUnit = unit.replace(".", "");
+        String policyId = sanitisedUnit.substring(0, 56);
+        String assetName = "0x" + sanitisedUnit.substring(56);
+        return new Tuple<>(policyId, assetName);
     }
 
     public boolean isZero() {
@@ -295,7 +287,7 @@ public class Value {
     public boolean isPositive() {
         boolean isCoinPositive = coin.signum() >= 0;
         boolean allAssetsPositive = multiAssets == null || multiAssets.isEmpty() ||
-                multiAssets.stream().allMatch(multiAsset -> multiAsset.getAssets().stream().allMatch(asset -> asset.getValue().signum() >= 0));
+                multiAssets.stream().allMatch(multiAsset -> multiAsset.getAssets().stream().allMatch(asset -> asset.getValue().longValue() >= 0));
         return isCoinPositive && allAssetsPositive;
     }
 
