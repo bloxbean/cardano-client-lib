@@ -1,20 +1,17 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
-import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -172,27 +169,42 @@ public class Value {
         return this.add(from(policyId, assetName, amount));
     }
 
-    public Value add(String unit, BigInteger amount) {
-        Tuple<String, String> policyAndAssetName = getPolicyAndAssetName(unit);
-        return this.add(from(policyAndAssetName._1, policyAndAssetName._2, amount));
+    /**
+     * Adds the specified coin(lovelace) amount to the current {@code Value} instance.
+     *
+     * @param amount The amount in lovelace to be added
+     * @return A new {@code Value} instance with the added coin amount.
+     */
+    public Value addCoin(BigInteger amount) {
+        return this.add(fromCoin(amount));
     }
 
-
+    /**
+     * Creates a new Value instance from provided policy ID, asset name, and amount.
+     *
+     * @param policyId The policy ID associated with the asset.
+     * @param assetName The name of the asset.
+     * @param amount The amount of the asset.
+     * @return A new Value instance containing the provided asset information.
+     */
     public static Value from(String policyId, String assetName, BigInteger amount) {
-        if ((policyId != null && policyId.equals("lovelace")) || (assetName != null && assetName.equals("lovelace"))) {
-            return fromLovelace(amount);
-        } else {
-            return Value.builder()
-                    .multiAssets(List.of(MultiAsset.builder()
-                            .policyId(policyId)
-                            .assets(List.of(Asset.builder().name(assetName).value(amount).build()))
-                            .build()))
-                    .build();
-        }
+        Objects.requireNonNull(policyId);
+        return Value.builder()
+                .multiAssets(List.of(MultiAsset.builder()
+                        .policyId(policyId)
+                        .assets(List.of(Asset.builder().name(assetName).value(amount).build()))
+                        .build()))
+                .build();
     }
 
-    public static Value fromLovelace(BigInteger lovelaces) {
-        return Value.builder().coin(lovelaces).build();
+    /**
+     * Creates a {@link Value} instance from the given amount of lovelaces.
+     *
+     * @param coin The amount of lovelaces to be converted into a {@link Value} instance.
+     * @return A new {@link Value} instance containing the specified amount of lovelaces.
+     */
+    public static Value fromCoin(BigInteger coin) {
+        return Value.builder().coin(coin).build();
     }
 
     /**
@@ -237,44 +249,53 @@ public class Value {
     }
 
 
-    public Value subtractLovelace(BigInteger amount) {
-        return this.subtract(fromLovelace(amount));
+    /**
+     * Subtracts the specified coin (lovelace) amount from the current {@code Value} instance.
+     *
+     * @param amount The amount in lovelace to be subtracted.
+     * @return A new {@code Value} instance with the subtracted coin amount.
+     */
+    public Value substractCoin(BigInteger amount) {
+        return this.subtract(fromCoin(amount));
     }
 
+    /**
+     * Subtracts a specified amount of an asset from the current {@code Value} instance.
+     *
+     * @param policyId The policy ID associated with the asset.
+     * @param assetName The name of the asset.
+     * @param amount The amount of the asset to be subtracted.
+     * @return A new {@code Value} instance with the subtracted asset amount.
+     */
     public Value subtract(String policyId, String assetName, BigInteger amount) {
         return this.subtract(from(policyId, assetName, amount));
     }
 
-    public Value subtract(String unit, BigInteger amount) {
-        Tuple<String, String> policyAndAssetName = getPolicyAndAssetName(unit);
-        return this.subtract(from(policyAndAssetName._1, policyAndAssetName._2, amount));
-    }
-
-
+    /**
+     * Returns the amount of a specific asset identified by the given policy ID and asset name.
+     * If the asset is not found, the method returns BigInteger.ZERO.
+     *
+     * @param policyId The policy ID corresponding to the asset.
+     * @param assetName The name of the asset.
+     * @return The amount of the specified asset as a BigInteger, or BigInteger.ZERO if the asset is not found.
+     */
     public BigInteger amountOf(String policyId, String assetName) {
         return getMultiAssets()
                 .stream()
                 .filter(multiAsset -> multiAsset.getPolicyId().equals(policyId))
                 .findAny()
                 .stream()
-                .flatMap(multiAsset -> multiAsset.getAssets().stream().filter(asset -> asset.getName().equals(assetName)))
+                .flatMap(multiAsset -> multiAsset.getAssets().stream().filter(asset -> asset.hasName(assetName)))
                 .map(Asset::getValue)
                 .findAny()
                 .orElse(BigInteger.ZERO);
     }
 
-    public BigInteger amountOf(String unit) {
-        Tuple<String, String> policyAndAssetName = getPolicyAndAssetName(unit);
-        return amountOf(policyAndAssetName._1, policyAndAssetName._2);
-    }
-
-    private Tuple<String, String> getPolicyAndAssetName(String unit) {
-        String sanitisedUnit = unit.replace(".", "");
-        String policyId = sanitisedUnit.substring(0, 56);
-        String assetName = "0x" + sanitisedUnit.substring(56);
-        return new Tuple<>(policyId, assetName);
-    }
-
+    /**
+     * Determines if the value represented by this instance is zero.
+     *
+     * @return true if both `multiAssets` is null or empty and `coin` equals to zero, otherwise false.
+     */
     public boolean isZero() {
         return (multiAssets == null || multiAssets.isEmpty()) && BigInteger.ZERO.equals(coin);
     }

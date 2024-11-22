@@ -21,23 +21,7 @@ public class Asset {
 
     @JsonIgnore
     public byte[] getNameAsBytes() {
-        byte[] assetNameBytes = null;
-        if (name != null && !name.isEmpty()) {
-            //Check if caller has provided a hex string as asset name
-            if (name.startsWith("0x")) {
-                try {
-                    assetNameBytes = HexUtil.decodeHexString(name.substring(2));
-                } catch (IllegalArgumentException e) {
-                    // name is not actually a hex string
-                    assetNameBytes = name.getBytes(StandardCharsets.UTF_8);
-                }
-            } else {
-                assetNameBytes = name.getBytes(StandardCharsets.UTF_8);
-            }
-        } else {
-            assetNameBytes = new byte[0];
-        }
-        return assetNameBytes;
+        return nameToBytes(name);
     }
 
     /**
@@ -100,6 +84,14 @@ public class Asset {
         return this.subtract(that);
     }
 
+    public boolean hasName(String assetName) {
+        byte[] assetNameBytes = nameToBytes(assetName);
+        byte[] existingAssetNameBytes = nameToBytes(name);
+
+        //check if both byte array are same
+        return Arrays.equals(assetNameBytes, existingAssetNameBytes);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -111,5 +103,25 @@ public class Asset {
     @Override
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(getNameAsBytes()), value);
+    }
+
+    private static byte[] nameToBytes(String assetName) {
+        byte[] assetNameBytes = null;
+        if (assetName != null && !assetName.isEmpty()) {
+            //Check if caller has provided a hex string as asset name
+            if (assetName.startsWith("0x")) {
+                try {
+                    assetNameBytes = HexUtil.decodeHexString(assetName.substring(2));
+                } catch (IllegalArgumentException e) {
+                    // name is not actually a hex string
+                    assetNameBytes = assetName.getBytes(StandardCharsets.UTF_8);
+                }
+            } else {
+                assetNameBytes = assetName.getBytes(StandardCharsets.UTF_8);
+            }
+        } else {
+            assetNameBytes = new byte[0];
+        }
+        return assetNameBytes;
     }
 }

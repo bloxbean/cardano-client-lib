@@ -6,8 +6,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 class AssetSpecTest {
 
@@ -83,5 +82,29 @@ class AssetSpecTest {
 
         byte[] expectedBytes = "0xtest".getBytes(StandardCharsets.UTF_8);
         assertThat(asset.getNameAsBytes()).isEqualTo(expectedBytes);
+    }
+
+    @Test
+    void hasName() {
+        Asset asset = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
+
+        var same = asset.hasName("asset1");
+        assertTrue(same);
+    }
+
+    @Test
+    void hasNameReturnsFalse() {
+        Asset asset = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
+
+        var same = asset.hasName("asset2");
+        assertFalse(same);
+    }
+
+    @Test
+    void hasNameWhenHex() {
+        Asset asset = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
+
+        var same = asset.hasName("0x617373657431");
+        assertTrue(same);
     }
 }
