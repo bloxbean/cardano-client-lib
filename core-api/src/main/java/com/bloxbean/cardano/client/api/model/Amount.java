@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.api.model;
 
-import com.bloxbean.cardano.client.transaction.util.AssetUtil;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;

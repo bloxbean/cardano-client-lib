@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.function.helper;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.transaction.util.AssetUtil;
+import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.api.util.UtxoUtil;
 import com.bloxbean.cardano.client.config.Configuration;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;

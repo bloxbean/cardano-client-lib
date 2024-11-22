@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.transaction.util;
+package com.bloxbean.cardano.client.api.util;
 
 /*
  * Copyright 2018 Coinomi Ltd
