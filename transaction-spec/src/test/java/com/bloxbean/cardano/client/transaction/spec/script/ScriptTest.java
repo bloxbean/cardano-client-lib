@@ -1,11 +1,14 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
+import co.nstant.in.cbor.model.Array;
+import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.crypto.KeyGenUtil;
 import com.bloxbean.cardano.client.crypto.Keys;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -13,19 +16,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.math.BigInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 class ScriptTest {
 
     ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    public void testGetPolicyId() throws CborSerializationException {
+    void testGetPolicyId() throws CborSerializationException {
         ScriptPubkey scriptPubkey = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         String policyId = scriptPubkey.getPolicyId();
 
@@ -35,7 +37,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testSciptAllPolicyId() throws CborSerializationException {
+    void testSciptAllPolicyId() throws CborSerializationException {
         ScriptPubkey scriptPubkey1 = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         ScriptPubkey scriptPubkey2 = new ScriptPubkey("ee7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         ScriptPubkey scriptPubkey3 = new ScriptPubkey("ff7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
@@ -54,7 +56,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testSciptAnyPolicyId() throws CborSerializationException {
+    void testSciptAnyPolicyId() throws CborSerializationException {
         ScriptPubkey scriptPubkey1 = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         ScriptPubkey scriptPubkey2 = new ScriptPubkey("ef7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
         ScriptPubkey scriptPubkey3 = new ScriptPubkey("ff7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
@@ -73,7 +75,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testSciptAtLeastPolicyId() throws CborSerializationException {
+    void testSciptAtLeastPolicyId() throws CborSerializationException {
         ScriptPubkey scriptPubkey1 = new ScriptPubkey("2f3d4cf10d0471a1db9f2d2907de867968c27bca6272f062cd1c2413");
         ScriptPubkey scriptPubkey2 = new ScriptPubkey("f856c0c5839bab22673747d53f1ae9eed84afafb085f086e8e988614");
         ScriptPubkey scriptPubkey3 = new ScriptPubkey("b275b08c999097247f7c17e77007c7010cd19f20cc086ad99d398538");
@@ -91,7 +93,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testRequiredAfterPolicyId() throws CborSerializationException {
+    void testRequiredAfterPolicyId() throws CborSerializationException {
         RequireTimeAfter requiredAfter = new RequireTimeAfter(1000);
         ScriptPubkey scriptPubkey = new ScriptPubkey("966e394a544f242081e41d1965137b1bb412ac230d40ed5407821c37");
 
@@ -107,7 +109,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testRequiredBeforePolicyId() throws CborSerializationException {
+    void testRequiredBeforePolicyId() throws CborSerializationException {
         RequireTimeBefore requireTimeBefore = new RequireTimeBefore(2000);
         ScriptPubkey scriptPubkey = new ScriptPubkey("966e394a544f242081e41d1965137b1bb412ac230d40ed5407821c37");
 
@@ -123,7 +125,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testScriptAnyScriptPubRequiredBeforePolicyId() throws CborSerializationException {
+    void testScriptAnyScriptPubRequiredBeforePolicyId() throws CborSerializationException {
 
         ScriptAny scriptAny = new ScriptAny()
                 .addScript(new ScriptPubkey("b275b08c999097247f7c17e77007c7010cd19f20cc086ad99d398538"))
@@ -139,7 +141,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeser_whenScriptPubKey() throws JsonProcessingException, CborDeserializationException {
+    void testJsonSerDeser_whenScriptPubKey() throws JsonProcessingException, CborDeserializationException {
         ScriptPubkey key = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
 
         String jsonStr = mapper.writeValueAsString(key);
@@ -151,7 +153,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeser_whenScriptPubKeyJackson() throws JsonProcessingException {
+    void testJsonSerDeser_whenScriptPubKeyJackson() throws JsonProcessingException {
         ScriptPubkey scriptPubkey1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
 
         String jsonStr = mapper.writeValueAsString(scriptPubkey1);
@@ -163,7 +165,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeser_whenScriptAll() throws IOException, CborDeserializationException {
+    void testJsonSerDeser_whenScriptAll() throws IOException, CborDeserializationException {
         ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
         ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
         ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
@@ -183,7 +185,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeser_whenScriptAllJackson() throws IOException {
+    void testJsonSerDeser_whenScriptAllJackson() throws IOException {
         ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
         ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
         ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
@@ -202,7 +204,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeser_whenScriptAny() throws IOException, CborDeserializationException {
+    void testJsonSerDeser_whenScriptAny() throws IOException, CborDeserializationException {
         ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
         ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
         ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
@@ -222,7 +224,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeser_whenScriptAnyJackson() throws IOException {
+    void testJsonSerDeser_whenScriptAnyJackson() throws IOException {
         ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
         ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
         ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
@@ -240,7 +242,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeser_whenScriptAtLeast() throws IOException, CborDeserializationException {
+    void testJsonSerDeser_whenScriptAtLeast() throws IOException, CborDeserializationException {
         ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
         ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
         ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
@@ -260,7 +262,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeser_whenScriptAtLeastJackson() throws IOException {
+    void testJsonSerDeser_whenScriptAtLeastJackson() throws IOException {
         ScriptPubkey key1 = new ScriptPubkey("74cfebcf5e97474d7b89c862d7ee7cff22efbb032d4133a1b84cbdcd");
         ScriptPubkey key2 = new ScriptPubkey("710ee487dbbcdb59b5841a00d1029a56a407c722b3081c02470b516d");
         ScriptPubkey key3 = new ScriptPubkey("beed26382ec96254a6714928c3c5bb8227abecbbb095cfeab9fb2dd1");
@@ -279,7 +281,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeSer_whenRequireTimeBefore() throws JsonProcessingException, CborDeserializationException {
+    void testJsonSerDeSer_whenRequireTimeBefore() throws JsonProcessingException, CborDeserializationException {
         RequireTimeBefore requireTimeBefore = new RequireTimeBefore(30003);
 
         String jsonStr = mapper.writeValueAsString(requireTimeBefore);
@@ -292,7 +294,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeSer_whenRequireTimeBeforeJackson() throws JsonProcessingException {
+    void testJsonSerDeSer_whenRequireTimeBeforeJackson() throws JsonProcessingException {
         RequireTimeBefore requireTimeBefore1 = new RequireTimeBefore(30003);
 
         String jsonStr = mapper.writeValueAsString(requireTimeBefore1);
@@ -304,7 +306,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeSer_whenRequireTimeAfter() throws JsonProcessingException, CborDeserializationException {
+    void testJsonSerDeSer_whenRequireTimeAfter() throws JsonProcessingException, CborDeserializationException {
         RequireTimeAfter requireTimeAfter = new RequireTimeAfter(20003);
 
         String jsonStr = mapper.writeValueAsString(requireTimeAfter);
@@ -317,7 +319,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testJsonSerDeSer_whenRequireTimeAfterJackson() throws JsonProcessingException {
+    void testJsonSerDeSer_whenRequireTimeAfterJackson() throws JsonProcessingException {
         RequireTimeAfter requireTimeAfter1 = new RequireTimeAfter(20003);
 
         String jsonStr = mapper.writeValueAsString(requireTimeAfter1);
@@ -329,7 +331,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testGetScriptPubkey() throws CborSerializationException {
+    void testGetScriptPubkey() throws CborSerializationException {
         String cborText = "582037abc7f86d3f53cbedd38835cd4dbcf0ff7d2bf5a5c12ec77c6851bf5295ae63";
         VerificationKey vkey = KeyGenUtil.getPublicKeyFromPrivateKey(new SecretKey(cborText));
 
@@ -341,7 +343,7 @@ class ScriptTest {
     }
 
     @Test
-    public void testKeysSerializationDeserialization() throws CborSerializationException, JsonProcessingException {
+    void testKeysSerializationDeserialization() throws CborSerializationException, JsonProcessingException {
         Tuple<ScriptPubkey, Keys> tuple = ScriptPubkey.createWithNewKey();
         Keys keys1 = tuple._2;
 
@@ -351,5 +353,36 @@ class ScriptTest {
         Keys keys2 = objectMapper.readValue(keysJson,Keys.class);
 
         assertEquals(keys1,keys2);
+    }
+
+    @Test
+    void testScriptAtLeastWithNegativeRequires() throws Exception {
+        String cborHex = "820083031affffb5ff858202828200581c1c12f03c1ef2e935acc35ec2e6f96c650fd3bfba3e96550504d5336183031afff6b79a8182051a0005561382051a0003dd4683031a000491b58182041a0004dc05820180820180";
+        NativeScript scriptAtLeast = NativeScript.deserializeScriptRef(HexUtil.decodeHexString(cborHex));
+
+        var scriptHash = scriptAtLeast.getScriptHash();
+
+        var reSerHex = HexUtil.encodeHexString(scriptAtLeast.scriptRefBytes());
+
+        assertThat(reSerHex, is(cborHex));
+        assertNotNull(scriptHash);
+        assertThat(HexUtil.encodeHexString(scriptHash), is("f711cc44f1611e6784f13ca21a0863ed2923d065d4493ef24246ea46"));
+    }
+
+    @Test
+    void testScriptAtLeastWithMaxLongRequires() throws Exception {
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(9223372036854775807L);
+        ScriptPubkey scriptPubkey = new ScriptPubkey("ad7a7b87959173fc9eac9a85891cc93892f800dd45c0544128228884");
+        scriptAtLeast.addScript(scriptPubkey);
+
+        var serHex = HexUtil.encodeHexString(scriptAtLeast.serialize());
+        //remove type byte from serHex. As first byte is type byte
+        String serializedBodyHex = serHex.substring(2);
+
+        var deScriptAtLeast = (ScriptAtLeast) NativeScript.deserialize((Array) CborSerializationUtil.deserialize(HexUtil.decodeHexString(serializedBodyHex)));
+        var deSerHex = HexUtil.encodeHexString(deScriptAtLeast.serialize());
+
+        assertThat(deSerHex, is(serHex));
+        assertThat(deScriptAtLeast.getRequired().compareTo(BigInteger.valueOf(9223372036854775807L)), is(0));
     }
 }

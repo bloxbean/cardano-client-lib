@@ -21,9 +21,9 @@ public class TransactionContent {
 
     private String hash;
     private String block;
-    private Integer blockHeight;
-    private Integer blockTime;
-    private Integer slot;
+    private Long blockHeight;
+    private Long blockTime;
+    private Long slot;
     private Integer index;
 
     @Builder.Default
@@ -43,4 +43,5 @@ public class TransactionContent {
     private Integer assetMintOrBurnCount;
     private Integer redeemerCount;
     private Boolean validContract;
+
 }

@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolVersion;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,7 +28,7 @@ public class HardForkInitiationAction implements GovAction {
     private ProtocolVersion protocolVersion;
 
     @Override
-    public Array serialize() {
+    public Array serialize(Era era) {
         Objects.requireNonNull(protocolVersion);
 
         Array array = new Array();

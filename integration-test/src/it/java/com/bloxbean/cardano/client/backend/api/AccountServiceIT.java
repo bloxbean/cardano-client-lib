@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.api;
 
+import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.model.*;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AccountServiceIT extends BaseITTest {
@@ -83,6 +85,17 @@ class AccountServiceIT extends BaseITTest {
         List<AccountAsset> accountAssets = result.getValue();
         System.out.println(JsonUtil.getPrettyJson(accountAssets));
         //TODO Find account with more than 100 assets
+    }
+
+    @Test
+    void testGetAllAccountTransactions() throws ApiException {
+        String stakeAddress = "stake_test1upxeg0r67z4wca682l28ghg69jxaxgswdmpvnher7at697qmhymyp";
+        Result<List<AddressTransactionContent>> result = accountService.getAllAccountTransactions(stakeAddress, OrderEnum.asc, 605746, 615700);
+        assertTrue(result.isSuccessful());
+        List<AddressTransactionContent> addressTransactionContents = result.getValue();
+        assertEquals(22, addressTransactionContents.size());
+        assertEquals("bef3e28ad884c3e50d40465726da389c4c288d486a47bc700c5d273d0516ea01", addressTransactionContents.get(0).getTxHash());
+        System.out.println(JsonUtil.getPrettyJson(addressTransactionContents));
     }
 }
 

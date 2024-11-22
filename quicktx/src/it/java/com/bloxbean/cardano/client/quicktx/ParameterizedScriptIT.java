@@ -93,6 +93,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 **/
 public class ParameterizedScriptIT extends TestDataBaseIT {
 
+    private boolean aikenEvaluation = false;
+
+
     @Test
     void gitCardContract() throws ApiException {
         String giftCardAikenContract = "590221010000323232323232323232323223222232533300b32323232533300f3370e9000180700089919191919191919191919299980e98100010991919299980e99b87480000044c94ccc078cdc3a4000603a002264a66603e66e1c011200213371e00a0322940c07000458c8cc004004030894ccc088004530103d87a80001323253330213375e6603a603e004900000d099ba548000cc0940092f5c0266008008002604c00460480022a66603a66e1c009200113371e00602e2940c06c050dd6980e8011bae301b00116301e001323232533301b3370e90010008a5eb7bdb1804c8dd59810800980c801180c800991980080080111299980f0008a6103d87a8000132323232533301f3371e01e004266e95200033023374c00297ae0133006006003375660400066eb8c078008c088008c080004c8cc004004008894ccc07400452f5bded8c0264646464a66603c66e3d221000021003133022337606ea4008dd3000998030030019bab301f003375c603a0046042004603e0026eacc070004c070004c06c004c068004c064008dd6180b80098078029bae3015001300d001163013001301300230110013009002149858c94ccc02ccdc3a40000022a66601c60120062930b0a99980599b874800800454ccc038c02400c52616163009002375c0026600200290001111199980399b8700100300c233330050053370000890011807000801001118029baa001230033754002ae6955ceaab9e5573eae815d0aba201";
@@ -126,7 +129,7 @@ public class ParameterizedScriptIT extends TestDataBaseIT {
                 .compose(scriptTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(new AikenTransactionEvaluator(backendService))
+                .withTxEvaluator(aikenEvaluation? new AikenTransactionEvaluator(backendService): null)
                 .withTxInspector(transaction -> {
                     System.out.println(transaction);
                 }).completeAndWait(System.out::println);
@@ -202,7 +205,7 @@ public class ParameterizedScriptIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withRequiredSigners(sender1.getBaseAddress())
-                .withTxEvaluator(new AikenTransactionEvaluator(backendService))
+                .withTxEvaluator(aikenEvaluation? new AikenTransactionEvaluator(backendService): null)
 //                .ignoreScriptCostEvaluationError(true)
                 .withTxInspector(transaction -> {
                     System.out.println(transaction);

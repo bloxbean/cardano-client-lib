@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -17,6 +18,7 @@ import java.net.Inet6Address;
 import java.util.*;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.*;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
 
 @Data
 @AllArgsConstructor
@@ -70,7 +72,7 @@ public class PoolRegistration implements Certificate {
     private String poolMetadataHash;
 
     @Override
-    public Array serialize() throws CborSerializationException {
+    public Array serialize(Era era) throws CborSerializationException {
         Array array = new Array();
         array.add(new UnsignedInteger(3));
         array.add(new ByteString(operator));
@@ -88,7 +90,7 @@ public class PoolRegistration implements Certificate {
         array.add(new ByteString(HexUtil.decodeHexString(rewardAccount)));
 
         //pool owners
-        Array poolOwnersArr = new Array();
+        Array poolOwnersArr = createArray(era);
         poolOwners.stream().forEach(poolOwner -> {
             poolOwnersArr.add(new ByteString(HexUtil.decodeHexString(poolOwner)));
         });

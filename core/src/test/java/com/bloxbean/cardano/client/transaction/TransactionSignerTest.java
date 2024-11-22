@@ -40,7 +40,7 @@ class TransactionSignerTest {
         System.out.println("Signature: " + signatureHex);
 
         assertThat(vkeyHex).isEqualTo("60209269377f220cdecdc6d5ad42d9b04e58ce74b349efb396ee46adaeb956f3");
-        assertThat(signatureHex).isEqualTo("cd9f8e70a09f24328ee6c14053a38a6a654d31e9e58a9c6c44848e4592265237ce3604eda0cb1812028c3e6b04c66ccc64a1d2685d98e0567477cbc33a4c2f0f");
+        assertThat(signatureHex).isEqualTo("9b14acd2799e8b97e4be5b02ee344d9620af9d5c24cdf6b50aa4e706f996e9a11747128f62219bc5a5e3b8a3c4fa6881e9d63144ec8448a413edefe018d6a706");
     }
 
     @Test

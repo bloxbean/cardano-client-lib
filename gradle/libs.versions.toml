@@ -1,16 +1,16 @@
 [libraries]
-koios-java = "io.github.cardano-community:koios-java-client:1.18.1"
+koios-java = "io.github.cardano-community:koios-java-client:1.19.1"
 ogmios-java = "io.adabox:ogmios-java-client:1.0.0"
 
 slf4j-api = "org.slf4j:slf4j-api:2.0.11"
 slf4j-reload4j = "org.slf4j:slf4j-reload4j:2.0.11"
 
-bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk18on:1.77"
+bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk18on:1.78"
 guava = "com.google.guava:guava:33.0.0-jre"
 co-nstant-in-cbor = "co.nstant.in:cbor:0.9"
 i2p-crypto-eddsa = "net.i2p.crypto:eddsa:0.3.0"
 
-jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.15.3"
+jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.16.0"
 retrofit2 = "com.squareup.retrofit2:retrofit:2.9.0"
 retrofit2-converter-jackson = "com.squareup.retrofit2:converter-jackson:2.9.0"
 okhttp = "com.squareup.okhttp3:okhttp:4.12.0"
@@ -22,3 +22,4 @@ javapoet="com.squareup:javapoet:1.13.0"
 google-testing-compile="com.google.testing.compile:compile-testing:0.21.0"
 
 lombok = "org.projectlombok:lombok:1.18.30"
+apache-common-text="org.apache.commons:commons-text:1.12.0"

@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.governance.DRepId;
 import com.bloxbean.cardano.client.spec.UnitInterval;
@@ -24,7 +25,7 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 //TODO -- Update tests to use Yaci DevKit Sanchonet
-public class GovernanceTxIT extends QuickTxBaseIT {
+public class GovernanceTxIT extends TestDataBaseIT {
     BackendService backendService;
     Account sender1;
     Account sender2;
@@ -52,15 +53,11 @@ public class GovernanceTxIT extends QuickTxBaseIT {
         backendService = getBackendService();
         quickTxBuilder = new QuickTxBuilder(backendService);
 
-        //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
-     //   String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
-        String senderMnemonic = "damp wish scrub sentence vibrant gauge tumble raven game extend winner acid side amused vote edge affair buzz hospital slogan patient drum day vital";
+        String senderMnemonic = "test test test test test test test test test test test test test test test test test test test test test test test sauce";
         sender1 = new Account(Networks.testnet(), senderMnemonic);
         sender1Addr = sender1.baseAddress();
 
-        //addr_test1qz5fcpvkg7pekqvv9ld03t5sx2w2c2fac67fzlaxw5844s83l4p6tr389lhgcpe4797kt7xkcxqvcc4a6qjshzsmta8sh3ncs4
-        String sender2Mnemonic = "access else envelope between rubber celery forum brief bubble notice stomach add initial avocado current net film aunt quick text joke chase robust artefact";
-        sender2 = new Account(Networks.testnet(), sender2Mnemonic);
+        sender2 = new Account(Networks.testnet(), senderMnemonic, DerivationPath.createExternalAddressDerivationPathForAccount(1));
         sender2Addr = sender2.baseAddress();
     }
 
@@ -77,6 +74,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
 
         Result<String> result = quickTxBuilder.compose(drepRegTx)
                 .withSigner(SignerProviders.signerFrom(sender1))
+                .withSigner(SignerProviders.signerFrom(sender1.drepHdKeyPair()))
                 .complete();
 
         System.out.println("DRepId : " + sender1.drepId());
@@ -158,7 +156,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
                 HexUtil.decodeHexString("cafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
         Tx tx = new Tx()
-                .createProposal(govAction, adaToLovelace(1000), sender1.stakeAddress(), anchor)
+                .createProposal(govAction, sender1.stakeAddress(), anchor)
                 .from(sender1Addr);
 
         Result<String> result = quickTxBuilder.compose(tx)
@@ -184,7 +182,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
                 .build());
 
         Tx tx = new Tx()
-                .createProposal(govAction, adaToLovelace(1000), sender1.stakeAddress(), anchor)
+                .createProposal(govAction, sender1.stakeAddress(), anchor)
                 .from(sender1Addr);
 
         Result<String> result = quickTxBuilder.compose(tx)
@@ -207,7 +205,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
                 HexUtil.decodeHexString("cafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
         Tx tx = new Tx()
-                .createProposal(noConfidence, adaToLovelace(1000), sender1.stakeAddress(), anchor)
+                .createProposal(noConfidence, sender1.stakeAddress(), anchor)
                 .from(sender1Addr);
 
         Result<String> result = quickTxBuilder.compose(tx)
@@ -234,7 +232,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
                 HexUtil.decodeHexString("cafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
         Tx tx = new Tx()
-                .createProposal(parameterChange, adaToLovelace(1000), sender1.stakeAddress(), anchor)
+                .createProposal(parameterChange, sender1.stakeAddress(), anchor)
                 .from(sender1Addr);
 
         Result<String> result = quickTxBuilder.compose(tx)
@@ -257,7 +255,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
                 HexUtil.decodeHexString("daeef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
         Tx tx = new Tx()
-                .createProposal(treasuryWithdrawalsAction, adaToLovelace(1000), sender1.stakeAddress(), anchor)
+                .createProposal(treasuryWithdrawalsAction, sender1.stakeAddress(), anchor)
                 .from(sender1Addr);
 
         Result<String> result = quickTxBuilder.compose(tx)
@@ -282,7 +280,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
                 HexUtil.decodeHexString("daeef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
         Tx tx = new Tx()
-                .createProposal(updateCommittee, adaToLovelace(1000), sender1.stakeAddress(), anchor)
+                .createProposal(updateCommittee, sender1.stakeAddress(), anchor)
                 .from(sender1Addr);
 
         Result<String> result = quickTxBuilder.compose(tx)
@@ -307,7 +305,7 @@ public class GovernanceTxIT extends QuickTxBaseIT {
                 HexUtil.decodeHexString("daeef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
         Tx tx = new Tx()
-                .createProposal(hardforkInitiation, adaToLovelace(1000), sender1.stakeAddress(), anchor)
+                .createProposal(hardforkInitiation, sender1.stakeAddress(), anchor)
                 .from(sender1Addr);
 
         Result<String> result = quickTxBuilder.compose(tx)

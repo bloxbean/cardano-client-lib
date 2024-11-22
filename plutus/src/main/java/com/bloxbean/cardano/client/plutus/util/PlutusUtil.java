@@ -11,6 +11,7 @@ import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.io.ByteArrayInputStream;
@@ -71,7 +72,7 @@ public class PlutusUtil {
         String calculatedScriptHash;
         PlutusScript plutusScript;
         try {
-            PlutusVersion[] versions = new PlutusVersion[] {PlutusVersion.v1, PlutusVersion.v2};
+            PlutusVersion[] versions = new PlutusVersion[] {PlutusVersion.v1, PlutusVersion.v2, PlutusVersion.v3};
             for(PlutusVersion version: versions) {
                 plutusScript = getPlutusScript(cborHex, version);
                 calculatedScriptHash = HexUtil.encodeHexString(plutusScript.getScriptHash());
@@ -100,6 +101,10 @@ public class PlutusUtil {
                         .build();
             case v2:
                 return PlutusV2Script.builder()
+                        .cborHex(cborHex)
+                        .build();
+            case v3:
+                return PlutusV3Script.builder()
                         .cborHex(cborHex)
                         .build();
             default:

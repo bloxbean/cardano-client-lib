@@ -31,6 +31,7 @@ import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.util.CostModelUtil;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -61,8 +62,20 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
     ProtocolParams protocolParams;
     UtxoSupplier utxoSupplier;
 
-    Account sender;
-    String senderAddress;
+    static Account sender;
+    static String senderAddress;
+
+    @BeforeAll
+    public static void setupAll() {
+        //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
+        String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
+        sender = new Account(Networks.testnet(), senderMnemonic);
+        senderAddress = sender.baseAddress();
+
+        if (backendType.equals(DEVKIT)) {
+            topUpFund(senderAddress, 50000);
+        }
+    }
 
     @BeforeEach
     public void setup() throws ApiException {
@@ -77,12 +90,6 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
 
         protocolParams = backendService.getEpochService().getProtocolParameters().getValue();
         utxoSupplier = new DefaultUtxoSupplier(utxoService);
-
-//        String senderMnemonic = "company coast prison denial unknown design paper engage sadness employ phone cherry thunder chimney vapor cake lock afraid frequent myself engage lumber between tip";
-        //addr_test1qp73ljurtknpm5fgey5r2y9aympd33ksgw0f8rc5khheg83y35rncur9mjvs665cg4052985ry9rzzmqend9sqw0cdksxvefah
-        String senderMnemonic = "drive useless envelope shine range ability time copper alarm museum near flee wrist live type device meadow allow churn purity wisdom praise drop code";
-        sender = new Account(Networks.testnet(), senderMnemonic);
-        senderAddress = sender.baseAddress();
     }
 
     @Test
@@ -243,8 +250,10 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         transactionWitnessSet.setPlutusV2Scripts(Arrays.asList(plutusScript));
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV2CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Collections.emptyList(), CostModelUtil.getLanguageViewsEncoding(PlutusV2CostModel));
+                Collections.emptyList(), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         MessageMetadata metadata = MessageMetadata.create()
@@ -466,8 +475,10 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
         TransactionWitnessSet transactionWitnessSet = new TransactionWitnessSet();
         transactionWitnessSet.setRedeemers(Arrays.asList(redeemer));
 
+        var costMdls = new CostMdls();
+        costMdls.add(CostModelUtil.PlutusV2CostModel);
         byte[] scriptDataHash = ScriptDataHashGenerator.generate(Arrays.asList(redeemer),
-                Collections.emptyList(), CostModelUtil.getLanguageViewsEncoding(PlutusV2CostModel));
+                Collections.emptyList(), costMdls);
         body.setScriptDataHash(scriptDataHash);
 
         MessageMetadata metadata = MessageMetadata.create()
@@ -689,7 +700,10 @@ public class ContractV2TxBuilderContextITTest extends BaseITTest {
     private long getTtl() throws ApiException {
         Block block = blockService.getLatestBlock().getValue();
         long slot = block.getSlot();
-        return slot + 2000;
+        if (backendType == DEVKIT)
+            return slot + 30;
+        else
+            return slot + 2000;
     }
 
     private Utxo checkCollateral(Account sender, final String collateralUtxoHash, final int collateralIndex) throws ApiException, AddressExcepion, CborSerializationException {

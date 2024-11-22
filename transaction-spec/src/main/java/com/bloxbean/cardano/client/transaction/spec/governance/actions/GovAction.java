@@ -3,6 +3,8 @@ package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 
@@ -54,6 +56,10 @@ public interface GovAction {
         return govActionId;
     }
 
-    DataItem serialize();
+    default DataItem serialize() {
+        return serialize(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    DataItem serialize(Era era);
 
 }

@@ -67,10 +67,14 @@ class OgmiosTxResponseParser {
                             redeemerTag = RedeemerTag.Spend;
                         else if ("mint".equals(splits[0]))
                             redeemerTag = RedeemerTag.Mint;
-                        else if ("certificate".equals(splits[0]))
+                        else if ("cert".equals(splits[0]) || "publish".equals(splits[0]) ||  "certificate".equals(splits[0]))
                             redeemerTag = RedeemerTag.Cert;
-                        else if ("withdrawal".equals(splits[0]))
+                        else if ("reward".equals(splits[0]) || "withdrawal".equals(splits[0]) || "withdraw".equals(splits[0]))
                             redeemerTag = RedeemerTag.Reward;
+                        else if ("vote".equals(splits[0]))
+                            redeemerTag = RedeemerTag.Voting;
+                        else if ("propose".equals(splits[0]))
+                            redeemerTag = RedeemerTag.Proposing;
                         else
                             throw new RuntimeException("Invalid RedeemerTag in evaluateTx reponse: " + splits[0]);
 

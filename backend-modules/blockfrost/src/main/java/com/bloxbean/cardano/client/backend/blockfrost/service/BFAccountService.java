@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.AccountService;
+import com.bloxbean.cardano.client.backend.api.AddressService;
 import com.bloxbean.cardano.client.backend.blockfrost.service.http.AccountApi;
 import com.bloxbean.cardano.client.backend.model.*;
 import retrofit2.Call;
@@ -16,10 +17,12 @@ import java.util.List;
 public class BFAccountService extends BFBaseService implements AccountService {
 
     private final AccountApi accountApi;
+    private final AddressService addressService;
 
-    public BFAccountService(String baseUrl, String projectId) {
+    public BFAccountService(String baseUrl, String projectId, AddressService addressService) {
         super(baseUrl, projectId);
         this.accountApi = getRetrofit().create(AccountApi.class);
+        this.addressService = addressService;
     }
 
     @Override
@@ -136,6 +139,58 @@ public class BFAccountService extends BFBaseService implements AccountService {
             return processResponse(response);
         } catch (IOException e) {
             throw new ApiException("Error getting accountInformation", e);
+        }
+    }
+
+    @Override
+    public Result<List<AddressTransactionContent>> getAccountTransactions(String stakeAddress, int count, int page, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException {
+        Result<List<AccountAddress>> accountAddressesResult = getAllAccountAddresses(stakeAddress);
+        if (accountAddressesResult.isSuccessful()) {
+            List<AddressTransactionContent> transactionContents = new ArrayList<>();
+            List<AccountAddress> accountAddresses = accountAddressesResult.getValue();
+            try {
+                for (AccountAddress accountAddress : accountAddresses) {
+                    Result<List<AddressTransactionContent>> listResult = addressService.getTransactions(accountAddress.getAddress(), 100, page, order, fromBlockHeight.toString(), toBlockHeight.toString());
+                    if (listResult.isSuccessful()) {
+                        transactionContents.addAll(listResult.getValue());
+                    }
+                }
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+            transactionContents.sort((o1, o2) ->
+                    order == OrderEnum.asc ?
+                            Long.compare(o1.getBlockHeight(), o2.getBlockHeight()) :
+                            Long.compare(o2.getBlockHeight(), o1.getBlockHeight()));
+            return Result.success("SUCCESS").withValue(transactionContents).code(200);
+        } else {
+            return Result.error(accountAddressesResult.getResponse()).code(accountAddressesResult.code());
+        }
+    }
+
+    @Override
+    public Result<List<AddressTransactionContent>> getAllAccountTransactions(String stakeAddress, OrderEnum order, Integer fromBlockHeight, Integer toBlockHeight) throws ApiException {
+        Result<List<AccountAddress>> accountAddressesResult = getAllAccountAddresses(stakeAddress);
+        if (accountAddressesResult.isSuccessful()) {
+            List<AddressTransactionContent> transactionContents = new ArrayList<>();
+            List<AccountAddress> accountAddresses = accountAddressesResult.getValue();
+            try {
+                for (AccountAddress accountAddress : accountAddresses) {
+                    Result<List<AddressTransactionContent>> listResult = addressService.getAllTransactions(accountAddress.getAddress(), order, fromBlockHeight, toBlockHeight);
+                    if (listResult.isSuccessful()) {
+                        transactionContents.addAll(listResult.getValue());
+                    }
+                }
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+            transactionContents.sort((o1, o2) ->
+                    order == OrderEnum.asc ?
+                            Long.compare(o1.getBlockHeight(), o2.getBlockHeight()) :
+                            Long.compare(o2.getBlockHeight(), o1.getBlockHeight()));
+            return Result.success("SUCCESS").withValue(transactionContents).code(200);
+        } else {
+            return Result.error(accountAddressesResult.getResponse()).code(accountAddressesResult.code());
         }
     }
 }

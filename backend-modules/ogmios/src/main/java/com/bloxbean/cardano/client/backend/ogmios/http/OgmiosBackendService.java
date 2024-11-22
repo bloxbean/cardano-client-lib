@@ -27,6 +27,11 @@ public class OgmiosBackendService implements BackendService {
     }
 
     @Override
+    public PoolService getPoolService() {
+        throw new UnsupportedOperationException("Not supported yet");
+    }
+
+    @Override
     public TransactionService getTransactionService() {
         return new OgmiosTransactionService(getBaseUrl());
     }

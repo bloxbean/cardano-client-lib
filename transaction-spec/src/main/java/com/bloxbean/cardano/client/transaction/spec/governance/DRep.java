@@ -31,6 +31,10 @@ public class DRep {
         return drep;
     }
 
+    public static DRep scriptHash(byte[] scriptHash) {
+        return scriptHash(HexUtil.encodeHexString(scriptHash));
+    }
+
     public static DRep scriptHash(String scriptHash) {
         DRep drep = new DRep();
         drep.type = DRepType.SCRIPTHASH;

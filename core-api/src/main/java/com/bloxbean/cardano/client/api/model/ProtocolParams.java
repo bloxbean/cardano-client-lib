@@ -10,7 +10,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.util.Map;
+import java.math.BigInteger;
+import java.util.LinkedHashMap;
 
 @Data
 @Builder
@@ -42,7 +43,7 @@ public class ProtocolParams {
     private String nonce;
 
     //Alonzo changes
-    private Map<String, Map<String, Long>> costModels;
+    private LinkedHashMap<String, LinkedHashMap<String, Long>> costModels;
     private BigDecimal priceMem;
     private BigDecimal priceStep;
     private String maxTxExMem;
@@ -58,4 +59,38 @@ public class ProtocolParams {
     private String coinsPerUtxoSize;
     @Deprecated
     private String coinsPerUtxoWord;
+
+    //Conway Era
+    //Pool voting thresholds
+    private BigDecimal pvtMotionNoConfidence;
+    private BigDecimal pvtCommitteeNormal;
+    private BigDecimal pvtCommitteeNoConfidence;
+    private BigDecimal pvtHardForkInitiation;
+    @JsonProperty("pvt_p_p_security_group")
+    private BigDecimal pvtPPSecurityGroup;
+
+    //Drep vote thresholds
+    private BigDecimal dvtMotionNoConfidence;
+    private BigDecimal dvtCommitteeNormal;
+    private BigDecimal dvtCommitteeNoConfidence;
+    private BigDecimal dvtUpdateToConstitution;
+    private BigDecimal dvtHardForkInitiation;
+
+    @JsonProperty("dvt_p_p_network_group")
+    private BigDecimal dvtPPNetworkGroup;
+    @JsonProperty("dvt_p_p_economic_group")
+    private BigDecimal dvtPPEconomicGroup;
+    @JsonProperty("dvt_p_p_technical_group")
+    private BigDecimal dvtPPTechnicalGroup;
+    @JsonProperty("dvt_p_p_gov_group")
+    private BigDecimal dvtPPGovGroup;
+    private BigDecimal dvtTreasuryWithdrawal;
+
+    private Integer committeeMinSize;
+    private Integer committeeMaxTermLength;
+    private Integer govActionLifetime;
+    private BigInteger govActionDeposit;
+    private BigInteger drepDeposit;
+    private Integer drepActivity;
+    private BigDecimal minFeeRefScriptCostPerByte;
 }

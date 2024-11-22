@@ -1,18 +1,12 @@
 package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
-import com.bloxbean.cardano.client.api.TransactionEvaluator;
-import com.bloxbean.cardano.client.api.TransactionProcessor;
-import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.*;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
-import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
-import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.backend.api.*;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.ExcludeUtxoSelectionStrategy;
@@ -22,12 +16,13 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
-import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
-import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
+import com.bloxbean.cardano.client.function.helper.*;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.hdwallet.utxosupplier.WalletUtxoSupplier;
+import com.bloxbean.cardano.client.util.JsonUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,6 +64,8 @@ public class QuickTxBuilder {
     private TransactionProcessor transactionProcessor;
     private Consumer<Transaction> txInspector;
 
+    private ScriptSupplier backendScriptSupplier;
+
     /**
      * Create QuickTxBuilder
      *
@@ -76,7 +73,8 @@ public class QuickTxBuilder {
      * @param protocolParamsSupplier protocol params supplier
      * @param transactionProcessor   transaction processor
      */
-    public QuickTxBuilder(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier,
+    public QuickTxBuilder(UtxoSupplier utxoSupplier,
+                          ProtocolParamsSupplier protocolParamsSupplier,
                           TransactionProcessor transactionProcessor) {
         this.utxoSupplier = utxoSupplier;
         this.protocolParamsSupplier = protocolParamsSupplier;
@@ -84,15 +82,37 @@ public class QuickTxBuilder {
     }
 
     /**
-     * Create QuickTxBuilder with backend service
+     * Create QuickTxBuilder
+     * @param utxoSupplier - utxo supplier to get utxos
+     * @param protocolParamsSupplier - protocol params supplier to get protocol parameters
+     * @param scriptSupplier - script supplier to get scripts
+     * @param transactionProcessor - transaction processor to submit transaction
+     */
+    public QuickTxBuilder(UtxoSupplier utxoSupplier,
+                          ProtocolParamsSupplier protocolParamsSupplier,
+                          ScriptSupplier scriptSupplier,
+                          TransactionProcessor transactionProcessor) {
+        this.utxoSupplier = utxoSupplier;
+        this.protocolParamsSupplier = protocolParamsSupplier;
+        this.backendScriptSupplier = scriptSupplier;
+        this.transactionProcessor = transactionProcessor;
+    }
+
+    /**
+     * Create QuickTxBuilder from BackendService
      *
-     * @param backendService backend service
+     * @param backendService
      */
     public QuickTxBuilder(BackendService backendService) {
-        this(new DefaultUtxoSupplier(backendService.getUtxoService()),
-                new DefaultProtocolParamsSupplier(backendService.getEpochService()),
-                new DefaultTransactionProcessor(backendService.getTransactionService())
-        );
+        this.utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        this.protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+        this.transactionProcessor = new DefaultTransactionProcessor(backendService.getTransactionService());
+
+        try {
+            this.backendScriptSupplier = new DefaultScriptSupplier(backendService.getScriptService());
+        } catch (UnsupportedOperationException e) {
+            //Not supported
+        }
     }
 
     public QuickTxBuilder(BackendService backendService, UtxoSupplier utxoSupplier) {
@@ -137,9 +157,14 @@ public class QuickTxBuilder {
 
         private TransactionEvaluator txnEvaluator;
         private UtxoSelectionStrategy utxoSelectionStrategy;
+        private ScriptSupplier scriptSupplier;
         private Verifier txVerifier;
 
+        private List<PlutusScript> referenceScripts;
+
         private boolean ignoreScriptCostEvaluationError = true;
+        private Era serializationEra;
+        private boolean removeDuplicateScriptWitnesses = false;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -210,6 +235,7 @@ public class QuickTxBuilder {
             TxBuilder txBuilder = (context, txn) -> {
             };
             boolean containsScriptTx = false;
+            boolean hasMultiAssetMint = false;
 
             Set<String> fromAddresses = new HashSet<>();
             for (AbstractTx tx : txList) {
@@ -235,11 +261,16 @@ public class QuickTxBuilder {
 
                 if (tx instanceof ScriptTx)
                     containsScriptTx = true;
+
+                hasMultiAssetMint = hasMultiAssetMint || tx.hasMultiAssetMinting();
             }
 
             int totalSigners = getTotalSigners();
 
             TxBuilderContext txBuilderContext = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier);
+            if (backendScriptSupplier != null)
+                txBuilderContext.setScriptSupplier(backendScriptSupplier);
+
             //Set merge outputs flag
             txBuilderContext.mergeOutputs(mergeOutputs);
 
@@ -253,6 +284,13 @@ public class QuickTxBuilder {
             if (utxoSelectionStrategy != null)
                 txBuilderContext.setUtxoSelectionStrategy(utxoSelectionStrategy);
 
+            //override default script supplier
+            if (scriptSupplier != null)
+                txBuilderContext.setScriptSupplier(scriptSupplier);
+
+            if (serializationEra != null)
+                txBuilderContext.withSerializationEra(serializationEra);
+
             //If collateral inputs are set, exclude them from utxo selection
             if (collateralInputs != null && !collateralInputs.isEmpty()) {
                 txBuilderContext.setUtxoSelectionStrategy(
@@ -263,6 +301,11 @@ public class QuickTxBuilder {
             //requiredSigners
             if (requiredSigners != null && !requiredSigners.isEmpty()) {
                 txBuilder = txBuilder.andThen(addRequiredSignersBuilder());
+            }
+
+            //set reference scripts if set
+            if (referenceScripts != null && !referenceScripts.isEmpty()) {
+                referenceScripts.forEach(script -> txBuilderContext.addRefScripts(script));
             }
 
             if (preBalanceTrasformer != null)
@@ -288,6 +331,11 @@ public class QuickTxBuilder {
             }
 
             if (containsScriptTx) {
+                //Resolve any reference scripts if any
+                if (referenceScripts == null || referenceScripts.isEmpty()) { //Resolve only if not set explicitly
+                    txBuilder = txBuilder.andThen(ReferenceScriptResolver.resolveReferenceScript());
+                }
+
                 txBuilder = txBuilder.andThen(((context, transaction) -> {
                     boolean negativeAmt = transaction.getBody().getOutputs()
                             .stream()
@@ -299,11 +347,18 @@ public class QuickTxBuilder {
                         return;
                     }
 
+                    //This is only applicable for ScriptTx for now, as default impl is empty for this method.
+                    for (AbstractTx tx: txList) {
+                        tx.preTxEvaluation(transaction);
+                    }
+
                     try {
                         ScriptCostEvaluators.evaluateScriptCost().apply(context, transaction);
                     } catch (Exception e) {
                         //Ignore as it could happen due to insufficient ada in utxo
                         log.warn("Error while evaluating script cost", e);
+                        if (log.isDebugEnabled())
+                            log.debug("Transaction : " + JsonUtil.getPrettyJson(transaction));
                         if (!ignoreScriptCostEvaluationError)
                             throw new TxBuildException("Error while evaluating script cost", e);
                     }
@@ -312,6 +367,10 @@ public class QuickTxBuilder {
 
             //Balance outputs
             txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
+
+            if ((containsScriptTx || hasMultiAssetMint) && removeDuplicateScriptWitnesses) {
+                txBuilder = txBuilder.andThen(DuplicateScriptWitnessChecker.removeDuplicateScriptWitnesses());
+            }
 
             if (postBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(postBalanceTrasformer);
@@ -578,6 +637,19 @@ public class QuickTxBuilder {
         }
 
         /**
+         * Use the given {@link ScriptSupplier} to get script for the transaction
+         * For example: To calculate tier reference script fee when reference scripts are used in the transaction, script supplier can be used
+         * to get the reference scripts through the UtxoSupplier.
+         *
+         * @param scriptSupplier
+         * @return
+         */
+        public TxContext withScriptSupplier(ScriptSupplier scriptSupplier) {
+           this.scriptSupplier = scriptSupplier;
+           return this;
+        }
+
+        /**
          * Verify the transaction with the given verifier before submitting
          * @param txVerifier TxVerifier
          * @return TxContext
@@ -682,6 +754,51 @@ public class QuickTxBuilder {
         }
 
         /**
+         * Set the serialization era for the transaction.
+         *
+         * @param era The serialization era to set. By default, Conway Era format is used for serialization.
+         * @return The TxContext object.
+         */
+        public TxContext withSerializationEra(Era era) {
+            this.serializationEra = era;
+            return this;
+        }
+
+        /**
+         * Set scripts used in reference inputs. From Conway era, reference script's size is also used during fee calculation.
+         * These scripts are not part of the transaction but used only in fee calculation.
+         *
+         * <p>
+         * If reference scripts are not set, the fee calculation may not be accurate.
+         * </p>
+         * @param scripts
+         * @return TxContext
+         */
+        public TxContext withReferenceScripts(PlutusScript... scripts) {
+            if (scripts == null || scripts.length == 0)
+                throw new TxBuildException("Reference scripts can't be null or empty");
+
+            if (referenceScripts == null)
+                referenceScripts = new ArrayList<>();
+
+            referenceScripts.addAll(Arrays.asList(scripts));
+            return this;
+        }
+
+        /**
+         * Set whether to remove duplicate script witnesses from the transaction. Default is false.
+         * If set to true, the builder will remove duplicate script witnesses from the transaction if the same script ref is there
+         * in inputs or reference inputs. This is to avoid ExtraneousScriptWitnessesUTXOW error.
+         *
+         * @param remove boolean flag indicating whether to remove duplicate script witnesses
+         * @return TxContext the current TxContext instance.
+         */
+        public TxContext removeDuplicateScriptWitnesses(boolean remove) {
+            this.removeDuplicateScriptWitnesses = remove;
+            return this;
+        }
+
+        /**
          * TxBuilder to set start validity interval and ttl for the transaction
          * @param txBuilder TxBuilder
          * @return TxBuilder
@@ -699,4 +816,5 @@ public class QuickTxBuilder {
                 return txBuilder;
         }
     }
+
 }

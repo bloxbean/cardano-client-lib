@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.function;
 
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.ScriptSupplier;
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
@@ -13,16 +14,17 @@ import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelector;
 import com.bloxbean.cardano.client.plutus.spec.CostMdls;
+import com.bloxbean.cardano.client.plutus.spec.Language;
+import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.Setter;
+import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.util.Tuple;
+import lombok.*;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Provides necessary services which are required to build the transaction
@@ -32,6 +34,7 @@ import java.util.Set;
 public class TxBuilderContext {
     private UtxoSupplier utxoSupplier;
     private ProtocolParams protocolParams;
+    private ScriptSupplier scriptSupplier;
     private UtxoSelectionStrategy utxoSelectionStrategy;
     private UtxoSelector utxoSelector;
     private FeeCalculationService feeCalculationService;
@@ -46,7 +49,14 @@ public class TxBuilderContext {
     private Set<Utxo> utxos = new HashSet<>();
 
     @Setter(AccessLevel.NONE)
+    private Map<String, Tuple<PlutusScript, byte[]>> refScripts = new HashMap<>();
+
+    @Setter(AccessLevel.NONE)
     private boolean mergeOutputs = true;
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    private Era serializationEra;
 
     public TxBuilderContext(UtxoSupplier utxoSupplier, ProtocolParamsSupplier protocolParamsSupplier) {
         this(utxoSupplier, protocolParamsSupplier.getProtocolParams());
@@ -60,6 +70,24 @@ public class TxBuilderContext {
 
         this.feeCalculationService = new FeeCalculationServiceImpl(
                 new TransactionBuilder(utxoSupplier, () -> protocolParams));
+    }
+
+    /**
+     * Set ScriptSupplier
+     * @param scriptSupplier
+     * @return TxBuilderContext
+     */
+    public TxBuilderContext setScriptSupplier(ScriptSupplier scriptSupplier) {
+        this.scriptSupplier = scriptSupplier;
+        return this;
+    }
+
+    /**
+     * Get ScriptSupplier
+     * @return ScriptSupplier
+     */
+    public ScriptSupplier getScriptSupplier() {
+        return scriptSupplier;
     }
 
     /**
@@ -138,6 +166,24 @@ public class TxBuilderContext {
     }
 
     /**
+     * Set the serialization era for the transaction
+     * @param era
+     * @return TxBuilderContext
+     */
+    public TxBuilderContext withSerializationEra(Era era) {
+        this.serializationEra = era;
+        return this;
+    }
+
+    /**
+     * Get the serialization era for the transaction
+     * @return Era or null if not set
+     */
+    public Era getSerializationEra() {
+        return serializationEra;
+    }
+
+    /**
      * @deprecated
      * Use {@link #withCostMdls(CostMdls)} instead
      * @param costMdls
@@ -159,6 +205,53 @@ public class TxBuilderContext {
         utxos.clear();
     }
 
+    @SneakyThrows
+    public void addRefScripts(PlutusScript plutusScript) {
+        refScripts.put(HexUtil.encodeHexString(plutusScript.getScriptHash()), new Tuple<>(plutusScript, plutusScript.scriptRefBytes()));
+    }
+
+    public Optional<byte[]> getRefScript(String scriptHash) {
+        var tuple = refScripts.get(scriptHash);
+        return tuple != null ? Optional.of(tuple._2) : Optional.empty();
+    }
+
+    public List<byte[]> getRefScripts() {
+        return refScripts.values().stream().map(tuple -> tuple._2)
+                .collect(Collectors.toList());
+    }
+
+    public List<PlutusScript> getRefPlutusScripts() {
+        return refScripts.values().stream().map(tuple -> tuple._1)
+                .collect(Collectors.toList());
+    }
+
+    public Set<String> getRefScriptHashes() {
+        var refScriptInUtxos = utxos.stream()
+                .filter(utxo -> utxo.getReferenceScriptHash() != null)
+                .map(utxo -> utxo.getReferenceScriptHash())
+                .collect(Collectors.toSet());
+
+        var hashes = new HashSet<String>();
+        hashes.addAll(refScripts.keySet());
+        hashes.addAll(refScriptInUtxos);
+
+        return hashes;
+    }
+
+    public List<Language> getRefScriptLanguages() {
+        if (refScripts.size() == 0)
+            return Collections.emptyList();
+
+        return refScripts.values().stream().map(tuple -> tuple._1.getLanguage())
+                .collect(Collectors.toSet())
+                .stream().sorted(Comparator.comparing(Language::getKey))
+                .collect(Collectors.toList());
+    }
+
+    public void clearRefScripts() {
+        refScripts.clear();
+    }
+
     public static TxBuilderContext init(UtxoSupplier utxoSupplier, ProtocolParams protocolParams) {
         return new TxBuilderContext(utxoSupplier, protocolParams);
     }
@@ -175,6 +268,7 @@ public class TxBuilderContext {
      */
     public Transaction build(TxBuilder txBuilder) {
         Transaction transaction = new Transaction();
+        transaction.setEra(getSerializationEra());
         txBuilder.apply(this, transaction);
         clearTempStates();
         return transaction;
@@ -206,5 +300,6 @@ public class TxBuilderContext {
     private void clearTempStates() {
         clearMintMultiAssets();
         clearUtxos();
+        clearRefScripts();
     }
 }

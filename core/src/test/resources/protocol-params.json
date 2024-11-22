@@ -29,5 +29,6 @@
   "collateral_percent": 150,
   "max_collateral_inputs": 3,
   "coins_per_utxo_word": "34482",
-  "coins_per_utxo_size": "4310"
+  "coins_per_utxo_size": "4310",
+  "min_fee_ref_script_cost_per_byte": "15"
 }

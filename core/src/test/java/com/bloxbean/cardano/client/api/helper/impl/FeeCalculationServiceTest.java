@@ -34,13 +34,16 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
+import static com.bloxbean.cardano.client.common.ADAConversionUtil.lovelaceToAda;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -72,6 +75,10 @@ class FeeCalculationServiceTest extends BaseTest {
     ProtocolParams protocolParams;
 
     private FeeCalculationServiceImpl feeCalculationService;
+
+    BigDecimal multiplier = new BigDecimal("1.2");
+    int sizeIncrement = 25_000;
+    BigDecimal minFeeRefScriptCostPerByte = new BigDecimal("15");
 
     @BeforeEach
     public void setup() throws IOException {
@@ -503,4 +510,61 @@ class FeeCalculationServiceTest extends BaseTest {
         System.out.println(fee);
         assertThat(fee, greaterThan(BigInteger.valueOf(170000)));
     }
+
+    @Test
+    public void testTierRefScriptFee_range25K_1() throws ApiException {
+        long refScriptsSize = 8_000;
+        BigInteger fee = feeCalculationService.tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+        assertThat(lovelaceToAda(fee).setScale(3, RoundingMode.HALF_UP).doubleValue(), is(0.12));
+    }
+
+    @Test
+    public void testTierRefScriptFee_range25K_2() throws ApiException {
+        long refScriptsSize = 16_000;
+        BigInteger fee = feeCalculationService.tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+        assertThat(lovelaceToAda(fee).setScale(3, RoundingMode.HALF_UP).doubleValue(), is(0.24));
+    }
+
+    @Test
+    public void testTierRefScriptFee_range50K_1() throws ApiException {
+        long refScriptsSize = 32_000;
+        BigInteger fee = feeCalculationService.tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+        assertThat(lovelaceToAda(fee).setScale(3, RoundingMode.HALF_UP).doubleValue(), is(0.501));
+    }
+
+    @Test
+    public void testTierRefScriptFee_range75K_1() throws ApiException {
+        long refScriptsSize = 64_000;
+        BigInteger fee = feeCalculationService.tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+        assertThat(lovelaceToAda(fee).setScale(3, RoundingMode.HALF_UP).doubleValue(), is(1.127));
+    }
+
+    @Test
+    public void testTierRefScriptFee_range100K_1() throws ApiException {
+        long refScriptsSize = 96_000;
+        BigInteger fee = feeCalculationService.tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+        assertThat(lovelaceToAda(fee).setScale(3, RoundingMode.HALF_UP).doubleValue(), is(1.909));
+    }
+
+    @Test
+    public void testTierRefScriptFee_range150K_1() throws ApiException {
+        long refScriptsSize = 128_000;
+        BigInteger fee = feeCalculationService.tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+        assertThat(lovelaceToAda(fee).setScale(3, RoundingMode.HALF_UP).doubleValue(), is(2.903));
+    }
+
+    @Test
+    public void testTierRefScriptFee_range175K_1() throws ApiException {
+        long refScriptsSize = 160_000;
+        BigInteger fee = feeCalculationService.tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+        assertThat(lovelaceToAda(fee).setScale(3, RoundingMode.HALF_UP).doubleValue(), is(4.172));
+    }
+
+    @Test
+    public void testTierRefScriptFee_range200K_1() throws ApiException {
+        long refScriptsSize = 192_000;
+        BigInteger fee = feeCalculationService.tierRefScriptFee(multiplier, sizeIncrement, minFeeRefScriptCostPerByte, refScriptsSize);
+        assertThat(lovelaceToAda(fee).setScale(3, RoundingMode.HALF_UP).doubleValue(), is(5.757));
+    }
+
 }

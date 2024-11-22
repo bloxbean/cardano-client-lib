@@ -4,8 +4,8 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
+import com.bloxbean.cardano.client.api.util.ReferenceScriptUtil;
 import com.bloxbean.cardano.client.common.model.Networks;
-import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -14,6 +14,8 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.transaction.util.TransactionUtil;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 /**
  * Provides helper methods to get fee calculation {@link TxBuilder} transformer
  */
+@Slf4j
 public class FeeCalculators {
     private static Account dummyAccount;
 
@@ -88,7 +91,63 @@ public class FeeCalculators {
                 }
             }
 
-            BigInteger totalFee = baseFee.add(scriptFee);
+            //Check if script transaction (i.e; script datashash is set) and any input utxos has reference script.
+            //If yes, we need to calculate reference script fee for input utxos as well
+            //https://github.com/bloxbean/cardano-client-lib/issues/450
+            long totalRefScriptBytesInInputs = 0;
+            if (transaction.getBody().getScriptDataHash() != null && context.getUtxos() != null) {
+                //Find the inputs with reference script hash, but reference script is not there in the context
+                var inputWithScriptRefToBeFetched = context.getUtxos().stream()
+                        .filter(utxo -> utxo.getReferenceScriptHash() != null)
+                        .filter(utxo -> context.getRefScript(utxo.getReferenceScriptHash()).isEmpty())
+                        .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
+                        .collect(Collectors.toSet());
+
+                //Find the size of all available reference script bytes in the context for the inputs
+                var inputRefScriptSize = context.getUtxos().stream()
+                        .filter(utxo -> utxo.getReferenceScriptHash() != null)
+                        .flatMap(utxo -> context.getRefScript(utxo.getReferenceScriptHash()).stream())
+                        .mapToLong(bytes -> bytes.length)
+                        .sum();
+
+                //Fetch the missing reference scripts and calculate the size
+                if (inputWithScriptRefToBeFetched != null && inputWithScriptRefToBeFetched.size() > 0) {
+                    totalRefScriptBytesInInputs = inputRefScriptSize + ReferenceScriptUtil.totalRefScriptsSizeInInputs(
+                            context.getUtxoSupplier(),
+                            context.getScriptSupplier(),
+                            inputWithScriptRefToBeFetched);
+                } else {
+                    totalRefScriptBytesInInputs = inputRefScriptSize;
+                }
+            }
+
+            BigInteger refScriptFee = BigInteger.ZERO;
+            if (transaction.getBody().getReferenceInputs() != null && transaction.getBody().getReferenceInputs().size() > 0) {
+                var refScripts = context.getRefScripts();
+                if (refScripts == null || refScripts.size() == 0) {
+                    if (context.getScriptSupplier() != null) {
+                        long totalRefScriptsBytes =
+                                ReferenceScriptUtil.totalRefScriptsSizeInRefInputs(
+                                        context.getUtxoSupplier(),
+                                        context.getScriptSupplier(),
+                                        transaction);
+                        refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptsBytes + totalRefScriptBytesInInputs);
+                    } else {
+                        log.debug("Script supplier is required to calculate reference script fee. " +
+                                "Alternatively, you can set reference scripts during building the transaction.");
+                    }
+                } else {
+                    int totalRefScriptBytes = refScripts.stream()
+                            .mapToInt(byteArray -> byteArray.length)
+                            .sum();
+                    refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptBytes + totalRefScriptBytesInInputs);
+                }
+            } else {
+                if (totalRefScriptBytesInInputs > 0)
+                    refScriptFee = feeCalculationService.tierRefScriptFee(totalRefScriptBytesInInputs);
+            }
+
+            BigInteger totalFee = baseFee.add(scriptFee).add(refScriptFee);
             tbody.setFee(totalFee);
 
             if (updateOutputWithFeeFunc == null) {
@@ -124,17 +183,14 @@ public class FeeCalculators {
 
     private static Transaction createTransactionWithDummyWitnesses(Transaction transaction, int noOfSigners) {
         Transaction cloneTxn;
-        try {
-            BigInteger orginalFee = transaction.getBody().getFee();
-            transaction.getBody().setFee(BigInteger.valueOf(170000)); //To avoid any NPE due to null fee
 
-            cloneTxn = Transaction.deserialize(transaction.serialize());
+        BigInteger orginalFee = transaction.getBody().getFee();
+        transaction.getBody().setFee(BigInteger.valueOf(170000)); //To avoid any NPE due to null fee
 
-            //reset fee
-            transaction.getBody().setFee(orginalFee);
-        } catch (CborDeserializationException | CborSerializationException e) {
-            throw new CborRuntimeException("Error cloning the transaction", e);
-        }
+        cloneTxn = TransactionUtil.createCopy(transaction);
+
+        //reset fee
+        transaction.getBody().setFee(orginalFee);
 
         //Dummy account sign
         for (int i = 0; i < noOfSigners; i++) {

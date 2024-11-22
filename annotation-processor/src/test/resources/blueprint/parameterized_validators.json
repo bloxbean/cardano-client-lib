@@ -1,0 +1,119 @@
+{
+  "preamble": {
+    "title": "satran004/param-contract",
+    "description": "Aiken contracts for project 'satran004/param-contract'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.29-alpha+16fb02e"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "user_validator.gift_card",
+      "datum": {
+        "title": "_",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "redeemer": {
+        "title": "rdmr",
+        "schema": {
+          "$ref": "#/definitions/user_validator~1Action"
+        }
+      },
+      "parameters": [
+        {
+          "title": "token_name",
+          "schema": {
+            "$ref": "#/definitions/ByteArray"
+          }
+        },
+        {
+          "title": "user_info",
+          "schema": {
+            "$ref": "#/definitions/user_validator~1UserInfo"
+          }
+        },
+        {
+          "title": "gift_card",
+          "schema": {
+            "anyOf": [
+              {
+                "title": "gift_card",
+                "dataType": "constructor",
+                "index": 0,
+                "fields": [
+                  {
+                    "title": "owner",
+                    "dataType": "bytes"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "compiledCode": "58550100003232323223222232253330084a229309b2b19299980399b874800000454ccc028c024dd50010a4c2c2a66600e66e1d20020011533300a300937540042930b0b18039baa001375c002ae6955ceaab9e5573e1",
+      "hash": "f9da9d6d2bcddafe23b8f748ca901a8f41c694c4e0838affe57091ed"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Any Plutus data."
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "user_validator/Action": {
+      "title": "Action",
+      "anyOf": [
+        {
+          "title": "CheckMint",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "CheckBurn",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "user_validator/UserInfo": {
+      "title": "UserInfo",
+      "anyOf": [
+        {
+          "title": "Guest",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "User",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "name",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "age",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import lombok.Getter;
 
 import java.util.List;
@@ -42,7 +43,7 @@ public class StakeRegistration implements Certificate {
     }
 
     @Override
-    public Array serialize() throws CborSerializationException {
+    public Array serialize(Era era) throws CborSerializationException {
         if (stakeCredential == null)
             throw new CborSerializationException("StakeRegistration serialization failed. StakeCredential is NULL");
 

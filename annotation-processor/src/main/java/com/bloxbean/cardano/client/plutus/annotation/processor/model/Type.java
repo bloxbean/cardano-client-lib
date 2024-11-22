@@ -8,7 +8,9 @@ public enum Type {
     MAP("map"),
     BOOL("bool"),
     CONSTRUCTOR("constructor"),
-    OPTIONAL("optional");
+    PLUTUSDATA("plutusdata"),
+    OPTIONAL("optional"),
+    PAIR("pair");
 
     private String type;
     Type(String type) {

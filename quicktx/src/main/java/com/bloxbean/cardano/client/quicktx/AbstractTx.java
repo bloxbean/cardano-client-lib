@@ -18,6 +18,8 @@ import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.NonNull;
 import lombok.SneakyThrows;
@@ -29,6 +31,7 @@ import java.util.List;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 public abstract class AbstractTx<T> {
+    public static final String DUMMY_TREASURY_ADDRESS = "_TREASURY_ADDRESS_";
     protected List<TransactionOutput> outputs;
     protected List<Tuple<Script, MultiAsset>> multiAssets;
     protected Metadata txMetadata;
@@ -40,6 +43,9 @@ public abstract class AbstractTx<T> {
     //Required for script
     protected PlutusData changeData;
     protected String changeDatahash;
+
+    protected List<DepositRefundContext> depositRefundContexts;
+    protected DonationContext donationContext;
 
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
@@ -73,6 +79,18 @@ public abstract class AbstractTx<T> {
      */
     public T payToAddress(String address, List<Amount> amounts, Script script) {
         return payToAddress(address, amounts, null, null, script, null);
+    }
+
+    /**
+     * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
+     *
+     * @param address address
+     * @param amount  Amount to send
+     * @param script  Reference Script
+     * @return T
+     */
+    public T payToAddress(String address, Amount amount, Script script) {
+        return payToAddress(address, List.of(amount), null, null, script, null);
     }
 
     /**
@@ -148,6 +166,18 @@ public abstract class AbstractTx<T> {
         return payToAddress(address, amounts, null, datum, refScript, null);
     }
 
+    /**
+     * Add an output at a contract address with specified amount, inline datum, and a reference script.
+     *
+     * @param address   the contract address to which the amount will be sent
+     * @param amount    the amount to be sent to the contract address
+     * @param datum     Plutus data
+     * @param refScript Reference Script
+     * @return T
+     */
+    public T payToContract(String address, Amount amount, PlutusData datum, Script refScript) {
+        return payToAddress(address, List.of(amount), null, datum, refScript, null);
+    }
 
     /**
      * Add an output at contract address with amounts, inline datum and reference script bytes.
@@ -215,9 +245,23 @@ public abstract class AbstractTx<T> {
         if (outputs == null)
             outputs = new ArrayList<>();
         outputs.add(transactionOutput);
+
         return (T) this;
     }
 
+    /**
+     * Donate to treasury
+     * @param currentTreasuryValue current treasury value
+     * @param donationAmount donation amount in lovelace
+     * @return T
+     */
+    public T donateToTreasury(@NonNull BigInteger currentTreasuryValue, @NonNull BigInteger donationAmount) {
+        if (donationContext != null)
+            throw new TxBuildException("Can't donate to treasury multiple times in a single transaction");
+        donationContext = new DonationContext(currentTreasuryValue, donationAmount);
+
+        return (T) this;
+    }
 
     /**
      * This is an optional method. By default, the change address is same as the sender address.<br>
@@ -251,8 +295,33 @@ public abstract class AbstractTx<T> {
         return (T) this;
     }
 
+    /**
+     * Checks if the transaction has any multi-asset minting or burning.
+     *
+     * @return true if there are multi-assets to be minted; false otherwise
+     */
+    boolean hasMultiAssetMinting() {
+        return multiAssets != null && !multiAssets.isEmpty();
+    }
+
     TxBuilder complete() {
         TxOutputBuilder txOutputBuilder = null;
+
+        if (depositRefundContexts != null && depositRefundContexts.size() > 0) {
+            for (DepositRefundContext depositPaymentContext: depositRefundContexts) {
+                if (txOutputBuilder == null)
+                    txOutputBuilder = DepositRefundOutputBuilder.createFromDepositRefundContext(depositPaymentContext);
+                else
+                    txOutputBuilder = txOutputBuilder.and(DepositRefundOutputBuilder.createFromDepositRefundContext(depositPaymentContext));
+            }
+        }
+
+        //Add donation dummy output to trigger input selection
+        if (donationContext != null) {
+            txOutputBuilder = txOutputBuilder == null ? buildDummyDonationTxOutBuilder()
+                    : txOutputBuilder.and(buildDummyDonationTxOutBuilder());
+        }
+
         //Define outputs
         if (outputs != null) {
             for (TransactionOutput output : outputs) {
@@ -303,6 +372,11 @@ public abstract class AbstractTx<T> {
         if (txMetadata != null)
             txBuilder = txBuilder.andThen(AuxDataProviders.metadataProvider(txMetadata));
 
+        //Remove donation dummy output if required
+        if (donationContext != null) {
+            txBuilder = txBuilder.andThen(buildDonatationTxBuilder());
+        }
+
         return txBuilder;
     }
 
@@ -312,6 +386,38 @@ public abstract class AbstractTx<T> {
         TxBuilder txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromSender(_fromAddress, _changeAddress));
 
         return txBuilder;
+    }
+
+    /**
+     * Build dummy donation output to trigger input selection
+     * @return TxOutputBuilder
+     */
+    private TxOutputBuilder buildDummyDonationTxOutBuilder() {
+        if (donationContext == null)
+            return null;
+
+        TxOutputBuilder dummyTxOutputBuilder = (context, outputs) -> {
+            var dummyDonationOutput = new TransactionOutput(DUMMY_TREASURY_ADDRESS, Value.builder().coin(donationContext.donationAmount).build());
+            outputs.add(dummyDonationOutput);
+        };
+
+        return dummyTxOutputBuilder;
+    }
+
+    /**
+     * Build donation TxBuilder to set donation amount and current treasury value
+     * Also to remove the dummy donation output
+     * @return TxBuilder
+     */
+    private TxBuilder buildDonatationTxBuilder() {
+        if (donationContext == null)
+            return null;
+
+        return (context, txn) -> {
+            txn.getBody().getOutputs().removeIf(output -> output.getAddress().equals(DUMMY_TREASURY_ADDRESS));
+            txn.getBody().setCurrentTreasuryValue(donationContext.currentTreasuryValue);
+            txn.getBody().setDonation(donationContext.donationAmount);
+        };
     }
 
     private TxBuilder buildInputBuildersFromUtxos(TxOutputBuilder txOutputBuilder) {
@@ -357,6 +463,15 @@ public abstract class AbstractTx<T> {
         });
     }
 
+    protected void addDepositRefundContext(List<DepositRefundContext> _depositRefundContexts) {
+        if (this.depositRefundContexts == null)
+            this.depositRefundContexts = new ArrayList<>();
+
+        _depositRefundContexts.forEach(depositRefundContext -> {
+            this.depositRefundContexts.add(depositRefundContext);
+        });
+    }
+
     /**
      * Return change address
      *
@@ -372,6 +487,14 @@ public abstract class AbstractTx<T> {
     protected abstract String getFromAddress();
 
     protected abstract Wallet getFromWallet();
+
+    /**
+     * Perform pre Tx evaluation action. This is called before Script evaluation if any
+     * @param transaction
+     */
+    protected void preTxEvaluation(Transaction transaction) {
+
+    }
 
     /**
      * Perform post balanceTx action
@@ -391,4 +514,11 @@ public abstract class AbstractTx<T> {
      * @return String
      */
     protected abstract String getFeePayer();
+
+    @Getter
+    @AllArgsConstructor
+    static class DonationContext {
+        private BigInteger currentTreasuryValue;
+        private BigInteger donationAmount;
+    }
 }

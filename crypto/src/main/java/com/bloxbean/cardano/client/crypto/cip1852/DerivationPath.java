@@ -9,6 +9,9 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * Common Derivation Paths for Cardano HD Wallet
+ */
 public class DerivationPath {
       private Segment purpose;
       private Segment coinType;
@@ -87,6 +90,26 @@ public class DerivationPath {
                 .coinType(new Segment(1815, true))
                 .account(new Segment(account, true)) //set account
                 .role(new Segment(3, false)) //drep
+                .index(new Segment(0, false))
+                .build();
+    }
+
+    public static DerivationPath createCommitteeColdKeyDerivationPathForAccount(int account) {
+        return DerivationPath.builder()
+                .purpose(new Segment(1852, true))
+                .coinType(new Segment(1815, true))
+                .account(new Segment(account, true)) //set account
+                .role(new Segment(4, false)) //ccold
+                .index(new Segment(0, false))
+                .build();
+    }
+
+    public static DerivationPath createCommitteeHotKeyDerivationPathForAccount(int account) {
+        return DerivationPath.builder()
+                .purpose(new Segment(1852, true))
+                .coinType(new Segment(1815, true))
+                .account(new Segment(account, true)) //set account
+                .role(new Segment(5, false)) //cchot
                 .index(new Segment(0, false))
                 .build();
     }

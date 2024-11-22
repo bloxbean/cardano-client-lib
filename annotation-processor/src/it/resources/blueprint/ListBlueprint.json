@@ -1,0 +1,75 @@
+{
+  "preamble": {
+    "title": "kammerlo/list_Str",
+    "description": "Aiken contracts for project 'kammerlo/list_Str'",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.21-alpha+4b04517"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "list_Str.list_Str",
+      "redeemer": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/list_Str~1Datum"
+        }
+      },
+      "compiledCode": "58a70100003232323232323232223253330064a229309b2b1919299980399b87480000044c8c94ccc030c0380084c9263300400123233006001232533300d3370e9000000899192999809180a0010a4c2c6e64dd7180900098058010b18058009bac0011637586018002600a0082c600a00644646600200200644a66601800229309919801801980780118019806800918029baa001230033754002ae6955ceaab9e5573eae855d101",
+      "hash": "3e3223a680da18336236e86cef31068b5df3b96c2bb0cb2d765f8af5"
+    }
+  ],
+  "definitions": {
+    "List$List$list_Str/NestedA": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/List$list_Str~1NestedA"
+      }
+    },
+    "List$list_Str/NestedA": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/list_Str~1NestedA"
+      }
+    },
+    "String": {
+      "dataType": "#string"
+    },
+    "list_Str/Datum": {
+      "title": "Datum",
+      "anyOf": [
+        {
+          "title": "Datum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "simpleList",
+              "$ref": "#/definitions/List$List$list_Str~1NestedA"
+            }
+          ]
+        }
+      ]
+    },
+    "list_Str/NestedA": {
+      "title": "NestedA",
+      "anyOf": [
+        {
+          "title": "NestedA",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/String"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

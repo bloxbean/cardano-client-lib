@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -10,11 +11,18 @@ import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
+import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
+import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
+import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
+import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -23,11 +31,14 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+@Slf4j
 public class ScriptTx extends AbstractTx<ScriptTx> {
     protected List<PlutusScript> spendingValidators;
     protected List<PlutusScript> mintingValidators;
     protected List<PlutusScript> certValidators;
     protected List<PlutusScript> rewardValidators;
+    protected List<PlutusScript> proposingValidators;
+    protected List<PlutusScript> votingValidators;
 
     protected List<SpendingContext> spendingContexts;
     protected List<MintingContext> mintingContexts;
@@ -36,6 +47,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     protected String fromAddress;
     private StakeTx stakeTx;
+    private GovTx govTx;
 
     public ScriptTx() {
         spendingContexts = new ArrayList<>();
@@ -44,8 +56,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         mintingValidators = new ArrayList<>();
         certValidators = new ArrayList<>();
         rewardValidators = new ArrayList<>();
+        proposingValidators = new ArrayList<>();
+        votingValidators = new ArrayList<>();
 
         stakeTx = new StakeTx();
+        govTx = new GovTx();
     }
 
     /**
@@ -185,7 +200,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         TransactionInput transactionInput = new TransactionInput(txHash, outputIndex);
         if (referenceInputs == null)
             referenceInputs = new ArrayList<>();
-        referenceInputs.add(transactionInput);
+
+        if (!referenceInputs.contains(transactionInput))
+            referenceInputs.add(transactionInput);
         return this;
     }
 
@@ -335,6 +352,26 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
+     * Attach a proposing validator script to the transaction
+     * @param plutusScript plutus script
+     * @return ScriptTx
+     */
+    public ScriptTx attachProposingValidator(PlutusScript plutusScript) {
+        proposingValidators.add(plutusScript);
+        return this;
+    }
+
+    /**
+     * Attach a voting validator script to the transaction
+     * @param plutusScript plutus script
+     * @return ScriptTx
+     */
+    public ScriptTx attachVotingValidator(PlutusScript plutusScript) {
+        votingValidators.add(plutusScript);
+        return this;
+    }
+
+    /**
      * Send change to the change address with the output datum.
      *
      * @param changeAddress change address
@@ -466,6 +503,105 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
+     * Register DRep
+     * @param drepCredential DRep credential
+     * @param anchor anchor
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx registerDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
+        govTx.registerDRep(drepCredential, anchor, redeemer);
+        return this;
+    }
+
+    /**
+     * Register DRep
+     * @param drepCredential - DRep credential
+     * @param redeemer - redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx registerDRep(@NonNull Credential drepCredential, PlutusData redeemer) {
+        govTx.registerDRep(drepCredential, null, redeemer);
+        return this;
+    }
+
+    /**
+     * Unregister DRep
+     * @param drepCredential DRep credential
+     * @param refundAddress refund address
+     * @param refundAmount refund amount
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount, PlutusData redeemer) {
+        govTx.unregisterDRep(drepCredential, refundAddress, refundAmount, redeemer);
+        return this;
+    }
+
+    /**
+     * Unregister DRep
+     * @param drepCredential DRep credential
+     * @param refundAddress refund address
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, PlutusData redeemer) {
+        govTx.unregisterDRep(drepCredential, refundAddress, null, redeemer);
+        return this;
+    }
+
+    /**
+     * Update DRep
+     * @param drepCredential DRep credential
+     * @param anchor anchor
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx updateDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
+        govTx.updateDRep(drepCredential, anchor, redeemer);
+        return this;
+    }
+
+    /**
+     * Create a proposal
+     * @param govAction gov action
+     * @param returnAddress return address
+     * @param anchor anchor
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx createProposal(GovAction govAction, @NonNull String returnAddress, Anchor anchor, PlutusData redeemer) {
+        govTx.createProposal(govAction, returnAddress, anchor, redeemer);
+        return this;
+    }
+
+    /**
+     * Create a vote
+     * @param voter voter
+     * @param govActionId gov action id
+     * @param vote vote
+     * @param anchor anchor
+     * @param redeemer redeemer
+     * @return ScriptTx
+     */
+    public ScriptTx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor, PlutusData redeemer) {
+        govTx.createVote(voter, govActionId, vote, anchor, redeemer);
+        return this;
+    }
+
+    /**
+     * Delegate voting power to a DRep
+     * @param address address to delegate
+     * @param drep DRep
+     * @param redeemer redeemer
+     * @return
+     */
+    public ScriptTx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep, PlutusData redeemer) {
+        govTx.delegateVotingPowerTo(address, drep, redeemer);
+        return this;
+    }
+
+    /**
      * Send change to the change address with the output datum hash.
      *
      * @param changeAddress change address
@@ -514,20 +650,33 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     @Override
     protected void postBalanceTx(Transaction transaction) {
-        if (spendingValidators != null && !spendingValidators.isEmpty()) {
+        if (spendingContexts != null && !spendingContexts.isEmpty()) {
             //Verify if redeemer indexes are correct, if not set the correct index
-            for (Redeemer redeemer : transaction.getWitnessSet().getRedeemers()) {
-                if (redeemer.getTag() != RedeemerTag.Spend)
-                    continue;
-                Optional<Utxo> scriptUtxo = getUtxoForRedeemer(redeemer);
-                if (scriptUtxo.isPresent()) {
-                    int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
-                    if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
-                        redeemer.setIndex(BigInteger.valueOf(scriptInputIndex));
-                    }
-                } else
-                    throw new TxBuildException("No utxo found for redeemer. Something went wrong." + redeemer);
-            }
+            verifyAndAdjustRedeemerIndexes(transaction);
+        }
+    }
+
+    @Override
+    protected void preTxEvaluation(Transaction transaction) {
+        if (spendingContexts != null && !spendingContexts.isEmpty()) {
+            //Verify if redeemer indexes are correct, if not set the correct index
+            verifyAndAdjustRedeemerIndexes(transaction);
+        }
+    }
+
+    private void verifyAndAdjustRedeemerIndexes(Transaction transaction) {
+        for (Redeemer redeemer : transaction.getWitnessSet().getRedeemers()) {
+            if (redeemer.getTag() != RedeemerTag.Spend)
+                continue;
+            Optional<Utxo> scriptUtxo = getUtxoForRedeemer(redeemer);
+            if (scriptUtxo.isPresent()) {
+                int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
+                if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
+                    redeemer.setIndex(scriptInputIndex);
+                }
+                log.debug("Sorting done for redeemer : " + redeemer);
+            } else
+                log.warn("No utxo found for redeemer. Something went wrong." + redeemer);
         }
     }
 
@@ -551,19 +700,27 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     @Override
     TxBuilder complete() {
         //stake related
-        Tuple<List<StakeTx.PaymentContext>, TxBuilder> stakeBuildTuple =
+        Tuple<List<DepositRefundContext>, TxBuilder> stakeBuildTuple =
                 stakeTx.build(getFromAddress(), getChangeAddress());
-        for (StakeTx.PaymentContext paymentContext : stakeBuildTuple._1) {
-            payToAddress(paymentContext.getAddress(), paymentContext.getAmount());
-        }
+
+        //Add stake deposit refund context
+        addDepositRefundContext(stakeBuildTuple._1);
+
+        //gov related
+        Tuple<List<DepositRefundContext>, TxBuilder> govBuildTuple =
+                govTx.build(getFromAddress(), getChangeAddress());
+
+        //Add gov deposit refund context
+        addDepositRefundContext(govBuildTuple._1);
 
         //Invoke common complete logic
         TxBuilder txBuilder = super.complete();
 
         txBuilder = txBuilder.andThen(prepareScriptCallContext());
 
-        //stake related
-        txBuilder = txBuilder.andThen(stakeBuildTuple._2);
+        //stake, gov related
+        txBuilder = txBuilder.andThen(stakeBuildTuple._2)
+                .andThen(govBuildTuple._2);
 
         return txBuilder;
     }
@@ -576,8 +733,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         txBuilder = txBuilderFromSpendingValidators(txBuilder);
         txBuilder = txBuilderFromMintingValidators(txBuilder);
-        txBuilder = txBuilderFromCertValidators(txBuilder);
-        txBuilder = txBuilderFromRewardValidators(txBuilder);
+        txBuilder = txBuilderFromValidators(txBuilder, certValidators);//txBuilderFromCertValidators(txBuilder);
+        txBuilder = txBuilderFromValidators(txBuilder, rewardValidators); //txBuilderFromRewardValidators(txBuilder);
+        txBuilder = txBuilderFromValidators(txBuilder, proposingValidators);//txBuilderFromProposingValidators(txBuilder);
+        txBuilder = txBuilderFromValidators(txBuilder, votingValidators);
 
         return txBuilder;
     }
@@ -607,6 +766,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                         } else if (plutusScript instanceof PlutusV2Script) {
                             if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
                                 transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+                        } else if (plutusScript instanceof PlutusV3Script) {
+                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
                         }
                     }));
         }
@@ -627,7 +789,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                         throw new TxBuildException("Script utxo is not found in transaction inputs : " + spendingContext.scriptUtxo.getTxHash());
 
                     //update script input index
-                    spendingContext.getRedeemer().setIndex(BigInteger.valueOf(scriptInputIndex));
+                    spendingContext.getRedeemer().setIndex(scriptInputIndex);
                     transaction.getWitnessSet().getRedeemers().add(spendingContext.redeemer);
                 }
             }));
@@ -647,6 +809,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                         } else if (plutusScript instanceof PlutusV2Script) {
                             if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
                                 transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+                        } else if (plutusScript instanceof PlutusV3Script) {
+                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
                         }
                     }));
         }
@@ -677,8 +842,17 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                         throw new TxBuildException("Policy id is not found in transaction mint : " + mintingContext.getPolicyId());
 
                     //update script input index
-                    mintingContext.getRedeemer().setIndex(BigInteger.valueOf(index));
-                    transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
+                    mintingContext.getRedeemer().setIndex(index);
+
+                    transaction.getWitnessSet().getRedeemers()
+                            .stream().filter(redeemer -> redeemer.getTag() == mintingContext.getRedeemer().getTag()
+                                    && redeemer.getIndex() == mintingContext.getRedeemer().getIndex())
+                            .findFirst()
+                            .ifPresentOrElse(redeemer -> {
+                                //Do nothing
+                            }, () -> {
+                                transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
+                            });
                 }
             }));
         }
@@ -686,8 +860,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return txBuilder;
     }
 
-    private TxBuilder txBuilderFromCertValidators(TxBuilder txBuilder) {
-        for (PlutusScript plutusScript : certValidators) {
+    private TxBuilder txBuilderFromValidators(TxBuilder txBuilder, List<PlutusScript> validators) {
+        if (validators == null)
+            return txBuilder;
+
+        for (PlutusScript plutusScript : validators) {
             txBuilder =
                     txBuilder.andThen(((context, transaction) -> {
                         if (transaction.getWitnessSet() == null)
@@ -698,25 +875,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                         } else if (plutusScript instanceof PlutusV2Script) {
                             if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
                                 transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-                        }
-                    }));
-        }
-
-        return txBuilder;
-    }
-
-    private TxBuilder txBuilderFromRewardValidators(TxBuilder txBuilder) {
-        for (PlutusScript plutusScript : rewardValidators) {
-            txBuilder =
-                    txBuilder.andThen(((context, transaction) -> {
-                        if (transaction.getWitnessSet() == null)
-                            transaction.setWitnessSet(new TransactionWitnessSet());
-                        if (plutusScript instanceof PlutusV1Script) {
-                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV2Script) {
-                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+                        } else if (plutusScript instanceof PlutusV3Script) {
+                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
                         }
                     }));
         }

@@ -6,6 +6,7 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.util.NativeScriptDeserializer;
@@ -53,6 +54,27 @@ public interface NativeScript extends Script {
         }
     }
 
+    /**
+     * ScriptRefBytes method to include script body as Array for NativeScript
+     * @return byte[]
+     * @throws CborSerializationException
+     */
+    @Override
+    default byte[] scriptRefBytes() throws CborSerializationException {
+        int type = getScriptType();
+        DataItem nativeScriptBodyDI = serializeAsDataItem();
+
+        Array array = new Array();
+        array.add(new UnsignedInteger(type));
+        array.add(nativeScriptBodyDI);
+
+        try {
+            return CborSerializationUtil.serialize(array);
+        } catch (CborException e) {
+            throw new CborRuntimeException(e);
+        }
+    }
+
     default byte[] getScriptTypeBytes() {
         return new byte[]{(byte) getScriptType()};
     }
@@ -91,5 +113,26 @@ public interface NativeScript extends Script {
                 throw new RuntimeException("Unknown script type");
         }
         return nativeScript;
+    }
+
+    static NativeScript deserializeScriptRef(byte[] scriptRefBytes) {
+        Array scriptArray = (Array) CborSerializationUtil.deserialize(scriptRefBytes);
+
+        List<DataItem> dataItemList = scriptArray.getDataItems();
+        if (dataItemList == null || dataItemList.size() == 0 || dataItemList.size() < 2) {
+            throw new CborRuntimeException("Reference Script deserialization failed. Invalid no of DataItem : " + dataItemList.size());
+        }
+
+        int type = ((UnsignedInteger) dataItemList.get(0)).getValue().intValue();
+
+        if (type != 0)
+            throw new CborRuntimeException("NativeScript deserialization failed from ScriptRef bytes. Invalid type : " + type);
+
+        Array nativeScriptArray = (Array) dataItemList.get(1);
+        try {
+            return NativeScript.deserialize(nativeScriptArray);
+        } catch (CborDeserializationException e) {
+            throw new CborRuntimeException("NativeScript deserialization failed from ScriptRef bytes.", e);
+        }
     }
 }

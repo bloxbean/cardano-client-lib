@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.address.Credential;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.transaction.util.CredentialSerializer;
 import lombok.*;
@@ -11,6 +12,7 @@ import java.util.*;
 
 import static com.bloxbean.cardano.client.common.cbor.CborSerializationUtil.toInt;
 import static com.bloxbean.cardano.client.transaction.util.RationalNumberUtil.toUnitInterval;
+import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.createArray;
 
 /**
  * {@literal
@@ -36,7 +38,7 @@ public class UpdateCommittee implements GovAction {
 
     @Override
     @SneakyThrows
-    public Array serialize() {
+    public Array serialize(Era era) {
         Objects.requireNonNull(membersForRemoval);
         Objects.requireNonNull(newMembersAndTerms);
 
@@ -48,7 +50,7 @@ public class UpdateCommittee implements GovAction {
         else
             array.add(SimpleValue.NULL);
 
-        Array membersForRemovalArray = new Array();
+        Array membersForRemovalArray = createArray(era);
         for (Credential member: membersForRemoval) {
             membersForRemovalArray.add(CredentialSerializer.serialize(member));
         }

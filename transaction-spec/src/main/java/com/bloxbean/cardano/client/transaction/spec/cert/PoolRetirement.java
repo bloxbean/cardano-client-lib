@@ -6,6 +6,7 @@ import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.spec.Era;
 import lombok.*;
 
 import java.util.List;
@@ -26,7 +27,7 @@ public class PoolRetirement implements Certificate {
     private long epoch;
 
     @Override
-    public Array serialize() throws CborSerializationException {
+    public Array serialize(Era era) throws CborSerializationException {
         Array array = new Array();
         array.add(new UnsignedInteger(4));
         array.add(new ByteString(poolKeyHash));

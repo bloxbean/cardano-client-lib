@@ -9,7 +9,7 @@
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-### **Latest Stable Version**: [0.5.1](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.5.1)
+### **Latest Stable Version**: [0.6.2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.2)
 
 ### More details --> [Documentation](https://cardano-client.dev/)
 
@@ -415,9 +415,7 @@ export BF_PROJECT_ID=<Blockfrost Preprod network Project Id>
   <a href="https://github.com/djcyr"><img src="https://avatars.githubusercontent.com/u/9329514?s=70&v=4" width="45" height="45" /></a>
 </p>
 
-##### If this project helps you reduce time to develop on Cardano or if you just want to support this project, you can delegate to our pool:
-
-[BLOXB](https://www.bloxbean.com/cardano-staking/)
+##### If this project helps you reduce time to develop on Cardano or if you just want to support this project :
 
 [Support this project](https://cardano-client.dev/docs/support-this-project)
 

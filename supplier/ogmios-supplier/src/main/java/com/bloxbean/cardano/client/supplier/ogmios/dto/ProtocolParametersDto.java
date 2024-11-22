@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +48,7 @@ public class ProtocolParametersDto {
     private Map<String, Map<String, Long>> governanceActionDeposit;
     private Map<String, Map<String, Long>> delegateRepresentativeDeposit;
     private long delegateRepresentativeMaxIdleTime;
+    private MinFeeReferenceScriptsDto minFeeReferenceScripts;
 
     public ProtocolParams toProtocolParams() {
         ProtocolParams protocolParams = new ProtocolParams();
@@ -71,9 +72,9 @@ public class ProtocolParametersDto {
         protocolParams.setMinPoolCost(minStakePoolCost.get("ada").get("lovelace").toString());
 //        protocolParams.setNonce(currentProtocolParameters.getProtocolParameters().getNonce()); // Not there
 
-        Map<String, Map<String, Long>> costModels = new HashMap<>();
+        LinkedHashMap<String, LinkedHashMap<String, Long>> costModels = new LinkedHashMap<>();
         costModels.put("PlutusV1",
-                new HashMap<>() {{
+                new LinkedHashMap<>() {{
                     List<String> plutusOps = PlutusOps.getOperations(1);
                     for (int i = 0; i < plutusCostModels.get("plutus:v1").length; i++) {
                         put(plutusOps.get(i), plutusCostModels.get("plutus:v1")[i]);
@@ -81,10 +82,18 @@ public class ProtocolParametersDto {
                 }}
         );
         costModels.put("PlutusV2",
-                new HashMap<>() {{
+                new LinkedHashMap<>() {{
                     List<String> plutusOps = PlutusOps.getOperations(2);
                     for (int i = 0; i < plutusCostModels.get("plutus:v2").length; i++) {
                         put(plutusOps.get(i), plutusCostModels.get("plutus:v2")[i]);
+                    }
+                }}
+        );
+        costModels.put("PlutusV3",
+                new LinkedHashMap<>() {{
+                    List<String> plutusOps = PlutusOps.getOperations(3);
+                    for (int i = 0; i < plutusCostModels.get("plutus:v3").length; i++) {
+                        put(plutusOps.get(i), plutusCostModels.get("plutus:v3")[i]);
                     }
                 }}
         );
@@ -100,7 +109,14 @@ public class ProtocolParametersDto {
         protocolParams.setCollateralPercent(BigDecimal.valueOf(collateralPercentage));
         protocolParams.setMaxCollateralInputs((int) maxCollateralInputs);
         protocolParams.setCoinsPerUtxoSize(String.valueOf(minUtxoDepositCoefficient));
-//        protocolParams.setCoinsPerUtxoWord(String.valueOf(minUtxoDepositCoefficient)); // deprecated
+//      protocolParams.setCoinsPerUtxoWord(String.valueOf(minUtxoDepositCoefficient)); // deprecated
+
+        //TODO
+        //Governance releated protocol parameters
+
+        if (minFeeReferenceScripts != null)
+            protocolParams.setMinFeeRefScriptCostPerByte(minFeeReferenceScripts.getBase());
+
         return protocolParams;
     }
 

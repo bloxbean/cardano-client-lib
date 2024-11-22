@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.AddressService;
 import com.bloxbean.cardano.client.backend.model.AddressContent;
+import com.bloxbean.cardano.client.backend.model.AddressDetails;
 import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,12 +26,21 @@ class KoiosAddressServiceIT extends KoiosBaseTest {
     }
 
     @Test
-    void testGetAddressInfo() throws ApiException {
-        Result<AddressContent> result = addressService.getAddressInfo("addr_test1qzr0g2kvyknzhyez3aatyjwpaw5z5n65cwfxc5ctcqq28ed3hcc035r9r76tkxehlr9wdla9twe02dpv843nru6czj6qycpamy");
+    public void testGetAddressInfo() throws ApiException {
+        Result<AddressContent> result = addressService.getAddressInfo("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
         System.out.println(JsonUtil.getPrettyJson(result.getValue()));
 
         assertTrue(result.isSuccessful());
         assertFalse(result.getValue().getAmount().isEmpty());
+    }
+
+    @Test
+    public void testGetAddressDetails() throws ApiException {
+        Result<AddressDetails> result = addressService.getAddressDetails("addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y");
+        System.out.println(JsonUtil.getPrettyJson(result.getValue()));
+
+        assertTrue(result.isSuccessful());
+        assertFalse(result.getValue().getReceivedSum().isEmpty());
     }
 
     @Test
@@ -40,19 +50,19 @@ class KoiosAddressServiceIT extends KoiosBaseTest {
 
         System.out.println(txns);
         assertTrue(txns.size() > 2);
-        assertEquals("bc22e5b9768fd4a639d02c9f11cbd4cce695d2c0788f8c4028b826b81bc92fdb", txns.get(0).getTxHash());
+        assertEquals("0d79289c5d11cc5e8d8e0fc234ea654abfec62b1a9643e1f33cd3da2b513d19e", txns.get(0).getTxHash());
         assertTrue(txns.get(0).getBlockHeight() != 0);
         assertTrue(txns.get(0).getBlockTime() != 0);
     }
 
     @Test
     void testGetTransactionsWithOrder() throws ApiException {
-        String address = "addr_test1qzr0g2kvyknzhyez3aatyjwpaw5z5n65cwfxc5ctcqq28ed3hcc035r9r76tkxehlr9wdla9twe02dpv843nru6czj6qycpamy";
+        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
         List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc).getValue();
 
         System.out.println(txns);
         assertTrue(txns.size() > 2);
-        assertNotEquals("119a69ae496b03936335ed22416116c454a26c00c5c59b22f34535851ba3aa42", txns.get(0).getTxHash());
+        assertNotEquals("0d79289c5d11cc5e8d8e0fc234ea654abfec62b1a9643e1f33cd3da2b513d19e", txns.get(0).getTxHash());
         assertTrue(txns.get(0).getBlockHeight() != 0);
         assertTrue(txns.get(0).getBlockTime() != 0);
     }
@@ -60,11 +70,23 @@ class KoiosAddressServiceIT extends KoiosBaseTest {
     @Test
     public void testGetTransactionsWithOrder_whenFromAndToBlocksProvided() throws ApiException {
         String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
-        List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc, "1825606", "1825606").getValue();
+        List<AddressTransactionContent> txns = addressService.getTransactions(address, 50, 1, OrderEnum.desc, "357475", "357479").getValue();
 
         System.out.println(txns);
-        assertThat(txns.size()).isEqualTo(1);
-        assertEquals("c8c3b6161fd6430edd81ecfbefb5d136bf126d2f3e95b6c51f09eff745c53b76", txns.get(0).getTxHash());
+        assertThat(txns.size()).isEqualTo(3);
+        assertEquals("002dbdb2d294a61c03ec7b0876bc5d40ec3ae07ef5b72d08c107cce7566c4f96", txns.get(0).getTxHash());
+        assertTrue(txns.get(0).getBlockHeight() != 0);
+        assertTrue(txns.get(0).getBlockTime() != 0);
+    }
+
+    @Test
+    public void testGetAllTransactions() throws ApiException {
+        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
+        List<AddressTransactionContent> txns = addressService.getAllTransactions(address, OrderEnum.desc, 357475, 357479).getValue();
+
+        System.out.println(txns);
+        assertThat(txns.size()).isEqualTo(3);
+        assertEquals("002dbdb2d294a61c03ec7b0876bc5d40ec3ae07ef5b72d08c107cce7566c4f96", txns.get(0).getTxHash());
         assertTrue(txns.get(0).getBlockHeight() != 0);
         assertTrue(txns.get(0).getBlockTime() != 0);
     }

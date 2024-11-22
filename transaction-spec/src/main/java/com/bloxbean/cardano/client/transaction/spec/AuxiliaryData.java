@@ -10,6 +10,9 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.exception.MetadataSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
+import com.bloxbean.cardano.client.spec.Era;
+import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -38,8 +41,15 @@ public class AuxiliaryData {
     @Builder.Default
     private List<PlutusV2Script> plutusV2Scripts = new ArrayList<>();
 
+    @Builder.Default
+    private List<PlutusV3Script> plutusV3Scripts = new ArrayList<>();
+
     public DataItem serialize() throws CborSerializationException {
-        return getAuxiliaryData();
+        return serialize(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    public DataItem serialize(Era era) throws CborSerializationException {
+        return getAuxiliaryData(era);
     }
 
     public static AuxiliaryData deserialize(Map map) throws CborDeserializationException {
@@ -51,6 +61,7 @@ public class AuxiliaryData {
             DataItem nativeScriptsValueDI = map.get(new UnsignedInteger(1));
             DataItem plutusV1ScriptsValueDI = map.get(new UnsignedInteger(2));
             DataItem plutusV2ScriptsValueDI = map.get(new UnsignedInteger(3));
+            DataItem plutusV3ScriptsValueDI = map.get(new UnsignedInteger(4));
 
             if (metadataValueDI != null) {
                 Metadata cborMetadata = CBORMetadata.deserialize((Map) metadataValueDI);
@@ -60,6 +71,7 @@ public class AuxiliaryData {
             if (nativeScriptsValueDI != null) {
                 Array nativeScriptsArray = (Array) nativeScriptsValueDI;
                 for (DataItem nativeScriptDI : nativeScriptsArray.getDataItems()) {
+                    if (nativeScriptDI == SimpleValue.BREAK) continue;
                     NativeScript nativeScript = NativeScript.deserialize((Array) nativeScriptDI);
                     auxiliaryData.getNativeScripts().add(nativeScript);
                 }
@@ -69,6 +81,7 @@ public class AuxiliaryData {
             if (plutusV1ScriptsValueDI != null) {
                 Array plutusV1ScriptsArray = (Array) plutusV1ScriptsValueDI;
                 for (DataItem plutusV1ScriptDI : plutusV1ScriptsArray.getDataItems()) {
+                    if (plutusV1ScriptDI == SimpleValue.BREAK) continue;
                     PlutusV1Script plutusV1Script = PlutusV1Script.deserialize((ByteString) plutusV1ScriptDI);
                     auxiliaryData.getPlutusV1Scripts().add(plutusV1Script);
                 }
@@ -78,8 +91,19 @@ public class AuxiliaryData {
             if (plutusV2ScriptsValueDI != null) {
                 Array plutusV2ScriptsArray = (Array) plutusV2ScriptsValueDI;
                 for (DataItem plutusV2ScriptDI : plutusV2ScriptsArray.getDataItems()) {
+                    if (plutusV2ScriptDI == SimpleValue.BREAK) continue;
                     PlutusV2Script plutusV2Script = PlutusV2Script.deserialize((ByteString) plutusV2ScriptDI);
                     auxiliaryData.getPlutusV2Scripts().add(plutusV2Script);
+                }
+            }
+
+            //plutus_v3_script
+            if (plutusV3ScriptsValueDI != null) {
+                Array plutusV3ScriptsArray = (Array) plutusV3ScriptsValueDI;
+                for (DataItem plutusV3ScriptDI : plutusV3ScriptsArray.getDataItems()) {
+                    if (plutusV3ScriptDI == SimpleValue.BREAK) continue;
+                    PlutusV3Script plutusV3Script = PlutusV3Script.deserialize((ByteString) plutusV3ScriptDI);
+                    auxiliaryData.getPlutusV3Scripts().add(plutusV3Script);
                 }
             }
         } else { //Shelley-mary
@@ -92,8 +116,13 @@ public class AuxiliaryData {
 
     @JsonIgnore
     public byte[] getAuxiliaryDataHash() throws MetadataSerializationException {
+        return getAuxiliaryDataHash(EraSerializationConfig.INSTANCE.getEra());
+    }
+
+    @JsonIgnore
+    public byte[] getAuxiliaryDataHash(Era era) throws MetadataSerializationException {
         try {
-            Map map = getAuxiliaryData();
+            Map map = getAuxiliaryData(era);
             byte[] encodedBytes = CborSerializationUtil.serialize(map);
 
             return Blake2bUtil.blake2bHash256(encodedBytes);
@@ -102,7 +131,7 @@ public class AuxiliaryData {
         }
     }
 
-    private Map getAuxiliaryData() throws CborSerializationException {
+    private Map getAuxiliaryData(Era era) throws CborSerializationException {
         Map map = new Map();
 
         //Shelley-mary format
@@ -145,6 +174,15 @@ public class AuxiliaryData {
             }
 
             map.put(new UnsignedInteger(3), plutusV2ScriptArray);
+        }
+
+        if (plutusV3Scripts != null && plutusV3Scripts.size() > 0) {
+            Array plutusV3ScriptArray = new Array();
+            for (PlutusV3Script plutusV3Script : plutusV3Scripts) {
+                plutusV3ScriptArray.add(plutusV3Script.serializeAsDataItem());
+            }
+
+            map.put(new UnsignedInteger(4), plutusV3ScriptArray);
         }
 
         return map;

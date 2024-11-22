@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.backend.api;
 
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.ByteString;
+import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.backend.koios.KoiosBackendService;
@@ -10,13 +11,20 @@ import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.util.HexUtil;
 
-public class BaseITTest {
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Optional;
 
-    protected String BLOCKFROST = "blockfrost";
-    protected String KOIOS = "koios";
-    protected String OGMIOS = "ogmios";
-    protected String DEVKIT = "devkit";
-    protected String backendType = BLOCKFROST;
+public class BaseITTest {
+    public static final String DEVKIT_ADMIN_BASE_URL = "http://localhost:10000/";
+    protected static String BLOCKFROST = "blockfrost";
+    protected static String KOIOS = "koios";
+    protected static String OGMIOS = "ogmios";
+    protected static String DEVKIT = "devkit";
+    protected static String backendType = BLOCKFROST;
 
     public BackendService getBackendService() {
         if (BLOCKFROST.equals(backendType)) {
@@ -45,6 +53,56 @@ public class BaseITTest {
                     .build();
         } catch (CborException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    protected static void topUpFund(String address, long adaAmount) {
+        try {
+            // URL to the top-up API
+            String url = DEVKIT_ADMIN_BASE_URL + "local-cluster/api/addresses/topup";
+            URL obj = new URL(url);
+            HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+
+            // Set request method to POST
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json; utf-8");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setDoOutput(true);
+
+            // Create JSON payload
+            String jsonInputString = String.format("{\"address\": \"%s\", \"adaAmount\": %d}", address, adaAmount);
+
+            // Send the request
+            try (OutputStream os = connection.getOutputStream()) {
+                byte[] input = jsonInputString.getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+            }
+
+            // Check the response code
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                System.out.println("Funds topped up successfully.");
+            } else {
+                System.out.println("Failed to top up funds. Response code: " + responseCode);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    protected void checkIfUtxoAvailable(String txHash, String address) {
+        Optional<Utxo> utxo = Optional.empty();
+        int count = 0;
+        while (utxo.isEmpty()) {
+            if (count++ >= 20)
+                break;
+            List<Utxo> utxos = new DefaultUtxoSupplier(getBackendService().getUtxoService()).getAll(address);
+            utxo = utxos.stream().filter(u -> u.getTxHash().equals(txHash))
+                    .findFirst();
+            System.out.println("Try to get new output... txhash: " + txHash);
+            try {
+                Thread.sleep(1000);
+            } catch (Exception e) {}
         }
     }
 }

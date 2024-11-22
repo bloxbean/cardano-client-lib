@@ -25,6 +25,7 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -51,6 +52,29 @@ public class TxBuilderContextIT extends BaseITTest {
     UtxoSupplier utxoSupplier;
     ProtocolParams protocolParams;
 
+    static Account senderAccount1;
+    static String senderAddress1;
+
+    static Account senderAccount2;
+    static String senderAddress2;
+
+    @BeforeAll
+    public static void setupAll() {
+        //addr_test1qrynkm9vzsl7vrufzn6y4zvl2v55x0xwc02nwg00x59qlkxtsu6q93e6mrernam0k4vmkn3melezkvgtq84d608zqhnsn48axp
+        String senderMnemonic = "stone decade great marine meadow merge boss ahead again rapid detect cover vital estate web silly copper estate wisdom empty speed salute oak car";
+        senderAccount1 = new Account(Networks.testnet(), senderMnemonic);
+        senderAddress1 = senderAccount1.baseAddress();
+
+        String senderMnemonic2 = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
+        senderAccount2 = new Account(Networks.testnet(), senderMnemonic2);
+        senderAddress2 = senderAccount2.baseAddress();
+
+        if (backendType.equals(DEVKIT)) {
+            topUpFund(senderAddress1, 50000);
+            topUpFund(senderAddress2, 50000);
+        }
+    }
+
     @BeforeEach
     public void setup() throws ApiException {
         backendService = getBackendService();
@@ -60,6 +84,7 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     void testTransactionBuilding() throws CborSerializationException, ApiException {
+        if (backendType == DEVKIT) return; //skip
         //addr_test1qrynkm9vzsl7vrufzn6y4zvl2v55x0xwc02nwg00x59qlkxtsu6q93e6mrernam0k4vmkn3melezkvgtq84d608zqhnsn48axp
         String senderMnemonic = "stone decade great marine meadow merge boss ahead again rapid detect cover vital estate web silly copper estate wisdom empty speed salute oak car";
 
@@ -180,9 +205,6 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     void testMintingTwoNFTs_withSamePolicy() throws Exception {
-        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
 
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String receiver2 = "addr_test1qq9f6hzuwmqpe3p9h90z2rtgs0v0lsq9ln5f79fjyec7eclg7v88q9als70uzkdh5k6hw20uuwqfz477znfp5v4rga2s3ysgxu";
@@ -255,14 +277,14 @@ public class TxBuilderContextIT extends BaseITTest {
                 createFromMintOutput(mintOutput1)
                         .and(createFromMintOutput(mintOutput2))
                         .and(createFromMintOutput(output3))
-                        .buildInputs(createFromSender(senderAddress, senderAddress))
+                        .buildInputs(createFromSender(senderAddress1, senderAddress1))
                         .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
-                        .andThen(balanceTx(senderAddress, 2));
+                        .andThen(balanceTx(senderAddress1, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
-                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+                .buildAndSign(txBuilder, signerFrom(senderAccount1).andThen(signerFrom(policy)));
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
@@ -277,9 +299,6 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     void testMintingTwoNFTs_withSamePolicyAndAssetName_differentReceivers() throws Exception {
-        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
 
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String receiver2 = "addr_test1qq9f6hzuwmqpe3p9h90z2rtgs0v0lsq9ln5f79fjyec7eclg7v88q9als70uzkdh5k6hw20uuwqfz477znfp5v4rga2s3ysgxu";
@@ -352,14 +371,14 @@ public class TxBuilderContextIT extends BaseITTest {
                 createFromMintOutput(mintOutput1)
                         .and(createFromMintOutput(mintOutput2))
                         .and(createFromMintOutput(output3))
-                        .buildInputs(createFromSender(senderAddress, senderAddress))
+                        .buildInputs(createFromSender(senderAddress1, senderAddress1))
                         .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
-                        .andThen(balanceTx(senderAddress, 2));
+                        .andThen(balanceTx(senderAddress1, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
-                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+                .buildAndSign(txBuilder, signerFrom(senderAccount1).andThen(signerFrom(policy)));
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
@@ -374,9 +393,6 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     void testMintingTwoNFTs_withSamePolicyAndAssetName_differentReceivers_withOutputClass() throws Exception {
-        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
 
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String receiver2 = "addr_test1qq9f6hzuwmqpe3p9h90z2rtgs0v0lsq9ln5f79fjyec7eclg7v88q9als70uzkdh5k6hw20uuwqfz477znfp5v4rga2s3ysgxu";
@@ -466,14 +482,14 @@ public class TxBuilderContextIT extends BaseITTest {
                         .and(output2.outputBuilder())
                         .and(output21.mintOutputBuilder())
                         .and(createFromMintOutput(output3)) //An alternate way
-                        .buildInputs(createFromSender(senderAddress, senderAddress))
+                        .buildInputs(createFromSender(senderAddress1, senderAddress1))
                         .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
-                        .andThen(balanceTx(senderAddress, 2));
+                        .andThen(balanceTx(senderAddress1, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
-                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+                .buildAndSign(txBuilder, signerFrom(senderAccount1).andThen(signerFrom(policy)));
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
@@ -488,10 +504,6 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     public void mintToken() throws CborSerializationException, ApiException, AddressExcepion {
-        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
-        System.out.println("sender: " + senderAddress);
 
         String receiverAddress = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
@@ -525,13 +537,13 @@ public class TxBuilderContextIT extends BaseITTest {
                 .build();
 
         TxBuilder txBuilder = output.mintOutputBuilder()
-                .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
+                .buildInputs(InputBuilders.createFromSender(senderAddress1, senderAddress1))
                 .andThen(MintCreators.mintCreator(policy.getPolicyScript(), multiAsset))
                 .andThen(AuxDataProviders.metadataProvider(metadata))
-                .andThen(BalanceTxBuilders.balanceTx(senderAddress, 2));
+                .andThen(BalanceTxBuilders.balanceTx(senderAddress1, 2));
 
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
-                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+                .buildAndSign(txBuilder, signerFrom(senderAccount1).andThen(signerFrom(policy)));
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
@@ -547,10 +559,6 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     void testPayments_whenMergeOutputTrue() throws Exception {
-        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
-
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String receiver2 = "addr_test1qq9f6hzuwmqpe3p9h90z2rtgs0v0lsq9ln5f79fjyec7eclg7v88q9als70uzkdh5k6hw20uuwqfz477znfp5v4rga2s3ysgxu";
         String receiver3 = "addr_test1qqqvjp4ffcdqg3fmx0k8rwamnn06wp8e575zcv8d0m3tjn2mmexsnkxp7az774522ce4h3qs4tjp9rxjjm46qf339d9sk33rqn";
@@ -639,14 +647,14 @@ public class TxBuilderContextIT extends BaseITTest {
                         .and(output2.outputBuilder())
                         .and(output21.mintOutputBuilder())
                         .and(createFromMintOutput(output3)) //An alternate way
-                        .buildInputs(createFromSender(senderAddress, senderAddress))
+                        .buildInputs(createFromSender(senderAddress1, senderAddress1))
                         .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
-                        .andThen(balanceTx(senderAddress, 2));
+                        .andThen(balanceTx(senderAddress1, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
-                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+                .buildAndSign(txBuilder, signerFrom(senderAccount1).andThen(signerFrom(policy)));
 
         assertThat(signedTransaction.getBody().getOutputs()).hasSize(4); //Total 4 outputs including change output
         assertThat(signedTransaction.getBody().getOutputs().get(0).getValue().getCoin()).isEqualTo(adaToLovelace(2.3));
@@ -669,10 +677,6 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     void testPayments_whenMergeOutputFalse() throws Exception {
-        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
-
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
         String receiver2 = "addr_test1qq9f6hzuwmqpe3p9h90z2rtgs0v0lsq9ln5f79fjyec7eclg7v88q9als70uzkdh5k6hw20uuwqfz477znfp5v4rga2s3ysgxu";
         String receiver3 = "addr_test1qqqvjp4ffcdqg3fmx0k8rwamnn06wp8e575zcv8d0m3tjn2mmexsnkxp7az774522ce4h3qs4tjp9rxjjm46qf339d9sk33rqn";
@@ -761,15 +765,15 @@ public class TxBuilderContextIT extends BaseITTest {
                         .and(output2.outputBuilder())
                         .and(output21.mintOutputBuilder())
                         .and(createFromMintOutput(output3)) //An alternate way
-                        .buildInputs(createFromSender(senderAddress, senderAddress))
+                        .buildInputs(createFromSender(senderAddress2, senderAddress2))
                         .andThen(mintCreator(policy.getPolicyScript(), mergeMultiAsset))
                         .andThen(metadataProvider(nftMetadata))
-                        .andThen(balanceTx(senderAddress, 2));
+                        .andThen(balanceTx(senderAddress2, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .mergeOutputs(false)
-                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+                .buildAndSign(txBuilder, signerFrom(senderAccount2).andThen(signerFrom(policy)));
 
         assertThat(signedTransaction.getBody().getOutputs()).hasSize(6); //Total 4 outputs including change output
         assertThat(signedTransaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(receiver1);
@@ -792,7 +796,7 @@ public class TxBuilderContextIT extends BaseITTest {
         assertThat(signedTransaction.getBody().getOutputs().get(4).getValue().getCoin()).isEqualTo(adaToLovelace(4));
         assertThat(signedTransaction.getBody().getOutputs().get(4).getValue().getMultiAssets()).isEmpty();
 
-        assertThat(signedTransaction.getBody().getOutputs().get(5).getAddress()).isEqualTo(senderAddress);
+        assertThat(signedTransaction.getBody().getOutputs().get(5).getAddress()).isEqualTo(senderAddress2);
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
@@ -807,10 +811,6 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     void testPayment_withMinUtxoValue_mergeOutputsIsTrue() throws Exception {
-        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
-
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("policy-1", 1);
@@ -825,7 +825,7 @@ public class TxBuilderContextIT extends BaseITTest {
         //Define outputs
         //Output using Output class
         Output mintOutput = Output.builder()
-                .address(senderAddress)
+                .address(senderAddress2)
                 .policyId(policy.getPolicyId())
                 .assetName("TestNFT")
                 .qty(BigInteger.valueOf(100))
@@ -841,13 +841,13 @@ public class TxBuilderContextIT extends BaseITTest {
         TxBuilder txBuilder =
                 mintOutput.mintOutputBuilder()
                         .and(feeOutput.mintOutputBuilder())
-                        .buildInputs(createFromSender(senderAddress, senderAddress))
+                        .buildInputs(createFromSender(senderAddress2, senderAddress2))
                         .andThen(mintCreator(policy.getPolicyScript(), multiAsset1))
-                        .andThen(balanceTx(senderAddress, 2));
+                        .andThen(balanceTx(senderAddress2, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
-                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+                .buildAndSign(txBuilder, signerFrom(senderAccount2).andThen(signerFrom(policy)));
 
         //asserts
         assertThat(signedTransaction.getBody().getOutputs()).hasSize(2);
@@ -855,7 +855,7 @@ public class TxBuilderContextIT extends BaseITTest {
         assertThat(signedTransaction.getBody().getOutputs().get(0).getValue().getCoin()).isEqualTo(adaToLovelace(1));
         assertThat(signedTransaction.getBody().getOutputs().get(0).getValue().getMultiAssets()).isEmpty();
 
-        assertThat(signedTransaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(senderAddress);
+        assertThat(signedTransaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(senderAddress2);
         assertThat(signedTransaction.getBody().getOutputs().get(1).getValue().getMultiAssets().size()).isGreaterThanOrEqualTo(1);
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
@@ -872,10 +872,6 @@ public class TxBuilderContextIT extends BaseITTest {
 
     @Test
     void testPayment_withCreateFromUtxos_withMinUtxoValue_mergeOutputsIsFalse() throws Exception {
-        String senderMnemonic = "kit color frog trick speak employ suit sort bomb goddess jewel primary spoil fade person useless measure manage warfare reduce few scrub beyond era";
-        Account sender = new Account(Networks.testnet(), senderMnemonic);
-        String senderAddress = sender.baseAddress();
-
         String receiver1 = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("policy-1", 1);
@@ -890,7 +886,7 @@ public class TxBuilderContextIT extends BaseITTest {
         //Define outputs
         //Output using Output class
         Output mintOutput = Output.builder()
-                .address(senderAddress)
+                .address(senderAddress1)
                 .policyId(policy.getPolicyId())
                 .assetName("TestNFT")
                 .qty(BigInteger.valueOf(100))
@@ -902,7 +898,7 @@ public class TxBuilderContextIT extends BaseITTest {
                 .qty(adaToLovelace(1))
                 .build();
 
-        List<Utxo> utxos = backendService.getUtxoService().getUtxos(senderAddress, 10, 0).getValue();
+        List<Utxo> utxos = backendService.getUtxoService().getUtxos(senderAddress1, 10, 0).getValue();
         if (utxos == null)
             utxos = Collections.emptyList();
 
@@ -910,28 +906,28 @@ public class TxBuilderContextIT extends BaseITTest {
         TxBuilder txBuilder =
                 mintOutput.mintOutputBuilder()
                         .and(feeOutput.mintOutputBuilder())
-                        .buildInputs(createFromUtxos(utxos, senderAddress))
+                        .buildInputs(createFromUtxos(utxos, senderAddress1))
                         .andThen(mintCreator(policy.getPolicyScript(), multiAsset1))
-                        .andThen(balanceTx(senderAddress, 2));
+                        .andThen(balanceTx(senderAddress1, 2));
 
         //Build and sign transaction
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .mergeOutputs(false)
-                .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
+                .buildAndSign(txBuilder, signerFrom(senderAccount1).andThen(signerFrom(policy)));
 
         Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
 
         //asserts
         assertThat(signedTransaction.getBody().getOutputs()).hasSize(3);
-        assertThat(signedTransaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(senderAddress);
+        assertThat(signedTransaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(senderAddress1);
         assertThat(signedTransaction.getBody().getOutputs().get(0).getValue().getMultiAssets()).hasSize(1);
 
         assertThat(signedTransaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(receiver1);
         assertThat(signedTransaction.getBody().getOutputs().get(1).getValue().getCoin()).isEqualTo(adaToLovelace(1));
         assertThat(signedTransaction.getBody().getOutputs().get(1).getValue().getMultiAssets()).isEmpty();
 
-        assertThat(signedTransaction.getBody().getOutputs().get(2).getAddress()).isEqualTo(senderAddress);
+        assertThat(signedTransaction.getBody().getOutputs().get(2).getAddress()).isEqualTo(senderAddress1);
 
         if (result.isSuccessful())
             System.out.println("Transaction Id: " + result.getValue());

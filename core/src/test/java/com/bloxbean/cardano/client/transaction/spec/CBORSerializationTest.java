@@ -13,6 +13,7 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadata;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
@@ -872,6 +873,7 @@ public class CBORSerializationTest {
         public void testCompatibilityWithNamiTxnHex_1() throws Exception {
             String namiTxnHex = "84a30082825820a149b3c9740b8f8b957415442336bec65bb393dfa93e88473c71a8fb7959c6d005825820297b1e742de3e7dd5f013424f5ff62d82fdf65f9d7194de1eff286a8232a196c00018282583900aff761fc1d70474cfeec6d86a2e428231949ebeb8b71464791256205167590ce95c329c8b4ba3e8e254bcc2d1e8db792dc66aa0117f94047821a0014851ea1581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da143434144194e20825839003175d03902583e82037438cc86732f6e539f803f9a8b2d4ee164b9d0c77e617030631811f60a1f8a8be26d65a57ff71825b336cc6b76361d821a045c5f93a2581c0f39b76d79c90289b42af0a4759f04c2cb0adcc42ae19787ff8084eea14541444d494e01581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da1434341441a23c19850021a0002aaeda0f5f6";
             Transaction desTxn = Transaction.deserialize(HexUtil.decodeHexString(namiTxnHex));
+            desTxn.setEra(Era.Babbage);
 
             assertThat(desTxn.serializeToHex()).isEqualTo(namiTxnHex);
         }
@@ -881,6 +883,7 @@ public class CBORSerializationTest {
             String namiTxnHex = "84a300838258209f213609a073f632b0f38c8bf0a2b525f6899a0e5ee006117a5734d3bef2585c048258208a1df7d5c860bb63f3b344c03f4ddd8a34a7619ce223fdb8a73f6e8a92d3813b008258201c4859ad2027aa4d8e17f66e266ea83928d575c9dd9e72ca271db9ca1bf11b4f000182825839009cc9fc0f9d97e92ef5c40931bdc9a327be94f6c9d0390d4cbd8b62d16791a7c8e95c53ffb72600ea13051f03854eef6267298760265f5bbb821a1c528901a3581c0df4e527fb4ed572c6aca78a0e641701c70715261810fa6ee98db9efa1434f50441a0bebc214581c0f39b76d79c90289b42af0a4759f04c2cb0adcc42ae19787ff8084eea14541444d494e01581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da143434144148258390015cabc8bf1382d2dae1f317c862c3cd3de6400c8db7de092483ce9c91bfb8f3e334b0d42cf6f28e536bcb3151d64484c5c78d47d849d4291821a0014851ea1581cac6d9e75ca58379c394378a64ae24eddf72b2e78d73f635bac32d03da143434144194e0c021a0002c851a0f5f6";
 
             Transaction namiTxn = Transaction.deserialize(HexUtil.decodeHexString(namiTxnHex));
+            namiTxn.setEra(Era.Babbage);
             String finalTxnHex = namiTxn.serializeToHex();
 
             assertThat(finalTxnHex).isEqualTo(namiTxnHex);
@@ -935,10 +938,11 @@ public class CBORSerializationTest {
             String namiMnemonic = "round stomach concert dizzy pluck express inject seminar satoshi vote essence artist pink awful bubble frog bullet horror spoil risk false dolphin limit sock";
 
             Transaction transaction = Transaction.deserialize(HexUtil.decodeHexString(namiTxnHex));
+            transaction.setEra(Era.Babbage);
             Account namiAcc = new Account(Networks.testnet(), namiMnemonic);
             Transaction signedTxn = namiAcc.sign(transaction);
 
-            String finalWitnessHex = HexUtil.encodeHexString(CborSerializationUtil.serialize(signedTxn.getWitnessSet().serialize()));
+            String finalWitnessHex = HexUtil.encodeHexString(CborSerializationUtil.serialize(signedTxn.getWitnessSet().serialize(Era.Babbage)));
 
             assertThat(finalWitnessHex).isEqualTo(namiWitness);
             assertThat(transaction.serializeToHex()).isEqualTo(namiTxnHex);

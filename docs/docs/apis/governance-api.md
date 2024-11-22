@@ -1,16 +1,14 @@
 ---
 description: Governance API Usage
 sidebar_label: Governance Api
-sidebar_position: 1
+sidebar_position: 3
 ---
 
-# Governance Api (Preview)
+# Governance Api
 
 QuickTx Api now supports governance related transactions. It's supported through the existing `Tx` class.
 
-**Version:** 0.5.1 and later
-
-**Note:** This is a preview version and the API is subject to change.
+**Version:** 0.6.0-beta1 and later
 
 Check out QuickTx Governance API [**integration tests**](https://github.com/bloxbean/cardano-client-lib/blob/master/quicktx/src/it/java/com/bloxbean/cardano/client/quicktx/GovernanceTxIT.java) for more examples.
 
@@ -40,6 +38,7 @@ Tx drepRegTx = new Tx()
 
 Result<String> result = quickTxBuilder.compose(drepRegTx)
         .withSigner(SignerProviders.signerFrom(account))
+        .withSigner(SignerProviders.signerFrom(account.drepHdKeyPair()))
         .completeAndWait(s -> System.out.println(s));
 ```
 
@@ -105,11 +104,10 @@ Using the `Tx` class, you can create a governance proposal such as
 - UpdateCommittee
 
 
-Use the createProposal() method of the Tx class to create a proposal. In addition to the GovAction instance, you also need to
-specify the amount of ADA to be deposited for the proposal creation and the return address (stake address) to which the
-deposit will be returned.
+Use the `createProposal()` method of the Tx class to create a proposal. In addition to the GovAction instance, you also need to
+specify the return address (stake address) to which the deposit will be returned.
 
-The transaction needs to be signed by the account for tx fee & deposit and by the DRep credential of the account.
+The transaction needs to be signed by the account for tx fee & gov action deposit and by the DRep credential of the account.
 
 The required deposit amount for proposal creation is a protocol parameter (govActionDeposit) and it's currently set to 1000 ADA for Sanchonet.
 
@@ -124,7 +122,7 @@ var govAction = new InfoAction();
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
 
 Tx tx = new Tx()
-        .createProposal(govAction, adaToLovelace(1000), account.stakeAddress(), anchor)
+        .createProposal(govAction, account.stakeAddress(), anchor)
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
@@ -147,7 +145,7 @@ govAction.setConstitution(Constitution.builder()
         .build());
 
 Tx tx = new Tx()
-        .createProposal(govAction, adaToLovelace(1000), account.stakeAddress(), anchor)
+        .createProposal(govAction, account.stakeAddress(), anchor)
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
@@ -156,7 +154,7 @@ Result<String> result = quickTxBuilder.compose(tx)
         .completeAndWait(s -> System.out.println(s));
 ```
 
-### Creae a NoConfidence Proposal
+### Create a NoConfidence Proposal
 
 Use `NoConfidence` to create a proposal for no confidence.
 
@@ -166,7 +164,7 @@ noConfidence.setPrevGovActionId(new GovActionId("<prevGovActionTxHash>", prevGov
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
 
 Tx tx = new Tx()
-        .createProposal(noConfidence, adaToLovelace(1000), account.stakeAddress(), anchor)
+        .createProposal(noConfidence, account.stakeAddress(), anchor)
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
@@ -191,7 +189,7 @@ parameterChange.setProtocolParamUpdate(ProtocolParamUpdate.builder()
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
         
 Tx tx = new Tx()
-        .createProposal(parameterChange, adaToLovelace(1000), account.stakeAddress(), anchor)
+        .createProposal(parameterChange, account.stakeAddress(), anchor)
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
@@ -212,7 +210,7 @@ hardforkInitiation.setProtocolVersion(new ProtocolVersion(9, 0));
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
 
 Tx tx = new Tx()
-        .createProposal(hardforkInitiation, adaToLovelace(1000), account.stakeAddress(), anchor)
+        .createProposal(hardforkInitiation, account.stakeAddress(), anchor)
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
@@ -233,7 +231,7 @@ treasuryWithdrawalsAction.addWithdrawal(new Withdrawal("stake_test1ur6l9f5l9jw44
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
 
 Tx tx = new Tx()
-        .createProposal(treasuryWithdrawalsAction, adaToLovelace(1000), account.stakeAddress(), anchor)
+        .createProposal(treasuryWithdrawalsAction, account.stakeAddress(), anchor)
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
@@ -256,7 +254,7 @@ updateCommittee.setQuorumThreshold(new UnitInterval(BigInteger.valueOf(1), BigIn
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
 
 Tx tx = new Tx()
-        .createProposal(updateCommittee, adaToLovelace(1000), account.stakeAddress(), anchor)
+        .createProposal(updateCommittee, account.stakeAddress(), anchor)
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)

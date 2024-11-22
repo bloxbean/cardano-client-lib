@@ -1,8 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec.script;
 
-import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.UnsignedInteger;
+import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Number;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -10,6 +9,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,10 +21,18 @@ import java.util.List;
 public class ScriptAtLeast implements NativeScript {
 
     private final ScriptType type = ScriptType.atLeast;
-    private int required;
+    private BigInteger required;
     private final List<NativeScript> scripts = new ArrayList<>();
 
     public ScriptAtLeast(int required) {
+        this.required = BigInteger.valueOf(required);
+    }
+
+    public ScriptAtLeast(long required) {
+        this.required = BigInteger.valueOf(required);
+    }
+
+    public ScriptAtLeast(BigInteger required) {
         this.required = required;
     }
 
@@ -33,12 +41,21 @@ public class ScriptAtLeast implements NativeScript {
         return this;
     }
 
-    //script_n_of_k = (3, n: uint, [ * native_script ])
+    //Till Babbage: script_n_of_k = (3, n: uint, [ * native_script ])
+    //Conway: script_n_of_k = (3, int64, [* native_script])
     @Override
     public DataItem serializeAsDataItem() throws CborSerializationException {
         Array array = new Array();
         array.add(new UnsignedInteger(3));
-        array.add(new UnsignedInteger(required));
+
+        if (required == null)
+            required = BigInteger.ZERO;
+
+        if (required.signum() >= 0) {
+            array.add(new UnsignedInteger(required));
+        } else {
+            array.add(new NegativeInteger(required));
+        }
 
         Array scriptsArray = new Array();
         for (NativeScript script : scripts) {
@@ -50,7 +67,7 @@ public class ScriptAtLeast implements NativeScript {
     }
 
     public static ScriptAtLeast deserialize(Array array) throws CborDeserializationException {
-        int required = ((UnsignedInteger) (array.getDataItems().get(1))).getValue().intValue();
+        BigInteger required = ((Number) (array.getDataItems().get(1))).getValue();
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(required);
         Array scriptsDIArray = (Array) (array.getDataItems().get(2));
         for (DataItem scriptDI : scriptsDIArray.getDataItems()) {
@@ -64,8 +81,8 @@ public class ScriptAtLeast implements NativeScript {
     }
 
     public static ScriptAtLeast deserialize(JsonNode jsonNode) throws CborDeserializationException {
-        int required = jsonNode.get("required").asInt();
-        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(required);
+        String required = jsonNode.get("required").asText();
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(new BigInteger(required));
 
         ArrayNode scriptsNode = (ArrayNode) jsonNode.get("scripts");
         for (JsonNode scriptNode : scriptsNode) {

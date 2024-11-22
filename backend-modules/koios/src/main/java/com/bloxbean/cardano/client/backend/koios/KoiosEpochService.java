@@ -14,6 +14,7 @@ import rest.koios.client.backend.api.epoch.model.EpochInfo;
 import rest.koios.client.backend.api.epoch.model.EpochParams;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -178,25 +179,57 @@ public class KoiosEpochService implements EpochService {
         if (epochParams.getCoinsPerUtxoSize() != null) {
             protocolParams.setCoinsPerUtxoSize(epochParams.getCoinsPerUtxoSize());
         }
+
+        //Pool voting threshold
+        protocolParams.setPvtMotionNoConfidence(epochParams.getPvtMotionNoConfidence());
+        protocolParams.setPvtCommitteeNormal(epochParams.getPvtCommitteeNormal());
+        protocolParams.setPvtCommitteeNoConfidence(epochParams.getPvtCommitteeNoConfidence());
+        protocolParams.setPvtHardForkInitiation(epochParams.getPvtHardForkInitiation());
+        protocolParams.setPvtPPSecurityGroup(epochParams.getPvtppSecurityGroup());
+
+        //Drep vote thresholds
+        protocolParams.setDvtMotionNoConfidence(epochParams.getDvtMotionNoConfidence());
+        protocolParams.setDvtCommitteeNormal(epochParams.getDvtCommitteeNormal());
+        protocolParams.setDvtCommitteeNoConfidence(epochParams.getDvtCommitteeNoConfidence());
+        protocolParams.setDvtUpdateToConstitution(epochParams.getDvtUpdateToConstitution());
+        protocolParams.setDvtHardForkInitiation(epochParams.getDvtHardForkInitiation());
+
+        protocolParams.setDvtPPNetworkGroup(epochParams.getDvtPPNetworkGroup());
+        protocolParams.setDvtPPEconomicGroup(epochParams.getDvtPPEconomicGroup());
+        protocolParams.setDvtPPTechnicalGroup(epochParams.getDvtPPTechnicalGroup());
+        protocolParams.setDvtPPGovGroup(epochParams.getDvtPPGovGroup());
+        protocolParams.setDvtTreasuryWithdrawal(epochParams.getDvtTreasuryWithdrawal());
+
+        protocolParams.setCommitteeMinSize(epochParams.getCommitteeMinSize());
+        protocolParams.setCommitteeMaxTermLength(epochParams.getCommitteeMaxTermLength());
+        protocolParams.setGovActionLifetime(epochParams.getGovActionLifetime());
+        if (epochParams.getGovActionDeposit() != null) {
+            protocolParams.setGovActionDeposit(new BigInteger(epochParams.getGovActionDeposit().trim()));
+        }
+        if (epochParams.getDrepDeposit() != null) {
+            protocolParams.setDrepDeposit(new BigInteger(epochParams.getDrepDeposit().trim()));
+        }
+        protocolParams.setDrepActivity(epochParams.getDrepActivity());
+        protocolParams.setMinFeeRefScriptCostPerByte(epochParams.getMinFeeRefScriptCostPerByte());
+
         return Result.success("OK").withValue(protocolParams).code(200);
     }
 
-    private Map<String, Map<String, Long>> convertToCostModels(JsonNode costModelsJsonNode) {
+    private LinkedHashMap<String, LinkedHashMap<String, Long>> convertToCostModels(JsonNode costModelsJsonNode) {
         String costModelsJson = costModelsJsonNode.asText();
         try {
             costModelsJson = objectMapper.writeValueAsString(costModelsJsonNode);
         } catch (JsonProcessingException ignored) {}
+
+        LinkedHashMap<String, LinkedHashMap<String, Long>> res = new LinkedHashMap<>();
         try {
-            Map<String, Map<String, Long>> result2 = objectMapper.readValue(costModelsJson, new TypeReference<>() {});
-            return result2;
-        } catch (JsonProcessingException ignored) {}
-        Map<String, Map<String, Long>> res = new HashMap<>();
-        try {
-            Map<String, List<Long>> result = objectMapper.readValue(costModelsJson, new TypeReference<>() {});
+            LinkedHashMap<String, List<Long>> result = objectMapper.readValue(costModelsJson, new TypeReference<LinkedHashMap<String, List<Long>>>() {});
             final AtomicInteger plutusV1IndexHolder = new AtomicInteger();
-            Map<String, Long> plutusV1CostModelsMap = new HashMap<>();
+            LinkedHashMap<String, Long> plutusV1CostModelsMap = new LinkedHashMap<>();
             final AtomicInteger plutusV2IndexHolder = new AtomicInteger();
-            Map<String, Long> plutusV2CostModelsMap = new HashMap<>();
+            LinkedHashMap<String, Long> plutusV2CostModelsMap = new LinkedHashMap<>();
+            final AtomicInteger plutusV3IndexHolder = new AtomicInteger();
+            LinkedHashMap<String, Long> plutusV3CostModelsMap = new LinkedHashMap<>();
             result.forEach((key, value) -> {
                 if (key.equals("PlutusV1")) {
                     value.forEach(aLong -> {
@@ -210,6 +243,12 @@ public class KoiosEpochService implements EpochService {
                         plutusV2CostModelsMap.put(PlutusOps.getOperations(2).get(index), aLong);
                     });
                     res.put(key, plutusV2CostModelsMap);
+                }  else if (key.equals("PlutusV3")) {
+                    value.forEach(aLong -> {
+                        final int index = plutusV3IndexHolder.getAndIncrement();
+                        plutusV3CostModelsMap.put(PlutusOps.getOperations(3).get(index), aLong);
+                    });
+                    res.put(key, plutusV3CostModelsMap);
                 }
             });
         } catch (JsonProcessingException ignored) {}

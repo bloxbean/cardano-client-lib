@@ -1,12 +1,10 @@
 package com.bloxbean.cardano.client.transaction.spec.governance.actions;
 
-import co.nstant.in.cbor.model.Array;
-import co.nstant.in.cbor.model.DataItem;
-import co.nstant.in.cbor.model.Map;
-import co.nstant.in.cbor.model.UnsignedInteger;
+import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.address.util.AddressUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Withdrawal;
 import lombok.*;
 
@@ -34,6 +32,7 @@ public class TreasuryWithdrawalsAction implements GovAction {
 
     @Builder.Default
     private List<Withdrawal> withdrawals = new ArrayList<>();
+    private byte[] policyHash;
 
     public void addWithdrawal(Withdrawal withdrawal) {
         if(withdrawals == null)
@@ -44,7 +43,7 @@ public class TreasuryWithdrawalsAction implements GovAction {
 
     @Override
     @SneakyThrows
-    public Array serialize() {
+    public Array serialize(Era era) {
         Objects.requireNonNull(withdrawals);
 
         Array array = new Array();
@@ -56,6 +55,14 @@ public class TreasuryWithdrawalsAction implements GovAction {
         }
 
         array.add(withdrawalMap);
+
+        if (policyHash != null && policyHash.length > 0) {
+            if (policyHash.length != 28)
+                throw new IllegalArgumentException("Policy hash length should be 28 bytes");
+            array.add(new ByteString(policyHash));
+        } else
+            array.add(SimpleValue.NULL);
+
         return array;
     }
 
@@ -79,6 +86,12 @@ public class TreasuryWithdrawalsAction implements GovAction {
             withdrawals.add(new Withdrawal(rewardAddress, coin));
         }
 
-        return new TreasuryWithdrawalsAction(withdrawals);
+        var policyHashDI = govActionDIList.get(2); //policy hash
+        byte[] policyHash = null;
+        if (policyHashDI != SimpleValue.NULL) {
+            policyHash = ((ByteString) policyHashDI).getBytes();
+        }
+
+        return new TreasuryWithdrawalsAction(withdrawals, policyHash);
     }
 }

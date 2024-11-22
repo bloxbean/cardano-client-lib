@@ -109,6 +109,11 @@ public class SignerProviders {
         };
     }
 
+    /**
+     * Function to sign a transaction with one or more DRep key(s) of <code>Account</code>(s)
+     * @param signers - account(s) to sign the transaction
+     * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
+     */
     public static TxSigner drepKeySignerFrom(Account... signers) {
         return transaction -> {
             Transaction outputTxn = transaction;
@@ -125,6 +130,40 @@ public class SignerProviders {
             Transaction outputTxn = transaction;
             for (Wallet wallet : wallets)
                 outputTxn = wallet.signWithStakeKey(outputTxn);
+            return outputTxn;
+        };
+    }
+
+    //TODO -- Add Integration test
+    /**
+     * Function to sign a transaction with one or more Committee Cold key(s) of <code>Account</code>(s)
+     * @param signers - account(s) to sign the transaction
+     * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
+     */
+    public static TxSigner committeeColdKeySignerFrom(Account... signers) {
+        return transaction -> {
+            Transaction outputTxn = transaction;
+            for (Account signer : signers) {
+                outputTxn = signer.signWithCommitteeColdKey(outputTxn);
+            }
+
+            return outputTxn;
+        };
+    }
+
+    //TODO -- Add Integration test
+    /**
+     * Function to sign a transaction with one or more Committee Hot key(s) of <code>Account</code>(s)
+     * @param signers - account(s) to sign the transaction
+     * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
+     */
+    public static TxSigner committeeHotKeySignerFrom(Account... signers) {
+        return transaction -> {
+            Transaction outputTxn = transaction;
+            for (Account signer : signers) {
+                outputTxn = signer.signWithCommitteeHotKey(outputTxn);
+            }
+
             return outputTxn;
         };
     }

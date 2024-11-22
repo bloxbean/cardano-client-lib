@@ -4,6 +4,7 @@ import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.governance.Constitution;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,7 +28,7 @@ public class NewConstitution implements GovAction {
     private Constitution constitution;
 
     @Override
-    public Array serialize() {
+    public Array serialize(Era era) {
         Objects.requireNonNull(constitution);
 
         Array array = new Array();

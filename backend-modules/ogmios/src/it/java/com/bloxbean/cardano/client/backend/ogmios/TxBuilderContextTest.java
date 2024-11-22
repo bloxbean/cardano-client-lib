@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
-import com.bloxbean.cardano.client.backend.ogmios.websocket.Ogmios5BaseTest;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.cip.cip25.NFT;
 import com.bloxbean.cardano.client.cip.cip25.NFTFile;
@@ -42,14 +41,14 @@ import static com.bloxbean.cardano.client.function.helper.SignerProviders.signer
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class TxBuilderContextTest extends Ogmios5BaseTest {
+public class TxBuilderContextTest extends OgmiosBaseTest {
     UtxoSupplier utxoSupplier;
     ProtocolParams protocolParams;
 
     @BeforeEach
     public void setup() throws ApiException {
         utxoSupplier = new DefaultUtxoSupplier(kupoUtxoService);
-        protocolParams = ogmios5BackendService.getEpochService().getProtocolParameters().getValue();
+        protocolParams = ogmiosBackendService.getEpochService().getProtocolParameters().getValue();
     }
 
     @Test
@@ -163,7 +162,7 @@ public class TxBuilderContextTest extends Ogmios5BaseTest {
 
         System.out.println(signedTxn);
 
-        Result<String> result = ogmios5BackendService.getTransactionService().submitTransaction(signedTxn.serialize());
+        Result<String> result = ogmiosBackendService.getTransactionService().submitTransaction(signedTxn.serialize());
         System.out.println(result);
 
         assertThat(result.isSuccessful());
@@ -256,7 +255,7 @@ public class TxBuilderContextTest extends Ogmios5BaseTest {
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
 
-        Result<String> result = ogmios5BackendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+        Result<String> result = ogmiosBackendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
 
         if (result.isSuccessful())
@@ -354,7 +353,7 @@ public class TxBuilderContextTest extends Ogmios5BaseTest {
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
 
-        Result<String> result = ogmios5BackendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+        Result<String> result = ogmiosBackendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
 
         if (result.isSuccessful())
@@ -469,7 +468,7 @@ public class TxBuilderContextTest extends Ogmios5BaseTest {
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
 
-        Result<String> result = ogmios5BackendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+        Result<String> result = ogmiosBackendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
 
         if (result.isSuccessful())
@@ -528,7 +527,7 @@ public class TxBuilderContextTest extends Ogmios5BaseTest {
         Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .buildAndSign(txBuilder, signerFrom(sender).andThen(signerFrom(policy)));
 
-        Result<String> result = ogmios5BackendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+        Result<String> result = ogmiosBackendService.getTransactionService().submitTransaction(signedTransaction.serialize());
         System.out.println(result);
         assertTrue(result.isSuccessful());
 

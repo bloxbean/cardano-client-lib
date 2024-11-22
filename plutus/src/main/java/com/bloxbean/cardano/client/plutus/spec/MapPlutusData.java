@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 @Getter
 @AllArgsConstructor
@@ -22,7 +22,7 @@ import java.util.HashMap;
 public class MapPlutusData implements PlutusData {
 
     @Builder.Default
-    private java.util.Map<PlutusData, PlutusData> map = new HashMap<>();
+    private java.util.Map<PlutusData, PlutusData> map = new LinkedHashMap<>();
 
     public static MapPlutusData deserialize(Map mapDI) throws CborDeserializationException {
         if (mapDI == null) {
@@ -42,7 +42,7 @@ public class MapPlutusData implements PlutusData {
 
     public MapPlutusData put(PlutusData key, PlutusData value) {
         if (map == null)
-            map = new HashMap<>();
+            map = new LinkedHashMap<>();
 
         map.put(key, value);
 

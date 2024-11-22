@@ -9,45 +9,45 @@ import java.util.*;
 
 @Constr(alternative = 1)
 public class A {
-    Long l = 0L;
-    BigInteger b = BigInteger.valueOf(0);
-    String name = "";
-    String address = "";
-    Optional<Boolean> optionalBoolean;
+    public Long l = 0L;
+    public BigInteger b = BigInteger.valueOf(0);
+    public String name = "";
+    public String address = "";
+    public Optional<Boolean> optionalBoolean;
 }
 
 @Constr
-class SuperA {
-    A a;
-    BigInteger c;
-    String country;
-    List<String> days = new ArrayList<>();
-    List<Integer> ints = new ArrayList<>();
-    byte[] bytes;
+public class SuperA {
+    public A a;
+    public BigInteger c;
+    public String country;
+    public List<String> days = new ArrayList<>();
+    public List<Integer> ints = new ArrayList<>();
+    public byte[] bytes;
 }
 
 @Constr(alternative = 2)
-class SuperB {
-    SuperA sa;
-    Map<String, A> map = new HashMap<>();
-    BigInteger c;
+public class SuperB {
+    public SuperA sa;
+    public Map<String, A> map = new HashMap<>();
+    public BigInteger c;
 }
 
 @Constr
-class C {
-    long l;
-    int i;
+public class C {
+    public long l;
+    public int i;
 }
 
 
 @Constr
-class ClassWithOptional {
-    long l;
+public class ClassWithOptional {
+    public long l;
 
-    int i;
+    public int i;
 
-    Optional<Long> k;
+    public Optional<Long> k;
 
     @PlutusIgnore
-    DataInputStream din;
+    public DataInputStream din;
 }
