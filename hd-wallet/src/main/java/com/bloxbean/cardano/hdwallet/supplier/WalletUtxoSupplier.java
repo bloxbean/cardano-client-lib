@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.hdwallet.utxosupplier;
+package com.bloxbean.cardano.hdwallet.supplier;
 
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Utxo;

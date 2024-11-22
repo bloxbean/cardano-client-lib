@@ -17,10 +17,10 @@ import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
-import com.bloxbean.cardano.hdwallet.utxosupplier.WalletUtxoSupplier;
+import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
-import lombok.Setter;
+
 import java.util.*;
 
 public class Wallet {
@@ -31,49 +31,44 @@ public class Wallet {
     private final Network network;
     @Getter
     private final String mnemonic;
-    @Setter
-    @Getter
-    private WalletUtxoSupplier utxoSupplier;
     private static final int INDEX_SEARCH_RANGE = 20;
     private String stakeAddress;
     private Map<Integer, Account> cache;
     private HdKeyPair rootKeys;
     private HdKeyPair stakeKeys;
 
-    public Wallet(WalletUtxoSupplier utxoSupplier) {
-        this(Networks.mainnet(), utxoSupplier);
+    public Wallet() {
+        this(Networks.mainnet());
     }
 
-    public Wallet(Network network, WalletUtxoSupplier utxoSupplier) {
-        this(network, Words.TWENTY_FOUR, utxoSupplier);
+    public Wallet(Network network) {
+        this(network, Words.TWENTY_FOUR);
     }
 
-    public Wallet(Network network, Words noOfWords, WalletUtxoSupplier utxoSupplier) {
-        this(network, noOfWords, 0, utxoSupplier);
+    public Wallet(Network network, Words noOfWords) {
+        this(network, noOfWords, 0);
     }
 
-    public Wallet(Network network, Words noOfWords, int account, WalletUtxoSupplier utxoSupplier) {
+    public Wallet(Network network, Words noOfWords, int account) {
         this.network = network;
         this.mnemonic = MnemonicUtil.generateNew(noOfWords);
         this.account = account;
-        this.utxoSupplier = utxoSupplier;
         cache = new HashMap<>();
     }
 
-    public Wallet(String mnemonic, WalletUtxoSupplier utxoSupplier) {
-        this(Networks.mainnet(), mnemonic, utxoSupplier);
+    public Wallet(String mnemonic) {
+        this(Networks.mainnet(), mnemonic);
     }
 
-    public Wallet(Network network, String mnemonic, WalletUtxoSupplier utxoSupplier) {
-        this(network,mnemonic, 0, utxoSupplier);
+    public Wallet(Network network, String mnemonic) {
+        this(network,mnemonic, 0);
     }
 
-    public Wallet(Network network, String mnemonic, int account, WalletUtxoSupplier utxoSupplier) {
+    public Wallet(Network network, String mnemonic, int account) {
         this.network = network;
         this.mnemonic = mnemonic;
         this.account = account;
         MnemonicUtil.validateMnemonic(this.mnemonic);
-        this.utxoSupplier = utxoSupplier;
         cache = new HashMap<>();
     }
 
@@ -189,8 +184,8 @@ public class Wallet {
      * @param txToSign
      * @return signed Transaction
      */
-    public Transaction sign(Transaction txToSign) {
-        List<Account> signers = getSignersForTransaction(txToSign);
+    public Transaction sign(Transaction txToSign, WalletUtxoSupplier utxoSupplier) {
+        List<Account> signers = getSignersForTransaction(txToSign, utxoSupplier);
 
         if(signers.isEmpty())
             throw new RuntimeException("No signers found!");
@@ -202,14 +197,16 @@ public class Wallet {
 
     /**
      * Returns a list with signers needed for this transaction
+     *
      * @param tx
+     * @param utxoSupplier
      * @return
      */
-    public List<Account> getSignersForTransaction(Transaction tx) {
-        return getSignersForInputs(tx.getBody().getInputs());
+    public List<Account> getSignersForTransaction(Transaction tx, WalletUtxoSupplier utxoSupplier) {
+        return getSignersForInputs(tx.getBody().getInputs(), utxoSupplier);
     }
 
-    private List<Account> getSignersForInputs(List<TransactionInput> inputs) {
+    private List<Account> getSignersForInputs(List<TransactionInput> inputs, WalletUtxoSupplier utxoSupplier) {
         // searching for address to sign
         List<Account> signers = new ArrayList<>();
         List<TransactionInput> remaining = new ArrayList<>(inputs);

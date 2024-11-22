@@ -21,8 +21,9 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
-import com.bloxbean.cardano.hdwallet.utxosupplier.WalletUtxoSupplier;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.hdwallet.Wallet;
+import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -165,6 +166,7 @@ public class QuickTxBuilder {
         private boolean ignoreScriptCostEvaluationError = true;
         private Era serializationEra;
         private boolean removeDuplicateScriptWitnesses = false;
+        private Wallet signerWallet;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -401,6 +403,11 @@ public class QuickTxBuilder {
             Transaction transaction = build();
             if (signers != null)
                 transaction = signers.sign(transaction);
+            if(signerWallet != null) {
+                if(!(utxoSupplier instanceof WalletUtxoSupplier))
+                    throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
+                transaction = signerWallet.sign(transaction, (WalletUtxoSupplier) utxoSupplier);
+            }
 
             return transaction;
         }
@@ -571,6 +578,15 @@ public class QuickTxBuilder {
                 this.signers = signer;
             else
                 this.signers = this.signers.andThen(signer);
+            return this;
+        }
+        /**
+         * Sign transaction with the given wallet
+         * @param wallet
+         * @return TxContext
+         */
+        public TxContext withSigner(Wallet wallet) {
+            this.signerWallet = wallet;
             return this;
         }
 
