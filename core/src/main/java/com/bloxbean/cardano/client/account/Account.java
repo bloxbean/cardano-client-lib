@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.account;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
-import com.bloxbean.cardano.client.common.MnemonicUtil;
+import com.bloxbean.cardano.client.crypto.MnemonicUtil;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
