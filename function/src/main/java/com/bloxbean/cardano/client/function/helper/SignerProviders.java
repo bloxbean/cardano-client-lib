@@ -8,6 +8,9 @@ import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.hdwallet.Wallet;
+import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
+
+import java.util.stream.Collectors;
 
 /**
  * Provides helper methods to get TxSigner function to sign a <code>{@link Transaction}</code> object
@@ -39,7 +42,10 @@ public class SignerProviders {
      */
     public static TxSigner signerFrom(Wallet wallet) {
         return (context, transaction) -> {
-            var utxos = context.getUtxos();
+            var utxos = context.getUtxos()
+                    .stream().filter(utxo -> utxo instanceof WalletUtxo)
+                    .map(utxo -> (WalletUtxo) utxo)
+                    .collect(Collectors.toSet());
             Transaction outputTxn = wallet.sign(transaction, utxos);
             return outputTxn;
         };

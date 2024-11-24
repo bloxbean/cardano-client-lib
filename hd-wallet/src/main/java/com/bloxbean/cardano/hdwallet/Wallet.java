@@ -3,10 +3,9 @@ package com.bloxbean.cardano.hdwallet;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
-import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.common.MnemonicUtil;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.MnemonicUtil;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyGenerator;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
@@ -16,13 +15,17 @@ import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
-import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
-import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
+import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
+/**
+ * The Wallet class represents wallet with functionalities to manage accounts, addresses.
+ */
 public class Wallet {
 
     @Getter
@@ -31,7 +34,6 @@ public class Wallet {
     private final Network network;
     @Getter
     private final String mnemonic;
-    private static final int INDEX_SEARCH_RANGE = 20;
     private String stakeAddress;
     private Map<Integer, Account> cache;
     private HdKeyPair rootKeys;
@@ -184,57 +186,74 @@ public class Wallet {
      * @param txToSign
      * @return signed Transaction
      */
-    public Transaction sign(Transaction txToSign, WalletUtxoSupplier utxoSupplier) {
-        List<Account> signers = getSignersForTransaction(txToSign, utxoSupplier);
+    public Transaction sign(Transaction txToSign, Set<WalletUtxo> utxos) {
+        Map<String, Account> accountMap = utxos.stream()
+                .map(WalletUtxo::getDerivationPath)
+                .filter(Objects::nonNull)
+                .map(derivationPath -> getAccountObject(
+                        derivationPath.getAccount().getValue(),
+                        derivationPath.getIndex().getValue()))
+                .collect(Collectors.toMap(
+                        Account::baseAddress,
+                        Function.identity(),
+                        (existing, replacement) -> existing)); // Handle duplicates if necessary
 
-        if(signers.isEmpty())
+        var accounts = accountMap.values();
+
+        if(accounts.isEmpty())
             throw new RuntimeException("No signers found!");
 
-        for (Account signer : signers) txToSign = signer.sign(txToSign);
+        for (Account account : accounts)
+            txToSign = account.sign(txToSign);
 
         return txToSign;
     }
 
-    /**
-     * Returns a list with signers needed for this transaction
-     *
-     * @param tx
-     * @param utxoSupplier
-     * @return
-     */
-    public List<Account> getSignersForTransaction(Transaction tx, WalletUtxoSupplier utxoSupplier) {
-        return getSignersForInputs(tx.getBody().getInputs(), utxoSupplier);
-    }
-
-    private List<Account> getSignersForInputs(List<TransactionInput> inputs, WalletUtxoSupplier utxoSupplier) {
-        // searching for address to sign
-        List<Account> signers = new ArrayList<>();
-        List<TransactionInput> remaining = new ArrayList<>(inputs);
-
-        int index = 0;
-        int emptyCounter = 0;
-        while (!remaining.isEmpty() || emptyCounter >= INDEX_SEARCH_RANGE) {
-            List<Utxo> utxos = utxoSupplier.getUtxosForAccountAndIndex(this, this.account, index);
-            emptyCounter = utxos.isEmpty() ? emptyCounter + 1 : 0;
-
-            for (Utxo utxo : utxos) {
-                if(matchUtxoWithInputs(inputs, utxo, signers, index, remaining))
-                    break;
-            }
-            index++;
-        }
-        return signers;
-    }
-
-    private boolean matchUtxoWithInputs(List<TransactionInput> inputs, Utxo utxo, List<Account> signers, int index, List<TransactionInput> remaining) {
-        for (TransactionInput input : inputs) {
-            if(utxo.getTxHash().equals(input.getTransactionId()) && utxo.getOutputIndex() == input.getIndex()) {
-                signers.add(getAccountObject(index));
-                remaining.remove(input);
-            }
-        }
-        return remaining.isEmpty();
-    }
+//
+//    /**
+//     * Returns a list with signers needed for this transaction
+//     *
+//     * @param tx
+//     * @param utxoSupplier
+//     * @return
+//     */
+//    public List<Account> getSignersForTransaction(Transaction tx, WalletUtxoSupplier utxoSupplier) {
+//        return getSignersForInputs(tx.getBody().getInputs(), utxoSupplier);
+//    }
+//
+//    private List<Account> getSignersForInputs(List<TransactionInput> inputs, WalletUtxoSupplier utxoSupplier) {
+//        // searching for address to sign
+//        List<Account> signers = new ArrayList<>();
+//        List<TransactionInput> remaining = new ArrayList<>(inputs);
+//
+//        int index = 0;
+//        int emptyCounter = 0;
+//        while (!remaining.isEmpty() || emptyCounter >= INDEX_SEARCH_RANGE) {
+//            List<WalletUtxo> utxos = utxoSupplier.getUtxosForAccountAndIndex(this.account, index);
+//            emptyCounter = utxos.isEmpty() ? emptyCounter + 1 : 0;
+//
+//            for (Utxo utxo : utxos) {
+//                if(matchUtxoWithInputs(inputs, utxo, signers, index, remaining))
+//                    break;
+//            }
+//            index++;
+//        }
+//        return signers;
+//    }
+//
+//    private boolean matchUtxoWithInputs(List<TransactionInput> inputs, Utxo utxo, List<Account> signers, int index, List<TransactionInput> remaining) {
+//        for (TransactionInput input : inputs) {
+//            if(utxo.getTxHash().equals(input.getTransactionId()) && utxo.getOutputIndex() == input.getIndex()) {
+//                var account = getAccountObject(index);
+//                var accNotFound = signers.stream()
+//                        .noneMatch(acc -> account.baseAddress().equals(acc.baseAddress()));
+//                if (accNotFound)
+//                    signers.add(getAccountObject(index));
+//                remaining.remove(input);
+//            }
+//        }
+//        return remaining.isEmpty();
+//    }
 
     /**
      * Returns the stake address of the wallet.
