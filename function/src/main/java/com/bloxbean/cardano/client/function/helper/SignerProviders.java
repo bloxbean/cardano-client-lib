@@ -8,7 +8,6 @@ import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.hdwallet.Wallet;
-import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 
 /**
  * Provides helper methods to get TxSigner function to sign a <code>{@link Transaction}</code> object
@@ -22,7 +21,7 @@ public class SignerProviders {
      */
     public static TxSigner signerFrom(Account... signers) {
 
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (Account signer : signers) {
                 outputTxn = signer.sign(outputTxn);
@@ -33,14 +32,15 @@ public class SignerProviders {
     }
 
     /**
-     * Function to sign a transaction using one or more <code>Wallet</code>
-     * @param wallet wallet(s) to sign the transaction
-     * @param walletUtxoSupplier <code>WalletUtxoSupplier</code> is needed to sign with the right addresses
+     * Function to sign a transaction with a wallet
+     *
+     * @param wallet wallet to sign the transaction
      * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
      */
-    public static TxSigner signerFrom(Wallet wallet, WalletUtxoSupplier walletUtxoSupplier) {
-        return transaction -> {
-            Transaction outputTxn = wallet.sign(transaction, walletUtxoSupplier);
+    public static TxSigner signerFrom(Wallet wallet) {
+        return (context, transaction) -> {
+            var utxos = context.getUtxos();
+            Transaction outputTxn = wallet.sign(transaction, utxos);
             return outputTxn;
         };
     }
@@ -52,7 +52,7 @@ public class SignerProviders {
      */
     public static TxSigner signerFrom(SecretKey... secretKeys) {
 
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (SecretKey sk : secretKeys) {
                 outputTxn = TransactionSigner.INSTANCE.sign(outputTxn, sk);
@@ -69,7 +69,7 @@ public class SignerProviders {
      */
     public static TxSigner signerFrom(Policy... policies) {
 
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (Policy policy : policies) {
                 for (SecretKey sk : policy.getPolicyKeys()) {
@@ -88,7 +88,7 @@ public class SignerProviders {
      */
     public static TxSigner signerFrom(HdKeyPair... hdKeyPairs) {
 
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (HdKeyPair hdKeyPair : hdKeyPairs) {
                 outputTxn = TransactionSigner.INSTANCE.sign(outputTxn, hdKeyPair);
@@ -105,7 +105,7 @@ public class SignerProviders {
      */
     public static TxSigner stakeKeySignerFrom(Account... signers) {
 
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (Account signer : signers) {
                 outputTxn = signer.signWithStakeKey(outputTxn);
@@ -121,7 +121,7 @@ public class SignerProviders {
      * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
      */
     public static TxSigner drepKeySignerFrom(Account... signers) {
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (Account signer : signers) {
                 outputTxn = signer.signWithDRepKey(outputTxn);
@@ -132,7 +132,7 @@ public class SignerProviders {
     }
 
     public static TxSigner stakeKeySignerFrom(Wallet... wallets) {
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (Wallet wallet : wallets)
                 outputTxn = wallet.signWithStakeKey(outputTxn);
@@ -147,7 +147,7 @@ public class SignerProviders {
      * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
      */
     public static TxSigner committeeColdKeySignerFrom(Account... signers) {
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (Account signer : signers) {
                 outputTxn = signer.signWithCommitteeColdKey(outputTxn);
@@ -164,7 +164,7 @@ public class SignerProviders {
      * @return <code>TxSigner</code> function which returns a <code>Transaction</code> object with witnesses when invoked
      */
     public static TxSigner committeeHotKeySignerFrom(Account... signers) {
-        return transaction -> {
+        return (context, transaction) -> {
             Transaction outputTxn = transaction;
             for (Account signer : signers) {
                 outputTxn = signer.signWithCommitteeHotKey(outputTxn);
