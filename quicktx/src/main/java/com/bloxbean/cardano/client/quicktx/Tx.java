@@ -522,7 +522,7 @@ public class Tx extends AbstractTx<Tx> {
         if(senderWallet != null)
             return senderWallet;
         else
-            throw new TxBuildException("No sender wallet defined");
+            return null;
     }
 
     @Override

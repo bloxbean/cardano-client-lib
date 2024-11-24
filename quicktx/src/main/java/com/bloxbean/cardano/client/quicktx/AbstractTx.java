@@ -38,7 +38,6 @@ public abstract class AbstractTx<T> {
     //custom change address
     protected String changeAddress;
     protected List<Utxo> inputUtxos;
-    protected List<Amount> amounts;
 
     //Required for script
     protected PlutusData changeData;
@@ -214,9 +213,7 @@ public abstract class AbstractTx<T> {
                 .address(address)
                 .value(Value.builder().coin(BigInteger.ZERO).build())
                 .build();
-        if(this.amounts == null)
-            this.amounts = new ArrayList<>();
-        this.amounts.addAll(amounts);
+
         for (Amount amount : amounts) {
             String unit = amount.getUnit();
             if (unit.equals(LOVELACE)) {
