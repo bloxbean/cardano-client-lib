@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.common;
+package com.bloxbean.cardano.client.crypto;
 
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
 import com.bloxbean.cardano.client.crypto.bip39.MnemonicException;
