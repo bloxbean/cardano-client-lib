@@ -234,7 +234,7 @@ public class UtxoTransactionBodyBuilder {
                         if(matchingAsset.isPresent()){
                             // update matchingAsset
                             assetAmountsForPolicy.remove(matchingAsset.get());
-                            assetAmountsForPolicy.add(matchingAsset.get().plus(toAsset(utxoAmt)));
+                            assetAmountsForPolicy.add(matchingAsset.get().add(toAsset(utxoAmt)));
                         }else{
                             // add new asset to matchingMultiAsset
                             assetAmountsForPolicy.add(new Asset(policyIdAssetName._2, utxoQty));

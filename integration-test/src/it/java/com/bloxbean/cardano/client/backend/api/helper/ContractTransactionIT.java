@@ -51,7 +51,6 @@ import java.util.*;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
-import static com.bloxbean.cardano.client.transaction.util.CostModelUtil.PlutusV1CostModel;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ContractTransactionIT extends BaseITTest {

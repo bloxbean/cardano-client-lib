@@ -66,7 +66,7 @@ public interface TxOutputBuilder {
                                 .filter(transactionOutput -> transactionOutput.getAddress().equals(txOutput.getAddress()))
                                 .findFirst().orElse(null);
                         if (txOutputSameAddress != null) {
-                            txOutputSameAddress.setValue(txOutputSameAddress.getValue().plus(txOutput.getValue()));
+                            txOutputSameAddress.setValue(txOutputSameAddress.getValue().add(txOutput.getValue()));
                         } else {
                             transaction.getBody().getOutputs().add(txOutput);
                         }

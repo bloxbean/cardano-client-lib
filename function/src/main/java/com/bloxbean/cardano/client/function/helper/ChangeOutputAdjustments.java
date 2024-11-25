@@ -205,7 +205,7 @@ public class ChangeOutputAdjustments {
         //Let's make fee to a default one and add the existing fee to changeoutput
         BigInteger existingFee = transaction.getBody().getFee();
         Value changeOutputValue = outputToAdjust.getValue();
-        changeOutputValue = changeOutputValue.plus(Value.builder().coin(existingFee).build());
+        changeOutputValue = changeOutputValue.add(Value.builder().coin(existingFee).build());
         outputToAdjust.setValue(changeOutputValue);
         transaction.getBody().setFee(DEFAULT_FEE); //Just a dummy fee for now
 
