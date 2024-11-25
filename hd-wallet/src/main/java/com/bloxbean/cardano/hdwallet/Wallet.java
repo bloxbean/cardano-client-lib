@@ -18,6 +18,7 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.util.*;
 import java.util.function.Function;
@@ -38,6 +39,14 @@ public class Wallet {
     private Map<Integer, Account> cache;
     private HdKeyPair rootKeys;
     private HdKeyPair stakeKeys;
+
+    @Getter
+    @Setter
+    private int[] indexesToScan; //If set, only scan these indexes and avoid gap limit during address scanning
+
+    @Getter
+    @Setter
+    private int gapLimit = 20; //No of unused addresses to scan.
 
     public Wallet() {
         this(Networks.mainnet());
@@ -75,7 +84,7 @@ public class Wallet {
     }
 
     /**
-     * Get Enterpriseaddress for current account. Account can be changed via the setter.
+     * Get Enterprise address for current account. Account can be changed via the setter.
      * @param index
      * @return
      */
@@ -84,13 +93,13 @@ public class Wallet {
     }
 
     /**
-     * Get Enterpriseaddress for derivationpath m/1852'/1815'/{account}'/0/{index}
+     * Get Enterprise address for derivation path m/1852'/1815'/{account}'/0/{index}
      * @param account
      * @param index
      * @return
      */
     private Address getEntAddress(int account, int index) {
-        return getAccountObject(account, index).getEnterpriseAddress();
+        return getAccount(account, index).getEnterpriseAddress();
     }
 
     /**
@@ -118,7 +127,7 @@ public class Wallet {
      * @return
      */
     public Address getBaseAddress(int account, int index) {
-        return getAccountObject(account,index).getBaseAddress();
+        return getAccount(account,index).getBaseAddress();
     }
 
     /**
@@ -126,8 +135,8 @@ public class Wallet {
      * @param index
      * @return
      */
-    public Account getAccountObject(int index) {
-        return getAccountObject(this.account, index);
+    public Account getAccount(int index) {
+        return getAccount(this.account, index);
     }
 
     /**
@@ -136,7 +145,7 @@ public class Wallet {
      * @param index
      * @return
      */
-    public Account getAccountObject(int account, int index) {
+    public Account getAccount(int account, int index) {
         if(account != this.account) {
             DerivationPath derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
             derivationPath.getIndex().setValue(index);
@@ -167,7 +176,8 @@ public class Wallet {
      * Returns the RootkeyPair
      * @return
      */
-    public HdKeyPair getHDWalletKeyPair() {
+    @JsonIgnore
+    public HdKeyPair getRootKeyPair() {
         if(rootKeys == null) {
             HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
             try {
@@ -190,7 +200,7 @@ public class Wallet {
         Map<String, Account> accountMap = utxos.stream()
                 .map(WalletUtxo::getDerivationPath)
                 .filter(Objects::nonNull)
-                .map(derivationPath -> getAccountObject(
+                .map(derivationPath -> getAccount(
                         derivationPath.getAccount().getValue(),
                         derivationPath.getIndex().getValue()))
                 .collect(Collectors.toMap(
@@ -280,20 +290,9 @@ public class Wallet {
     private HdKeyPair getStakeKeyPair() {
         if(stakeKeys == null) {
             DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(this.account);
-//                if (mnemonic == null || mnemonic.trim().length() == 0) {
-//                    hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, stakeDerivationPath); // TODO need to implement creation from key
-//                } else {
-//                    hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
-//                }
             stakeKeys = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
         }
         return stakeKeys;
     }
 
-
-    @JsonIgnore
-    public String getBech32PrivateKey() {
-        HdKeyPair hdKeyPair = getHDWalletKeyPair();
-        return hdKeyPair.getPrivateKey().toBech32();
-    }
 }

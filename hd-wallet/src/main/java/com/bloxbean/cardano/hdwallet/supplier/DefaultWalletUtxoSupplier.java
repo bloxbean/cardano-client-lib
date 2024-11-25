@@ -20,8 +20,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
-    private static final int INDEX_SEARCH_RANGE = 20; // according to specifications
-
     private final UtxoService utxoService;
     @Setter
     private Wallet wallet;
@@ -56,16 +54,25 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
 
     @Override
     public List<WalletUtxo> getAll() {
-        int index = 0;
-        int noUtxoFound = 0;
         List<WalletUtxo> utxos = new ArrayList<>();
-        while(noUtxoFound < INDEX_SEARCH_RANGE) {
-            List<WalletUtxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet.getAccount(), index);
 
-            utxos.addAll(utxoFromIndex);
-            noUtxoFound = utxoFromIndex.isEmpty() ? noUtxoFound + 1 : 0;
+        if (wallet.getIndexesToScan() == null || wallet.getIndexesToScan().length == 0) {
+            int index = 0;
+            int noUtxoFound = 0;
 
-            index++; // increasing search index
+            while (noUtxoFound < wallet.getGapLimit()) {
+                List<WalletUtxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet.getAccount(), index);
+
+                utxos.addAll(utxoFromIndex);
+                noUtxoFound = utxoFromIndex.isEmpty() ? noUtxoFound + 1 : 0;
+
+                index++; // increasing search index
+            }
+        } else {
+            for (int idx: wallet.getIndexesToScan()) {
+                List<WalletUtxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet.getAccount(), idx);
+                utxos.addAll(utxoFromIndex);
+            }
         }
         return utxos;
     }

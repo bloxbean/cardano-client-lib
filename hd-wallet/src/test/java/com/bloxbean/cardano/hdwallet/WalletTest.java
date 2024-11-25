@@ -86,21 +86,14 @@ public class WalletTest {
     }
 
     @Test
-    public void testGetPrivateKeyFromMnemonic() {
-        String pvtKey = new Wallet(phrase24W).getBech32PrivateKey();
-        System.out.println(pvtKey);
-        Assertions.assertTrue(pvtKey.length() > 5);
-    }
-
-    @Test
     public void testGetPublicKeyBytesFromMnemonic() {
-        byte[] pubKey = new Wallet(phrase24W).getHDWalletKeyPair().getPublicKey().getKeyData();
+        byte[] pubKey = new Wallet(phrase24W).getRootKeyPair().getPublicKey().getKeyData();
         Assertions.assertEquals(32, pubKey.length);
     }
 
     @Test
     public void testGetPrivateKeyBytesFromMnemonic() {
-        byte[] pvtKey = new Wallet(phrase24W).getHDWalletKeyPair().getPrivateKey().getBytes();
+        byte[] pvtKey = new Wallet(phrase24W).getRootKeyPair().getPrivateKey().getBytes();
         Assertions.assertEquals(96, pvtKey.length);
     }
 

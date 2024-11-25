@@ -25,7 +25,7 @@ class SignerProvidersTest {
         Account account2 = new Account(Networks.testnet());
 
         Transaction signedTxn = SignerProviders.signerFrom(account1, account2)
-                .sign(buildTransaction());
+                .sign(null, buildTransaction());
 
         assertThat(signedTxn.getWitnessSet().getVkeyWitnesses()).hasSize(2);
     }
@@ -37,7 +37,7 @@ class SignerProvidersTest {
         SecretKey sk3 = KeyGenUtil.generateKey().getSkey();
 
         Transaction signedTxn = SignerProviders.signerFrom(sk1, sk2, sk3)
-                .sign(buildTransaction());
+                .sign(null, buildTransaction());
 
         assertThat(signedTxn.getWitnessSet().getVkeyWitnesses()).hasSize(3);
     }
@@ -48,7 +48,7 @@ class SignerProvidersTest {
         Policy policy2 = PolicyUtil.createMultiSigScriptAllPolicy("2", 4);
 
         Transaction signedTxn = SignerProviders.signerFrom(policy1, policy2)
-                .sign(buildTransaction());
+                .sign(null, buildTransaction());
 
         assertThat(signedTxn.getWitnessSet().getVkeyWitnesses()).hasSize(7);
     }
@@ -60,7 +60,7 @@ class SignerProvidersTest {
 
         Transaction signedTxn = SignerProviders.signerFrom(account1.stakeHdKeyPair(), account2.stakeHdKeyPair())
                 .andThen(SignerProviders.signerFrom(account1))
-                .sign(buildTransaction());
+                .sign(null, buildTransaction());
 
         assertThat(signedTxn.getWitnessSet().getVkeyWitnesses()).hasSize(3);
     }
@@ -72,7 +72,7 @@ class SignerProvidersTest {
 
         Transaction signedTxn = SignerProviders.stakeKeySignerFrom(account1, account2)
                 .andThen(SignerProviders.signerFrom(account1))
-                .sign(buildTransaction());
+                .sign(null, buildTransaction());
 
         assertThat(signedTxn.getWitnessSet().getVkeyWitnesses()).hasSize(3);
     }

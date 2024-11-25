@@ -47,7 +47,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         String topupAccountMnemonic = "weapon news intact viable rigid hope ginger defy remove enemy dog volume belt clay shuffle angle crunch eye end asthma arctic sphere arm limit";
         topupAccount = new Account(Networks.testnet(), topupAccountMnemonic);
 
-        topUpFund(topupAccount.baseAddress(), BigInteger.valueOf(100000).longValue());
+        topUpFund(topupAccount.baseAddress(), 100000);
+        topUpFund("addr_test1qz5t8wq55e09usmh07ymxry8atzwxwt2nwwzfngg6esffxvw2pfap6uqmkj3n6zmlrsgz397md2gt7yqs5p255uygaesx608y5", 5);
         System.out.println("Topup address : " + topupAccount.baseAddress());
     }
 
@@ -83,7 +84,38 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
         Result<String> result = quickTxBuilder.compose(tx)
                 .withSigner(SignerProviders.signerFrom(wallet1))
-                .withTxInspector( txn -> {
+                .withTxInspector(txn -> {
+                    System.out.println(JsonUtil.getPrettyJson(txn));
+                })
+                .complete();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), wallet2.getBaseAddress(0).getAddress());
+    }
+
+    @Test
+    void simplePayment_withIndexesToScan() {
+        String mnemonic = "buzz sentence empty coffee manage grid claw street misery deputy direct seek tortoise wedding stay twist crew august omit taste expect obscure abandon iron";
+        Wallet wallet = new Wallet(Networks.testnet(), mnemonic);
+        wallet.setIndexesToScan(new int[]{5, 30, 45});
+
+        //topup index 5, 45
+        topUpFund(wallet.getBaseAddressString(5), 5);
+        topUpFund(wallet.getBaseAddressString(45), 15);
+
+        UtxoSupplier walletUtxoSupplier = new DefaultWalletUtxoSupplier(backendService.getUtxoService(), wallet);
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, walletUtxoSupplier);
+
+        Tx tx = new Tx()
+                .payToAddress(wallet2.getBaseAddress(0).getAddress(), Amount.ada(18))
+                .from(wallet);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(wallet))
+                .withTxInspector(txn -> {
                     System.out.println(JsonUtil.getPrettyJson(txn));
                 })
                 .complete();
@@ -126,10 +158,10 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         Map<String, Integer> amountMap = new HashMap<>();
         for (Utxo utxo : utxos) {
             int totalAmount = 0;
-            if(amountMap.containsKey(utxo.getAddress())) {
+            if (amountMap.containsKey(utxo.getAddress())) {
                 int amount = amountMap.get(utxo.getAddress());
                 System.out.println(utxo.getAmount().get(0));
-                totalAmount= amount + utxo.getAmount().get(0).getQuantity().intValue();
+                totalAmount = amount + utxo.getAmount().get(0).getQuantity().intValue();
             }
             amountMap.put(utxo.getAddress(), totalAmount);
         }
@@ -160,7 +192,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         }
 
         Tx tx = new Tx();
-        for (int i= 0; i < addresses.length; i++) {
+        for (int i = 0; i < addresses.length; i++) {
             tx.payToAddress(addresses[i], Amount.ada(amounts[i]));
         }
 
