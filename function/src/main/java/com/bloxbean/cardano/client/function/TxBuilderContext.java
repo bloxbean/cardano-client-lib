@@ -267,9 +267,7 @@ public class TxBuilderContext {
      * @throws com.bloxbean.cardano.client.function.exception.TxBuildException if exception during transaction build
      */
     public Transaction build(TxBuilder txBuilder) {
-        Transaction transaction = new Transaction();
-        transaction.setEra(getSerializationEra());
-        txBuilder.apply(this, transaction);
+        Transaction transaction = buildTransaction(txBuilder);
         clearTempStates();
         return transaction;
     }
@@ -282,8 +280,10 @@ public class TxBuilderContext {
      * @throws com.bloxbean.cardano.client.function.exception.TxBuildException if exception during transaction build
      */
     public Transaction buildAndSign(TxBuilder txBuilder, TxSigner signer) {
-        Transaction transaction = build(txBuilder);
-        return signer.sign(transaction);
+        Transaction transaction = buildTransaction(txBuilder);
+        Transaction signedTransaction =  signer.sign(this, transaction);
+        clearTempStates();
+        return signedTransaction;
     }
 
     /**
@@ -295,6 +295,13 @@ public class TxBuilderContext {
     public void build(Transaction transaction, TxBuilder txBuilder) {
         txBuilder.apply(this, transaction);
         clearTempStates();
+    }
+
+    private Transaction buildTransaction(TxBuilder txBuilder) {
+        Transaction transaction = new Transaction();
+        transaction.setEra(getSerializationEra());
+        txBuilder.apply(this, transaction);
+        return transaction;
     }
 
     private void clearTempStates() {

@@ -1,15 +1,17 @@
 dependencies {
+    api project(':core-api')
     api project(':core')
-    api project(':function')
+    api project(':common')
+    api project(':crypto')
     api project(':backend')
-    api project(':hd-wallet')
+    implementation(libs.bouncycastle.bcprov)
 
     integrationTestImplementation(libs.slf4j.reload4j)
     integrationTestImplementation(libs.aiken.java.binding)
-
     integrationTestImplementation project(':')
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':backend-modules:koios')
+    integrationTestImplementation project(':backend-modules:ogmios')
     integrationTestImplementation project(':backend-modules:ogmios')
 
     integrationTestAnnotationProcessor project(':annotation-processor')
@@ -19,8 +21,8 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             pom {
-                name = 'Cardano Client QuickTx module'
-                description = 'Cardano Client Lib - QuickTx Module'
+                name = 'Cardano Client HD Wallet'
+                description = 'Cardano Client Lib - HD Wallet Integration'
             }
         }
     }

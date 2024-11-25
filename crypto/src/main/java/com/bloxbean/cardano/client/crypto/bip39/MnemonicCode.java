@@ -142,7 +142,9 @@ public class MnemonicCode {
 
     public byte[] toEntropy(String mnemonicPhrase) throws MnemonicException.MnemonicLengthException, MnemonicException.MnemonicWordException, MnemonicException.MnemonicChecksumException {
         String[] wordsList;
-        wordsList = mnemonicPhrase.split(" ");
+
+        mnemonicPhrase = mnemonicPhrase.replaceAll("\\s+", " ");
+        wordsList = mnemonicPhrase.split("\\s+");
 
         return toEntropy(Arrays.asList(wordsList));
     }

@@ -18,6 +18,7 @@ import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
@@ -636,6 +637,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     @Override
     protected String getFromAddress() {
         return fromAddress;
+    }
+
+    @Override
+    protected Wallet getFromWallet() {
+        return null;
     }
 
     void from(String address) {

@@ -20,6 +20,7 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
@@ -481,6 +482,8 @@ public abstract class AbstractTx<T> {
      * @return String
      */
     protected abstract String getFromAddress();
+
+    protected abstract Wallet getFromWallet();
 
     /**
      * Perform pre Tx evaluation action. This is called before Script evaluation if any

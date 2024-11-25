@@ -22,6 +22,8 @@ import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -112,6 +114,18 @@ public class QuickTxBuilder {
         } catch (UnsupportedOperationException e) {
             //Not supported
         }
+    }
+
+    /**
+     * Create a QuickTxBuilder instance with specified BackendService and UtxoSupplier.
+     *
+     * @param backendService backend service to get protocol params and submit transactions
+     * @param utxoSupplier utxo supplier to get utxos
+     */
+    public QuickTxBuilder(BackendService backendService, UtxoSupplier utxoSupplier) {
+        this(utxoSupplier,
+                new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                new DefaultTransactionProcessor(backendService.getTransactionService()));
     }
 
     /**
@@ -225,6 +239,25 @@ public class QuickTxBuilder {
          * @return Transaction
          */
         public Transaction build() {
+            Tuple<TxBuilderContext, TxBuilder> tuple = _build();
+            return tuple._1.build(tuple._2);
+        }
+
+        /**
+         * Build and sign transaction
+         *
+         * @return Transaction
+         */
+        public Transaction buildAndSign() {
+            Tuple<TxBuilderContext, TxBuilder> tuple = _build();
+
+            if (signers != null)
+                return tuple._1.buildAndSign(tuple._2, signers);
+            else
+                throw new IllegalStateException("No signers found");
+        }
+
+        private Tuple<TxBuilderContext, TxBuilder> _build() {
             TxBuilder txBuilder = (context, txn) -> {
             };
             boolean containsScriptTx = false;
@@ -374,7 +407,8 @@ public class QuickTxBuilder {
                     tx.postBalanceTx(transaction);
                 }));
             }
-            return txBuilderContext.build(txBuilder);
+
+            return new Tuple<>(txBuilderContext, txBuilder);
         }
 
         private int getTotalSigners() {
@@ -383,19 +417,6 @@ public class QuickTxBuilder {
                 totalSigners += additionalSignerCount;
 
             return totalSigners;
-        }
-
-        /**
-         * Build and sign transaction
-         *
-         * @return Transaction
-         */
-        public Transaction buildAndSign() {
-            Transaction transaction = build();
-            if (signers != null)
-                transaction = signers.sign(transaction);
-
-            return transaction;
         }
 
         private TxBuilder buildCollateralOutput(String feePayer) {
@@ -436,6 +457,10 @@ public class QuickTxBuilder {
         public Result<String> complete() {
             if (txList.length == 0)
                 throw new TxBuildException("At least one tx is required");
+
+            boolean txListContainsWallet = Arrays.stream(txList).anyMatch(abstractTx -> abstractTx.getFromWallet() != null);
+            if(txListContainsWallet && !(utxoSupplier instanceof WalletUtxoSupplier))
+                throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
 
             Transaction transaction = buildAndSign();
 
