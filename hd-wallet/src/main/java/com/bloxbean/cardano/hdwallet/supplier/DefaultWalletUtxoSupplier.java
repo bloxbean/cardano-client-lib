@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.crypto.cip1852.Segment;
 import com.bloxbean.cardano.hdwallet.Wallet;
+import com.bloxbean.cardano.hdwallet.WalletException;
 import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
 import lombok.Setter;
 
@@ -111,6 +112,6 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
 
     private void checkIfWalletIsSet() {
         if(this.wallet == null)
-            throw new RuntimeException("Wallet has to be provided!");
+            throw new WalletException("Wallet has to be provided!");
     }
 }

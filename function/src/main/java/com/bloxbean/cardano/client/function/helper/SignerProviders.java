@@ -46,8 +46,7 @@ public class SignerProviders {
                     .stream().filter(utxo -> utxo instanceof WalletUtxo)
                     .map(utxo -> (WalletUtxo) utxo)
                     .collect(Collectors.toSet());
-            Transaction outputTxn = wallet.sign(transaction, utxos);
-            return outputTxn;
+            return wallet.sign(transaction, utxos);
         };
     }
 

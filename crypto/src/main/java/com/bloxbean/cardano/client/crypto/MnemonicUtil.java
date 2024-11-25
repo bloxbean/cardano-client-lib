@@ -10,6 +10,10 @@ import java.util.stream.Collectors;
 
 public class MnemonicUtil {
 
+    private MnemonicUtil() {
+
+    }
+
     public static void validateMnemonic(String mnemonic) {
         if (mnemonic == null) {
             throw new AddressRuntimeException("Mnemonic cannot be null");
@@ -30,7 +34,7 @@ public class MnemonicUtil {
         try {
             mnemonic = MnemonicCode.INSTANCE.createMnemonic(noOfWords).stream().collect(Collectors.joining(" "));
         } catch (MnemonicException.MnemonicLengthException e) {
-            throw new RuntimeException("Mnemonic generation failed", e);
+            throw new AddressRuntimeException("Mnemonic generation failed", e);
         }
         return mnemonic;
     }

@@ -53,7 +53,7 @@ public class WalletTest {
     }
 
     @Test
-    public void testGetBaseAddressFromMnemonicIndex_0() {
+    void testGetBaseAddressFromMnemonicIndex_0() {
         Wallet wallet = new Wallet(Networks.mainnet(), phrase24W);
         Assertions.assertEquals(baseAddress0, wallet.getBaseAddressString(0));
         Assertions.assertEquals(baseAddress1, wallet.getBaseAddressString(1));
@@ -62,7 +62,7 @@ public class WalletTest {
     }
 
     @Test
-    public void testGetBaseAddressFromMnemonicByNetworkInfoTestnet() {
+    void testGetBaseAddressFromMnemonicByNetworkInfoTestnet() {
         Wallet wallet = new Wallet(Networks.testnet(), phrase24W);
         Assertions.assertEquals(testnetBaseAddress0, wallet.getBaseAddressString(0));
         Assertions.assertEquals(testnetBaseAddress1, wallet.getBaseAddressString(1));
@@ -70,7 +70,7 @@ public class WalletTest {
     }
 
     @Test
-    public void testGetEnterpriseAddressFromMnemonicIndex() {
+    void testGetEnterpriseAddressFromMnemonicIndex() {
         Wallet wallet = new Wallet(Networks.mainnet(), phrase24W);
         Assertions.assertEquals(entAddress0, wallet.getEntAddress(0).getAddress());
         Assertions.assertEquals(entAddress1, wallet.getEntAddress(1).getAddress());
@@ -78,7 +78,7 @@ public class WalletTest {
     }
 
     @Test
-    public void testGetEnterpriseAddressFromMnemonicIndexByNetwork() {
+    void testGetEnterpriseAddressFromMnemonicIndexByNetwork() {
         Wallet wallet = new Wallet(Networks.testnet(), phrase24W);
         Assertions.assertEquals(testnetEntAddress0, wallet.getEntAddress(0).getAddress());
         Assertions.assertEquals(testnetEntAddress1, wallet.getEntAddress(1).getAddress());
@@ -86,13 +86,13 @@ public class WalletTest {
     }
 
     @Test
-    public void testGetPublicKeyBytesFromMnemonic() {
+    void testGetPublicKeyBytesFromMnemonic() {
         byte[] pubKey = new Wallet(phrase24W).getRootKeyPair().getPublicKey().getKeyData();
         Assertions.assertEquals(32, pubKey.length);
     }
 
     @Test
-    public void testGetPrivateKeyBytesFromMnemonic() {
+    void testGetPrivateKeyBytesFromMnemonic() {
         byte[] pvtKey = new Wallet(phrase24W).getRootKeyPair().getPrivateKey().getBytes();
         Assertions.assertEquals(96, pvtKey.length);
     }

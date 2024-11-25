@@ -185,7 +185,7 @@ public class Wallet {
                 rootKeys = hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
             } catch (MnemonicException.MnemonicLengthException | MnemonicException.MnemonicWordException |
                      MnemonicException.MnemonicChecksumException e) {
-                throw new RuntimeException(e);
+                throw new WalletException("Unable to derive root key pair", e);
             }
         }
         return rootKeys;
@@ -211,10 +211,10 @@ public class Wallet {
         var accounts = accountMap.values();
 
         if(accounts.isEmpty())
-            throw new RuntimeException("No signers found!");
+            throw new WalletException("No signers found!");
 
-        for (Account account : accounts)
-            txToSign = account.sign(txToSign);
+        for (Account signerAcc : accounts)
+            txToSign = signerAcc.sign(txToSign);
 
         return txToSign;
     }

@@ -5,10 +5,12 @@ import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -26,4 +28,5 @@ public class WalletUtxo extends Utxo {
         walletUtxo.setReferenceScriptHash(utxo.getReferenceScriptHash());
         return walletUtxo;
     }
+
 }

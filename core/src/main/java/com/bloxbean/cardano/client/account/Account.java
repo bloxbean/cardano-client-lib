@@ -7,12 +7,9 @@ import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
-import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
-import com.bloxbean.cardano.client.crypto.bip39.MnemonicException;
 import com.bloxbean.cardano.client.crypto.bip39.Words;
 import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
-import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.governance.keys.CommitteeColdKey;
@@ -22,9 +19,6 @@ import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-
-import java.util.Arrays;
-import java.util.stream.Collectors;
 
 /**
  * Create and manage secrets, and perform account-based work such as signing transactions.
@@ -485,32 +479,6 @@ public class Account {
      */
     public Transaction signWithCommitteeHotKey(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getCommitteeHotKeyPair());
-    }
-
-    private void generateNew(Words noOfWords) {
-        String mnemonic = null;
-        try {
-            mnemonic = MnemonicCode.INSTANCE.createMnemonic(noOfWords).stream().collect(Collectors.joining(" "));
-        } catch (MnemonicException.MnemonicLengthException e) {
-            throw new RuntimeException("Mnemonic generation failed", e);
-        }
-        this.mnemonic = mnemonic;
-        baseAddress();
-    }
-
-    private void validateMnemonic() {
-        if (mnemonic == null) {
-            throw new AddressRuntimeException("Mnemonic cannot be null");
-        }
-
-        mnemonic = mnemonic.replaceAll("\\s+", " ");
-        String[] words = mnemonic.split("\\s+");
-
-        try {
-            MnemonicCode.INSTANCE.check(Arrays.asList(words));
-        } catch (MnemonicException e) {
-            throw new AddressRuntimeException("Invalid mnemonic phrase", e);
-        }
     }
 
     private HdKeyPair getHdKeyPair() {
