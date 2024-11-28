@@ -119,7 +119,7 @@ public class DRepKeyTest {
         DRepKey dRepKey = DRepKey.from(drepKeyPair);
 
         String expectedVKeyHash = "a5b45515a3ff8cb7c02ce351834da324eb6dfc41b5779cb5e6b832aa";
-        String expectedDRepId = "drep15k6929drl7xt0spvudgcxndryn4kmlzpk4meed0xhqe25nle07s";
+        String expectedDRepId = "drep_vkh15k6929drl7xt0spvudgcxndryn4kmlzpk4meed0xhqe254czjh2";
 
         byte[] vKeyHash = dRepKey.verificationKeyHash();
         String drepId = dRepKey.dRepId();
