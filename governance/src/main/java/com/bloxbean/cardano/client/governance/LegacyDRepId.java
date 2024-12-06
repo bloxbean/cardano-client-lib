@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.client.governance.cip105;
+package com.bloxbean.cardano.client.governance;
 
 import com.bloxbean.cardano.client.crypto.Bech32;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
@@ -7,8 +7,14 @@ import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRepType;
 import com.bloxbean.cardano.client.util.HexUtil;
 
-public class DRepId {
-    public static final String DREP_ID_PREFIX = "drep_vkh";
+/**
+ * DEPRECATED: CIP 105 DRep Id implementation.
+ * This class is deprecated.
+ *
+ * @deprecated Use {@link com.bloxbean.cardano.client.governance.GovId} for CIP-129 implementation
+ */
+public class LegacyDRepId {
+    public static final String DREP_ID_PREFIX = "drep";
     public static final String DREP_ID_SCRIPT_PREFIX = "drep_script";
 
     public static String fromVerificationKey(VerificationKey verificationKey) {

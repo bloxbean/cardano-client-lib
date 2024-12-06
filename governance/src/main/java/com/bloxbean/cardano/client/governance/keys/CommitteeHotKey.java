@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPrivateKey;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
+import com.bloxbean.cardano.client.governance.GovId;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
 
@@ -17,7 +18,7 @@ public class CommitteeHotKey {
     private static final String CC_HOT_VK = "cc_hot_vk";
     private static final String CC_HOT_XSK = "cc_hot_xsk";
     private static final String CC_HOT_XVK = "cc_hot_xvk";
-    private static final String CC_HOT = "cc_hot";
+    private static final String CC_HOT_VKH = "cc_hot_vkh";
     private static final String CC_HOT_SCRIPT = "cc_hot_script";
 
     private byte[] signingKey;
@@ -154,7 +155,24 @@ public class CommitteeHotKey {
         return bech32VerificationKeyHash(verificationKeyHash());
     }
 
+    /**
+     * Retrieves the bech32 encoded CIP-129 hot credential committee identifier derived from the verification key hash.
+     *
+     * @return the bech32 encoded hot credential committee identifier.
+     */
+    public String id() {
+        return GovId.ccHotFromKeyHash(verificationKeyHash());
+    }
+
     //-- static methods to get bech32 encoded keys from key bytes
+
+    public static String scriptId(String scriptHash) {
+        return scriptId(HexUtil.decodeHexString(scriptHash));
+    }
+
+    public static String scriptId(byte[] scriptHash) {
+        return GovId.ccHotFromScriptHash(scriptHash);
+    }
 
     /**
      * Get the bech32 encoded script hash
@@ -189,7 +207,7 @@ public class CommitteeHotKey {
      * @return bech32 encoded verification key hash
      */
     public static String bech32VerificationKeyHash(byte[] verificationKeyHash) {
-        return Bech32.encode(verificationKeyHash, CC_HOT);
+        return Bech32.encode(verificationKeyHash, CC_HOT_VKH);
     }
 
     /**
