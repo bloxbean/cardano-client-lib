@@ -76,6 +76,24 @@ class GovIdTest {
     }
 
     @Test
+    void govActionId() {
+        String txHash = "0000000000000000000000000000000000000000000000000000000000000000";
+        int index = 17;
+
+        String govActionId = GovId.govAction(txHash, index);
+        assertThat(govActionId).isEqualTo("gov_action1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqpzklpgpf");
+    }
+
+    @Test
+    void govActionId2() {
+        String txHash = "1111111111111111111111111111111111111111111111111111111111111111";
+        int index = 0;
+
+        String govActionId = GovId.govAction(txHash, index);
+        assertThat(govActionId).isEqualTo("gov_action1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsq6dmejn");
+    }
+
+    @Test
     void drepFromScriptHash() {
 
     }

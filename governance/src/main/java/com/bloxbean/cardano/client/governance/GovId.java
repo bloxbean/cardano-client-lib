@@ -19,7 +19,7 @@ public class GovId {
     private static final String CC_COLD_PREFIX = "cc_cold";
     private static final String CC_HOT_PREFIX = "cc_hot";
     private static final String DREP_PREFIX = "drep";
-
+    private static final String GOV_ACTION_PREFIX = "gov_action";
 
     public static String ccColdFromKeyHash(byte[] keyHash) {
         byte[] idBytes = getIdentifierBytes(CC_COLD_KEY_TYPE, KEY_HASH_CRED_TYPE, keyHash);
@@ -83,6 +83,13 @@ public class GovId {
             default:
                 throw new IllegalArgumentException("Invalid credential type : " + credType);
         }
+    }
+
+    public static String govAction(String txHash, int index) {
+        String indexHex = String.format("%02x", index);
+
+        byte[] mergedBytes = HexUtil.decodeHexString(txHash + indexHex);
+        return Bech32.encode(mergedBytes, GOV_ACTION_PREFIX);
     }
 
     private static byte[] getIdentifierBytes(byte keyType, byte credType, byte[] keyHash) {
