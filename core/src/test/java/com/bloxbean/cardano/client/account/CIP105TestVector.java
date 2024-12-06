@@ -23,8 +23,9 @@ public class CIP105TestVector {
     private String drepExtendedSigningKeyBech32;
     private String drepExtendedVerificationKey;
     private String drepExtendedVerificationKeyBech32;
+    private String legacyDRepId;
     private String drepVerificationKeyHash;
-    private String drepId;
+    private String drepVkhBech32;
     private String drepScriptHash1;
     private String drepScriptHash1Bech32;
     private String drepScriptHash2;
@@ -39,7 +40,8 @@ public class CIP105TestVector {
     private String committeeColdExtendedVerificationKey;
     private String committeeColdExtendedVerificationKeyBech32;
     private String committeeColdVerificationKeyHash;
-    private String committeeColdId;
+    private String legacyCommitteeColdId;
+    private String committeeColdVkhBech32;
     private String coldScriptHash1;
     private String coldScriptHash1Bech32;
     private String coldScriptHash2;
@@ -55,7 +57,8 @@ public class CIP105TestVector {
     private String committeeHotExtendedVerificationKey;
     private String committeeHotExtendedVerificationKeyBech32;
     private String committeeHotVerificationKeyHash;
-    private String committeeHotId;
+    private String legacyCommitteeHotId;
+    private String committeeHotVkhBech32;
     private String ccHotScriptHash1;
     private String ccHotScriptHash1Bech32;
     private String ccHotScriptHash2;
@@ -79,7 +82,8 @@ public class CIP105TestVector {
                 .drepExtendedVerificationKey("f74d7ac30513ac1825715fd0196769761fca6e7f69de33d04ef09a0c417a752b1d8411029969123371cde99fb075730f1da4fd41ee7acefba7e211f0e20c91ca")
                 .drepExtendedVerificationKeyBech32("drep_xvk17axh4sc9zwkpsft3tlgpjemfwc0u5mnld80r85zw7zdqcst6w543mpq3q2vkjy3nw8x7n8asw4es78dyl4q7u7kwlwn7yy0sugxfrjs6z25qe")
                 .drepVerificationKeyHash("a5b45515a3ff8cb7c02ce351834da324eb6dfc41b5779cb5e6b832aa")
-                .drepId("drep15k6929drl7xt0spvudgcxndryn4kmlzpk4meed0xhqe25nle07s")
+                .drepVkhBech32("drep_vkh15k6929drl7xt0spvudgcxndryn4kmlzpk4meed0xhqe254czjh2")
+                .legacyDRepId("drep15k6929drl7xt0spvudgcxndryn4kmlzpk4meed0xhqe25nle07s")
                 .drepScriptHash1("d0657126dbf0c135a7224d91ca068f5bf769af6d1f1df0bce5170ec5")
                 .drepScriptHash1Bech32("drep_script16pjhzfkm7rqntfezfkgu5p50t0mkntmdruwlp089zu8v29l95rg")
                 .drepScriptHash2("ae5acf0511255d647c84b3184a2d522bf5f6c5b76b989f49bd383bdd")
@@ -93,7 +97,8 @@ public class CIP105TestVector {
                 .committeeColdExtendedVerificationKey("a9781abfc1604a18ebff6fc35062c000a7a66fdca1323710ed38c1dfc3315beac601968e75ff3052ffa675aedaaea49ff36cb23036df105e28e1d32b4527e6cf")
                 .committeeColdExtendedVerificationKeyBech32("cc_cold_xvk149up407pvp9p36lldlp4qckqqzn6vm7u5yerwy8d8rqalse3t04vvqvk3e6l7vzjl7n8ttk646jflumvkgcrdhcstc5wr5etg5n7dnc8nqv5d")
                 .committeeColdVerificationKeyHash("fefb9596ed670ad2c9978d78fe4eb36ba24cbba0a62fa4cdd0c2dcf5")
-                .committeeColdId("cc_cold1lmaet9hdvu9d9jvh34u0un4ndw3yewaq5ch6fnwsctw02xxwylj")
+                .legacyCommitteeColdId("cc_cold1lmaet9hdvu9d9jvh34u0un4ndw3yewaq5ch6fnwsctw02xxwylj")
+                .committeeColdVkhBech32("cc_cold_vkh1lmaet9hdvu9d9jvh34u0un4ndw3yewaq5ch6fnwsctw0243cw47")
                 .coldScriptHash1("ae6f2a27554d5e6971ef3e933e4f0be7ed7aeb60f6f93dfb81cd6e1c")
                 .coldScriptHash1Bech32("cc_cold_script14ehj5f64f40xju0086fnunctulkh46mq7munm7upe4hpcwpcatv")
                 .coldScriptHash2("119c20cecfedfdba057292f76bb110afa3ab472f9c35a85daf492316")
@@ -107,7 +112,8 @@ public class CIP105TestVector {
                 .committeeHotExtendedVerificationKey("792a7f83cab90261f72ef57ee94a65ca9b0c71c1be2c8fdd5318c3643b20b52f5487e846e9a708b27681d6835fa2dac968108b3c845e379597491e6b476aa0b2")
                 .committeeHotExtendedVerificationKeyBech32("cc_hot_xvk10y48lq72hypxraew74lwjjn9e2dscuwphckglh2nrrpkgweqk5h4fplggm56wz9jw6qadq6l5tdvj6qs3v7ggh3hjkt5j8ntga42pvs5rvh0a")
                 .committeeHotVerificationKeyHash("f6d29c0f7164d37610cbf67b126a993beb24a076d0653f1fa069588f")
-                .committeeHotId("cc_hot17mffcrm3vnfhvyxt7ea3y65e804jfgrk6pjn78aqd9vg7xpq8dv")
+                .legacyCommitteeHotId("cc_hot17mffcrm3vnfhvyxt7ea3y65e804jfgrk6pjn78aqd9vg7xpq8dv")
+                .committeeHotVkhBech32("cc_hot_vkh17mffcrm3vnfhvyxt7ea3y65e804jfgrk6pjn78aqd9vg7vk5akz")
                 .ccHotScriptHash1("d27a4229c92ec8961b6bfd32a87380dcee4a08c77b0d6c8b33f180e8")
                 .ccHotScriptHash1Bech32("cc_hot_script16fayy2wf9myfvxmtl5e2suuqmnhy5zx80vxkezen7xqwskncf40")
                 .ccHotScriptHash2("62e0798c7036ff35862cf42f4e7ada06f7fb5b6465390082a691be14")
@@ -129,7 +135,8 @@ public class CIP105TestVector {
                 .drepExtendedVerificationKey("70344fe0329bbacbb33921e945daed181bd66889333eb73f3bb10ad8e4669976a523761cec4182672a9592638e7017aa82ae6c1508377f4068d000a8cef56a30")
                 .drepExtendedVerificationKeyBech32("drep_xvk1wq6ylcpjnwavhveey855tkhdrqdav6yfxvltw0emky9d3erxn9m22gmkrnkyrqn8922eycuwwqt64q4wds2ssdmlgp5dqq9gem6k5vq23ph3c")
                 .drepVerificationKeyHash("1ed314af7d3ff8fcd320c73eb58524d774ca38733ee00ebca81bd63a")
-                .drepId("drep1rmf3ftma8lu0e5eqculttpfy6a6v5wrn8msqa09gr0tr5rgcuy9")
+                .drepVkhBech32("drep_vkh1rmf3ftma8lu0e5eqculttpfy6a6v5wrn8msqa09gr0tr590rpdl")
+                .legacyDRepId("drep1rmf3ftma8lu0e5eqculttpfy6a6v5wrn8msqa09gr0tr5rgcuy9")
                 .drepScriptHash1("3e11f3d9b39639fbb9d59c6efec7b7c1e9dbcb104523c7a4b194c45c")
                 .drepScriptHash1Bech32("drep_script18cgl8kdnjculhww4n3h0a3ahc85ahjcsg53u0f93jnz9c0339av")
                 .drepScriptHash2("bba45271823634a8ba9fdb981ad76df02cd2384a4e1b43c41b2734a9")
@@ -143,7 +150,8 @@ public class CIP105TestVector {
                 .committeeColdExtendedVerificationKey("cab60e3b880ba64b252b942bb645d5e58ef4d6f243542fc28ce4051170171f913ee1839d84124acdea81c69ee7e6e828387e51067878f30cab414ec5f2e36b42")
                 .committeeColdExtendedVerificationKeyBech32("cc_cold_xvk1e2mquwugpwnykfftjs4mv3w4uk80f4hjgd2zls5vusz3zuqhr7gnacvrnkzpyjkda2qud8h8um5zswr72yr8s78npj45znk97t3kkssryhkyv")
                 .committeeColdVerificationKeyHash("e93734fae718e91bbf45c86f8cd81e7f9687e6cffe4c910dd1a4c360")
-                .committeeColdId("cc_cold1aymnf7h8rr53h069ephcekq707tg0ek0lexfzrw35npkq02wke0")
+                .legacyCommitteeColdId("cc_cold1aymnf7h8rr53h069ephcekq707tg0ek0lexfzrw35npkq02wke0")
+                .committeeColdVkhBech32("cc_cold_vkh1aymnf7h8rr53h069ephcekq707tg0ek0lexfzrw35npkquacunr")
                 .coldScriptHash1("08d78337fcf51a2a9fe93dee7d21679a3c28948cd90184155040b3e4")
                 .coldScriptHash1Bech32("cc_cold_script1prtcxdlu75dz48lf8hh86gt8ng7z39yvmyqcg92sgze7g6m8dtq")
                 .coldScriptHash2("2e8b77ecaa9f003978dea86515cee6b97df4dff52298e60198d5b387")
@@ -157,7 +165,8 @@ public class CIP105TestVector {
                 .committeeHotExtendedVerificationKey("783ae09be2f648b59483a9bee5cace8d68c7e6e2819bfb5a1a00fbf204bea06e31609b9d64a7103fa9ab1bcdadfdea2d2366b3be0268df7f68edc9b36f8d300e")
                 .committeeHotExtendedVerificationKeyBech32("cc_hot_xvk10qawpxlz7eytt9yr4xlwtjkw345v0ehzsxdlkks6qralyp975phrzcymn4j2wypl4x43hnddlh4z6gmxkwlqy6xl0a5wmjdnd7xnqrsvak8ry")
                 .committeeHotVerificationKeyHash("d1d4ebdb19689e95e097919bd8712441e89b41ec36de47bf40344f85")
-                .committeeHotId("cc_hot1682whkcedz0ftcyhjxdasufyg85fks0vxm0y006qx38c2jz0ae0")
+                .legacyCommitteeHotId("cc_hot1682whkcedz0ftcyhjxdasufyg85fks0vxm0y006qx38c2jz0ae0")
+                .committeeHotVkhBech32("cc_hot_vkh1682whkcedz0ftcyhjxdasufyg85fks0vxm0y006qx38c2c4m8zp")
                 .ccHotScriptHash1("bdf295c04cac9c78a69bca06cb8f2cffbee76d739759e80ec09a0655")
                 .ccHotScriptHash1Bech32("cc_hot_script1hheftszv4jw83f5megrvhrevl7lwwmtnjav7srkqngr92gna52t")
                 .ccHotScriptHash2("6a0b26bbf030bb6c2c8e62b0ef77c84494d771e81517ccf1434d5e26")
@@ -179,7 +188,8 @@ public class CIP105TestVector {
                 .drepExtendedVerificationKey("a4a2f459fcc98e7fe0acbea096f4b1fb342cb73aa6c41f62d4d6ca1464179dd65fd61ed957d6d0b2dfd6c8e2279e3eb2d5538a7399e908ddf12d1b7bfcb4b6a8")
                 .drepExtendedVerificationKeyBech32("drep_xvk15j30gk0uex88lc9vh6sfda93lv6zede65mzp7ck56m9pgeqhnht9l4s7m9tad59jmltv3c38nclt942n3feen6ggmhcj6xmmlj6td2qu4ce82")
                 .drepVerificationKeyHash("33e587eb1f44e51f4307eeed7ede619008bc4d1c32c18099d6367329")
-                .drepId("drep1x0jc06clgnj37sc8amkhahnpjqytcnguxtqcpxwkxeejj4y6sqm")
+                .drepVkhBech32("drep_vkh1x0jc06clgnj37sc8amkhahnpjqytcnguxtqcpxwkxeejjnrpdfp")
+                .legacyDRepId("drep1x0jc06clgnj37sc8amkhahnpjqytcnguxtqcpxwkxeejj4y6sqm")
                 .drepScriptHash1("f241fd096625b515f464b2b35ddebe93a2e6e2ec2e7dcac8c8ae5a33")
                 .drepScriptHash1Bech32("drep_script17fql6ztxyk63taryk2e4mh47jw3wdchv9e7u4jxg4edrx89ym9g")
                 .drepScriptHash2("7802a8b9e80878cc7b17c451e8778dfeef22cb7b2c2031885b881d68")
@@ -193,7 +203,8 @@ public class CIP105TestVector {
                 .committeeColdExtendedVerificationKey("8bb15c318356b4ba8cdb2b899fd5b9c80c427d92149b6a3bd5fb3aa36dedb997a24968bef7b0cdba5393b6e494fa9e1f9f33672940dd0fbec967efef0ac4f9ce")
                 .committeeColdExtendedVerificationKeyBech32("cc_cold_xvk13wc4cvvr266t4rxm9wyel4deeqxyylvjzjdk5w74lva2xm0dhxt6yjtghmmmpnd62wfmdey5l20pl8envu55phg0hmyk0ml0ptz0nns9cqjlk")
                 .committeeColdVerificationKeyHash("f0ab03c6ebd8d1b4515a3dcda3caac0737689dc3c50c5c0dfbc791f2")
-                .committeeColdId("cc_cold17z4s83htmrgmg5268hx68j4vqumk38wrc5x9cr0mc7glyntw6cl")
+                .legacyCommitteeColdId("cc_cold17z4s83htmrgmg5268hx68j4vqumk38wrc5x9cr0mc7glyntw6cl")
+                .committeeColdVkhBech32("cc_cold_vkh17z4s83htmrgmg5268hx68j4vqumk38wrc5x9cr0mc7glyqucsjn")
                 .coldScriptHash1("a0bc49cfc9e0394a5ee7a3cba53063479786cf1f3c03392c6694b6fd")
                 .coldScriptHash1Bech32("cc_cold_script15z7ynn7fuqu55hh850962vrrg7tcdncl8spnjtrxjjm06y3avt9")
                 .coldScriptHash2("eddd105e3fcb6e60bd23474bdeb9363078f0416bc967bcede1b80194")
@@ -207,7 +218,8 @@ public class CIP105TestVector {
                 .committeeHotExtendedVerificationKey("5f44dd7d934ab0591f743df462535ce12f6ce68ad49069289fee4cbfbcdddb6b34c92fcf2646fe96132f62bfb2a4af92a811beba1bc7fd0066133e5e1ddcbe14")
                 .committeeHotExtendedVerificationKeyBech32("cc_hot_xvk1tazd6lvnf2c9j8m58h6xy56uuyhkee526jgxj2ylaextl0xamd4nfjf0eunydl5kzvhk90aj5jhe92q3h6aph3laqpnpx0j7rhwtu9qe7dhsc")
                 .committeeHotVerificationKeyHash("c2a74e9bca6240d947f29beb7ded9604974016da2d48e3a7c3644cc4")
-                .committeeHotId("cc_hot1c2n5ax72vfqdj3ljn04hmmvkqjt5q9k694yw8f7rv3xvgxas90x")
+                .legacyCommitteeHotId("cc_hot1c2n5ax72vfqdj3ljn04hmmvkqjt5q9k694yw8f7rv3xvgxas90x")
+                .committeeHotVkhBech32("cc_hot_vkh1c2n5ax72vfqdj3ljn04hmmvkqjt5q9k694yw8f7rv3xvgv2yl5g")
                 .ccHotScriptHash1("5eddfce1eb7399f516fa0a19975369a8f38819765e58543fc6dc7c96")
                 .ccHotScriptHash1Bech32("cc_hot_script1tmwlec0twwvl29h6pgvew5mf4recsxtktev9g07xm37fv46mta9")
                 .ccHotScriptHash2("c7bcbba29f1f6e47df350691f858ec44035a217ea5a2103cad7ab874")
@@ -229,7 +241,8 @@ public class CIP105TestVector {
                 .drepExtendedVerificationKey("ab5d2187f2f4419421b0457f7ac8ab0d4b4ec0802af5de21dde64f603248a381571a0b4d927777b6b1c2e61d361b72ac39b5f0edf498a630665e7f1e9ffd09b7")
                 .drepExtendedVerificationKeyBech32("drep_xvk14dwjrplj73qeggdsg4lh4j9tp495asyq9t6augwaue8kqvjg5wq4wxstfkf8waakk8pwv8fkrde2cwd47rklfx9xxpn9ulc7nl7sndcvdjh2m")
                 .drepVerificationKeyHash("c1a342f0dfb82b93ca2e6b406bacb04802f7d56a99d8f95a80a8b6c5")
-                .drepId("drep1cx359uxlhq4e8j3wddqxht9sfqp004t2n8v0jk5q4zmv27sh0h5")
+                .drepVkhBech32("drep_vkh1cx359uxlhq4e8j3wddqxht9sfqp004t2n8v0jk5q4zmv2chvj7w")
+                .legacyDRepId("drep1cx359uxlhq4e8j3wddqxht9sfqp004t2n8v0jk5q4zmv27sh0h5")
                 .drepScriptHash1("c5875315458ec9c20a91f15d36debd43df8f1fd75cc4e118db0a6691")
                 .drepScriptHash1Bech32("drep_script1ckr4x9293myuyz5379wndh4ag00c787htnzwzxxmpfnfzjzk4cq")
                 .drepScriptHash2("723e4a09b4897bddf8861f963312a76df8183b6ee438bdd4157b5d6c")
@@ -243,7 +256,8 @@ public class CIP105TestVector {
                 .committeeColdExtendedVerificationKey("fec199631209a0d2e3f5e758693e4324be9b5067767637b4f0ef7f52fd6b0aaa7566bf28da60f674137792214fdb4e9935d16ad52b1f321b2f2fbb77eab5a716")
                 .committeeColdExtendedVerificationKeyBech32("cc_cold_xvk1lmqejccjpxsd9cl4uavxj0jryjlfk5r8wemr0d8saal49lttp2482e4l9rdxpan5zdmeyg20md8fjdw3dt2jk8ejrvhjlwmha266w9syf55nr")
                 .committeeColdVerificationKeyHash("4cb32ae705fb3bba3cac9742356880c912a36a4a7cca74d4956c7f41")
-                .committeeColdId("cc_cold1fjej4ec9lvam509vjapr26yqeyf2x6j20n98f4y4d3l5zygwxt4")
+                .legacyCommitteeColdId("cc_cold1fjej4ec9lvam509vjapr26yqeyf2x6j20n98f4y4d3l5zygwxt4")
+                .committeeColdVkhBech32("cc_cold_vkh1fjej4ec9lvam509vjapr26yqeyf2x6j20n98f4y4d3l5zhlcvpe")
                 .coldScriptHash1("07ede1a2cda4f48e9f33759e76397bfdbf71267b92e5f17dd96e94be")
                 .coldScriptHash1Bech32("cc_cold_script1qlk7rgkd5n6ga8enwk08vwtmlklhzfnmjtjlzlwed62tuycmmh5")
                 .coldScriptHash2("ed41b6d1b16802132c147639cef6264e4fa3b093aeba965962a73061")
@@ -257,7 +271,8 @@ public class CIP105TestVector {
                 .committeeHotExtendedVerificationKey("428aaa4d7c9ed7776b5019d7e64419f27f0ad3d47078b8963ac2382b7b7a755366f8e9d1c694e53ae02d57b6dbc1b2a066ab8d85112880aede4605b333b2da50")
                 .committeeHotExtendedVerificationKeyBech32("cc_hot_xvk1g2925ntunmthw66sr8t7v3qe7fls4575wput3936cguzk7m6w4fkd78f68rffef6uqk40dkmcxe2qe4t3kz3z2yq4m0yvpdnxwed55q798msd")
                 .committeeHotVerificationKeyHash("a9eb44d0aa1ce5559b7c22270ac23d1e61bf2e114dd8e5a44ed3a529")
-                .committeeHotId("cc_hot14845f592rnj4txmuygns4s3aresm7ts3fhvwtfzw6wjjj3l0520")
+                .legacyCommitteeHotId("cc_hot14845f592rnj4txmuygns4s3aresm7ts3fhvwtfzw6wjjj3l0520")
+                .committeeHotVkhBech32("cc_hot_vkh14845f592rnj4txmuygns4s3aresm7ts3fhvwtfzw6wjjjmgmw3p")
                 .ccHotScriptHash1("9d55b1aab952b24807bedbc9af8283b1d798023432f484a2d9160dfe")
                 .ccHotScriptHash1Bech32("cc_hot_script1n42mr24e22eyspa7m0y6lq5rk8tesq35xt6gfgkezcxluqysk4n")
                 .ccHotScriptHash2("4241b3550fc0aca9895b50d3d722bbca8f197fce155c9843817c7ac5")

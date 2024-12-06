@@ -7,20 +7,25 @@ import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRepType;
 import com.bloxbean.cardano.client.util.HexUtil;
 
-public class DRepId {
+/**
+ * DEPRECATED: CIP 105 DRep Id implementation.
+ * This class is deprecated.
+ *
+ * @deprecated Use {@link com.bloxbean.cardano.client.governance.GovId} for CIP-129 implementation
+ */
+@Deprecated(since = "0.6.3")
+public class LegacyDRepId {
     public static final String DREP_ID_PREFIX = "drep";
     public static final String DREP_ID_SCRIPT_PREFIX = "drep_script";
 
     public static String fromVerificationKey(VerificationKey verificationKey) {
         byte[] keyHash = Blake2bUtil.blake2bHash224(verificationKey.getBytes());
-        String drepId = Bech32.encode(keyHash, DREP_ID_PREFIX);
-        return drepId;
+        return Bech32.encode(keyHash, DREP_ID_PREFIX);
     }
 
     public static String fromVerificationKeyBytes(byte[] bytes) {
         byte[] keyHash = Blake2bUtil.blake2bHash224(bytes);
-        String drepId = Bech32.encode(keyHash, DREP_ID_PREFIX);
-        return drepId;
+        return Bech32.encode(keyHash, DREP_ID_PREFIX);
     }
 
     public static String fromKeyHash(String keyHash) {
@@ -28,8 +33,7 @@ public class DRepId {
     }
 
     public static String fromKeyHash(byte[] keyHash) {
-        String drepId = Bech32.encode(keyHash, DREP_ID_PREFIX);
-        return drepId;
+        return Bech32.encode(keyHash, DREP_ID_PREFIX);
     }
 
     public static String fromScriptHash(String scriptHash) {
@@ -37,8 +41,7 @@ public class DRepId {
     }
 
     public static String fromScriptHash(byte[] scriptHash) {
-        String drepId = Bech32.encode(scriptHash, DREP_ID_SCRIPT_PREFIX);
-        return drepId;
+        return Bech32.encode(scriptHash, DREP_ID_SCRIPT_PREFIX);
     }
 
     public static DRep toDrep(String drepId, DRepType drepType) {

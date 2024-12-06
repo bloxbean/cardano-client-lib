@@ -343,12 +343,26 @@ public class Account {
         return getDRepKeyPair();
     }
 
+    /**
+     * CIP-129 compatible drep id
+     * @return bech32 encoded drep id (CIP-129)
+     */
     public String drepId() {
         if (drepId == null || drepId.isEmpty()) {
             drepId = DRepKey.from(drepHdKeyPair()).dRepId();
         }
 
         return drepId;
+    }
+
+    /**
+     * Generates and returns the legacy drep id (CIP-105 Deprecated version).
+     * The identifier is derived from the DRep HD key pair.
+     *
+     * @return the legacy DRep id (CIP 105 Deprecated version) in string format.
+     */
+    public String legacyDRepId() {
+        return DRepKey.from(drepHdKeyPair()).legacyDRepId();
     }
 
     /**

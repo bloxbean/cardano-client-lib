@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.governance.keys;
 
+import com.bloxbean.cardano.client.crypto.Bech32;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
+import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -169,7 +171,7 @@ public class CommitteeHotKeyTest {
         var hdKeyPair = getCommitteeHotKeyPair();
         var committeeHotKey = CommitteeHotKey.from(hdKeyPair);
 
-        var expectedCommitteeHotVerificationKeyHash = "cc_hot17mffcrm3vnfhvyxt7ea3y65e804jfgrk6pjn78aqd9vg7xpq8dv";
+        var expectedCommitteeHotVerificationKeyHash = "cc_hot_vkh17mffcrm3vnfhvyxt7ea3y65e804jfgrk6pjn78aqd9vg7vk5akz";
 
         var bech32erificationKeyHash = committeeHotKey.bech32VerificationKeyHash();
         assertThat(bech32erificationKeyHash).isEqualTo(expectedCommitteeHotVerificationKeyHash);
@@ -193,6 +195,20 @@ public class CommitteeHotKeyTest {
 
         var bech32ScriptHash = CommitteeHotKey.bech32ScriptHash(scriptHash);
         assertThat(bech32ScriptHash).isEqualTo(expectedCommitteeHotScriptHashBech32);
+    }
+
+
+    @Test
+    void testCcHot_fromAccPubKeyXvk() {
+        String accountXvk = "acct_xvk1kxenc045r0l2u5ethalm89pej406fu3ltk3csy37x9jrx56f8yqquzpltg7ydf7qvxl9kw53q3qzp30799u69yvlvgl0s4pdtpux4yc8mgmff";
+        var accountVKBytes = Bech32.decode(accountXvk).data;
+
+        var ccHotDerivationPath = DerivationPath.createCommitteeHotKeyDerivationPathForAccount(0);
+
+        HdPublicKey hdPublicKey = new CIP1852().getPublicKeyFromAccountPubKey(accountVKBytes, ccHotDerivationPath.getRole().getValue(), 0); //role = 5
+
+        CommitteeHotKey committeeHotKey = CommitteeHotKey.from(hdPublicKey);
+        assertThat(committeeHotKey.id()).isEqualTo("cc_hot1qgxf280zt5yznyq6u9t57rqy3c6v5qj03cvy200cm66cgnsc9z9ht");
     }
 
     private HdKeyPair getCommitteeHotKeyPair() {

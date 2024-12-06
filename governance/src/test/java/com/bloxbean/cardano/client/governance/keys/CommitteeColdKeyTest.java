@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.governance.keys;
 
+import com.bloxbean.cardano.client.crypto.Bech32;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
+import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
 import com.bloxbean.cardano.client.crypto.cip1852.CIP1852;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -170,7 +172,7 @@ public class CommitteeColdKeyTest {
         var hdKeyPair = getCommitteeColdKeyPair();
         var committeeColdKey = CommitteeColdKey.from(hdKeyPair);
 
-        var expectedCommitteeColdVerificationKeyHash = "cc_cold1lmaet9hdvu9d9jvh34u0un4ndw3yewaq5ch6fnwsctw02xxwylj";
+        var expectedCommitteeColdVerificationKeyHash = "cc_cold_vkh1lmaet9hdvu9d9jvh34u0un4ndw3yewaq5ch6fnwsctw0243cw47";
 
         var bech32VerificationKeyHash = committeeColdKey.bech32VerificationKeyHash();
         assertThat(bech32VerificationKeyHash).isEqualTo(expectedCommitteeColdVerificationKeyHash);
@@ -194,6 +196,27 @@ public class CommitteeColdKeyTest {
 
         var bech32ScriptHash = CommitteeColdKey.bech32ScriptHash(scriptHash);
         assertThat(bech32ScriptHash).isEqualTo(expectedCommitteeColdScriptHashBech32);
+    }
+
+    @Test
+    void testCcCold_fromAccPubKeyXvk() {
+        String accountXvk = "acct_xvk1kxenc045r0l2u5ethalm89pej406fu3ltk3csy37x9jrx56f8yqquzpltg7ydf7qvxl9kw53q3qzp30799u69yvlvgl0s4pdtpux4yc8mgmff";
+        var accountVKBytes = Bech32.decode(accountXvk).data;
+
+        var ccColdDerivationPath = DerivationPath.createCommitteeColdKeyDerivationPathForAccount(0);
+
+        HdPublicKey hdPublicKey = new CIP1852().getPublicKeyFromAccountPubKey(accountVKBytes, ccColdDerivationPath.getRole().getValue(), 0); //role = 4
+
+        CommitteeColdKey committeeColdKey = CommitteeColdKey.from(hdPublicKey);
+        assertThat(committeeColdKey.id()).isEqualTo("cc_cold1zgvh8vc489udnv2jrzez80hkn6ggre38kpng0tk5vw8rd7gu9rgs9");
+    }
+
+    @Test
+    void testScriptId() {
+        String scriptHash = "00000000000000000000000000000000000000000000000000000000";
+        String ccColdId = CommitteeColdKey.scriptId(scriptHash);
+
+        assertThat(ccColdId).isEqualTo("cc_cold1zvqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6kflvs");
     }
 
     private HdKeyPair getCommitteeColdKeyPair() {

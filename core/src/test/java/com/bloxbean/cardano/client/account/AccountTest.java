@@ -427,6 +427,9 @@ public class AccountTest {
         Account account = new Account(Networks.testnet(), mnemonicPhrase);
         String drepId = account.drepId();
 
-        assertThat(drepId).isEqualTo("drep18hf6wcv9aaq426duj8kcc5kp9pauz9ac8znh8jmckm80sf7fetw");
+        assertThat(drepId).isEqualTo("drep1yg7a8fmpshh5z4tfhjg7mrzjcy58hsghhqu2wu7t0zmva7qhqjauh");
+
+        String legacyDRepId = account.legacyDRepId();
+        assertThat(legacyDRepId).isEqualTo("drep18hf6wcv9aaq426duj8kcc5kp9pauz9ac8znh8jmckm80sf7fetw");
     }
 }
