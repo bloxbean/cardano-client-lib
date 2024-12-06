@@ -49,7 +49,7 @@ class LegacyDRepIdTest {
     }
 
     @Test
-    public void testDRepScriptId1() {
+    void testDRepScriptId1() {
         String scriptHash = "d0657126dbf0c135a7224d91ca068f5bf769af6d1f1df0bce5170ec5";
         String expectedDRepId = "drep_script16pjhzfkm7rqntfezfkgu5p50t0mkntmdruwlp089zu8v29l95rg";
 
@@ -58,7 +58,7 @@ class LegacyDRepIdTest {
     }
 
     @Test
-    public void testDRepScriptId2() {
+    void testDRepScriptId2() {
         String scriptHash = "ae5acf0511255d647c84b3184a2d522bf5f6c5b76b989f49bd383bdd";
         String expectedDRepId = "drep_script14edv7pg3y4wkglyykvvy5t2j906ld3dhdwvf7jda8qaa63d5kf4";
 
@@ -66,9 +66,4 @@ class LegacyDRepIdTest {
         assertThat(drepId).isEqualTo(expectedDRepId);
     }
 
-    //TODO: Implement this
-    @Test
-    void toDrep() {
-
-    }
 }

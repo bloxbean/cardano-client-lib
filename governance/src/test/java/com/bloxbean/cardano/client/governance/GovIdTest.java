@@ -9,24 +9,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GovIdTest {
 
     @Test
-    void ccColdFromKeyHash() {
-
-    }
-
-    @Test
     void ccColdFromScriptHash() {
         String scriptHash ="00000000000000000000000000000000000000000000000000000000";
         String ccColdId = GovId.ccColdFromScriptHash(HexUtil.decodeHexString(scriptHash));
 
         assertThat(ccColdId).isEqualTo("cc_cold1zvqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq6kflvs");
-    }
-
-    @Test
-    void ccHotFromKeyHash() {
-//        String keyHash ="00000000000000000000000000000000000000000000000000000000";
-//        String ccHotId = GovId.ccHotFromKeyHash(keyHash);
-//
-//        assertThat(ccHotId).isEqualTo("cc_hot1qgqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqvcdjk7");
     }
 
     @Test
@@ -93,8 +80,23 @@ class GovIdTest {
         assertThat(govActionId).isEqualTo("gov_action1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsq6dmejn");
     }
 
+    /**. TODO : Add tests for commented test cases
+    @Test
+    void ccHotFromKeyHash() {
+        String keyHash = "00000000000000000000000000000000000000000000000000000000";
+        String ccHotId = GovId.ccHotFromKeyHash(keyHash);
+
+        assertThat(ccHotId).isEqualTo("cc_hot1qgqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqvcdjk7");
+    }
+
+    @Test
+    void ccColdFromKeyHash() {
+
+    }
+
     @Test
     void drepFromScriptHash() {
 
     }
+    **/
 }

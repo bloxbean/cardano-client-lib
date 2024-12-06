@@ -21,6 +21,10 @@ public class GovId {
     private static final String DREP_PREFIX = "drep";
     private static final String GOV_ACTION_PREFIX = "gov_action";
 
+    private GovId() {
+
+    }
+
     public static String ccColdFromKeyHash(byte[] keyHash) {
         byte[] idBytes = getIdentifierBytes(CC_COLD_KEY_TYPE, KEY_HASH_CRED_TYPE, keyHash);
         return Bech32.encode(idBytes, CC_COLD_PREFIX);

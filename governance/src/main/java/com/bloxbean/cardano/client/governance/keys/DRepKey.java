@@ -179,7 +179,7 @@ public class DRepKey {
      *
      * @return bech32 encoded drep id (CIP 105 deprecatd version)
      */
-    @Deprecated
+    @Deprecated(since = "0.6.3")
     public String legacyDRepId() {
         if (verificationKey == null) return null;
         return LegacyDRepId.fromKeyHash(verificationKeyHash());

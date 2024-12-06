@@ -102,9 +102,8 @@ public class CIP1852 {
     public static HdPublicKey getPublicKeyFromAccountPubKey(HdPublicKey accountHdPubKey, int role, int index) {
         HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
         HdPublicKey roleHdPubKey = hdKeyGenerator.getChildPublicKey(accountHdPubKey, role);
-        HdPublicKey indexHdPubKey = hdKeyGenerator.getChildPublicKey(roleHdPubKey, index);
 
-        return indexHdPubKey;
+        return hdKeyGenerator.getChildPublicKey(roleHdPubKey, index);
     }
 
 }

@@ -16,12 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class DRepKeyTest {
     private String mnemonic1 = "test walk nut penalty hip pave soap entry language right filter choice";
 
-    public DRepKeyTest() {
-
-    }
-
     @Test
-    public void testDRepSigningAndVerificationKeys() {
+   void testDRepSigningAndVerificationKeys() {
         HdKeyPair drepKeyPair = getDRepKeyPair();
         DRepKey dRepKey = DRepKey.from(drepKeyPair);
 
@@ -46,7 +42,7 @@ public class DRepKeyTest {
 
 
     @Test
-    public void testDRepExtendedSigningAndVerificationKeys() {
+    void testDRepExtendedSigningAndVerificationKeys() {
         HdKeyPair drepKeyPair = getDRepKeyPair();
         DRepKey dRepKey = DRepKey.from(drepKeyPair);
 
@@ -70,7 +66,7 @@ public class DRepKeyTest {
     }
 
     @Test
-    public void testDRepSigningKeys_hdPrivateKey() {
+    void testDRepSigningKeys_hdPrivateKey() {
         HdKeyPair drepKeyPair = getDRepKeyPair();
         DRepKey dRepKey = DRepKey.from(drepKeyPair.getPrivateKey());
 
@@ -94,7 +90,7 @@ public class DRepKeyTest {
     }
 
     @Test
-    public void testDRepVerificationKeys_hdPublicKey() {
+    void testDRepVerificationKeys_hdPublicKey() {
         HdKeyPair drepKeyPair = getDRepKeyPair();
         DRepKey dRepKey = DRepKey.from(drepKeyPair.getPublicKey());
 
@@ -118,7 +114,7 @@ public class DRepKeyTest {
     }
 
     @Test
-    public void testBech32VkhAndVKeyHash() {
+    void testBech32VkhAndVKeyHash() {
         HdKeyPair drepKeyPair = getDRepKeyPair();
         DRepKey dRepKey = DRepKey.from(drepKeyPair);
 
@@ -133,7 +129,7 @@ public class DRepKeyTest {
     }
 
     @Test
-    public void testDRepScriptHashBytes1() {
+    void testDRepScriptHashBytes1() {
         String dRepScriptId = DRepKey.bech32ScriptHash(HexUtil.decodeHexString("d0657126dbf0c135a7224d91ca068f5bf769af6d1f1df0bce5170ec5"));
 
         String expectedDrepScriptId = "drep_script16pjhzfkm7rqntfezfkgu5p50t0mkntmdruwlp089zu8v29l95rg";
@@ -141,7 +137,7 @@ public class DRepKeyTest {
     }
 
     @Test
-    public void testDRepScriptHash2() {
+    void testDRepScriptHash2() {
         String dRepScriptId = DRepKey.bech32ScriptHash(HexUtil.decodeHexString("ae5acf0511255d647c84b3184a2d522bf5f6c5b76b989f49bd383bdd"));
 
         String expectedDrepScriptId = "drep_script14edv7pg3y4wkglyykvvy5t2j906ld3dhdwvf7jda8qaa63d5kf4";
@@ -149,7 +145,7 @@ public class DRepKeyTest {
     }
 
     @Test
-    public void testDRepId_fromAccPubKeyXvk() {
+    void testDRepId_fromAccPubKeyXvk() {
         String accountXvk = "acct_xvk1kxenc045r0l2u5ethalm89pej406fu3ltk3csy37x9jrx56f8yqquzpltg7ydf7qvxl9kw53q3qzp30799u69yvlvgl0s4pdtpux4yc8mgmff";
         var accountVKBytes = Bech32.decode(accountXvk).data;
 
@@ -160,7 +156,7 @@ public class DRepKeyTest {
     }
 
     @Test
-    public void testDRepId_fromAccPubKeyXpub() {
+    void testDRepId_fromAccPubKeyXpub() {
         String accountXvk = "xpub16nuts3mqurnek523dk35j37hwscsj90a098f7t77v4htwh5ana3ced0tv948hucq537c7l5ypd9d7vvgmtn6wy28xyj9wnp9ftkzqqqxe7kkj";
         var accountVKBytes = Bech32.decode(accountXvk).data;
 
@@ -174,7 +170,7 @@ public class DRepKeyTest {
 
 
     @Test
-    public void testDRepId() {
+    void testDRepId() {
         String accountXvk = "acct_xvk1kxenc045r0l2u5ethalm89pej406fu3ltk3csy37x9jrx56f8yqquzpltg7ydf7qvxl9kw53q3qzp30799u69yvlvgl0s4pdtpux4yc8mgmff";
         var accountVKBytes = Bech32.decode(accountXvk).data;
 
