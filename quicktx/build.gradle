@@ -2,6 +2,7 @@ dependencies {
     api project(':core')
     api project(':function')
     api project(':backend')
+    api project(':hd-wallet')
 
     integrationTestImplementation(libs.slf4j.reload4j)
     integrationTestImplementation(libs.aiken.java.binding)

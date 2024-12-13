@@ -19,6 +19,7 @@ import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.NonNull;
 
 import java.math.BigInteger;
@@ -32,6 +33,7 @@ public class Tx extends AbstractTx<Tx> {
 
     private String sender;
     protected boolean senderAdded = false;
+    private Wallet senderWallet;
 
     /**
      * Create Tx
@@ -121,6 +123,16 @@ public class Tx extends AbstractTx<Tx> {
         return this;
     }
 
+    public Tx from(Wallet sender) {
+        verifySenderNotExists();
+        this.senderWallet = sender;
+        // TODO sender is not used in this scenarios, but it must be set to avoid breaking other things.
+        this.sender = this.senderWallet.getBaseAddress(0).getAddress(); // TODO - is it clever to use the first address as sender here?
+        this.changeAddress = this.sender;
+        this.senderAdded = true;
+        return this;
+    }
+
     /**
      * Create Tx with given utxos as inputs.
      * @param utxos List of utxos
@@ -148,6 +160,11 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx registerStakeAddress(@NonNull String address) {
         stakeTx.registerStakeAddress(new Address(address));
+        return this;
+    }
+
+    public Tx registerStakeAddress(@NonNull Wallet wallet) {
+        stakeTx.registerStakeAddress(new Address(wallet.getStakeAddress()));
         return this;
     }
 
@@ -181,6 +198,11 @@ public class Tx extends AbstractTx<Tx> {
         return this;
     }
 
+    public Tx deregisterStakeAddress(@NonNull Wallet wallet) {
+        stakeTx.deregisterStakeAddress(new Address(wallet.getStakeAddress()), null, null);
+        return this;
+    }
+
     /**
      * De-register stake address. The key deposit will be refunded to the refund address.
      * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
@@ -211,6 +233,11 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx delegateTo(@NonNull String address, @NonNull String poolId) {
         stakeTx.delegateTo(new Address(address), poolId, null);
+        return this;
+    }
+
+    public Tx delegateTo(@NonNull Wallet wallet, @NonNull String poolId) {
+        stakeTx.delegateTo(new Address(wallet.getStakeAddress()), poolId, null);
         return this;
     }
 
@@ -475,6 +502,8 @@ public class Tx extends AbstractTx<Tx> {
             return changeAddress;
         else if (sender != null)
             return sender;
+        else if (senderWallet != null)
+            return senderWallet.getBaseAddress(0).getAddress(); // TODO - Change address to a new index??
         else
             throw new TxBuildException("No change address. " +
                     "Please define at least one of sender address or sender account or change address");
@@ -486,6 +515,14 @@ public class Tx extends AbstractTx<Tx> {
             return sender;
         else
             throw new TxBuildException("No sender address or sender account defined");
+    }
+
+    @Override
+    protected Wallet getFromWallet() {
+        if(senderWallet != null)
+            return senderWallet;
+        else
+            return null;
     }
 
     @Override

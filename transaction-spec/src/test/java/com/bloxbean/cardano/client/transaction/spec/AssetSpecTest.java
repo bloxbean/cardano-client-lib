@@ -6,8 +6,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 class AssetSpecTest {
 
@@ -16,7 +15,7 @@ class AssetSpecTest {
         Asset asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(100L)).build();
         Asset asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
 
-        assertThat(asset1.plus(asset2)).isEqualTo(Asset.builder().name("asset").value(BigInteger.valueOf(300L)).build());
+        assertThat(asset1.add(asset2)).isEqualTo(Asset.builder().name("asset").value(BigInteger.valueOf(300L)).build());
     }
 
     @Test
@@ -24,23 +23,23 @@ class AssetSpecTest {
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
         Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
 
-        assertThrows(IllegalArgumentException.class, () -> asset1.plus(asset2));
+        assertThrows(IllegalArgumentException.class, () -> asset1.add(asset2));
     }
 
     @Test
-    void minusSameAsset() {
+    void subtractSameAsset() {
         Asset asset1 = Asset.builder().name("asset").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("asset").value(BigInteger.valueOf(200L)).build();
 
-        assertThat(asset1.minus(asset2)).isEqualTo((Asset.builder().name("asset").value(BigInteger.valueOf(500L)).build()));
+        assertThat(asset1.subtract(asset2)).isEqualTo((Asset.builder().name("asset").value(BigInteger.valueOf(500L)).build()));
     }
 
     @Test
-    void minusDifferentAssetThrowsError() {
+    void subtractDifferentAssetThrowsError() {
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
         Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
 
-        assertThrows(IllegalArgumentException.class, () -> asset1.minus(asset2));
+        assertThrows(IllegalArgumentException.class, () -> asset1.subtract(asset2));
     }
 
     @Test
@@ -83,5 +82,29 @@ class AssetSpecTest {
 
         byte[] expectedBytes = "0xtest".getBytes(StandardCharsets.UTF_8);
         assertThat(asset.getNameAsBytes()).isEqualTo(expectedBytes);
+    }
+
+    @Test
+    void hasName() {
+        Asset asset = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
+
+        var same = asset.hasName("asset1");
+        assertTrue(same);
+    }
+
+    @Test
+    void hasNameReturnsFalse() {
+        Asset asset = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
+
+        var same = asset.hasName("asset2");
+        assertFalse(same);
+    }
+
+    @Test
+    void hasNameWhenHex() {
+        Asset asset = Asset.builder().name("asset1").value(BigInteger.valueOf(700L)).build();
+
+        var same = asset.hasName("0x617373657431");
+        assertTrue(same);
     }
 }

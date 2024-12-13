@@ -8,6 +8,9 @@ import java.nio.charset.StandardCharsets;
 
 @Slf4j
 public class MetadataHelper {
+    private static final int BIG_UINT_TAG = 2;
+    private static final int BIG_NINT_TAG = 3;
+    private static final BigInteger MINUS_ONE = BigInteger.valueOf(-1);
 
     public static Object extractActualValue(DataItem dataItem) {
         if (dataItem instanceof UnicodeString) {
@@ -17,7 +20,7 @@ public class MetadataHelper {
         } else if (dataItem instanceof NegativeInteger) {
             return ((NegativeInteger) dataItem).getValue();
         } else if (dataItem instanceof ByteString) {
-            return ((ByteString) dataItem).getBytes();
+            return parseByteString((ByteString) dataItem);
         } else if (dataItem instanceof Map) {
             return new CBORMetadataMap((Map) dataItem);
         } else if (dataItem instanceof Array) {
@@ -58,4 +61,16 @@ public class MetadataHelper {
         return str.getBytes(StandardCharsets.UTF_8).length;
     }
 
+    public static Object parseByteString(ByteString valueItem) {
+        var tag = valueItem.getTag();
+        if (tag != null){
+            if (tag.getValue() == BIG_UINT_TAG) {
+                return new BigInteger(1, valueItem.getBytes());
+            } else if (tag.getValue() == BIG_NINT_TAG) {
+                return MINUS_ONE.subtract(new BigInteger(1, valueItem.getBytes()));
+            }
+        }
+
+        return valueItem.getBytes();
+    }
 }

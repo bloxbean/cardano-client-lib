@@ -32,7 +32,7 @@ public class AuxiliaryDataTest {
 
     @Test
     public void getAuxiliaryDataHash_checkKeysOrder_whenMetadataIsSet() throws Exception {
-        JsonNode json = loadJsonMetadata("json-4");
+        JsonNode json = loadJsonMetadata("json-1");
         Metadata metadata = JsonNoSchemaToMetadataConverter.jsonToCborMetadata(json.toString());
 
         AuxiliaryData auxiliaryData = AuxiliaryData.builder()

@@ -117,7 +117,7 @@ public class OutputBuilders {
                 outputs.stream().filter(to -> address.equals(to.getAddress()))
                         .findFirst()
                         .ifPresentOrElse(to -> {
-                            Value newValue = to.getValue().plus(value);
+                            Value newValue = to.getValue().add(value);
                             to.setValue(newValue);
                             copyDatumAndScriptRef(txnOutput, to);
 
@@ -153,7 +153,7 @@ public class OutputBuilders {
             outputs.stream().filter(to -> output.getAddress().equals(to.getAddress()))
                     .findFirst()
                     .ifPresentOrElse(to -> {
-                        Value newValue = to.getValue().plus(new Value(BigInteger.ZERO, List.of(multiAsset)));
+                        Value newValue = to.getValue().add(new Value(BigInteger.ZERO, List.of(multiAsset)));
                         to.setValue(newValue);
                         copyDatumAndScriptRef(output, to);
 
@@ -244,7 +244,7 @@ public class OutputBuilders {
 
         if (additionalLovelace != null && additionalLovelace.compareTo(BigInteger.ZERO) == 1) {
             Value orginalValue = output.getValue();
-            Value newValue = orginalValue.plus(Value.builder().coin(additionalLovelace).build());
+            Value newValue = orginalValue.add(Value.builder().coin(additionalLovelace).build());
 
             output.setValue(newValue);
         }
