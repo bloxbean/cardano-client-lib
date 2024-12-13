@@ -593,16 +593,6 @@ public class QuickTxBuilder {
         /**
          * Submit the transaction and return a CompletableFuture containing a Result that wraps a txHash if the operation is successful.
          *
-         * @param executor the executor to use for asynchronous execution. It must not be null.
-         * @return
-         */
-        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Executor executor) {
-            return completeAndWaitAsync(Duration.ofSeconds(2), (msg) -> log.info(msg), executor);
-        }
-
-        /**
-         * Submit the transaction and return a CompletableFuture containing a Result that wraps a txHash if the operation is successful.
-         *
          * @param logConsumer a consumer that processes log messages. It must not be null.
          * @param executor the executor to use for asynchronous execution. It must not be null.
          * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
@@ -660,7 +650,7 @@ public class QuickTxBuilder {
 
                 logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
                 return result;
-            });
+            }, executor);
         }
 
 
