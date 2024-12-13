@@ -52,19 +52,19 @@ public class InputBuilders {
             Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
             value = outputs.stream()
                     .map(output -> output.getValue())
-                    .reduce(value, (value1, value2) -> value1.plus(value2));
+                    .reduce(value, (value1, value2) -> value1.add(value2));
 
             //Check if mint value is there in context. Then we need to ignore mint outputs from total value
             List<MultiAsset> mintMultiAssets = context.getMintMultiAssets();
             Optional<Value> mintValue = findMintValueFromMultiAssets(mintMultiAssets);
             if (mintValue.isPresent()) {
-                value = value.minus(mintValue.get());
+                value = value.subtract(mintValue.get());
             }
 
             //check if there is any burn multiasset value
             Optional<Value> burnValue = findBurnValueFromMultiAssets(mintMultiAssets);
             if (burnValue.isPresent()) {
-                value = value.plus(burnValue.get());
+                value = value.add(burnValue.get());
             }
 
             Set<Utxo> utxoSet = getUtxosForValue(context, sender, value, Collections.EMPTY_SET);
@@ -84,7 +84,7 @@ public class InputBuilders {
                 });
 
                 //Substract output values from change
-                Value changedValue = changeOutput.getValue().minus(value);
+                Value changedValue = changeOutput.getValue().subtract(value);
                 changeOutput.setValue(changedValue);
                 BigInteger additionalLovelace = MinAdaCheckers.minAdaChecker().apply(context, changeOutput);
 
@@ -260,19 +260,19 @@ public class InputBuilders {
             Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
             value = outputs.stream()
                     .map(TransactionOutput::getValue)
-                    .reduce(value, Value::plus);
+                    .reduce(value, Value::add);
 
             //Check if mint value is there in context. Then we need to ignore mint outputs from total value
             List<MultiAsset> mintMultiAssets = context.getMintMultiAssets();
             Optional<Value> mintValue = findMintValueFromMultiAssets(mintMultiAssets);
             if (mintValue.isPresent()) {
-                value = value.minus(mintValue.get());
+                value = value.subtract(mintValue.get());
             }
 
             //check if there is any burn multiasset value
             Optional<Value> burnValue = findBurnValueFromMultiAssets(mintMultiAssets);
             if (burnValue.isPresent()) {
-                value = value.plus(burnValue.get());
+                value = value.add(burnValue.get());
             }
 
             List<Utxo> utxos = supplier.get();
@@ -293,7 +293,7 @@ public class InputBuilders {
                 });
 
                 //Subtract output values from change
-                Value changedValue = changeOutput.getValue().minus(value);
+                Value changedValue = changeOutput.getValue().subtract(value);
                 changeOutput.setValue(changedValue);
 
                 if (datumHash != null && !datumHash.isEmpty())

@@ -21,23 +21,7 @@ public class Asset {
 
     @JsonIgnore
     public byte[] getNameAsBytes() {
-        byte[] assetNameBytes = null;
-        if (name != null && !name.isEmpty()) {
-            //Check if caller has provided a hex string as asset name
-            if (name.startsWith("0x")) {
-                try {
-                    assetNameBytes = HexUtil.decodeHexString(name.substring(2));
-                } catch (IllegalArgumentException e) {
-                    // name is not actually a hex string
-                    assetNameBytes = name.getBytes(StandardCharsets.UTF_8);
-                }
-            } else {
-                assetNameBytes = name.getBytes(StandardCharsets.UTF_8);
-            }
-        } else {
-            assetNameBytes = new byte[0];
-        }
-        return assetNameBytes;
+        return nameToBytes(name);
     }
 
     /**
@@ -71,7 +55,7 @@ public class Asset {
      * @param that
      * @return a new Asset as sum of this value and the one passed as parameter
      */
-    public Asset plus(Asset that) {
+    public Asset add(Asset that) {
         if (!Arrays.equals(getNameAsBytes(), that.getNameAsBytes())) {
             throw new IllegalArgumentException("Trying to add Assets with different name");
         }
@@ -79,15 +63,50 @@ public class Asset {
     }
 
     /**
+     * Returns a new asset that is the sum of this asset and the provided asset.
+     *
+     * @deprecated
+     * <p>Use {@link #add(Asset)} instead</p>
+     *
+     * @param that the asset to be added to this asset
+     * @return a new Asset representing the sum of this asset and the provided asset
+     */
+    @Deprecated(since = "0.6.3")
+    public Asset plus(Asset that) {
+        return this.add(that);
+    }
+
+    /**
      * returns a new asset that is a subtraction of this and that (asset passed as parameter)
      * @param that
      * @return a new Asset as subtract of this value and the one passed as parameter
      */
-    public Asset minus(Asset that) {
+    public Asset subtract(Asset that) {
         if (!Arrays.equals(getNameAsBytes(), that.getNameAsBytes())) {
             throw new IllegalArgumentException("Trying to add Assets with different name");
         }
         return Asset.builder().name(getName()).value(getValue().subtract(that.getValue())).build();
+    }
+
+    /**
+     * Returns a new asset that is a subtraction of this asset and the provided asset.
+     * @deprecated
+     * <p>Use {@link #subtract(Asset)} instead</p>
+     *
+     * @param that the asset to be subtracted from this asset
+     * @return a new Asset representing the difference between this asset and the provided asset
+     */
+    @Deprecated(since = "0.6.3")
+    public Asset minus(Asset that) {
+        return this.subtract(that);
+    }
+
+    public boolean hasName(String assetName) {
+        byte[] assetNameBytes = nameToBytes(assetName);
+        byte[] existingAssetNameBytes = nameToBytes(name);
+
+        //check if both byte array are same
+        return Arrays.equals(assetNameBytes, existingAssetNameBytes);
     }
 
     @Override
@@ -101,5 +120,25 @@ public class Asset {
     @Override
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(getNameAsBytes()), value);
+    }
+
+    private static byte[] nameToBytes(String assetName) {
+        byte[] assetNameBytes = null;
+        if (assetName != null && !assetName.isEmpty()) {
+            //Check if caller has provided a hex string as asset name
+            if (assetName.startsWith("0x")) {
+                try {
+                    assetNameBytes = HexUtil.decodeHexString(assetName.substring(2));
+                } catch (IllegalArgumentException e) {
+                    // name is not actually a hex string
+                    assetNameBytes = assetName.getBytes(StandardCharsets.UTF_8);
+                }
+            } else {
+                assetNameBytes = assetName.getBytes(StandardCharsets.UTF_8);
+            }
+        } else {
+            assetNameBytes = new byte[0];
+        }
+        return assetNameBytes;
     }
 }

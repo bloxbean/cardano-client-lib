@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPrivateKey;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
+import com.bloxbean.cardano.client.governance.GovId;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
 
@@ -17,7 +18,8 @@ public class CommitteeColdKey {
     private static final String CC_COLD_VK = "cc_cold_vk";
     private static final String CC_COLD_XSK = "cc_cold_xsk";
     private static final String CC_COLD_XVK = "cc_cold_xvk";
-    private static final String CC_COLD = "cc_cold";
+
+    private static final String CC_COLD_VKH = "cc_cold_vkh";
     private static final String CC_COLD_SCRIPT = "cc_cold_script";
 
     private byte[] signingKey;
@@ -155,7 +157,36 @@ public class CommitteeColdKey {
         return bech32VerificationKeyHash(verificationKeyHash());
     }
 
+    /**
+     * Generates a CIP-129 Committee Cold ID by utilizing the verification key hash.
+     *
+     * @return A bech32 encoded string representing the Committee Cold ID derived from the verification key hash.
+     */
+    public String id() {
+        return GovId.ccColdFromKeyHash(verificationKeyHash());
+    }
+
     //-- static methods to get bech32 encoded keys from key bytes
+
+    /**
+     * Converts a script hash to bech32 committee cold key id
+     *
+     * @param scriptHash the hex string representation of the script hash
+     * @return the script ID derived from the given script hash
+     */
+    public static String scriptId(String scriptHash) {
+        return scriptId(HexUtil.decodeHexString(scriptHash));
+    }
+
+    /**
+     * Converts a script hash to bech32 committee cold key id
+     *
+     * @param scriptHash the script hash represented as a byte array
+     * @return the script ID derived from the given script hash
+     */
+    public static String scriptId(byte[] scriptHash) {
+        return GovId.ccColdFromScriptHash(scriptHash);
+    }
 
     /**
      * Get the bech32 encoded script hash
@@ -190,8 +221,9 @@ public class CommitteeColdKey {
      * @return String bech32 encoded verification key hash
      */
     public static String bech32VerificationKeyHash(byte[] verificationKeyHash) {
-        return Bech32.encode(verificationKeyHash, CC_COLD);
+        return Bech32.encode(verificationKeyHash, CC_COLD_VKH);
     }
+
 
     /**
      * Get the bech32 encoded signing key

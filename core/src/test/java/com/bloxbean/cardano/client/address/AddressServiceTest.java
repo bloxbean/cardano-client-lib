@@ -214,6 +214,11 @@ class AddressServiceTest {
                 }
 
                 @Override
+                public byte[] scriptRefBytes() throws CborSerializationException {
+                    return new byte[0];
+                }
+
+                @Override
                 public byte[] getScriptTypeBytes() {
                     return new byte[0];
                 }

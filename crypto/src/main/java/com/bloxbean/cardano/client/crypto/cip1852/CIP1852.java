@@ -71,11 +71,39 @@ public class CIP1852 {
     public HdPublicKey getPublicKeyFromAccountPubKey(byte[] accountPubKey, DerivationPath derivationPath) {
         HdPublicKey accountHdPubKey = HdPublicKey.fromBytes(accountPubKey);
 
-        HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
-        HdPublicKey roleHdPubKey = hdKeyGenerator.getChildPublicKey(accountHdPubKey, derivationPath.getRole().getValue());
-        HdPublicKey indexHdPubKey = hdKeyGenerator.getChildPublicKey(roleHdPubKey, derivationPath.getIndex().getValue());
+        return getPublicKeyFromAccountPubKey(accountHdPubKey, derivationPath.getRole().getValue(), derivationPath.getIndex().getValue());
+    }
 
-        return indexHdPubKey;
+    /**
+     * Derives a hierarchical deterministic (HD) public key for a specific role and index
+     * from the given account-level public key.
+     *
+     * @param accountPubKey the account-level public key as a byte array
+     * @param role the specific role in the derivation path for the key
+     * @param index the index number in the derivation path for the key
+     * @return the derived HD public key for the specified role and index
+     * @throws CryptoException if the account-level public key is invalid
+     */
+    public HdPublicKey getPublicKeyFromAccountPubKey(byte[] accountPubKey, int role, int index) {
+        HdPublicKey accountHdPubKey = HdPublicKey.fromBytes(accountPubKey);
+
+        return getPublicKeyFromAccountPubKey(accountHdPubKey, role, index);
+    }
+
+    /**
+     * Derives a hierarchical deterministic (HD) public key for a specific role and index
+     * from the given account-level HD public key.
+     *
+     * @param accountHdPubKey the account-level HD public key
+     * @param role the specific role in the derivation path for the key
+     * @param index the index number in the derivation path for the key
+     * @return the derived HD public key for the specified role and index
+     */
+    public static HdPublicKey getPublicKeyFromAccountPubKey(HdPublicKey accountHdPubKey, int role, int index) {
+        HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+        HdPublicKey roleHdPubKey = hdKeyGenerator.getChildPublicKey(accountHdPubKey, role);
+
+        return hdKeyGenerator.getChildPublicKey(roleHdPubKey, index);
     }
 
 }

@@ -12,10 +12,11 @@ public interface TxSigner {
     /**
      * Apply this function to sign a transaction
      *
-     * @param transaction
+     * @param context {@link TxBuilderContext}
+     * @param transaction {@link Transaction} to sign
      * @return a signed transaction
      */
-    Transaction sign(Transaction transaction);
+    Transaction sign(TxBuilderContext context, Transaction transaction);
 
     /**
      * Returns a composed function that first applies this function to
@@ -29,6 +30,6 @@ public interface TxSigner {
      */
     default TxSigner andThen(TxSigner after) {
         Objects.requireNonNull(after);
-        return (transaction) -> after.sign(sign(transaction));
+        return (context, transaction) -> after.sign(context, sign(context, transaction));
     }
 }

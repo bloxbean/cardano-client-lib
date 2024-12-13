@@ -3,15 +3,14 @@ package com.bloxbean.cardano.client.metadata.helper;
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborException;
 import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
+import com.bloxbean.cardano.client.metadata.cbor.MetadataHelper;
 import com.bloxbean.cardano.client.metadata.exception.MetadataDeSerializationException;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 import static co.nstant.in.cbor.model.MajorType.*;
 
@@ -58,7 +57,7 @@ public class MetadataToJsonNoSchemaConverter {
         if(dataItemList != null && dataItemList.size() > 1)
             throw new MetadataDeSerializationException("Multiple DataItems found at top level. Should be zero : " + dataItemList.size());
 
-        java.util.Map result = new HashMap();
+        java.util.Map result;
         DataItem dataItem = dataItemList.get(0);
         if(dataItem instanceof Map) {
             result = processMap((Map)dataItem);
@@ -69,7 +68,7 @@ public class MetadataToJsonNoSchemaConverter {
     }
 
     private static java.util.Map processMap(Map map) {
-        java.util.Map resultMap = new HashMap();
+        java.util.Map resultMap = new LinkedHashMap();
         Collection<DataItem> keys = map.getKeys();
         for(DataItem keyItem: keys) {
             DataItem valueItem = map.get(keyItem);
@@ -87,8 +86,7 @@ public class MetadataToJsonNoSchemaConverter {
         } else if(NEGATIVE_INTEGER.equals(keyItem.getMajorType())) {
             return ((NegativeInteger) keyItem).getValue();
         } else if (BYTE_STRING.equals(keyItem.getMajorType())) {
-            byte[] bytes = ((ByteString) keyItem).getBytes();
-            return "0x" + HexUtil.encodeHexString(bytes);
+            return byteStringToObject((ByteString) keyItem);
         } else if (UNICODE_STRING.equals(keyItem.getMajorType())) {
             return ((UnicodeString) keyItem).getString();
         } else {
@@ -97,13 +95,14 @@ public class MetadataToJsonNoSchemaConverter {
     }
 
     private static Object processValue(DataItem valueItem) {
-        if(UNSIGNED_INTEGER.equals(valueItem.getMajorType())){
+        if (valueItem == SimpleValue.NULL) {
+            return null;
+        } else if(UNSIGNED_INTEGER.equals(valueItem.getMajorType())){
             return ((UnsignedInteger)valueItem).getValue();
         } else if(NEGATIVE_INTEGER.equals(valueItem.getMajorType())) {
             return ((NegativeInteger)valueItem).getValue();
         } else if(BYTE_STRING.equals(valueItem.getMajorType())) {
-            byte[] bytes = ((ByteString)valueItem).getBytes();
-            return "0x" + HexUtil.encodeHexString(bytes);
+            return byteStringToObject((ByteString) valueItem);
         } else if(UNICODE_STRING.equals(valueItem.getMajorType())) {
             return ((UnicodeString)valueItem).getString();
         } else if(MAP.equals(valueItem.getMajorType())){
@@ -112,6 +111,16 @@ public class MetadataToJsonNoSchemaConverter {
             return processArray((Array)valueItem);
         } else {
             throw new MetadataDeSerializationException("Unsupported type : " + valueItem.getMajorType());
+        }
+    }
+
+    private static Object byteStringToObject(ByteString valueItem) {
+        var extractedValue = MetadataHelper.parseByteString(valueItem);
+        if (extractedValue instanceof byte[]) {
+            byte[] bytes = (byte[]) extractedValue;
+            return "0x" + HexUtil.encodeHexString(bytes);
+        } else {
+            return extractedValue;
         }
     }
 

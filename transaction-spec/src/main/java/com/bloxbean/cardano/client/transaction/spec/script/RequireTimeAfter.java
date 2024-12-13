@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigInteger;
+
 /**
  * This script class is for "RequireTimeAfter" expression
  */
@@ -16,9 +18,13 @@ import lombok.NoArgsConstructor;
 public class RequireTimeAfter implements NativeScript {
 
     private final ScriptType type = ScriptType.after;
-    private long slot;
+    private BigInteger slot;
 
     public RequireTimeAfter(long slot) {
+        this.slot = BigInteger.valueOf(slot);
+    }
+
+    public RequireTimeAfter(BigInteger slot) {
         this.slot = slot;
     }
 

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
+import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
@@ -10,12 +11,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-
-import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Data
 @AllArgsConstructor
@@ -150,10 +148,65 @@ public class Value {
      * @param that parameter to sum with
      * @return {@link Value} of the Sum
      */
-    public Value plus(Value that) {
+    public Value add(Value that) {
         BigInteger sumCoin = (getCoin() == null ? BigInteger.ZERO.add(that.getCoin()) : getCoin().add(that.getCoin()));
         List<MultiAsset> sumMultiAssets = MultiAsset.mergeMultiAssetLists(getMultiAssets(), that.getMultiAssets());
         return Value.builder().coin(sumCoin).multiAssets(sumMultiAssets).build();
+    }
+
+    /**
+     * Use add(Value that) instead
+     * @deprecated
+     * <p>Use {@link #add(Value)} instead</p>
+     *
+     * @param that
+     * @return
+     */
+    @Deprecated(since = "0.6.3")
+    public Value plus(Value that) {
+        return this.add(that);
+    }
+
+    public Value add(String policyId, String assetName, BigInteger amount) {
+        return this.add(from(policyId, assetName, amount));
+    }
+
+    /**
+     * Adds the specified coin(lovelace) amount to the current {@code Value} instance.
+     *
+     * @param amount The amount in lovelace to be added
+     * @return A new {@code Value} instance with the added coin amount.
+     */
+    public Value addCoin(BigInteger amount) {
+        return this.add(fromCoin(amount));
+    }
+
+    /**
+     * Creates a new Value instance from provided policy ID, asset name, and amount.
+     *
+     * @param policyId The policy ID associated with the asset.
+     * @param assetName The name of the asset.
+     * @param amount The amount of the asset.
+     * @return A new Value instance containing the provided asset information.
+     */
+    public static Value from(String policyId, String assetName, BigInteger amount) {
+        Objects.requireNonNull(policyId);
+        return Value.builder()
+                .multiAssets(List.of(MultiAsset.builder()
+                        .policyId(policyId)
+                        .assets(List.of(Asset.builder().name(assetName).value(amount).build()))
+                        .build()))
+                .build();
+    }
+
+    /**
+     * Creates a {@link Value} instance from the given amount of lovelaces.
+     *
+     * @param coin The amount of lovelaces to be converted into a {@link Value} instance.
+     * @return A new {@link Value} instance containing the specified amount of lovelaces.
+     */
+    public static Value fromCoin(BigInteger coin) {
+        return Value.builder().coin(coin).build();
     }
 
     /**
@@ -162,16 +215,105 @@ public class Value {
      * @param that parameter to subtract by
      * @return {@link Value} Difference
      */
-    public Value minus(Value that) {
+    public Value subtract(Value that) {
         BigInteger sumCoin = (getCoin() == null ? BigInteger.ZERO.subtract(that.getCoin()) : getCoin().subtract(that.getCoin()));
         List<MultiAsset> difMultiAssets = MultiAsset.subtractMultiAssetLists(getMultiAssets(), that.getMultiAssets());
 
-        //Remove all asset with value == 0
-        difMultiAssets.forEach(multiAsset ->
-                multiAsset.getAssets().removeIf(asset -> BigInteger.ZERO.equals(asset.getValue())));
-        //Remove multiasset if there's no asset
-        difMultiAssets.removeIf(multiAsset -> multiAsset.getAssets() == null || multiAsset.getAssets().isEmpty());
+        List<MultiAsset> filteredMultiAssets = difMultiAssets
+                .stream()
+                .flatMap(multiAsset -> {
+                    List<Asset> assets = multiAsset
+                            .getAssets()
+                            .stream()
+                            .filter(asset -> !asset.getValue().equals(BigInteger.ZERO))
+                            .collect(Collectors.toList());
+                    if (!assets.isEmpty()) {
+                        multiAsset.setAssets(assets);
+                        return Stream.of(multiAsset);
+                    } else {
+                        return Stream.empty();
+                    }
+                })
+                .collect(Collectors.toList());
 
-        return Value.builder().coin(sumCoin).multiAssets(difMultiAssets).build();
+        return Value.builder().coin(sumCoin).multiAssets(filteredMultiAssets).build();
     }
+
+    /**
+     * Use minus(Value that) instead
+     * @deprecated
+     * <p>Use {@link #subtract(Value)} instead</p>
+     *
+     * @param that
+     * @return
+     */
+    @Deprecated(since = "0.6.3")
+    public Value minus(Value that) {
+        return this.subtract(that);
+    }
+
+
+    /**
+     * Subtracts the specified coin (lovelace) amount from the current {@code Value} instance.
+     *
+     * @param amount The amount in lovelace to be subtracted.
+     * @return A new {@code Value} instance with the subtracted coin amount.
+     */
+    public Value substractCoin(BigInteger amount) {
+        return this.subtract(fromCoin(amount));
+    }
+
+    /**
+     * Subtracts a specified amount of an asset from the current {@code Value} instance.
+     *
+     * @param policyId The policy ID associated with the asset.
+     * @param assetName The name of the asset.
+     * @param amount The amount of the asset to be subtracted.
+     * @return A new {@code Value} instance with the subtracted asset amount.
+     */
+    public Value subtract(String policyId, String assetName, BigInteger amount) {
+        return this.subtract(from(policyId, assetName, amount));
+    }
+
+    /**
+     * Returns the amount of a specific asset identified by the given policy ID and asset name.
+     * If the asset is not found, the method returns BigInteger.ZERO.
+     *
+     * @param policyId The policy ID corresponding to the asset.
+     * @param assetName The name of the asset.
+     * @return The amount of the specified asset as a BigInteger, or BigInteger.ZERO if the asset is not found.
+     */
+    public BigInteger amountOf(String policyId, String assetName) {
+        return getMultiAssets()
+                .stream()
+                .filter(multiAsset -> multiAsset.getPolicyId().equals(policyId))
+                .findAny()
+                .stream()
+                .flatMap(multiAsset -> multiAsset.getAssets().stream().filter(asset -> asset.hasName(assetName)))
+                .map(Asset::getValue)
+                .findAny()
+                .orElse(BigInteger.ZERO);
+    }
+
+    /**
+     * Determines if the value represented by this instance is zero.
+     *
+     * @return true if both `multiAssets` is null or empty and `coin` equals to zero, otherwise false.
+     */
+    public boolean isZero() {
+        return (multiAssets == null || multiAssets.isEmpty()) && BigInteger.ZERO.equals(coin);
+    }
+
+    /**
+     * If the amount for all assets is non-negative
+     *
+     * @return true if amount for each asset is non negative
+     */
+    public boolean isPositive() {
+        boolean isCoinPositive = coin.signum() >= 0;
+        boolean allAssetsPositive = multiAssets == null || multiAssets.isEmpty() ||
+                multiAssets.stream().allMatch(multiAsset -> multiAsset.getAssets().stream().allMatch(asset -> asset.getValue().longValue() >= 0));
+        return isCoinPositive && allAssetsPositive;
+    }
+
 }

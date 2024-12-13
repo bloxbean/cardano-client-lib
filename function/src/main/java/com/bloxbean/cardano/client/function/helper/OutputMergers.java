@@ -32,7 +32,7 @@ public class OutputMergers {
                 return;
 
             Optional<Value> totalValue = addressOutputs.stream().map(output -> output.getValue())
-                    .reduce((value1, value2) -> value1.plus(value2));
+                    .reduce((value1, value2) -> value1.add(value2));
 
             TransactionOutput newOutput = new TransactionOutput(address, totalValue.get());
 

@@ -16,15 +16,14 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.CollateralBuilders;
-import com.bloxbean.cardano.client.function.helper.ReferenceScriptResolver;
-import com.bloxbean.cardano.client.function.helper.ScriptCostEvaluators;
-import com.bloxbean.cardano.client.function.helper.ScriptBalanceTxProviders;
+import com.bloxbean.cardano.client.function.helper.*;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
+import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -120,6 +119,18 @@ public class QuickTxBuilder {
     }
 
     /**
+     * Create a QuickTxBuilder instance with specified BackendService and UtxoSupplier.
+     *
+     * @param backendService backend service to get protocol params and submit transactions
+     * @param utxoSupplier utxo supplier to get utxos
+     */
+    public QuickTxBuilder(BackendService backendService, UtxoSupplier utxoSupplier) {
+        this(utxoSupplier,
+                new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+                new DefaultTransactionProcessor(backendService.getTransactionService()));
+    }
+
+    /**
      * Create TxContext for the given txs
      *
      * @param txs list of txs
@@ -162,6 +173,7 @@ public class QuickTxBuilder {
 
         private boolean ignoreScriptCostEvaluationError = true;
         private Era serializationEra;
+        private boolean removeDuplicateScriptWitnesses = false;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -229,9 +241,29 @@ public class QuickTxBuilder {
          * @return Transaction
          */
         public Transaction build() {
+            Tuple<TxBuilderContext, TxBuilder> tuple = _build();
+            return tuple._1.build(tuple._2);
+        }
+
+        /**
+         * Build and sign transaction
+         *
+         * @return Transaction
+         */
+        public Transaction buildAndSign() {
+            Tuple<TxBuilderContext, TxBuilder> tuple = _build();
+
+            if (signers != null)
+                return tuple._1.buildAndSign(tuple._2, signers);
+            else
+                throw new IllegalStateException("No signers found");
+        }
+
+        private Tuple<TxBuilderContext, TxBuilder> _build() {
             TxBuilder txBuilder = (context, txn) -> {
             };
             boolean containsScriptTx = false;
+            boolean hasMultiAssetMint = false;
 
             Set<String> fromAddresses = new HashSet<>();
             for (AbstractTx tx : txList) {
@@ -257,6 +289,8 @@ public class QuickTxBuilder {
 
                 if (tx instanceof ScriptTx)
                     containsScriptTx = true;
+
+                hasMultiAssetMint = hasMultiAssetMint || tx.hasMultiAssetMinting();
             }
 
             int totalSigners = getTotalSigners();
@@ -362,6 +396,10 @@ public class QuickTxBuilder {
             //Balance outputs
             txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
 
+            if ((containsScriptTx || hasMultiAssetMint) && removeDuplicateScriptWitnesses) {
+                txBuilder = txBuilder.andThen(DuplicateScriptWitnessChecker.removeDuplicateScriptWitnesses());
+            }
+
             if (postBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(postBalanceTrasformer);
 
@@ -371,7 +409,8 @@ public class QuickTxBuilder {
                     tx.postBalanceTx(transaction);
                 }));
             }
-            return txBuilderContext.build(txBuilder);
+
+            return new Tuple<>(txBuilderContext, txBuilder);
         }
 
         private int getTotalSigners() {
@@ -380,19 +419,6 @@ public class QuickTxBuilder {
                 totalSigners += additionalSignerCount;
 
             return totalSigners;
-        }
-
-        /**
-         * Build and sign transaction
-         *
-         * @return Transaction
-         */
-        public Transaction buildAndSign() {
-            Transaction transaction = build();
-            if (signers != null)
-                transaction = signers.sign(transaction);
-
-            return transaction;
         }
 
         private TxBuilder buildCollateralOutput(String feePayer) {
@@ -433,6 +459,10 @@ public class QuickTxBuilder {
         public Result<String> complete() {
             if (txList.length == 0)
                 throw new TxBuildException("At least one tx is required");
+
+            boolean txListContainsWallet = Arrays.stream(txList).anyMatch(abstractTx -> abstractTx.getFromWallet() != null);
+            if(txListContainsWallet && !(utxoSupplier instanceof WalletUtxoSupplier))
+                throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
 
             Transaction transaction = buildAndSign();
 
@@ -865,6 +895,19 @@ public class QuickTxBuilder {
         }
 
         /**
+         * Set whether to remove duplicate script witnesses from the transaction. Default is false.
+         * If set to true, the builder will remove duplicate script witnesses from the transaction if the same script ref is there
+         * in inputs or reference inputs. This is to avoid ExtraneousScriptWitnessesUTXOW error.
+         *
+         * @param remove boolean flag indicating whether to remove duplicate script witnesses
+         * @return TxContext the current TxContext instance.
+         */
+        public TxContext removeDuplicateScriptWitnesses(boolean remove) {
+            this.removeDuplicateScriptWitnesses = remove;
+            return this;
+        }
+
+        /**
          * TxBuilder to set start validity interval and ttl for the transaction
          * @param txBuilder TxBuilder
          * @return TxBuilder
@@ -882,4 +925,5 @@ public class QuickTxBuilder {
                 return txBuilder;
         }
     }
+
 }

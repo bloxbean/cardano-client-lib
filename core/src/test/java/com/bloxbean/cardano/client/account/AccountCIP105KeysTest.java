@@ -63,23 +63,22 @@ public class AccountCIP105KeysTest {
         DRepKey drepKey = account.drepKey();
 
         assertThat(HexUtil.encodeHexString(drepKey.verificationKeyHash())).isEqualTo(testVector.getDrepVerificationKeyHash());
-        assertThat(drepKey.dRepId()).isEqualTo(testVector.getDrepId());
-        assertThat(account.drepId()).isEqualTo(testVector.getDrepId());
+        assertThat(drepKey.bech32VerificationKeyHash()).isEqualTo(testVector.getDrepVkhBech32());
     }
 
     //The following two tests are not Account api specific. But it's here for completeness of TestVector
     @ParameterizedTest
     @MethodSource("testVectorsProvider")
     void testDrepIdScriptHash1(CIP105TestVector testVector) {
-        var drepId = DRepKey.dRepScriptId(testVector.getDrepScriptHash1());
-        assertThat(drepId).isEqualTo(testVector.getDrepScriptHash1Bech32());
+        var drepScriptHash = DRepKey.bech32ScriptHash(HexUtil.decodeHexString(testVector.getDrepScriptHash1()));
+        assertThat(drepScriptHash).isEqualTo(testVector.getDrepScriptHash1Bech32());
     }
 
     @ParameterizedTest
     @MethodSource("testVectorsProvider")
     void testDrepIdScriptHash2(CIP105TestVector testVector) {
-        var drepId = DRepKey.dRepScriptId(testVector.getDrepScriptHash2());
-        assertThat(drepId).isEqualTo(testVector.getDrepScriptHash2Bech32());
+        var drepScriptHash = DRepKey.bech32ScriptHash(HexUtil.decodeHexString(testVector.getDrepScriptHash2()));
+        assertThat(drepScriptHash).isEqualTo(testVector.getDrepScriptHash2Bech32());
     }
 
     //-- Constitutional Committee Cold Tests
@@ -126,7 +125,7 @@ public class AccountCIP105KeysTest {
         var committeeColdKey = deriveAccount(testVector).committeeColdKey();
 
         assertThat(HexUtil.encodeHexString(committeeColdKey.verificationKeyHash())).isEqualTo(testVector.getCommitteeColdVerificationKeyHash());
-        assertThat(committeeColdKey.bech32VerificationKeyHash()).isEqualTo(testVector.getCommitteeColdId());
+        assertThat(committeeColdKey.bech32VerificationKeyHash()).isEqualTo(testVector.getCommitteeColdVkhBech32());
     }
 
     @ParameterizedTest
@@ -187,7 +186,7 @@ public class AccountCIP105KeysTest {
         var committeeHotKey = deriveAccount(testVector).committeeHotKey();
 
         assertThat(HexUtil.encodeHexString(committeeHotKey.verificationKeyHash())).isEqualTo(testVector.getCommitteeHotVerificationKeyHash());
-        assertThat(committeeHotKey.bech32VerificationKeyHash()).isEqualTo(testVector.getCommitteeHotId());
+        assertThat(committeeHotKey.bech32VerificationKeyHash()).isEqualTo(testVector.getCommitteeHotVkhBech32());
     }
 
     @ParameterizedTest

@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigInteger;
+
 /**
  * This script class is for "RequireTimeBefore" expression
  */
@@ -16,9 +18,13 @@ import lombok.NoArgsConstructor;
 public class RequireTimeBefore implements NativeScript {
 
     private final ScriptType type = ScriptType.before;
-    private long slot;
+    private BigInteger slot;
 
     public RequireTimeBefore(long slot) {
+        this.slot = BigInteger.valueOf(slot);
+    }
+
+    public RequireTimeBefore(BigInteger slot) {
         this.slot = slot;
     }
 

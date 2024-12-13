@@ -20,6 +20,7 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 
@@ -164,6 +165,18 @@ public abstract class AbstractTx<T> {
         return payToAddress(address, amounts, null, datum, refScript, null);
     }
 
+    /**
+     * Add an output at a contract address with specified amount, inline datum, and a reference script.
+     *
+     * @param address   the contract address to which the amount will be sent
+     * @param amount    the amount to be sent to the contract address
+     * @param datum     Plutus data
+     * @param refScript Reference Script
+     * @return T
+     */
+    public T payToContract(String address, Amount amount, PlutusData datum, Script refScript) {
+        return payToAddress(address, List.of(amount), null, datum, refScript, null);
+    }
 
     /**
      * Add an output at contract address with amounts, inline datum and reference script bytes.
@@ -209,7 +222,7 @@ public abstract class AbstractTx<T> {
                 Tuple<String, String> policyAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
                 Asset asset = new Asset(policyAssetName._2, amount.getQuantity());
                 MultiAsset multiAsset = new MultiAsset(policyAssetName._1, List.of(asset));
-                Value newValue = transactionOutput.getValue().plus(new Value(BigInteger.ZERO, List.of(multiAsset)));
+                Value newValue = transactionOutput.getValue().add(new Value(BigInteger.ZERO, List.of(multiAsset)));
                 transactionOutput.setValue(newValue);
             }
         }
@@ -277,6 +290,15 @@ public abstract class AbstractTx<T> {
         else
             this.txMetadata = this.txMetadata.merge(metadata);
         return (T) this;
+    }
+
+    /**
+     * Checks if the transaction has any multi-asset minting or burning.
+     *
+     * @return true if there are multi-assets to be minted; false otherwise
+     */
+    boolean hasMultiAssetMinting() {
+        return multiAssets != null && !multiAssets.isEmpty();
     }
 
     TxBuilder complete() {
@@ -432,7 +454,7 @@ public abstract class AbstractTx<T> {
             }
         }).findFirst().ifPresentOrElse(ma -> {
             multiAssets.remove(ma);
-            multiAssets.add(new Tuple<>(script, ma._2.plus(multiAsset)));
+            multiAssets.add(new Tuple<>(script, ma._2.add(multiAsset)));
         }, () -> {
             multiAssets.add(new Tuple<>(script, multiAsset));
         });
@@ -460,6 +482,8 @@ public abstract class AbstractTx<T> {
      * @return String
      */
     protected abstract String getFromAddress();
+
+    protected abstract Wallet getFromWallet();
 
     /**
      * Perform pre Tx evaluation action. This is called before Script evaluation if any

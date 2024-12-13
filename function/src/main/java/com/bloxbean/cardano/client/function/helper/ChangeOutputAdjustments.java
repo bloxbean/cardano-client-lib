@@ -198,13 +198,14 @@ public class ChangeOutputAdjustments {
             transaction.getBody().getInputs()
                     .add(new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()));
             UtxoUtil.copyUtxoValuesToOutput(outputToAdjust, utxo);
+            context.addUtxo(utxo);
         });
 
         //As transaction is changed now, fee calculation is required.
         //Let's make fee to a default one and add the existing fee to changeoutput
         BigInteger existingFee = transaction.getBody().getFee();
         Value changeOutputValue = outputToAdjust.getValue();
-        changeOutputValue = changeOutputValue.plus(Value.builder().coin(existingFee).build());
+        changeOutputValue = changeOutputValue.add(Value.builder().coin(existingFee).build());
         outputToAdjust.setValue(changeOutputValue);
         transaction.getBody().setFee(DEFAULT_FEE); //Just a dummy fee for now
 

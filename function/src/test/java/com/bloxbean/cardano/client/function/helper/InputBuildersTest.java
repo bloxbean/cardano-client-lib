@@ -387,7 +387,7 @@ class InputBuildersTest extends BaseTest {
 
                                                 //These two have same policy id
                                                 AssetUtil.getMultiAssetFromUnitAndAmount("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e", BigInteger.valueOf(7500))
-                                                        .plus(AssetUtil.getMultiAssetFromUnitAndAmount("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96926174636f766e", BigInteger.valueOf(8000)))
+                                                        .add(AssetUtil.getMultiAssetFromUnitAndAmount("329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96926174636f766e", BigInteger.valueOf(8000)))
                                         )
                                 )
                                 .build())
