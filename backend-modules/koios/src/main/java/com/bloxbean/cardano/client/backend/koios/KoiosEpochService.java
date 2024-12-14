@@ -232,22 +232,45 @@ public class KoiosEpochService implements EpochService {
             LinkedHashMap<String, Long> plutusV3CostModelsMap = new LinkedHashMap<>();
             result.forEach((key, value) -> {
                 if (key.equals("PlutusV1")) {
-                    value.forEach(aLong -> {
-                        final int index = plutusV1IndexHolder.getAndIncrement();
-                        plutusV1CostModelsMap.put(PlutusOps.getOperations(1).get(index), aLong);
-                    });
+                    if (value.size() == PlutusOps.getOperations(1).size()) {
+                        value.forEach(aLong -> {
+                            final int index = plutusV1IndexHolder.getAndIncrement();
+                            plutusV1CostModelsMap.put(PlutusOps.getOperations(1).get(index), aLong);
+                        });
+                    } else {
+                        value.forEach(aLong -> {
+                            final int index = plutusV1IndexHolder.getAndIncrement();
+                            plutusV1CostModelsMap.put(String.format("%03d", index), aLong);
+                        });
+                    }
                     res.put(key, plutusV1CostModelsMap);
                 } else if (key.equals("PlutusV2")) {
-                    value.forEach(aLong -> {
-                        final int index = plutusV2IndexHolder.getAndIncrement();
-                        plutusV2CostModelsMap.put(PlutusOps.getOperations(2).get(index), aLong);
-                    });
+                    if (value.size() == PlutusOps.getOperations(2).size()) {
+                        value.forEach(aLong -> {
+                            final int index = plutusV2IndexHolder.getAndIncrement();
+                            plutusV2CostModelsMap.put(PlutusOps.getOperations(2).get(index), aLong);
+                        });
+                    } else {
+                        value.forEach(aLong -> {
+                            final int index = plutusV2IndexHolder.getAndIncrement();
+                            plutusV2CostModelsMap.put(String.format("%03d", index), aLong);
+                        });
+                    }
+
                     res.put(key, plutusV2CostModelsMap);
                 }  else if (key.equals("PlutusV3")) {
-                    value.forEach(aLong -> {
-                        final int index = plutusV3IndexHolder.getAndIncrement();
-                        plutusV3CostModelsMap.put(PlutusOps.getOperations(3).get(index), aLong);
-                    });
+
+                    if (value.size() == PlutusOps.getOperations(3).size()) {
+                        value.forEach(aLong -> {
+                            final int index = plutusV3IndexHolder.getAndIncrement();
+                            plutusV3CostModelsMap.put(PlutusOps.getOperations(3).get(index), aLong);
+                        });
+                    } else {
+                        value.forEach(aLong -> {
+                            final int index = plutusV3IndexHolder.getAndIncrement();
+                            plutusV3CostModelsMap.put(String.format("%03d", index), aLong);
+                        });
+                    }
                     res.put(key, plutusV3CostModelsMap);
                 }
             });

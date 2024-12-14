@@ -76,24 +76,42 @@ public class ProtocolParametersDto {
         costModels.put("PlutusV1",
                 new LinkedHashMap<>() {{
                     List<String> plutusOps = PlutusOps.getOperations(1);
-                    for (int i = 0; i < plutusCostModels.get("plutus:v1").length; i++) {
-                        put(plutusOps.get(i), plutusCostModels.get("plutus:v1")[i]);
+                    if (plutusOps.size() == plutusCostModels.get("plutus:v1").length) {
+                        for (int i = 0; i < plutusCostModels.get("plutus:v1").length; i++) {
+                            put(plutusOps.get(i), plutusCostModels.get("plutus:v1")[i]);
+                        }
+                    } else {
+                        for (int i = 0; i < plutusCostModels.get("plutus:v1").length; i++) {
+                            put(String.format("%03d", i), plutusCostModels.get("plutus:v1")[i]);
+                        }
                     }
                 }}
         );
         costModels.put("PlutusV2",
                 new LinkedHashMap<>() {{
                     List<String> plutusOps = PlutusOps.getOperations(2);
-                    for (int i = 0; i < plutusCostModels.get("plutus:v2").length; i++) {
-                        put(plutusOps.get(i), plutusCostModels.get("plutus:v2")[i]);
+                    if (plutusOps.size() == plutusCostModels.get("plutus:v2").length) {
+                        for (int i = 0; i < plutusCostModels.get("plutus:v2").length; i++) {
+                            put(plutusOps.get(i), plutusCostModels.get("plutus:v2")[i]);
+                        }
+                    } else {
+                        for (int i = 0; i < plutusCostModels.get("plutus:v2").length; i++) {
+                            put(String.format("%03d", i), plutusCostModels.get("plutus:v2")[i]);
+                        }
                     }
                 }}
         );
         costModels.put("PlutusV3",
                 new LinkedHashMap<>() {{
                     List<String> plutusOps = PlutusOps.getOperations(3);
-                    for (int i = 0; i < plutusCostModels.get("plutus:v3").length; i++) {
-                        put(plutusOps.get(i), plutusCostModels.get("plutus:v3")[i]);
+                    if (plutusOps.size() == plutusCostModels.get("plutus:v3").length) {
+                        for (int i = 0; i < plutusCostModels.get("plutus:v3").length; i++) {
+                            put(plutusOps.get(i), plutusCostModels.get("plutus:v3")[i]);
+                        }
+                    } else {
+                        for (int i = 0; i < plutusCostModels.get("plutus:v3").length; i++) {
+                            put(String.format("%03d", i), plutusCostModels.get("plutus:v3")[i]);
+                        }
                     }
                 }}
         );
