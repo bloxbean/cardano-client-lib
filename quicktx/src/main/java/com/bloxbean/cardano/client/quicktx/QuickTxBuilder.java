@@ -456,7 +456,7 @@ public class QuickTxBuilder {
          *
          * @return Result of transaction submission
          */
-        public Result<String> complete() {
+        public TxResult complete() {
             if (txList.length == 0)
                 throw new TxBuildException("At least one tx is required");
 
@@ -477,7 +477,7 @@ public class QuickTxBuilder {
                 if (!result.isSuccessful()) {
                     log.error("Transaction : " + transaction);
                 }
-                return result;
+                return TxResult.fromResult(result).withTxStatus(TxStatus.SUBMITTED);
             } catch (Exception e) {
                 throw new ApiRuntimeException(e);
             }
@@ -489,7 +489,7 @@ public class QuickTxBuilder {
          *
          * @return Result of transaction submission
          */
-        public Result<String> completeAndWait() {
+        public TxResult completeAndWait() {
             return completeAndWait(Duration.ofSeconds(60), (msg) -> log.info(msg));
         }
 
@@ -500,7 +500,7 @@ public class QuickTxBuilder {
          * @param logConsumer consumer to get log messages
          * @return Result of transaction submission
          */
-        public Result<String> completeAndWait(Consumer<String> logConsumer) {
+        public TxResult completeAndWait(Consumer<String> logConsumer) {
             return completeAndWait(Duration.ofSeconds(60), logConsumer);
         }
 
@@ -510,7 +510,7 @@ public class QuickTxBuilder {
          * @param timeout Timeout to wait for transaction to be included in the block
          * @return Result of transaction submission
          */
-        public Result<String> completeAndWait(Duration timeout) {
+        public TxResult completeAndWait(Duration timeout) {
             return completeAndWait(timeout, Duration.ofSeconds(2), (msg) -> log.info(msg));
         }
 
@@ -520,7 +520,7 @@ public class QuickTxBuilder {
          * @param logConsumer consumer to get log messages
          * @return Result of transaction submission
          */
-        public Result<String> completeAndWait(Duration timeout, Consumer<String> logConsumer) {
+        public TxResult completeAndWait(Duration timeout, Consumer<String> logConsumer) {
             return completeAndWait(timeout, Duration.ofSeconds(2), logConsumer);
         }
 
@@ -531,16 +531,17 @@ public class QuickTxBuilder {
          * @param logConsumer consumer to get log messages
          * @return Result of transaction submission
          */
-        public Result<String> completeAndWait(@NonNull Duration timeout, @NonNull Duration checkInterval,
+        public TxResult completeAndWait(@NonNull Duration timeout, @NonNull Duration checkInterval,
                                               @NonNull Consumer<String> logConsumer) {
             Result<String> result = complete();
+            var txResult = TxResult.fromResult(result);
             if (!result.isSuccessful())
-                return result;
+                return txResult.withTxStatus(TxStatus.FAILED);
 
             Instant startInstant = Instant.now();
             long millisToTimeout = timeout.toMillis();
 
-            logConsumer.accept(showStatus(Constant.STATUS_SUBMITTED, result.getValue()));
+            logConsumer.accept(showStatus(TxStatus.SUBMITTED, result.getValue()));
             String txHash = result.getValue();
             try {
                 if (result.isSuccessful()) { //Wait for transaction to be included in the block
@@ -548,15 +549,15 @@ public class QuickTxBuilder {
                     while (count < 60) {
                         Optional<Utxo> utxoOptional = utxoSupplier.getTxOutput(txHash, 0);
                         if (utxoOptional.isPresent()) {
-                            logConsumer.accept(showStatus(Constant.STATUS_CONFIRMED, txHash));
-                            return result;
+                            logConsumer.accept(showStatus(TxStatus.CONFIRMED, txHash));
+                            return txResult.withTxStatus(TxStatus.CONFIRMED);
                         }
 
-                        logConsumer.accept(showStatus(Constant.STATUS_PENDING, txHash));
+                        logConsumer.accept(showStatus(TxStatus.PENDING, txHash));
                         Instant now = Instant.now();
                         if (now.isAfter(startInstant.plusMillis(millisToTimeout))) {
-                            logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
-                            return result;
+                            logConsumer.accept(showStatus(TxStatus.TIMEOUT, txHash));
+                            return txResult.withTxStatus(TxStatus.TIMEOUT);
                         }
 
                         Thread.sleep(checkInterval.toMillis());
@@ -567,8 +568,8 @@ public class QuickTxBuilder {
                 logConsumer.accept("Error while waiting for transaction to be included in the block. TxHash : " + txHash);
             }
 
-            logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
-            return result;
+            logConsumer.accept(showStatus(TxStatus.PENDING, txHash));
+            return txResult.withTxStatus(TxStatus.PENDING);
         }
 
         /**
@@ -576,7 +577,7 @@ public class QuickTxBuilder {
          *
          * @return a CompletableFuture containing the result of the completion task.
          */
-        public CompletableFuture<Result<String>> completeAndWaitAsync() {
+        public CompletableFuture<TxResult> completeAndWaitAsync() {
             return completeAndWaitAsync(Duration.ofSeconds(2), (msg) -> log.info(msg));
         }
 
@@ -586,7 +587,7 @@ public class QuickTxBuilder {
          * @param logConsumer a consumer that processes log messages. It must not be null.
          * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
          */
-        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Consumer<String> logConsumer) {
+        public CompletableFuture<TxResult> completeAndWaitAsync(@NonNull Consumer<String> logConsumer) {
             return completeAndWaitAsync(Duration.ofSeconds(2), logConsumer);
         }
 
@@ -597,7 +598,7 @@ public class QuickTxBuilder {
          * @param executor the executor to use for asynchronous execution. It must not be null.
          * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
          */
-        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Consumer<String> logConsumer, @NonNull Executor executor) {
+        public CompletableFuture<TxResult> completeAndWaitAsync(@NonNull Consumer<String> logConsumer, @NonNull Executor executor) {
             return completeAndWaitAsync(Duration.ofSeconds(2), logConsumer, executor);
         }
 
@@ -608,9 +609,9 @@ public class QuickTxBuilder {
          * @param logConsumer a consumer that processes log messages. It must not be null.
          * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
          */
-        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Duration checkInterval,
+        public CompletableFuture<TxResult> completeAndWaitAsync(@NonNull Duration checkInterval,
                                                                       @NonNull Consumer<String> logConsumer) {
-            return CompletableFuture.supplyAsync(() -> completeAndWait(Duration.ofSeconds(300), checkInterval, logConsumer));
+            return completeAndWaitAsync(checkInterval, logConsumer, null);
         }
 
         /**
@@ -621,40 +622,48 @@ public class QuickTxBuilder {
          * @param executor the executor to use for asynchronous execution. It must not be null.
          * @return a CompletableFuture containing a Result that wraps txHash if the operation is successful.
          */
-        public CompletableFuture<Result<String>> completeAndWaitAsync(@NonNull Duration checkInterval,
-                                                                      @NonNull Consumer<String> logConsumer, @NonNull Executor executor) {
+        public CompletableFuture<TxResult> completeAndWaitAsync(@NonNull Duration checkInterval,
+                                                                      @NonNull Consumer<String> logConsumer, Executor executor) {
+            if (executor != null) {
+                return CompletableFuture.supplyAsync(() -> waitForTxResult(checkInterval, logConsumer), executor);
+            } else {
+                return CompletableFuture.supplyAsync(() -> waitForTxResult(checkInterval, logConsumer));
+            }
+        }
 
-            return CompletableFuture.supplyAsync(() -> {
-                Result<String> result = complete();
-                if (!result.isSuccessful())
-                    return result;
+        private TxResult waitForTxResult(Duration checkInterval, Consumer<String> logConsumer) {
+            Result<String> result = complete();
+            var txResult = TxResult.fromResult(result);
+            if (!result.isSuccessful()) {
+                return txResult.withTxStatus(TxStatus.FAILED);
+            }
 
-                logConsumer.accept(showStatus(Constant.STATUS_SUBMITTED, result.getValue()));
-                String txHash = result.getValue();
-                try {
-                    if (result.isSuccessful()) { //Wait for transaction to be included in the block
-                        while (true) {
-                            Optional<Utxo> utxoOptional = utxoSupplier.getTxOutput(txHash, 0);
-                            if (utxoOptional.isPresent()) {
-                                logConsumer.accept(showStatus(Constant.STATUS_CONFIRMED, txHash));
-                                return result;
-                            }
-
-                            Thread.sleep(checkInterval.toMillis());
+            logConsumer.accept(showStatus(TxStatus.SUBMITTED, result.getValue()));
+            String txHash = result.getValue();
+            try {
+                if (result.isSuccessful()) { //Wait for transaction to be included in the block
+                    while (true) {
+                        Optional<Utxo> utxoOptional = utxoSupplier.getTxOutput(txHash, 0);
+                        if (utxoOptional.isPresent()) {
+                            logConsumer.accept(showStatus(TxStatus.CONFIRMED, txHash));
+                            return txResult.withTxStatus(TxStatus.CONFIRMED);
                         }
-                    }
-                } catch (Exception e) {
-                    log.error("Error while waiting for transaction to be included in the block. TxHash : " + txHash, e);
-                    logConsumer.accept("Error while waiting for transaction to be included in the block. TxHash : " + txHash);
-                }
 
-                logConsumer.accept(showStatus(Constant.STATUS_TIMEOUT, txHash));
-                return result;
-            }, executor);
+                        Thread.sleep(checkInterval.toMillis());
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Error while waiting for transaction to be included in the block. TxHash : " + txHash, e);
+                logConsumer.accept("Error while waiting for transaction to be included in the block. TxHash : " + txHash);
+            }
+
+            logConsumer.accept(showStatus(TxStatus.PENDING, txHash));
+            return txResult.withTxStatus(TxStatus.PENDING);
         }
 
 
-        private String showStatus(String status, String txHash) {
+        private String showStatus(TxStatus status, String txHash) {
             return String.format("[%s] Tx: %s", status, txHash);
         }
 
