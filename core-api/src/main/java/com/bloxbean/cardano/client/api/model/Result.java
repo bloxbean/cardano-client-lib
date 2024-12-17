@@ -6,11 +6,11 @@ public class Result<T> {
     int code;
     T value;
 
-    private Result(boolean successful) {
+    protected Result(boolean successful) {
         this.successful = successful;
     }
 
-    private Result(boolean successful, String response) {
+    protected Result(boolean successful, String response) {
         this.successful = successful;
         this.response = response;
     }
