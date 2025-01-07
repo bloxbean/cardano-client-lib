@@ -219,7 +219,7 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(adjustChangeOutput(senderAddr1, 2));
 
         TxSigner signer = SignerProviders.signerFrom(senderAccount1)
-                .andThen(transaction -> senderAccount1.signWithStakeKey(transaction));
+                .andThen((context, transaction) -> senderAccount1.signWithStakeKey(transaction));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -268,7 +268,7 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(adjustChangeOutput(senderAddr3, 2));
 
         TxSigner signer = SignerProviders.signerFrom(senderAccount3)
-                .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, stakeHdKeyPair));
+                .andThen((context,transaction) -> TransactionSigner.INSTANCE.sign(transaction, stakeHdKeyPair));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -319,7 +319,7 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(adjustChangeOutput(senderAddr4, 2));
 
         TxSigner signer = SignerProviders.signerFrom(senderAccount4)
-                .andThen(transaction -> senderAccount4.signWithStakeKey(transaction));
+                .andThen((context,transaction) -> senderAccount4.signWithStakeKey(transaction));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -365,8 +365,8 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(adjustChangeOutput(senderAddr5, 3));
 
         TxSigner signer = SignerProviders.signerFrom(senderAccount5)
-                .andThen(transaction -> senderAccount5.signWithStakeKey(transaction))
-                .andThen(transaction -> senderAccount6.signWithStakeKey(transaction));
+                .andThen((context, transaction) -> senderAccount5.signWithStakeKey(transaction))
+                .andThen((context,transaction) -> senderAccount6.signWithStakeKey(transaction));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -471,8 +471,8 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(adjustChangeOutput(delegationFeePaymentAddress, 3));
 
         TxSigner signer = SignerProviders.signerFrom(delegationFeePaymentAccount)
-                .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(0)))
-                .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(1)));
+                .andThen((context, transaction) -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(0)))
+                .andThen((context,transaction) -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(1)));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);
@@ -525,8 +525,8 @@ public class StakeTransactionIT extends BaseITTest {
                 .andThen(adjustChangeOutput(senderAddr9, 3));
 
         TxSigner signer = SignerProviders.signerFrom(senderAccount9)
-                .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(0)))
-                .andThen(transaction -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(1)));
+                .andThen((context, transaction) -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(0)))
+                .andThen((context,transaction) -> TransactionSigner.INSTANCE.sign(transaction, policy.getPolicyKeys().get(1)));
 
         Transaction signedTransaction = TxBuilderContext.init(new DefaultUtxoSupplier(getBackendService().getUtxoService()), protocolParams)
                 .buildAndSign(builder, signer);

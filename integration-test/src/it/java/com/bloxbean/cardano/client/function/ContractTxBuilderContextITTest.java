@@ -318,10 +318,11 @@ public class ContractTxBuilderContextITTest extends BaseITTest {
 
         TxSigner signer = SignerProviders.signerFrom(sender);
 
+        var txContext = TxBuilderContext.init(utxoSupplier, protocolParams);
         Transaction transaction = TxBuilderContext.init(utxoSupplier, protocolParams)
                 .withSerializationEra(Era.Babbage)
                 .build(builder);
-        Transaction signedTxn = signer.sign(transaction);
+        Transaction signedTxn = signer.sign(txContext, transaction);
 
         //Or build and sign in one call
         //  Transaction signedTxn = TxBuilderContext.init(backendService)
