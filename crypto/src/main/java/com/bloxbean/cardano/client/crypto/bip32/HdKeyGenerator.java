@@ -56,7 +56,7 @@ public class HdKeyGenerator {
         return getKeyPairFromSecretKey(xprv, accountPath);
     }
 
-    private HdKeyPair getKeyPairFromSecretKey(byte[] xprv, String path) {
+    public HdKeyPair getKeyPairFromSecretKey(byte[] xprv, String path) {
         byte[] IL = Arrays.copyOfRange(xprv, 0, 64);
         byte[] IR = Arrays.copyOfRange(xprv, 64, 96);
 

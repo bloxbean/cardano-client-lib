@@ -12,6 +12,7 @@ import static com.bloxbean.cardano.client.address.util.AddressEncoderDecoderUtil
  * Address class represents Shelley address
  */
 public class Address {
+    public static final String ADDR_VKH_PREFIX = "addr_vkh";
     private String prefix;
     private byte[] bytes;
     private String address;
@@ -172,5 +173,19 @@ public class Address {
      */
     public boolean isScriptHashInDelegationPart() {
         return AddressProvider.isScriptHashInDelegationPart(this);
+    }
+
+    /**
+     * Retrieves the Bech32-encoded address verification key hash of the payment credential
+     * associated with the address, if available.
+     *
+     *
+     * @return An {@link Optional} containing the Bech32-encoded verification key hash
+     *         if the payment credential hash is available, or an empty {@link Optional}
+     *         if the payment credential hash is absent.
+     */
+    public Optional<String> getBech32VerificationKeyHash() {
+        return getPaymentCredentialHash()
+                .map(paymentCred -> Bech32.encode(paymentCred, ADDR_VKH_PREFIX));
     }
 }

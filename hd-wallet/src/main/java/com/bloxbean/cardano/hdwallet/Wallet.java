@@ -30,15 +30,26 @@ import java.util.stream.Collectors;
 public class Wallet {
 
     @Getter
-    private int account = 0;
+    private int accountNo = 0;
     @Getter
     private final Network network;
+
     @Getter
-    private final String mnemonic;
+    @JsonIgnore
+    private String mnemonic;
+
+    @JsonIgnore
+    private byte[] rootKey; //Pvt key at root level m/
+
+    @JsonIgnore
+    private byte[] accountKey; //Pvt key at account level m/1852'/1815'/x
+
     private String stakeAddress;
     private Map<Integer, Account> cache;
-    private HdKeyPair rootKeys;
+    private HdKeyPair rootKeyPair;
     private HdKeyPair stakeKeys;
+
+    private boolean searchUtxoByAddrVkh;
 
     @Getter
     @Setter
@@ -63,24 +74,120 @@ public class Wallet {
     public Wallet(Network network, Words noOfWords, int account) {
         this.network = network;
         this.mnemonic = MnemonicUtil.generateNew(noOfWords);
-        this.account = account;
+        this.accountNo = account;
         cache = new HashMap<>();
     }
 
-    public Wallet(String mnemonic) {
-        this(Networks.mainnet(), mnemonic);
+    /**
+     * Creates a Wallet instance from the given mnemonic for mainnet.
+     * The account is set to zero.
+     *
+     * @param mnemonic the mnemonic phrase
+     * @return a Wallet instance created from the provided mnemonic
+     */
+    public static Wallet createFromMnemonic(String mnemonic) {
+        return createFromMnemonic(Networks.mainnet(), mnemonic, 0);
     }
 
-    public Wallet(Network network, String mnemonic) {
-        this(network,mnemonic, 0);
+    /**
+     * Creates a Wallet instance using the specified network and mnemonic phrase.
+     * The account is set to zero.
+     *
+     * @param network the network to be used, e.g., Networks.mainnet(), Networks.testnet()
+     * @param mnemonic the mnemonic phrase
+     * @return a Wallet instance created from the provided mnemonic
+     */
+    public static Wallet createFromMnemonic(Network network, String mnemonic) {
+        return createFromMnemonic(network, mnemonic, 0);
     }
 
-    public Wallet(Network network, String mnemonic, int account) {
+    /**
+     * Creates a Wallet instance using the specified network, mnemonic phrase, and account number.
+     *
+     * @param network the network to be used, e.g., Networks.mainnet(), Networks.testnet()
+     * @param mnemonic the mnemonic phrase
+     * @param account the account no to be used for wallet derivation
+     * @return a Wallet instance created from the provided mnemonic
+     */
+    public static Wallet createFromMnemonic(Network network, String mnemonic, int account) {
+        return new Wallet(network, mnemonic, null, null, account);
+    }
+
+    /**
+     * Creates a Wallet instance using the specified network and root key.
+     * The account is set to zero by default.
+     *
+     * @param network the network to be used, e.g., Networks.mainnet(), Networks.testnet()
+     * @param rootKey the root key used for wallet initialization
+     * @return a Wallet instance created from the provided root key
+     */
+    public static Wallet createFromRootKey(Network network, byte[] rootKey) {
+        return createFromRootKey(network, rootKey, 0);
+    }
+
+    /**
+     * Creates a Wallet instance using the specified network, root key, and account number.
+     *
+     * @param network the network to be used, e.g., Networks.mainnet(), Networks.testnet()
+     * @param rootKey the root key used for wallet initialization
+     * @param account the account number to be used for wallet derivation
+     * @return a Wallet instance created from the provided root key
+     */
+    public static Wallet createFromRootKey(Network network, byte[] rootKey, int account) {
+        return new Wallet(network, null, rootKey, null, account);
+    }
+
+    /**
+     * Creates a Wallet instance using the specified network and account level key.
+     *
+     * @param network the network to be used, e.g., Networks.mainnet(), Networks.testnet()
+     * @param accountKey the account key used for wallet initialization
+     * @return a Wallet instance created from the provided account key
+     */
+    public static Wallet createFromAccountKey(Network network, byte[] accountKey) {
+        return new Wallet(network, null, null, accountKey, 0);
+    }
+
+    /**
+     * Create a Wallet object from given mnemonic or rootKey or accountKey
+     * Only one of these value should be set : mnemonic or rootKey or accountKey
+     * @param network
+     * @param mnemonic
+     * @param rootKey
+     * @param accountKey
+     * @param account
+     */
+    private Wallet(Network network, String mnemonic, byte[] rootKey, byte[] accountKey, int account) {
+        //check if more than one value set and throw exception
+        if ((mnemonic != null && mnemonic.trim().length() > 0 ? 1 : 0) +
+                (rootKey != null && rootKey.length > 0 ? 1 : 0) +
+                (accountKey != null && accountKey.length > 0 ? 1 : 0) > 1) {
+            throw new WalletException("Only one of mnemonic, rootKey, or accountKey should be set.");
+        }
+
         this.network = network;
-        this.mnemonic = mnemonic;
-        this.account = account;
-        MnemonicUtil.validateMnemonic(this.mnemonic);
-        cache = new HashMap<>();
+        this.cache = new HashMap<>();
+
+        if (mnemonic != null && mnemonic.trim().length() > 0) {
+            this.mnemonic = mnemonic;
+            this.accountNo = account;
+            MnemonicUtil.validateMnemonic(this.mnemonic);
+        } else if (rootKey != null && rootKey.length > 0) {
+            this.accountNo = account;
+
+            if (rootKey.length == 96)
+                this.rootKey = rootKey;
+            else
+                throw new WalletException("Invalid length (Root Key): " + rootKey.length);
+        } else if (accountKey != null && accountKey.length > 0) {
+            this.accountNo = account;
+
+            if (accountKey.length == 96)
+                this.accountKey = accountKey;
+            else
+                throw new WalletException("Invalid length (Account Private Key): " + accountKey.length);
+        }
+
     }
 
     /**
@@ -89,7 +196,7 @@ public class Wallet {
      * @return
      */
     public Address getEntAddress(int index) {
-        return getEntAddress(this.account, index);
+        return getEntAddress(this.accountNo, index);
     }
 
     /**
@@ -99,7 +206,7 @@ public class Wallet {
      * @return
      */
     private Address getEntAddress(int account, int index) {
-        return getAccount(account, index).getEnterpriseAddress();
+        return getAccountNo(account, index).getEnterpriseAddress();
     }
 
     /**
@@ -108,7 +215,7 @@ public class Wallet {
      * @return
      */
     public Address getBaseAddress(int index) {
-        return getBaseAddress(this.account, index);
+        return getBaseAddress(this.accountNo, index);
     }
 
     /**
@@ -127,7 +234,7 @@ public class Wallet {
      * @return
      */
     public Address getBaseAddress(int account, int index) {
-        return getAccount(account,index).getBaseAddress();
+        return getAccountNo(account,index).getBaseAddress();
     }
 
     /**
@@ -135,8 +242,8 @@ public class Wallet {
      * @param index
      * @return
      */
-    public Account getAccount(int index) {
-        return getAccount(this.account, index);
+    public Account getAccountAtIndex(int index) {
+        return getAccountNo(this.accountNo, index);
     }
 
     /**
@@ -145,19 +252,34 @@ public class Wallet {
      * @param index
      * @return
      */
-    public Account getAccount(int account, int index) {
-        if(account != this.account) {
-            DerivationPath derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
-            derivationPath.getIndex().setValue(index);
-            return new Account(this.network, this.mnemonic, derivationPath);
+    public Account getAccountNo(int account, int index) {
+        if(account != this.accountNo) {
+            return deriveAccount(account, index);
         } else {
             if(cache.containsKey(index)) {
                 return cache.get(index);
             } else {
-                Account acc = new Account(this.network, this.mnemonic, index);
-                cache.put(index, acc);
+                Account acc = deriveAccount(account, index);
+                if (acc != null)
+                    cache.put(index, acc);
+
                 return acc;
             }
+        }
+    }
+
+    private Account deriveAccount(int account, int index) {
+        DerivationPath derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
+        derivationPath.getIndex().setValue(index);
+
+        if (mnemonic != null && mnemonic.trim().length() > 0) {
+            return Account.createFromMnemonic(this.network, this.mnemonic, derivationPath);
+        } else if (rootKey != null && rootKey.length > 0) {
+            return Account.createFromRootKey(this.network, this.rootKey, derivationPath);
+        } else if (accountKey != null && accountKey.length > 0) {
+            return Account.createFromAccountKey(this.network, this.accountKey, derivationPath);
+        }else {
+            throw new WalletException("Can't create Account. At least one of 'mnemonic', 'accountKey', or 'rootKey' must be set.");
         }
     }
 
@@ -166,8 +288,8 @@ public class Wallet {
      * Setting the account will reset the cache.
      * @param account
      */
-    public void setAccount(int account) {
-        this.account = account;
+    public void setAccountNo(int account) {
+        this.accountNo = account;
         // invalidating cache since it is only held for one account
         cache = new HashMap<>();
     }
@@ -177,18 +299,29 @@ public class Wallet {
      * @return
      */
     @JsonIgnore
-    public HdKeyPair getRootKeyPair() {
-        if(rootKeys == null) {
-            HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
-            try {
-                byte[] entropy = MnemonicCode.INSTANCE.toEntropy(this.mnemonic);
-                rootKeys = hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
-            } catch (MnemonicException.MnemonicLengthException | MnemonicException.MnemonicWordException |
-                     MnemonicException.MnemonicChecksumException e) {
-                throw new WalletException("Unable to derive root key pair", e);
+    public Optional<HdKeyPair> getRootKeyPair() {
+        if(rootKeyPair == null) {
+            if (mnemonic != null && mnemonic.trim().length() > 0) {
+                HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+                try {
+                    byte[] entropy = MnemonicCode.INSTANCE.toEntropy(this.mnemonic);
+                    rootKeyPair = hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
+                } catch (MnemonicException.MnemonicLengthException | MnemonicException.MnemonicWordException |
+                         MnemonicException.MnemonicChecksumException e) {
+                    throw new WalletException("Unable to derive root key pair", e);
+                }
+            } else if (rootKey != null && rootKey.length > 0) {
+                HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+                rootKeyPair = hdKeyGenerator.getKeyPairFromSecretKey(rootKey, HdKeyGenerator.MASTER_PATH);
             }
         }
-        return rootKeys;
+
+        return Optional.ofNullable(rootKeyPair);
+    }
+
+    public Optional<byte[]> getRootPvtKey() {
+        return getRootKeyPair()
+                .map(rootKeyPair -> rootKeyPair.getPrivateKey().getBytes());
     }
 
     /**
@@ -200,7 +333,7 @@ public class Wallet {
         Map<String, Account> accountMap = utxos.stream()
                 .map(WalletUtxo::getDerivationPath)
                 .filter(Objects::nonNull)
-                .map(derivationPath -> getAccount(
+                .map(derivationPath -> getAccountNo(
                         derivationPath.getAccount().getValue(),
                         derivationPath.getIndex().getValue()))
                 .collect(Collectors.toMap(
@@ -287,9 +420,17 @@ public class Wallet {
         return TransactionSigner.INSTANCE.sign(transaction, getStakeKeyPair());
     }
 
+    public void setSearchUtxoByAddrVkh(boolean flag) {
+        searchUtxoByAddrVkh = flag;
+    }
+
+    public boolean isSearchUtxoByAddrVkh() {
+        return searchUtxoByAddrVkh;
+    }
+
     private HdKeyPair getStakeKeyPair() {
         if(stakeKeys == null) {
-            DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(this.account);
+            DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(this.accountNo);
             stakeKeys = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
         }
         return stakeKeys;
