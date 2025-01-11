@@ -196,7 +196,7 @@ public class Account {
         this.network = network;
         this.derivationPath = derivationPath;
 
-        if (mnemonic != null && mnemonic.length() > 0) {
+        if (mnemonic != null && !mnemonic.isEmpty()) {
             this.mnemonic = mnemonic;
             this.accountKey = null;
             MnemonicUtil.validateMnemonic(this.mnemonic);
@@ -656,7 +656,7 @@ public class Account {
     }
 
     public Optional<HdKeyPair> getRootKeyPair() {
-        if (mnemonic != null && mnemonic.length() > 0) {
+        if (mnemonic != null && !mnemonic.isEmpty()) {
             return Optional.of(new CIP1852().getRootKeyPairFromMnemonic(mnemonic));
         } else if (rootKey != null && rootKey.length > 0) {
             return Optional.of(new CIP1852().getRootKeyPairFromRootKey(rootKey));
@@ -699,7 +699,7 @@ public class Account {
 
     private HdKeyPair getHdKeyPairFromDerivationPath(DerivationPath derivationPath) {
         HdKeyPair hdKeyPair;
-        if (mnemonic != null && mnemonic.trim().length() > 0) {
+        if (mnemonic != null && !mnemonic.isEmpty()) {
             hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
         } else if (accountKey != null && accountKey.length > 0) {
             hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, derivationPath);

@@ -49,6 +49,8 @@ public class Wallet {
     private HdKeyPair rootKeyPair;
     private HdKeyPair stakeKeys;
 
+    @Getter
+    @Setter
     private boolean searchUtxoByAddrVkh;
 
     @Getter
@@ -151,15 +153,15 @@ public class Wallet {
     /**
      * Create a Wallet object from given mnemonic or rootKey or accountKey
      * Only one of these value should be set : mnemonic or rootKey or accountKey
-     * @param network
-     * @param mnemonic
-     * @param rootKey
-     * @param accountKey
-     * @param account
+     * @param network network
+     * @param mnemonic mnemonic
+     * @param rootKey root key
+     * @param accountKey account level key
+     * @param account account number
      */
     private Wallet(Network network, String mnemonic, byte[] rootKey, byte[] accountKey, int account) {
         //check if more than one value set and throw exception
-        if ((mnemonic != null && mnemonic.trim().length() > 0 ? 1 : 0) +
+        if ((mnemonic != null && !mnemonic.isEmpty() ? 1 : 0) +
                 (rootKey != null && rootKey.length > 0 ? 1 : 0) +
                 (accountKey != null && accountKey.length > 0 ? 1 : 0) > 1) {
             throw new WalletException("Only one of mnemonic, rootKey, or accountKey should be set.");
@@ -168,7 +170,7 @@ public class Wallet {
         this.network = network;
         this.cache = new HashMap<>();
 
-        if (mnemonic != null && mnemonic.trim().length() > 0) {
+        if (mnemonic != null && !mnemonic.isEmpty()) {
             this.mnemonic = mnemonic;
             this.accountNo = account;
             MnemonicUtil.validateMnemonic(this.mnemonic);
@@ -192,8 +194,8 @@ public class Wallet {
 
     /**
      * Get Enterprise address for current account. Account can be changed via the setter.
-     * @param index
-     * @return
+     * @param index address index
+     * @return Address object with enterprise address
      */
     public Address getEntAddress(int index) {
         return getEntAddress(this.accountNo, index);
@@ -201,9 +203,9 @@ public class Wallet {
 
     /**
      * Get Enterprise address for derivation path m/1852'/1815'/{account}'/0/{index}
-     * @param account
-     * @param index
-     * @return
+     * @param account account no
+     * @param index address index
+     * @return Address object with Enterprise address
      */
     private Address getEntAddress(int account, int index) {
         return getAccountNo(account, index).getEnterpriseAddress();
@@ -211,8 +213,8 @@ public class Wallet {
 
     /**
      * Get Baseaddress for current account. Account can be changed via the setter.
-     * @param index
-     * @return
+     * @param index address index
+     * @return Address object for Base address
      */
     public Address getBaseAddress(int index) {
         return getBaseAddress(this.accountNo, index);
@@ -220,8 +222,8 @@ public class Wallet {
 
     /**
      * Get Baseaddress for current account as String. Account can be changed via the setter.
-     * @param index
-     * @return
+     * @param index address index
+     * @return Base address as string
      */
     public String getBaseAddressString(int index) {
         return getBaseAddress(index).getAddress();
@@ -229,9 +231,9 @@ public class Wallet {
 
     /**
      * Get Baseaddress for derivationpath m/1852'/1815'/{account}'/0/{index}
-     * @param account
-     * @param index
-     * @return
+     * @param account account number
+     * @param index address index
+     * @return Address object for Base address
      */
     public Address getBaseAddress(int account, int index) {
         return getAccountNo(account,index).getBaseAddress();
@@ -239,8 +241,8 @@ public class Wallet {
 
     /**
      * Returns the Account object for the index and current account. Account can be changed via the setter.
-     * @param index
-     * @return
+     * @param index address index
+     * @return Account object
      */
     public Account getAccountAtIndex(int index) {
         return getAccountNo(this.accountNo, index);
@@ -248,9 +250,9 @@ public class Wallet {
 
     /**
      * Returns the Account object for the index and account.
-     * @param account
-     * @param index
-     * @return
+     * @param account account number
+     * @param index address index
+     * @return Account object
      */
     public Account getAccountNo(int account, int index) {
         if(account != this.accountNo) {
@@ -272,7 +274,7 @@ public class Wallet {
         DerivationPath derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
         derivationPath.getIndex().setValue(index);
 
-        if (mnemonic != null && mnemonic.trim().length() > 0) {
+        if (mnemonic != null && !mnemonic.isEmpty()) {
             return Account.createFromMnemonic(this.network, this.mnemonic, derivationPath);
         } else if (rootKey != null && rootKey.length > 0) {
             return Account.createFromRootKey(this.network, this.rootKey, derivationPath);
@@ -286,7 +288,7 @@ public class Wallet {
     /**
      * Setting the current account for derivation path.
      * Setting the account will reset the cache.
-     * @param account
+     * @param account account number which will be set in the wallet
      */
     public void setAccountNo(int account) {
         this.accountNo = account;
@@ -296,12 +298,12 @@ public class Wallet {
 
     /**
      * Returns the RootkeyPair
-     * @return
+     * @return Root key as HdKeyPair if non-empty else empty optional
      */
     @JsonIgnore
     public Optional<HdKeyPair> getRootKeyPair() {
         if(rootKeyPair == null) {
-            if (mnemonic != null && mnemonic.trim().length() > 0) {
+            if (mnemonic != null && !mnemonic.isEmpty()) {
                 HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
                 try {
                     byte[] entropy = MnemonicCode.INSTANCE.toEntropy(this.mnemonic);
@@ -326,7 +328,7 @@ public class Wallet {
 
     /**
      * Finds needed signers within wallet and signs the transaction with each one
-     * @param txToSign
+     * @param txToSign transaction
      * @return signed Transaction
      */
     public Transaction sign(Transaction txToSign, Set<WalletUtxo> utxos) {
@@ -400,7 +402,7 @@ public class Wallet {
 
     /**
      * Returns the stake address of the wallet.
-     * @return
+     * @return Stake address as string
      */
     public String getStakeAddress() {
         if (stakeAddress == null || stakeAddress.isEmpty()) {
@@ -413,19 +415,11 @@ public class Wallet {
 
     /**
      * Signs the transaction with stake key from wallet.
-     * @param transaction
-     * @return
+     * @param transaction transaction object to sign
+     * @return Signed transaction object
      */
     public Transaction signWithStakeKey(Transaction transaction) {
         return TransactionSigner.INSTANCE.sign(transaction, getStakeKeyPair());
-    }
-
-    public void setSearchUtxoByAddrVkh(boolean flag) {
-        searchUtxoByAddrVkh = flag;
-    }
-
-    public boolean isSearchUtxoByAddrVkh() {
-        return searchUtxoByAddrVkh;
     }
 
     private HdKeyPair getStakeKeyPair() {

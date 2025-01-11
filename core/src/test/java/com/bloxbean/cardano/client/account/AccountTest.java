@@ -442,8 +442,7 @@ public class AccountTest {
         Account account = Account.createFromRootKey(Networks.testnet(), rootKeyBytes);
 
         //expected
-        //var seedPhrase =
-        //        "tragic movie pulp rely quick damage spoil case bubble forget banana bomb pilot fresh trumpet learn basic melt curtain defy erode soccer race oil";
+        //tragic movie pulp rely quick damage spoil case bubble forget banana bomb pilot fresh trumpet learn basic melt curtain defy erode soccer race oil
 
         assertThat(account.baseAddress()).isEqualTo("addr_test1qzm0439fe55aynh58qcn4jnh4mwuqwr5n5fez7j0hck9ds8j3nmg5pkqfur4gyupppuu82r83s5eheewzmf6fwlzfz7qzsp6rc");
         assertThat(account.changeAddress()).isEqualTo("addr_test1qqkqwker9785sna30vmjggynjxzce6sdg2th7w3w0sgfvr8j3nmg5pkqfur4gyupppuu82r83s5eheewzmf6fwlzfz7q5r7hzu");
@@ -474,7 +473,6 @@ public class AccountTest {
 
         assertThrows(Exception.class, () -> {
             Account.createFromRootKey(Networks.testnet(), rootKey);
-            ;
         });
     }
 
