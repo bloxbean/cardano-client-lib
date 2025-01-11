@@ -614,8 +614,9 @@ public class AccountTest {
 
     @Test
     void testAccountFromRootKey_15words_acc4_index3() {
+
         //Original mnemonic
-        //String mnemonic = "top exact spice seed cloud birth orient bracket happy cat section girl such outside elder";
+        //top exact spice seed cloud birth orient bracket happy cat section girl such outside elder
 
         String rootKey = "root_xsk1zza6z52v8gelnaqdhuny3ywlccud5dtm8rvvyem4utnfwzcaa9pspsmdm99qfpy2qz7sw9sts59mrkegmdqyjen5ykm4z3ccyrkn8g5mm0qw35arvwxclfh6tj3s4x7t2q85wenvppjpxckcxgnf8vd80ug0l6rw";
 
@@ -632,7 +633,7 @@ public class AccountTest {
     @Test
     void testAccountFromAccountKey_15words_acc4_index3() {
         //Original mnemonic
-        //String mnemonic = "top exact spice seed cloud birth orient bracket happy cat section girl such outside elder";
+        //top exact spice seed cloud birth orient bracket happy cat section girl such outside elder
 
         String accountKey = "acct_xsk1azc6gn5zkdprp4gkapmhdckykphjl62rm9224699ut5z6xcaa9p4hv5hmjfgcrzk72tnsqh6dw0njekdjpsv8nv5h5hk6lpd4ag62zenwhzqs205kfurd7kgs8fm5gx4l4j8htutwj060kyp5y5kgw55qc8lsltd";
 

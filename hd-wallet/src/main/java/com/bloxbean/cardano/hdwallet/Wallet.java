@@ -321,7 +321,7 @@ public class Wallet {
 
     public Optional<byte[]> getRootPvtKey() {
         return getRootKeyPair()
-                .map(rootKeyPair -> rootKeyPair.getPrivateKey().getBytes());
+                .map(rkp -> rkp.getPrivateKey().getBytes());
     }
 
     /**

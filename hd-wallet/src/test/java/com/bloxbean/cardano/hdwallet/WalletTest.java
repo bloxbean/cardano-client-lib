@@ -188,7 +188,7 @@ public class WalletTest {
     @Test
     void testAccountWhenFromAccountKey_15words_acc4_index3() {
         //Original mnemonic
-        //String mnemonic = "top exact spice seed cloud birth orient bracket happy cat section girl such outside elder";
+        //top exact spice seed cloud birth orient bracket happy cat section girl such outside elder
 
         String accountKey = "acct_xsk1azc6gn5zkdprp4gkapmhdckykphjl62rm9224699ut5z6xcaa9p4hv5hmjfgcrzk72tnsqh6dw0njekdjpsv8nv5h5hk6lpd4ag62zenwhzqs205kfurd7kgs8fm5gx4l4j8htutwj060kyp5y5kgw55qc8lsltd";
 
@@ -207,8 +207,10 @@ public class WalletTest {
         //Added random 32 bytes at the end to test with a 128 bytes key
         String accountKey = "e8b1a44e82b34230d516e87776e2c4b06f2fe943d954aae8a5e2e82d1b1de9435bb297dc928c0c56f2973802fa6b9f3966cd9060c3cd94bd2f6d7c2daf51a50b3375c40829f4b27836fac881d3ba20d5fd647baf8b749fa7d881a129643a9406c333ef7429361bdb1414e15e054f6654bce419d26057d0e38d76993f9c3ab71f";
 
+        var network = Networks.testnet();
+        var acctKeyBytes = HexUtil.decodeHexString(accountKey);
         assertThrows(WalletException.class, () -> {
-            Wallet.createFromAccountKey(Networks.testnet(), HexUtil.decodeHexString(accountKey));
+            Wallet.createFromAccountKey(network, acctKeyBytes);
         });
     }
 
@@ -218,8 +220,9 @@ public class WalletTest {
         String rootKey128Bytes = "48c0062f7d36bb4f8194beb2762d4e323fd84dd947e7d09db8f8b454b74a105560631379e7b976f41e165133978ecd56fe65114f5ba6aaafaa0d482a48e71edec6377bc291444b063f64d59b955447c9fb3a3026e43f9052d82a792d304fd644c333ef7429361bdb1414e15e054f6654bce419d26057d0e38d76993f9c3ab71f";
         byte[] rootKey = HexUtil.decodeHexString(rootKey128Bytes);
 
+        var network = Networks.testnet();
         assertThrows(WalletException.class, () -> {
-            Wallet.createFromRootKey(Networks.testnet(), rootKey);
+            Wallet.createFromRootKey(network, rootKey);
         });
     }
 }

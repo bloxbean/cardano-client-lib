@@ -184,7 +184,7 @@ public class Account {
         if (accountKey.length == 96)
             this.accountKey = accountKey;
         else
-            throw new RuntimeException("Invalid length (Account Private Key): " + accountKey.length);
+            throw new AccountException("Invalid length (Account Private Key): " + accountKey.length);
 
         this.derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
         this.derivationPath.getIndex().setValue(index);
@@ -207,13 +207,13 @@ public class Account {
             if (rootKey.length == 96)
                 this.rootKey = rootKey;
             else
-                throw new RuntimeException("Invalid length (Root Pvt Key): " + rootKey.length);
+                throw new AccountException("Invalid length (Root Pvt Key): " + rootKey.length);
         } else if (accountKey != null && accountKey.length > 0) {
             this.mnemonic = null;
             if (accountKey.length == 96)
                 this.accountKey = accountKey;
             else
-                throw new RuntimeException("Invalid length (Account Private Key): " + accountKey.length);
+                throw new AccountException("Invalid length (Account Private Key): " + accountKey.length);
         }
 
         baseAddress();
@@ -706,7 +706,7 @@ public class Account {
         } else if (rootKey != null && rootKey.length > 0) {
             hdKeyPair = new CIP1852().getKeyPairFromRootKey(this.rootKey, derivationPath);
         } else {
-            throw new RuntimeException("HDKeyPair derivation failed. Only one of mnemonic, rootKey, or accountKey should be set.");
+            throw new AccountException("HDKeyPair derivation failed. Only one of mnemonic, rootKey, or accountKey should be set.");
         }
 
         return hdKeyPair;
