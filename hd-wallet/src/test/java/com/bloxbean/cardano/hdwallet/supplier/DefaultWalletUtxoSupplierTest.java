@@ -40,10 +40,10 @@ class DefaultWalletUtxoSupplierTest {
     @Test
     void getAll() throws ApiException {
         Wallet wallet = new Wallet();
-        var addr1 = wallet.getAccount(3).baseAddress();
-        var addr2 = wallet.getAccount(7).baseAddress();
-        var addr3 = wallet.getAccount(25).baseAddress();
-        var addr4 = wallet.getAccount(50).baseAddress();
+        var addr1 = wallet.getAccountAtIndex(3).baseAddress();
+        var addr2 = wallet.getAccountAtIndex(7).baseAddress();
+        var addr3 = wallet.getAccountAtIndex(25).baseAddress();
+        var addr4 = wallet.getAccountAtIndex(50).baseAddress();
 
         DefaultWalletUtxoSupplier utxoSupplier = new DefaultWalletUtxoSupplier(utxoService, wallet);
 
@@ -106,10 +106,10 @@ class DefaultWalletUtxoSupplierTest {
     void getAllWhenIndexesToScan() throws ApiException {
         Wallet wallet = new Wallet();
         wallet.setIndexesToScan(new int[]{25, 50});
-        var addr1 = wallet.getAccount(3).baseAddress();
-        var addr2 = wallet.getAccount(7).baseAddress();
-        var addr3 = wallet.getAccount(25).baseAddress();
-        var addr4 = wallet.getAccount(50).baseAddress();
+        var addr1 = wallet.getAccountAtIndex(3).baseAddress();
+        var addr2 = wallet.getAccountAtIndex(7).baseAddress();
+        var addr3 = wallet.getAccountAtIndex(25).baseAddress();
+        var addr4 = wallet.getAccountAtIndex(50).baseAddress();
 
         DefaultWalletUtxoSupplier utxoSupplier = new DefaultWalletUtxoSupplier(utxoService, wallet);
 

@@ -28,6 +28,25 @@ public class CIP1852 {
     }
 
     /**
+     * Generates the root HdKeyPair from the given mnemonic phrase.
+     *
+     * @param mnemonicPhrase the mnemonic phrase used to generate the HdKeyPair
+     * @return the root HdKeyPair derived from the provided mnemonic phrase
+     * @throws CryptoException if the mnemonic phrase cannot be converted to entropy or if
+     *         the key pair generation fails
+     */
+    public HdKeyPair getRootKeyPairFromMnemonic(String mnemonicPhrase) {
+        var hdKeyGenerator = new HdKeyGenerator();
+        try {
+            byte[] entropy = MnemonicCode.INSTANCE.toEntropy(mnemonicPhrase);
+
+            return hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
+        } catch (Exception ex) {
+            throw new CryptoException("Mnemonic to KeyPair generation failed", ex);
+        }
+    }
+
+    /**
      * Get HdKeyPair from entropy
      * @param entropy entropy
      * @param derivationPath derivation path
@@ -42,8 +61,7 @@ public class CIP1852 {
         HdKeyPair accountKey = hdKeyGenerator.getChildKeyPair(coinTypeKey, derivationPath.getAccount().getValue(), derivationPath.getAccount().isHarden());
         HdKeyPair roleKey = hdKeyGenerator.getChildKeyPair(accountKey, derivationPath.getRole().getValue(), derivationPath.getRole().isHarden());
 
-        HdKeyPair indexKey = hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
-        return indexKey;
+        return hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
     }
 
     /**
@@ -58,8 +76,7 @@ public class CIP1852 {
         HdKeyPair accountKeyPair = hdKeyGenerator.getAccountKeyPairFromSecretKey(accountKey,  derivationPath);
         HdKeyPair roleKey = hdKeyGenerator.getChildKeyPair(accountKeyPair, derivationPath.getRole().getValue(), derivationPath.getRole().isHarden());
 
-        HdKeyPair indexKey = hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
-        return indexKey;
+        return hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
     }
 
     /**
@@ -104,6 +121,36 @@ public class CIP1852 {
         HdPublicKey roleHdPubKey = hdKeyGenerator.getChildPublicKey(accountHdPubKey, role);
 
         return hdKeyGenerator.getChildPublicKey(roleHdPubKey, index);
+    }
+
+    /**
+     * Generates an HdKeyPair derived from the given root key and a specified derivation path.
+     *
+     * @param rootKey the root key represented as a byte array
+     * @param derivationPath the hierarchical deterministic (HD) derivation path used to derive the key pair
+     * @return the HdKeyPair derived from the provided root key and derivation path
+     */
+    public HdKeyPair getKeyPairFromRootKey(byte[] rootKey, DerivationPath derivationPath) {
+        HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+        HdKeyPair rootKeyPair = hdKeyGenerator.getKeyPairFromSecretKey(rootKey, HdKeyGenerator.MASTER_PATH);
+
+        HdKeyPair purposeKey = hdKeyGenerator.getChildKeyPair(rootKeyPair, derivationPath.getPurpose().getValue(), derivationPath.getPurpose().isHarden());
+        HdKeyPair coinTypeKey = hdKeyGenerator.getChildKeyPair(purposeKey, derivationPath.getCoinType().getValue(), derivationPath.getCoinType().isHarden());
+        HdKeyPair accountKey = hdKeyGenerator.getChildKeyPair(coinTypeKey, derivationPath.getAccount().getValue(), derivationPath.getAccount().isHarden());
+        HdKeyPair roleKey = hdKeyGenerator.getChildKeyPair(accountKey, derivationPath.getRole().getValue(), derivationPath.getRole().isHarden());
+
+        return hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
+    }
+
+    /**
+     * Get an HdKeyPair from the given root key using the master derivation path.
+     *
+     * @param rootKey the root key represented as a byte array
+     * @return the HdKeyPair derived from the provided root key and the master derivation path
+     */
+    public HdKeyPair getRootKeyPairFromRootKey(byte[] rootKey) {
+        HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+        return hdKeyGenerator.getKeyPairFromSecretKey(rootKey, HdKeyGenerator.MASTER_PATH);
     }
 
 }

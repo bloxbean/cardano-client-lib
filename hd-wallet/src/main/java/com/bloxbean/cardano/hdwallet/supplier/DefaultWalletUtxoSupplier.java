@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.hdwallet.supplier;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
@@ -13,6 +14,7 @@ import com.bloxbean.cardano.hdwallet.Wallet;
 import com.bloxbean.cardano.hdwallet.WalletException;
 import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
     private final UtxoService utxoService;
     @Setter
@@ -32,7 +35,11 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
 
     @Override
     public List<Utxo> getPage(String address, Integer nrOfItems, Integer page, OrderEnum order) {
-        return getAll(address); // todo get Page of utxo over multipe addresses - find a good way to aktually do something with page, nrOfItems and order
+        //All utxos should be fetched at page=0
+        if (page == 0)
+            return getAll(address); // todo get Page of utxo over multipe addresses - find a good way to aktually do something with page, nrOfItems and order
+        else
+            return Collections.emptyList();
     }
 
     @Override
@@ -62,7 +69,7 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
             int noUtxoFound = 0;
 
             while (noUtxoFound < wallet.getGapLimit()) {
-                List<WalletUtxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet.getAccount(), index);
+                List<WalletUtxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet.getAccountNo(), index);
 
                 utxos.addAll(utxoFromIndex);
                 noUtxoFound = utxoFromIndex.isEmpty() ? noUtxoFound + 1 : 0;
@@ -71,7 +78,7 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
             }
         } else {
             for (int idx: wallet.getIndexesToScan()) {
-                List<WalletUtxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet.getAccount(), idx);
+                List<WalletUtxo> utxoFromIndex = getUtxosForAccountAndIndex(wallet.getAccountNo(), idx);
                 utxos.addAll(utxoFromIndex);
             }
         }
@@ -81,13 +88,28 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
     @Override
     public List<WalletUtxo> getUtxosForAccountAndIndex(int account, int index) {
         checkIfWalletIsSet();
-        String address = wallet.getBaseAddress(account, index).getAddress();
+
+        Address address = getBaseAddress(account, index);
+
+        if (log.isDebugEnabled())
+            log.debug("Scanning address for account: {}, index: {}", account, index);
+
+        String addrStr = address.getAddress();
+        String addrVkh =  address.getBech32VerificationKeyHash().orElse(null);
+
         List<WalletUtxo> utxos = new ArrayList<>();
         int page = 1;
         while(true) {
-            Result<List<Utxo>> result = null;
+            Result<List<Utxo>> result;
+
+            String searchKey;
+            if (wallet.isSearchUtxoByAddrVkh())
+                searchKey = addrVkh;
+            else
+                searchKey = addrStr;
+
             try {
-                result = utxoService.getUtxos(address, UtxoSupplier.DEFAULT_NR_OF_ITEMS_TO_FETCH, page, OrderEnum.asc);
+                result = utxoService.getUtxos(searchKey, UtxoSupplier.DEFAULT_NR_OF_ITEMS_TO_FETCH, page, OrderEnum.asc);
             } catch (ApiException e) {
                 throw new ApiRuntimeException(e);
             }
@@ -103,11 +125,15 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
             }).collect(Collectors.toList());
 
             utxos.addAll(utxoList);
-            if(utxoPage.size() < 100)
+            if(utxoPage.size() < DEFAULT_NR_OF_ITEMS_TO_FETCH)
                 break;
             page++;
         }
         return utxos;
+    }
+
+    private Address getBaseAddress(int account, int index) {
+        return wallet.getBaseAddress(account, index);
     }
 
     private void checkIfWalletIsSet() {

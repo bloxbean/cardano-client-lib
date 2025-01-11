@@ -90,4 +90,41 @@ class CIP1852Test {
 
         assertThat(HexUtil.encodeHexString(hdPublicKey.getBytes())).isEqualTo(expectedStakePubKey);
     }
+
+    @Test
+    void getRootKeyPairFromMnemonic() {
+        String mnemonic = "top exact spice seed cloud birth orient bracket happy cat section girl such outside elder";
+
+        var rootKeyPair = new CIP1852().getRootKeyPairFromMnemonic(mnemonic);
+        String expectedRootKeyBech32 = "root_xsk1zza6z52v8gelnaqdhuny3ywlccud5dtm8rvvyem4utnfwzcaa9pspsmdm99qfpy2qz7sw9sts59mrkegmdqyjen5ykm4z3ccyrkn8g5mm0qw35arvwxclfh6tj3s4x7t2q85wenvppjpxckcxgnf8vd80ug0l6rw";
+        String expectedRootPvtKeyHex = HexUtil.encodeHexString(Bech32.decode(expectedRootKeyBech32).data);
+
+        var rootPvtKey = rootKeyPair.getPrivateKey().getBytes();
+
+        assertThat(HexUtil.encodeHexString(rootPvtKey)).isEqualTo(expectedRootPvtKeyHex);
+    }
+
+    @Test
+    void getKeyPairFromRootKeyAtDerivationPath() {
+        String rootKey = "root_xsk1zza6z52v8gelnaqdhuny3ywlccud5dtm8rvvyem4utnfwzcaa9pspsmdm99qfpy2qz7sw9sts59mrkegmdqyjen5ykm4z3ccyrkn8g5mm0qw35arvwxclfh6tj3s4x7t2q85wenvppjpxckcxgnf8vd80ug0l6rw";
+        byte[] rootKeyBytes = Bech32.decode(rootKey).data;
+
+        var addr0KeyPair = new CIP1852().getKeyPairFromRootKey(rootKeyBytes, DerivationPath.createExternalAddressDerivationPath(0));
+
+        //1852H/1815H/0H/0/0
+        String expectedAddr0PvtKey = "addr_xsk1artlf4j6xz246j4xqtn6d595l7sy4vk0zuvzawlg7lwvq2qaa9pkujarca9j5ju08m0dlgw2qagauw693lvmrghujzvxsdfj99pwdm7xqwpgj5asad6nl5rzact6hune2xsl5x5gv2tds75ksdptavxr6se0fk8e";
+        String expectedAddr0PvtKeyHex = HexUtil.encodeHexString(Bech32.decode(expectedAddr0PvtKey).data);
+
+        assertThat(HexUtil.encodeHexString(addr0KeyPair.getPrivateKey().getBytes())).isEqualTo(expectedAddr0PvtKeyHex);
+    }
+
+    @Test
+    void getRootKeyPairFromRootKey() {
+        String rootKeyBech32 = "root_xsk1zza6z52v8gelnaqdhuny3ywlccud5dtm8rvvyem4utnfwzcaa9pspsmdm99qfpy2qz7sw9sts59mrkegmdqyjen5ykm4z3ccyrkn8g5mm0qw35arvwxclfh6tj3s4x7t2q85wenvppjpxckcxgnf8vd80ug0l6rw";
+        byte[] expectedRootKeyBytes = Bech32.decode(rootKeyBech32).data;
+
+        var rootKeyPair = new CIP1852().getRootKeyPairFromRootKey(expectedRootKeyBytes);
+
+        assertThat(HexUtil.encodeHexString(rootKeyPair.getPrivateKey().getBytes())).isEqualTo(HexUtil.encodeHexString(expectedRootKeyBytes));
+    }
 }

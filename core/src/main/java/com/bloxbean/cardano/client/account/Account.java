@@ -20,6 +20,8 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import java.util.Optional;
+
 /**
  * Create and manage secrets, and perform account-based work such as signing transactions.
  */
@@ -28,6 +30,9 @@ public class Account {
     private String mnemonic;
     @JsonIgnore
     private byte[] accountKey; //Pvt key at account level m/1852'/1815'/x
+    @JsonIgnore
+    private byte[] rootKey; //Pvt key at root level m/
+
     private String baseAddress;
     private String changeAddress;
     private String enterpriseAddress;
@@ -90,7 +95,9 @@ public class Account {
      * Create a mainnet account from a mnemonic
      *
      * @param mnemonic
+     * @deprecated Use factory method `createFromMnemonic` to create an Account from mnemonic
      */
+    @Deprecated(since = "0.7.0-beta2")
     public Account(String mnemonic) {
         this(Networks.mainnet(), mnemonic, 0);
     }
@@ -99,7 +106,9 @@ public class Account {
      * Create a mainnet account from a mnemonic at index
      *
      * @param mnemonic
+     * @deprecated Use factory method `createFromMnemonic` to create an Account from mnemonic
      */
+    @Deprecated(since = "0.7.0-beta2")
     public Account(String mnemonic, int index) {
         this(Networks.mainnet(), mnemonic, index);
     }
@@ -109,7 +118,9 @@ public class Account {
      *
      * @param network
      * @param mnemonic
+     * @deprecated Use factory method `createFromMnemonic` to create an Account from mnemonic
      */
+    @Deprecated(since = "0.7.0-beta2")
     public Account(Network network, String mnemonic) {
         this(network, mnemonic, 0);
     }
@@ -120,7 +131,9 @@ public class Account {
      * @param network
      * @param mnemonic
      * @param index
+     * @deprecated Use factory method `createFromMnemonic` to create an Account from mnemonic
      */
+    @Deprecated(since = "0.7.0-beta2")
     public Account(Network network, String mnemonic, int index) {
         this(network, mnemonic, DerivationPath.createExternalAddressDerivationPath(index));
     }
@@ -131,7 +144,9 @@ public class Account {
      * @param network
      * @param mnemonic
      * @param derivationPath
+     * @deprecated Use factory method `createFromMnemonic` to create an Account from mnemonic
      */
+    @Deprecated(since = "0.7.0-beta2")
     public Account(Network network, String mnemonic, DerivationPath derivationPath) {
         this.network = network;
         this.mnemonic = mnemonic;
@@ -145,8 +160,10 @@ public class Account {
      * Create an account from a private key for a specified network for account = 0, index = 0
      *
      * @param network
-     * @param accountKey accountKey is a private key of 96 bytes or 128 bytes (with pubkey and chaincode) at account level
+     * @param accountKey accountKey is a private key of 96 bytes (with priv key and chaincode) at account level
+     * @deprecated Use factory method `createFromAccountKey` to create an Account from account level key
      */
+    @Deprecated(since = "0.7.0-beta2")
     public Account(Network network, byte[] accountKey) {
         this(network, accountKey, 0, 0);
     }
@@ -155,21 +172,19 @@ public class Account {
      * Create an account from a private key for a specified network
      *
      * @param network
-     * @param accountKey is a private key of 96 bytes or 128 bytes (with pubkey and chaincode) at account level
+     * @param accountKey is a private key of 96 bytes (with priv key and chaincode) at account level
      * @param account account
      * @param index address index
+     * @deprecated Use factory method `createFromAccountKey` to create an Account from account level key
      */
+    @Deprecated(since = "0.7.0-beta2")
     public Account(Network network, byte[] accountKey, int account, int index) {
         this.network = network;
         this.mnemonic = null;
         if (accountKey.length == 96)
             this.accountKey = accountKey;
-        else if(accountKey.length == 128){
-            byte[] key = new byte[96];
-            System.arraycopy(accountKey, 0, key, 0, 64);
-            System.arraycopy(accountKey, 96, key, 64, 32);
-        } else
-            throw new RuntimeException("Invalid length (Account Private Key): " + accountKey.length);
+        else
+            throw new AccountException("Invalid length (Account Private Key): " + accountKey.length);
 
         this.derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
         this.derivationPath.getIndex().setValue(index);
@@ -177,8 +192,153 @@ public class Account {
         baseAddress();
     }
 
+    private Account(Network network, String mnemonic, byte[] rootKey, byte[] accountKey, DerivationPath derivationPath) {
+        this.network = network;
+        this.derivationPath = derivationPath;
+
+        if (mnemonic != null && !mnemonic.isEmpty()) {
+            this.mnemonic = mnemonic;
+            this.accountKey = null;
+            MnemonicUtil.validateMnemonic(this.mnemonic);
+        } else if (rootKey != null && rootKey.length > 0) {
+            this.mnemonic = null;
+            this.accountKey = null;
+
+            if (rootKey.length == 96)
+                this.rootKey = rootKey;
+            else
+                throw new AccountException("Invalid length (Root Pvt Key): " + rootKey.length);
+        } else if (accountKey != null && accountKey.length > 0) {
+            this.mnemonic = null;
+            if (accountKey.length == 96)
+                this.accountKey = accountKey;
+            else
+                throw new AccountException("Invalid length (Account Private Key): " + accountKey.length);
+        }
+
+        baseAddress();
+    }
+
     /**
-     * @return string a 24 word mnemonic
+     * Creates an Account object from a given mnemonic phrase at m/1852'/1815'/0/0/0
+     *
+     * @param network the network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param mnemonic the mnemonic phrase used to generate the account
+     * @return an Account object generated from the mnemonic phrase
+     */
+    public static Account createFromMnemonic(Network network, String mnemonic) {
+        return createFromMnemonic(network, mnemonic, 0, 0);
+    }
+
+    /**
+     * Creates an Account instance from the given mnemonic, network at derivation path m/1852'/1815'/account/0/index
+     *
+     * @param network the network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param mnemonic the mnemonic phrase used for generating the account.
+     * @param account the account number in the derivation path.
+     * @param index the index for the address in the derivation path.
+     * @return an Account object generated from the mnemonic phrase
+     */
+    public static Account createFromMnemonic(Network network, String mnemonic, int account, int index) {
+        var derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
+        derivationPath.getIndex().setValue(index);
+
+        return createFromMnemonic(network, mnemonic, derivationPath);
+    }
+
+    /**
+     * Creates an Account instance from the provided mnemonic at given derivation path
+     *
+     * @param network the network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param mnemonic the mnemonic phrase used to generate the account
+     * @param derivationPath the derivation path used for key generation
+     * @return an Account object generated from the mnemonic phrase
+     */
+    public static Account createFromMnemonic(Network network, String mnemonic, DerivationPath derivationPath) {
+        return new Account(network, mnemonic, null, null, derivationPath);
+    }
+
+    /**
+     * Creates an Account instance from a root key at derivation path: m/1852'/1815'/0/0/0
+     *
+     * @param network The network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param rootKey the root key used to derive the account
+     * @return a new Account object derived from the provided root key
+     */
+    public static Account createFromRootKey(Network network, byte[] rootKey) {
+        return createFromRootKey(network, rootKey, 0, 0);
+    }
+
+    /**
+     * Creates an Account instance using the provided network, rootKey, account number, and index
+     * at derivation path m/1852'/1815'/account/0/index
+     *
+     * @param network the network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param rootKey the root key used to derive the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param account the account number used in the derivation path.
+     * @param index the index used in the derivation path.
+     * @return A new Account object derived from the specified root key
+     */
+    public static Account createFromRootKey(Network network, byte[] rootKey, int account, int index) {
+        var derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
+        derivationPath.getIndex().setValue(index);
+
+        return createFromRootKey(network, rootKey, derivationPath);
+    }
+
+    /**
+     * Creates an Account instance from the provided root key and derivation path.
+     *
+     * @param network the network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param rootKey the root key used to derive the account.
+     * @param derivationPath the derivation path used for key generation.
+     * @return A new Account object derived from the provided root key
+     */
+    public static Account createFromRootKey(Network network, byte[] rootKey, DerivationPath derivationPath) {
+        return new Account(network, null, rootKey, null, derivationPath);
+    }
+
+    /**
+     * Creates an Account instance using the provided account level key and at address index = 0
+     *
+     * @param network the network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param accountKey the account key used to derive the account
+     * @return A new Account object derived from the provided account level key
+     */
+    public static Account createFromAccountKey(Network network, byte[] accountKey) {
+        return createFromAccountKey(network, accountKey, 0, 0);
+    }
+
+    /**
+     * Creates an Account instance from the given account key, network, account number, and index. (m/1852'/1815'/account/0/index)
+     *
+     * @param network the network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param accountKey the account key byte array
+     * @param account the account number
+     * @param index the index value for the account derivation
+     * @return an Account object created using account key
+     */
+    public static Account createFromAccountKey(Network network, byte[] accountKey, int account, int index) {
+        var derivationPath = DerivationPath.createExternalAddressDerivationPathForAccount(account);
+        derivationPath.getIndex().setValue(index);
+
+        return createFromAccountKey(network, accountKey, derivationPath);
+    }
+
+    /**
+     * Creates an Account instance from the given account key, network, derivation path
+     *
+     * @param network the network for the account. Possible values: Networks.mainnet() or Networks.testnet()
+     * @param accountKey the account key byte array
+     * @param derivationPath
+     * @return an Account object created using account key
+     */
+    public static Account createFromAccountKey(Network network, byte[] accountKey, DerivationPath derivationPath) {
+        return new Account(network, null, null, accountKey, derivationPath);
+    }
+
+    /**
+     * @return string a 24 word mnemonic or null if the Account is derived from root key or account key
      */
     public String mnemonic() {
         return mnemonic;
@@ -495,78 +655,58 @@ public class Account {
         return TransactionSigner.INSTANCE.sign(transaction, getCommitteeHotKeyPair());
     }
 
+    public Optional<HdKeyPair> getRootKeyPair() {
+        if (mnemonic != null && !mnemonic.isEmpty()) {
+            return Optional.of(new CIP1852().getRootKeyPairFromMnemonic(mnemonic));
+        } else if (rootKey != null && rootKey.length > 0) {
+            return Optional.of(new CIP1852().getRootKeyPairFromRootKey(rootKey));
+        } else
+            return Optional.empty();
+    }
+
     private HdKeyPair getHdKeyPair() {
-        HdKeyPair hdKeyPair;
-        if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, derivationPath);
-        }
-        else {
-            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
-        }
-        return hdKeyPair;
+        return getHdKeyPairFromDerivationPath(derivationPath);
     }
 
     private HdKeyPair getChangeKeyPair() {
-        HdKeyPair hdKeyPair;
         DerivationPath internalDerivationPath = DerivationPath.createInternalAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
-        if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, internalDerivationPath);
-        }
-        else {
-            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, internalDerivationPath);
-        }
-
-        return hdKeyPair;
+        return getHdKeyPairFromDerivationPath(internalDerivationPath);
     }
 
     private HdKeyPair getStakeKeyPair() {
-        HdKeyPair hdKeyPair;
         DerivationPath stakeDerivationPath = DerivationPath.createStakeAddressDerivationPathForAccount(derivationPath.getAccount().getValue());
-        if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, stakeDerivationPath);
-        } else {
-            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, stakeDerivationPath);
-        }
-
-        return hdKeyPair;
+        return getHdKeyPairFromDerivationPath(stakeDerivationPath);
     }
 
     private HdKeyPair getDRepKeyPair() {
-        HdKeyPair hdKeyPair;
         DerivationPath drepDerivationPath = DerivationPath.createDRepKeyDerivationPathForAccount(derivationPath.getAccount().getValue());
-
-        if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, drepDerivationPath);
-        } else {
-            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, drepDerivationPath);
-        }
-
-        return hdKeyPair;
+        return getHdKeyPairFromDerivationPath(drepDerivationPath);
     }
 
     private HdKeyPair getCommitteeColdKeyPair() {
-        HdKeyPair hdKeyPair;
-        DerivationPath drepDerivationPath =
+        DerivationPath ccColdDerivationPath =
                 DerivationPath.createCommitteeColdKeyDerivationPathForAccount(derivationPath.getAccount().getValue());
 
-        if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, drepDerivationPath);
-        } else {
-            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, drepDerivationPath);
-        }
-
-        return hdKeyPair;
+        return getHdKeyPairFromDerivationPath(ccColdDerivationPath);
     }
 
     private HdKeyPair getCommitteeHotKeyPair() {
-        HdKeyPair hdKeyPair;
-        DerivationPath drepDerivationPath =
+        DerivationPath ccHotDerivationPath =
                 DerivationPath.createCommitteeHotKeyDerivationPathForAccount(derivationPath.getAccount().getValue());
 
-        if (mnemonic == null || mnemonic.trim().length() == 0) {
-            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, drepDerivationPath);
+        return getHdKeyPairFromDerivationPath(ccHotDerivationPath);
+    }
+
+    private HdKeyPair getHdKeyPairFromDerivationPath(DerivationPath derivationPath) {
+        HdKeyPair hdKeyPair;
+        if (mnemonic != null && !mnemonic.isEmpty()) {
+            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, derivationPath);
+        } else if (accountKey != null && accountKey.length > 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromAccountKey(this.accountKey, derivationPath);
+        } else if (rootKey != null && rootKey.length > 0) {
+            hdKeyPair = new CIP1852().getKeyPairFromRootKey(this.rootKey, derivationPath);
         } else {
-            hdKeyPair = new CIP1852().getKeyPairFromMnemonic(mnemonic, drepDerivationPath);
+            throw new AccountException("HDKeyPair derivation failed. Only one of mnemonic, rootKey, or accountKey should be set.");
         }
 
         return hdKeyPair;
