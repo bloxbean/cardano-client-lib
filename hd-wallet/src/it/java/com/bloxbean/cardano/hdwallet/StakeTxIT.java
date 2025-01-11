@@ -59,9 +59,9 @@ public class StakeTxIT extends QuickTxBaseIT {
         quickTxBuilder = new QuickTxBuilder(backendService);
 
         String wallet1Mnemonic = "clog book honey force cricket stamp until seed minimum margin denial kind volume undo simple federal then jealous solid legal crucial crazy acoustic thank";
-        wallet1 = new Wallet(Networks.testnet(), wallet1Mnemonic);
+        wallet1 = Wallet.createFromMnemonic(Networks.testnet(), wallet1Mnemonic);
         String wallet2Mnemonic = "theme orphan remind output arrive lobster decorate ten gap piece casual distance attend total blast dilemma damp punch pride file limit soldier plug canoe";
-        wallet2 = new Wallet(Networks.testnet(), wallet2Mnemonic);
+        wallet2 = Wallet.createFromMnemonic(Networks.testnet(), wallet2Mnemonic);
 
         if (backendType.equals(DEVKIT)) {
             poolId = "pool1wvqhvyrgwch4jq9aa84hc8q4kzvyq2z3xr6mpafkqmx9wce39zy";

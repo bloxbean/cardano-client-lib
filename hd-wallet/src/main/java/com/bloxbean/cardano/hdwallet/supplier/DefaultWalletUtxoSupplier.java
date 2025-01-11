@@ -14,6 +14,7 @@ import com.bloxbean.cardano.hdwallet.Wallet;
 import com.bloxbean.cardano.hdwallet.WalletException;
 import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
     private final UtxoService utxoService;
     @Setter
@@ -33,7 +35,11 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
 
     @Override
     public List<Utxo> getPage(String address, Integer nrOfItems, Integer page, OrderEnum order) {
-        return getAll(address); // todo get Page of utxo over multipe addresses - find a good way to aktually do something with page, nrOfItems and order
+        //All utxos should be fetched at page=0
+        if (page == 0)
+            return getAll(address); // todo get Page of utxo over multipe addresses - find a good way to aktually do something with page, nrOfItems and order
+        else
+            return Collections.emptyList();
     }
 
     @Override
@@ -84,6 +90,10 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
         checkIfWalletIsSet();
 
         Address address = getBaseAddress(account, index);
+
+        if (log.isDebugEnabled())
+            log.debug("Scanning address for account: {}, index: {}", account, index);
+
         String addrStr = address.getAddress();
         String addrVkh =  address.getBech32VerificationKeyHash().orElse(null);
 
@@ -115,7 +125,7 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
             }).collect(Collectors.toList());
 
             utxos.addAll(utxoList);
-            if(utxoPage.size() < 100)
+            if(utxoPage.size() < DEFAULT_NR_OF_ITEMS_TO_FETCH)
                 break;
             page++;
         }
