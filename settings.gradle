@@ -15,6 +15,7 @@ include 'quicktx'
 include 'annotation-processor'
 include 'hd-wallet'
 include 'governance'
+include 'watcher'
 
 //CIPs
 include 'cip'
