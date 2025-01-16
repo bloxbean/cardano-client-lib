@@ -98,6 +98,8 @@ public interface UtxoSelectionStrategy {
 
     Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit);
 
+    Set<Utxo> select(AddressSuplier addressSuplier, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit);
+
     UtxoSelectionStrategy fallback();
 
     void setIgnoreUtxosWithDatumHash(boolean ignoreUtxosWithDatumHash);
