@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.hdwallet.supplier;
 
 import com.bloxbean.cardano.client.api.UtxoSupplier;
-import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
+import com.bloxbean.cardano.client.api.model.WalletUtxo;
 
 import java.util.List;
 

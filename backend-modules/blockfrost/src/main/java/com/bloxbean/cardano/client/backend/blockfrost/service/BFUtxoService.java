@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.TransactionService;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.client.backend.blockfrost.service.http.AddressesApi;
+import com.bloxbean.cardano.client.backend.model.AddressTransactionContent;
 import retrofit2.Call;
 import retrofit2.Response;
 
@@ -61,5 +62,21 @@ public class BFUtxoService extends BFBaseService implements UtxoService {
     @Override
     public Result<Utxo> getTxOutput(String txHash, int outputIndex) throws ApiException {
         return transactionService.getTransactionOutput(txHash, outputIndex);
+    }
+
+    @Override
+    public boolean hasTransaction(String address) throws ApiException {
+        Call<List<AddressTransactionContent>> call = addressApi.getTransactions(getProjectId(), address, 1, 1, OrderEnum.asc.toString(), null, null);
+        try {
+            Response<List<AddressTransactionContent>> response = call.execute();
+            var txList = processResponse(response);
+            System.out.println(txList);
+            if (txList.isSuccessful() && txList.getValue().size() > 0)
+                return true;
+            else
+                return false;
+        } catch (IOException e) {
+            throw new ApiException("Error checking transaction history for address : " + address, e);
+        }
     }
 }

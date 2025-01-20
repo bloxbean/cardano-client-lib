@@ -460,9 +460,9 @@ public class QuickTxBuilder {
             if (txList.length == 0)
                 throw new TxBuildException("At least one tx is required");
 
-            boolean txListContainsWallet = Arrays.stream(txList).anyMatch(abstractTx -> abstractTx.getFromWallet() != null);
-            if(txListContainsWallet && !(utxoSupplier instanceof WalletUtxoSupplier))
-                throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
+//            boolean txListContainsWallet = Arrays.stream(txList).anyMatch(abstractTx -> abstractTx.getFromWallet() != null);
+//            if(txListContainsWallet && !(utxoSupplier instanceof WalletUtxoSupplier))
+//                throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
 
             Transaction transaction = buildAndSign();
 

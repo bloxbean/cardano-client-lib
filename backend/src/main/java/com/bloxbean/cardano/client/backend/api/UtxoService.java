@@ -61,4 +61,8 @@ public interface UtxoService {
      * @throws ApiException If any error occurs
      */
     Result<Utxo> getTxOutput(String txHash, int outputIndex) throws ApiException;
+
+    default boolean hasTransaction(String address) throws ApiException {
+        throw new UnsupportedOperationException();
+    }
 }

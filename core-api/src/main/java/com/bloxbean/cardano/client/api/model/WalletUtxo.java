@@ -1,6 +1,5 @@
-package com.bloxbean.cardano.hdwallet.model;
+package com.bloxbean.cardano.client.api.model;
 
-import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;

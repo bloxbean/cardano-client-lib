@@ -12,14 +12,11 @@ import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.crypto.cip1852.Segment;
 import com.bloxbean.cardano.hdwallet.Wallet;
 import com.bloxbean.cardano.hdwallet.WalletException;
-import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
+import com.bloxbean.cardano.client.api.model.WalletUtxo;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -31,6 +28,11 @@ public class DefaultWalletUtxoSupplier implements WalletUtxoSupplier {
     public DefaultWalletUtxoSupplier(UtxoService utxoService, Wallet wallet) {
         this.utxoService = utxoService;
         this.wallet = wallet;
+    }
+
+    @Override
+    public List<Utxo> getPage(Iterator<String> addressIteraotr, Integer nrOfItems, Integer page, OrderEnum order) {
+        return null;
     }
 
     @Override

@@ -7,7 +7,7 @@ import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.UtxoService;
 import com.bloxbean.cardano.hdwallet.Wallet;
-import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
+import com.bloxbean.cardano.client.api.model.WalletUtxo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

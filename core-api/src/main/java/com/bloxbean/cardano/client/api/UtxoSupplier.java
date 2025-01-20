@@ -1,9 +1,11 @@
 package com.bloxbean.cardano.client.api;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.model.Utxo;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,7 +23,13 @@ public interface UtxoSupplier {
      * @param order Order of the items
      * @return List of {@link Utxo}
      */
-    List<Utxo> getPage(String address, Integer nrOfItems, Integer page, OrderEnum order);
+    default List<Utxo> getPage(String address, Integer nrOfItems, Integer page, OrderEnum order) {
+        return getPage(List.of(address).iterator(), nrOfItems, page, order);
+    }
+
+    default List<Utxo> getPage(Iterator<String> addressIterator, Integer nrOfItems, Integer page, OrderEnum order) {
+        return List.of();
+    }
 
     /**
      * Fetches a single output by txHash and outputIndex. This method doesn't check if the output is spent or not.
@@ -52,5 +60,9 @@ public interface UtxoSupplier {
             pageToFetch += 1;
         }
         return result;
+    }
+
+    default boolean isUsedAddress(Address address) {
+        return true;
     }
 }
