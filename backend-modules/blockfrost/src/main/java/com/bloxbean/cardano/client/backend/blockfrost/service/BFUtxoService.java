@@ -65,7 +65,7 @@ public class BFUtxoService extends BFBaseService implements UtxoService {
     }
 
     @Override
-    public boolean hasTransaction(String address) throws ApiException {
+    public boolean isUsedAddress(String address) throws ApiException {
         Call<List<AddressTransactionContent>> call = addressApi.getTransactions(getProjectId(), address, 1, 1, OrderEnum.asc.toString(), null, null);
         try {
             Response<List<AddressTransactionContent>> response = call.execute();

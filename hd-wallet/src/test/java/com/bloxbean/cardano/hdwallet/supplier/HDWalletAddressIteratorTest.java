@@ -41,15 +41,15 @@ class HDWalletAddressIteratorTest {
 
         HDWalletAddressIterator addrIterator = new HDWalletAddressIterator(wallet, new DefaultUtxoSupplier(utxoService));
 
-        given(utxoService.hasTransaction(anyString())).willReturn(false);
+        given(utxoService.isUsedAddress(anyString())).willReturn(false);
 
-        given(utxoService.hasTransaction(addr1))
+        given(utxoService.isUsedAddress(addr1))
                 .willReturn(true);
-        given(utxoService.hasTransaction(addr2))
+        given(utxoService.isUsedAddress(addr2))
                 .willReturn(true);
-        given(utxoService.hasTransaction(addr3))
+        given(utxoService.isUsedAddress(addr3))
                 .willReturn(true);
-        given(utxoService.hasTransaction(addr4))
+        given(utxoService.isUsedAddress(addr4))
                 .willReturn(true);
 
         List<String> addressList = new ArrayList<>();
@@ -74,7 +74,7 @@ class HDWalletAddressIteratorTest {
 
         HDWalletAddressIterator addrIterator = new HDWalletAddressIterator(wallet, new DefaultUtxoSupplier(utxoService));
 
-        given(utxoService.hasTransaction(anyString())).willReturn(false);
+        given(utxoService.isUsedAddress(anyString())).willReturn(false);
 
         List<String> addressList = new ArrayList<>();
         while(addrIterator.hasNext()) {

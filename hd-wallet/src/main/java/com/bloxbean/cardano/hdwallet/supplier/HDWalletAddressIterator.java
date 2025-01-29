@@ -4,26 +4,39 @@ import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.hdwallet.Wallet;
+import lombok.extern.slf4j.Slf4j;
 
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+@Slf4j
 public class HDWalletAddressIterator implements AddressIterator {
     private Wallet wallet;
     private UtxoSupplier utxoSupplier;
     private int index = 0;
     private int gapCount = 0;
+    private Iterator<Integer> indexesToScan;
 
     public HDWalletAddressIterator(Wallet wallet, UtxoSupplier utxoSupplier) {
         this.wallet = wallet;
         this.utxoSupplier = utxoSupplier;
+
+        //If only specific indexes to scan
+        this.indexesToScan = wallet.getIndexesToScan() != null && wallet.getIndexesToScan().length > 0 ?
+                Arrays.stream(wallet.getIndexesToScan()).iterator() : null;
     }
 
     @Override
     public boolean hasNext() {
-        if (gapCount >= wallet.getGapLimit())
-            return false;
-        else
-            return true;
+        if (indexesToScan != null) {
+            return indexesToScan.hasNext();
+        } else {
+            if (gapCount >= wallet.getGapLimit())
+                return false;
+            else
+                return true;
+        }
     }
 
     @Override
@@ -31,22 +44,23 @@ public class HDWalletAddressIterator implements AddressIterator {
         if (!hasNext())
             throw new NoSuchElementException();
 
-        Address address = wallet.getBaseAddress(index);
-        System.out.println("Derivation Path: " + address.getDerivationPath().get());
-
-        if (utxoSupplier.isUsedAddress(address)) {
-            gapCount = 0; //reset gap-count
-            index++;
-            return address;
+        Address address;
+        if (indexesToScan != null) {
+            address = wallet.getBaseAddress(indexesToScan.next());
         } else {
-            gapCount++;
-            index++;
-            return address;
-        }
-    }
+            address = wallet.getBaseAddress(index);
 
-    private Address getBaseAddress(int account, int index) {
-        return wallet.getBaseAddress(account, index);
+            if (log.isTraceEnabled())
+                log.trace("Scanning derivation path: " + address.getDerivationPath().get());
+
+            if (utxoSupplier.isUsedAddress(address)) {
+                gapCount = 0; //reset gap-count
+            } else {
+                gapCount++;
+            }
+            index++;
+        }
+        return address;
     }
 
     @Override

@@ -41,7 +41,7 @@ public class DefaultUtxoSupplier implements UtxoSupplier {
     @Override
     public boolean isUsedAddress(Address address) {
         try {
-            return utxoService.hasTransaction(address.toBech32());
+            return utxoService.isUsedAddress(address.toBech32());
         } catch (ApiException e) {
             throw new ApiRuntimeException(e);
         }
