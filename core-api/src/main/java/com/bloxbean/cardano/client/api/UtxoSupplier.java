@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.api;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.model.Utxo;
 
@@ -52,5 +53,15 @@ public interface UtxoSupplier {
             pageToFetch += 1;
         }
         return result;
+    }
+
+    /**
+     * Checks if the provided address has been used in any transactions.
+     *
+     * @param address The address to be checked.
+     * @return true if the address has been used, otherwise false.
+     */
+    default boolean isUsedAddress(Address address) {
+        return true;
     }
 }

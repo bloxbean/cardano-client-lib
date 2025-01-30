@@ -103,7 +103,7 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -127,7 +127,7 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver2 = "addr_test1qpchc7f6zln5c2ruarssn9p8vulhhn3rk7cvz4lm05eq2xwx8e7tf5l25n4ek3gch8tnj4k5z4236fvy6yndrusf7x0sv287t5";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
@@ -167,7 +167,7 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         CBORMetadataMap mm = new CBORMetadataMap()
                 .put(new BigInteger("1978"), "1978value")
@@ -214,8 +214,8 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -296,8 +296,8 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_3);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -322,8 +322,8 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_4);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -348,7 +348,7 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_5);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
@@ -381,8 +381,8 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_5);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -406,7 +406,7 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_6);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
@@ -461,7 +461,7 @@ class FeeCalculationServiceTest extends BaseTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_6);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()

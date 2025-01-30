@@ -1,5 +1,8 @@
 package com.bloxbean.cardano.client.coinselection;
 
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
+import com.bloxbean.cardano.client.api.common.AddressIterators;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -7,10 +10,7 @@ import com.bloxbean.cardano.client.coinselection.config.CoinselectionConfig;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 
 import java.math.BigInteger;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Implement this interface to provide custom UtxoSelection Strategy
@@ -96,7 +96,16 @@ public interface UtxoSelectionStrategy {
         return select(address, Collections.singletonList(outputAmount), datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
     }
 
-    Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit);
+    default Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+        return select(AddressIterators.of(new Address(address)), outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
+    }
+
+    default List<Utxo> selectUtxos(AddressIterator addrIter, String unit, BigInteger amount, Set<Utxo> utxosToExclude) throws ApiException {
+        Set<Utxo> selected = select(addrIter, List.of(new Amount(unit, amount)), null, null, utxosToExclude, CoinselectionConfig.INSTANCE.getCoinSelectionLimit());
+        return selected != null ? new ArrayList<>(selected) : Collections.emptyList();
+    }
+
+    Set<Utxo> select(AddressIterator addressIterator, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit);
 
     UtxoSelectionStrategy fallback();
 

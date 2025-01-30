@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.backend.api;
 
+import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -32,6 +33,15 @@ public class DefaultUtxoSupplier implements UtxoSupplier {
         try {
             var result = utxoService.getTxOutput(txHash, outputIndex);
             return result != null && result.getValue() != null ? Optional.of(result.getValue()) : Optional.empty();
+        } catch (ApiException e) {
+            throw new ApiRuntimeException(e);
+        }
+    }
+
+    @Override
+    public boolean isUsedAddress(Address address) {
+        try {
+            return utxoService.isUsedAddress(address.toBech32());
         } catch (ApiException e) {
             throw new ApiRuntimeException(e);
         }

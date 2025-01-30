@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.address;
 
 import com.bloxbean.cardano.client.common.model.Network;
 import com.bloxbean.cardano.client.crypto.Bech32;
+import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
 import com.bloxbean.cardano.client.exception.AddressRuntimeException;
 
 import java.util.Optional;
@@ -18,6 +19,9 @@ public class Address {
     private String address;
     private AddressType addressType;
     private Network network;
+
+    //Optional
+    private DerivationPath derivationPath;
 
     /**
      * Create Address from a byte array
@@ -47,6 +51,11 @@ public class Address {
 
         this.addressType = readAddressType(this.bytes);
         this.network = readNetworkType(this.bytes);
+    }
+
+    public Address(String address, DerivationPath derivationPath) {
+        this(address);
+        this.derivationPath = derivationPath;
     }
 
     /**
@@ -188,4 +197,9 @@ public class Address {
         return getPaymentCredentialHash()
                 .map(paymentCred -> Bech32.encode(paymentCred, ADDR_VKH_PREFIX));
     }
+
+    public Optional<DerivationPath> getDerivationPath() {
+        return Optional.ofNullable(derivationPath);
+    }
+
 }

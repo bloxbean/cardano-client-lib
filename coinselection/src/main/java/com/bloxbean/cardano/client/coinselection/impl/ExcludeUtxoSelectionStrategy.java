@@ -1,15 +1,13 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
+import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -34,7 +32,7 @@ public class ExcludeUtxoSelectionStrategy implements UtxoSelectionStrategy {
     }
 
     @Override
-    public Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude,
+    public Set<Utxo> select(AddressIterator addrIter, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude,
                             int maxUtxoSelectionLimit) {
         Set<Utxo> finalUtxoToExclude;
         if (utxosToExclude != null) {
@@ -43,7 +41,7 @@ public class ExcludeUtxoSelectionStrategy implements UtxoSelectionStrategy {
         } else {
             finalUtxoToExclude = this.excludeList;
         }
-        return utxoSelectionStrategy.select(address, outputAmounts, datumHash, inlineDatum, finalUtxoToExclude, maxUtxoSelectionLimit);
+        return utxoSelectionStrategy.select(addrIter, outputAmounts, datumHash, inlineDatum, finalUtxoToExclude, maxUtxoSelectionLimit);
     }
 
     @Override

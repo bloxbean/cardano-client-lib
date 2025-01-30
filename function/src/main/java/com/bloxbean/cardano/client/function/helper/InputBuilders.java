@@ -1,5 +1,8 @@
 package com.bloxbean.cardano.client.function.helper;
 
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
+import com.bloxbean.cardano.client.api.common.AddressIterators;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -15,6 +18,8 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.hdwallet.Wallet;
+import com.bloxbean.cardano.hdwallet.util.HDWalletAddressIterator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
@@ -30,6 +35,18 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 @Slf4j
 public class InputBuilders {
 
+    public static TxInputBuilder createFromSender(Wallet senderWallet, String changeAddress) {
+        Objects.requireNonNull(senderWallet, "Sender wallet cannot be null");
+        Objects.requireNonNull(changeAddress, "Change address cannot be null");
+
+        return ((context, outputs) -> {
+            HDWalletAddressIterator addressIterator = new HDWalletAddressIterator(senderWallet, context.getUtxoSupplier());
+           return buildInputs(addressIterator, changeAddress, context, outputs);
+        });
+
+    }
+
+
     /**
      * Function to create inputs and change output from list of <code>{@link TransactionOutput}</code> for a sender
      *
@@ -43,76 +60,85 @@ public class InputBuilders {
         Objects.requireNonNull(sender, "Sender address cannot be null");
         Objects.requireNonNull(changeAddress, "Change address cannot be null");
 
+        return ((context, outputs)
+                -> buildInputs(AddressIterators.of(new Address(sender)), changeAddress, context, outputs));
+    }
+
+    private static TxInputBuilder _createFromSender(AddressIterator senderAddrIter, String changeAddress) {
         return ((context, outputs) -> {
-            if ((outputs == null || outputs.size() == 0)
-                    && (context.getMintMultiAssets() == null || context.getMintMultiAssets().size() == 0))
-                throw new TxBuildException("No output found. TxInputBuilder transformer should be called after OutputTransformer");
+            return buildInputs(senderAddrIter, changeAddress, context, outputs);
+        });
+    }
 
-            //Total value required
-            Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
-            value = outputs.stream()
-                    .map(output -> output.getValue())
-                    .reduce(value, (value1, value2) -> value1.add(value2));
+    private static TxInputBuilder.Result buildInputs(AddressIterator senderAddrIter, String changeAddress, TxBuilderContext context, List<TransactionOutput> outputs) {
+        if ((outputs == null || outputs.size() == 0)
+                && (context.getMintMultiAssets() == null || context.getMintMultiAssets().size() == 0))
+            throw new TxBuildException("No output found. TxInputBuilder transformer should be called after OutputTransformer");
 
-            //Check if mint value is there in context. Then we need to ignore mint outputs from total value
-            List<MultiAsset> mintMultiAssets = context.getMintMultiAssets();
-            Optional<Value> mintValue = findMintValueFromMultiAssets(mintMultiAssets);
-            if (mintValue.isPresent()) {
-                value = value.subtract(mintValue.get());
-            }
+        //Total value required
+        Value value = Value.builder().coin(BigInteger.ZERO).multiAssets(new ArrayList<>()).build();
+        value = outputs.stream()
+                .map(output -> output.getValue())
+                .reduce(value, (value1, value2) -> value1.add(value2));
 
-            //check if there is any burn multiasset value
-            Optional<Value> burnValue = findBurnValueFromMultiAssets(mintMultiAssets);
-            if (burnValue.isPresent()) {
-                value = value.add(burnValue.get());
-            }
+        //Check if mint value is there in context. Then we need to ignore mint outputs from total value
+        List<MultiAsset> mintMultiAssets = context.getMintMultiAssets();
+        Optional<Value> mintValue = findMintValueFromMultiAssets(mintMultiAssets);
+        if (mintValue.isPresent()) {
+            value = value.subtract(mintValue.get());
+        }
 
-            Set<Utxo> utxoSet = getUtxosForValue(context, sender, value, Collections.EMPTY_SET);
+        //check if there is any burn multiasset value
+        Optional<Value> burnValue = findBurnValueFromMultiAssets(mintMultiAssets);
+        if (burnValue.isPresent()) {
+            value = value.add(burnValue.get());
+        }
 
-            List<TransactionInput> _inputs = utxoSet.stream()
-                    .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
-                    .collect(Collectors.toList());
+        Set<Utxo> utxoSet = getUtxosForValue(context, senderAddrIter, value, Collections.EMPTY_SET);
 
-            if (utxoSet != null && !utxoSet.isEmpty()) {
-                //Copy assets to change address
-                TransactionOutput changeOutput = getChangeOutput(outputs, changeAddress, context.isMergeOutputs());
-                outputs.remove(changeOutput); //Remove change output from outputs as it will be added to changeOutput List later. If it's a new output, nothing will happen
+        List<TransactionInput> _inputs = utxoSet.stream()
+                .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
+                .collect(Collectors.toList());
 
-                utxoSet.stream().forEach(utxo -> {
+        if (utxoSet != null && !utxoSet.isEmpty()) {
+            //Copy assets to change address
+            TransactionOutput changeOutput = getChangeOutput(outputs, changeAddress, context.isMergeOutputs());
+            outputs.remove(changeOutput); //Remove change output from outputs as it will be added to changeOutput List later. If it's a new output, nothing will happen
+
+            utxoSet.stream().forEach(utxo -> {
+                UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
+                context.addUtxo(utxo); //Add used utxos to context
+            });
+
+            //Substract output values from change
+            Value changedValue = changeOutput.getValue().subtract(value);
+            changeOutput.setValue(changedValue);
+            BigInteger additionalLovelace = MinAdaCheckers.minAdaChecker().apply(context, changeOutput);
+
+            if (additionalLovelace.compareTo(BigInteger.ZERO) == 1) { //Need more inputs
+                Value additionalValue = Value.builder()
+                        .coin(additionalLovelace).build();
+
+                Set<Utxo> additionalUtxos = getUtxosForValue(context, senderAddrIter, additionalValue, utxoSet);
+
+                List<TransactionInput> additionalInputs = additionalUtxos.stream()
+                        .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
+                        .collect(Collectors.toList());
+
+                additionalUtxos.stream().forEach(utxo -> {
                     UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
                     context.addUtxo(utxo); //Add used utxos to context
                 });
 
-                //Substract output values from change
-                Value changedValue = changeOutput.getValue().subtract(value);
-                changeOutput.setValue(changedValue);
-                BigInteger additionalLovelace = MinAdaCheckers.minAdaChecker().apply(context, changeOutput);
-
-                if (additionalLovelace.compareTo(BigInteger.ZERO) == 1) { //Need more inputs
-                    Value additionalValue = Value.builder()
-                            .coin(additionalLovelace).build();
-
-                    Set<Utxo> additionalUtxos = getUtxosForValue(context, sender, additionalValue, utxoSet);
-
-                    List<TransactionInput> additionalInputs = additionalUtxos.stream()
-                            .map(utxo -> new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()))
-                            .collect(Collectors.toList());
-
-                    additionalUtxos.stream().forEach(utxo -> {
-                        UtxoUtil.copyUtxoValuesToOutput(changeOutput, utxo);
-                        context.addUtxo(utxo); //Add used utxos to context
-                    });
-
-                    _inputs.addAll(additionalInputs);
-                }
-
-                return new TxInputBuilder.Result(_inputs, List.of(changeOutput));
-            } else {
-                //Something wrong
-                log.warn("Empty input. In normal case, this should not happen.");
-                return new TxInputBuilder.Result(Collections.EMPTY_LIST, Collections.EMPTY_LIST);
+                _inputs.addAll(additionalInputs);
             }
-        });
+
+            return new TxInputBuilder.Result(_inputs, List.of(changeOutput));
+        } else {
+            //Something wrong
+            log.warn("Empty input. In normal case, this should not happen.");
+            return new TxInputBuilder.Result(Collections.EMPTY_LIST, Collections.EMPTY_LIST);
+        }
     }
 
     private static Optional<Value> findMintValueFromMultiAssets(List<MultiAsset> multiAssets) {
@@ -162,13 +188,13 @@ public class InputBuilders {
         }
     }
 
-    private static Set<Utxo> getUtxosForValue(TxBuilderContext context, String sender, Value value, Set<Utxo> excludeUtxos) {
+    private static Set<Utxo> getUtxosForValue(TxBuilderContext context, AddressIterator senderAddrIter, Value value, Set<Utxo> excludeUtxos) {
         Set<Utxo> utxoSet = new HashSet<>();
 
         List<Utxo> lovelaceUtxos;
         try {
             if (value.getCoin() != null && !value.getCoin().equals(BigInteger.ZERO)) {
-                lovelaceUtxos = context.getUtxoSelectionStrategy().selectUtxos(sender, LOVELACE, value.getCoin(), excludeUtxos);
+                lovelaceUtxos = context.getUtxoSelectionStrategy().selectUtxos(senderAddrIter, LOVELACE, value.getCoin(), excludeUtxos);
             } else {
                 lovelaceUtxos = Collections.EMPTY_LIST;
             }
@@ -183,11 +209,11 @@ public class InputBuilders {
                 .map(tuple -> {
                     String unit = AssetUtil.getUnit(tuple._1, tuple._2);
                     try {
-                        List<Utxo> utxoList = (List<Utxo>) context.getUtxoSelectionStrategy().selectUtxos(sender, unit, tuple._2.getValue(), excludeUtxos);
+                        List<Utxo> utxoList = (List<Utxo>) context.getUtxoSelectionStrategy().selectUtxos(senderAddrIter, unit, tuple._2.getValue(), excludeUtxos);
                         if (utxoList != null && utxoList.size() != 0)
                             return utxoList;
                         else
-                            throw new ApiRuntimeException(String.format("No utxo found at address=%s, unit= %s, value=%s", sender, unit, tuple._2.getValue()));
+                            throw new ApiRuntimeException(String.format("No utxo found at address=%s, unit= %s, value=%s", senderAddrIter, unit, tuple._2.getValue()));
                     } catch (ApiException apiException) {
                         throw new ApiRuntimeException("Error fetching utxos for qty: " + tuple._2 + ", and asset: " + tuple._2, apiException);
                     }

@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
@@ -33,10 +35,15 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
     }
 
     @Override
-    public Set<Utxo> select(String sender, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+    public Set<Utxo> select(AddressIterator addrIter, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
         if(outputAmounts == null || outputAmounts.isEmpty()){
             return Collections.emptySet();
         }
+
+        //Reset the iterator incase it's reused
+        if (addrIter != null)
+            addrIter.reset();
+
         try{
             Set<Utxo> selectedUtxos = new HashSet<>();
 
@@ -49,7 +56,11 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
                     .filter(entry -> BigInteger.ZERO.compareTo(entry.getValue()) < 0)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            var fetchResult = this.utxoSupplier.getAll(sender);
+            List<Utxo> fetchResult = new ArrayList<>();
+            while (addrIter.hasNext()) {
+                var utxos = this.utxoSupplier.getAll(addrIter.next().toBech32());
+                fetchResult.addAll(utxos);
+            }
 
             var allUtxos = fetchResult.stream()
                                                  .sorted(sortLargestFirst(outputAmounts))
@@ -104,7 +115,7 @@ public class LargestFirstUtxoSelectionStrategy implements UtxoSelectionStrategy 
         }catch(InputsLimitExceededException e){
             var fallback = fallback();
             if(fallback != null){
-                return fallback.select(sender, outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
+                return fallback.select(addrIter, outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
             }
             throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
         }

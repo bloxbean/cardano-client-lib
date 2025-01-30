@@ -380,7 +380,14 @@ public abstract class AbstractTx<T> {
     private TxBuilder buildInputBuilders(TxOutputBuilder txOutputBuilder) {
         String _changeAddress = getChangeAddress();
         String _fromAddress = getFromAddress();
-        TxBuilder txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromSender(_fromAddress, _changeAddress));
+        Wallet _fromWallet = getFromWallet();
+        TxBuilder txBuilder = null;
+
+        if (_fromWallet != null) {
+            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromSender(_fromWallet, _changeAddress));
+        } else {
+            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromSender(_fromAddress, _changeAddress));
+        }
 
         return txBuilder;
     }

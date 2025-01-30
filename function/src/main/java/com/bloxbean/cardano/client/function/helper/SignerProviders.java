@@ -8,7 +8,7 @@ import com.bloxbean.cardano.client.transaction.TransactionSigner;
 import com.bloxbean.cardano.client.transaction.spec.Policy;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.hdwallet.Wallet;
-import com.bloxbean.cardano.hdwallet.model.WalletUtxo;
+import com.bloxbean.cardano.client.api.model.WalletUtxo;
 
 import java.util.stream.Collectors;
 
