@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.hdwallet.supplier;
+package com.bloxbean.cardano.hdwallet.util;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.api.AddressIterator;
@@ -71,5 +71,14 @@ public class HDWalletAddressIterator implements AddressIterator {
         } else {
             return super.toString();
         }
+    }
+
+    @Override
+    public void reset() {
+        index = 0;
+        gapCount = 0;
+
+        this.indexesToScan = wallet.getIndexesToScan() != null && wallet.getIndexesToScan().length > 0 ?
+                Arrays.stream(wallet.getIndexesToScan()).iterator() : null;
     }
 }

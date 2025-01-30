@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.quicktx;
 import co.nstant.in.cbor.CborException;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
@@ -592,7 +593,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                     .withSigner(SignerProviders.signerFrom(sender1))
                     .withUtxoSelectionStrategy(new UtxoSelectionStrategy() {
                         @Override
-                        public Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+                        public Set<Utxo> select(AddressIterator addressIterator, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
                             throw new InsufficientBalanceException("Insufficient balance");
                         }
 

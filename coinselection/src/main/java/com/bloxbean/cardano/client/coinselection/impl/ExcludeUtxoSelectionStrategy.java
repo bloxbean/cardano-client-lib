@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
-import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
@@ -32,7 +32,7 @@ public class ExcludeUtxoSelectionStrategy implements UtxoSelectionStrategy {
     }
 
     @Override
-    public Set<Utxo> select(Iterator<Address> addrIter, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude,
+    public Set<Utxo> select(AddressIterator addrIter, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude,
                             int maxUtxoSelectionLimit) {
         Set<Utxo> finalUtxoToExclude;
         if (utxosToExclude != null) {

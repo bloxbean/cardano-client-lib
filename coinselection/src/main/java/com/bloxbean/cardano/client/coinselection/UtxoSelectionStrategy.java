@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.coinselection;
 
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
+import com.bloxbean.cardano.client.api.common.AddressIterators;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -95,15 +97,15 @@ public interface UtxoSelectionStrategy {
     }
 
     default Set<Utxo> select(String address, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
-        return select(List.of(new Address(address)).iterator(), outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
+        return select(AddressIterators.of(new Address(address)), outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
     }
 
-    default List<Utxo> selectUtxos(Iterator<Address> addrIter, String unit, BigInteger amount, Set<Utxo> utxosToExclude) throws ApiException {
+    default List<Utxo> selectUtxos(AddressIterator addrIter, String unit, BigInteger amount, Set<Utxo> utxosToExclude) throws ApiException {
         Set<Utxo> selected = select(addrIter, List.of(new Amount(unit, amount)), null, null, utxosToExclude, CoinselectionConfig.INSTANCE.getCoinSelectionLimit());
         return selected != null ? new ArrayList<>(selected) : Collections.emptyList();
     }
 
-    Set<Utxo> select(Iterator<Address> addressIterator, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit);
+    Set<Utxo> select(AddressIterator addressIterator, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit);
 
     UtxoSelectionStrategy fallback();
 

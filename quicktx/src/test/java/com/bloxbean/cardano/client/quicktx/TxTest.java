@@ -64,7 +64,7 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     void payToAddress_ada_withEnoughFund() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -105,7 +105,7 @@ class TxTest extends QuickTxBaseTest {
     void payToAddress_ada_asset_withEnoughFund() {
         String policy1 = generateRandomHexValue(28);
         String policy2 = generateRandomHexValue(28);
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -163,7 +163,7 @@ class TxTest extends QuickTxBaseTest {
     void payToAddress_ada_asset_NotEnoughAsset() {
         String policy1 = generateRandomHexValue(28);
         String policy2 = generateRandomHexValue(28);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -182,7 +182,7 @@ class TxTest extends QuickTxBaseTest {
                                 .build()
                 )
         );
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(List.of());
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(List.of());
 
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(10))
@@ -203,7 +203,7 @@ class TxTest extends QuickTxBaseTest {
     void payToAddress_ada_NotAda() {
         String policy1 = generateRandomHexValue(28);
         String policy2 = generateRandomHexValue(28);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -222,7 +222,7 @@ class TxTest extends QuickTxBaseTest {
                                 .build()
                 )
         );
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(List.of());
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(List.of());
 
         Tx tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(10))
@@ -322,7 +322,7 @@ class TxTest extends QuickTxBaseTest {
     void payToAddress_multipleAmountsAsList() {
         String policy1 = generateRandomHexValue(28);
         String policy2 = generateRandomHexValue(28);
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -366,7 +366,7 @@ class TxTest extends QuickTxBaseTest {
     void testPayToAddress_withMintOutput() {
         String policy1 = generateRandomHexValue(28);
         String policy2 = generateRandomHexValue(28);
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -414,7 +414,7 @@ class TxTest extends QuickTxBaseTest {
     void testPayToAddress_withMintOutput_differentMintReceivers() {
         String policy1 = generateRandomHexValue(28);
         String policy2 = generateRandomHexValue(28);
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -464,7 +464,7 @@ class TxTest extends QuickTxBaseTest {
         String policy1 = generateRandomHexValue(28);
         String policy2 = generateRandomHexValue(28);
         String poolId = generateRandomHexValue(32);
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -503,7 +503,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void registerStakeAddress() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -535,7 +535,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void deRegisterStakeAddress() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -568,7 +568,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void deRegisterStakeAddress_refundToSender() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -601,7 +601,7 @@ class TxTest extends QuickTxBaseTest {
     @SneakyThrows
     void withdraw() {
         String rewardAddress = new Account().stakeAddress();
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -630,7 +630,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     void withdraw_separateReceiver() {
         String rewardAddress = new Account().stakeAddress();
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -670,7 +670,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void payToContract_inlineDatum() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -702,7 +702,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void payToContract_datumHash() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -733,7 +733,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void payToContract_datumHash_noMintOutputFlag() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -764,7 +764,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void payToContract_datumHash_noAmtList_noMintOutputFlag() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -794,7 +794,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void payToContract_inlineDatumAndScriptRefBytes_withoutMintOutput() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -826,7 +826,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void payToContract_inlineDatumAndScriptRef_withoutMintOutput() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -863,7 +863,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void payToContract_inlineDatumAndScriptRef_mintOutputTrue() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -904,7 +904,7 @@ class TxTest extends QuickTxBaseTest {
     @Test
     @SneakyThrows
     void payToContract_inlineDatumAndScriptRef_mintOutput_throwError_insufficientAsset() {
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -914,7 +914,7 @@ class TxTest extends QuickTxBaseTest {
                                 .build()
                 )
         );
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(List.of());
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(List.of());
 
         PlutusV2Script plutusScript = PlutusV2Script.builder()
                 .type("PlutusScriptV2")
@@ -941,7 +941,7 @@ class TxTest extends QuickTxBaseTest {
     @SneakyThrows
     void payToContract_inlineDatumAndScriptRef_mintOutput_burnOutput_success() {
         Policy existingPolicy = PolicyUtil.createMultiSigScriptAtLeastPolicy("newPolicy", 1, 1);
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -1005,7 +1005,7 @@ class TxTest extends QuickTxBaseTest {
     @SneakyThrows
     void payToContract_inlineDatumAndScriptRef_mintOutput_burnOutput_insufficient_balance_error() {
         Policy existingPolicy = PolicyUtil.createMultiSigScriptAtLeastPolicy("newPolicy", 1, 1);
-        given(utxoSupplier.getPage(any(), any(), eq(0), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), any(), eq(0), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -1017,7 +1017,7 @@ class TxTest extends QuickTxBaseTest {
                                 )).build()
                 )
         );
-        given(utxoSupplier.getPage(any(), any(), eq(1), any())).willReturn(Collections.emptyList());
+        given(utxoSupplier.getPage(anyString(), any(), eq(1), any())).willReturn(Collections.emptyList());
 
         PlutusV2Script plutusScript = PlutusV2Script.builder()
                 .type("PlutusScriptV2")
@@ -1133,7 +1133,7 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     void postBalance_updateOutputAmount() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -1161,7 +1161,7 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     void withRequiredSigner_paymentAddress() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -1199,7 +1199,7 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     void withRequiredSigner_paymentAddress_oneMethod() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -1232,7 +1232,7 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     void withRequiredSigner_bytes() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)
@@ -1263,7 +1263,7 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     void withRequiredSigner_bytes_oneMethod() {
-        given(utxoSupplier.getPage(any(), anyInt(), any(), any())).willReturn(
+        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
                 List.of(
                         Utxo.builder()
                                 .address(sender1)

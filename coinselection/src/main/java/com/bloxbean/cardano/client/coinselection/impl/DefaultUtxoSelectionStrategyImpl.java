@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
@@ -37,10 +38,13 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
     }
 
     @Override
-    public Set<Utxo> select(Iterator<Address> addrIter, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+    public Set<Utxo> select(AddressIterator addrIter, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
         if(outputAmounts == null || outputAmounts.isEmpty()){
             return Collections.emptySet();
         }
+
+        //reset addrIter to handle reuse of same iterator from caller
+        if (addrIter != null) addrIter.reset();
 
         //TODO -- Should we throw error if both datumHash and inlineDatum are set ??
 

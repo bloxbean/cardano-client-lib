@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
+import com.bloxbean.cardano.client.api.common.AddressIterators;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -17,7 +19,7 @@ import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.bloxbean.cardano.hdwallet.Wallet;
-import com.bloxbean.cardano.hdwallet.supplier.HDWalletAddressIterator;
+import com.bloxbean.cardano.hdwallet.util.HDWalletAddressIterator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
@@ -59,16 +61,16 @@ public class InputBuilders {
         Objects.requireNonNull(changeAddress, "Change address cannot be null");
 
         return ((context, outputs)
-                -> buildInputs(List.of(new Address(sender)).iterator(), changeAddress, context, outputs));
+                -> buildInputs(AddressIterators.of(new Address(sender)), changeAddress, context, outputs));
     }
 
-    private static TxInputBuilder _createFromSender(Iterator<Address> senderAddrIter, String changeAddress) {
+    private static TxInputBuilder _createFromSender(AddressIterator senderAddrIter, String changeAddress) {
         return ((context, outputs) -> {
             return buildInputs(senderAddrIter, changeAddress, context, outputs);
         });
     }
 
-    private static TxInputBuilder.Result buildInputs(Iterator<Address> senderAddrIter, String changeAddress, TxBuilderContext context, List<TransactionOutput> outputs) {
+    private static TxInputBuilder.Result buildInputs(AddressIterator senderAddrIter, String changeAddress, TxBuilderContext context, List<TransactionOutput> outputs) {
         if ((outputs == null || outputs.size() == 0)
                 && (context.getMintMultiAssets() == null || context.getMintMultiAssets().size() == 0))
             throw new TxBuildException("No output found. TxInputBuilder transformer should be called after OutputTransformer");
@@ -186,7 +188,7 @@ public class InputBuilders {
         }
     }
 
-    private static Set<Utxo> getUtxosForValue(TxBuilderContext context, Iterator<Address> senderAddrIter, Value value, Set<Utxo> excludeUtxos) {
+    private static Set<Utxo> getUtxosForValue(TxBuilderContext context, AddressIterator senderAddrIter, Value value, Set<Utxo> excludeUtxos) {
         Set<Utxo> utxoSet = new HashSet<>();
 
         List<Utxo> lovelaceUtxos;

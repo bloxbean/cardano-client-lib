@@ -96,11 +96,11 @@ public class UtxoTransactionBuilderTest {
         String address = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         List<Utxo> utxoList = utxoTransactionBuilder.getUtxos(address, "lovelace", BigInteger.valueOf(500000000));
 
-        verify(utxoSupplier, times(1)).getPage(any(), anyInt(), anyInt(), any());
+        verify(utxoSupplier, times(1)).getPage(anyString(), anyInt(), anyInt(), any());
 
         assertThat(utxoList, hasSize(2));
         assertThat(utxoList.get(0).getAmount().get(0).getQuantity(), is(BigInteger.valueOf(1407406)));
@@ -113,7 +113,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         List<Utxo> utxoList = utxoTransactionBuilder.getUtxos(address, unit, BigInteger.valueOf(400000000));
 
@@ -128,7 +128,7 @@ public class UtxoTransactionBuilderTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -162,7 +162,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e";
 
         List<Utxo> utxos = loadUtxos(LIST_3);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -201,7 +201,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_3);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -258,7 +258,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "6b8d07d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_4);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -305,7 +305,7 @@ public class UtxoTransactionBuilderTest {
         String unit2 = "329728f73683fe04364631c27a7912538c116d802416ca1eaf2d7a96736174636f696e";
 
         List<Utxo> utxos = loadUtxos(LIST_3);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -346,7 +346,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_5);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -396,9 +396,9 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_6);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(2), any())).willReturn(Collections.emptyList());
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(2), any())).willReturn(Collections.emptyList());
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -435,9 +435,9 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_5);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(Arrays.asList(utxos.get(0)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Arrays.asList(utxos.get(1)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(2), any())).willReturn(Arrays.asList(utxos.get(2)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(Arrays.asList(utxos.get(0)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Arrays.asList(utxos.get(1)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(2), any())).willReturn(Arrays.asList(utxos.get(2)));
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
@@ -503,11 +503,11 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = loadUtxos(LIST_5);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(Arrays.asList(utxos.get(0)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Arrays.asList(utxos.get(1)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(2), any())).willReturn(Arrays.asList(utxos.get(2)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(3), any())).willReturn(Arrays.asList(utxos.get(3)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(4), any())).willReturn(Collections.emptyList());
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(Arrays.asList(utxos.get(0)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Arrays.asList(utxos.get(1)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(2), any())).willReturn(Arrays.asList(utxos.get(2)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(3), any())).willReturn(Arrays.asList(utxos.get(3)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(4), any())).willReturn(Collections.emptyList());
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
@@ -564,7 +564,7 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(1).getAddress(), is(sender.baseAddress()));
         assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin(), is(BigInteger.valueOf(1495467955)));
 
-        verify(utxoSupplier, never()).getPage(any(), anyInt(), anyInt(), any());
+        verify(utxoSupplier, never()).getPage(anyString(), anyInt(), anyInt(), any());
     }
 
     @Test
@@ -572,7 +572,7 @@ public class UtxoTransactionBuilderTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -598,7 +598,7 @@ public class UtxoTransactionBuilderTest {
         assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin(), is(BigInteger.valueOf(3000000000L)));
 
         assertThat(transaction.getBody().getOutputs().get(1).getAddress(), is(sender.baseAddress()));
-        verify(utxoSupplier, atLeastOnce()).getPage(any(), anyInt(), anyInt(), any());
+        verify(utxoSupplier, atLeastOnce()).getPage(anyString(), anyInt(), anyInt(), any());
     }
 
     @Test
@@ -638,7 +638,7 @@ public class UtxoTransactionBuilderTest {
 
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
 
-        verify(utxoSupplier, never()).getPage(any(), anyInt(), anyInt(), any());
+        verify(utxoSupplier, never()).getPage(anyString(), anyInt(), anyInt(), any());
     }
 
     @Test
@@ -647,7 +647,7 @@ public class UtxoTransactionBuilderTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_2);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         MultiAsset multiAsset = new MultiAsset();
         multiAsset.setPolicyId("b9bd3fb4511908402fbef848eece773bb44c867c25ac8c08d9ec3313");
@@ -680,7 +680,7 @@ public class UtxoTransactionBuilderTest {
 
         assertThat(transaction.getBody().getOutputs(), hasSize(2));
 
-        verify(utxoSupplier, atLeast(1)).getPage(any(), anyInt(), anyInt(), any());
+        verify(utxoSupplier, atLeast(1)).getPage(anyString(), anyInt(), anyInt(), any());
     }
 
     @Test
@@ -688,7 +688,7 @@ public class UtxoTransactionBuilderTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_7);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -727,8 +727,8 @@ public class UtxoTransactionBuilderTest {
         String receiver = "addr_test1qqwpl7h3g84mhr36wpetk904p7fchx2vst0z696lxk8ujsjyruqwmlsm344gfux3nsj6njyzj3ppvrqtt36cp9xyydzqzumz82";
 
         List<Utxo> utxos = loadUtxos(LIST_8);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         Account sender = new Account(Networks.testnet());
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -881,7 +881,7 @@ public class UtxoTransactionBuilderTest {
         Account sender = new Account(Networks.testnet());
 
         List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Collections.singletonList(new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
 
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
@@ -912,7 +912,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("3")))), null, null, null));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
         PaymentTransaction paymentTransaction = PaymentTransaction.builder()
                 .sender(sender)
@@ -943,7 +943,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
 
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
@@ -983,7 +983,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, ADAConversionUtil.adaToLovelace(new BigDecimal("1.5")))), null, null, null));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
                 .sender(sender)
@@ -1019,7 +1019,7 @@ public class UtxoTransactionBuilderTest {
         String unit = "777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7";
 
         List<Utxo> utxos = Collections.singletonList(new Utxo("496760b59ba36169bf6a62b09880824896b8e0044a4893f9649b6604741a89ed", 3, sender.getBaseAddress().getAddress(), Arrays.asList(new Amount(unit, BigInteger.valueOf(1000)), new Amount(LOVELACE, BigInteger.valueOf(2478633))), null, null, null));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
 
         PaymentTransaction paymentTransaction1 = PaymentTransaction.builder()
                 .sender(sender)

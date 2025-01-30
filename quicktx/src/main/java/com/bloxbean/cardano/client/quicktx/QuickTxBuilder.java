@@ -23,7 +23,6 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
-import com.bloxbean.cardano.hdwallet.supplier.WalletUtxoSupplier;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
