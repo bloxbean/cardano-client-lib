@@ -70,7 +70,6 @@ public class BFUtxoService extends BFBaseService implements UtxoService {
         try {
             Response<List<AddressTransactionContent>> response = call.execute();
             var txList = processResponse(response);
-            System.out.println(txList);
             if (txList.isSuccessful() && txList.getValue().size() > 0)
                 return true;
             else
