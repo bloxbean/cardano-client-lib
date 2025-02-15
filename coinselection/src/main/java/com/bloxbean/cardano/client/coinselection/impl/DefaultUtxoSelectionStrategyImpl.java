@@ -1,11 +1,14 @@
 package com.bloxbean.cardano.client.coinselection.impl;
 
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.model.WalletUtxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.exception.InputsLimitExceededException;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
@@ -35,10 +38,13 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
     }
 
     @Override
-    public Set<Utxo> select(String sender, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
+    public Set<Utxo> select(AddressIterator addrIter, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit) {
         if(outputAmounts == null || outputAmounts.isEmpty()){
             return Collections.emptySet();
         }
+
+        //reset addrIter to handle reuse of same iterator from caller
+        if (addrIter != null) addrIter.reset();
 
         //TODO -- Should we throw error if both datumHash and inlineDatum are set ??
 
@@ -55,74 +61,87 @@ public class DefaultUtxoSelectionStrategyImpl implements UtxoSelectionStrategy {
                     .filter(entry -> BigInteger.ZERO.compareTo(entry.getValue()) < 0)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            int page = 0;
+
             final int nrOfItems = 100;
 
-            while(!remaining.isEmpty()){
-                var fetchResult = utxoSupplier.getPage(sender, nrOfItems, page, OrderEnum.asc);
+            String firstAddr = null;
+            while(addrIter.hasNext()) {
+                int page = 0;
+                Address senderAddr = addrIter.next();
+                String sender = senderAddr.toBech32();
 
-                var fetched = fetchResult != null
-                        ? fetchResult.stream()
-                                     .sorted(sortByMostMatchingAssets(outputAmounts))
-                                     .collect(Collectors.toList())
-                        : Collections.<Utxo>emptyList();
+                if (firstAddr == null)
+                    firstAddr = sender; //TODO -- Just a workaround for log
 
-                page += 1;
-                for(Utxo utxo : fetched) {
-                    if(!accept(utxo)){
-                        continue;
-                    }
-                    if(utxosToExclude != null && utxosToExclude.contains(utxo)){
-                        continue;
-                    }
-                    if(utxo.getDataHash() != null && !utxo.getDataHash().isEmpty() && ignoreUtxosWithDatumHash){
-                        continue;
-                    }
-                    if(datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash())){
-                        continue;
-                    }
-                    //TODO - add tests for this scenario
-                    if(inlineDatum != null && !inlineDatum.serializeToHex().equals(utxo.getInlineDatum())) {
-                        continue;
-                    }
-                    if(selectedUtxos.contains(utxo)){
-                        continue;
-                    }
-                    List<Amount> utxoAmounts = utxo.getAmount();
+                while (!remaining.isEmpty()) {
+                    var fetchResult = utxoSupplier.getPage(sender, nrOfItems, page, OrderEnum.asc);
 
-                    boolean utxoSelected = false;
-                    for(Amount amount : utxoAmounts) {
-                        var remainingAmount = remaining.get(amount.getUnit());
-                        if(remainingAmount != null && BigInteger.ZERO.compareTo(remainingAmount) < 0){
-                            utxoSelected = true;
-                            var newRemaining = remainingAmount.subtract(amount.getQuantity());
-                            if(BigInteger.ZERO.compareTo(newRemaining) < 0){
-                                remaining.put(amount.getUnit(), newRemaining);
-                            }else{
-                                remaining.remove(amount.getUnit());
+                    var fetched = fetchResult != null
+                            ? fetchResult.stream()
+                            .sorted(sortByMostMatchingAssets(outputAmounts))
+                            .collect(Collectors.toList())
+                            : Collections.<Utxo>emptyList();
+
+                    page += 1;
+                    for (Utxo utxo : fetched) {
+                        if (!accept(utxo)) {
+                            continue;
+                        }
+                        if (utxosToExclude != null && utxosToExclude.contains(utxo)) {
+                            continue;
+                        }
+                        if (utxo.getDataHash() != null && !utxo.getDataHash().isEmpty() && ignoreUtxosWithDatumHash) {
+                            continue;
+                        }
+                        if (datumHash != null && !datumHash.isEmpty() && !datumHash.equals(utxo.getDataHash())) {
+                            continue;
+                        }
+                        //TODO - add tests for this scenario
+                        if (inlineDatum != null && !inlineDatum.serializeToHex().equals(utxo.getInlineDatum())) {
+                            continue;
+                        }
+                        if (selectedUtxos.contains(utxo)) {
+                            continue;
+                        }
+                        List<Amount> utxoAmounts = utxo.getAmount();
+
+                        boolean utxoSelected = false;
+                        for (Amount amount : utxoAmounts) {
+                            var remainingAmount = remaining.get(amount.getUnit());
+                            if (remainingAmount != null && BigInteger.ZERO.compareTo(remainingAmount) < 0) {
+                                utxoSelected = true;
+                                var newRemaining = remainingAmount.subtract(amount.getQuantity());
+                                if (BigInteger.ZERO.compareTo(newRemaining) < 0) {
+                                    remaining.put(amount.getUnit(), newRemaining);
+                                } else {
+                                    remaining.remove(amount.getUnit());
+                                }
+                            }
+                        }
+
+                        if (utxoSelected) {
+                            var walletUtxo = WalletUtxo.from(utxo);
+                            walletUtxo.setDerivationPath(senderAddr.getDerivationPath().isPresent()? senderAddr.getDerivationPath().get(): null);
+
+                            selectedUtxos.add(walletUtxo);
+                            if (!remaining.isEmpty() && selectedUtxos.size() > maxUtxoSelectionLimit) {
+                                throw new InputsLimitExceededException("Selection limit of " + maxUtxoSelectionLimit + " utxos reached with " + remaining + " remaining");
                             }
                         }
                     }
-
-                    if(utxoSelected){
-                        selectedUtxos.add(utxo);
-                        if(!remaining.isEmpty() && selectedUtxos.size() > maxUtxoSelectionLimit){
-                            throw new InputsLimitExceededException("Selection limit of " + maxUtxoSelectionLimit + " utxos reached with " + remaining + " remaining");
-                        }
+                    if (fetched.isEmpty()) {
+                        break;
                     }
-                }
-                if(fetched.isEmpty()){
-                    break;
                 }
             }
             if(!remaining.isEmpty()){
-                throw new InsufficientBalanceException("Not enough funds for [" + remaining + "], address: " + sender);
+                throw new InsufficientBalanceException("Not enough funds for [" + remaining + "], address: " + firstAddr);
             }
             return selectedUtxos;
         }catch(InputsLimitExceededException e){
             var fallback = fallback();
             if(fallback != null){
-                return fallback.select(sender, outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
+                return fallback.select(addrIter, outputAmounts, datumHash, inlineDatum, utxosToExclude, maxUtxoSelectionLimit);
             }
             throw new ApiRuntimeException("Input limit exceeded and no fallback provided", e);
         }

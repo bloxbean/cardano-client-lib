@@ -107,4 +107,20 @@ public class UtxoServiceIT extends BaseITTest {
         assertFalse(result.isSuccessful());
         assertEquals(404, result.code());
     }
+
+    @Test
+    void isUsedAddress_whenTxsAvailable() throws ApiException {
+        String address = "addr_test1qzx9hu8j4ah3auytk0mwcupd69hpc52t0cw39a65ndrah86djs784u92a3m5w475w3w35tyd6v3qumkze80j8a6h5tuqq5xe8y";
+
+        var hasTxs = getBackendService().getUtxoService().isUsedAddress(address);
+        assertTrue(hasTxs);
+    }
+
+    @Test
+    void isUsedAddress_noTx() throws ApiException {
+        String address = "addr_test1qz740lxy55phhat0g6f38kz9d74enw8rmh270ulptqzhu524nndmx9g6y38tql3cx8ydsv7x2et2cvf2tml46qzwjxrslrskyj";
+
+        var hasTxs = getBackendService().getUtxoService().isUsedAddress(address);
+        assertFalse(hasTxs);
+    }
 }

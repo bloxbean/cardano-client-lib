@@ -143,9 +143,9 @@ class DefaultUtxoSelectorTest extends BaseTest {
     @Test
     void findAll_withPagination() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(List.of(utxos.get(0), utxos.get(1)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(List.of(utxos.get(2), utxos.get(3)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(2), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(List.of(utxos.get(0), utxos.get(1)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(List.of(utxos.get(2), utxos.get(3)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(2), any())).willReturn(Collections.EMPTY_LIST);
 
         UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier) {
             @Override
@@ -167,9 +167,9 @@ class DefaultUtxoSelectorTest extends BaseTest {
     @Test
     void findAll_withPagination_noMatchingUtxoAvailable() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(List.of(utxos.get(0), utxos.get(1)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(List.of(utxos.get(2), utxos.get(3)));
-        given(utxoSupplier.getPage(any(), anyInt(), eq(2), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(List.of(utxos.get(0), utxos.get(1)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(List.of(utxos.get(2), utxos.get(3)));
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(2), any())).willReturn(Collections.EMPTY_LIST);
 
         UtxoSelector utxoSelector = new DefaultUtxoSelector(utxoSupplier) {
             @Override

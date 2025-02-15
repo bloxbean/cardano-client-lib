@@ -89,7 +89,7 @@ class InputBuildersTest extends BaseTest {
     @Test
     void createFromSender_whenLovelaceOnlyOutput() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         List<TransactionOutput> outputs = new ArrayList<>();
 
@@ -150,7 +150,7 @@ class InputBuildersTest extends BaseTest {
     @Test
     void createFromSender_whenLovelaceAndMultiAsset() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_3);
-        given(utxoSupplier.getPage(any(), anyInt(), anyInt(), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), anyInt(), any())).willReturn(utxos);
 
         List<TransactionOutput> outputs = new ArrayList<>();
 
@@ -244,8 +244,8 @@ class InputBuildersTest extends BaseTest {
     @Test
     void createFromSender_whenInsufficientADA() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_6);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
 
         List<TransactionOutput> outputs = new ArrayList<>();
 
@@ -274,8 +274,8 @@ class InputBuildersTest extends BaseTest {
     @Test
     void createFromSender_whenInsufficientToken() throws Exception {
         List<Utxo> utxos = loadUtxos(LIST_6);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
 
         Tuple<String, String> tuple = AssetUtil.getPolicyIdAndAssetName("777777d69639e9413dd637a1a815a7323c69c86abbafb66dbfdb1aa7");//Unit
         String policyId = tuple._1;
@@ -710,8 +710,8 @@ class InputBuildersTest extends BaseTest {
         @Test
         void createFromSender_whenMergeOutputsIsTrue() throws IOException, CborSerializationException {
             List<Utxo> utxos = loadUtxos(LIST_9);
-            given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-            given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
+            given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+            given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
 
             Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("policy", 1);
 
@@ -757,8 +757,8 @@ class InputBuildersTest extends BaseTest {
         @Test
         void createFromSender_whenMergeOutputsIsFalse() throws IOException, CborSerializationException {
             List<Utxo> utxos = loadUtxos(LIST_10);
-            given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-            given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
+            given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+            given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.emptyList());
 
             Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("policy", 1);
             List<MultiAsset> mintAssets = new ArrayList<>();

@@ -41,8 +41,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findFirstByDatum() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datum = "hello";
@@ -57,8 +57,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findFirstByDatumHash() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datumHash = "6788d45960488558919fe195e3e1a51a3cde19903793e57712d682f1b7e3d0bb";
@@ -73,8 +73,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findAllByDatum() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datum = "hello";
@@ -94,8 +94,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findAllByDatumHash() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datumHash = "6788d45960488558919fe195e3e1a51a3cde19903793e57712d682f1b7e3d0bb";
@@ -115,8 +115,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findFirstByDatum_whenNoUtxoAvailable() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datum = "hello111";
@@ -129,8 +129,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findAllByDatumHash_whenNoUtxoAvailable() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         String datumHash = "6788d45960488558919fe195e3e1a51a3cde19903793e57712d682f1b7e3d011";
@@ -143,8 +143,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findFirstByInlineDatum() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         Integer datum = Integer.valueOf(-179132674);
@@ -157,8 +157,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findAllByInlineDatum() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         Integer datum = Integer.valueOf(-179132674);
@@ -174,8 +174,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findFirstByInlineDatum_whenNoUtxoAvailable() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         Integer datum = Integer.valueOf(-479132674);
@@ -187,8 +187,8 @@ class ScriptUtxoFindersTest extends BaseTest {
     @Test
     void findAllByInlineDatum_whenNoUtxoAvailable() throws IOException, ApiException {
         List<Utxo> utxos = loadUtxos(LIST_1);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(0), any())).willReturn(utxos);
-        given(utxoSupplier.getPage(any(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(0), any())).willReturn(utxos);
+        given(utxoSupplier.getPage(anyString(), anyInt(), eq(1), any())).willReturn(Collections.EMPTY_LIST);
 
         String scriptAddress = "addr_test1wqryj32h6d4srdj720nqxy4hew26anzx8h7lny79qlum89s5hrkh0";
         Integer datum = Integer.valueOf(-1791326745);

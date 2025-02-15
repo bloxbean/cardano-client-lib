@@ -39,7 +39,7 @@ public class Utxo {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (o == null || !(o instanceof Utxo)) return false;
         Utxo utxo = (Utxo) o;
         return outputIndex == utxo.outputIndex && txHash.equals(utxo.txHash);
     }

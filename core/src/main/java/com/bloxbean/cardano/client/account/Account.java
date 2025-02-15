@@ -367,7 +367,7 @@ public class Account {
             baseAddress();
         }
 
-        Address address = new Address(baseAddress);
+        Address address = new Address(baseAddress, derivationPath);
         return HexUtil.encodeHexString(address.getBytes());
     }
 
@@ -421,7 +421,7 @@ public class Account {
             baseAddress();
         }
 
-        Address address = new Address(baseAddress);
+        Address address = new Address(baseAddress, derivationPath);
         return address;
     }
 
@@ -434,7 +434,7 @@ public class Account {
             enterpriseAddress();
         }
 
-        Address address = new Address(enterpriseAddress);
+        Address address = new Address(enterpriseAddress, derivationPath);
         return address;
     }
 

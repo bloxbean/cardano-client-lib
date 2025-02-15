@@ -61,4 +61,15 @@ public interface UtxoService {
      * @throws ApiException If any error occurs
      */
     Result<Utxo> getTxOutput(String txHash, int outputIndex) throws ApiException;
+
+    /**
+     * Checks if the provided address has been used in any transactions.
+     *
+     * @param address The address to be checked.
+     * @return true if the address has been used, otherwise false.
+     * @throws ApiException If any error occurs during the operation.
+     */
+    default boolean isUsedAddress(String address) throws ApiException {
+        throw new UnsupportedOperationException();
+    }
 }
