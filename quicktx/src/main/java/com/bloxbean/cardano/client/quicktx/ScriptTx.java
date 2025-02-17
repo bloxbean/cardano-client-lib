@@ -46,6 +46,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     protected List<TransactionInput> referenceInputs;
 
     protected String fromAddress;
+    protected Wallet fromWallet;
     private StakeTx stakeTx;
     private GovTx govTx;
 
@@ -641,11 +642,17 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     @Override
     protected Wallet getFromWallet() {
-        return null;
+        return fromWallet;
     }
 
     void from(String address) {
         this.fromAddress = address;
+    }
+
+    void from(Wallet wallet) {
+        this.fromWallet = wallet;
+        // TODO fromAddress is not used in this scenarios, but it must be set to avoid breaking other things.
+        this.fromAddress = this.fromWallet.getBaseAddressString(0);
     }
 
     @Override

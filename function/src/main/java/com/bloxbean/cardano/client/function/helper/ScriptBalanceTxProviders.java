@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.function.helper;
 
+import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
+import com.bloxbean.cardano.client.api.common.AddressIterators;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Value;
@@ -15,20 +17,38 @@ import java.math.BigInteger;
 public class ScriptBalanceTxProviders {
 
     //TODO -- Unit tests pending
+
     /**
      * Function to balance an unbalanced transaction using Automatic Utxo Discovery with Additional Signers.
      * This function invokes {@link BalanceTxBuilders#balanceTxWithAdditionalSigners(String, int)} to balance the transaction.
      * If any new inputs are added to the transaction during balancing, the script cost and fee will be recomputed.
      *
      * @param feePayer Fee payer address
+     * @param additionalSigners o of Additional signers. This is required for accurate fee calculation.
+     * @param containsScript If the transaction contains script
+     * @return
+     */
+    public static TxBuilder balanceTx(String feePayer, int additionalSigners, boolean containsScript) {
+        return balanceTx(AddressIterators.of(feePayer), additionalSigners, containsScript);
+    }
+
+    /**
+     * Function to balance an unbalanced transaction using Automatic Utxo Discovery with Additional Signers.
+     * This function invokes {@link BalanceTxBuilders#balanceTxWithAdditionalSigners(String, int)} to balance the transaction.
+     * If any new inputs are added to the transaction during balancing, the script cost and fee will be recomputed.
+     *
+     * @param feePayerAddrIter Fee payer address iterator
      * @param additionalSigners No of Additional signers. This is required for accurate fee calculation.
      * @param containsScript If the transaction contains script
      * @return TxBuilder
      */
-    public static TxBuilder balanceTx(String feePayer, int additionalSigners, boolean containsScript) {
+    public static TxBuilder balanceTx(AddressIterator feePayerAddrIter, int additionalSigners, boolean containsScript) {
         return (ctx, transaction) -> {
+
+            String feePayerAddr = feePayerAddrIter.getFirst().getAddress();
+
             int inputSize = transaction.getBody().getInputs().size();
-            BalanceTxBuilders.balanceTxWithAdditionalSigners(feePayer, additionalSigners).apply(ctx, transaction);
+            BalanceTxBuilders.balanceTxWithAdditionalSigners(feePayerAddrIter.clone(), additionalSigners).apply(ctx, transaction);
             int newInputSize = transaction.getBody().getInputs().size();
 
             if (!containsScript || (newInputSize == inputSize)) { //TODO -- check for contains script
@@ -45,7 +65,7 @@ public class ScriptBalanceTxProviders {
             BigInteger fee = transaction.getBody().getFee();
             transaction.getBody().setFee(BigInteger.valueOf(170000));
             transaction.getBody().getOutputs().stream()
-                    .filter(output -> feePayer.equals(output.getAddress()))
+                    .filter(output -> feePayerAddr.equals(output.getAddress()))
                     .max((to1, to2) -> to1.getValue().getCoin().compareTo(to2.getValue().getCoin()))
                     .ifPresent(transactionOutput -> transactionOutput.setValue(transactionOutput.getValue().add(Value.builder().coin(fee).build())));
 
@@ -56,7 +76,7 @@ public class ScriptBalanceTxProviders {
 
             //Recompute script cost
             ScriptCostEvaluators.evaluateScriptCost().apply(ctx, transaction);
-            BalanceTxBuilders.balanceTxWithAdditionalSigners(feePayer, additionalSigners).apply(ctx, transaction);
+            BalanceTxBuilders.balanceTxWithAdditionalSigners(feePayerAddrIter, additionalSigners).apply(ctx, transaction);
         };
     }
 }

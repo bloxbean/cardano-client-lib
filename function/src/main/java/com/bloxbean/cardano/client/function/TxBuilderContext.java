@@ -47,6 +47,7 @@ public class TxBuilderContext {
     //Stores utxos used in the transaction.
     //This list is cleared after each build() call.
     private Set<Utxo> utxos = new HashSet<>();
+    private Set<Utxo> collateralUtxos = new HashSet<>();
 
     @Setter(AccessLevel.NONE)
     private Map<String, Tuple<PlutusScript, byte[]>> refScripts = new HashMap<>();
@@ -205,6 +206,24 @@ public class TxBuilderContext {
         utxos.clear();
     }
 
+    public void addCollateralUtxo(Utxo utxo) {
+        collateralUtxos.add(utxo);
+    }
+
+    public Set<Utxo> getCollateralUtxos() {
+        return collateralUtxos;
+    }
+
+    public void clearCollateralUtxos() {
+        collateralUtxos.clear();
+    }
+
+    public Set<Utxo> getAllUtxos() {
+        Set<Utxo> allUtxos = new HashSet<>(utxos);
+        allUtxos.addAll(collateralUtxos);
+        return allUtxos;
+    }
+
     @SneakyThrows
     public void addRefScripts(PlutusScript plutusScript) {
         refScripts.put(HexUtil.encodeHexString(plutusScript.getScriptHash()), new Tuple<>(plutusScript, plutusScript.scriptRefBytes()));
@@ -307,6 +326,7 @@ public class TxBuilderContext {
     private void clearTempStates() {
         clearMintMultiAssets();
         clearUtxos();
+        clearCollateralUtxos();
         clearRefScripts();
     }
 }
