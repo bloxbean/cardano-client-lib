@@ -105,6 +105,11 @@ public interface UtxoSelectionStrategy {
         return selected != null ? new ArrayList<>(selected) : Collections.emptyList();
     }
 
+    default List<Utxo> selectUtxos(AddressIterator addrIter, List<Amount> amounts, Set<Utxo> utxosToExclude) {
+        Set<Utxo> selected = select(addrIter, amounts, null, null, utxosToExclude, CoinselectionConfig.INSTANCE.getCoinSelectionLimit());
+        return selected != null ? new ArrayList<>(selected) : Collections.emptyList();
+    }
+
     Set<Utxo> select(AddressIterator addressIterator, List<Amount> outputAmounts, String datumHash, PlutusData inlineDatum, Set<Utxo> utxosToExclude, int maxUtxoSelectionLimit);
 
     UtxoSelectionStrategy fallback();

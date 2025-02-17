@@ -34,6 +34,8 @@ public class CollateralBuilders {
                         .index(utxo.getOutputIndex())
                         .build();
                 transaction.getBody().getCollateral().add(input);
+
+                context.addCollateralUtxo(utxo);
             });
         };
     }
@@ -54,6 +56,8 @@ public class CollateralBuilders {
                         .index(utxo.getOutputIndex())
                         .build();
                 transaction.getBody().getCollateral().add(input);
+
+                context.addCollateralUtxo(utxo);
             });
         };
     }
@@ -102,6 +106,8 @@ public class CollateralBuilders {
 
                 //Create collateral output
                 UtxoUtil.copyUtxoValuesToOutput(collateralOutput, utxo);
+
+                context.addCollateralUtxo(utxo);
             });
 
             transaction.getBody().setCollateralReturn(collateralOutput);

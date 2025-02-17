@@ -1,8 +1,12 @@
 package com.bloxbean.cardano.client.function.helper;
 
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.api.AddressIterator;
+import com.bloxbean.cardano.client.api.common.AddressIterators;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.model.WalletUtxo;
 import com.bloxbean.cardano.client.coinselection.UtxoSelector;
 import com.bloxbean.cardano.client.function.MinAdaChecker;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -52,7 +56,7 @@ public class ChangeOutputAdjustments {
      * @throws ApiRuntimeException If api call error
      */
     public static TxBuilder adjustChangeOutput(String changeAddress) {
-        return adjustChangeOutput(changeAddress, changeAddress, 1);
+        return adjustChangeOutput(AddressIterators.of(changeAddress), changeAddress, 1);
     }
 
     /**
@@ -73,7 +77,29 @@ public class ChangeOutputAdjustments {
      * @throws ApiRuntimeException If api call error
      */
     public static TxBuilder adjustChangeOutput(String changeAddress, int noOfSigners) {
-        return adjustChangeOutput(changeAddress, changeAddress, noOfSigners);
+        return adjustChangeOutput(AddressIterators.of(changeAddress), changeAddress, noOfSigners);
+    }
+
+    /**
+     * Function to adjust change output in a <code>Transaction</code> to meet min ada requirement.
+     * Finds a change output specific to given change address.
+     * If multiple change outputs with less than min required ada are found for the change address, it throws <code>{@link TxBuildException}</code>
+     * Get additional utxos from change address and update the change output.
+     * Re-calculates fee and checks min ada in change output.
+     * Retry if required, upto 3 times.
+     * <p>
+     * <br>Default values:
+     * <br> Change Output Address = First address in senderAddressIter
+     * </p>
+     *
+     * @param senderAddressIter Addresses to select additional utxos. The first address in the iterator is selected as change output address.
+     * @param noOfSigners       The number of signers required for the transaction.
+     * @return A TxBuilder instance with the modified change output configuration.
+     */
+    public static TxBuilder adjustChangeOutput(AddressIterator senderAddressIter, int noOfSigners) {
+        var changeAddress = senderAddressIter.getFirst().getAddress();
+
+        return adjustChangeOutput(senderAddressIter.clone(), changeAddress, noOfSigners);
     }
 
     /**
@@ -84,14 +110,14 @@ public class ChangeOutputAdjustments {
      * Re-calculates fee and checks min ada in change output.
      * Retry if required, upto 3 times.
      *
-     * @param senderAddress Address to select additional utxos
+     * @param senderAddressIter Addresses to select additional utxos
      * @param changeAddress Address for change output selection
      * @param noOfSigners   No of required signers. Required for fee calculation after adjustment
      * @return <code>TxBuilder</code> function
      * @throws TxBuildException If multiple change outputs with less than min required ada are found for the change address.
      * @throws ApiRuntimeException If api call error
      */
-    public static TxBuilder adjustChangeOutput(String senderAddress, String changeAddress, int noOfSigners) {
+    public static TxBuilder adjustChangeOutput(AddressIterator senderAddressIter, String changeAddress, int noOfSigners) {
         return (context, transaction) -> {
             int counter = 0;
             while (true) {
@@ -124,7 +150,7 @@ public class ChangeOutputAdjustments {
 
                 //check outputs for minAda and balance if required
                 try {
-                    adjust(context, transaction, outputsWithLessAda.get(0)._1, outputsWithLessAda.get(0)._2, senderAddress, changeAddress);
+                    adjust(context, transaction, outputsWithLessAda.get(0)._1, outputsWithLessAda.get(0)._2, senderAddressIter.clone());
                 } catch (ApiException apiException) {
                     throw new ApiRuntimeException("Error in api call", apiException);
                 }
@@ -137,7 +163,7 @@ public class ChangeOutputAdjustments {
     }
 
     private static void adjust(TxBuilderContext context, Transaction transaction, TransactionOutput outputToAdjust, BigInteger additionalRequiredAmt,
-                               String senderAddress, String changeAddress) throws ApiException {
+                               AddressIterator senderAddressItr) throws ApiException {
         Objects.requireNonNull(context);
         Objects.requireNonNull(transaction);
 
@@ -171,22 +197,32 @@ public class ChangeOutputAdjustments {
 
         List<Utxo> newUtxos = new ArrayList<>();
         UtxoSelector utxoSelector = context.getUtxoSelector();
+
+        Address sender = senderAddressItr.getFirst();
+        String senderAddr = sender.getAddress();
+
         //Try to find ada only utxo
-        Optional<Utxo> utxoOptional = utxoSelector.findFirst(senderAddress, utxo ->
+        Optional<Utxo> utxoOptional = utxoSelector.findFirst(senderAddr, utxo ->
                 !existingUtxos.contains(utxo) && utxo.getAmount().size() == 1
                         && utxo.getAmount().get(0).getQuantity().compareTo(totalRequiredWithBuffer) == 1);
 
         if (utxoOptional.isPresent()) {
-            newUtxos.add(utxoOptional.get());
+            if (sender.getDerivationPath().isPresent()) {
+                var walletUtxo = WalletUtxo.from(utxoOptional.get());
+                walletUtxo.setDerivationPath(sender.getDerivationPath().get());
+                newUtxos.add(walletUtxo);
+            } else {
+                newUtxos.add(utxoOptional.get());
+            }
         } else { //Not Found
             //Use utxo selection strategy
             List<Utxo> utxosFound = null;
 
             try {
-                utxosFound = context.getUtxoSelectionStrategy().selectUtxos(senderAddress, LOVELACE, totalRequiredWithBuffer, existingUtxos);
+                utxosFound = context.getUtxoSelectionStrategy().selectUtxos(senderAddressItr.clone(), LOVELACE, totalRequiredWithBuffer, existingUtxos);
             } catch (ApiException ex) {
                 //Not found... check without Buffer
-                utxosFound = context.getUtxoSelectionStrategy().selectUtxos(senderAddress, LOVELACE, additionalRequiredAmt, existingUtxos);
+                utxosFound = context.getUtxoSelectionStrategy().selectUtxos(senderAddressItr.clone(), LOVELACE, additionalRequiredAmt, existingUtxos);
             }
 
             if (utxosFound != null && utxosFound.size() > 0)

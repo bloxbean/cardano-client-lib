@@ -9,9 +9,25 @@ import java.util.Iterator;
  * UtxoSelectionStrategy implementation.
  */
 public interface AddressIterator extends Iterator<Address> {
+
+    /**
+     * Retrieves the first address in the iterator's list of addresses without moving the cursor.
+     *
+     * @return the first {@link Address} in the list, or null if the list is empty.
+     */
+    Address getFirst();
+
     /**
      * Reset the pointer to the beginning
      */
     void reset();
+
+    /**
+     * Creates and returns a copy of this AddressIterator.
+     * The cloned instance is independent of the original and can be used separately.
+     *
+     * @return a new AddressIterator instance that is a copy of the current iterator.
+     */
+    AddressIterator clone();
 
 }
