@@ -225,7 +225,7 @@ public class QuickTxBuilder {
          * @throws TxBuildException if the collateral payer has already been set
          */
         public TxContext collateralPayer(String address) {
-            if (collateralPayerWallet != null || collateralPayer != null)
+            if (this.collateralPayerWallet != null || this.collateralPayer != null)
                 throw new TxBuildException("The collateral payer has already been set. It can only be set once.");
 
             this.collateralPayer = address;
@@ -241,7 +241,7 @@ public class QuickTxBuilder {
          * @throws TxBuildException if the collateral payer has already been set
          */
         public TxContext collateralPayer(Wallet wallet) {
-            if (collateralPayerWallet != null || collateralPayer != null)
+            if (this.collateralPayerWallet != null || this.collateralPayer != null)
                 throw new TxBuildException("The collateral payer has already been set. It can only be set once.");
 
             this.collateralPayerWallet = wallet;
