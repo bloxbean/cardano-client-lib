@@ -191,7 +191,7 @@ public class QuickTxBuilder {
          * @throws TxBuildException if the fee payer has already been set
          */
         public TxContext feePayer(String address) {
-            if (feePayerWallet != null || feePayer != null)
+            if (this.feePayerWallet != null || this.feePayer != null)
                 throw new TxBuildException("The fee payer has already been set. It can only be set once.");
 
             this.feePayer = address;
@@ -207,7 +207,7 @@ public class QuickTxBuilder {
          * @throws TxBuildException if the fee payer has already been set
          */
         public TxContext feePayer(Wallet feePayerWallet) {
-            if (feePayerWallet != null || feePayer != null)
+            if (this.feePayerWallet != null || this.feePayer != null)
                 throw new TxBuildException("The fee payer has already been set. It can only be set once.");
 
             this.feePayerWallet = feePayerWallet;
