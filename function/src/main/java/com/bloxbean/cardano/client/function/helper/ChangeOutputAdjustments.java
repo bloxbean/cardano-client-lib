@@ -84,6 +84,25 @@ public class ChangeOutputAdjustments {
      * Function to adjust change output in a <code>Transaction</code> to meet min ada requirement.
      * Finds a change output specific to given change address.
      * If multiple change outputs with less than min required ada are found for the change address, it throws <code>{@link TxBuildException}</code>
+     * Get additional utxos from sender address and update the change output.
+     * Re-calculates fee and checks min ada in change output.
+     * Retry if required, upto 3 times
+     *
+     * @param senderAddress Address to select additional utxos
+     * @param changeAddress Address for change output selection
+     * @param noOfSigners   No of required signers. Required for fee calculation after adjustment
+     * @return <code>TxBuilder</code> function
+     * @throws TxBuildException If multiple change outputs with less than min required ada are found for the change address.
+     * @throws ApiRuntimeException If api call error
+     */
+    public static TxBuilder adjustChangeOutput(String senderAddress, String changeAddress, int noOfSigners) {
+        return adjustChangeOutput(AddressIterators.of(senderAddress), changeAddress, noOfSigners);
+    }
+
+    /**
+     * Function to adjust change output in a <code>Transaction</code> to meet min ada requirement.
+     * Finds a change output specific to given change address.
+     * If multiple change outputs with less than min required ada are found for the change address, it throws <code>{@link TxBuildException}</code>
      * Get additional utxos from change address and update the change output.
      * Re-calculates fee and checks min ada in change output.
      * Retry if required, upto 3 times.

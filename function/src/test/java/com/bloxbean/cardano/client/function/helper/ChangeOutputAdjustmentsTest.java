@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.function.helper;
 
+import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
@@ -157,7 +158,9 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         );
 
         given(utxoSelector.findFirst(eq(changeAddress), any(), any())).willReturn(Optional.empty());
-        given(utxoSelectionStrategy.selectUtxos(eq(changeAddress), eq(LOVELACE), any(), anySet())).willReturn(additionalUtxos);
+        given(utxoSelectionStrategy.selectUtxos((AddressIterator) argThat(arg -> arg instanceof AddressIterator),
+                eq(LOVELACE), any(), anySet()))
+                .willReturn(additionalUtxos);
 
         Transaction transaction = new Transaction();
         //Just adding a random input/output
@@ -287,7 +290,10 @@ class ChangeOutputAdjustmentsTest extends BaseTest {
         );
 
         given(utxoSelector.findFirst(eq(changeAddress), any(), any())).willReturn(Optional.empty());
-        given(utxoSelectionStrategy.selectUtxos(eq(changeAddress), eq(LOVELACE), any(), anySet())).willReturn(additionalUtxos);
+        given(utxoSelectionStrategy.selectUtxos(
+                (AddressIterator) argThat(arg -> arg instanceof AddressIterator),
+                eq(LOVELACE), any(), anySet()))
+                .willReturn(additionalUtxos);
 
         Transaction transaction = new Transaction();
         //Just adding a random input/output

@@ -33,7 +33,7 @@ class HDWalletAddressIteratorTest {
 
     @Test
     void next() throws Exception{
-        Wallet wallet = new Wallet();
+        Wallet wallet = Wallet.create();
         var addr1 = wallet.getAccountAtIndex(3).baseAddress();
         var addr2 = wallet.getAccountAtIndex(7).baseAddress();
         var addr3 = wallet.getAccountAtIndex(24).baseAddress();
@@ -66,7 +66,7 @@ class HDWalletAddressIteratorTest {
 
     @Test
     void next_noTx() throws Exception{
-        Wallet wallet = new Wallet();
+        Wallet wallet = Wallet.create();
         wallet.setGapLimit(5);
 
         var addr1 = wallet.getAccountAtIndex(5).baseAddress();

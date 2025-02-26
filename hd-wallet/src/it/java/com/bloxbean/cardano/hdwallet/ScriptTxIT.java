@@ -58,8 +58,8 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
     @Test
     void alwaysTrueScript() throws ApiException {
-        Wallet walletA = new Wallet(Networks.testnet());
-        Wallet walletB = new Wallet(Networks.testnet());
+        Wallet walletA = Wallet.create(Networks.testnet());
+        Wallet walletB = Wallet.create(Networks.testnet());
 
         splitPaymentBetweenAddress(topupAccount, walletA, 20, Double.valueOf(3000), false);
         payToAddressAt(topupAccount, walletB, 13, Double.valueOf(5));
@@ -116,9 +116,9 @@ public class ScriptTxIT extends QuickTxBaseIT {
 
     @Test
     void alwaysTrueScript_separateCollateralPayer() throws ApiException {
-        Wallet walletA = new Wallet(Networks.testnet());
-        Wallet walletB = new Wallet(Networks.testnet());
-        Wallet collaterWallet = new Wallet(Networks.testnet());
+        Wallet walletA = Wallet.create(Networks.testnet());
+        Wallet walletB = Wallet.create(Networks.testnet());
+        Wallet collaterWallet = Wallet.create(Networks.testnet());
 
         splitPaymentBetweenAddress(topupAccount, walletA, 20, Double.valueOf(3000), false);
         payToAddressAt(topupAccount, walletB, 13, Double.valueOf(5));
