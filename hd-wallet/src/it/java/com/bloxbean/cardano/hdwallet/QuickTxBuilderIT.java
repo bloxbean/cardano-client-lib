@@ -2,6 +2,7 @@ package com.bloxbean.cardano.hdwallet;
 
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.exception.InsufficientBalanceException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.util.PolicyUtil;
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.util.Random;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class QuickTxBuilderIT extends QuickTxBaseIT {
 
@@ -67,11 +68,10 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         metadata.put(BigInteger.valueOf(100), "This is first metadata");
         metadata.putNegative(200, -900);
 
-        wallet1.setSearchUtxoByAddrVkh(true);
         //topup wallet
         splitPaymentBetweenAddress(topupAccount, wallet1, 20, Double.valueOf(3000), true);
 
-       // UtxoSupplier walletUtxoSupplier = new DefaultWalletUtxoSupplier(backendService.getUtxoService(), wallet1);
+        // UtxoSupplier walletUtxoSupplier = new DefaultWalletUtxoSupplier(backendService.getUtxoService(), wallet1);
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
 
         Tx tx = new Tx()
@@ -83,6 +83,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .withTxInspector(txn -> {
                     System.out.println(JsonUtil.getPrettyJson(txn));
                 })
+                .withSearchUtxoByAddressVkh(true)
                 .complete();
 
         System.out.println(result);
@@ -90,6 +91,77 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         waitForTransaction(result);
 
         checkIfUtxoAvailable(result.getValue(), wallet2.getBaseAddress(0).getAddress());
+    }
+
+    @Test
+    void simplePayment_searchUtxoByAddrVkh() {
+        Wallet payWallet = Wallet.create(Networks.testnet());
+
+        Tx payTx = new Tx()
+                .payToAddress(payWallet.getBaseAddress(3).toBech32(), Amount.ada(5))
+                .payToAddress(payWallet.getEntAddress(3).toBech32(), Amount.ada(20))
+                .payToAddress(payWallet.getEntAddress(12).toBech32(), Amount.ada(40))
+                .from(topupAccount.baseAddress());
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
+        var payTxResult = quickTxBuilder
+                .compose(payTx)
+                .withSigner(SignerProviders.signerFrom(topupAccount))
+                .completeAndWait(System.out::println);
+
+        checkIfUtxoAvailable(payTxResult.getValue(), payWallet.getBaseAddressString(3));
+
+        //Pay from wallet1
+        Tx tx = new Tx()
+                .payToAddress(wallet3.getBaseAddressString(0), Amount.ada(35))
+                .from(payWallet);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(payWallet))
+                .withTxInspector(txn -> {
+                    System.out.println(JsonUtil.getPrettyJson(txn));
+                })
+                .withSearchUtxoByAddressVkh(true)
+                .complete();
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getValue(), wallet3.getBaseAddressString(0));
+    }
+
+    @Test
+    void simplePayment_shouldFail_ifNosearchUtxoByAddrVkh() {
+        Wallet payWallet = Wallet.create(Networks.testnet());
+
+        Tx payTx = new Tx()
+                .payToAddress(payWallet.getBaseAddress(3).toBech32(), Amount.ada(5))
+                .payToAddress(payWallet.getEntAddress(3).toBech32(), Amount.ada(20))
+                .payToAddress(payWallet.getEntAddress(12).toBech32(), Amount.ada(40))
+                .from(topupAccount.baseAddress());
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
+        var payTxResult = quickTxBuilder
+                .compose(payTx)
+                .withSigner(SignerProviders.signerFrom(topupAccount))
+                .completeAndWait(System.out::println);
+
+        checkIfUtxoAvailable(payTxResult.getValue(), payWallet.getBaseAddressString(3));
+
+        //Pay from wallet1
+        Tx tx = new Tx()
+                .payToAddress(wallet3.getBaseAddressString(0), Amount.ada(35))
+                .from(payWallet);
+
+        assertThrows(InsufficientBalanceException.class, () -> {
+            Result<String> result = quickTxBuilder.compose(tx)
+                    .withSigner(SignerProviders.signerFrom(wallet1))
+                    .withTxInspector(txn -> {
+                        System.out.println(JsonUtil.getPrettyJson(txn));
+                    })
+                    .complete();
+        });
     }
 
     @Test
@@ -145,23 +217,6 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
         checkIfUtxoAvailable(result.getValue(), wallet1.getBaseAddress(0).getAddress());
     }
-
-//    @Test
-//    void utxoTest() {
-//        List<WalletUtxo> utxos = utxoSupplier.getAll();
-//        Map<String, Integer> amountMap = new HashMap<>();
-//        for (Utxo utxo : utxos) {
-//            int totalAmount = 0;
-//            if (amountMap.containsKey(utxo.getAddress())) {
-//                int amount = amountMap.get(utxo.getAddress());
-//                System.out.println(utxo.getAmount().get(0));
-//                totalAmount = amount + utxo.getAmount().get(0).getQuantity().intValue();
-//            }
-//            amountMap.put(utxo.getAddress(), totalAmount);
-//        }
-//
-//        assertTrue(!utxos.isEmpty());
-//    }
 
     void splitPaymentBetweenAddress(Account topupAccount, Wallet receiverWallet, int totalAddresses, Double adaAmount, boolean enableEntAddrPayment) {
         // Create an amount array with no of totalAddresses with random distribution of split amounts

@@ -138,24 +138,6 @@ public interface Wallet {
     Network getNetwork();
 
     /**
-     * Checks if the wallet is configured to search unspent transaction outputs (UTXOs)
-     * using an address VKH (verification key hash).
-     *
-     * @return {@code true} if search by address VKH is enabled; {@code false} otherwise
-     */
-    boolean isSearchUtxoByAddrVkh();
-
-    /**
-     * Configures whether the wallet should search for unspent transaction outputs (UTXOs)
-     * using an address verification key hash (VKH).
-     *
-     * @param searchUtxoByAddrVkh a boolean value indicating whether to enable or disable
-     *                            the search for UTXOs by address VKH. Set to {@code true}
-     *                            to enable the search, or {@code false} to disable it.
-     */
-    void setSearchUtxoByAddrVkh(boolean searchUtxoByAddrVkh);
-
-    /**
      * Retrieves the array of indexes to be scanned by the wallet.
      *
      * @return an integer array containing the indexes to scan

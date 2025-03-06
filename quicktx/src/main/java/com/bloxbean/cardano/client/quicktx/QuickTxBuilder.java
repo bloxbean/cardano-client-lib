@@ -177,6 +177,7 @@ public class QuickTxBuilder {
         private boolean ignoreScriptCostEvaluationError = true;
         private Era serializationEra;
         private boolean removeDuplicateScriptWitnesses = false;
+        private boolean searchUtxoByAddressVkh = false;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -359,6 +360,9 @@ public class QuickTxBuilder {
 
             //Set merge outputs flag
             txBuilderContext.mergeOutputs(mergeOutputs);
+
+            //Enable/Disable search by address vkh
+            txBuilderContext.withSearchUtxoByAddressVkh(searchUtxoByAddressVkh);
 
             //Set tx evaluator for script cost calculation
             if (txnEvaluator != null)
@@ -997,6 +1001,25 @@ public class QuickTxBuilder {
          */
         public TxContext removeDuplicateScriptWitnesses(boolean remove) {
             this.removeDuplicateScriptWitnesses = remove;
+            return this;
+        }
+
+        /**
+         * Enables UTXO search by address verification hash (addr_vkh).
+         * Configures the internal {@link UtxoSupplier} to search using the address verification hash.
+         *
+         * By default, searching by address verification hash is disabled.
+         * <p></p>
+         * If the {@link UtxoSupplier} relies on {@link UtxoService} to provide UTXOs
+         * and the {@link UtxoService} does not support searching by address verification hash,
+         * the search will fail.
+         *
+         * @param flag a boolean indicating whether to enable or disable searching UTXOs by address vkh.
+         *
+         * @return TxContext the current TxContext instance
+         */
+        public TxContext withSearchUtxoByAddressVkh(boolean flag) {
+            this.searchUtxoByAddressVkh = flag;
             return this;
         }
 

@@ -64,4 +64,15 @@ public interface UtxoSupplier {
     default boolean isUsedAddress(Address address) {
         return true;
     }
+
+    /**
+     * Enables UTXO search by address verification hash (addr_vkh).
+     * Configures this {@link UtxoSupplier} to search UTXO using the address verification hash.
+     *
+     * By default, searching by address verification hash is disabled.
+     *
+     * @param flag a boolean indicating whether to enable or disable searching UTXOs by address vkh.
+     */
+    default void setSearchByAddressVkh(boolean flag) {
+    }
 }

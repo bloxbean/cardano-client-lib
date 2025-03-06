@@ -83,4 +83,10 @@ public class DefaultUtxoSelector implements UtxoSelector {
     protected int getUtxoFetchSize() {
         return 100;
     }
+
+    @Override
+    public void setSearchByAddressVkh(boolean flag) {
+        utxoSupplier.setSearchByAddressVkh(flag);
+    }
+
 }

@@ -51,10 +51,6 @@ public class DefaultWallet implements Wallet {
 
     @Getter
     @Setter
-    private boolean searchUtxoByAddrVkh;
-
-    @Getter
-    @Setter
     private int[] indexesToScan; //If set, only scan these indexes and avoid gap limit during address scanning
 
     @Getter

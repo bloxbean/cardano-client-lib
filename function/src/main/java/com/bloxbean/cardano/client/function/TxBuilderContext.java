@@ -167,6 +167,19 @@ public class TxBuilderContext {
     }
 
     /**
+     * Configures the context to enable or disable UTXO search by address verification hash (addr_vkh).
+     * This setting will propagate the configuration to both the {@link UtxoSupplier} and the {@link UtxoSelector} within the context.
+     *
+     * @param flag a boolean value indicating whether to enable (true) or disable (false) searching UTXOs by address verification hash.
+     * @return the current instance of {@code TxBuilderContext}
+     */
+    public TxBuilderContext withSearchUtxoByAddressVkh(boolean flag) {
+        this.utxoSupplier.setSearchByAddressVkh(flag);
+        this.utxoSelector.setSearchByAddressVkh(flag);
+        return this;
+    }
+
+    /**
      * Set the serialization era for the transaction
      * @param era
      * @return TxBuilderContext
