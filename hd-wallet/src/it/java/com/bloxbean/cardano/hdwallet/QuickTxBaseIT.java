@@ -79,6 +79,31 @@ public class QuickTxBaseIT {
         }
     }
 
+    protected static void resetNetwork() {
+        try {
+            // URL to reset the network
+            String url = DEVKIT_ADMIN_BASE_URL + "local-cluster/api/admin/devnet/reset";
+            URL obj = new URL(url);
+            HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+
+            // Set request method to POST
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json; utf-8");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setDoOutput(true);
+
+            // Check the response code
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                System.out.println("Funds topped up successfully.");
+            } else {
+                System.out.println("Failed to top up funds. Response code: " + responseCode);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     public void waitForTransaction(Result<String> result) {
         try {
             if (result.isSuccessful()) { //Wait for transaction to be mined

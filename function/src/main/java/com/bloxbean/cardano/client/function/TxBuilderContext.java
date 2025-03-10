@@ -47,6 +47,7 @@ public class TxBuilderContext {
     //Stores utxos used in the transaction.
     //This list is cleared after each build() call.
     private Set<Utxo> utxos = new HashSet<>();
+    private Set<Utxo> collateralUtxos = new HashSet<>();
 
     @Setter(AccessLevel.NONE)
     private Map<String, Tuple<PlutusScript, byte[]>> refScripts = new HashMap<>();
@@ -166,6 +167,19 @@ public class TxBuilderContext {
     }
 
     /**
+     * Configures the context to enable or disable UTXO search by address verification hash (addr_vkh).
+     * This setting will propagate the configuration to both the {@link UtxoSupplier} and the {@link UtxoSelector} within the context.
+     *
+     * @param flag a boolean value indicating whether to enable (true) or disable (false) searching UTXOs by address verification hash.
+     * @return the current instance of {@code TxBuilderContext}
+     */
+    public TxBuilderContext withSearchUtxoByAddressVkh(boolean flag) {
+        this.utxoSupplier.setSearchByAddressVkh(flag);
+        this.utxoSelector.setSearchByAddressVkh(flag);
+        return this;
+    }
+
+    /**
      * Set the serialization era for the transaction
      * @param era
      * @return TxBuilderContext
@@ -203,6 +217,24 @@ public class TxBuilderContext {
 
     public void clearUtxos() {
         utxos.clear();
+    }
+
+    public void addCollateralUtxo(Utxo utxo) {
+        collateralUtxos.add(utxo);
+    }
+
+    public Set<Utxo> getCollateralUtxos() {
+        return collateralUtxos;
+    }
+
+    public void clearCollateralUtxos() {
+        collateralUtxos.clear();
+    }
+
+    public Set<Utxo> getAllUtxos() {
+        Set<Utxo> allUtxos = new HashSet<>(utxos);
+        allUtxos.addAll(collateralUtxos);
+        return allUtxos;
     }
 
     @SneakyThrows
@@ -307,6 +339,7 @@ public class TxBuilderContext {
     private void clearTempStates() {
         clearMintMultiAssets();
         clearUtxos();
+        clearCollateralUtxos();
         clearRefScripts();
     }
 }

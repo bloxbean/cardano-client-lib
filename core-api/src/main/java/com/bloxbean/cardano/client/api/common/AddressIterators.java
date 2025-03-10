@@ -12,6 +12,10 @@ public class AddressIterators {
         return new SingleAddressIterator(address);
     }
 
+    public static AddressIterator of(String address) {
+        return new SingleAddressIterator(new Address(address));
+    }
+
     static class SingleAddressIterator implements AddressIterator {
         private Address address;
         private Iterator<Address> iterator;
@@ -32,8 +36,18 @@ public class AddressIterators {
         }
 
         @Override
+        public Address getFirst() {
+            return address;
+        }
+
+        @Override
         public void reset() {
             this.iterator = List.of(address).iterator();
+        }
+
+        @Override
+        public AddressIterator clone() {
+            return new SingleAddressIterator(address);
         }
     }
 }

@@ -36,21 +36,21 @@ public class WalletTest {
 
     @Test
     void generateMnemonic24w() {
-        Wallet hdWallet = new Wallet(Networks.testnet());
+        Wallet hdWallet = Wallet.create(Networks.testnet());
         String mnemonic = hdWallet.getMnemonic();
         assertEquals(24, mnemonic.split(" ").length);
     }
 
     @Test
     void generateMnemonic15w() {
-        Wallet hdWallet = new Wallet(Networks.testnet(), Words.FIFTEEN);
+        DefaultWallet hdWallet = new DefaultWallet(Networks.testnet(), Words.FIFTEEN);
         String mnemonic = hdWallet.getMnemonic();
         assertEquals(15, mnemonic.split(" ").length);
     }
 
     @Test
     void WalletAddressToAccountAddressTest() {
-        Wallet hdWallet = new Wallet(Networks.testnet());
+        DefaultWallet hdWallet = new DefaultWallet(Networks.testnet());
         Address address = hdWallet.getBaseAddress(0);
         Account a = new Account(hdWallet.getNetwork(), hdWallet.getMnemonic(), 0);
         assertEquals(address.getAddress(), a.getBaseAddress().getAddress());

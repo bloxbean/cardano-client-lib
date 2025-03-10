@@ -23,6 +23,8 @@ import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
+import com.bloxbean.cardano.hdwallet.Wallet;
+import com.bloxbean.cardano.hdwallet.util.HDWalletAddressIterator;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -147,7 +149,9 @@ public class QuickTxBuilder {
     public class TxContext {
         private AbstractTx[] txList;
         private String feePayer;
+        private Wallet feePayerWallet;
         private String collateralPayer;
+        private Wallet collateralPayerWallet;
         private Set<byte[]> requiredSigners;
         private Set<TransactionInput> collateralInputs;
 
@@ -173,6 +177,7 @@ public class QuickTxBuilder {
         private boolean ignoreScriptCostEvaluationError = true;
         private Era serializationEra;
         private boolean removeDuplicateScriptWitnesses = false;
+        private boolean searchUtxoByAddressVkh = false;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -183,15 +188,67 @@ public class QuickTxBuilder {
          * When there are more than one txs, fee payer address is mandatory.
          *
          * @param address fee payer address
-         * @return TxContext
+         * @return TxContext - the updated transaction context with the fee payer set
+         * @throws TxBuildException if the fee payer has already been set
          */
         public TxContext feePayer(String address) {
+            if (this.feePayerWallet != null || this.feePayer != null)
+                throw new TxBuildException("The fee payer has already been set. It can only be set once.");
+
             this.feePayer = address;
             return this;
         }
 
+        /**
+         * Sets the fee payer wallet for the transaction. When there is only one tx, sender's address is used as fee payer address.
+         * When there are more than one txs, fee payer address/wallet is mandatory.
+         *
+         * @param feePayerWallet the wallet that will act as the fee payer for the transaction
+         * @return TxContext - the updated transaction context with the fee payer set
+         * @throws TxBuildException if the fee payer has already been set
+         */
+        public TxContext feePayer(Wallet feePayerWallet) {
+            if (this.feePayerWallet != null || this.feePayer != null)
+                throw new TxBuildException("The fee payer has already been set. It can only be set once.");
+
+            this.feePayerWallet = feePayerWallet;
+            // TODO feePayer is not used in this scenarios, but it must be set to avoid breaking other things.
+            this.feePayer = this.feePayerWallet.getBaseAddress(0).getAddress();
+
+            return this;
+        }
+
+        /**
+         * Sets the provided collateral payer address. This method ensures that the collateral payer can only be set once.
+         *
+         * @param address the address of the collateral payer to be set
+         * @return TxContext
+         * @throws TxBuildException if the collateral payer has already been set
+         */
         public TxContext collateralPayer(String address) {
+            if (this.collateralPayerWallet != null || this.collateralPayer != null)
+                throw new TxBuildException("The collateral payer has already been set. It can only be set once.");
+
             this.collateralPayer = address;
+            return this;
+        }
+
+        /**
+         * Sets the collateral payer using the provided wallet. This method ensures that the collateral payer
+         * is set only once.
+         *
+         * @param wallet the wallet from which the collateral payer address will be derived
+         * @return TxContext
+         * @throws TxBuildException if the collateral payer has already been set
+         */
+        public TxContext collateralPayer(Wallet wallet) {
+            if (this.collateralPayerWallet != null || this.collateralPayer != null)
+                throw new TxBuildException("The collateral payer has already been set. It can only be set once.");
+
+            this.collateralPayerWallet = wallet;
+            // TODO collateralPayer is not used in this scenarios, but it must be set to avoid breaking other things.
+            this.collateralPayer = this.collateralPayerWallet.getBaseAddress(0).getAddress();
+
             return this;
         }
 
@@ -281,7 +338,10 @@ public class QuickTxBuilder {
                     ((ScriptTx) tx).withChangeAddress(feePayer);
                 }
                 if (tx.getFromAddress() == null && tx instanceof ScriptTx) {
-                    ((ScriptTx) tx).from(feePayer);
+                    if (feePayerWallet != null)
+                        ((ScriptTx) tx).from(feePayerWallet);
+                    else
+                        ((ScriptTx) tx).from(feePayer);
                 }
 
                 txBuilder = txBuilder.andThen(tx.complete());
@@ -300,6 +360,9 @@ public class QuickTxBuilder {
 
             //Set merge outputs flag
             txBuilderContext.mergeOutputs(mergeOutputs);
+
+            //Enable/Disable search by address vkh
+            txBuilderContext.withSearchUtxoByAddressVkh(searchUtxoByAddressVkh);
 
             //Set tx evaluator for script cost calculation
             if (txnEvaluator != null)
@@ -338,7 +401,7 @@ public class QuickTxBuilder {
             if (preBalanceTrasformer != null)
                 txBuilder = txBuilder.andThen(preBalanceTrasformer);
 
-            if (feePayer == null) {
+            if (feePayer == null && feePayerWallet == null) {
                 if (txList.length == 1) {
                     feePayer = txList[0].getFeePayer();
                     if (feePayer == null)
@@ -352,9 +415,18 @@ public class QuickTxBuilder {
             txBuilder = buildValidityIntervalTxBuilder(txBuilder);
 
             if (containsScriptTx) {
-                if (collateralPayer == null)
-                    collateralPayer = feePayer;
-                txBuilder = txBuilder.andThen(buildCollateralOutput(collateralPayer));
+                if (collateralPayer == null && collateralPayerWallet == null) {
+                    if (feePayerWallet != null)
+                        collateralPayerWallet = feePayerWallet;
+                    else
+                        collateralPayer = feePayer;
+                }
+
+                if (collateralPayerWallet != null) {
+                    txBuilder = txBuilder.andThen(buildCollateralOutput(collateralPayerWallet));
+                } else {
+                    txBuilder = txBuilder.andThen(buildCollateralOutput(collateralPayer));
+                }
             }
 
             if (containsScriptTx) {
@@ -393,7 +465,11 @@ public class QuickTxBuilder {
             }
 
             //Balance outputs
-            txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
+            if (feePayerWallet != null) {
+                var walletAddrIterator = new HDWalletAddressIterator(feePayerWallet, utxoSupplier);
+                txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(walletAddrIterator, totalSigners, containsScriptTx));
+            } else
+                txBuilder = txBuilder.andThen(ScriptBalanceTxProviders.balanceTx(feePayer, totalSigners, containsScriptTx));
 
             if ((containsScriptTx || hasMultiAssetMint) && removeDuplicateScriptWitnesses) {
                 txBuilder = txBuilder.andThen(DuplicateScriptWitnessChecker.removeDuplicateScriptWitnesses());
@@ -420,22 +496,45 @@ public class QuickTxBuilder {
             return totalSigners;
         }
 
-        private TxBuilder buildCollateralOutput(String feePayer) {
+        private TxBuilder buildCollateralOutput(String payingAddress) {
             if (collateralInputs != null && !collateralInputs.isEmpty()) {
                 List<Utxo> collateralUtxos = collateralInputs.stream()
                         .map(input -> utxoSupplier.getTxOutput(input.getTransactionId(), input.getIndex()))
                         .map(optionalUtxo -> optionalUtxo.get())
                         .collect(Collectors.toList());
-                return CollateralBuilders.collateralOutputs(feePayer, List.copyOf(collateralUtxos));
+                return CollateralBuilders.collateralOutputs(payingAddress, List.copyOf(collateralUtxos));
             } else {
                 UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
-                Set<Utxo> collateralUtxos = utxoSelectionStrategy.select(feePayer, DEFAULT_COLLATERAL_AMT, null);
+                Set<Utxo> collateralUtxos = utxoSelectionStrategy.select(payingAddress, DEFAULT_COLLATERAL_AMT, null);
                 if (collateralUtxos.size() > MAX_COLLATERAL_INPUTS) {
                     utxoSelectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoSupplier);
-                    collateralUtxos = utxoSelectionStrategy.select(feePayer, DEFAULT_COLLATERAL_AMT, null);
+                    collateralUtxos = utxoSelectionStrategy.select(payingAddress, DEFAULT_COLLATERAL_AMT, null);
                 }
 
-                return CollateralBuilders.collateralOutputs(feePayer, List.copyOf(collateralUtxos));
+                return CollateralBuilders.collateralOutputs(payingAddress, List.copyOf(collateralUtxos));
+            }
+        }
+
+        private TxBuilder buildCollateralOutput(Wallet payingWallet) {
+            String collateralPayerAddress = payingWallet.getBaseAddressString(0); //TODO: first addr as collateral output addr
+
+            if (collateralInputs != null && !collateralInputs.isEmpty()) {
+                List<Utxo> collateralUtxos = collateralInputs.stream()
+                        .map(input -> utxoSupplier.getTxOutput(input.getTransactionId(), input.getIndex()))
+                        .map(optionalUtxo -> optionalUtxo.get())
+                        .collect(Collectors.toList());
+                return CollateralBuilders.collateralOutputs(collateralPayerAddress, List.copyOf(collateralUtxos));
+            } else {
+                UtxoSelectionStrategy utxoSelectionStrategy = new DefaultUtxoSelectionStrategyImpl(utxoSupplier);
+                var hdWalletAddressIterator = new HDWalletAddressIterator(payingWallet, utxoSupplier);
+
+                List<Utxo> collateralUtxos = utxoSelectionStrategy.selectUtxos(hdWalletAddressIterator, List.of(DEFAULT_COLLATERAL_AMT), null);
+                if (collateralUtxos.size() > MAX_COLLATERAL_INPUTS) {
+                    utxoSelectionStrategy = new LargestFirstUtxoSelectionStrategy(utxoSupplier);
+                    collateralUtxos = utxoSelectionStrategy.selectUtxos(hdWalletAddressIterator, List.of(DEFAULT_COLLATERAL_AMT), null);
+                }
+
+                return CollateralBuilders.collateralOutputs(collateralPayerAddress, List.copyOf(collateralUtxos));
             }
         }
 
@@ -902,6 +1001,25 @@ public class QuickTxBuilder {
          */
         public TxContext removeDuplicateScriptWitnesses(boolean remove) {
             this.removeDuplicateScriptWitnesses = remove;
+            return this;
+        }
+
+        /**
+         * Enables UTXO search by address verification hash (addr_vkh).
+         * Configures the internal {@link UtxoSupplier} to search using the address verification hash.
+         *
+         * By default, searching by address verification hash is disabled.
+         * <p></p>
+         * If the {@link UtxoSupplier} relies on {@link UtxoService} to provide UTXOs
+         * and the {@link UtxoService} does not support searching by address verification hash,
+         * the search will fail.
+         *
+         * @param flag a boolean indicating whether to enable or disable searching UTXOs by address vkh.
+         *
+         * @return TxContext the current TxContext instance
+         */
+        public TxContext withSearchUtxoByAddressVkh(boolean flag) {
+            this.searchUtxoByAddressVkh = flag;
             return this;
         }
 

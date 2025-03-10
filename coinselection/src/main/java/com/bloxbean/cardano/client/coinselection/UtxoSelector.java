@@ -50,4 +50,13 @@ public interface UtxoSelector {
      * @throws ApiException if error
      */
     List<Utxo> findAll(String address, Predicate<Utxo> predicate, Set<Utxo> excludeUtxos) throws ApiException;
+
+    /**
+     * Enables UTXO search by address verification hash (addr_vkh).
+     *
+     * By default, searching by address verification hash is disabled.
+     *
+     * @param flag a boolean indicating whether to enable or disable searching UTXOs by address vkh.
+     */
+    default void setSearchByAddressVkh(boolean flag) {}
 }

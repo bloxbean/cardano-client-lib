@@ -74,11 +74,20 @@ public class HDWalletAddressIterator implements AddressIterator {
     }
 
     @Override
+    public Address getFirst() {
+        return wallet.getBaseAddress(0);
+    }
+
+    @Override
     public void reset() {
         index = 0;
         gapCount = 0;
 
         this.indexesToScan = wallet.getIndexesToScan() != null && wallet.getIndexesToScan().length > 0 ?
                 Arrays.stream(wallet.getIndexesToScan()).iterator() : null;
+    }
+
+    public AddressIterator clone() {
+        return new HDWalletAddressIterator(wallet, utxoSupplier);
     }
 }

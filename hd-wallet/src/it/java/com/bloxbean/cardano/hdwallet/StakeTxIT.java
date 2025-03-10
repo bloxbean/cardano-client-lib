@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.hdwallet;
 
-import com.bloxbean.cardano.aiken.AikenTransactionEvaluator;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
@@ -12,15 +11,12 @@ import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
-import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
-import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
-import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
+import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.ScriptTx;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.util.JsonUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -35,17 +31,14 @@ public class StakeTxIT extends QuickTxBaseIT {
     static String poolId;
     static ProtocolParamsSupplier protocolParamsSupplier;
 
-    static String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-    static PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
+    static PlutusV3Script alwaysTrueScript = PlutusV3Script.builder()
+            .type("PlutusScriptV3")
+            .cborHex("46450101002499")
+            .build();
 
-    static String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
-    static PlutusScript plutusScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
-
-    static String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
-    static String scriptStakeAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
+    static String alwaysTrueScriptAddress = AddressProvider.getRewardAddress(alwaysTrueScript, Networks.testnet()).toBech32();
 
     static QuickTxBuilder quickTxBuilder;
-    static ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeAll
     static void beforeAll() {
@@ -66,6 +59,7 @@ public class StakeTxIT extends QuickTxBaseIT {
             poolId = "pool1vqq4hdwrh442u97e2jh6k4xuscs3x5mqjjrn8daj36y7gt2rj85";
         }
 
+        resetNetwork();
         topUpFund(wallet1.getBaseAddressString(0), 10000L);
     }
 
@@ -167,10 +161,9 @@ public class StakeTxIT extends QuickTxBaseIT {
     @Test
     @Order(5)
     void scriptStakeAddress_registration() {
-//        deregisterScriptsStakeKeys();
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
         Tx tx = new Tx()
-                .registerStakeAddress(scriptStakeAddress1)
+                .registerStakeAddress(alwaysTrueScriptAddress)
                 .attachMetadata(MessageMetadata.create().add("This is a script stake registration tx"))
                 .from(wallet1);
 
@@ -187,45 +180,18 @@ public class StakeTxIT extends QuickTxBaseIT {
 
     @Test
     @Order(6)
-    void scriptStakeAddress_deRegistration() {
-        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
-        ScriptTx tx = new ScriptTx()
-                .deregisterStakeAddress(scriptStakeAddress1, BigIntPlutusData.of(1))
-                .attachMetadata(MessageMetadata.create().add("This is a script stake address deregistration tx"))
-                .attachCertificateValidator(plutusScript1);
-
-        Result<String> result = quickTxBuilder.compose(tx)
-                .feePayer(wallet1.getBaseAddressString(0))
-                .withSigner(SignerProviders.signerFrom(wallet1))
-                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST) ?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier) : null)
-                .completeAndWait(msg -> System.out.println(msg));
-
-        System.out.println(result);
-        assertTrue(result.isSuccessful());
-
-        checkIfUtxoAvailable(result.getValue(), wallet1.getBaseAddressString(0));
-    }
-
-    @Test
-    @Order(9)
     void stakeDelegation_scriptStakeKeys() {
-        registerScriptsStakeKeys();
-
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
 
         //Delegation
         ScriptTx delegTx = new ScriptTx()
-                .delegateTo(new Address(scriptStakeAddress1), poolId, BigIntPlutusData.of(1))
+                .delegateTo(new Address(alwaysTrueScriptAddress), poolId, BigIntPlutusData.of(1))
                 .attachMetadata(MessageMetadata.create().add("This is a delegation transaction"))
-                .attachCertificateValidator(plutusScript1);
+                .attachCertificateValidator(alwaysTrueScript);
 
         Result<String> delgResult = quickTxBuilder.compose(delegTx)
-                .feePayer(wallet1.getBaseAddressString(0))
+                .feePayer(wallet1)
                 .withSigner(SignerProviders.signerFrom(wallet1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST) ?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier) : null)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 
@@ -233,41 +199,20 @@ public class StakeTxIT extends QuickTxBaseIT {
         assertTrue(delgResult.isSuccessful());
 
         checkIfUtxoAvailable(delgResult.getValue(), wallet1.getBaseAddressString(0));
-
-        deregisterScriptsStakeKeys();
     }
 
-    private void registerScriptsStakeKeys() {
+    @Test
+    @Order(7)
+    void scriptStakeAddress_deRegistration() {
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
-
-        //stake Registration
-        Tx tx = new Tx()
-                .registerStakeAddress(scriptStakeAddress1)
-                .attachMetadata(MessageMetadata.create().add("This is a script stake registration tx"))
-                .from(wallet1);
-
-        Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(wallet1))
-                .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
-                .completeAndWait(msg -> System.out.println(msg));
-
-        if (result.isSuccessful())
-            checkIfUtxoAvailable(result.getValue(), wallet1.getBaseAddressString(0));
-    }
-
-    private void deregisterScriptsStakeKeys() {
-        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-
-        //stake Registration
         ScriptTx tx = new ScriptTx()
-                .deregisterStakeAddress(scriptStakeAddress1, BigIntPlutusData.of(1))
-                .attachCertificateValidator(plutusScript1);
+                .deregisterStakeAddress(alwaysTrueScriptAddress, BigIntPlutusData.of(1))
+                .attachMetadata(MessageMetadata.create().add("This is a script stake address deregistration tx"))
+                .attachCertificateValidator(alwaysTrueScript);
 
         Result<String> result = quickTxBuilder.compose(tx)
-                .feePayer(wallet1.getBaseAddressString(0))
+                .feePayer(wallet1)
                 .withSigner(SignerProviders.signerFrom(wallet1))
-                .withTxEvaluator(!backendType.equals(BLOCKFROST) ?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier) : null)
                 .withTxInspector((txn) -> System.out.println(JsonUtil.getPrettyJson(txn)))
                 .completeAndWait(msg -> System.out.println(msg));
 

@@ -42,7 +42,7 @@ public class SignerProviders {
      */
     public static TxSigner signerFrom(Wallet wallet) {
         return (context, transaction) -> {
-            var utxos = context.getUtxos()
+            var utxos = context.getAllUtxos()
                     .stream().filter(utxo -> utxo instanceof WalletUtxo)
                     .map(utxo -> (WalletUtxo) utxo)
                     .collect(Collectors.toSet());
