@@ -23,6 +23,10 @@ public class DRep {
     private DRepType type;
     private String hash; //key hash or script hash
 
+    public static DRep addrKeyHash(byte[] bytes) {
+        return addrKeyHash(HexUtil.encodeHexString(bytes));
+    }
+
     public static DRep addrKeyHash(String addrKeyHash) {
         DRep drep = new DRep();
         drep.type = DRepType.ADDR_KEYHASH;
