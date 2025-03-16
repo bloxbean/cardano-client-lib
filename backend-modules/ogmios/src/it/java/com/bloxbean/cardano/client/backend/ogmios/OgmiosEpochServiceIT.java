@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,6 +32,8 @@ public class OgmiosEpochServiceIT extends OgmiosBaseTest {
         assertEquals(protocolParams.getCollateralPercent().intValue(), 150);
         assertThat(protocolParams.getEMax()).isNotNull();
         assertThat(protocolParams.getNOpt()).isNotNull();
+        assertThat(protocolParams.getDrepDeposit()).isGreaterThan(BigInteger.ZERO);
+        assertThat(protocolParams.getGovActionDeposit()).isGreaterThan(BigInteger.ZERO);
         assertThat(protocolParams.getMinFeeRefScriptCostPerByte()).isEqualTo(BigDecimal.valueOf(15.0));
     }
 }

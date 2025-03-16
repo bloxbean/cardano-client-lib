@@ -6,8 +6,10 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,7 @@ import java.util.Map;
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Slf4j
 public class ProtocolParametersDto {
 
     private long minFeeCoefficient;
@@ -43,11 +46,12 @@ public class ProtocolParametersDto {
     private Map<String, Integer> version;
     private VotingThresholdDto stakePoolVotingThresholds;
     private VotingThresholdDto delegateRepresentativeVotingThresholds;
-    private long constitutionalCommitteeMinSize;
-    private long constitutionalCommitteeMaxTermLength;
+    private int constitutionalCommitteeMinSize;
+    private int constitutionalCommitteeMaxTermLength;
+    private int governanceActionLifetime;
+    private int delegateRepresentativeMaxIdleTime;
     private Map<String, Map<String, Long>> governanceActionDeposit;
     private Map<String, Map<String, Long>> delegateRepresentativeDeposit;
-    private long delegateRepresentativeMaxIdleTime;
     private MinFeeReferenceScriptsDto minFeeReferenceScripts;
 
     public ProtocolParams toProtocolParams() {
@@ -132,10 +136,28 @@ public class ProtocolParametersDto {
         //TODO
         //Governance releated protocol parameters
 
+        //mandatory gov params for TxBuilder
+        protocolParams.setCommitteeMinSize(constitutionalCommitteeMinSize);
+        protocolParams.setCommitteeMaxTermLength(constitutionalCommitteeMaxTermLength);
+        protocolParams.setGovActionLifetime(governanceActionLifetime);
+        protocolParams.setGovActionDeposit(convertLovelaceDepositToBI(governanceActionDeposit));
+        protocolParams.setDrepDeposit(convertLovelaceDepositToBI(delegateRepresentativeDeposit));
+        protocolParams.setDrepActivity(delegateRepresentativeMaxIdleTime);
         if (minFeeReferenceScripts != null)
             protocolParams.setMinFeeRefScriptCostPerByte(minFeeReferenceScripts.getBase());
 
         return protocolParams;
+    }
+
+    private BigInteger convertLovelaceDepositToBI(Map<String, Map<String, Long>> map) {
+        try {
+            var depositBI = BigInteger.valueOf(map.get("ada").get("lovelace").longValue());
+            return depositBI;
+        } catch (Exception e) {
+            log.warn("Error getting deposit value from protocol param response", e);
+        }
+
+        return null;
     }
 
     /**
