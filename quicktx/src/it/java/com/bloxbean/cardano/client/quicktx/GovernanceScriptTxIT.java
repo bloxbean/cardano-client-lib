@@ -4,26 +4,22 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.address.Credential;
-import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.impl.StaticTransactionEvaluator;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
-import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
-import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.ProtocolParamUpdate;
 import com.bloxbean.cardano.client.transaction.spec.governance.*;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -33,40 +29,35 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 //To run -- Start Yaci DevKit Node and run these tests
 //This need the following script hash in the constitution
-//6913eb6a46b67bfa1ca082f2b410b0a4e502237d03f7a0b7cbf1b025 (always true)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class GovernanceScriptTxIT extends QuickTxBaseIT {
-    BackendService backendService;
-    Account sender1;
-    String sender1Addr;
+    static BackendService backendService;
+    static Account sender1;
+    static String sender1Addr;
 
-    QuickTxBuilder quickTxBuilder;
+    static GovActionId lastGovActionId = null;
+    static QuickTxBuilder quickTxBuilder;
 
-    static GovActionId lastGovActionId = new GovActionId("1d9dce2addcf59a9b65d16c342368eb1e1d2b3ad2762e73c62f36380927cf898", 0);
-
-    @Override
-    public BackendService getBackendService() {
-        backendType = DEVKIT;
-        return super.getBackendService();
-    }
-
-    @BeforeEach
-    void setup() {
-        backendService = getBackendService();
+    @BeforeAll
+    static void setup() {
+        backendService = new BFBackendService("http://localhost:8080/api/v1/", "Dummy");
         quickTxBuilder = new QuickTxBuilder(backendService);
 
         //addr_test1qryvgass5dsrf2kxl3vgfz76uhp83kv5lagzcp29tcana68ca5aqa6swlq6llfamln09tal7n5kvt4275ckwedpt4v7q48uhex
         String senderMnemonic = "test test test test test test test test test test test test test test test test test test test test test test test sauce";
         sender1 = new Account(Networks.testnet(), senderMnemonic);
         sender1Addr = sender1.baseAddress();
+
+        resetDevNet();
+        topUpFund(sender1Addr, 500000L);
     }
 
     @Test
     @Order(1)
     void registerDrep() throws CborSerializationException {
-        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        registerStakeKeys();
 
-        var protocolParamSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
-        var protocolParams = protocolParamSupplier.getProtocolParams();
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
 
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
@@ -86,11 +77,6 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         Result<String> result = quickTxBuilder.compose(drepRegTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(new StaticTransactionEvaluator(List.of(ExUnits.builder()
-                        .mem(BigInteger.valueOf(800))
-                        .steps(BigInteger.valueOf(1000000))
-                        .build())
-                ))
                 .complete();
 
         System.out.println("DRepId : " + sender1.drepId());
@@ -106,9 +92,6 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
     @Order(2)
     void updateDRep() throws CborSerializationException {
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-
-        var protocolParamSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
-        var protocolParams = protocolParamSupplier.getProtocolParams();
 
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
@@ -130,11 +113,6 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
                 //.withSigner(SignerProviders.drepKeySignerFrom(sender1))
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .ignoreScriptCostEvaluationError(true)
-                .withTxEvaluator(new StaticTransactionEvaluator(List.of(ExUnits.builder()
-                        .mem(BigInteger.valueOf(800))
-                        .steps(BigInteger.valueOf(1000000))
-                        .build())
-                ))
                 .complete();
 
         System.out.println(result);
@@ -148,7 +126,6 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
     @Order(3)
     void createProposal_parameterChangeAction() throws Exception {
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-        ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
 
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
@@ -173,11 +150,6 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         Result<String> result = quickTxBuilder.compose(tx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(new StaticTransactionEvaluator(List.of(ExUnits.builder()
-                        .mem(BigInteger.valueOf(800))
-                        .steps(BigInteger.valueOf(1000000))
-                        .build())
-                ))
                 .completeAndWait(s -> System.out.println(s));
 
         lastGovActionId = new GovActionId(result.getValue(), 0);
@@ -213,11 +185,6 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         Result<String> result = quickTxBuilder.compose(tx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(new StaticTransactionEvaluator(List.of(ExUnits.builder()
-                        .mem(BigInteger.valueOf(800))
-                        .steps(BigInteger.valueOf(1000000))
-                        .build())
-                ))
                 .completeAndWait(s -> System.out.println(s));
 
         System.out.println(result);
@@ -227,9 +194,8 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
 
 
     @Test
-    @Order(4)
+    @Order(5)
     void voteDelegation() throws CborSerializationException {
-        registerStakeKeys();
         PlutusV3Script drepPlutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
                 .cborHex("46450101002499")
@@ -238,8 +204,8 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         var drepScriptHash = drepPlutusScript.getScriptHash();
         var drep = DRep.scriptHash(HexUtil.encodeHexString(drepScriptHash));
 
-        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
-        PlutusScript delegatorScript = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v3);
+        //Use the same drepScript for delegator also.. So dprep is delegating own staking power.
+        var delegatorScript = drepPlutusScript;
         Address delegatorStakeAddress = AddressProvider.getRewardAddress(delegatorScript, Networks.testnet());
 
         //Delegator stake key Registration
@@ -264,11 +230,6 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
         result = quickTxBuilder.compose(delegationTx)
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
-                .withTxEvaluator(new StaticTransactionEvaluator(List.of(ExUnits.builder()
-                        .mem(BigInteger.valueOf(2934))
-                        .steps(BigInteger.valueOf(976946))
-                        .build())
-                ))
                 .completeAndWait(s -> System.out.println(s));
 
         System.out.println(result);
@@ -277,7 +238,7 @@ public class GovernanceScriptTxIT extends QuickTxBaseIT {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     void deRegisterDrep() throws CborSerializationException {
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
 

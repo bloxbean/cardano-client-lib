@@ -87,6 +87,7 @@ public class StakeTxIT extends QuickTxBaseIT {
         }
 
         if (backendType.equals(DEVKIT)) {
+            resetDevNet();
             topUpFund(sender1Addr, 50000);
             topUpFund(sender2Addr, 50000);
         }
@@ -196,7 +197,7 @@ public class StakeTxIT extends QuickTxBaseIT {
     @Test
     @Order(5)
     void scriptStakeAddress_registration() {
-        deregisterScriptsStakeKeys();
+        _deRegisterStakeKeys();
 
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         Tx tx = new Tx()
@@ -219,6 +220,8 @@ public class StakeTxIT extends QuickTxBaseIT {
     @Test
     @Order(6)
     void scriptStakeAddress_deRegistration() {
+        registerStakeKeys();
+
         QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
         ScriptTx tx = new ScriptTx()
                 .deregisterStakeAddress(scriptStakeAddress1, BigIntPlutusData.of(1))
@@ -467,6 +470,8 @@ public class StakeTxIT extends QuickTxBaseIT {
     @Test
     @Order(15)
     void registerPool() throws Exception {
+        registerStakeKeys();
+
         if (!backendType.equals(DEVKIT)) {
             System.out.println("Skipping test for non-DEVKIT backend");
             return;

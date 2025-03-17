@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.crypto.cip1852.DerivationPath;
@@ -27,38 +26,25 @@ import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class GovernanceTxIT extends TestDataBaseIT {
-    BackendService backendService;
-    Account sender1;
-    Account sender2;
+public class GovernanceTxIT extends QuickTxBaseIT {
+    static BackendService backendService;
+    static Account sender1;
+    static Account sender2;
 
-    String sender1Addr;
-    String sender2Addr;
+    static String sender1Addr;
+    static String sender2Addr;
 
-    QuickTxBuilder quickTxBuilder;
+    static QuickTxBuilder quickTxBuilder;
 
     //For devkit default guardrails script
-    PlutusV3Script alwaysTrueScript = PlutusV3Script.builder()
+    static PlutusV3Script alwaysTrueScript = PlutusV3Script.builder()
             .type("PlutusScriptV3")
             .cborHex("46450101002499")
             .build();
 
-    @Override
-    public BackendService getBackendService() {
-        if (BLOCKFROST.equals(backendType)) {
-            String bfProjectId = System.getProperty("BF_PROJECT_ID");
-            if (bfProjectId == null || bfProjectId.isEmpty()) {
-                bfProjectId = System.getenv("BF_PROJECT_ID");
-            }
-
-            return new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bfProjectId);
-        } else
-            return super.getBackendService();
-    }
-
-    @BeforeEach
-    void setup() {
-        backendService = getBackendService();
+    @BeforeAll
+    static void setup() {
+        backendService = new BFBackendService("http://localhost:8080/api/v1/", "Dummy");
         quickTxBuilder = new QuickTxBuilder(backendService);
 
         String senderMnemonic = "test test test test test test test test test test test test test test test test test test test test test test test sauce";
@@ -68,7 +54,8 @@ public class GovernanceTxIT extends TestDataBaseIT {
         sender2 = new Account(Networks.testnet(), senderMnemonic, DerivationPath.createExternalAddressDerivationPathForAccount(1));
         sender2Addr = sender2.baseAddress();
 
-        topUpFund(sender1Addr, 300000L);
+        resetDevNet();
+        topUpFund(sender1Addr, 500000L);
     }
 
     @Test
