@@ -50,7 +50,7 @@ public class GovernanceTxIT extends TestDataBaseIT {
             if (bfProjectId == null || bfProjectId.isEmpty()) {
                 bfProjectId = System.getenv("BF_PROJECT_ID");
             }
-            bfProjectId = "preprodJ9lqAJFlWztmUtNfbwx2FOKmPmnQE5La";
+
             return new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bfProjectId);
         } else
             return super.getBackendService();
