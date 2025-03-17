@@ -119,7 +119,17 @@ public enum TransactionSigner {
         return signedTransaction;
     }
 
-    private byte[] addWitnessToTransaction(TransactionBytes transactionBytes, byte[] vkey, byte[] signature) {
+    /**
+     * Adds a witness to the given transaction by updating the transaction's witness set with
+     * the provided verification key and signature.
+     *
+     * @param transactionBytes The transaction bytes containing the current transaction and witness data.
+     * @param vkey The verification key to be added to the witness set.
+     * @param signature The signature associated with the verification key to be added to the witness set.
+     * @return The updated transaction bytes including the new witness.
+     * @throws CborRuntimeException If any CBOR serialization or deserialization error occurs during processing.
+     */
+    public byte[] addWitnessToTransaction(TransactionBytes transactionBytes, byte[] vkey, byte[] signature) {
         try {
             DataItem witnessSetDI = CborSerializationUtil.deserialize(transactionBytes.getTxWitnessBytes());
             Map witnessSetMap = (Map) witnessSetDI;
