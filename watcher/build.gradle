@@ -1,0 +1,14 @@
+dependencies {
+    api project(':core')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Watcher'
+                description = 'Cardano Client Lib - Watcher Module'
+            }
+        }
+    }
+}
