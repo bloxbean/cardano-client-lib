@@ -9,8 +9,8 @@ public class OgmiosBaseTest {
     protected KupoUtxoService kupoUtxoService;
     protected KupmiosBackendService kupmiosBackendService;
 
-    private String OGMIOS_HTTP_URL = "http://ogmios-preprod:1337/";
-    private String KUPO_HTTP_URL = "http://kupo-preprod:1442/";
+    private String OGMIOS_HTTP_URL = "http://localhost:1337/";
+    private String KUPO_HTTP_URL = "http://localhost:1442/";
 
     public OgmiosBaseTest() {
         this.ogmiosBackendService = new OgmiosBackendService(OGMIOS_HTTP_URL);

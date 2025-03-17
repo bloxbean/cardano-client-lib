@@ -1,8 +1,11 @@
 package com.bloxbean.cardano.client.governance;
 
+import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.address.CredentialType;
 import com.bloxbean.cardano.client.crypto.Bech32;
+import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import com.bloxbean.cardano.client.util.HexUtil;
+import lombok.NonNull;
 
 /**
  * The GovId class provides methods for generating governance related ids.
@@ -94,6 +97,72 @@ public class GovId {
 
         byte[] mergedBytes = HexUtil.decodeHexString(txHash + indexHex);
         return Bech32.encode(mergedBytes, GOV_ACTION_PREFIX);
+    }
+
+    public static DRep toDrep(@NonNull String drepId) {
+        if (!drepId.startsWith(DREP_PREFIX))
+            throw new IllegalArgumentException("Invalid drep id prefix");
+
+        byte[] idBytes = Bech32.decode(drepId).data;
+        byte[] keyBytes = new byte[idBytes.length - 1];
+
+        if (keyBytes.length != 28)
+            throw new IllegalArgumentException("Key bytes length should be 28, but found " + keyBytes.length);
+
+        System.arraycopy(idBytes, 1, keyBytes, 0, idBytes.length - 1);
+
+        var credType = credTypeFromIdBytes(idBytes);
+
+        if (credType == CredentialType.Key)
+            return DRep.addrKeyHash(keyBytes);
+        else if (credType == CredentialType.Script)
+            return DRep.scriptHash(keyBytes);
+        else
+            throw new IllegalArgumentException("Invalid credential type");
+    }
+
+    public static Credential ccHotToCredential(@NonNull String ccHotId) {
+        if (!ccHotId.startsWith(CC_HOT_PREFIX))
+            throw new IllegalArgumentException("Invalid cc hot id prefix");
+
+        byte[] idBytes = Bech32.decode(ccHotId).data;
+        byte[] keyBytes = new byte[idBytes.length - 1];
+
+        if (keyBytes.length != 28)
+            throw new IllegalArgumentException("Key bytes length should be 28, but found " + keyBytes.length);
+
+        System.arraycopy(idBytes, 1, keyBytes, 0, idBytes.length - 1);
+
+        var credType = credTypeFromIdBytes(idBytes);
+
+        if (credType == CredentialType.Key)
+            return Credential.fromKey(keyBytes);
+        else if (credType == CredentialType.Script)
+            return Credential.fromScript(keyBytes);
+        else
+            throw new IllegalArgumentException("Invalid credential type");
+    }
+
+    public static Credential ccColdToCredential(@NonNull String ccColdId) {
+        if (!ccColdId.startsWith(CC_COLD_PREFIX))
+            throw new IllegalArgumentException("Invalid cc cold id prefix");
+
+        byte[] idBytes = Bech32.decode(ccColdId).data;
+        byte[] keyBytes = new byte[idBytes.length - 1];
+
+        if (keyBytes.length != 28)
+            throw new IllegalArgumentException("Key bytes length should be 28, but found " + keyBytes.length);
+
+        System.arraycopy(idBytes, 1, keyBytes, 0, idBytes.length - 1);
+
+        var credType = credTypeFromIdBytes(idBytes);
+
+        if (credType == CredentialType.Key)
+            return Credential.fromKey(keyBytes);
+        else if (credType == CredentialType.Script)
+            return Credential.fromScript(keyBytes);
+        else
+            throw new IllegalArgumentException("Invalid credential type");
     }
 
     private static byte[] getIdentifierBytes(byte keyType, byte credType, byte[] keyHash) {

@@ -47,6 +47,9 @@ public class LegacyDRepId {
     public static DRep toDrep(String drepId, DRepType drepType) {
         byte[] bytes = Bech32.decode(drepId).data;
 
+        if (bytes.length != 28)
+            throw new IllegalArgumentException("DRep key bytes length should be 28, but found " + bytes.length);
+
         if (drepType == DRepType.ADDR_KEYHASH) {
             return DRep.addrKeyHash(HexUtil.encodeHexString(bytes));
         } else if (drepType == DRepType.SCRIPTHASH) {
