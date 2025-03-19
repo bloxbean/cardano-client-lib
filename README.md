@@ -11,6 +11,8 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 ### **Latest Stable Version**: [0.6.3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.3)
 
+### **Latest Beta Version**: [0.7.0-beta2](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.0-beta2)
+
 ### More details --> [Documentation](https://cardano-client.dev/)
 
 ### **Recent Posts**
