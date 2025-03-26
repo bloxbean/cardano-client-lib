@@ -8,7 +8,7 @@ slf4j-reload4j = "org.slf4j:slf4j-reload4j:2.0.11"
 bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk18on:1.78"
 guava = "com.google.guava:guava:33.0.0-jre"
 co-nstant-in-cbor = "co.nstant.in:cbor:0.9"
-i2p-crypto-eddsa = "net.i2p.crypto:eddsa:0.3.0"
+i2p-crypto-eddsa = "com.bloxbean.cardano:net-i2p-crypto-eddsa:0.3.1"
 
 jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.16.0"
 retrofit2 = "com.squareup.retrofit2:retrofit:2.9.0"
