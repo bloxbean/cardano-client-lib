@@ -1,11 +1,9 @@
 package com.bloxbean.cardano.client.function.helper;
 
-import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.helper.FeeCalculationService;
 import com.bloxbean.cardano.client.api.util.ReferenceScriptUtil;
-import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
@@ -29,7 +27,10 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class FeeCalculators {
-    private static Account dummyAccount;
+    //32 bytes dummy vkey
+    private static final byte[] DUMMY_VKEY = new byte[]{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    //64 bytes dummy vkey signature
+    private static final byte[] DUMMY_VKEY_SIGNATURE = new byte[]{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
     /**
      * A function to calculate fee based on noOfSigners. The function then sets fee in <code>{@link Transaction}</code>
@@ -192,10 +193,7 @@ public class FeeCalculators {
         //reset fee
         transaction.getBody().setFee(orginalFee);
 
-        //Dummy account sign
-        for (int i = 0; i < noOfSigners; i++) {
-            cloneTxn = getDummyAccount().sign(cloneTxn);
-        }
+        addDummySignatures(cloneTxn, noOfSigners);
 
         return cloneTxn;
     }
@@ -204,15 +202,32 @@ public class FeeCalculators {
         void accept(BigInteger fee, List<TransactionOutput> outputs);
     }
 
-    private static Account getDummyAccount() {
-        if (dummyAccount == null) {
-            synchronized (FeeCalculators.class) {
-                if (dummyAccount == null) {
-                    dummyAccount = new Account(Networks.testnet());
-                }
-            }
+    private static void addDummySignatures(Transaction transaction, int noOfSigners) {
+        if (transaction.getWitnessSet() == null) {
+            transaction.setWitnessSet(new TransactionWitnessSet());
         }
 
-        return dummyAccount;
+        if (transaction.getWitnessSet().getVkeyWitnesses() == null) {
+            transaction.getWitnessSet().setVkeyWitnesses(new ArrayList<>());
+        }
+
+        for (int i = 0; i < noOfSigners; i++) {
+            byte[] uniqueVkey = DUMMY_VKEY.clone();
+            byte[] uniqueSignature = DUMMY_VKEY_SIGNATURE.clone();
+
+            // Use index to modify last two bytes (sufficient for uniqueness)
+            uniqueVkey[uniqueVkey.length - 1] = (byte) i;
+            uniqueVkey[uniqueVkey.length - 2] = (byte) (i >> 8);
+
+            uniqueSignature[uniqueSignature.length - 1] = (byte) i;
+            uniqueSignature[uniqueSignature.length - 2] = (byte) (i >> 8);
+
+            VkeyWitness vkeyWitness = new VkeyWitness();
+            vkeyWitness.setVkey(uniqueVkey);
+            vkeyWitness.setSignature(uniqueSignature);
+
+            transaction.getWitnessSet().getVkeyWitnesses().add(vkeyWitness);
+        }
     }
+
 }
