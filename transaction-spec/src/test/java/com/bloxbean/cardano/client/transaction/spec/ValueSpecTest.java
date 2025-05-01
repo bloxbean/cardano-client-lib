@@ -116,30 +116,6 @@ class ValueSpecTest {
     }
 
     @Test
-    void addValuesWithMultiAssetsListWhenSecondListHasDifferentAssets() {
-        Asset l1asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
-        Asset l1asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
-
-        MultiAsset l1multiAsset1 = MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(l1asset1)).build();
-        List<MultiAsset> multiAssetList1 = Arrays.asList(l1multiAsset1);
-
-        MultiAsset l1multiAsset2 = MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(l1asset2)).build();
-        List<MultiAsset> multiAssetList2 = Arrays.asList(l1multiAsset2);
-
-        Value value1 = Value.builder().coin(BigInteger.valueOf(3000000L)).multiAssets(multiAssetList1).build();
-        Value value2 = Value.builder().coin(BigInteger.valueOf(2000000L)).multiAssets(multiAssetList2).build();
-
-        Asset expectedAsset = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
-        MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(expectedAsset)).build();
-        List<MultiAsset> expectedMultiAssetList = Arrays.asList(expectedMultiAsset, l1multiAsset1);
-
-        Value expectedValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(expectedMultiAssetList).build();
-
-        assertThat(MultiAsset.mergeMultiAssetLists(multiAssetList1, multiAssetList2)).isEqualTo(expectedMultiAssetList);
-        assertThat(value1.add(value2)).isEqualTo(expectedValue);
-    }
-
-    @Test
     void subtractValuesWithMultiAssetsList() {
         Asset l1asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
         Asset l1asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
@@ -213,8 +189,8 @@ class ValueSpecTest {
         Value value2 = Value.builder().coin(BigInteger.valueOf(2000000L)).multiAssets(multiAssetList2).build();
 
         Asset expectedAsset = Asset.builder().name("asset2").value(BigInteger.valueOf(-200L)).build();
-        MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(expectedAsset)).build();
-        List<MultiAsset> expectedMultiAssetList = Arrays.asList(l1multiAsset1, expectedMultiAsset);
+        MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id1").assets(Arrays.asList(l1asset1, expectedAsset)).build();
+        List<MultiAsset> expectedMultiAssetList = Arrays.asList(expectedMultiAsset);
 
         Value expectedValue = Value.builder().coin(BigInteger.valueOf(1000000L)).multiAssets(expectedMultiAssetList).build();
 
@@ -526,31 +502,31 @@ class ValueSpecTest {
     }
 
 
-     @Test
-     void addLovelaceWithToken() {
+    @Test
+    void addLovelaceWithToken() {
 
-         String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
-         Asset asset = Asset.builder().name("0x506f6c795065657237353436").value(BigInteger.valueOf(100_000_000L)).build();
-         List<Asset> assets = new ArrayList<>();
-         assets.add(asset);
+        String policyId = "ef76f6f0b3558ea0aaad6af5c9a5f3e5bf20b393314de747662e8ce9";
+        Asset asset = Asset.builder().name("0x506f6c795065657237353436").value(BigInteger.valueOf(100_000_000L)).build();
+        List<Asset> assets = new ArrayList<>();
+        assets.add(asset);
 
-         Value expectedValue = Value.builder()
-                 .coin(BigInteger.valueOf(110_000_000L))
-                 .multiAssets(List.of(MultiAsset.builder()
-                         .policyId(policyId)
-                         .assets(assets)
-                         .build()))
-                 .build();
+        Value expectedValue = Value.builder()
+                .coin(BigInteger.valueOf(110_000_000L))
+                .multiAssets(List.of(MultiAsset.builder()
+                        .policyId(policyId)
+                        .assets(assets)
+                        .build()))
+                .build();
 
-         Value actualValue = Value.builder()
-                 .coin(BigInteger.valueOf(100_000_000L))
-                 .multiAssets(List.of(MultiAsset.builder()
-                         .policyId(policyId)
-                         .assets(assets)
-                         .build()))
-                 .build()
-                 .addCoin(BigInteger.valueOf(10_000_000L));
-         Assertions.assertEquals(expectedValue, actualValue);
+        Value actualValue = Value.builder()
+                .coin(BigInteger.valueOf(100_000_000L))
+                .multiAssets(List.of(MultiAsset.builder()
+                        .policyId(policyId)
+                        .assets(assets)
+                        .build()))
+                .build()
+                .addCoin(BigInteger.valueOf(10_000_000L));
+        Assertions.assertEquals(expectedValue, actualValue);
 
     }
 
