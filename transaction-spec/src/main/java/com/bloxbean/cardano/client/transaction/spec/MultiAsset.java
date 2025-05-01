@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.transaction.spec;
 
-import co.nstant.in.cbor.model.Map;
 import co.nstant.in.cbor.model.*;
+import co.nstant.in.cbor.model.Map;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -76,19 +76,25 @@ public class MultiAsset {
      * @return List MultiAssets which represents the Subtraction
      */
     public static List<MultiAsset> subtractMultiAssetLists(List<MultiAsset> multiAssets1, List<MultiAsset> multiAssets2) {
-        List<MultiAsset> tempMultiAssets = new ArrayList<>();
-        if (multiAssets1 != null) {
-            tempMultiAssets.addAll(multiAssets1);
-        }
+
         List<MultiAsset> multiAssetListResult = new ArrayList<>();
         java.util.Map<String, MultiAsset> thatMultiAssetsMap = convertListToMap(multiAssets2);
-        for (MultiAsset multiAsset : tempMultiAssets) {
+
+        for (MultiAsset multiAsset : multiAssets1) {
             if (thatMultiAssetsMap.containsKey(multiAsset.getPolicyId())) {
                 multiAssetListResult.add(multiAsset.subtract(thatMultiAssetsMap.get(multiAsset.getPolicyId())));
             } else {
                 multiAssetListResult.add(multiAsset);
             }
         }
+
+        java.util.Map<String, MultiAsset> thisMultiAssetsMap = convertListToMap(multiAssets1);
+        for (MultiAsset multiAsset : multiAssets2) {
+            if (!thisMultiAssetsMap.containsKey(multiAsset.getPolicyId())) {
+                multiAssetListResult.add(multiAsset.negate());
+            }
+        }
+
         return multiAssetListResult;
     }
 
@@ -153,11 +159,10 @@ public class MultiAsset {
 
     /**
      * Sums a Multi Asset to another. If an Asset is already present, sums the amounts.
-     * @deprecated
-     * <p>Use {@link #add(MultiAsset)} instead </p>
      *
      * @param that {@link MultiAsset} to Sum with
      * @return {@link MultiAsset} as Sum result
+     * @deprecated <p>Use {@link #add(MultiAsset)} instead </p>
      */
     @Deprecated(since = "0.6.3")
     public MultiAsset plus(MultiAsset that) {
@@ -183,20 +188,35 @@ public class MultiAsset {
                 assetsResult.add(asset);
             }
         }
+
+        java.util.Map<String, Asset> thisAssetsMap = convertToMap(getAssets());
+        for (Asset asset : that.assets) {
+            if (!thisAssetsMap.containsKey(asset.getNameAsHex())) {
+                assetsResult.add(asset.negate());
+            }
+        }
+
         return MultiAsset.builder().policyId(getPolicyId()).assets(assetsResult).build();
     }
 
     /**
      * Subtracts a Multi Asset from another. If an Asset is already present, subtract the amounts.
-     * @deprecated
-     * <p>Use {@link #subtract(MultiAsset)} instead</p>
      *
      * @param that {@link MultiAsset} to Subtract by
      * @return {@link MultiAsset} as Difference result
+     * @deprecated <p>Use {@link #subtract(MultiAsset)} instead</p>
      */
     @Deprecated(since = "0.6.3")
     public MultiAsset minus(MultiAsset that) {
         return this.subtract(that);
+    }
+
+    public MultiAsset negate() {
+        List<Asset> negatedAssets = new ArrayList<>();
+        for (Asset asset : assets) {
+            negatedAssets.add(asset.negate());
+        }
+        return new MultiAsset(policyId, negatedAssets);
     }
 
     private java.util.Map<String, Asset> convertToMap(List<Asset> assets) {

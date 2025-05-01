@@ -101,6 +101,10 @@ public class Asset {
         return this.subtract(that);
     }
 
+    public Asset negate() {
+        return new Asset(name, value.negate());
+    }
+
     public boolean hasName(String assetName) {
         byte[] assetNameBytes = nameToBytes(assetName);
         byte[] existingAssetNameBytes = nameToBytes(name);
