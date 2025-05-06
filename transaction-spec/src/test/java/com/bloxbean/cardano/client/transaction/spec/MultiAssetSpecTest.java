@@ -66,7 +66,7 @@ class MultiAssetSpecTest {
     }
 
     @Test
-    void addSamePolicyPartialAssetOveral() {
+    void addSamePolicyPartialAssetOverlap() {
 
         Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
         Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();

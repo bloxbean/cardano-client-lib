@@ -177,7 +177,7 @@ public class MultiAsset {
      */
     public MultiAsset subtract(MultiAsset that) {
         if (!getPolicyId().equals(that.getPolicyId())) {
-            throw new IllegalArgumentException("Trying to add MultiAssets with different policyId");
+            throw new IllegalArgumentException("Trying to subtract MultiAssets with different policyId");
         }
         List<Asset> assetsResult = new ArrayList<>();
         java.util.Map<String, Asset> thatAssetsMap = convertToMap(that.assets);
