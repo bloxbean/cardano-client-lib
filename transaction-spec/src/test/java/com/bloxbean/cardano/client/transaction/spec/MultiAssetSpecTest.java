@@ -49,6 +49,40 @@ class MultiAssetSpecTest {
     }
 
     @Test
+    void addSamePolicyDifferentAsset() {
+
+        Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
+        Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
+        MultiAsset multiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1)).build();
+        MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset2)).build();
+
+        MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(
+                asset1,
+                asset2
+        )).build();
+
+        assertThat(multiAsset1.add(multiAsset2), equalTo(expectedMultiAsset));
+
+    }
+
+    @Test
+    void addSamePolicyPartialAssetOverlap() {
+
+        Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
+        Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
+        MultiAsset multiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1)).build();
+        MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, asset2)).build();
+
+        MultiAsset expectedMultiAsset = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(
+                asset1.add(asset1),
+                asset2
+        )).build();
+
+        assertThat(multiAsset1.add(multiAsset2), equalTo(expectedMultiAsset));
+
+    }
+
+    @Test
     void addMultiAssetWithDifferentPolicyThrowsError() {
         MultiAsset multiAsset1 = MultiAsset.builder().policyId("policy1").assets(Arrays.asList()).build();
         MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy2").assets(Arrays.asList()).build();
@@ -174,6 +208,76 @@ class MultiAssetSpecTest {
         MultiAsset exMultiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(exAsset3)).build();
         MultiAsset exMultiAsset3 = MultiAsset.builder().policyId("policy_id3").assets(Arrays.asList(exAsset4)).build();
         List<MultiAsset> exList = Arrays.asList(exMultiAsset1, exMultiAsset2, exMultiAsset3);
+
+        assertThat(result, equalTo(exList));
+    }
+
+    @Test
+    void subtractMultiAssetListsWhenAdditionalPolicyInSecondList() {
+        Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
+        Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
+        Asset asset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(55L)).build(); //asset2
+        Asset asset4 = Asset.builder().name("asset4").value(BigInteger.valueOf(60L)).build();
+        MultiAsset multiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, asset2)).build();
+        MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(asset3)).build();
+
+        List<MultiAsset> list1 = Arrays.asList(multiAsset1, multiAsset2);
+
+        Asset otherAsset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(50L)).build();
+        Asset otherAsset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(20L)).build();
+        Asset otherAsset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(50L)).build(); //asset2
+        MultiAsset otherMultiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(otherAsset1, otherAsset2)).build();
+        MultiAsset otherMultiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(otherAsset3)).build();
+        MultiAsset otherMultiAsset3 = MultiAsset.builder().policyId("policy_id3").assets(Arrays.asList(asset4)).build();
+
+        List<MultiAsset> list2 = Arrays.asList(otherMultiAsset1, otherMultiAsset2, otherMultiAsset3);
+
+        List<MultiAsset> result = MultiAsset.subtractMultiAssetLists(list1, list2);
+
+        Asset exAsset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(50L)).build();
+        Asset exAsset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(180L)).build();
+        Asset exAsset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(5L)).build();
+        Asset exAsset4 = Asset.builder().name("asset4").value(BigInteger.valueOf(-60L)).build();
+
+        MultiAsset exMultiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(exAsset1, exAsset2)).build();
+        MultiAsset exMultiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(exAsset3)).build();
+        MultiAsset exMultiAsset3 = MultiAsset.builder().policyId("policy_id3").assets(Arrays.asList(exAsset4)).build();
+
+        List<MultiAsset> exList = Arrays.asList(exMultiAsset1, exMultiAsset2, exMultiAsset3);
+
+        assertThat(result, equalTo(exList));
+    }
+
+    @Test
+    void subtractMultiAssetListsWhenAdditionalAssetInSecondList() {
+        Asset asset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(100L)).build();
+        Asset asset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(200L)).build();
+        Asset asset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(55L)).build(); //asset2
+        Asset asset4 = Asset.builder().name("asset4").value(BigInteger.valueOf(60L)).build();
+        MultiAsset multiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(asset1, asset2)).build();
+        MultiAsset multiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(asset3)).build();
+
+        List<MultiAsset> list1 = Arrays.asList(multiAsset1, multiAsset2);
+
+        Asset otherAsset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(50L)).build();
+        Asset otherAsset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(20L)).build();
+        Asset otherAsset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(50L)).build(); //asset2
+        MultiAsset otherMultiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(otherAsset1, otherAsset2)).build();
+        MultiAsset otherMultiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(otherAsset3, asset4)).build();
+
+        List<MultiAsset> list2 = Arrays.asList(otherMultiAsset1, otherMultiAsset2);
+
+        List<MultiAsset> result = MultiAsset.subtractMultiAssetLists(list1, list2);
+
+        Asset exAsset1 = Asset.builder().name("asset1").value(BigInteger.valueOf(50L)).build();
+        Asset exAsset2 = Asset.builder().name("asset2").value(BigInteger.valueOf(180L)).build();
+        Asset exAsset3 = Asset.builder().name("asset3").value(BigInteger.valueOf(5L)).build();
+        Asset exAsset4 = Asset.builder().name("asset4").value(BigInteger.valueOf(-60L)).build();
+
+        MultiAsset exMultiAsset1 = MultiAsset.builder().policyId("policy_id").assets(Arrays.asList(exAsset1, exAsset2)).build();
+        MultiAsset exMultiAsset2 = MultiAsset.builder().policyId("policy_id2").assets(Arrays.asList(exAsset3, exAsset4)).build();
+
+        List<MultiAsset> exList = Arrays.asList(exMultiAsset1, exMultiAsset2);
 
         assertThat(result, equalTo(exList));
     }
