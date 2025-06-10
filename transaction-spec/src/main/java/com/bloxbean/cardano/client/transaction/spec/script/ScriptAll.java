@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.transaction.spec.script;
 
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.DataItem;
+import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
@@ -47,6 +48,7 @@ public class ScriptAll implements NativeScript {
         ScriptAll scriptAll = new ScriptAll();
         Array scriptsDIArray = (Array) (array.getDataItems().get(1));
         for (DataItem scriptDI : scriptsDIArray.getDataItems()) {
+            if (scriptDI == SimpleValue.BREAK) continue;
             Array scriptArray = (Array) scriptDI;
             NativeScript nativeScript = NativeScript.deserialize(scriptArray);
             if (nativeScript != null)

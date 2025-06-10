@@ -385,4 +385,15 @@ class ScriptTest {
         assertThat(deSerHex, is(serHex));
         assertThat(deScriptAtLeast.getRequired().compareTo(BigInteger.valueOf(9223372036854775807L)), is(0));
     }
+
+    @Test
+    void testDeserializeWithIndefiniteArrayNativeScript() throws CborDeserializationException {
+        String cborHex = "82019f8200581c6d66c78fb7803aca916c571ea3180f470a830919abf354fbada766b782051a04f87c6eff";
+        Array array = (Array) CborSerializationUtil.deserialize(HexUtil.decodeHexString(cborHex));
+
+        NativeScript nativeScript = NativeScript.deserialize(array);
+
+        System.out.println(JsonUtil.getPrettyJson(nativeScript));
+        assertTrue(nativeScript instanceof ScriptAll);
+    }
 }
