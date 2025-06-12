@@ -71,6 +71,7 @@ public class ScriptAtLeast implements NativeScript {
         ScriptAtLeast scriptAtLeast = new ScriptAtLeast(required);
         Array scriptsDIArray = (Array) (array.getDataItems().get(2));
         for (DataItem scriptDI : scriptsDIArray.getDataItems()) {
+            if (scriptDI == SimpleValue.BREAK) continue;
             Array scriptArray = (Array) scriptDI;
             NativeScript nativeScript = NativeScript.deserialize(scriptArray);
             if (nativeScript != null)
