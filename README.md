@@ -9,7 +9,7 @@
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-### **Latest Stable Version**: [0.6.4](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.4)
+### **Latest Stable Version**: [0.6.4](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.6)
 
 ### **Latest Beta Version**: [0.7.0-beta3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.0-beta3)
 
@@ -97,7 +97,7 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.6.3</version>
+            <version>0.6.6</version>
         </dependency>
 ```
 - Backend modules
@@ -108,21 +108,21 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.6.3</version>
+            <version>0.6.6</version>
         </dependency>
         
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>0.6.3</version>
+            <version>0.6.6</version>
         </dependency>
         
          <!-- For Ogmios / Kupo backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>0.6.3</version>
+            <version>0.6.6</version>
         </dependency>
 ```
 
@@ -130,20 +130,20 @@ For fine-grained dependency management, add one or more below modules as require
 
 - Core Module
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.6.3'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.6.6'
 ```
 - Backend modules
     - For backend support, use one of the following supported backend module
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.6.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.6.6'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.6.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.6.6'
 
 //For Ogmios / Kupo
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.6.3'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.6.6'
 
 ```
 
