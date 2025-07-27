@@ -1,0 +1,8 @@
+{
+  "label": "CIP Implementations",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "Cardano Improvement Proposal standard implementations."
+  }
+}

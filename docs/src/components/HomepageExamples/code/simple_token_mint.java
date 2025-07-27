@@ -1,18 +1,31 @@
-//Create a policy
-Policy policy
-        = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 1, 1);
-String assetName = "MyAsset";
-BigInteger qty = BigInteger.valueOf(1000);
+// Create a minting policy (1-of-1 multi-sig)
+Policy mintingPolicy = PolicyUtil.createMultiSigScriptAtLeastPolicy(
+    "my_token_policy", 1, 1
+);
 
-//Define mint Tx
-Tx tx = new Tx()
-        .mintAssets(policy.getPolicyScript(),
-                new Asset(assetName, qty), receiver)
-        .attachMetadata(MessageMetadata.create().add("Sample Metadata"))
-        .from(sender1Addr);
+// Define the token to mint
+String assetName = "MyToken";
+BigInteger quantity = BigInteger.valueOf(1000);
+Asset tokenAsset = new Asset(assetName, quantity);
 
-//Compose and sign Tx
-Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.signerFrom(sender1))
-        .withSigner(SignerProviders.signerFrom(policy))
-        .complete();
+// Create minting transaction with metadata
+Tx mintTx = new Tx()
+    .mintAssets(mintingPolicy.getPolicyScript(), tokenAsset, receiverAddress)
+    .attachMetadata(MessageMetadata.create()
+        .add("Token Name", "My Custom Token")
+        .add("Description", "A sample token for demonstration"))
+    .from(minterAddress);
+
+// Compose, sign and submit transaction
+Result<String> result = quickTxBuilder.compose(mintTx)
+    .withSigner(SignerProviders.signerFrom(minterAccount))
+    .withSigner(SignerProviders.signerFrom(mintingPolicy))
+    .completeAndWait();
+
+// Check result
+if (result.isSuccessful()) {
+    System.out.println("Token minted! TxHash: " + result.getValue());
+    System.out.println("Policy ID: " + mintingPolicy.getPolicyId());
+} else {
+    System.err.println("Minting failed: " + result.getResponse());
+}

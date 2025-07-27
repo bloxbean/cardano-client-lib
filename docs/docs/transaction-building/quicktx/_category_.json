@@ -1,0 +1,8 @@
+{
+  "label": "QuickTx API (Recommended)",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "description": "High-level declarative API for transaction building."
+  }
+}

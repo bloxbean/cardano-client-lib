@@ -1,0 +1,8 @@
+{
+  "label": "Migration",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Migration guides for API and version changes."
+  }
+}

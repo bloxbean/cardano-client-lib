@@ -1,0 +1,8 @@
+{
+  "label": "Staking",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Stake pool operations and delegation management."
+  }
+}

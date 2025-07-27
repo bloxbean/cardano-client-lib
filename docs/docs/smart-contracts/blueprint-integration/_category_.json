@@ -1,0 +1,8 @@
+{
+  "label": "Blueprint Integration",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Aiken blueprint integration and code generation."
+  }
+}

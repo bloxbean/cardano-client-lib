@@ -1,0 +1,8 @@
+{
+  "label": "Quick Start",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Get started with Cardano Client Lib quickly and efficiently."
+  }
+}

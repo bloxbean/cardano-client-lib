@@ -1,53 +1,813 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * Modern Premium CSS for Cardano Client Lib Documentation
+ * Features: Glassmorphism, Gradients, Animations, Professional Design
  */
 
-/* You can override the default Infima variables here. */
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap');
 
+/* Enhanced Color Palette with Modern Gradients */
 :root {
-    --ifm-color-primary: #3f4241;
-    --ifm-color-primary-dark: #393b3b;
-    --ifm-color-primary-darker: #363837;
-    --ifm-color-primary-darkest: #2c2e2d;
-    --ifm-color-primary-light: #454947;
-    --ifm-color-primary-lighter: #484c4b;
-    --ifm-color-primary-lightest: #525655;
-}
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-.purple-text {
-    color: rebeccapurple;
+  /* Primary Colors - Premium Cardano Blue */
+  --ifm-color-primary: #0033ad;
+  --ifm-color-primary-dark: #002e9a;
+  --ifm-color-primary-darker: #002b91;
+  --ifm-color-primary-darkest: #002377;
+  --ifm-color-primary-light: #1a47c0;
+  --ifm-color-primary-lighter: #2651c9;
+  --ifm-color-primary-lightest: #4d70d4;
+  
+  /* Gradient Definitions */
+  --gradient-primary: linear-gradient(135deg, #0033ad 0%, #1a47c0 50%, #4d70d4 100%);
+  --gradient-hover: linear-gradient(135deg, #1a47c0 0%, #2651c9 50%, #6296ea 100%);
+  --gradient-subtle: linear-gradient(180deg, rgba(0,51,173,0.05) 0%, transparent 100%);
+  
+  /* Enhanced accent colors */
+  --ifm-color-secondary: #6c757d;
+  --ifm-color-success: #28a745;
+  --ifm-color-warning: #ffc107;
+  --ifm-color-danger: #dc3545;
+  --ifm-color-info: #17a2b8;
+  
+  /* Enhanced typography */
+  --ifm-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --ifm-font-family-monospace: 'Fira Code', 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', monospace;
+  
+  /* Enhanced spacing */
+  --ifm-leading: 1.8;
+  --ifm-spacing-horizontal: 1rem;
+  --ifm-spacing-vertical: 1rem;
+  
+  /* Code block enhancements */
+  --ifm-code-font-size: 0.875rem;
+  --ifm-code-border-radius: 0.5rem;
+  --ifm-code-padding-horizontal: 0.75rem;
+  --ifm-code-padding-vertical: 0.5rem;
 }
 
-/*.hero--primary {*/
-/*    background-color: #003883;*/
-/*}*/
-
-/* Overriding root Infima variables */
+/* Dark mode with premium feel */
 [data-theme='dark'] {
-    --ifm-color-primary: #4e89e8;
-}
-/* Styling one class specially in dark mode */
-[data-theme='dark'] .purple-text {
-    color: plum;
+  --ifm-color-primary: #4e89e8;
+  --ifm-color-primary-dark: #3a7ce0;
+  --ifm-color-primary-darker: #2f73dd;
+  --ifm-color-primary-darkest: #1e5fc7;
+  --ifm-color-primary-light: #6296ea;
+  --ifm-color-primary-lighter: #759fed;
+  --ifm-color-primary-lightest: #9bb5f2;
+  --ifm-background-color: #0a0f1c;
+  --ifm-background-surface-color: #0f1419;
+  --gradient-primary: linear-gradient(135deg, #1e5fc7 0%, #4e89e8 50%, #759fed 100%);
+  --gradient-hover: linear-gradient(135deg, #4e89e8 0%, #6296ea 50%, #9bb5f2 100%);
 }
 
+/* Enhanced feature lists */
 ul.features {
-    list-style: none; /* remove default bullet points */
+  list-style: none;
+  padding-left: 0;
 }
 
 ul.features li::before {
-    content: "\2713"; /* unicode character for a check mark */
-    color: mediumpurple; /* color of check mark */
-    border: 2px solid green; /* color and thickness of circle border */
-    border-radius: 50%; /* make the square background into a circle */
-    display: inline-block; /* necessary to add padding and size */
-    width: 20px; /* size of circle */
-    height: 20px; /* size of circle */
-    text-align: center; /* center the check mark */
-    line-height: 20px; /* vertically center the check mark, should be the same as height */
-    margin-right: 10px; /* space between bullet and text */
-    background-color: transparent; /* color of circle */
+  content: "\2713";
+  color: var(--ifm-color-success);
+  border: 2px solid var(--ifm-color-success);
+  border-radius: 50%;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  text-align: center;
+  line-height: 16px;
+  margin-right: 10px;
+  background-color: transparent;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+/* GitHub icon in navbar */
+.header-github-link:hover {
+  opacity: 0.6;
+}
+
+.header-github-link:before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  display: flex;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E") no-repeat;
+}
+
+[data-theme='dark'] .header-github-link:before {
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='white' d='M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12'/%3E%3C/svg%3E") no-repeat;
+}
+
+/* Premium code blocks with enhanced styling */
+.prism-code {
+  font-size: var(--ifm-code-font-size);
+  border-radius: var(--ifm-code-border-radius);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 51, 173, 0.1);
+}
+
+[data-theme='dark'] .prism-code {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(78, 137, 232, 0.1);
+}
+
+code {
+  background: rgba(0, 51, 173, 0.08);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.3rem;
+  font-weight: 500;
+}
+
+[data-theme='dark'] code {
+  background: rgba(78, 137, 232, 0.15);
+}
+
+/* Enhanced copy button for code blocks */
+.clean-btn {
+  transition: all 0.2s ease;
+  background: rgba(0, 51, 173, 0.1) !important;
+  border: 1px solid rgba(0, 51, 173, 0.2) !important;
+  border-radius: 0.375rem !important;
+  padding: 0.5rem !important;
+}
+
+.clean-btn:hover {
+  transform: scale(1.05);
+  background: rgba(0, 51, 173, 0.2) !important;
+  border-color: var(--ifm-color-primary) !important;
+}
+
+[data-theme='dark'] .clean-btn {
+  background: rgba(78, 137, 232, 0.1) !important;
+  border: 1px solid rgba(78, 137, 232, 0.2) !important;
+}
+
+[data-theme='dark'] .clean-btn:hover {
+  background: rgba(78, 137, 232, 0.2) !important;
+  border-color: var(--ifm-color-primary) !important;
+}
+
+/* Copy button feedback */
+.clean-btn[aria-label*="Copied"] {
+  background: var(--ifm-color-success) !important;
+  border-color: var(--ifm-color-success) !important;
+  color: white !important;
+}
+
+/* Enhanced code block container */
+.theme-code-block {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.theme-code-block:hover .clean-btn {
+  opacity: 1;
+}
+
+/* Enhanced admonitions */
+.alert {
+  border-left: 4px solid;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.alert--tip {
+  border-left-color: var(--ifm-color-info);
+}
+
+.alert--warning {
+  border-left-color: var(--ifm-color-warning);
+}
+
+.alert--danger {
+  border-left-color: var(--ifm-color-danger);
+}
+
+.alert--note {
+  border-left-color: var(--ifm-color-secondary);
+}
+
+/* Enhanced table styling */
+table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+table th {
+  background-color: var(--ifm-color-primary);
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+}
+
+table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+table tr:nth-child(even) td {
+  background-color: var(--ifm-color-emphasis-100);
+}
+
+/* Premium navbar with glassmorphism */
+.navbar {
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 51, 173, 0.1);
+  transition: all 0.3s ease;
+}
+
+[data-theme='dark'] .navbar {
+  background: rgba(15, 20, 25, 0.8) !important;
+  border-bottom: 1px solid rgba(78, 137, 232, 0.1);
+}
+
+.navbar__title {
+  font-weight: 700;
+  font-size: 1.2rem;
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.navbar__link {
+  font-weight: 500;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.navbar__link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--gradient-primary);
+  transform: scaleX(0);
+  transition: transform 0.3s ease;
+}
+
+.navbar__link:hover::after {
+  transform: scaleX(1);
+}
+
+/* Enhanced sidebar */
+.menu__link {
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  color: var(--ifm-color-emphasis-800) !important; /* Darker text for better visibility */
+}
+
+.menu__link:hover {
+  background-color: var(--ifm-menu-color-background-hover);
+  transform: translateX(4px);
+  color: var(--ifm-color-primary) !important;
+}
+
+.menu__link--active {
+  background-color: var(--ifm-color-primary);
+  color: white !important;
+}
+
+/* Improve sidebar category labels */
+.menu__list-item-collapsible > .menu__link {
+  font-weight: 600;
+  color: var(--ifm-color-emphasis-900) !important;
+}
+
+/* Remove background from dropdown arrows in sidebar */
+.menu__list-item-collapsible .menu__caret::before {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.menu__list-item-collapsible .menu__caret {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Style the arrow itself */
+.menu__caret svg {
+  color: var(--ifm-color-emphasis-600) !important;
+  transition: color 0.2s ease;
+}
+
+.menu__list-item-collapsible:hover .menu__caret svg {
+  color: var(--ifm-color-primary) !important;
+}
+
+/* Ensure nested menu items are visible */
+.menu__list .menu__list .menu__link {
+  color: var(--ifm-color-emphasis-700) !important;
+  padding-left: 1.5rem;
+}
+
+.menu__list .menu__list .menu__link:hover {
+  color: var(--ifm-color-primary) !important;
+}
+
+/* Enhanced pagination */
+.pagination-nav {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.pagination-nav__link {
+  border-radius: 0.5rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  transition: all 0.2s ease;
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 2px 8px rgba(0, 51, 173, 0.1);
+}
+
+/* Enhanced breadcrumbs */
+.breadcrumbs {
+  margin-bottom: 1rem;
+}
+
+.breadcrumbs__item:not(:last-child):after {
+  content: '›';
+  margin: 0 0.5rem;
+  color: var(--ifm-color-emphasis-300);
+}
+
+/* Enhanced TOC with modern typography */
+.table-of-contents {
+  border-left: 3px solid var(--ifm-color-primary);
+  padding-left: 1rem;
+  font-size: 0.875rem;
+}
+
+.table-of-contents__link {
+  color: var(--ifm-color-emphasis-700);
+  transition: color 0.2s ease;
+  line-height: 1.5;
+  padding: 0.25rem 0;
+}
+
+.table-of-contents__link:hover {
+  color: var(--ifm-color-primary);
+}
+
+.table-of-contents__link--active {
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+}
+
+/* TOC nesting */
+.table-of-contents ul ul .table-of-contents__link {
+  font-size: 0.825rem;
+}
+
+/* Enhanced search */
+.DocSearch-Button {
+  border-radius: 0.5rem !important;
+  border: 1px solid var(--ifm-color-emphasis-200) !important;
+  transition: all 0.2s ease !important;
+}
+
+.DocSearch-Button:hover {
+  border-color: var(--ifm-color-primary) !important;
+  box-shadow: 0 2px 8px rgba(0, 51, 173, 0.1) !important;
+}
+
+/* Responsive enhancements */
+@media (max-width: 768px) {
+  .navbar__title {
+    display: none;
+  }
+  
+  .menu__link:hover {
+    transform: none;
+  }
+}
+
+/* Enhanced heading spacing for documentation pages */
+.markdown h1, .markdown h2, .markdown h3, .markdown h4, .markdown h5, .markdown h6 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  line-height: 1.3;
+}
+
+.markdown h1 {
+  margin-top: 0; /* No top margin for page titles */
+  margin-bottom: 1.5rem;
+  font-size: 2.25rem;
+}
+
+.markdown h2 {
+  margin-top: 2.5rem; /* Extra space before major sections */
+  margin-bottom: 1.25rem;
+  font-size: 1.875rem;
+  padding-top: 0.5rem; /* Additional padding for better spacing */
+}
+
+.markdown h3 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  padding-top: 0.25rem;
+}
+
+.markdown h4 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.875rem;
+  font-size: 1.25rem;
+}
+
+.markdown h5 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.125rem;
+}
+
+.markdown h6 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.625rem;
+  font-size: 1rem;
+}
+
+/* Ensure first element after a heading has proper spacing */
+.markdown h1 + *, 
+.markdown h2 + *, 
+.markdown h3 + *, 
+.markdown h4 + *, 
+.markdown h5 + *, 
+.markdown h6 + * {
+  margin-top: 0;
+}
+
+/* Add extra spacing when headers follow other content */
+.markdown * + h1 {
+  margin-top: 2.5rem;
+}
+
+.markdown * + h2 {
+  margin-top: 3rem;
+  padding-top: 0.5rem;
+}
+
+.markdown * + h3 {
+  margin-top: 2.5rem;
+  padding-top: 0.25rem;
+}
+
+.markdown * + h4 {
+  margin-top: 2rem;
+}
+
+.markdown * + h5 {
+  margin-top: 1.75rem;
+}
+
+.markdown * + h6 {
+  margin-top: 1.5rem;
+}
+
+/* Special case: headers immediately after lists need more space */
+.markdown ul + h1,
+.markdown ul + h2,
+.markdown ul + h3,
+.markdown ul + h4,
+.markdown ul + h5,
+.markdown ul + h6,
+.markdown ol + h1,
+.markdown ol + h2,
+.markdown ol + h3,
+.markdown ol + h4,
+.markdown ol + h5,
+.markdown ol + h6 {
+  margin-top: 3rem;
+}
+
+/* Modern documentation typography */
+.markdown {
+  font-size: 0.95rem; /* Slightly smaller for modern look */
+  line-height: 1.75;
+}
+
+.markdown p {
+  margin-bottom: 1.25rem;
+  font-size: 0.95rem;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.markdown strong {
+  font-weight: 600;
+  color: var(--ifm-color-emphasis-900);
+}
+
+.markdown em {
+  font-style: italic;
+}
+
+.markdown code {
+  font-size: 0.875rem;
+}
+
+/* Adjust font sizes for different screen sizes */
+@media (min-width: 1440px) {
+  .markdown {
+    font-size: 1rem;
+  }
+  
+  .markdown p {
+    font-size: 1rem;
+  }
+}
+
+/* Enhanced list spacing with modern typography */
+.markdown ul, 
+.markdown ol {
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.markdown li {
+  margin-bottom: 0.5rem;
+  line-height: 1.8;
+}
+
+.markdown li > p {
+  margin-bottom: 0.5rem;
+}
+
+.markdown li > ul,
+.markdown li > ol {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Nested lists */
+.markdown ul ul,
+.markdown ol ol,
+.markdown ul ol,
+.markdown ol ul {
+  font-size: 0.925rem;
+}
+
+/* Enhanced section spacing */
+.markdown > * + * {
+  margin-top: 1.25rem;
+}
+
+/* Special spacing for content blocks */
+.markdown blockquote {
+  font-size: 0.95rem;
+  margin: 1.5rem 0;
+  padding: 1rem 1.5rem;
+  border-left: 4px solid var(--ifm-color-primary);
+  background: var(--ifm-color-emphasis-100);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.markdown blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* Code blocks in documentation */
+.markdown pre {
+  font-size: 0.875rem;
+  margin: 1.5rem 0;
+}
+
+/* Tables in documentation */
+.markdown table {
+  font-size: 0.925rem;
+  margin: 2rem 0;
+}
+
+.markdown th,
+.markdown td {
+  padding: 0.625rem 1rem;
+}
+
+/* Alert boxes */
+.markdown .alert {
+  font-size: 0.925rem;
+  margin: 1.5rem 0;
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ifm-background-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ifm-color-primary);
+  border-radius: 6px;
+  border: 3px solid var(--ifm-background-color);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ifm-color-primary-dark);
+}
+
+/* Page transitions */
+.main-wrapper {
+  animation: pageLoad 0.5s ease-out;
+}
+
+@keyframes pageLoad {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced buttons globally */
+.button {
+  font-weight: 600;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.button:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.button--primary {
+  background: var(--gradient-primary);
+  border: none;
+  color: white;
+}
+
+.button--primary:hover {
+  background: var(--gradient-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 51, 173, 0.3);
+}
+
+/* Enhanced Java syntax highlighting */
+.token.keyword {
+  color: #0033ad !important;
+  font-weight: 600;
+}
+
+.token.class-name {
+  color: #00796b !important;
+}
+
+.token.function {
+  color: #d32f2f !important;
+}
+
+.token.string {
+  color: #388e3c !important;
+}
+
+.token.comment {
+  color: #757575 !important;
+  font-style: italic;
+}
+
+.token.annotation {
+  color: #ff6f00 !important;
+}
+
+.token.number {
+  color: #1976d2 !important;
+}
+
+[data-theme='dark'] .token.keyword {
+  color: #759fed !important;
+}
+
+[data-theme='dark'] .token.class-name {
+  color: #4dd0e1 !important;
+}
+
+[data-theme='dark'] .token.function {
+  color: #ff8a80 !important;
+}
+
+[data-theme='dark'] .token.string {
+  color: #69f0ae !important;
+}
+
+[data-theme='dark'] .token.comment {
+  color: #b0bec5 !important;
+}
+
+[data-theme='dark'] .token.annotation {
+  color: #ffab40 !important;
+}
+
+/* Highlighted lines */
+.code-block-success-line {
+  background-color: rgba(40, 167, 69, 0.1);
+  border-left: 3px solid var(--ifm-color-success);
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+}
+
+.code-block-error-line {
+  background-color: rgba(220, 53, 69, 0.1);
+  border-left: 3px solid var(--ifm-color-danger);
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+}
+
+/* Line numbers for code blocks */
+.prism-code {
+  counter-reset: line-number;
+}
+
+.prism-code .token-line::before {
+  counter-increment: line-number;
+  content: counter(line-number);
+  margin-right: 1rem;
+  color: var(--ifm-color-emphasis-500);
+  font-size: 0.75rem;
+  display: inline-block;
+  width: 2rem;
+  text-align: right;
+  user-select: none;
+}
+
+/* Feedback widget */
+.feedback-widget {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 999;
+}
+
+.feedback-button {
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 51, 173, 0.3);
+  transition: all 0.3s ease;
+}
+
+.feedback-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 30px rgba(0, 51, 173, 0.4);
+}
+
+/* Print styles */
+@media print {
+  .navbar,
+  .menu,
+  .table-of-contents,
+  .pagination-nav,
+  .edit-page-link,
+  .clean-btn {
+    display: none !important;
+  }
+  
+  .main-wrapper {
+    margin-left: 0 !important;
+  }
 }
 

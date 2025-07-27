@@ -1,11 +1,22 @@
-//Mainnet account from mnemonic
-Account mainnetAccount = new Account(mnemonic);
+// Create mainnet account from mnemonic
+String mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+Account mainnetAccount = new Account(Networks.mainnet(), mnemonic);
 
-//Testnet account from mnemonic
-Account testnetAccount = new Account(Networks.testnet(), mnemonic)
+// Create testnet account from mnemonic
+Account testnetAccount = new Account(Networks.testnet(), mnemonic);
 
-//New mainnet account
-Account mainnetAccount = new Account()
+// Generate new mainnet account with random mnemonic
+Account newMainnetAccount = new Account(Networks.mainnet());
 
-//New testnet account
-Account testnetAccount = new Account(Networks.testnet())
+// Generate new testnet account with random mnemonic
+Account newTestnetAccount = new Account(Networks.testnet());
+
+// Get account addresses
+String baseAddress = mainnetAccount.baseAddress();
+String stakeAddress = mainnetAccount.stakeAddress();
+String enterpriseAddress = mainnetAccount.enterpriseAddress();
+
+// Access account keys
+String mnemonic = mainnetAccount.mnemonic();
+String privateKey = mainnetAccount.privateKeyHex();
+String publicKey = mainnetAccount.publicKeyHex();

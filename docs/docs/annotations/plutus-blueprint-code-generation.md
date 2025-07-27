@@ -44,8 +44,8 @@ src
           |- hello_world_plutus.json
 ```
 
-<details><summary>Click here to view the Hello World Plutus Blueprint file</summary>
-
+<details>
+<summary>Click here to view the Hello World Plutus Blueprint file</summary>
 
 #### Hello World Plutus Blueprint JSON
 
@@ -123,7 +123,8 @@ src
 
 </details>
 
-<details> <summary>Click here to view the Aiken file for the above Plutus Blueprint</summary>
+<details>
+<summary>Click here to view the Aiken file for the above Plutus Blueprint</summary>
 
 ```rust
 use aiken/hash.{Blake2b_224, Hash}
@@ -205,7 +206,8 @@ The generated validator class includes the following methods by default:
 - `getScriptAddress()`: Returns the address of the validator script.
 - `getPlutusScript()`: Returns the `PlutusScript` object from the compiled code.
 
-<details><summary>Click here to view <b>HelloWorldValidator.java</b></summary>
+<details>
+<summary>Click here to view <b>HelloWorldValidator.java</b></summary>
 
 ```java
 public class HelloWorldValidator {
@@ -260,7 +262,8 @@ public class HelloWorldValidator {
 
 The generator creates a Datum class for each Datum in the blueprint JSON file. The Datum class contains the fields defined in the Datum schema and is abstract.
 
-<details><summary>Click here to view <b>Datum.java</b></summary>
+<details>
+<summary>Click here to view <b>Datum.java</b></summary>
 
 
 ```java
@@ -291,7 +294,8 @@ public abstract class Datum implements Data<Datum> {
 
 The generator creates a Redeemer class for each Redeemer in the blueprint JSON file. The Redeemer class contains the fields defined in the Redeemer schema and is abstract.
 
-<details><summary>Click here to view <b>Redeemer.java</b></summary>
+<details>
+<summary>Click here to view <b>Redeemer.java</b></summary>
 
 
 ```java
@@ -322,7 +326,8 @@ public abstract class Redeemer implements Data<Redeemer> {
 
 A `DatumData` class is generated for each Datum class. This class extends the abstract Datum class and provides utility methods to serialize and deserialize the data.
 
-<details><summary>Click here to view <b>DatumData.java</b></summary>
+<details>
+<summary>Click here to view <b>DatumData.java</b></summary>
 
 ```java 
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
@@ -367,7 +372,8 @@ public class DatumData extends Datum implements Data<Datum> {
 
 A `RedeemerData` class is generated for each Redeemer class. This class extends the abstract Redeemer class and provides utility methods to serialize and deserialize the data.
 
-<details><summary>Click here to view <b>RedeemerData.java</b></summary>
+<details>
+<summary>Click here to view <b>RedeemerData.java</b></summary>
 
 ```java 
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
@@ -413,7 +419,8 @@ public class RedeemerData extends Redeemer implements Data<Redeemer> {
 A `DatumConverter` class is generated for each Datum class. This class provides utility methods to serialize and deserialize the data.
 Typically, you don't need to use converter classes directly as the `DatumData` class offers these utility methods.
 
-<details><summary>Click here to view <b>DatumConverter.java</b></summary>
+<details>
+<summary>Click here to view <b>DatumConverter.java</b></summary>
 
 ```java 
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
@@ -494,7 +501,8 @@ public class DatumConverter extends BasePlutusDataConverter {
 A `RedeemerConverter` class is generated for each Redeemer class. This class provides utility methods to serialize and deserialize the data. 
 Typically, you don't need to use converter classes directly as the `RedeemerData` class offers these utility methods.
 
-<details><summary>Click here to view <b>RedeemerConverter.java</b></summary>
+<details>
+<summary>Click here to view <b>RedeemerConverter.java</b></summary>
 
 ```java 
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
@@ -627,7 +635,8 @@ You can now use the extended validator class to lock, unlock, mint tokens, and c
 
 Here's an example of using the extended validator class to lock and unlock the validator script. First, a reference output is created with the `deploy` method, and then the `lock` and `unlock` methods are used to lock and unlock the validator script.
 
-<details><summary>Click here to see how to lock and unlock using <b>HelloWorldValidator</b></summary>
+<details>
+<summary>Click here to see how to lock and unlock using <b>HelloWorldValidator</b></summary>
 
 ```java
 import com.bloxbean.cardano.client.account.Account;

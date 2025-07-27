@@ -1,0 +1,8 @@
+{
+  "label": "Composable Functions",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "Functional approach to transaction building with reusable components."
+  }
+}

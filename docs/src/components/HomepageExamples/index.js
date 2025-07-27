@@ -2,6 +2,9 @@ import React from 'react';
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CodeBlock from '@theme/CodeBlock';
+import clsx from 'clsx';
+import styles from './styles.module.css';
+
 import BackendService from '!!raw-loader!./code/backend_service.java';
 import AccountService from '!!raw-loader!./code/account.java';
 import SimplePayment from '!!raw-loader!./code/simple_payment.java';
@@ -102,7 +105,6 @@ const cfExamples = [
     {
         title: "Simple Payments",
         src: CFSimplePayments,
-
         features: [
             "Define outputs",
             "Compose outputs using TxBuilder and out-of-box Composable Functions",
@@ -113,7 +115,6 @@ const cfExamples = [
     {
         title: "Submit Transaction",
         src: CFSubmitTx,
-
         features: [
             "Get TransactionService from BackendService or create your own TransactionProcessor",
             "Submit transaction to blockchain"
@@ -122,7 +123,6 @@ const cfExamples = [
     {
         title: "Mint Tokens",
         src: CFMintToken,
-
         features: [
             "Create a policy",
             "Define multi-asset",
@@ -137,72 +137,61 @@ const cfExamples = [
 
 export default function HomepageExamples() {
     return (
-        <div className="container margin-top--lg">
-            <Tabs>
-                <TabItem value="Key APIs" title="Provider / Account">
-                    {/*<div className="margin-top--lg text--center"><h1>Provider / Account APIs</h1></div>*/}
-
-                    <HomepageExample examples={common_examples}/>
-                </TabItem>
-
-                <TabItem value="QuickTx" title="QuickTx">
-                    {/*<div className="margin-top--lg text--center"><h1>QuickTx</h1></div>*/}
-                    <div className="alert alert--success" role="alert">
-                        Simple <strong>declarative</strong> api to build and submit transactions.
-                        <br/>
-                    </div>
-                    <HomepageExample examples={quickTxExamples}/>
-                </TabItem>
-                <TabItem value="Composable Functions" title="Composable Functions">
-                    {/*<div className="margin-top--lg text--center"><h1>Composable Functions</h1></div>*/}
-                    <div className="alert alert--success" role="alert">
-                        A flexible way to build transactions using out-of-box <strong>composable functions</strong> and
-                        with
-                        your own <strong>custom functions</strong>.
-                    </div>
-                    <HomepageExample examples={cfExamples}/>
-                </TabItem>
-            </Tabs>
-            {/*<HomepageExample examples={examples}/>*/}
-        </div>
+        <section className={styles.examplesSection}>
+            <div className="container">
+                <div className="text--center margin-bottom--xl">
+                    <h2 className="hero__title">Code Examples</h2>
+                    <p className="hero__subtitle">See how easy it is to build on Cardano with our Java library</p>
+                </div>
+                <div className={styles.tabsContainer}>
+                    <Tabs>
+                        <TabItem value="Key APIs" label="Provider / Account">
+                            <HomepageExample examples={common_examples}/>
+                        </TabItem>
+                        <TabItem value="QuickTx" label="QuickTx">
+                            <div className={styles.alertBox}>
+                                Simple <strong>declarative</strong> API to build and submit transactions
+                            </div>
+                            <HomepageExample examples={quickTxExamples}/>
+                        </TabItem>
+                        <TabItem value="Composable Functions" label="Composable Functions">
+                            <div className={styles.alertBox}>
+                                A flexible way to build transactions using out-of-box <strong>composable functions</strong> and
+                                your own <strong>custom functions</strong>
+                            </div>
+                            <HomepageExample examples={cfExamples}/>
+                        </TabItem>
+                    </Tabs>
+                </div>
+            </div>
+        </section>
     )
 }
 
 function HomepageExample(props) {
     return (
-        <div className="container margin-top--lg">
+        <div className={styles.examplesContainer}>
             {props.examples.map((example, index) => (
-                <div className="container margin-top--lg">
-                    <div className="row">
-                        <div className="col">
-                            <h3>{example.title}</h3>
+                <div key={index} className={styles.exampleCard}>
+                    <h3 className={styles.exampleTitle}>
+                        {example.title}
+                    </h3>
+                    <div className={styles.exampleContent}>
+                        <div className={styles.codeSection}>
+                            <CodeBlock language="java">{example.src}</CodeBlock>
                         </div>
-                    </div>
-                    <div className="row">
-                        <div className="col">
-                            <div className="col-demo">
-                                {renderItem(example)}
-                            </div>
-                        </div>
-                        <div className="col">
-                            <div className="col-demo">
-                                {example.features.map((feature) => (
-                                    <ul className="features">
-                                        {/*<IonIcon icon="arrow-forward-outline" />*/}
-                                        <li>{feature}</li>
-                                    </ul>))
-                                }
-                            </div>
+                        <div className={styles.featuresSection}>
+                            <ul className={styles.featuresList}>
+                                {example.features.map((feature, idx) => (
+                                    <li key={idx} className={styles.featureItem} style={{animationDelay: `${idx * 0.1}s`}}>
+                                        {feature}
+                                    </li>
+                                ))}
+                            </ul>
                         </div>
                     </div>
                 </div>
             ))}
         </div>
-    );
-}
-
-function renderItem(example) {
-    return (
-        <CodeBlock language="java">{example.src}</CodeBlock>
     );
 }

@@ -1,0 +1,8 @@
+{
+  "label": "Contract Interactions",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Patterns for interacting with smart contracts."
+  }
+}

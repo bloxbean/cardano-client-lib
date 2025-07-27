@@ -1,0 +1,8 @@
+{
+  "label": "DeFi Patterns",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Decentralized finance patterns and implementations."
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "label": "Security",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Security best practices and considerations."
+  }
+}

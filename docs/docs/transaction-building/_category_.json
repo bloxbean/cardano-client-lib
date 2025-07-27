@@ -1,0 +1,8 @@
+{
+  "label": "Transaction Building",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Different approaches to building and submitting transactions."
+  }
+}

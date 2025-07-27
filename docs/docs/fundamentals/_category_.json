@@ -1,0 +1,8 @@
+{
+  "label": "Fundamentals",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Core concepts and building blocks of Cardano Client Lib."
+  }
+}

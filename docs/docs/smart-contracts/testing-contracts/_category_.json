@@ -1,0 +1,8 @@
+{
+  "label": "Testing Contracts",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Testing strategies for smart contract interactions."
+  }
+}

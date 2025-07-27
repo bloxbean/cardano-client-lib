@@ -1,0 +1,8 @@
+{
+  "label": "Best Practices",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "description": "Production guidelines and optimization strategies."
+  }
+}

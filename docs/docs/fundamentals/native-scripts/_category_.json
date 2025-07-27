@@ -1,0 +1,8 @@
+{
+  "label": "Native Scripts",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Multi-signature and time-locked transaction patterns."
+  }
+}

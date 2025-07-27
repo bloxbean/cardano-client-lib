@@ -1,0 +1,8 @@
+{
+  "label": "Accounts & Addresses",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "description": "HD wallets, address types, and account management."
+  }
+}

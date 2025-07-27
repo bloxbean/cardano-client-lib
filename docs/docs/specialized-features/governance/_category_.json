@@ -1,0 +1,8 @@
+{
+  "label": "Governance",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "description": "Conway-era governance operations and participation."
+  }
+}

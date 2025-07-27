@@ -1,0 +1,8 @@
+{
+  "label": "NFT Operations",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "NFT minting, metadata, and marketplace operations."
+  }
+}
