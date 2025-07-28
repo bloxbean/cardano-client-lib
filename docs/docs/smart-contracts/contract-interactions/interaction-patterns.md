@@ -944,4 +944,784 @@ public class OrderProcessingStateMachine extends StateMachineContract {
 }
 ```
 
+## Validator Chaining Patterns
+
+Validator chaining enables sophisticated cross-contract interactions where multiple validators work together to implement complex business logic.
+
+### Basic Validator Chaining
+
+```java
+// Datum for validator that references another validator
+@Constr(alternative = 0)
+public class ChainedValidatorDatum implements Data<ChainedValidatorDatum> {
+    @PlutusField(order = 0)
+    private byte[] nextValidator;       // Address of next validator in chain
+    
+    @PlutusField(order = 1)
+    private byte[] requiredValidator;   // Required previous validator
+    
+    @PlutusField(order = 2)
+    private BigInteger sequenceNumber;  // Position in chain
+    
+    @PlutusField(order = 3)
+    private Map<byte[], PlutusData> chainData; // Data passed through chain
+}
+
+@Constr(alternative = 0)
+public class ChainRedeemer implements Data<ChainRedeemer> {
+    @PlutusField(order = 0)
+    private byte[] previousOutput;      // Reference to previous validator output
+    
+    @PlutusField(order = 1)
+    private byte[] nextInput;          // Data for next validator
+    
+    @PlutusField(order = 2)
+    private BigInteger action;         // Chain action type
+}
+
+public class ValidatorChainContract {
+    private final Map<String, PlutusV2Script> validators;
+    private final QuickTxBuilder txBuilder;
+    
+    public ValidatorChainContract(Map<String, PlutusV2Script> validators, QuickTxBuilder builder) {
+        this.validators = validators;
+        this.txBuilder = builder;
+    }
+    
+    public Result<String> initiateChain(Account initiator, String firstValidatorName, 
+                                       Map<String, PlutusData> initialData, Amount chainValue) {
+        PlutusV2Script firstValidator = validators.get(firstValidatorName);
+        String firstAddress = AddressUtil.getEnterprise(firstValidator, Networks.testnet()).toBech32();
+        
+        ChainedValidatorDatum initialDatum = new ChainedValidatorDatum();
+        initialDatum.setNextValidator(getValidatorAddress("validator2").getBytes());
+        initialDatum.setRequiredValidator(new byte[0]); // No previous validator
+        initialDatum.setSequenceNumber(BigInteger.ZERO);
+        initialDatum.setChainData(convertToPlutusData(initialData));
+        
+        Tx initTx = new Tx()
+            .payTo(firstAddress, chainValue)
+            .attachDatum(initialDatum.toPlutusData())
+            .from(initiator.baseAddress());
+            
+        return txBuilder.compose(initTx)
+            .withSigner(SignerProviders.signerFrom(initiator))
+            .completeAndSubmit();
+    }
+    
+    public Result<String> executeChainStep(String currentValidatorName, ChainedValidatorDatum currentDatum,
+                                         String nextValidatorName, Map<String, PlutusData> processedData,
+                                         Account executor) {
+        PlutusV2Script currentValidator = validators.get(currentValidatorName);
+        PlutusV2Script nextValidator = validators.get(nextValidatorName);
+        
+        String currentAddress = AddressUtil.getEnterprise(currentValidator, Networks.testnet()).toBech32();
+        String nextAddress = AddressUtil.getEnterprise(nextValidator, Networks.testnet()).toBech32();
+        
+        // Find current UTXO
+        Utxo currentUtxo = findChainUtxo(currentAddress, currentDatum);
+        
+        // Create redeemer for current validator
+        ChainRedeemer redeemer = new ChainRedeemer();
+        redeemer.setPreviousOutput(currentUtxo.getTxHash().getBytes());
+        redeemer.setNextInput(serializeProcessedData(processedData));
+        redeemer.setAction(BigInteger.ONE); // Continue chain
+        
+        // Create datum for next validator
+        ChainedValidatorDatum nextDatum = new ChainedValidatorDatum();
+        nextDatum.setNextValidator(getValidatorAddress("validator3").getBytes());
+        nextDatum.setRequiredValidator(currentAddress.getBytes());
+        nextDatum.setSequenceNumber(currentDatum.getSequenceNumber().add(BigInteger.ONE));
+        nextDatum.setChainData(processedData);
+        
+        ScriptTx chainTx = new ScriptTx()
+            .collectFrom(currentUtxo, redeemer.toPlutusData())
+            .payTo(nextAddress, extractValue(currentUtxo))
+            .attachDatum(nextDatum.toPlutusData())
+            .attachSpendingValidator(currentValidator)
+            .withRequiredSigners(executor.getBaseAddress());
+            
+        return txBuilder.compose(chainTx)
+            .withSigner(SignerProviders.signerFrom(executor))
+            .withTxEvaluator()
+            .completeAndSubmit();
+    }
+    
+    public Result<String> finalizeChain(String finalValidatorName, ChainedValidatorDatum finalDatum,
+                                      String recipientAddress, Account executor) {
+        PlutusV2Script finalValidator = validators.get(finalValidatorName);
+        String finalAddress = AddressUtil.getEnterprise(finalValidator, Networks.testnet()).toBech32();
+        
+        Utxo finalUtxo = findChainUtxo(finalAddress, finalDatum);
+        
+        ChainRedeemer finalRedeemer = new ChainRedeemer();
+        finalRedeemer.setPreviousOutput(finalUtxo.getTxHash().getBytes());
+        finalRedeemer.setNextInput(new byte[0]); // No next validator
+        finalRedeemer.setAction(BigInteger.valueOf(2)); // Finalize chain
+        
+        ScriptTx finalizeTx = new ScriptTx()
+            .collectFrom(finalUtxo, finalRedeemer.toPlutusData())
+            .payTo(recipientAddress, extractValue(finalUtxo))
+            .attachSpendingValidator(finalValidator)
+            .withRequiredSigners(executor.getBaseAddress());
+            
+        return txBuilder.compose(finalizeTx)
+            .withSigner(SignerProviders.signerFrom(executor))
+            .withTxEvaluator()
+            .completeAndSubmit();
+    }
+    
+    private Utxo findChainUtxo(String address, ChainedValidatorDatum datum) {
+        return txBuilder.getUtxoSupplier().getUtxos(address).stream()
+            .filter(utxo -> matchesChainDatum(utxo, datum))
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Chain UTXO not found"));
+    }
+    
+    private boolean matchesChainDatum(Utxo utxo, ChainedValidatorDatum expected) {
+        if (utxo.getInlineDatum() != null) {
+            try {
+                ChainedValidatorDatum actual = ChainedValidatorDatum.fromPlutusData(
+                    (ConstrPlutusData) utxo.getInlineDatum()
+                );
+                return actual.getSequenceNumber().equals(expected.getSequenceNumber());
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        return false;
+    }
+}
+```
+
+### Advanced Validator Chaining: Multi-Path Workflow
+
+```java
+// Workflow with conditional branching
+@Constr(alternative = 0)
+public class WorkflowDatum implements Data<WorkflowDatum> {
+    @PlutusField(order = 0)
+    private byte[] workflowId;
+    
+    @PlutusField(order = 1)
+    private BigInteger currentStep;
+    
+    @PlutusField(order = 2)
+    private Map<BigInteger, byte[]> stepValidators; // Step -> Validator mapping
+    
+    @PlutusField(order = 3)
+    private Map<byte[], PlutusData> workflowData;
+    
+    @PlutusField(order = 4)
+    private List<BigInteger> completedSteps;
+    
+    @PlutusField(order = 5)
+    private BigInteger branchCondition;  // Determines path through workflow
+}
+
+public class ConditionalWorkflowContract {
+    
+    public Result<String> executeConditionalStep(WorkflowDatum currentDatum, BigInteger decision,
+                                               Map<String, PlutusData> stepData, Account executor) {
+        // Determine next validator based on decision
+        byte[] nextValidatorAddress = determineNextValidator(currentDatum, decision);
+        
+        // Create transition based on workflow rules
+        if (requiresParallelExecution(currentDatum, decision)) {
+            return executeParallelBranches(currentDatum, stepData, executor);
+        } else {
+            return executeSingleBranch(currentDatum, nextValidatorAddress, stepData, executor);
+        }
+    }
+    
+    private Result<String> executeParallelBranches(WorkflowDatum datum, 
+                                                 Map<String, PlutusData> data, Account executor) {
+        // Split value across multiple validators for parallel execution
+        List<byte[]> parallelValidators = getParallelValidators(datum);
+        
+        ScriptTx parallelTx = new ScriptTx();
+        Amount totalValue = getWorkflowValue(datum);
+        Amount splitValue = Amount.ada(totalValue.getCoin().divide(BigInteger.valueOf(parallelValidators.size())));
+        
+        for (int i = 0; i < parallelValidators.size(); i++) {
+            WorkflowDatum branchDatum = createBranchDatum(datum, i, parallelValidators.get(i));
+            String branchAddress = AddressUtil.fromBytes(parallelValidators.get(i)).toBech32();
+            
+            parallelTx.payTo(branchAddress, splitValue)
+                     .attachDatum(branchDatum.toPlutusData());
+        }
+        
+        // Collect from current validator
+        Utxo currentUtxo = findWorkflowUtxo(datum);
+        parallelTx.collectFrom(currentUtxo, createBranchRedeemer(datum, parallelValidators));
+        
+        return txBuilder.compose(parallelTx)
+            .withSigner(SignerProviders.signerFrom(executor))
+            .withTxEvaluator()
+            .completeAndSubmit();
+    }
+    
+    private Result<String> mergeBranches(List<WorkflowDatum> branchDatums, 
+                                       byte[] mergeValidator, Account executor) {
+        ScriptTx mergeTx = new ScriptTx();
+        Amount totalValue = Amount.ada(0L);
+        
+        // Collect from all branches
+        for (WorkflowDatum branchDatum : branchDatums) {
+            Utxo branchUtxo = findWorkflowUtxo(branchDatum);
+            mergeTx.collectFrom(branchUtxo, createMergeRedeemer(branchDatum));
+            totalValue = totalValue.plus(extractValue(branchUtxo));
+        }
+        
+        // Create merged datum
+        WorkflowDatum mergedDatum = createMergedDatum(branchDatums);
+        String mergeAddress = AddressUtil.fromBytes(mergeValidator).toBech32();
+        
+        mergeTx.payTo(mergeAddress, totalValue)
+               .attachDatum(mergedDatum.toPlutusData());
+               
+        return txBuilder.compose(mergeTx)
+            .withSigner(SignerProviders.signerFrom(executor))
+            .withTxEvaluator()
+            .completeAndSubmit();
+    }
+}
+```
+
+### Cross-Contract Reference Pattern
+
+```java
+// Pattern for validators that reference each other's state
+@Constr(alternative = 0)
+public class ReferenceValidatorDatum implements Data<ReferenceValidatorDatum> {
+    @PlutusField(order = 0)
+    private byte[] validatorId;
+    
+    @PlutusField(order = 1)
+    private List<byte[]> referencedValidators;  // Other validators this depends on
+    
+    @PlutusField(order = 2)
+    private Map<byte[], byte[]> referenceData;  // Validator -> Required data hash
+    
+    @PlutusField(order = 3)
+    private BigInteger lastVerification;        // When references were last verified
+}
+
+public class CrossContractReferencePattern {
+    
+    public Result<String> executeWithReferences(ReferenceValidatorDatum datum, 
+                                              Map<String, PlutusData> executionData,
+                                              Account executor) {
+        // Verify all referenced validators have expected state
+        for (byte[] refValidator : datum.getReferencedValidators()) {
+            if (!verifyValidatorState(refValidator, datum.getReferenceData().get(refValidator))) {
+                throw new IllegalStateException("Referenced validator state invalid");
+            }
+        }
+        
+        // Build transaction that reads from reference validators
+        ScriptTx referenceTx = new ScriptTx();
+        
+        // Add reference inputs for state verification
+        for (byte[] refValidator : datum.getReferencedValidators()) {
+            Utxo refUtxo = findReferenceUtxo(refValidator);
+            referenceTx.readFrom(refUtxo); // Reference input - not consumed
+        }
+        
+        // Execute main validator logic
+        Utxo mainUtxo = findValidatorUtxo(datum.getValidatorId());
+        PlutusData updatedData = processWithReferences(datum, executionData);
+        
+        referenceTx.collectFrom(mainUtxo, createReferenceRedeemer(datum, executionData))
+                   .payTo(getValidatorAddress(datum.getValidatorId()), extractValue(mainUtxo))
+                   .attachDatum(updatedData)
+                   .withRequiredSigners(executor.getBaseAddress());
+                   
+        return txBuilder.compose(referenceTx)
+            .withSigner(SignerProviders.signerFrom(executor))
+            .withTxEvaluator()
+            .completeAndSubmit();
+    }
+    
+    private boolean verifyValidatorState(byte[] validatorAddress, byte[] expectedDataHash) {
+        String address = AddressUtil.fromBytes(validatorAddress).toBech32();
+        List<Utxo> utxos = txBuilder.getUtxoSupplier().getUtxos(address);
+        
+        return utxos.stream()
+            .anyMatch(utxo -> {
+                if (utxo.getInlineDatum() != null) {
+                    byte[] actualHash = Blake2bUtil.blake2bHash256(
+                        CborSerializationUtil.serialize(utxo.getInlineDatum())
+                    );
+                    return Arrays.equals(actualHash, expectedDataHash);
+                }
+                return false;
+            });
+    }
+}
+```
+
+## Oracle Integration Patterns
+
+Oracle integration allows smart contracts to consume external data securely and reliably.
+
+### Basic Oracle Pattern
+
+```java
+// Oracle datum structure
+@Constr(alternative = 0)
+public class OracleDatum implements Data<OracleDatum> {
+    @PlutusField(order = 0)
+    private byte[] oracleProvider;      // Oracle provider identifier
+    
+    @PlutusField(order = 1)
+    private Map<byte[], PlutusData> dataFeeds; // Feed name -> Current value
+    
+    @PlutusField(order = 2)
+    private BigInteger lastUpdate;      // Timestamp of last update
+    
+    @PlutusField(order = 3)
+    private BigInteger validityPeriod;  // How long data remains valid
+    
+    @PlutusField(order = 4)
+    private byte[] signature;           // Provider's signature
+}
+
+// Oracle consumer datum
+@Constr(alternative = 0) 
+public class OracleConsumerDatum implements Data<OracleConsumerDatum> {
+    @PlutusField(order = 0)
+    private byte[] requiredOracle;      // Oracle address to read from
+    
+    @PlutusField(order = 1)
+    private byte[] dataFeedKey;         // Which data feed to use
+    
+    @PlutusField(order = 2)
+    private BigInteger threshold;       // Threshold value for action
+    
+    @PlutusField(order = 3)
+    private BigInteger lastOracleValue; // Last read oracle value
+}
+
+public class OracleIntegrationContract {
+    private final PlutusV2Script oracleScript;
+    private final PlutusV2Script consumerScript;
+    private final QuickTxBuilder txBuilder;
+    
+    // Oracle provider operations
+    public Result<String> updateOracleData(Account oracleProvider, Map<String, PlutusData> newDataFeeds) {
+        String oracleAddress = AddressUtil.getEnterprise(oracleScript, Networks.testnet()).toBech32();
+        
+        // Find current oracle UTXO
+        Utxo currentOracleUtxo = findLatestOracleUtxo(oracleAddress);
+        OracleDatum currentDatum = null;
+        
+        if (currentOracleUtxo != null) {
+            currentDatum = OracleDatum.fromPlutusData((ConstrPlutusData) currentOracleUtxo.getInlineDatum());
+        }
+        
+        // Create updated oracle datum
+        OracleDatum newDatum = new OracleDatum();
+        newDatum.setOracleProvider(oracleProvider.getBaseAddress().getPaymentCredentialHash().orElseThrow());
+        newDatum.setDataFeeds(convertDataFeeds(newDataFeeds));
+        newDatum.setLastUpdate(BigInteger.valueOf(System.currentTimeMillis() / 1000));
+        newDatum.setValidityPeriod(BigInteger.valueOf(3600)); // 1 hour validity
+        newDatum.setSignature(signOracleData(oracleProvider, newDataFeeds));
+        
+        if (currentOracleUtxo == null) {
+            // Initial oracle deployment
+            Tx deployTx = new Tx()
+                .payTo(oracleAddress, Amount.ada(2.0))
+                .attachDatum(newDatum.toPlutusData())
+                .from(oracleProvider.baseAddress());
+                
+            return txBuilder.compose(deployTx)
+                .withSigner(SignerProviders.signerFrom(oracleProvider))
+                .completeAndSubmit();
+        } else {
+            // Update existing oracle
+            ScriptTx updateTx = new ScriptTx()
+                .collectFrom(currentOracleUtxo, createOracleUpdateRedeemer())
+                .payTo(oracleAddress, extractValue(currentOracleUtxo))
+                .attachDatum(newDatum.toPlutusData())
+                .attachSpendingValidator(oracleScript)
+                .withRequiredSigners(oracleProvider.getBaseAddress());
+                
+            return txBuilder.compose(updateTx)
+                .withSigner(SignerProviders.signerFrom(oracleProvider))
+                .withTxEvaluator()
+                .completeAndSubmit();
+        }
+    }
+    
+    // Consumer contract operations
+    public Result<String> executeWithOracleData(OracleConsumerDatum consumerDatum, Account executor) {
+        // Find oracle UTXO
+        String oracleAddress = AddressUtil.fromBytes(consumerDatum.getRequiredOracle()).toBech32();
+        Utxo oracleUtxo = findLatestOracleUtxo(oracleAddress);
+        
+        if (oracleUtxo == null) {
+            throw new RuntimeException("Oracle data not found");
+        }
+        
+        OracleDatum oracleDatum = OracleDatum.fromPlutusData((ConstrPlutusData) oracleUtxo.getInlineDatum());
+        
+        // Verify oracle data is still valid
+        long currentTime = System.currentTimeMillis() / 1000;
+        long dataAge = currentTime - oracleDatum.getLastUpdate().longValue();
+        
+        if (dataAge > oracleDatum.getValidityPeriod().longValue()) {
+            throw new IllegalStateException("Oracle data expired");
+        }
+        
+        // Extract required data feed value
+        PlutusData feedValue = oracleDatum.getDataFeeds().get(consumerDatum.getDataFeedKey());
+        if (feedValue == null) {
+            throw new IllegalArgumentException("Required data feed not found");
+        }
+        
+        BigInteger oracleValue = extractNumericValue(feedValue);
+        
+        // Check if threshold is met
+        if (oracleValue.compareTo(consumerDatum.getThreshold()) < 0) {
+            throw new IllegalStateException("Oracle value below threshold");
+        }
+        
+        // Find consumer UTXO
+        String consumerAddress = AddressUtil.getEnterprise(consumerScript, Networks.testnet()).toBech32();
+        Utxo consumerUtxo = findConsumerUtxo(consumerAddress, consumerDatum);
+        
+        // Create redeemer with oracle proof
+        PlutusData redeemer = createOracleConsumerRedeemer(oracleUtxo, oracleValue);
+        
+        // Execute consumer action
+        ScriptTx consumerTx = new ScriptTx()
+            .readFrom(oracleUtxo)  // Reference oracle UTXO without consuming
+            .collectFrom(consumerUtxo, redeemer)
+            .payTo(executor.baseAddress(), extractValue(consumerUtxo))
+            .attachSpendingValidator(consumerScript)
+            .withRequiredSigners(executor.getBaseAddress());
+            
+        return txBuilder.compose(consumerTx)
+            .withSigner(SignerProviders.signerFrom(executor))
+            .withTxEvaluator()
+            .completeAndSubmit();
+    }
+    
+    private byte[] signOracleData(Account provider, Map<String, PlutusData> dataFeeds) {
+        String dataString = dataFeeds.entrySet().stream()
+            .map(e -> e.getKey() + ":" + e.getValue().toString())
+            .collect(Collectors.joining(","));
+        return provider.sign(dataString.getBytes());
+    }
+    
+    private Utxo findLatestOracleUtxo(String oracleAddress) {
+        return txBuilder.getUtxoSupplier().getUtxos(oracleAddress).stream()
+            .filter(utxo -> utxo.getInlineDatum() != null)
+            .max(Comparator.comparing(utxo -> {
+                try {
+                    OracleDatum datum = OracleDatum.fromPlutusData((ConstrPlutusData) utxo.getInlineDatum());
+                    return datum.getLastUpdate();
+                } catch (Exception e) {
+                    return BigInteger.ZERO;
+                }
+            }))
+            .orElse(null);
+    }
+}
+```
+
+### Advanced Oracle Pattern: Multi-Oracle Aggregation
+
+```java
+// Aggregated oracle datum for consensus
+@Constr(alternative = 0)
+public class AggregatedOracleDatum implements Data<AggregatedOracleDatum> {
+    @PlutusField(order = 0)
+    private List<byte[]> oracleProviders;    // List of oracle addresses
+    
+    @PlutusField(order = 1)
+    private BigInteger requiredOracles;      // Minimum oracles for consensus
+    
+    @PlutusField(order = 2)
+    private byte[] dataFeedKey;             // Which feed to aggregate
+    
+    @PlutusField(order = 3)
+    private BigInteger aggregationType;      // 0=median, 1=average, 2=min, 3=max
+    
+    @PlutusField(order = 4)
+    private BigInteger lastAggregation;     // Last aggregation timestamp
+    
+    @PlutusField(order = 5)
+    private PlutusData aggregatedValue;     // Current aggregated value
+}
+
+public class MultiOracleAggregator {
+    
+    public Result<String> aggregateOracleData(AggregatedOracleDatum aggregationDatum, Account aggregator) {
+        List<OracleDataPoint> oracleData = new ArrayList<>();
+        
+        // Collect data from all oracles
+        for (byte[] oracleAddress : aggregationDatum.getOracleProviders()) {
+            String address = AddressUtil.fromBytes(oracleAddress).toBech32();
+            Utxo oracleUtxo = findLatestOracleUtxo(address);
+            
+            if (oracleUtxo != null) {
+                OracleDatum datum = OracleDatum.fromPlutusData((ConstrPlutusData) oracleUtxo.getInlineDatum());
+                PlutusData feedValue = datum.getDataFeeds().get(aggregationDatum.getDataFeedKey());
+                
+                if (feedValue != null && isOracleDataValid(datum)) {
+                    oracleData.add(new OracleDataPoint(oracleUtxo, datum, feedValue));
+                }
+            }
+        }
+        
+        // Check if we have enough oracles
+        if (oracleData.size() < aggregationDatum.getRequiredOracles().intValue()) {
+            throw new IllegalStateException("Insufficient valid oracle data");
+        }
+        
+        // Perform aggregation
+        PlutusData aggregatedValue = performAggregation(oracleData, aggregationDatum.getAggregationType());
+        
+        // Update aggregation contract
+        AggregatedOracleDatum newDatum = new AggregatedOracleDatum();
+        newDatum.setOracleProviders(aggregationDatum.getOracleProviders());
+        newDatum.setRequiredOracles(aggregationDatum.getRequiredOracles());
+        newDatum.setDataFeedKey(aggregationDatum.getDataFeedKey());
+        newDatum.setAggregationType(aggregationDatum.getAggregationType());
+        newDatum.setLastAggregation(BigInteger.valueOf(System.currentTimeMillis() / 1000));
+        newDatum.setAggregatedValue(aggregatedValue);
+        
+        // Build transaction with oracle references
+        ScriptTx aggregationTx = new ScriptTx();
+        
+        // Add all oracle UTXOs as reference inputs
+        for (OracleDataPoint dataPoint : oracleData) {
+            aggregationTx.readFrom(dataPoint.utxo);
+        }
+        
+        // Update aggregation UTXO
+        Utxo aggregationUtxo = findAggregationUtxo(aggregationDatum);
+        aggregationTx.collectFrom(aggregationUtxo, createAggregationRedeemer(oracleData))
+                     .payTo(getAggregatorAddress(), extractValue(aggregationUtxo))
+                     .attachDatum(newDatum.toPlutusData())
+                     .withRequiredSigners(aggregator.getBaseAddress());
+                     
+        return txBuilder.compose(aggregationTx)
+            .withSigner(SignerProviders.signerFrom(aggregator))
+            .withTxEvaluator()
+            .completeAndSubmit();
+    }
+    
+    private PlutusData performAggregation(List<OracleDataPoint> dataPoints, BigInteger aggregationType) {
+        List<BigInteger> values = dataPoints.stream()
+            .map(dp -> extractNumericValue(dp.value))
+            .sorted()
+            .collect(Collectors.toList());
+            
+        return switch (aggregationType.intValue()) {
+            case 0 -> BigIntPlutusData.of(calculateMedian(values));     // Median
+            case 1 -> BigIntPlutusData.of(calculateAverage(values));    // Average
+            case 2 -> BigIntPlutusData.of(values.get(0));              // Min
+            case 3 -> BigIntPlutusData.of(values.get(values.size()-1)); // Max
+            default -> throw new IllegalArgumentException("Invalid aggregation type");
+        };
+    }
+    
+    private BigInteger calculateMedian(List<BigInteger> sortedValues) {
+        int size = sortedValues.size();
+        if (size % 2 == 0) {
+            return sortedValues.get(size/2 - 1)
+                .add(sortedValues.get(size/2))
+                .divide(BigInteger.valueOf(2));
+        } else {
+            return sortedValues.get(size/2);
+        }
+    }
+    
+    private BigInteger calculateAverage(List<BigInteger> values) {
+        BigInteger sum = values.stream()
+            .reduce(BigInteger.ZERO, BigInteger::add);
+        return sum.divide(BigInteger.valueOf(values.size()));
+    }
+    
+    private boolean isOracleDataValid(OracleDatum datum) {
+        long currentTime = System.currentTimeMillis() / 1000;
+        long dataAge = currentTime - datum.getLastUpdate().longValue();
+        return dataAge <= datum.getValidityPeriod().longValue();
+    }
+    
+    private static class OracleDataPoint {
+        final Utxo utxo;
+        final OracleDatum datum;
+        final PlutusData value;
+        
+        OracleDataPoint(Utxo utxo, OracleDatum datum, PlutusData value) {
+            this.utxo = utxo;
+            this.datum = datum;
+            this.value = value;
+        }
+    }
+}
+```
+
+### Price Feed Oracle Pattern
+
+```java
+// Specialized price feed oracle
+@Constr(alternative = 0)
+public class PriceFeedDatum implements Data<PriceFeedDatum> {
+    @PlutusField(order = 0)
+    private byte[] feedProvider;
+    
+    @PlutusField(order = 1)
+    private Map<byte[], PriceData> priceFeeds; // Asset -> Price data
+    
+    @PlutusField(order = 2)
+    private BigInteger updateFrequency;        // Minimum seconds between updates
+    
+    @PlutusField(order = 3)
+    private BigInteger lastUpdate;
+}
+
+@Constr(alternative = 0)
+public class PriceData implements Data<PriceData> {
+    @PlutusField(order = 0)
+    private BigInteger price;           // Price in smallest unit
+    
+    @PlutusField(order = 1) 
+    private BigInteger decimals;        // Decimal places
+    
+    @PlutusField(order = 2)
+    private BigInteger confidence;      // Confidence interval
+    
+    @PlutusField(order = 3)
+    private BigInteger volume24h;       // 24h volume
+}
+
+public class PriceFeedOracle {
+    
+    public Result<String> executePriceBasedAction(String assetId, BigInteger targetPrice, 
+                                                 boolean isBuyOrder, Amount tradeAmount, Account trader) {
+        // Find price oracle
+        PriceFeedDatum priceFeed = findPriceFeed();
+        PriceData assetPrice = priceFeed.getPriceFeeds().get(assetId.getBytes());
+        
+        if (assetPrice == null) {
+            throw new IllegalArgumentException("Asset price not available");
+        }
+        
+        // Verify price conditions
+        BigInteger currentPrice = assetPrice.getPrice();
+        boolean priceConditionMet = isBuyOrder ? 
+            currentPrice.compareTo(targetPrice) <= 0 :  // Buy if price <= target
+            currentPrice.compareTo(targetPrice) >= 0;   // Sell if price >= target
+            
+        if (!priceConditionMet) {
+            throw new IllegalStateException("Price condition not met");
+        }
+        
+        // Execute trade with price proof
+        return executeTradeWithPriceProof(assetId, assetPrice, tradeAmount, trader);
+    }
+    
+    public Result<String> createConditionalOrder(String assetId, BigInteger triggerPrice,
+                                               boolean isBuyOrder, Amount orderAmount, 
+                                               long expirationHours, Account trader) {
+        ConditionalOrderDatum orderDatum = new ConditionalOrderDatum();
+        orderDatum.setTrader(trader.getBaseAddress().getPaymentCredentialHash().orElseThrow());
+        orderDatum.setAssetId(assetId.getBytes());
+        orderDatum.setTriggerPrice(triggerPrice);
+        orderDatum.setOrderType(isBuyOrder ? BigInteger.ZERO : BigInteger.ONE);
+        orderDatum.setOrderAmount(orderAmount.getCoin());
+        orderDatum.setExpiration(BigInteger.valueOf(System.currentTimeMillis() / 1000 + expirationHours * 3600));
+        orderDatum.setPriceOracle(getPriceOracleAddress().getBytes());
+        
+        String orderAddress = AddressUtil.getEnterprise(conditionalOrderScript, Networks.testnet()).toBech32();
+        
+        Tx orderTx = new Tx()
+            .payTo(orderAddress, orderAmount)
+            .attachDatum(orderDatum.toPlutusData())
+            .from(trader.baseAddress());
+            
+        return txBuilder.compose(orderTx)
+            .withSigner(SignerProviders.signerFrom(trader))
+            .completeAndSubmit();
+    }
+}
+```
+
+## Best Practices and Security Considerations
+
+### Validator Chaining Best Practices
+
+1. **State Verification**: Always verify the state of referenced validators before proceeding
+2. **Atomic Operations**: Ensure all validators in a chain execute atomically
+3. **Error Propagation**: Implement proper error handling across validator boundaries
+4. **Version Control**: Include version numbers in datum to handle upgrades
+
+### Oracle Integration Security
+
+1. **Data Freshness**: Always check oracle data timestamps and validity periods
+2. **Multiple Sources**: Use aggregated data from multiple oracles when possible
+3. **Signature Verification**: Verify oracle provider signatures
+4. **Fallback Mechanisms**: Implement fallbacks for oracle failures
+5. **Rate Limiting**: Prevent oracle data manipulation through update frequency limits
+
+### Performance Optimization
+
+1. **Reference Inputs**: Use reference inputs instead of consuming oracle UTXOs
+2. **Batch Operations**: Combine multiple validator interactions in single transactions
+3. **Data Compression**: Minimize datum size for chain efficiency
+4. **Caching Strategies**: Cache oracle data locally when appropriate
+
+### Testing Strategies
+
+```java
+@Test
+public void testValidatorChainExecution() {
+    // Test complete chain execution
+    ValidatorChainContract chain = new ValidatorChainContract(validators, txBuilder);
+    
+    // Initialize chain
+    Result<String> initResult = chain.initiateChain(account, "validator1", initialData, Amount.ada(10));
+    assertTrue(initResult.isSuccessful());
+    
+    // Execute chain steps
+    Result<String> step1Result = chain.executeChainStep("validator1", datum1, "validator2", processedData1, account);
+    assertTrue(step1Result.isSuccessful());
+    
+    Result<String> step2Result = chain.executeChainStep("validator2", datum2, "validator3", processedData2, account);
+    assertTrue(step2Result.isSuccessful());
+    
+    // Finalize chain
+    Result<String> finalResult = chain.finalizeChain("validator3", datum3, recipientAddress, account);
+    assertTrue(finalResult.isSuccessful());
+}
+
+@Test
+public void testOracleDataAggregation() {
+    // Test multi-oracle aggregation
+    MultiOracleAggregator aggregator = new MultiOracleAggregator();
+    
+    // Setup multiple oracle data points
+    List<byte[]> oracleAddresses = setupTestOracles(3);
+    
+    AggregatedOracleDatum aggregationDatum = new AggregatedOracleDatum();
+    aggregationDatum.setOracleProviders(oracleAddresses);
+    aggregationDatum.setRequiredOracles(BigInteger.valueOf(2));
+    aggregationDatum.setDataFeedKey("ADA/USD".getBytes());
+    aggregationDatum.setAggregationType(BigInteger.ZERO); // Median
+    
+    // Execute aggregation
+    Result<String> result = aggregator.aggregateOracleData(aggregationDatum, aggregatorAccount);
+    assertTrue(result.isSuccessful());
+    
+    // Verify aggregated value
+    PlutusData aggregatedValue = getAggregatedValue(result.getValue());
+    assertNotNull(aggregatedValue);
+}
+```
+
 This comprehensive guide provides the foundation for implementing sophisticated smart contract interaction patterns. The examples demonstrate real-world scenarios while maintaining security and efficiency best practices.
