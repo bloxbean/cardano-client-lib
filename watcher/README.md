@@ -186,103 +186,68 @@ This diagram shows how components interact during a multi-step transaction submi
 ```mermaid
 sequenceDiagram
     participant Client
-    participant WatchableQuickTxBuilder as WQTxBuilder
-    participant WatchableTxContext as WTxContext
-    participant WatchableStep as WStep
+    participant Builder as WatchableQuickTxBuilder
+    participant Step as WatchableStep
     participant Watcher
-    participant BasicWatchHandle as WatchHandle
-    participant ChainContext
-    participant ChainAwareUtxoSupplier as CAUtxoSupplier
-    participant BackendService as Backend
+    participant Handle as WatchHandle
+    participant Context as ChainContext
+    participant Supplier as ChainAwareUtxoSupplier
+    participant Backend as BackendService
 
-    Note over Client: BUILD PHASE - Create Transaction Steps
+    Note over Client,Backend: Phase 1 - Build Transaction Steps
     
-    Client->>WQTxBuilder: compose(tx1).withStepId("step1").watchable()
-    WQTxBuilder->>WTxContext: create context with tx1, stepId, dependencies=[]
-    WTxContext->>WStep: create WatchableStep(stepId="step1")
-    WStep-->>Client: step1 (no dependencies)
+    Client->>Builder: compose(tx1).withStepId("deposit").watchable()
+    Builder->>Step: create step1 (no dependencies)
+    Step-->>Client: return step1
     
-    Client->>WQTxBuilder: compose(tx2).fromStep("step1").withStepId("step2").watchable()
-    WQTxBuilder->>WTxContext: create context with tx2, stepId, dependencies=[step1]
-    WTxContext->>WStep: create WatchableStep(stepId="step2")
-    WStep-->>Client: step2 (depends on step1)
+    Client->>Builder: compose(tx2).fromStep("deposit").withStepId("withdraw").watchable()
+    Builder->>Step: create step2 (depends on deposit)
+    Step-->>Client: return step2
 
-    Note over Client: CHAIN PHASE - Build and Execute Chain
+    Note over Client,Backend: Phase 2 - Execute Chain
     
-    Client->>Watcher: build("chain1").step(step1).step(step2).watch()
-    Watcher->>ChainContext: create ChainContext(chainId="chain1")
-    Watcher->>WatchHandle: create BasicWatchHandle(chainId, stepCount=2)
-    Watcher->>Watcher: start async execution thread
+    Client->>Watcher: build("chain").step(step1).step(step2).watch()
+    Watcher->>Context: create ChainContext
+    Watcher->>Handle: create WatchHandle
     
-    Note over Watcher: ASYNC EXECUTION PHASE
+    Note over Watcher,Backend: Phase 3 - Async Step Execution
     
-    loop For each step in sequence
-        Note over Watcher,Backend: Step Execution begins
+    loop Each step in sequence
+        Watcher->>Step: execute(chainContext)
+        Step->>Step: validateDependencies()
         
-        Watcher->>WStep: execute(chainContext)
-        WStep->>WStep: validateDependencies(chainContext)
-        
-        alt Step has dependencies
-            WStep->>ChainContext: check if dependency steps completed
-            ChainContext-->>WStep: dependency status
-            
-            alt Dependencies not ready
-                WStep-->>Watcher: throw UtxoDependencyException
-            end
+        alt Has dependencies
+            Step->>Supplier: create ChainAwareUtxoSupplier
+            Supplier->>Context: getStepOutputs(previousStep)
+            Context-->>Supplier: previous step UTXOs
+            Supplier->>Backend: getUtxos() for base UTXOs
+            Supplier-->>Step: merged UTXOs (base + chain)
+        else No dependencies
+            Step->>Backend: use default UtxoSupplier
         end
         
-        Note over WStep,Backend: UTXO Resolution & Transaction Building
+        Step->>Backend: build and submit transaction
+        Backend-->>Step: transaction result
         
-        WStep->>WStep: determineUtxoSupplier(chainContext)
-        
-        alt Step has no dependencies
-            WStep->>Backend: use DefaultUtxoSupplier
-        else Step has dependencies
-            WStep->>CAUtxoSupplier: create ChainAwareUtxoSupplier(baseSupplier, chainContext, dependencies)
-            CAUtxoSupplier->>ChainContext: getStepOutputs(dependencyStepId)
-            ChainContext-->>CAUtxoSupplier: available UTXOs from previous steps
-            CAUtxoSupplier->>Backend: getUtxos() for base UTXOs
-            CAUtxoSupplier->>CAUtxoSupplier: merge base + chain UTXOs
-        end
-        
-        WStep->>WStep: createEffectiveTxContext(utxoSupplier)
-        WStep->>Backend: build and submit transaction via QuickTxBuilder
-        Backend-->>WStep: transaction result (hash or error)
-        
-        alt Transaction successful
-            WStep->>WStep: captureOutputUtxos(transactionHash)
-            WStep->>ChainContext: recordStepResult(stepId, success + outputs)
-            WStep->>WatchHandle: recordStepResult(stepId, result)
-            WatchHandle->>WatchHandle: trigger step completion callbacks
-            WStep-->>Watcher: StepResult.success(hash, outputs)
-        else Transaction failed
-            WStep->>ChainContext: recordStepResult(stepId, failure + error)
-            WStep->>WatchHandle: recordStepResult(stepId, result)
-            WStep-->>Watcher: StepResult.failure(error)
-            Watcher->>WatchHandle: markFailed(error)
+        alt Success
+            Step->>Context: recordStepResult(success)
+            Step->>Handle: notify step complete
+        else Failure
+            Step->>Handle: markFailed()
             break
         end
     end
     
-    Note over Watcher: COMPLETION PHASE
+    Watcher->>Handle: markCompleted() if all successful
+    Watcher-->>Client: return WatchHandle
     
-    alt All steps successful
-        Watcher->>WatchHandle: markCompleted()
-        WatchHandle->>WatchHandle: trigger chain completion callbacks
-    end
+    Note over Client,Handle: Phase 4 - Monitor Progress
     
-    Watcher-->>Client: WatchHandle (immediate return)
+    Client->>Handle: getStatus()
+    Handle-->>Client: current status
     
-    Note over Client: MONITORING PHASE
-    
-    Client->>WatchHandle: getStatus()
-    WatchHandle-->>Client: PENDING/BUILDING/SUBMITTED/CONFIRMED/FAILED
-    
-    Client->>WatchHandle: onStepComplete(callback)
-    WatchHandle->>WatchHandle: register callback for step events
-    
-    Client->>WatchHandle: onComplete(callback)
-    WatchHandle->>WatchHandle: register callback for chain completion
+    Client->>Handle: onStepComplete(callback)
+    Handle->>Handle: register callback
 ```
 
 ### Key Interaction Points
