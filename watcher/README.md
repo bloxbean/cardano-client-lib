@@ -195,7 +195,7 @@ sequenceDiagram
     participant ChainAwareUtxoSupplier as CAUtxoSupplier
     participant BackendService as Backend
 
-    Note over Client: 1. BUILD PHASE - Create Transaction Steps
+    Note over Client: BUILD PHASE - Create Transaction Steps
     
     Client->>WQTxBuilder: compose(tx1).withStepId("step1").watchable()
     WQTxBuilder->>WTxContext: create context with tx1, stepId, dependencies=[]
@@ -207,14 +207,14 @@ sequenceDiagram
     WTxContext->>WStep: create WatchableStep(stepId="step2")
     WStep-->>Client: step2 (depends on step1)
 
-    Note over Client: 2. CHAIN PHASE - Build and Execute Chain
+    Note over Client: CHAIN PHASE - Build and Execute Chain
     
     Client->>Watcher: build("chain1").step(step1).step(step2).watch()
     Watcher->>ChainContext: create ChainContext(chainId="chain1")
     Watcher->>WatchHandle: create BasicWatchHandle(chainId, stepCount=2)
     Watcher->>Watcher: start async execution thread
     
-    Note over Watcher: 3. ASYNC EXECUTION PHASE
+    Note over Watcher: ASYNC EXECUTION PHASE
     
     loop For each step in sequence
         Note over Watcher,Backend: Step Execution begins
@@ -264,7 +264,7 @@ sequenceDiagram
         end
     end
     
-    Note over Watcher: 4. COMPLETION PHASE
+    Note over Watcher: COMPLETION PHASE
     
     alt All steps successful
         Watcher->>WatchHandle: markCompleted()
@@ -273,7 +273,7 @@ sequenceDiagram
     
     Watcher-->>Client: WatchHandle (immediate return)
     
-    Note over Client: 5. MONITORING PHASE
+    Note over Client: MONITORING PHASE
     
     Client->>WatchHandle: getStatus()
     WatchHandle-->>Client: PENDING/BUILDING/SUBMITTED/CONFIRMED/FAILED
