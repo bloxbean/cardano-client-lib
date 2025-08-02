@@ -169,6 +169,7 @@ The integration tests use these pre-funded accounts for testing transaction chai
 
 ## Architecture
 
+### Component Overview
 ```
 WatchableQuickTxBuilder
 ├── WatchableTxContext (step configuration)
@@ -177,3 +178,137 @@ WatchableQuickTxBuilder
 ├── ChainAwareUtxoSupplier (dependency resolution)
 └── Watcher (chain orchestration)
 ```
+
+### Multi-Step Transaction Interaction Diagram
+
+This diagram shows how components interact during a multi-step transaction submission:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant WatchableQuickTxBuilder as WQTxBuilder
+    participant WatchableTxContext as WTxContext
+    participant WatchableStep as WStep
+    participant Watcher
+    participant BasicWatchHandle as WatchHandle
+    participant ChainContext
+    participant ChainAwareUtxoSupplier as CAUtxoSupplier
+    participant BackendService as Backend
+
+    Note over Client: 1. BUILD PHASE - Create Transaction Steps
+    
+    Client->>WQTxBuilder: compose(tx1).withStepId("step1").watchable()
+    WQTxBuilder->>WTxContext: create context with tx1, stepId, dependencies=[]
+    WTxContext->>WStep: create WatchableStep(stepId="step1")
+    WStep-->>Client: step1 (no dependencies)
+    
+    Client->>WQTxBuilder: compose(tx2).fromStep("step1").withStepId("step2").watchable()
+    WQTxBuilder->>WTxContext: create context with tx2, stepId, dependencies=[step1]
+    WTxContext->>WStep: create WatchableStep(stepId="step2")
+    WStep-->>Client: step2 (depends on step1)
+
+    Note over Client: 2. CHAIN PHASE - Build and Execute Chain
+    
+    Client->>Watcher: build("chain1").step(step1).step(step2).watch()
+    Watcher->>ChainContext: create ChainContext(chainId="chain1")
+    Watcher->>WatchHandle: create BasicWatchHandle(chainId, stepCount=2)
+    Watcher->>Watcher: start async execution thread
+    
+    Note over Watcher: 3. ASYNC EXECUTION PHASE
+    
+    loop For each step in sequence
+        Note over Watcher,Backend: Step Execution begins
+        
+        Watcher->>WStep: execute(chainContext)
+        WStep->>WStep: validateDependencies(chainContext)
+        
+        alt Step has dependencies
+            WStep->>ChainContext: check if dependency steps completed
+            ChainContext-->>WStep: dependency status
+            
+            alt Dependencies not ready
+                WStep-->>Watcher: throw UtxoDependencyException
+            end
+        end
+        
+        Note over WStep,Backend: UTXO Resolution & Transaction Building
+        
+        WStep->>WStep: determineUtxoSupplier(chainContext)
+        
+        alt Step has no dependencies
+            WStep->>Backend: use DefaultUtxoSupplier
+        else Step has dependencies
+            WStep->>CAUtxoSupplier: create ChainAwareUtxoSupplier(baseSupplier, chainContext, dependencies)
+            CAUtxoSupplier->>ChainContext: getStepOutputs(dependencyStepId)
+            ChainContext-->>CAUtxoSupplier: available UTXOs from previous steps
+            CAUtxoSupplier->>Backend: getUtxos() for base UTXOs
+            CAUtxoSupplier->>CAUtxoSupplier: merge base + chain UTXOs
+        end
+        
+        WStep->>WStep: createEffectiveTxContext(utxoSupplier)
+        WStep->>Backend: build and submit transaction via QuickTxBuilder
+        Backend-->>WStep: transaction result (hash or error)
+        
+        alt Transaction successful
+            WStep->>WStep: captureOutputUtxos(transactionHash)
+            WStep->>ChainContext: recordStepResult(stepId, success + outputs)
+            WStep->>WatchHandle: recordStepResult(stepId, result)
+            WatchHandle->>WatchHandle: trigger step completion callbacks
+            WStep-->>Watcher: StepResult.success(hash, outputs)
+        else Transaction failed
+            WStep->>ChainContext: recordStepResult(stepId, failure + error)
+            WStep->>WatchHandle: recordStepResult(stepId, result)
+            WStep-->>Watcher: StepResult.failure(error)
+            Watcher->>WatchHandle: markFailed(error)
+            break
+        end
+    end
+    
+    Note over Watcher: 4. COMPLETION PHASE
+    
+    alt All steps successful
+        Watcher->>WatchHandle: markCompleted()
+        WatchHandle->>WatchHandle: trigger chain completion callbacks
+    end
+    
+    Watcher-->>Client: WatchHandle (immediate return)
+    
+    Note over Client: 5. MONITORING PHASE
+    
+    Client->>WatchHandle: getStatus()
+    WatchHandle-->>Client: PENDING/BUILDING/SUBMITTED/CONFIRMED/FAILED
+    
+    Client->>WatchHandle: onStepComplete(callback)
+    WatchHandle->>WatchHandle: register callback for step events
+    
+    Client->>WatchHandle: onComplete(callback)
+    WatchHandle->>WatchHandle: register callback for chain completion
+```
+
+### Key Interaction Points
+
+1. **Build Phase**: Client creates WatchableSteps using fluent API
+   - Steps declare UTXO dependencies via `fromStep()`, `fromStepUtxo()`, etc.
+   - Each step encapsulates transaction logic + dependency metadata
+
+2. **Chain Assembly**: Watcher orchestrates step execution
+   - Creates shared ChainContext for inter-step communication
+   - Validates step dependencies before execution
+   - Executes steps sequentially in async thread
+
+3. **UTXO Resolution**: ChainAwareUtxoSupplier provides dependency magic
+   - For independent steps: uses base UtxoSupplier (blockchain UTXOs)
+   - For dependent steps: merges blockchain + pending UTXOs from previous steps
+   - Eliminates "insufficient funds" errors in transaction chains
+
+4. **Execution Flow**: Each step builds/submits transaction independently
+   - Uses effective UtxoSupplier determined by dependencies
+   - Captures output UTXOs for use by subsequent steps
+   - Records results in ChainContext for dependency resolution
+
+5. **Monitoring**: Client gets immediate WatchHandle for progress tracking
+   - Async execution allows non-blocking operation
+   - Rich callback system for step and chain completion events
+   - Status tracking throughout execution lifecycle
+
+This architecture enables complex transaction workflows while maintaining simple, declarative APIs and automatic UTXO dependency management.
