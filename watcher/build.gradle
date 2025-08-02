@@ -1,0 +1,21 @@
+dependencies {
+    api project(':core')
+    api project(':core-api')
+    api project(':function')
+    api project(':quicktx')
+    api project(':backend')
+    
+    // Integration test dependencies
+    integrationTestImplementation project(':backend-modules:blockfrost')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Watcher'
+                description = 'Cardano Client Lib - Transaction Watcher Module'
+            }
+        }
+    }
+}
