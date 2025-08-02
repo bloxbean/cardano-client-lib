@@ -98,11 +98,26 @@ public class WatchableQuickTxBuilderIntegrationTest {
             // For MVP, we expect this to fail with transaction execution errors, not API errors
             if (handle instanceof BasicWatchHandle) {
                 BasicWatchHandle basicHandle = (BasicWatchHandle) handle;
-                WatchStatus status = basicHandle.getStatus();
-                System.out.println("Current status: " + status);
+                
+                // Wait for async execution to complete (up to 10 seconds)
+                int maxWaitSeconds = 10;
+                for (int i = 0; i < maxWaitSeconds; i++) {
+                    WatchStatus status = basicHandle.getStatus();
+                    System.out.println("Current status: " + status + " (waited " + i + "s)");
+                    
+                    if (status != WatchStatus.PENDING) {
+                        // Execution has progressed beyond pending
+                        break;
+                    }
+                    
+                    Thread.sleep(1000); // Wait 1 second before checking again
+                }
+                
+                WatchStatus finalStatus = basicHandle.getStatus();
+                System.out.println("Final status: " + finalStatus);
 
                 // The status should be one of the valid statuses, not just default
-                assertNotNull(status, "Status should not be null");
+                assertNotNull(finalStatus, "Status should not be null");
             }
 
         } catch (UnsupportedOperationException e) {
@@ -127,7 +142,7 @@ public class WatchableQuickTxBuilderIntegrationTest {
         // Create a withdrawal transaction that depends on the deposit (step 2)
         Tx withdrawTx = new Tx()
             .payToAddress(senderAccount.baseAddress(), Amount.ada(1.0))  // Send back to sender
-            .from(receiverAddress);
+            .from(receiverAccount.baseAddress());
 
         Tx withdrawTx2 = new Tx()
                 .payToAddress(senderAccount.baseAddress(), Amount.ada(1.5))  // Send back to sender
@@ -313,7 +328,7 @@ public class WatchableQuickTxBuilderIntegrationTest {
 
         // Add a second step that depends on the first
         WatchableStep followupStep = watchableBuilder.compose(
-                new Tx().payToAddress(senderAccount.baseAddress(), Amount.ada(0.3)).from(receiverAddress))
+                new Tx().payToAddress(senderAccount.baseAddress(), Amount.ada(0.3)).from(receiverAccount.baseAddress()))
             .fromStep("mvp-demo")  // Depends on first step
             .withStepId("followup")
             .withDescription("Follow-up transaction using MVP outputs")

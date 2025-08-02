@@ -91,36 +91,47 @@ public class Watcher {
             ChainContext chainContext = new ChainContext(chainId);
 
             // Create a basic watch handle
-            BasicWatchHandle watchHandle = new BasicWatchHandle(chainId, steps.size());
+            BasicWatchHandle watchHandle = new BasicWatchHandle(chainId, steps.size(), description);
 
-            // Execute steps sequentially in a separate thread
-            // For MVP, we'll execute synchronously but return handle immediately
-            try {
-                for (WatchableStep step : steps) {
-                    watchHandle.updateStepStatus(step.getStepId(), step.getStatus());
+            // Execute steps asynchronously in a separate thread
+            Thread executionThread = new Thread(() -> {
+                try {
+                    System.out.println("Starting chain execution: " + chainId);
 
-                    // Execute the step
-                    StepResult result = step.execute(chainContext);
-                    System.out.println("Executed step: " + step.getStepId() + ", Result: " + result);
+                    for (WatchableStep step : steps) {
+                        watchHandle.updateStepStatus(step.getStepId(), step.getStatus());
 
-                    // Update watch handle with result
-                    watchHandle.recordStepResult(step.getStepId(), result);
+                        // Execute the step
+                        System.out.println("Executing step: " + step.getStepId());
+                        StepResult result = step.execute(chainContext);
+                        System.out.println("Executed step: " + step.getStepId() + ", Result: " + result);
 
-                    if (!result.isSuccessful()) {
-                        // Stop execution on first failure for MVP
-                        watchHandle.markFailed(result.getError());
-                        break;
+                        // Update watch handle with result (this triggers callbacks)
+                        System.out.println("Recording step result for step: " + step.getStepId());
+                        watchHandle.recordStepResult(step.getStepId(), result);
+                        System.out.println("Step result recorded successfully");
+
+                        if (!result.isSuccessful()) {
+                            // Stop execution on first failure for MVP
+                            System.out.println("Step failed, stopping chain execution: " + result.getError());
+                            watchHandle.markFailed(result.getError());
+                            return;
+                        }
                     }
-                }
 
-                // Mark as completed if all steps succeeded
-                if (watchHandle.getStatus() != WatchStatus.FAILED) {
+                    // Mark as completed if all steps succeeded
+                    System.out.println("All steps completed successfully, marking chain as completed");
                     watchHandle.markCompleted();
-                }
 
-            } catch (Exception e) {
-                watchHandle.markFailed(e);
-            }
+                } catch (Exception e) {
+                    System.out.println("Chain execution failed with exception: " + e.getMessage());
+                    e.printStackTrace();
+                    watchHandle.markFailed(e);
+                }
+            }, "Chain-" + chainId);
+
+            // Start execution immediately and return handle
+            executionThread.start();
 
             return watchHandle;
         }

@@ -14,12 +14,10 @@ public class WatchResult {
     
     private final Result<Transaction> transactionResult;
     private final List<Utxo> outputUtxos;
-    private final WatchMetadata metadata;
     
-    private WatchResult(Result<Transaction> transactionResult, List<Utxo> outputUtxos, WatchMetadata metadata) {
+    private WatchResult(Result<Transaction> transactionResult, List<Utxo> outputUtxos) {
         this.transactionResult = transactionResult;
         this.outputUtxos = outputUtxos != null ? List.copyOf(outputUtxos) : Collections.emptyList();
-        this.metadata = metadata;
     }
     
     public Result<Transaction> getTransactionResult() {
@@ -30,27 +28,19 @@ public class WatchResult {
         return outputUtxos;
     }
     
-    public WatchMetadata getMetadata() {
-        return metadata;
-    }
-    
     public boolean isSuccess() {
         return transactionResult.isSuccessful();
     }
     
     public static WatchResult success(Transaction transaction, List<Utxo> outputs) {
-        return new WatchResult(Result.success("Transaction confirmed").withValue(transaction), outputs, null);
-    }
-    
-    public static WatchResult success(Transaction transaction, List<Utxo> outputs, WatchMetadata metadata) {
-        return new WatchResult(Result.success("Transaction confirmed").withValue(transaction), outputs, metadata);
+        return new WatchResult(Result.success("Transaction confirmed").withValue(transaction), outputs);
     }
     
     public static WatchResult failure(String error) {
-        return new WatchResult(Result.error(error), Collections.emptyList(), null);
+        return new WatchResult(Result.error(error), Collections.emptyList());
     }
     
     public static WatchResult failure(Exception error) {
-        return new WatchResult(Result.error(error.getMessage()), Collections.emptyList(), null);
+        return new WatchResult(Result.error(error.getMessage()), Collections.emptyList());
     }
 }

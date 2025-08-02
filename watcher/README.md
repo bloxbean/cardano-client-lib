@@ -123,10 +123,49 @@ The revolutionary ChainAwareUtxoSupplier automatically resolves UTXO dependencie
 
 ## Testing
 
-Run integration tests with Yaci DevKit:
+### Unit Tests
+Run unit tests:
 ```bash
-./gradlew :watcher:integrationTest
+./gradlew :watcher:test
 ```
+
+### Integration Tests
+The integration tests demonstrate real blockchain interaction using Yaci DevKit.
+
+**Prerequisites:**
+1. Start Yaci DevKit (external process):
+   ```bash
+   # Using Docker
+   docker run -p 8080:8080 bloxbean/yaci-devkit:latest
+   
+   # Or using yaci-cli
+   yaci-devkit start
+   ```
+
+2. Ensure Java 11 is being used:
+   ```bash
+   export JAVA_HOME=/path/to/java11
+   # For example with SDKMAN:
+   export JAVA_HOME=$HOME/.sdkman/candidates/java/11.0.19-librca
+   ```
+
+3. Run integration tests:
+   ```bash
+   # Run all integration tests
+   ./gradlew :watcher:integrationTest -Dyaci.integration.test=true
+   
+   # Run specific test class
+   ./gradlew :watcher:integrationTest -Dyaci.integration.test=true \
+     --tests WatchableQuickTxBuilderRealIntegrationTest
+   ```
+
+**Note:** Yaci DevKit provides 10 pre-funded addresses (index 0-9) using the default mnemonic:
+```
+test test test test test test test test test test test test 
+test test test test test test test test test test test sauce
+```
+
+The integration tests use these pre-funded accounts for testing transaction chains and UTXO dependencies.
 
 ## Architecture
 

@@ -4,17 +4,18 @@ import com.bloxbean.cardano.client.watcher.api.WatchHandle;
 import com.bloxbean.cardano.client.watcher.api.WatchResult;
 import com.bloxbean.cardano.client.watcher.api.WatchStatus;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
  * Basic implementation of WatchHandle for managing chain execution status.
  * 
- * This implementation provides simple status tracking and step result management
- * for transaction chains.
+ * This implementation provides comprehensive status tracking, step result management,
+ * async completion monitoring, and progress callbacks for transaction chains.
  */
 public class BasicWatchHandle extends WatchHandle {
     private final String chainId;
@@ -22,10 +23,14 @@ public class BasicWatchHandle extends WatchHandle {
     private final Instant startedAt;
     private final Map<String, WatchStatus> stepStatuses;
     private final Map<String, StepResult> stepResults;
+    private final CompletableFuture<ChainResult> chainFuture;
+    private final List<Consumer<StepResult>> stepListeners;
+    private final List<Consumer<ChainResult>> chainListeners;
     
     private volatile WatchStatus status;
     private volatile Throwable lastError;
     private volatile Instant completedAt;
+    private volatile String description;
     
     /**
      * Create a new BasicWatchHandle.
@@ -40,7 +45,22 @@ public class BasicWatchHandle extends WatchHandle {
         this.startedAt = Instant.now();
         this.stepStatuses = new ConcurrentHashMap<>();
         this.stepResults = new ConcurrentHashMap<>();
+        this.chainFuture = new CompletableFuture<>();
+        this.stepListeners = new CopyOnWriteArrayList<>();
+        this.chainListeners = new CopyOnWriteArrayList<>();
         this.status = WatchStatus.PENDING;
+    }
+    
+    /**
+     * Create a new BasicWatchHandle with description.
+     * 
+     * @param chainId the chain identifier
+     * @param totalSteps the total number of steps in the chain
+     * @param description the chain description
+     */
+    public BasicWatchHandle(String chainId, int totalSteps, String description) {
+        this(chainId, totalSteps);
+        this.description = description;
     }
     
     public String getChainId() {
@@ -49,6 +69,19 @@ public class BasicWatchHandle extends WatchHandle {
     
     public WatchStatus getStatus() {
         return status;
+    }
+    
+    public Optional<String> getDescription() {
+        return Optional.ofNullable(description);
+    }
+    
+    /**
+     * Get the CompletableFuture for chain completion.
+     * 
+     * @return the chain completion future
+     */
+    public CompletableFuture<ChainResult> getChainFuture() {
+        return chainFuture;
     }
     
     public boolean isCompleted() {
@@ -81,6 +114,7 @@ public class BasicWatchHandle extends WatchHandle {
         if (!isCompleted()) {
             this.status = WatchStatus.CANCELLED;
             this.completedAt = Instant.now();
+            completeChainFuture();
             super.cancel(); // Cancel the underlying future
         }
     }
@@ -105,6 +139,10 @@ public class BasicWatchHandle extends WatchHandle {
     public void recordStepResult(String stepId, StepResult result) {
         stepResults.put(stepId, result);
         stepStatuses.put(stepId, result.getStatus());
+        
+        // Notify step listeners
+        notifyStepListeners(result);
+        
         updateOverallStatus();
     }
     
@@ -117,6 +155,7 @@ public class BasicWatchHandle extends WatchHandle {
         this.status = WatchStatus.FAILED;
         this.lastError = error;
         this.completedAt = Instant.now();
+        completeChainFuture();
     }
     
     /**
@@ -125,6 +164,7 @@ public class BasicWatchHandle extends WatchHandle {
     public void markCompleted() {
         this.status = WatchStatus.CONFIRMED;
         this.completedAt = Instant.now();
+        completeChainFuture();
     }
     
     /**
@@ -178,6 +218,7 @@ public class BasicWatchHandle extends WatchHandle {
         if (hasFailure) {
             this.status = WatchStatus.FAILED;
             this.completedAt = Instant.now();
+            completeChainFuture();
             return;
         }
         
@@ -189,9 +230,156 @@ public class BasicWatchHandle extends WatchHandle {
         if (completedSteps == totalSteps) {
             this.status = WatchStatus.CONFIRMED;
             this.completedAt = Instant.now();
+            completeChainFuture();
         } else if (!stepStatuses.isEmpty()) {
             this.status = WatchStatus.WATCHING;
         }
+    }
+    
+    // ========== Monitoring and Callback Methods ==========
+    
+    /**
+     * Add a listener for step completion events.
+     * 
+     * @param listener the step completion listener
+     */
+    public void onStepComplete(Consumer<StepResult> listener) {
+        System.out.println("🔔 Adding step completion listener. Total listeners: " + (stepListeners.size() + 1));
+        stepListeners.add(listener);
+    }
+    
+    /**
+     * Add a listener for chain completion events.
+     * 
+     * @param listener the chain completion listener
+     */
+    public void onChainComplete(Consumer<ChainResult> listener) {
+        chainListeners.add(listener);
+        
+        // If already completed, notify immediately
+        if (isCompleted()) {
+            listener.accept(buildChainResult());
+        }
+    }
+    
+    /**
+     * Wait for chain completion with timeout.
+     * 
+     * @param timeout the maximum time to wait
+     * @return the chain result
+     * @throws TimeoutException if the timeout is exceeded
+     * @throws InterruptedException if the current thread is interrupted
+     * @throws ExecutionException if the chain execution failed
+     */
+    public ChainResult await(Duration timeout) throws TimeoutException, InterruptedException, ExecutionException {
+        try {
+            return chainFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            throw new TimeoutException("Chain execution timeout after " + timeout + ": " + chainId);
+        }
+    }
+    
+    /**
+     * Wait for chain completion indefinitely.
+     * 
+     * @return the chain result
+     * @throws InterruptedException if the current thread is interrupted
+     * @throws ExecutionException if the chain execution failed
+     */
+    public ChainResult await() throws InterruptedException, ExecutionException {
+        return chainFuture.get();
+    }
+    
+    /**
+     * Get the current chain result (may be incomplete).
+     * 
+     * @return the current chain result
+     */
+    public ChainResult getCurrentResult() {
+        return buildChainResult();
+    }
+    
+    /**
+     * Get progress as a percentage (0.0 to 1.0).
+     * 
+     * @return the completion progress
+     */
+    public double getProgress() {
+        if (totalSteps == 0) return 1.0;
+        
+        long completedSteps = stepStatuses.values().stream()
+            .mapToLong(s -> s == WatchStatus.CONFIRMED ? 1 : 0)
+            .sum();
+            
+        return (double) completedSteps / totalSteps;
+    }
+    
+    // ========== Private Helper Methods ==========
+    
+    /**
+     * Notify all step listeners of a step completion.
+     */
+    private void notifyStepListeners(StepResult stepResult) {
+        System.out.println("🚨 Notifying step listeners. Number of listeners: " + stepListeners.size());
+        System.out.println("🚨 Step result: " + stepResult.getStepId() + " - " + stepResult.getStatus());
+        
+        for (Consumer<StepResult> listener : stepListeners) {
+            try {
+                System.out.println("🚨 Calling step listener...");
+                listener.accept(stepResult);
+                System.out.println("🚨 Step listener called successfully");
+            } catch (Exception e) {
+                // Log error but don't fail the chain
+                System.err.println("Error in step listener: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    /**
+     * Notify all chain listeners of chain completion.
+     */
+    private void notifyChainListeners(ChainResult chainResult) {
+        for (Consumer<ChainResult> listener : chainListeners) {
+            try {
+                listener.accept(chainResult);
+            } catch (Exception e) {
+                // Log error but don't fail the completion
+                System.err.println("Error in chain listener: " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Complete the chain future with the current result.
+     */
+    private void completeChainFuture() {
+        if (!chainFuture.isDone()) {
+            ChainResult result = buildChainResult();
+            chainFuture.complete(result);
+            notifyChainListeners(result);
+        }
+    }
+    
+    /**
+     * Build a ChainResult from the current state.
+     */
+    private ChainResult buildChainResult() {
+        ChainResult.Builder builder = ChainResult.builder(chainId)
+            .status(status)
+            .stepResults(stepResults)
+            .startedAt(startedAt)
+            .description(description);
+            
+        if (completedAt != null) {
+            builder.completedAt(completedAt);
+        }
+        
+        if (lastError != null) {
+            builder.error(lastError);
+        }
+        
+        return builder.build();
     }
     
     @Override
@@ -199,6 +387,7 @@ public class BasicWatchHandle extends WatchHandle {
         return "BasicWatchHandle{" +
                 "chainId='" + chainId + '\'' +
                 ", status=" + status +
+                ", progress=" + String.format("%.1f%%", getProgress() * 100) +
                 ", totalSteps=" + totalSteps +
                 ", completedSteps=" + stepResults.size() +
                 ", startedAt=" + startedAt +
