@@ -221,11 +221,11 @@ public class WatchableStep {
 
     /**
      * Validate that all required dependencies are ready for this step.
-     * 
+     *
      * This method checks that all required dependency steps have completed successfully
      * and have output UTXOs available. The actual UTXO resolution is now handled by
      * the ChainAwareUtxoSupplier during transaction building.
-     * 
+     *
      * @param chainContext the chain context to check dependencies against
      * @throws UtxoDependencyException if any required dependency is not ready
      */
@@ -256,8 +256,8 @@ public class WatchableStep {
                     throw new UtxoDependencyException(
                         "Required dependency step '" + dependencyStepId + "' has no output UTXOs available");
                 }
-                
-                System.out.println("✅ Dependency '" + dependencyStepId + "' is ready with " 
+
+                System.out.println("✅ Dependency '" + dependencyStepId + "' is ready with "
                     + stepOutputs.size() + " output UTXOs");
             }
         }
@@ -274,7 +274,7 @@ public class WatchableStep {
             // Determine the appropriate UtxoSupplier and create effective builder
             UtxoSupplier effectiveSupplier = determineUtxoSupplier(chainContext);
             QuickTxBuilder.TxContext effectiveContext = createEffectiveTxContext(effectiveSupplier);
-            
+
             // Build, sign and submit the transaction using complete()
             TxResult result = effectiveContext.complete();
             System.out.println("🔗 Transaction submitted: " + result.getTxHash() + " for step '" + stepId + "'");
@@ -376,30 +376,30 @@ public class WatchableStep {
 
     /**
      * Determine the appropriate UtxoSupplier to use based on step dependencies.
-     * 
+     *
      * @param chainContext the chain context for dependency resolution
      * @return the appropriate UtxoSupplier (base or chain-aware)
      */
     private UtxoSupplier determineUtxoSupplier(ChainContext chainContext) {
         List<StepOutputDependency> dependencies = txContext.getUtxoDependencies();
-        
+
         // Get the base UtxoSupplier from the parent builder
         WatchableQuickTxBuilder parentBuilder = txContext.getParentBuilder();
         UtxoSupplier baseSupplier = parentBuilder.getOriginalUtxoSupplier();
-        
+
         // If no explicit UtxoSupplier was provided, create one from BackendService
         if (baseSupplier == null && parentBuilder.getBackendService() != null) {
             baseSupplier = new DefaultUtxoSupplier(parentBuilder.getBackendService().getUtxoService());
         }
-        
+
         if (dependencies.isEmpty()) {
             // No dependencies, use the base supplier
             return baseSupplier;
         } else {
             // Has dependencies, create chain-aware supplier that includes pending UTXOs
-            System.out.println("🔗 Step '" + stepId + "' has " + dependencies.size() + 
+            System.out.println("🔗 Step '" + stepId + "' has " + dependencies.size() +
                 " UTXO dependencies, using ChainAwareUtxoSupplier");
-            
+
             return new ChainAwareUtxoSupplier(
                 baseSupplier,       // base supplier
                 chainContext,       // chain context
@@ -407,50 +407,51 @@ public class WatchableStep {
             );
         }
     }
-    
+
     /**
      * Create an effective TxContext with the appropriate UtxoSupplier.
-     * 
+     *
      * This creates a new QuickTxBuilder with the right UtxoSupplier and copies
      * all the configuration from the original TxContext.
-     * 
+     *
      * @param utxoSupplier the UtxoSupplier to use
      * @return a new TxContext with the specified UtxoSupplier
      */
     private QuickTxBuilder.TxContext createEffectiveTxContext(UtxoSupplier utxoSupplier) {
         // Get the parent WatchableQuickTxBuilder to access services
         WatchableQuickTxBuilder parentBuilder = txContext.getParentBuilder();
-        
+
         // Create a new QuickTxBuilder with the specified UtxoSupplier
         QuickTxBuilder newBuilder;
         if (parentBuilder.getBackendService() != null) {
             // If originally created with BackendService, use that approach
             newBuilder = new QuickTxBuilder(parentBuilder.getBackendService(), utxoSupplier);
+            System.out.println("New builder >>> " + newBuilder);
         } else {
             // If originally created with individual services
             newBuilder = new QuickTxBuilder(
-                utxoSupplier, 
-                parentBuilder.getProtocolParamsSupplier(), 
+                utxoSupplier,
+                parentBuilder.getProtocolParamsSupplier(),
                 parentBuilder.getTransactionProcessor()
             );
         }
-        
+
         // Apply the same Tx configuration from the WatchableTxContext
-        // Note: We need to copy the configuration, not the UTXOs, since UTXOs 
+        // Note: We need to copy the configuration, not the UTXOs, since UTXOs
         // will be resolved by the new UtxoSupplier
         QuickTxBuilder.TxContext newContext = newBuilder.compose(txContext.getOriginalTxs());
-        
+
         // Apply stored configurations to the new context
         if (txContext.getStoredSigner() != null) {
             newContext.withSigner(txContext.getStoredSigner());
             System.out.println("🔑 Applied stored signer to effective context for step '" + stepId + "'");
         }
-        
+
         if (txContext.getStoredFeePayer() != null) {
             newContext.feePayer(txContext.getStoredFeePayer());
             System.out.println("💰 Applied stored fee payer '" + txContext.getStoredFeePayer() + "' to effective context for step '" + stepId + "'");
         }
-        
+
         return newContext;
     }
 

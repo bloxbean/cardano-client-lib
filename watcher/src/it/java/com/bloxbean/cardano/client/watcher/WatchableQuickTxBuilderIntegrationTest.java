@@ -12,11 +12,10 @@ import com.bloxbean.cardano.client.watcher.chain.BasicWatchHandle;
 import com.bloxbean.cardano.client.watcher.chain.Watcher;
 import com.bloxbean.cardano.client.watcher.quicktx.WatchableQuickTxBuilder;
 import com.bloxbean.cardano.client.watcher.quicktx.WatchableStep;
+import com.bloxbean.cardano.client.watcher.visualizer.ChainVisualizer;
+import com.bloxbean.cardano.client.watcher.visualizer.VisualizationStyle;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
-
-import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -98,21 +97,21 @@ public class WatchableQuickTxBuilderIntegrationTest {
             // For MVP, we expect this to fail with transaction execution errors, not API errors
             if (handle instanceof BasicWatchHandle) {
                 BasicWatchHandle basicHandle = (BasicWatchHandle) handle;
-                
+
                 // Wait for async execution to complete (up to 10 seconds)
                 int maxWaitSeconds = 10;
                 for (int i = 0; i < maxWaitSeconds; i++) {
                     WatchStatus status = basicHandle.getStatus();
                     System.out.println("Current status: " + status + " (waited " + i + "s)");
-                    
+
                     if (status != WatchStatus.PENDING) {
                         // Execution has progressed beyond pending
                         break;
                     }
-                    
+
                     Thread.sleep(1000); // Wait 1 second before checking again
                 }
-                
+
                 WatchStatus finalStatus = basicHandle.getStatus();
                 System.out.println("Final status: " + finalStatus);
 
@@ -194,16 +193,71 @@ public class WatchableQuickTxBuilderIntegrationTest {
         System.out.println("Building transaction chain...");
 
         try {
-            WatchHandle chainHandle = Watcher.build("test-chain")
+            Watcher.WatcherBuilder builder = Watcher.build("test-chain")
                 .step(step1)
                 .step(step2)
                 .step(step3)
-                .withDescription("Integration Test: Deposit -> Withdraw Chain")
-                .watch();
+                .withDescription("Integration Test: Deposit -> Withdraw Chain");
+
+            // === CHAIN VISUALIZATION DEMO ===
+            System.out.println("\n🎨 === CHAIN VISUALIZATION DEMO ===");
+
+            // 1. Show static chain structure before execution
+            System.out.println("📋 Static Chain Structure (ASCII):");
+            String asciiStructure = ChainVisualizer.visualizeStructure(builder, VisualizationStyle.SIMPLE_ASCII);
+            System.out.println(asciiStructure);
+
+            System.out.println("\n📋 Static Chain Structure (Unicode):");
+            String unicodeStructure = ChainVisualizer.visualizeStructure(builder, VisualizationStyle.UNICODE_BOX);
+            System.out.println(unicodeStructure);
+
+            System.out.println("\n📋 Static Chain Structure (Compact):");
+            String compactStructure = ChainVisualizer.visualizeStructure(builder, VisualizationStyle.COMPACT);
+            System.out.println(compactStructure);
+
+            // 2. Start execution and show progress
+            WatchHandle chainHandle = builder.watch();
 
             assertNotNull(chainHandle, "Chain watch handle should not be null");
             System.out.println("✅ Transaction chain created successfully!");
             System.out.println("Chain ID: " + chainHandle.getWatchId());
+
+            // 3. Show progress visualization if we have a BasicWatchHandle
+            if (chainHandle instanceof BasicWatchHandle) {
+                BasicWatchHandle basicHandle = (BasicWatchHandle) chainHandle;
+
+                System.out.println("\n📊 Initial Progress Visualization:");
+                String initialProgress = ChainVisualizer.visualizeProgress(basicHandle, VisualizationStyle.DETAILED);
+                System.out.println(initialProgress);
+
+                // 4. Monitor progress for a short time before final join
+                System.out.println("\n🔄 Monitoring execution progress...");
+                for (int i = 0; i < 3 && !basicHandle.isCompleted(); i++) {
+                    Thread.sleep(1000); // Wait 1 second
+                    String progress = ChainVisualizer.visualizeProgress(basicHandle, VisualizationStyle.SIMPLE_ASCII);
+                    System.out.println("--- Progress Update " + (i + 1) + " ---");
+                    System.out.println(progress);
+                }
+            }
+
+            chainHandle.getFuture().join();
+
+            String json = ChainVisualizer.exportJson((BasicWatchHandle) chainHandle);
+            System.out.println(json);
+
+            // 5. Show final state
+            if (chainHandle instanceof BasicWatchHandle) {
+                BasicWatchHandle basicHandle = (BasicWatchHandle) chainHandle;
+                System.out.println("\n🏁 Final Chain State:");
+                String finalState = ChainVisualizer.visualizeProgress(basicHandle, VisualizationStyle.DETAILED);
+                System.out.println(finalState);
+
+                System.out.println("\n🔗 UTXO Flow Visualization:");
+                String utxoFlow = ChainVisualizer.visualizeUtxoFlow(basicHandle, VisualizationStyle.UNICODE_BOX);
+                System.out.println(utxoFlow);
+            }
+
+            System.out.println("\n🎨 === END VISUALIZATION DEMO ===\n");
 
             // For MVP, we expect this to fail with execution errors, not API errors
             if (chainHandle instanceof BasicWatchHandle) {
@@ -336,11 +390,17 @@ public class WatchableQuickTxBuilderIntegrationTest {
 
         try {
             // Build the complete chain
-            WatchHandle chainHandle = Watcher.build("mvp-demo-chain")
+            Watcher.WatcherBuilder chainBuilder = Watcher.build("mvp-demo-chain")
                 .step(mvpStep)
                 .step(followupStep)
-                .withDescription("MVP Demo: Two-step transaction chain")
-                .watch();
+                .withDescription("MVP Demo: Two-step transaction chain");
+
+            // Show visualization before execution
+            System.out.println("📊 Chain Structure Visualization:");
+            String chainStructure = ChainVisualizer.visualizeStructure(chainBuilder, VisualizationStyle.SIMPLE_ASCII);
+            System.out.println(chainStructure);
+
+            WatchHandle chainHandle = chainBuilder.watch();
 
             assertNotNull(chainHandle);
             System.out.println("✅ Transaction chain created successfully!");
@@ -350,6 +410,11 @@ public class WatchableQuickTxBuilderIntegrationTest {
                 System.out.println("  Chain ID: " + basicHandle.getChainId());
                 System.out.println("  Steps: " + basicHandle.getStepStatuses().size());
                 System.out.println("  Status: " + basicHandle.getStatus());
+
+                // Show initial progress
+                System.out.println("\n📈 Initial Progress:");
+                String progress = ChainVisualizer.visualizeProgress(basicHandle, VisualizationStyle.COMPACT);
+                System.out.println(progress);
             }
 
         } catch (Exception e) {

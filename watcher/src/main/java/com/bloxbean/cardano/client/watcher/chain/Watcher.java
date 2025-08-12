@@ -92,6 +92,12 @@ public class Watcher {
 
             // Create a basic watch handle
             BasicWatchHandle watchHandle = new BasicWatchHandle(chainId, steps.size(), description);
+            
+            // Initialize all planned steps so they show up in visualization even if chain fails early
+            List<String> stepIds = steps.stream()
+                .map(WatchableStep::getStepId)
+                .collect(java.util.stream.Collectors.toList());
+            watchHandle.initializePlannedSteps(stepIds);
 
             // Execute steps asynchronously in a separate thread
             Thread executionThread = new Thread(() -> {

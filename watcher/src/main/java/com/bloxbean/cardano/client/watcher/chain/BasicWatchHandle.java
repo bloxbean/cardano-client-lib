@@ -26,6 +26,7 @@ public class BasicWatchHandle extends WatchHandle {
     private final CompletableFuture<ChainResult> chainFuture;
     private final List<Consumer<StepResult>> stepListeners;
     private final List<Consumer<ChainResult>> chainListeners;
+    private final List<String> stepOrder; // Maintains the original execution order
     
     private volatile WatchStatus status;
     private volatile Throwable lastError;
@@ -48,6 +49,7 @@ public class BasicWatchHandle extends WatchHandle {
         this.chainFuture = new CompletableFuture<>();
         this.stepListeners = new CopyOnWriteArrayList<>();
         this.chainListeners = new CopyOnWriteArrayList<>();
+        this.stepOrder = new ArrayList<>();
         this.status = WatchStatus.PENDING;
     }
     
@@ -114,8 +116,16 @@ public class BasicWatchHandle extends WatchHandle {
         if (!isCompleted()) {
             this.status = WatchStatus.CANCELLED;
             this.completedAt = Instant.now();
-            completeChainFuture();
-            super.cancel(); // Cancel the underlying future
+            
+            // Cancel the parent future first before completing our chain future
+            super.cancel();
+            
+            // Complete our chain future with cancelled result
+            if (!chainFuture.isDone()) {
+                ChainResult result = buildChainResult();
+                chainFuture.complete(result);
+                notifyChainListeners(result);
+            }
         }
     }
     
@@ -168,6 +178,24 @@ public class BasicWatchHandle extends WatchHandle {
     }
     
     /**
+     * Initialize all planned steps with PENDING status.
+     * This ensures all steps are visible in visualization even if chain fails early.
+     * 
+     * @param stepIds the list of all planned step IDs in execution order
+     */
+    public void initializePlannedSteps(List<String> stepIds) {
+        // Store the original step order
+        stepOrder.clear();
+        stepOrder.addAll(stepIds);
+        
+        // Initialize all steps with PENDING status
+        for (String stepId : stepIds) {
+            stepStatuses.putIfAbsent(stepId, WatchStatus.PENDING);
+        }
+        updateOverallStatus();
+    }
+    
+    /**
      * Get the step statuses.
      * 
      * @return map of step ID to status
@@ -183,6 +211,15 @@ public class BasicWatchHandle extends WatchHandle {
      */
     public Map<String, StepResult> getStepResults() {
         return Map.copyOf(stepResults);
+    }
+    
+    /**
+     * Get the step IDs in their original execution order.
+     * 
+     * @return list of step IDs in execution order
+     */
+    public List<String> getStepOrder() {
+        return List.copyOf(stepOrder);
     }
     
     /**
@@ -358,6 +395,24 @@ public class BasicWatchHandle extends WatchHandle {
             ChainResult result = buildChainResult();
             chainFuture.complete(result);
             notifyChainListeners(result);
+            
+            // Also complete the parent WatchHandle's future
+            // Convert ChainResult to WatchResult for compatibility
+            if (!super.getFuture().isDone()) {
+                if (result.isSuccessful()) {
+                    // For successful chains, create a success WatchResult
+                    // We don't have a single transaction, so we pass null for transaction
+                    // and empty list for outputs (chain-level outputs would need aggregation)
+                    super.getFuture().complete(WatchResult.success(null, Collections.emptyList()));
+                } else {
+                    // For failed chains, create a failure WatchResult
+                    if (result.getError().isPresent()) {
+                        super.getFuture().complete(WatchResult.failure(result.getError().get().getMessage()));
+                    } else {
+                        super.getFuture().complete(WatchResult.failure("Chain execution failed"));
+                    }
+                }
+            }
         }
     }
     

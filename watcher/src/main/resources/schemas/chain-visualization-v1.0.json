@@ -1,0 +1,495 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cardano-client-lib.com/schemas/chain-visualization/v1.0",
+  "title": "Chain Visualization Model",
+  "description": "Schema for Cardano transaction chain visualization data",
+  "type": "object",
+  "required": ["metadata", "execution", "steps"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Chain metadata information",
+      "required": ["chainId", "version", "totalSteps"],
+      "properties": {
+        "chainId": {
+          "type": "string",
+          "description": "Unique identifier for the transaction chain",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the chain"
+        },
+        "version": {
+          "type": "string",
+          "const": "1.0",
+          "description": "Schema version"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the model was created"
+        },
+        "totalSteps": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of steps in the chain"
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "description": "Current execution state of the chain",
+      "required": ["status", "progress"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "completed", "failed", "cancelled"],
+          "description": "Overall execution status of the chain"
+        },
+        "progress": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Progress as a decimal between 0.0 and 1.0"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When chain execution started"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When chain execution completed (if applicable)"
+        },
+        "currentStep": {
+          "type": "string",
+          "description": "ID of the currently executing step"
+        },
+        "estimatedCompletion": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Estimated completion time"
+        },
+        "totalDuration": {
+          "type": "string",
+          "pattern": "^PT\\d+(\\.\\d+)?S$",
+          "description": "Total execution duration in ISO 8601 format"
+        },
+        "stepsCompleted": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of steps completed successfully"
+        },
+        "stepsTotal": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Total number of steps in execution"
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "description": "Individual steps in the chain",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["stepId", "position", "status"],
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "description": "Unique identifier for the step",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name for the step"
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of what the step does"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Position of step in the chain (0-based)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["BUILDING", "PENDING", "WATCHING", "SUBMITTED", "RETRYING", "CONFIRMED", "FAILED", "CANCELLED", "REBUILDING"],
+            "description": "Current status of the step"
+          },
+          "dependencies": {
+            "type": "array",
+            "description": "List of step IDs this step depends on",
+            "items": {
+              "type": "string"
+            }
+          },
+          "execution": {
+            "type": "object",
+            "description": "Execution timing and state for this step",
+            "properties": {
+              "startedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When step execution started"
+              },
+              "completedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When step execution completed"
+              },
+              "duration": {
+                "type": "string",
+                "pattern": "^PT\\d+(\\.\\d+)?S$",
+                "description": "Step execution duration in ISO 8601 format"
+              },
+              "retryCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Number of retry attempts"
+              },
+              "lastRetryAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Timestamp of last retry attempt"
+              }
+            }
+          },
+          "transaction": {
+            "type": "object",
+            "description": "Transaction details for completed steps",
+            "properties": {
+              "hash": {
+                "type": "string",
+                "pattern": "^[a-fA-F0-9]{64}$",
+                "description": "Transaction hash (64 hex characters)"
+              },
+              "blockNumber": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Block number where transaction was included"
+              },
+              "slot": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Slot number where transaction was included"
+              },
+              "fees": {
+                "type": "string",
+                "description": "Transaction fees paid"
+              },
+              "size": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Transaction size in bytes"
+              }
+            }
+          },
+          "error": {
+            "type": "object",
+            "description": "Error information for failed steps",
+            "required": ["type", "message"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Error type or exception class name"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable error message"
+              },
+              "details": {
+                "type": "string",
+                "description": "Detailed error information"
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When the error occurred"
+              },
+              "retryable": {
+                "type": "boolean",
+                "description": "Whether this error condition is retryable"
+              }
+            }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "description": "Dependencies between steps",
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "type"],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "Source step ID"
+          },
+          "to": {
+            "type": "string",
+            "description": "Target step ID"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["utxo", "completion", "conditional", "data"],
+            "description": "Type of dependency"
+          },
+          "utxoIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Specific UTXO output index (for utxo dependencies)"
+          },
+          "condition": {
+            "type": "string",
+            "description": "Condition for conditional dependencies"
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the dependency"
+          }
+        }
+      }
+    },
+    "utxoFlow": {
+      "type": "object",
+      "description": "UTXO flow visualization data",
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "description": "Step nodes in the UTXO flow",
+          "items": {
+            "type": "object",
+            "required": ["stepId", "name"],
+            "properties": {
+              "stepId": {
+                "type": "string",
+                "description": "Step identifier"
+              },
+              "name": {
+                "type": "string",
+                "description": "Step display name"
+              },
+              "inputUtxos": {
+                "type": "array",
+                "description": "Input UTXOs for this step",
+                "items": {
+                  "$ref": "#/$defs/utxoInfo"
+                }
+              },
+              "outputUtxos": {
+                "type": "array",
+                "description": "Output UTXOs from this step",
+                "items": {
+                  "$ref": "#/$defs/utxoInfo"
+                }
+              },
+              "totalInputValue": {
+                "type": "string",
+                "description": "Total value of input UTXOs"
+              },
+              "totalOutputValue": {
+                "type": "string",
+                "description": "Total value of output UTXOs"
+              },
+              "fees": {
+                "type": "string",
+                "description": "Transaction fees"
+              }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "description": "UTXO flow edges between steps",
+          "items": {
+            "type": "object",
+            "required": ["source", "target", "value"],
+            "properties": {
+              "source": {
+                "type": "string",
+                "description": "Source step ID"
+              },
+              "target": {
+                "type": "string",
+                "description": "Target step ID"
+              },
+              "value": {
+                "type": "string",
+                "description": "Value being transferred"
+              },
+              "utxoIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "UTXO output index"
+              },
+              "assetType": {
+                "type": "string",
+                "description": "Type of asset (ADA, token, etc.)"
+              },
+              "description": {
+                "type": "string",
+                "description": "Flow description"
+              }
+            }
+          }
+        },
+        "externalInputs": {
+          "type": "array",
+          "description": "External UTXO inputs to the chain",
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/utxoInfo"},
+              {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "description": "Source of the external input"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "finalOutputs": {
+          "type": "array",
+          "description": "Final outputs from the chain",
+          "items": {
+            "allOf": [
+              {"$ref": "#/$defs/utxoInfo"},
+              {
+                "type": "object",
+                "properties": {
+                  "destination": {
+                    "type": "string",
+                    "description": "Destination of the final output"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "description": "Purpose of this output"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "errorState": {
+      "type": "object",
+      "description": "Error state information for failed chains",
+      "required": ["hasErrors"],
+      "properties": {
+        "hasErrors": {
+          "type": "boolean",
+          "description": "Whether the chain has any errors"
+        },
+        "failedStepId": {
+          "type": "string",
+          "description": "ID of the step that failed"
+        },
+        "errorType": {
+          "type": "string",
+          "description": "Type of error that occurred"
+        },
+        "errorMessage": {
+          "type": "string",
+          "description": "Error message"
+        },
+        "errorDetails": {
+          "type": "string",
+          "description": "Detailed error information"
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the error occurred"
+        },
+        "retryable": {
+          "type": "boolean",
+          "description": "Whether the error is retryable"
+        },
+        "suggestions": {
+          "type": "array",
+          "description": "Suggested actions to resolve the error",
+          "items": {
+            "type": "string"
+          }
+        },
+        "affectedSteps": {
+          "type": "array",
+          "description": "Steps affected by this error",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rollbackRequired": {
+          "type": "boolean",
+          "description": "Whether rollback is required"
+        },
+        "stackTrace": {
+          "type": "string",
+          "description": "Error stack trace (for debugging)"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "utxoInfo": {
+      "type": "object",
+      "description": "Information about a UTXO",
+      "properties": {
+        "txHash": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$",
+          "description": "Transaction hash"
+        },
+        "outputIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Output index in the transaction"
+        },
+        "value": {
+          "type": "string",
+          "description": "ADA value in lovelace"
+        },
+        "address": {
+          "type": "string",
+          "description": "Cardano address"
+        },
+        "assets": {
+          "type": "array",
+          "description": "Native assets in this UTXO",
+          "items": {
+            "type": "object",
+            "required": ["unit", "quantity"],
+            "properties": {
+              "unit": {
+                "type": "string",
+                "description": "Asset unit (policy + name)"
+              },
+              "quantity": {
+                "type": "string",
+                "description": "Asset quantity"
+              },
+              "policyId": {
+                "type": "string",
+                "pattern": "^[a-fA-F0-9]{56}$",
+                "description": "Asset policy ID"
+              },
+              "assetName": {
+                "type": "string",
+                "description": "Asset name in hex"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
