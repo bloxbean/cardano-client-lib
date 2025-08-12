@@ -11,6 +11,7 @@ The Watcher module extends the Cardano Client Library with the WatchableQuickTxB
 - **Sequential Execution**: Steps execute in order with proper dependency resolution
 - **Event System**: Rich event notifications for monitoring and integration
 - **Status Tracking**: Monitor transaction and chain execution progress
+- **Chain Visualization**: ASCII art representation of chain structure, execution progress, and UTXO flow
 
 ## Quick Start
 
@@ -88,6 +89,132 @@ System.out.println("Chain started with ID: " + chainHandle.getWatchId());
 .fromStepWhere("step3", someCondition)
 ```
 
+## Chain Visualization
+
+The watcher module includes a powerful visualization system that provides ASCII art representations of transaction chains, showing structure, execution progress, and UTXO dependencies.
+
+### Basic Visualization
+
+```java
+import com.bloxbean.cardano.client.watcher.visualizer.ChainVisualizer;
+
+// Visualize chain structure before execution
+WatcherBuilder builder = Watcher.build("payment-chain")
+    .step(depositStep)
+    .step(withdrawStep);
+
+String structure = ChainVisualizer.visualizeStructure(builder);
+System.out.println(structure);
+```
+
+**Output:**
+```
+╔════════════════════════════════════════════════════════════╗
+║ Chain: payment-chain                                       ║
+║ Steps: 2 | Status: Not Started                            ║
+╚════════════════════════════════════════════════════════════╝
+
+┌──────────────┐      ┌──────────────┐
+│   deposit    │ ───▶ │   withdraw   │
+├──────────────┤      ├──────────────┤
+│ Send 100 ADA │      │ Withdraw 50  │
+│ to receiver  │      │ ADA back     │
+└──────────────┘      └──────────────┘
+     Step 1                Step 2
+                      Depends on: 1
+```
+
+### Progress Monitoring
+
+```java
+// Execute the chain
+WatchHandle handle = builder.watch();
+
+// Show current progress
+String progress = ChainVisualizer.visualizeProgress((BasicWatchHandle) handle);
+System.out.println(progress);
+```
+
+**Output:**
+```
+╔════════════════════════════════════════════════════════════╗
+║ Chain: payment-chain                                       ║
+║ Progress: [████████░░░░░░░░░░] 40% | Time: 12.3s          ║
+╚════════════════════════════════════════════════════════════╝
+
+┌──────────────┐      ┌──────────────┐
+│   deposit    │ ───▶ │   withdraw   │
+├──────────────┤      ├──────────────┤
+│      ✅      │      │      ⚡      │
+│  CONFIRMED   │      │  EXECUTING   │
+├──────────────┤      ├──────────────┤
+│ tx: abc123.. │      │ tx: def456.. │
+│ Block: 82345 │      │ Submitted    │
+└──────────────┘      └──────────────┘
+```
+
+### UTXO Flow Visualization
+
+```java
+// Show how UTXOs flow between steps
+String utxoFlow = ChainVisualizer.visualizeUtxoFlow((BasicWatchHandle) handle);
+System.out.println(utxoFlow);
+```
+
+### Live Monitoring
+
+```java
+// Start real-time console monitoring
+ChainVisualizer.startLiveMonitoring(handle, System.out);
+
+// Custom refresh interval (500ms)
+ChainVisualizer.startLiveMonitoring(handle, System.out, 500);
+```
+
+### Visualization Styles
+
+The system automatically detects terminal capabilities and selects the best style:
+
+```java
+import com.bloxbean.cardano.client.watcher.visualizer.VisualizationStyle;
+
+// Force specific style
+String diagram = ChainVisualizer.visualizeStructure(builder, VisualizationStyle.SIMPLE_ASCII);
+String diagram2 = ChainVisualizer.visualizeStructure(builder, VisualizationStyle.UNICODE_BOX);
+```
+
+Available styles:
+- `SIMPLE_ASCII`: Basic ASCII characters (+-|) for maximum compatibility
+- `UNICODE_BOX`: Unicode box drawing characters (┌─┐│) for better appearance  
+- `COMPACT`: Minimal representation with reduced detail
+- `DETAILED`: Full information including all metadata
+
+### Export Formats
+
+```java
+// Export as JSON for external tools
+String json = ChainVisualizer.exportJson((BasicWatchHandle) handle);
+
+// Export as SVG for documentation
+String svg = ChainVisualizer.exportSvg((BasicWatchHandle) handle);
+
+// Export the abstract model for custom renderers
+ChainVisualizationModel model = ChainVisualizer.exportModel((BasicWatchHandle) handle);
+```
+
+### Integration with Logging
+
+```java
+// Log chain structure at startup
+logger.info("Chain Structure:\n{}", ChainVisualizer.visualizeStructure(builder));
+
+// Log progress updates
+handle.onStepComplete(stepId -> {
+    String progress = ChainVisualizer.visualizeProgress((BasicWatchHandle) handle);
+    logger.debug("Step {} completed:\n{}", stepId, progress);
+});
+```
+
 ## Dependencies
 
 This module depends on:
@@ -115,9 +242,10 @@ The revolutionary ChainAwareUtxoSupplier automatically resolves UTXO dependencie
 ✅ **MVP Complete** - Core functionality implemented and tested:
 - [x] WatchableQuickTxBuilder with full API
 - [x] Transaction chaining with UTXO dependencies  
-- [x] ChainAwareUtxoSupplier (February 2025)
+- [x] ChainAwareUtxoSupplier 
 - [x] Sequential execution engine
 - [x] Integration tests passing
+- [x] Chain visualization system with multiple output formats
 
 🚧 **In Progress**: Advanced features, monitoring, production optimizations
 
