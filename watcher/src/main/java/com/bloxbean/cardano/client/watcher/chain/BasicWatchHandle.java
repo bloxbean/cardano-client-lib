@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.watcher.chain;
 import com.bloxbean.cardano.client.watcher.api.WatchHandle;
 import com.bloxbean.cardano.client.watcher.api.WatchResult;
 import com.bloxbean.cardano.client.watcher.api.WatchStatus;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
  * This implementation provides comprehensive status tracking, step result management,
  * async completion monitoring, and progress callbacks for transaction chains.
  */
+@Slf4j
 public class BasicWatchHandle extends WatchHandle {
     private final String chainId;
     private final int totalSteps;
@@ -281,7 +283,9 @@ public class BasicWatchHandle extends WatchHandle {
      * @param listener the step completion listener
      */
     public void onStepComplete(Consumer<StepResult> listener) {
-        System.out.println("🔔 Adding step completion listener. Total listeners: " + (stepListeners.size() + 1));
+        if (log.isDebugEnabled()) {
+            log.debug("Adding step completion listener. Total listeners: {}", stepListeners.size() + 1);
+        }
         stepListeners.add(listener);
     }
     
@@ -357,18 +361,23 @@ public class BasicWatchHandle extends WatchHandle {
      * Notify all step listeners of a step completion.
      */
     private void notifyStepListeners(StepResult stepResult) {
-        System.out.println("🚨 Notifying step listeners. Number of listeners: " + stepListeners.size());
-        System.out.println("🚨 Step result: " + stepResult.getStepId() + " - " + stepResult.getStatus());
+        if (log.isDebugEnabled()) {
+            log.debug("Notifying {} step listeners for step: {} - {}", 
+                stepListeners.size(), stepResult.getStepId(), stepResult.getStatus());
+        }
         
         for (Consumer<StepResult> listener : stepListeners) {
             try {
-                System.out.println("🚨 Calling step listener...");
+                if (log.isTraceEnabled()) {
+                    log.trace("Calling step listener...");
+                }
                 listener.accept(stepResult);
-                System.out.println("🚨 Step listener called successfully");
+                if (log.isTraceEnabled()) {
+                    log.trace("Step listener called successfully");
+                }
             } catch (Exception e) {
                 // Log error but don't fail the chain
-                System.err.println("Error in step listener: " + e.getMessage());
-                e.printStackTrace();
+                log.error("Error in step listener", e);
             }
         }
     }
@@ -382,7 +391,7 @@ public class BasicWatchHandle extends WatchHandle {
                 listener.accept(chainResult);
             } catch (Exception e) {
                 // Log error but don't fail the completion
-                System.err.println("Error in chain listener: " + e.getMessage());
+                log.error("Error in chain listener", e);
             }
         }
     }

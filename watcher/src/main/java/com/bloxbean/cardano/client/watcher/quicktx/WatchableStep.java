@@ -254,7 +254,7 @@ public class WatchableStep {
                     throw new UtxoDependencyException(
                         "Required dependency step '" + dependencyStepId + "' has not completed successfully");
                 } else {
-                    System.out.println("⚠️  Optional dependency step '" + dependencyStepId + "' is not ready, continuing anyway");
+                    log.warn("Optional dependency step '{}' is not ready, continuing anyway", dependencyStepId);
                     continue;
                 }
             }
@@ -267,8 +267,9 @@ public class WatchableStep {
                         "Required dependency step '" + dependencyStepId + "' has no output UTXOs available");
                 }
 
-                System.out.println("✅ Dependency '" + dependencyStepId + "' is ready with "
-                    + stepOutputs.size() + " output UTXOs");
+                if (log.isDebugEnabled()) {
+                    log.debug("Dependency '{}' is ready with {} output UTXOs", dependencyStepId, stepOutputs.size());
+                }
             }
         }
     }
@@ -293,11 +294,13 @@ public class WatchableStep {
             TxResult result = effectiveContext
                     .withTxInspector(txn -> {
                         this.builtTransaction = txn;
-                        System.out.println("Tx [" + stepId + "] \n" + JsonUtil.getPrettyJson(txn));
+                        if (log.isDebugEnabled()) {
+                            log.debug("Tx [{}]\n{}", stepId, JsonUtil.getPrettyJson(txn));
+                        }
                     })
                     .complete();
 
-            System.out.println("🔗 Transaction submitted: " + result.getTxHash() + " for step '" + stepId + "'");
+            log.info("Transaction submitted: {} for step '{}'", result.getTxHash(), stepId);
 
             // If successful, we need to rebuild the transaction to get access to outputs
             // This is necessary because complete() doesn't give us access to the built transaction
@@ -327,14 +330,14 @@ public class WatchableStep {
         List<Utxo> outputUtxos = new ArrayList<>();
 
         if (builtTransaction == null || builtTransaction.getBody() == null) {
-            System.out.println("⚠️  No built transaction available for step '" + stepId + "'");
+            log.warn("No built transaction available for step '{}'", stepId);
             return outputUtxos;
         }
 
         try {
             List<TransactionOutput> outputs = builtTransaction.getBody().getOutputs();
             if (outputs == null || outputs.isEmpty()) {
-                System.out.println("⚠️  No outputs found in transaction for step '" + stepId + "'");
+                log.warn("No outputs found in transaction for step '{}'", stepId);
                 return outputUtxos;
             }
 
@@ -394,12 +397,13 @@ public class WatchableStep {
                 }
 
                 outputUtxos.add(utxo);
-                System.out.println("📦 Captured UTXO for step '" + stepId + "': " + transactionHash + "#" + i + " (" + output.getAddress() + ")");
+                if (log.isDebugEnabled()) {
+                    log.debug("Captured UTXO for step '{}': {}#{} ({})", stepId, transactionHash, i, output.getAddress());
+                }
             }
 
         } catch (Exception e) {
-            System.out.println("⚠️  Failed to capture output UTXOs for step '" + stepId + "': " + e.getMessage());
-            e.printStackTrace();
+            log.error("Failed to capture output UTXOs for step '{}'", stepId, e);
         }
 
         return outputUtxos;
@@ -417,7 +421,7 @@ public class WatchableStep {
         List<TransactionInput> spentInputs = new ArrayList<>();
 
         if (builtTransaction == null || builtTransaction.getBody() == null) {
-            System.out.println("⚠️  No built transaction available for capturing spent inputs for step '" + stepId + "'");
+            log.warn("No built transaction available for capturing spent inputs for step '{}'", stepId);
             return spentInputs;
         }
 
@@ -425,16 +429,16 @@ public class WatchableStep {
             List<TransactionInput> inputs = builtTransaction.getBody().getInputs();
             if (inputs != null && !inputs.isEmpty()) {
                 spentInputs.addAll(inputs);
-                System.out.println("🔄 Captured " + inputs.size() + " spent inputs for step '" + stepId + "'");
-
-                // Log each spent input for debugging
-                for (TransactionInput input : inputs) {
-                    System.out.println("   🔄 Spent UTXO: " + input.getTransactionId() + "#" + input.getIndex());
+                if (log.isDebugEnabled()) {
+                    log.debug("Captured {} spent inputs for step '{}'", inputs.size(), stepId);
+                    // Log each spent input for debugging
+                    for (TransactionInput input : inputs) {
+                        log.debug("Spent UTXO: {}#{}", input.getTransactionId(), input.getIndex());
+                    }
                 }
             }
         } catch (Exception e) {
-            System.out.println("⚠️  Failed to capture spent inputs for step '" + stepId + "': " + e.getMessage());
-            e.printStackTrace();
+            log.error("Failed to capture spent inputs for step '{}'", stepId, e);
         }
 
         return spentInputs;
@@ -463,8 +467,9 @@ public class WatchableStep {
             return baseSupplier;
         } else {
             // Has dependencies, create chain-aware supplier that includes pending UTXOs
-            System.out.println("🔗 Step '" + stepId + "' has " + dependencies.size() +
-                " UTXO dependencies, using ChainAwareUtxoSupplier");
+            if (log.isDebugEnabled()) {
+                log.debug("Step '{}' has {} UTXO dependencies, using ChainAwareUtxoSupplier", stepId, dependencies.size());
+            }
 
             return new ChainAwareUtxoSupplier(
                 baseSupplier,       // base supplier
@@ -492,7 +497,9 @@ public class WatchableStep {
         if (parentBuilder.getBackendService() != null) {
             // If originally created with BackendService, use that approach
             newBuilder = new QuickTxBuilder(parentBuilder.getBackendService(), utxoSupplier);
-            System.out.println("New builder >>> " + newBuilder);
+            if (log.isTraceEnabled()) {
+                log.trace("New builder >>> {}", newBuilder);
+            }
         } else {
             // If originally created with individual services
             newBuilder = new QuickTxBuilder(
@@ -510,17 +517,23 @@ public class WatchableStep {
         // Apply stored configurations to the new context
         if (txContext.getStoredSigner() != null) {
             newContext.withSigner(txContext.getStoredSigner());
-            System.out.println("🔑 Applied stored signer to effective context for step '" + stepId + "'");
+            if (log.isTraceEnabled()) {
+                log.trace("Applied stored signer to effective context for step '{}'", stepId);
+            }
         }
 
         if (txContext.getStoredFeePayer() != null) {
             newContext.feePayer(txContext.getStoredFeePayer());
-            System.out.println("💰 Applied stored fee payer '" + txContext.getStoredFeePayer() + "' to effective context for step '" + stepId + "'");
+            if (log.isTraceEnabled()) {
+                log.trace("Applied stored fee payer '{}' to effective context for step '{}'", txContext.getStoredFeePayer(), stepId);
+            }
         }
 
         if (txContext.getStoredTxInspector() != null) {
             newContext.withTxInspector(txContext.getStoredTxInspector());
-            System.out.println("🔍 Applied stored transaction inspector to effective context for step '" + stepId + "'");
+            if (log.isTraceEnabled()) {
+                log.trace("Applied stored transaction inspector to effective context for step '{}'", stepId);
+            }
         }
 
         if (txContext.getTxEvaluator() != null) {
@@ -532,7 +545,9 @@ public class WatchableStep {
                 transactionEvaluator = txContext.getTxEvaluator().createTxEvaluator(utxoSupplier, parentBuilder.getProtocolParamsSupplier());
             }
             newContext.withTxEvaluator(transactionEvaluator);
-            System.out.println("✅ Applied transaction evaluator to effective context for step '" + stepId + "'");
+            if (log.isTraceEnabled()) {
+                log.trace("Applied transaction evaluator to effective context for step '{}'", stepId);
+            }
         }
 
         return newContext;

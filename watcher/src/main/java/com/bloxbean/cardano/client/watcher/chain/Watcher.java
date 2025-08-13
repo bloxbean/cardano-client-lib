@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.client.watcher.chain;
 
 import com.bloxbean.cardano.client.watcher.api.WatchHandle;
-import com.bloxbean.cardano.client.watcher.api.WatchStatus;
 import com.bloxbean.cardano.client.watcher.quicktx.WatchableStep;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +22,7 @@ import java.util.List;
  *     .watch();
  * </pre>
  */
+@Slf4j
 public class Watcher {
 
     /**
@@ -92,7 +93,7 @@ public class Watcher {
 
             // Create a basic watch handle
             BasicWatchHandle watchHandle = new BasicWatchHandle(chainId, steps.size(), description);
-            
+
             // Initialize all planned steps so they show up in visualization even if chain fails early
             List<String> stepIds = steps.stream()
                 .map(WatchableStep::getStepId)
@@ -102,36 +103,43 @@ public class Watcher {
             // Execute steps asynchronously in a separate thread
             Thread executionThread = new Thread(() -> {
                 try {
-                    System.out.println("Starting chain execution: " + chainId);
+                    log.info("Starting chain execution: {}", chainId);
 
                     for (WatchableStep step : steps) {
                         watchHandle.updateStepStatus(step.getStepId(), step.getStatus());
 
                         // Execute the step
-                        System.out.println("Executing step: " + step.getStepId());
+                        if (log.isDebugEnabled()) {
+                            log.debug("Executing step: {}", step.getStepId());
+                        }
                         StepResult result = step.execute(chainContext);
-                        System.out.println("Executed step: " + step.getStepId() + ", Result: " + result);
+                        if (log.isDebugEnabled()) {
+                            log.debug("Executed step: {}, Result: {}", step.getStepId(), result);
+                        }
 
                         // Update watch handle with result (this triggers callbacks)
-                        System.out.println("Recording step result for step: " + step.getStepId());
+                        if (log.isTraceEnabled()) {
+                            log.trace("Recording step result for step: {}", step.getStepId());
+                        }
                         watchHandle.recordStepResult(step.getStepId(), result);
-                        System.out.println("Step result recorded successfully");
+                        if (log.isTraceEnabled()) {
+                            log.trace("Step result recorded successfully");
+                        }
 
                         if (!result.isSuccessful()) {
                             // Stop execution on first failure for MVP
-                            System.out.println("Step failed, stopping chain execution: " + result.getError());
+                            log.error("Step failed, stopping chain execution", result.getError());
                             watchHandle.markFailed(result.getError());
                             return;
                         }
                     }
 
                     // Mark as completed if all steps succeeded
-                    System.out.println("All steps completed successfully, marking chain as completed");
+                    log.info("All steps completed successfully, marking chain as completed");
                     watchHandle.markCompleted();
 
                 } catch (Exception e) {
-                    System.out.println("Chain execution failed with exception: " + e.getMessage());
-                    e.printStackTrace();
+                    log.error("Chain execution failed with exception", e);
                     watchHandle.markFailed(e);
                 }
             }, "Chain-" + chainId);

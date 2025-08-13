@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.api.common.OrderEnum;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.watcher.chain.ChainContext;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 
@@ -24,6 +25,7 @@ import java.util.*;
  * This solves the "insufficient funds" issue when step 2 depends on
  * outputs from step 1 that haven't been confirmed yet.
  */
+@Slf4j
 public class ChainAwareUtxoSupplier implements UtxoSupplier {
 
     private final UtxoSupplier baseSupplier;
@@ -121,8 +123,7 @@ public class ChainAwareUtxoSupplier implements UtxoSupplier {
 
                 if (stepOutputs == null || stepOutputs.isEmpty()) {
                     if (!dependency.isOptional()) {
-                        System.out.println("⚠️  Warning: Required dependency step '"
-                            + dependency.getStepId() + "' has no outputs yet");
+                        log.warn("Required dependency step '{}' has no outputs yet", dependency.getStepId());
                     }
                     continue;
                 }
@@ -135,19 +136,18 @@ public class ChainAwareUtxoSupplier implements UtxoSupplier {
                 for (Utxo utxo : selectedUtxos) {
                     if (address.equals(utxo.getAddress())) {
                         pendingUtxos.add(utxo);
-                        System.out.println("🔗 Adding pending UTXO from step '"
-                            + dependency.getStepId() + "': " + utxo.getTxHash()
-                            + "#" + utxo.getOutputIndex() + " → " + address);
+                        if (log.isDebugEnabled()) {
+                            log.debug("Adding pending UTXO from step '{}': {}#{} → {}", 
+                                dependency.getStepId(), utxo.getTxHash(), utxo.getOutputIndex(), address);
+                        }
                     }
                 }
 
             } catch (Exception e) {
                 if (!dependency.isOptional()) {
-                    System.out.println("❌ Failed to resolve required dependency '"
-                        + dependency.getStepId() + "': " + e.getMessage());
+                    log.error("Failed to resolve required dependency '{}'", dependency.getStepId(), e);
                 } else {
-                    System.out.println("⚠️  Optional dependency '"
-                        + dependency.getStepId() + "' failed: " + e.getMessage());
+                    log.warn("Optional dependency '{}' failed: {}", dependency.getStepId(), e.getMessage());
                 }
             }
         }
@@ -239,8 +239,10 @@ public class ChainAwareUtxoSupplier implements UtxoSupplier {
                     utxo.getOutputIndex() == spentInput.getIndex()) {
                     isSpent = true;
                     filteredCount++;
-                    System.out.println("🚫 Filtered out spent UTXO: " + utxo.getTxHash() + 
-                        "#" + utxo.getOutputIndex() + " (spent by previous step)");
+                    if (log.isDebugEnabled()) {
+                        log.debug("Filtered out spent UTXO: {}#{} (spent by previous step)", 
+                            utxo.getTxHash(), utxo.getOutputIndex());
+                    }
                     break;
                 }
             }
@@ -250,9 +252,8 @@ public class ChainAwareUtxoSupplier implements UtxoSupplier {
             }
         }
         
-        if (filteredCount > 0) {
-            System.out.println("🔄 Filtered out " + filteredCount + " spent UTXOs from " + 
-                utxos.size() + " total UTXOs");
+        if (filteredCount > 0 && log.isDebugEnabled()) {
+            log.debug("Filtered out {} spent UTXOs from {} total UTXOs", filteredCount, utxos.size());
         }
         
         return unspentUtxos;
