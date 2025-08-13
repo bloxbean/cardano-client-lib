@@ -28,8 +28,11 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 
 @Slf4j
 public class ScriptTx extends AbstractTx<ScriptTx> {
@@ -43,6 +46,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     protected List<SpendingContext> spendingContexts;
     protected List<MintingContext> mintingContexts;
 
+    protected List<LazyUtxoStrategy> lazyStrategies;
+
     protected List<TransactionInput> referenceInputs;
 
     protected String fromAddress;
@@ -53,6 +58,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx() {
         spendingContexts = new ArrayList<>();
         mintingContexts = new ArrayList<>();
+        lazyStrategies = new ArrayList<>();
         spendingValidators = new ArrayList<>();
         mintingValidators = new ArrayList<>();
         certValidators = new ArrayList<>();
@@ -162,6 +168,64 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         utxos.forEach(utxo -> collectFrom(utxo));
         return this;
+    }
+
+    /**
+     * Add script UTXOs selected by predicate as inputs of the transaction.
+     * The predicate will be applied to UTXOs at the script address during execution.
+     * This enables lazy UTXO resolution for transaction chains.
+     *
+     * @param scriptAddress the script address to query UTXOs from
+     * @param utxoPredicate predicate to select UTXOs
+     * @param redeemerData redeemer data
+     * @param datum datum object
+     * @return ScriptTx
+     */
+    public ScriptTx collectFrom(String scriptAddress, Predicate<Utxo> utxoPredicate, PlutusData redeemerData, PlutusData datum) {
+        this.lazyStrategies.add(new SingleUtxoPredicateStrategy(scriptAddress, utxoPredicate, redeemerData, datum));
+        return this;
+    }
+
+    /**
+     * Add script UTXOs selected by predicate as inputs of the transaction.
+     * The predicate will be applied to UTXOs at the script address during execution.
+     *
+     * @param scriptAddress the script address to query UTXOs from
+     * @param utxoPredicate predicate to select UTXOs
+     * @param redeemerData redeemer data
+     * @return ScriptTx
+     */
+    public ScriptTx collectFrom(String scriptAddress, Predicate<Utxo> utxoPredicate, PlutusData redeemerData) {
+        return collectFrom(scriptAddress, utxoPredicate, redeemerData, null);
+    }
+
+    /**
+     * Add script UTXOs selected by list predicate as inputs of the transaction.
+     * The list predicate receives all UTXOs at the script address and returns filtered selection.
+     * This enables complex UTXO selection strategies for transaction chains.
+     *
+     * @param scriptAddress the script address to query UTXOs from
+     * @param listPredicate predicate to select UTXOs from the complete list
+     * @param redeemerData redeemer data
+     * @param datum datum object
+     * @return ScriptTx
+     */
+    public ScriptTx collectFromList(String scriptAddress, Predicate<List<Utxo>> listPredicate, PlutusData redeemerData, PlutusData datum) {
+        this.lazyStrategies.add(new ListUtxoPredicateStrategy(scriptAddress, listPredicate, redeemerData, datum));
+        return this;
+    }
+
+    /**
+     * Add script UTXOs selected by list predicate as inputs of the transaction.
+     * The list predicate receives all UTXOs at the script address and returns filtered selection.
+     *
+     * @param scriptAddress the script address to query UTXOs from
+     * @param listPredicate predicate to select UTXOs from the complete list
+     * @param redeemerData redeemer data
+     * @return ScriptTx
+     */
+    public ScriptTx collectFromList(String scriptAddress, Predicate<List<Utxo>> listPredicate, PlutusData redeemerData) {
+        return collectFromList(scriptAddress, listPredicate, redeemerData, null);
     }
 
     /**
@@ -720,9 +784,32 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         //Add gov deposit refund context
         addDepositRefundContext(govBuildTuple._1);
 
-        //Invoke common complete logic
+        // Set up lazy UTXO resolver if we have lazy strategies
+        if (lazyStrategies != null && !lazyStrategies.isEmpty()) {
+            this.lazyUtxoResolver = (supplier) -> {
+                List<Utxo> resolved = new ArrayList<>();
+                for (LazyUtxoStrategy strategy : new ArrayList<>(lazyStrategies)) {
+                    try {
+                        List<Utxo> strategyUtxos = strategy.resolve(supplier);
+                        if (!strategyUtxos.isEmpty()) {
+                            resolved.addAll(strategyUtxos);
+                            // Add resolved UTXOs to ScriptTx using regular collectFrom
+                            this.collectFrom(strategyUtxos, strategy.getRedeemer(), strategy.getDatum());
+                        }
+                    } catch (Exception e) {
+                        throw new TxBuildException("Failed to resolve lazy UTXO strategy: " + e.getMessage(), e);
+                    }
+                }
+                // Clear lazy strategies after resolution
+                lazyStrategies.clear();
+                return resolved;
+            };
+        }
+
+        //Invoke common complete logic - AbstractTx will handle lazyUtxoResolver
         TxBuilder txBuilder = super.complete();
 
+        // Continue with script-specific building
         txBuilder = txBuilder.andThen(prepareScriptCallContext());
 
         //stake, gov related
@@ -780,8 +867,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                     }));
         }
 
-        for (SpendingContext spendingContext : spendingContexts) {
-            txBuilder = txBuilder.andThen(((context, transaction) -> {
+
+        txBuilder = txBuilder.andThen(((context, transaction) -> {
+            for (SpendingContext spendingContext : spendingContexts) {
                 if (transaction.getWitnessSet() == null) {
                     transaction.setWitnessSet(new TransactionWitnessSet());
                 }
@@ -799,8 +887,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                     spendingContext.getRedeemer().setIndex(scriptInputIndex);
                     transaction.getWitnessSet().getRedeemers().add(spendingContext.redeemer);
                 }
-            }));
-        }
+            }
+        }));
+
         return txBuilder;
     }
 
@@ -890,6 +979,129 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         }
 
         return txBuilder;
+    }
+
+    /**
+     * Get lazy UTXO strategies for resolution during execution.
+     * This method is used by the watcher framework to resolve predicate-based UTXO selections.
+     *
+     * @return list of lazy UTXO strategies
+     */
+    public List<LazyUtxoStrategy> getLazyStrategies() {
+        return lazyStrategies;
+    }
+
+    /**
+     * Interface for lazy UTXO resolution strategies.
+     * Implementations define how UTXOs are selected from a script address during execution.
+     */
+    public interface LazyUtxoStrategy {
+        /**
+         * Resolve UTXOs from the supplier based on the strategy.
+         *
+         * @param supplier UTXO supplier
+         * @return list of selected UTXOs
+         */
+        List<Utxo> resolve(UtxoSupplier supplier);
+
+        /**
+         * Get the script address to query UTXOs from.
+         *
+         * @return script address
+         */
+        String getScriptAddress();
+
+        /**
+         * Get the redeemer data for this strategy.
+         *
+         * @return redeemer data
+         */
+        PlutusData getRedeemer();
+
+        /**
+         * Get the datum for this strategy.
+         *
+         * @return datum
+         */
+        PlutusData getDatum();
+    }
+
+    /**
+     * Strategy that selects the first UTXO matching a predicate from a script address.
+     */
+    public static class SingleUtxoPredicateStrategy implements LazyUtxoStrategy {
+        private final String scriptAddress;
+        private final Predicate<Utxo> predicate;
+        private final PlutusData redeemer;
+        private final PlutusData datum;
+
+        public SingleUtxoPredicateStrategy(String scriptAddress, Predicate<Utxo> predicate, PlutusData redeemer, PlutusData datum) {
+            this.scriptAddress = scriptAddress;
+            this.predicate = predicate;
+            this.redeemer = redeemer;
+            this.datum = datum;
+        }
+
+        @Override
+        public List<Utxo> resolve(UtxoSupplier supplier) {
+            return supplier.getAll(scriptAddress).stream()
+                .filter(predicate)
+                .limit(1)  // Single UTXO
+                .collect(Collectors.toList());
+        }
+
+        @Override
+        public String getScriptAddress() {
+            return scriptAddress;
+        }
+
+        @Override
+        public PlutusData getRedeemer() {
+            return redeemer;
+        }
+
+        @Override
+        public PlutusData getDatum() {
+            return datum;
+        }
+    }
+
+    /**
+     * Strategy that applies a predicate to the complete UTXO list from a script address for complex selections.
+     */
+    public static class ListUtxoPredicateStrategy implements LazyUtxoStrategy {
+        private final String scriptAddress;
+        private final Predicate<List<Utxo>> predicate;
+        private final PlutusData redeemer;
+        private final PlutusData datum;
+
+        public ListUtxoPredicateStrategy(String scriptAddress, Predicate<List<Utxo>> predicate, PlutusData redeemer, PlutusData datum) {
+            this.scriptAddress = scriptAddress;
+            this.predicate = predicate;
+            this.redeemer = redeemer;
+            this.datum = datum;
+        }
+
+        @Override
+        public List<Utxo> resolve(UtxoSupplier supplier) {
+            List<Utxo> allUtxos = supplier.getAll(scriptAddress);
+            return predicate.test(allUtxos) ? allUtxos : List.of();
+        }
+
+        @Override
+        public String getScriptAddress() {
+            return scriptAddress;
+        }
+
+        @Override
+        public PlutusData getRedeemer() {
+            return redeemer;
+        }
+
+        @Override
+        public PlutusData getDatum() {
+            return datum;
+        }
     }
 
     @Data

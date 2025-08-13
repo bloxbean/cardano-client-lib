@@ -15,6 +15,7 @@ dependencies {
 
     // Integration test dependencies
     integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation(libs.aiken.java.binding)
 }
 
 publishing {

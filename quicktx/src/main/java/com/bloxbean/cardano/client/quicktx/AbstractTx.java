@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.util.AssetUtil;
@@ -27,6 +28,8 @@ import lombok.SneakyThrows;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
@@ -45,6 +48,9 @@ public abstract class AbstractTx<T> {
 
     protected List<DepositRefundContext> depositRefundContexts;
     protected DonationContext donationContext;
+
+    // Function-based lazy UTXO resolver for script transactions
+    protected Function<UtxoSupplier, List<Utxo>> lazyUtxoResolver;
 
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
@@ -352,6 +358,10 @@ public abstract class AbstractTx<T> {
             //Build inputs
             if (inputUtxos != null && !inputUtxos.isEmpty()) {
                 txBuilder = buildInputBuildersFromUtxos(txOutputBuilder);
+            } else if (lazyUtxoResolver != null) {
+                // Handle function-based lazy UTXO resolution for script transactions
+                ContextAwareSupplier contextSupplier = new ContextAwareSupplier(lazyUtxoResolver);
+                txBuilder = buildInputBuildersFromUtxoSupplier(txOutputBuilder, contextSupplier);
             } else {
                 txBuilder = buildInputBuilders(txOutputBuilder);
             }
@@ -439,6 +449,38 @@ public abstract class AbstractTx<T> {
         return txBuilder;
     }
 
+    private TxBuilder buildInputBuildersFromUtxoSupplier(TxOutputBuilder txOutputBuilder, Supplier<List<Utxo>> utxoSupplier) {
+        String _changeAddr = getChangeAddress();
+
+        TxBuilder txBuilder;
+
+        // Check if we need to inject context for ContextAwareSupplier
+        if (utxoSupplier instanceof ContextAwareSupplier) {
+            ContextAwareSupplier contextSupplier = (ContextAwareSupplier) utxoSupplier;
+
+            // Create a TxBuilder that first injects context, then builds inputs
+            txBuilder = (context, transaction) -> {
+                // Inject the context's UtxoSupplier into our lazy supplier
+                contextSupplier.setContextSupplier(context.getUtxoSupplier());
+
+                // Now build inputs using the context-aware supplier
+                TxBuilder inputBuilder = txOutputBuilder.buildInputs(
+                    InputBuilders.createFromUtxos(utxoSupplier, _changeAddr, changeData, changeDatahash)
+                );
+
+                // Execute the input builder
+                inputBuilder.apply(context, transaction);
+            };
+        } else {
+            // Regular supplier - no context injection needed
+            txBuilder = txOutputBuilder.buildInputs(
+                InputBuilders.createFromUtxos(utxoSupplier, _changeAddr, changeData, changeDatahash)
+            );
+        }
+
+        return txBuilder;
+    }
+
     @SneakyThrows
     protected void addToMultiAssetList(@NonNull Script script, List<Asset> assets) {
         String policyId = script.getPolicyId();
@@ -518,6 +560,30 @@ public abstract class AbstractTx<T> {
      * @return String
      */
     protected abstract String getFeePayer();
+
+    /**
+     * Context-aware supplier that can resolve lazy UTXO strategies when context is available
+     */
+    private static class ContextAwareSupplier implements Supplier<List<Utxo>> {
+        private final Function<UtxoSupplier, List<Utxo>> resolver;
+        private UtxoSupplier contextSupplier;
+
+        ContextAwareSupplier(Function<UtxoSupplier, List<Utxo>> resolver) {
+            this.resolver = resolver;
+        }
+
+        void setContextSupplier(UtxoSupplier supplier) {
+            this.contextSupplier = supplier;
+        }
+
+        @Override
+        public List<Utxo> get() {
+            if (contextSupplier == null) {
+                throw new TxBuildException("ContextAwareSupplier called without injected UtxoSupplier");
+            }
+            return resolver.apply(contextSupplier);
+        }
+    }
 
     @Getter
     @AllArgsConstructor

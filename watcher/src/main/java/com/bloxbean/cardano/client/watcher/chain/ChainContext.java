@@ -1,7 +1,9 @@
 package com.bloxbean.cardano.client.watcher.chain;
 
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +71,36 @@ public class ChainContext {
         return Optional.ofNullable(stepResults.get(stepId))
             .map(StepResult::getOutputUtxos)
             .orElse(Collections.emptyList());
+    }
+    
+    /**
+     * Get the spent inputs from a specific step.
+     * 
+     * @param stepId the step ID
+     * @return the list of spent transaction inputs, or empty list if step not found or no inputs
+     */
+    public List<TransactionInput> getStepSpentInputs(String stepId) {
+        return Optional.ofNullable(stepResults.get(stepId))
+            .map(StepResult::getSpentInputs)
+            .orElse(Collections.emptyList());
+    }
+    
+    /**
+     * Get all spent inputs from all completed steps in the chain.
+     * This is useful for filtering out UTXOs that have been spent by previous steps.
+     * 
+     * @return list of all spent transaction inputs from all completed steps
+     */
+    public List<TransactionInput> getAllSpentInputs() {
+        List<TransactionInput> allSpentInputs = new ArrayList<>();
+        
+        for (StepResult stepResult : stepResults.values()) {
+            if (stepResult.isSuccessful()) {
+                allSpentInputs.addAll(stepResult.getSpentInputs());
+            }
+        }
+        
+        return allSpentInputs;
     }
     
     /**

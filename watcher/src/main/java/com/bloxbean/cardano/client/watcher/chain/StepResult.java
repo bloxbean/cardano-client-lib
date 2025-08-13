@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.watcher.chain;
 
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.watcher.api.WatchStatus;
 
 import java.time.Instant;
@@ -11,7 +12,7 @@ import java.util.List;
  * Result of executing a single step in a transaction chain.
  * 
  * Contains the outcome of step execution including transaction hash,
- * output UTXOs, and any error information.
+ * output UTXOs, spent inputs, and any error information.
  */
 public class StepResult {
     private final String stepId;
@@ -19,6 +20,7 @@ public class StepResult {
     private final WatchStatus status;
     private final String transactionHash;
     private final List<Utxo> outputUtxos;
+    private final List<TransactionInput> spentInputs;
     private final Throwable error;
     private final Instant completedAt;
     
@@ -29,15 +31,29 @@ public class StepResult {
      * @param status the final status
      * @param transactionHash the transaction hash
      * @param outputUtxos the output UTXOs
+     * @param spentInputs the spent transaction inputs
      */
-    public StepResult(String stepId, WatchStatus status, String transactionHash, List<Utxo> outputUtxos) {
+    public StepResult(String stepId, WatchStatus status, String transactionHash, List<Utxo> outputUtxos, List<TransactionInput> spentInputs) {
         this.stepId = stepId;
         this.successful = status == WatchStatus.CONFIRMED;
         this.status = status;
         this.transactionHash = transactionHash;
         this.outputUtxos = outputUtxos != null ? List.copyOf(outputUtxos) : Collections.emptyList();
+        this.spentInputs = spentInputs != null ? List.copyOf(spentInputs) : Collections.emptyList();
         this.error = null;
         this.completedAt = Instant.now();
+    }
+    
+    /**
+     * Create a successful step result (backward compatibility).
+     * 
+     * @param stepId the step ID
+     * @param status the final status
+     * @param transactionHash the transaction hash
+     * @param outputUtxos the output UTXOs
+     */
+    public StepResult(String stepId, WatchStatus status, String transactionHash, List<Utxo> outputUtxos) {
+        this(stepId, status, transactionHash, outputUtxos, Collections.emptyList());
     }
     
     /**
@@ -52,6 +68,7 @@ public class StepResult {
         this.status = WatchStatus.FAILED;
         this.transactionHash = null;
         this.outputUtxos = Collections.emptyList();
+        this.spentInputs = Collections.emptyList();
         this.error = error;
         this.completedAt = Instant.now();
     }
@@ -62,10 +79,23 @@ public class StepResult {
      * @param stepId the step ID
      * @param transactionHash the transaction hash
      * @param outputUtxos the output UTXOs
+     * @param spentInputs the spent transaction inputs
+     * @return successful step result
+     */
+    public static StepResult success(String stepId, String transactionHash, List<Utxo> outputUtxos, List<TransactionInput> spentInputs) {
+        return new StepResult(stepId, WatchStatus.CONFIRMED, transactionHash, outputUtxos, spentInputs);
+    }
+    
+    /**
+     * Create a successful step result (backward compatibility).
+     * 
+     * @param stepId the step ID
+     * @param transactionHash the transaction hash
+     * @param outputUtxos the output UTXOs
      * @return successful step result
      */
     public static StepResult success(String stepId, String transactionHash, List<Utxo> outputUtxos) {
-        return new StepResult(stepId, WatchStatus.CONFIRMED, transactionHash, outputUtxos);
+        return success(stepId, transactionHash, outputUtxos, Collections.emptyList());
     }
     
     /**
@@ -125,6 +155,15 @@ public class StepResult {
     }
     
     /**
+     * Get the spent transaction inputs.
+     * 
+     * @return the spent inputs
+     */
+    public List<TransactionInput> getSpentInputs() {
+        return spentInputs;
+    }
+    
+    /**
      * Get the error if the step failed.
      * 
      * @return the error, or null if successful
@@ -150,6 +189,7 @@ public class StepResult {
                 ", status=" + status +
                 ", transactionHash='" + transactionHash + '\'' +
                 ", outputUtxos=" + outputUtxos.size() +
+                ", spentInputs=" + spentInputs.size() +
                 ", error=" + error +
                 ", completedAt=" + completedAt +
                 '}';
