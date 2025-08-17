@@ -227,8 +227,8 @@ public class InputBuilders {
         if (datum == null) {
             return createFromUtxos(utxos, changeAddress, null);
         } else {
-            String datumHash = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHash();
-            return createFromUtxos(utxos, changeAddress, datumHash);
+            var plutusDataDatum = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum);
+            return createFromUtxos(() -> utxos, changeAddress, plutusDataDatum, null);
         }
     }
 
@@ -241,7 +241,7 @@ public class InputBuilders {
      * @return <code>{@link TxInputBuilder}</code> function
      */
     public static TxInputBuilder createFromUtxos(List<Utxo> utxos, String changeAddress, String datumHash) {
-        return createFromUtxos(() -> utxos, changeAddress, datumHash);
+        return createFromUtxos(() -> utxos, changeAddress, null, datumHash);
     }
 
     /**
@@ -249,10 +249,11 @@ public class InputBuilders {
      *
      * @param supplier      Supplier function to provide a list of <code>{@link Utxo}</code>
      * @param changeAddress change address
-     * @param datumHash     datum hash to add to change output
+     * @param changeOutputDatum change output datum (inline datum)
+     * @param changeOutputDatumHash     datum hash to add to change output if changeOutputDatum is null
      * @return <code>{@link TxInputBuilder}</code> function
      */
-    public static TxInputBuilder createFromUtxos(Supplier<List<Utxo>> supplier, String changeAddress, String datumHash) {
+    public static TxInputBuilder createFromUtxos(Supplier<List<Utxo>> supplier, String changeAddress, PlutusData changeOutputDatum, String changeOutputDatumHash) {
         Objects.requireNonNull(changeAddress, "Change address cannot be null");
 
         return (context, outputs) -> {
@@ -296,8 +297,10 @@ public class InputBuilders {
                 Value changedValue = changeOutput.getValue().minus(value);
                 changeOutput.setValue(changedValue);
 
-                if (datumHash != null && !datumHash.isEmpty())
-                    changeOutput.setDatumHash(HexUtil.decodeHexString(datumHash));
+                if (changeOutputDatum != null)
+                    changeOutput.setInlineDatum(changeOutputDatum);
+                else if (changeOutputDatumHash != null && !changeOutputDatumHash.isEmpty())
+                    changeOutput.setDatumHash(HexUtil.decodeHexString(changeOutputDatumHash));
 
                 if (!changeOutput.getValue().getCoin().equals(BigInteger.ZERO) ||
                         (changeOutput.getValue().getMultiAssets() != null && !changeOutput.getValue().getMultiAssets().isEmpty())) {

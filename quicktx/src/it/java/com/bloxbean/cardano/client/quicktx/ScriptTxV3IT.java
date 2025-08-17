@@ -6,12 +6,13 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
 import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +29,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
     private boolean aikenEvaluation = false;
 
     @Test
-    void alwaysTrueScript() throws ApiException {
+    void alwaysTrueScript() throws ApiException, CborDeserializationException {
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
                 .cborHex("46450101002499")
@@ -56,7 +57,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
         Optional<Utxo> optionalUtxo = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, plutusData);
         ScriptTx scriptTx = new ScriptTx()
                 .collectFrom(optionalUtxo.get(), plutusData)
-                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .payToAddress(receiver1, Amount.ada(1))
                 .attachSpendingValidator(plutusScript)
                 .withChangeAddress(scriptAddress, plutusData);
 
@@ -77,9 +78,74 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
         checkIfUtxoAvailable(result1.getValue(), sender2Addr);
 
-        // Example of getting the redeemer datum hash and then getting the datum values.
-        List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
-                .getTransactionRedeemers(result1.getValue()).getValue();
+        //Validate inline datum in script change output
+        var utxoOpt = utxoSupplier.getTxOutput(result1.getValue(), 1);
+        assertTrue(utxoOpt.isPresent());
+        Utxo scriptChangeUtxo = utxoOpt.get();
+        assertThat(scriptChangeUtxo.getAddress()).isEqualTo(scriptAddress);
+        assertThat(scriptChangeUtxo.getInlineDatum()).isNotEmpty();
+        assertThat(PlutusData.deserialize(HexUtil.decodeHexString(scriptChangeUtxo.getInlineDatum()))).isEqualTo(plutusData);
+    }
+
+    @Test
+    void alwaysTrueScript_datumHashInChangeOutput() throws ApiException, CborDeserializationException {
+        PlutusV3Script plutusScript = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        Random rand = new Random();
+        long randInt = System.currentTimeMillis();
+        BigIntPlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        var result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .complete();
+
+        assertThat(result.isSuccessful());
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        Optional<Utxo> optionalUtxo = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, plutusData);
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(optionalUtxo.get(), plutusData)
+                .payToAddress(receiver1, Amount.ada(1))
+                .attachSpendingValidator(plutusScript)
+                .withChangeAddress(scriptAddress, plutusData.getDatumHash());
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withRequiredSigners(sender2.getBaseAddress())
+                .withVerifier(txn -> {
+                    System.out.println(JsonUtil.getPrettyJson(txn));
+                    assertThat(txn.getBody().getRequiredSigners()).hasSize(1);
+                    assertThat(txn.getBody().getRequiredSigners().get(0)) //Verify sender's payment cred hash in required signer
+                            .isEqualTo(sender2.getBaseAddress().getPaymentCredentialHash().get());
+                })
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1);
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+
+        //Validate inline datum in script change output
+        var utxoOpt = utxoSupplier.getTxOutput(result1.getValue(), 1);
+        assertTrue(utxoOpt.isPresent());
+        Utxo scriptChangeUtxo = utxoOpt.get();
+        assertThat(scriptChangeUtxo.getAddress()).isEqualTo(scriptAddress);
+        assertThat(scriptChangeUtxo.getDataHash()).isNotEmpty();
+        assertThat(scriptChangeUtxo.getDataHash()).isEqualTo(plutusData.getDatumHash());
     }
 
     @Test

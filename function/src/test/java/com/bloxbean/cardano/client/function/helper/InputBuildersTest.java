@@ -17,6 +17,7 @@ import com.bloxbean.cardano.client.function.TxBuilderContext;
 import com.bloxbean.cardano.client.function.TxInputBuilder;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.Tuple;
@@ -426,7 +427,7 @@ class InputBuildersTest extends BaseTest {
         );
 
         TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
-        TxInputBuilder.Result inputResult = InputBuilders.createFromUtxos(() -> utxos, changeAddress, HexUtil.encodeHexString("somedatum_hash".getBytes(StandardCharsets.UTF_8)))
+        TxInputBuilder.Result inputResult = InputBuilders.createFromUtxos(() -> utxos, changeAddress, null, HexUtil.encodeHexString("somedatum_hash".getBytes(StandardCharsets.UTF_8)))
                 .apply(context, outputs);
 
         assertThat(inputResult.getInputs()).hasSize(1);
@@ -449,7 +450,7 @@ class InputBuildersTest extends BaseTest {
     }
 
     @Test
-    void createFromUtxos_withDatumObj() throws CborException, CborSerializationException {
+    void createFromUtxos_withDatumObj_shouldContainInlineDatumInChangeOutput() throws CborException, CborSerializationException {
         List<Utxo> utxos = List.of(
                 Utxo.builder()
                         .txHash("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85")
@@ -489,7 +490,7 @@ class InputBuildersTest extends BaseTest {
                 new TransactionInput("d5975c341088ca1c0ed2384a3139d34a1de4b31ef6c9cd3ac0c4eb55108fdf85", 1)
         );
 
-        String expectedDatumHash = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum).getDatumHash();
+        PlutusData expectedDatum = Configuration.INSTANCE.getPlutusObjectConverter().toPlutusData(datum);
         assertThat(inputResult.getChanges()).hasSize(1);
         assertThat(inputResult.getChanges()).contains(
                 TransactionOutput.builder()
@@ -497,7 +498,7 @@ class InputBuildersTest extends BaseTest {
                         .value(Value.builder()
                                 .coin(BigInteger.valueOf(7000000))
                                 .build())
-                        .datumHash(HexUtil.decodeHexString(expectedDatumHash))
+                        .inlineDatum(expectedDatum)
                         .build()
         );
     }
