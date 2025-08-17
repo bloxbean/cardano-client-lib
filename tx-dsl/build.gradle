@@ -1,0 +1,32 @@
+dependencies {
+    // Core dependencies
+    api project(':quicktx')
+    api project(':core')
+    api project(':function')
+    api project(':watcher')
+    
+    // YAML/JSON serialization
+    implementation 'org.yaml:snakeyaml:2.0'
+    implementation libs.jackson.databind
+    implementation libs.jackson.datatype.jsr310
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.16.0'
+    
+    // Groovy support
+    implementation 'org.apache.groovy:groovy-all:4.0.15'
+    
+    // Testing dependencies
+    testImplementation project(':backend-modules:blockfrost')
+    testImplementation 'org.yaml:snakeyaml:2.0'
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.16.0'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Transaction DSL Module'
+                description = 'Cardano Client Lib - Transaction DSL Module for declarative transaction definitions'
+            }
+        }
+    }
+}

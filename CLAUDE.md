@@ -162,6 +162,8 @@ TransactionService txService = backendService.getTransactionService();
 
 ## Important Development Notes
 
+- Always try to reuse existing class/api if possible instead of creating new ones with similar functionality.
+
 ### Watcher Module Testing
 - Integration tests require Yaci DevKit running on port 8080
 - Uses pre-funded test accounts with default mnemonic
