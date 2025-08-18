@@ -11,11 +11,13 @@ co-nstant-in-cbor = "co.nstant.in:cbor:0.9"
 i2p-crypto-eddsa = "com.bloxbean.cardano:net-i2p-crypto-eddsa:0.3.1"
 
 jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.16.0"
+jackson-datatype-jsr310 = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.16.0"
+
 retrofit2 = "com.squareup.retrofit2:retrofit:2.9.0"
 retrofit2-converter-jackson = "com.squareup.retrofit2:converter-jackson:2.9.0"
 okhttp = "com.squareup.okhttp3:okhttp:4.12.0"
 
-aiken-java-binding = "com.bloxbean.cardano:aiken-java-binding:0.0.8"
+aiken-java-binding = "com.bloxbean.cardano:aiken-java-binding:0.1.0"
 
 google-auto-service="com.google.auto.service:auto-service:1.1.1"
 javapoet="com.squareup:javapoet:1.13.0"

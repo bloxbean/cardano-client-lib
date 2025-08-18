@@ -1,0 +1,30 @@
+dependencies {
+    api project(':core')
+    api project(':core-api')
+    api project(':function')
+    api project(':quicktx')
+    api project(':backend')
+
+    // Jackson for JSON serialization in visualization layer
+    implementation libs.jackson.databind
+    implementation libs.jackson.datatype.jsr310
+
+    // Lombok for reducing boilerplate in model classes
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+
+    // Integration test dependencies
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation(libs.aiken.java.binding)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Watcher'
+                description = 'Cardano Client Lib - Transaction Watcher Module'
+            }
+        }
+    }
+}
