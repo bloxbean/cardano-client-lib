@@ -51,15 +51,6 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     private GovTx govTx;
 
     public ScriptTx() {
-        spendingContexts = new ArrayList<>();
-        mintingContexts = new ArrayList<>();
-        spendingValidators = new ArrayList<>();
-        mintingValidators = new ArrayList<>();
-        certValidators = new ArrayList<>();
-        rewardValidators = new ArrayList<>();
-        proposingValidators = new ArrayList<>();
-        votingValidators = new ArrayList<>();
-
         stakeTx = new StakeTx();
         govTx = new GovTx();
     }
@@ -88,6 +79,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                 .build();
 
         SpendingContext spendingContext = new SpendingContext(utxo, _redeemer, datum);
+
+        if (spendingContexts == null)
+            spendingContexts = new ArrayList<>();
         spendingContexts.add(spendingContext);
         return this;
     }
@@ -292,6 +286,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             throw new TxBuildException("Error getting policy id from script", e);
         }
 
+        if (mintingContexts == null)
+            mintingContexts = new ArrayList<>();
         mintingContexts.add(mintingContext);
 
         List<Amount> amounts = assets.stream()
@@ -317,6 +313,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachSpendingValidator(PlutusScript plutusScript) {
+        if (spendingValidators == null)
+            spendingValidators = new ArrayList<>();
         spendingValidators.add(plutusScript);
         return this;
     }
@@ -328,6 +326,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     private ScriptTx attachMintValidator(PlutusScript plutusScript) {
+        if (mintingValidators == null)
+            mintingValidators = new ArrayList<>();
         mintingValidators.add(plutusScript);
         return this;
     }
@@ -338,6 +338,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachCertificateValidator(PlutusScript plutusScript) {
+        if (certValidators == null)
+            certValidators = new ArrayList<>();
         certValidators.add(plutusScript);
         return this;
     }
@@ -348,6 +350,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachRewardValidator(PlutusScript plutusScript) {
+        if (rewardValidators == null)
+            rewardValidators = new ArrayList<>();
         rewardValidators.add(plutusScript);
         return this;
     }
@@ -358,6 +362,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachProposingValidator(PlutusScript plutusScript) {
+        if (proposingValidators == null)
+            proposingValidators = new ArrayList<>();
         proposingValidators.add(plutusScript);
         return this;
     }
@@ -368,6 +374,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachVotingValidator(PlutusScript plutusScript) {
+        if (votingValidators == null)
+            votingValidators = new ArrayList<>();
         votingValidators.add(plutusScript);
         return this;
     }
