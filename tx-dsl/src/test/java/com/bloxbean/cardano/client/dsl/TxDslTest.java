@@ -111,9 +111,7 @@ class TxDslTest {
         
         // Then
         List<TxIntention> intentions = txDsl.getIntentions();
-        assertThat(intentions).hasSize(1);
-        TxIntention intention = intentions.get(0);
-        assertThat(intention.getType()).isEqualTo("from");
+        assertThat(intentions).hasSize(0); // from is now an attribute, not an intention
     }
     
     @Test
@@ -131,9 +129,8 @@ class TxDslTest {
         
         // Then
         List<TxIntention> intentions = txDsl.getIntentions();
-        assertThat(intentions).hasSize(3);
-        assertThat(intentions.get(0).getType()).isEqualTo("from");
+        assertThat(intentions).hasSize(2); // only payment intentions, from is an attribute
+        assertThat(intentions.get(0).getType()).isEqualTo("payment");
         assertThat(intentions.get(1).getType()).isEqualTo("payment");
-        assertThat(intentions.get(2).getType()).isEqualTo("payment");
     }
 }

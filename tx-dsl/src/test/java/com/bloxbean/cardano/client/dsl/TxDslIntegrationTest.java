@@ -56,11 +56,10 @@ class TxDslIntegrationTest {
         QuickTxBuilder.TxContext context = quickTxBuilder.compose(tx);
         assertThat(context).isNotNull();
 
-        // Verify intentions were preserved
-        assertThat(restored.getIntentions()).hasSize(3);
-        assertThat(restored.getIntentions().get(0).getType()).isEqualTo("from");
+        // Verify intentions were preserved (from is now an attribute)
+        assertThat(restored.getIntentions()).hasSize(2);
+        assertThat(restored.getIntentions().get(0).getType()).isEqualTo("payment");
         assertThat(restored.getIntentions().get(1).getType()).isEqualTo("payment");
-        assertThat(restored.getIntentions().get(2).getType()).isEqualTo("payment");
     }
 
     @Test

@@ -28,6 +28,7 @@ class YamlSerializationTest {
         assertThat(yaml).contains("transaction:");
         assertThat(yaml).contains("- tx:");
         assertThat(yaml).contains("intentions:");
+        assertThat(yaml).contains("from:"); // from should be an attribute, not an intention
     }
 
     @Test
@@ -56,6 +57,8 @@ class YamlSerializationTest {
         assertThat(firstTx).containsKey("tx");
         Map<String, Object> tx = (Map<String, Object>) firstTx.get("tx");
         assertThat(tx).containsKey("intentions");
+        assertThat(tx).containsKey("from"); // from should be an attribute
+        assertThat(tx.get("from")).isEqualTo("addr1_sender...");
     }
 
     @Test
@@ -71,9 +74,8 @@ class YamlSerializationTest {
 
         // Then
         assertThat(restored).isNotNull();
-        assertThat(restored.getIntentions()).hasSize(2);
-        assertThat(restored.getIntentions().get(0).getType()).isEqualTo("from");
-        assertThat(restored.getIntentions().get(1).getType()).isEqualTo("payment");
+        assertThat(restored.getIntentions()).hasSize(1); // Only payment intention
+        assertThat(restored.getIntentions().get(0).getType()).isEqualTo("payment");
     }
 
     @Test
@@ -90,7 +92,7 @@ class YamlSerializationTest {
         String yaml2 = restored.toYaml();
 
         // Then
-        assertThat(restored.getIntentions()).hasSize(3);
+        assertThat(restored.getIntentions()).hasSize(2); // Only payment intentions, no from intention
         // YAML should be equivalent (may have different formatting)
         Yaml yamlParser = new Yaml();
         Map<String, Object> doc1 = yamlParser.load(yaml1);

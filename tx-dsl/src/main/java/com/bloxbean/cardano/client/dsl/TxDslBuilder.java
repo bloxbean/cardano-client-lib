@@ -15,11 +15,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TxDslBuilder - V3 Context Wrapper Pattern
+ * TxDslBuilder - Transaction DSL Builder with Context Support
  *
- * Thin wrapper that delegates to QuickTxBuilder while providing context support.
- * This design maximizes code reuse by directly delegating to existing QuickTxBuilder
- * instead of reimplementing its functionality.
+ * Provides context-aware transaction building capabilities using QuickTxBuilder.
+ * Supports variable resolution, execution context management, and YAML processing.
  */
 public class TxDslBuilder {
 
@@ -109,24 +108,12 @@ public class TxDslBuilder {
             return new TxDsl[0];
         }
 
-        // Convert each transaction entry to TxDsl
+        // Convert each transaction entry to TxDsl using the centralized method
         List<TxDsl> txDsls = new ArrayList<>();
         for (TransactionDocument.TxEntry txEntry : doc.getTransaction()) {
-            if (txEntry.getTx() != null && txEntry.getTx().getIntentions() != null) {
-                TxDsl txDsl = new TxDsl();
-
-                // Apply each intention to build the transaction
-                for (TxIntention intention : txEntry.getTx().getIntentions()) {
-                    intention.apply(txDsl);
-                }
-
-                // Add document variables to this TxDsl
-                if (doc.getVariables() != null) {
-                    for (Map.Entry<String, Object> variable : doc.getVariables().entrySet()) {
-                        txDsl.withVariable(variable.getKey(), variable.getValue());
-                    }
-                }
-
+            if (txEntry.getTx() != null) {
+                // Use the centralized method from TxDsl for proper conversion
+                TxDsl txDsl = TxDsl.fromTransactionEntry(txEntry, doc.getVariables());
                 txDsls.add(txDsl);
             }
         }

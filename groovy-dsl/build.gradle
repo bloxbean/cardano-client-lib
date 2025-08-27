@@ -8,15 +8,13 @@ dependencies {
     implementation project(':quicktx')
     implementation project(':core')
     implementation project(':common')
-    
+
     // Groovy dependencies
-    implementation 'org.apache.groovy:groovy-all:4.0.15'
-    
+    implementation libs.groovyall
+
     // Testing
-    testImplementation 'org.spockframework:spock-core:2.3-groovy-4.0'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
-    
+    testImplementation libs.spock.core
+
     // Integration test dependencies
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':backend-modules:koios')
@@ -26,10 +24,8 @@ dependencies {
     integrationTestImplementation project(':backend')
     integrationTestImplementation project(':hd-wallet')
     integrationTestImplementation project(':function')
-    integrationTestImplementation 'org.slf4j:slf4j-reload4j:1.7.36'
-    integrationTestImplementation 'org.spockframework:spock-core:2.3-groovy-4.0'
-    integrationTestImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
-    integrationTestRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+    integrationTestImplementation libs.slf4j.reload4j
+    integrationTestImplementation libs.spock.core
 }
 
 test {
@@ -62,7 +58,7 @@ testing {
                     srcDirs = ['src/it/resources']
                 }
             }
-            
+
             targets {
                 all {
                     testTask.configure {

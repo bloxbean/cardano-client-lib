@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.dsl.intention;
 
-import com.bloxbean.cardano.client.dsl.TxDsl;
+import com.bloxbean.cardano.client.quicktx.Tx;
+import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
@@ -25,8 +26,11 @@ public class FromIntention implements TxIntention {
     }
     
     @Override
-    public void apply(TxDsl txDsl) {
-        txDsl.from(address);
+    public void apply(Tx tx, Map<String, Object> variables) {
+        // Resolve address from variables if it's a variable
+        String resolvedAddress = IntentionHelper.resolveVariable(address, variables);
+        // Apply from directly to Tx
+        tx.from(resolvedAddress);
     }
     
     public String getAddress() {

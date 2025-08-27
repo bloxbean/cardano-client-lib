@@ -1,12 +1,14 @@
 package com.bloxbean.cardano.client.dsl.intention;
 
-import com.bloxbean.cardano.client.dsl.TxDsl;
+import com.bloxbean.cardano.client.quicktx.Tx;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
+import java.util.Map;
+
 /**
  * Base interface for capturing transaction intentions.
- * Each intention represents a method call on TxDsl that needs to be serialized.
+ * Each intention represents a method call that needs to be applied to build a Tx.
  */
 @JsonTypeInfo(
     use = JsonTypeInfo.Id.NAME,
@@ -27,10 +29,11 @@ public interface TxIntention {
     String getType();
     
     /**
-     * Apply this intention to a TxDsl instance during deserialization.
-     * This reconstructs the state by replaying the operation.
+     * Apply this intention to a Tx instance with variable resolution.
+     * This builds the transaction by directly calling Tx methods.
      * 
-     * @param txDsl the TxDsl to apply the intention to
+     * @param tx the Tx to apply the intention to
+     * @param variables the variables to use for resolution (may be null)
      */
-    void apply(TxDsl txDsl);
+    void apply(Tx tx, Map<String, Object> variables);
 }

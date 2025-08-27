@@ -4,20 +4,20 @@ dependencies {
     api project(':core')
     api project(':function')
     api project(':watcher')
-    
+
     // YAML/JSON serialization
-    implementation 'org.yaml:snakeyaml:2.0'
+    implementation libs.snakeyaml
     implementation libs.jackson.databind
     implementation libs.jackson.datatype.jsr310
-    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.16.0'
-    
-    // Groovy support
-    implementation 'org.apache.groovy:groovy-all:4.0.15'
-    
+    implementation libs.jackson.dataformat.yaml
+
     // Testing dependencies
     testImplementation project(':backend-modules:blockfrost')
-    testImplementation 'org.yaml:snakeyaml:2.0'
-    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.16.0'
+
+    // Integration test dependencies
+    integrationTestImplementation project(':it-support')
+    integrationTestImplementation project(':')
+    integrationTestAnnotationProcessor project(':annotation-processor')
 }
 
 publishing {
