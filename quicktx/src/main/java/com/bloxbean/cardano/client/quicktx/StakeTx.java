@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
+import com.bloxbean.cardano.client.quicktx.intent.*;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
@@ -37,7 +38,28 @@ class StakeTx {
     protected List<PoolRegistrationContext> poolRegistrationContexts;
     protected List<PoolRetirement> poolRetirements;
 
+    // Intention recording support
+    protected List<TxIntention> intentions;
+    protected boolean intentionRecordingEnabled = false;
+
     public StakeTx() {
+    }
+
+    /**
+     * Enable intention recording for YAML serialization support.
+     */
+    public void enableIntentionRecording() {
+        this.intentionRecordingEnabled = true;
+        if (this.intentions == null) {
+            this.intentions = new ArrayList<>();
+        }
+    }
+
+    /**
+     * Get recorded intentions for YAML serialization.
+     */
+    public List<TxIntention> getIntentions() {
+        return intentions;
     }
 
     /**
@@ -47,21 +69,27 @@ class StakeTx {
      * @return T
      */
     public StakeTx registerStakeAddress(@NonNull Address address) {
-        byte[] delegationHash = address.getDelegationCredentialHash()
-                .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
+//        byte[] delegationHash = address.getDelegationCredentialHash()
+//                .orElseThrow(() -> new TxBuildException("Invalid stake address. Address does not have delegation credential"));
+//
+//        StakeCredential stakeCredential = null;
+//        if (address.isStakeKeyHashInDelegationPart())
+//            stakeCredential = StakeCredential.fromKeyHash(delegationHash);
+//        else if (address.isScriptHashInDelegationPart())
+//            stakeCredential = StakeCredential.fromScriptHash(delegationHash);
+//
+//        if (stakeRegistrations == null)
+//            stakeRegistrations = new ArrayList<>();
+//
+//        //-- Stake key registration
+//        StakeRegistration stakeRegistration = new StakeRegistration(stakeCredential);
+//        stakeRegistrations.add(stakeRegistration);
 
-        StakeCredential stakeCredential = null;
-        if (address.isStakeKeyHashInDelegationPart())
-            stakeCredential = StakeCredential.fromKeyHash(delegationHash);
-        else if (address.isScriptHashInDelegationPart())
-            stakeCredential = StakeCredential.fromScriptHash(delegationHash);
+        // Record intention for YAML serialization if enabled
 
-        if (stakeRegistrations == null)
-            stakeRegistrations = new ArrayList<>();
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(StakeRegistrationIntention.register(address.toBech32()));
 
-        //-- Stake key registration
-        StakeRegistration stakeRegistration = new StakeRegistration(stakeCredential);
-        stakeRegistrations.add(stakeRegistration);
 
         return this;
     }
@@ -104,6 +132,16 @@ class StakeTx {
 
         StakeKeyDeregestrationContext stakeKeyDeregestrationContext = new StakeKeyDeregestrationContext(stakeDeregistration, _redeemer, refundAddr);
         stakeDeRegistrationContexts.add(stakeKeyDeregestrationContext);
+
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            if (refundAddr != null) {
+                intentions.add(StakeDeregistrationIntention.deregister(address.toBech32(), refundAddr));
+            } else {
+                intentions.add(StakeDeregistrationIntention.deregister(address.toBech32()));
+            }
+        }
 
         return this;
     }
@@ -154,6 +192,12 @@ class StakeTx {
         StakeDelegationContext stakeDelegationContext = new StakeDelegationContext(stakeDelegation, _redeemer);
         stakeDelegationContexts.add(stakeDelegationContext);
 
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(StakeDelegationIntention.delegateTo(address.toBech32(), poolId));
+        }
+
         return this;
     }
 
@@ -187,6 +231,17 @@ class StakeTx {
         }
 
         withdrawalContexts.add(new WithdrawalContext(new Withdrawal(address.toBech32(), amount), _redeemer, receiver));
+
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            if (receiver != null) {
+                intentions.add(StakeWithdrawalIntention.withdraw(address.toBech32(), amount, receiver));
+            } else {
+                intentions.add(StakeWithdrawalIntention.withdraw(address.toBech32(), amount));
+            }
+        }
+
         return this;
     }
 
@@ -201,6 +256,13 @@ class StakeTx {
             poolRegistrationContexts = new ArrayList<>();
 
         poolRegistrationContexts.add(new PoolRegistrationContext(poolRegistration, false));
+
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(PoolRegistrationIntention.register(poolRegistration));
+        }
+
         return this;
     }
 
@@ -215,6 +277,13 @@ class StakeTx {
             poolRegistrationContexts = new ArrayList<>();
 
         poolRegistrationContexts.add(new PoolRegistrationContext(poolRegistration, true));
+
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(PoolRegistrationIntention.update(poolRegistration));
+        }
+
         return this;
     }
 
@@ -239,6 +308,13 @@ class StakeTx {
         }
 
         poolRetirements.add(new PoolRetirement(poolKeyHash, epoch));
+
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(PoolRetirementIntention.retire(poolId, epoch));
+        }
+
         return this;
     }
 

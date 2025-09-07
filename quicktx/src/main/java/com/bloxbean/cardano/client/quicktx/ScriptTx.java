@@ -2,14 +2,17 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
-import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.quicktx.intent.ScriptMintingIntention;
+import com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention;
+import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
+import com.bloxbean.cardano.client.quicktx.utxostrategy.ListUtxoPredicateStrategy;
+import com.bloxbean.cardano.client.quicktx.utxostrategy.SingleUtxoPredicateStrategy;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
@@ -17,7 +20,6 @@ import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
 import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
-import com.bloxbean.cardano.client.util.Tuple;
 import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,10 +31,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntention;
+import com.bloxbean.cardano.client.quicktx.intent.TxIntention;
 
 @Slf4j
 public class ScriptTx extends AbstractTx<ScriptTx> {
@@ -71,6 +73,28 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
+     * Enable intention recording for all sub-transactions.
+     * This allows capturing stake and governance operations for YAML serialization.
+     */
+    public void enableIntentionRecording() {
+        stakeTx.enableIntentionRecording();
+        govTx.enableIntentionRecording();
+    }
+
+    /**
+     * Get all intentions from this transaction and its sub-transactions.
+     * @return combined list of all intentions
+     */
+    @Override
+    public java.util.List<TxIntention> getIntentions() {
+        java.util.List<TxIntention> all = new java.util.ArrayList<>();
+        if (this.intentions != null) all.addAll(this.intentions);
+        if (stakeTx != null && stakeTx.getIntentions() != null) all.addAll(stakeTx.getIntentions());
+        if (govTx != null && govTx.getIntentions() != null) all.addAll(govTx.getIntentions());
+        return all;
+    }
+
+    /**
      * Add given script utxo as input of the transaction.
      *
      * @param utxo Script utxo
@@ -79,23 +103,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx collectFrom(Utxo utxo, PlutusData redeemerData, PlutusData datum) {
-        if (inputUtxos == null)
-            inputUtxos = new ArrayList<>();
-        inputUtxos.add(utxo);
-
-        Redeemer _redeemer = Redeemer.builder()
-                .tag(RedeemerTag.Spend)
-                .data(redeemerData)
-                .index(BigInteger.valueOf(1)) //dummy value
-                .exUnits(ExUnits.builder()
-                        .mem(BigInteger.valueOf(10000)) // Some dummy value
-                        .steps(BigInteger.valueOf(10000))
-                        .build())
-                .build();
-
-        SpendingContext spendingContext = new SpendingContext(utxo, _redeemer, datum);
-        spendingContexts.add(spendingContext);
-        return this;
+        return collectFrom(List.of(utxo), redeemerData, datum);
     }
 
     /**
@@ -107,10 +115,17 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx collectFrom(List<Utxo> utxos, PlutusData redeemerData, PlutusData datum) {
-        if (utxos == null)
+        if (utxos == null || utxos.isEmpty())
             return this;
 
-        utxos.forEach(utxo -> collectFrom(utxo, redeemerData, datum));
+        // Create intention using the factory method that stores original objects
+        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxos, redeemerData, datum);
+
+        if (intentions == null) {
+            intentions = new ArrayList<>();
+        }
+        intentions.add(intention);
+
         return this;
     }
 
@@ -133,11 +148,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx collectFrom(List<Utxo> utxos, PlutusData redeemerData) {
-        if (utxos == null)
-            return this;
-
-        utxos.forEach(utxo -> collectFrom(utxo, redeemerData, null));
-        return this;
+        return collectFrom(utxos, redeemerData, null);
     }
 
     /**
@@ -148,9 +159,13 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx collectFrom(Utxo utxo) {
-        if (inputUtxos == null)
-            inputUtxos = new ArrayList<>();
-        inputUtxos.add(utxo);
+        if (utxo == null)
+            return this;
+
+        // Record intention without redeemer/datum
+        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxo);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(intention);
 
         return this;
     }
@@ -163,10 +178,14 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx collectFrom(List<Utxo> utxos) {
-        if (utxos == null)
+        if (utxos == null || utxos.isEmpty())
             return this;
 
-        utxos.forEach(utxo -> collectFrom(utxo));
+        // Record a single intention with UTXO list and no redeemer/datum
+        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxos, null, null);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(intention);
+
         return this;
     }
 
@@ -182,6 +201,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx collectFrom(String scriptAddress, Predicate<Utxo> utxoPredicate, PlutusData redeemerData, PlutusData datum) {
+        // TODO(yaml): Predicate-based collectFrom uses runtime-only lazy strategies and is not serialized to YAML yet.
+        // Consider adding a predicate registry or DSL in a future phase for YAML support.
         this.lazyStrategies.add(new SingleUtxoPredicateStrategy(scriptAddress, utxoPredicate, redeemerData, datum));
         return this;
     }
@@ -196,6 +217,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx collectFrom(String scriptAddress, Predicate<Utxo> utxoPredicate, PlutusData redeemerData) {
+        // TODO(yaml): Predicate-based collectFrom uses runtime-only lazy strategies and is not serialized to YAML yet.
         return collectFrom(scriptAddress, utxoPredicate, redeemerData, null);
     }
 
@@ -211,6 +233,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx collectFromList(String scriptAddress, Predicate<List<Utxo>> listPredicate, PlutusData redeemerData, PlutusData datum) {
+        // TODO(yaml): Predicate-based collectFromList uses runtime-only lazy strategies and is not serialized to YAML yet.
+        // Consider registry/DSL or snapshot+hints for future YAML support.
         this.lazyStrategies.add(new ListUtxoPredicateStrategy(scriptAddress, listPredicate, redeemerData, datum));
         return this;
     }
@@ -235,9 +259,13 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx readFrom(Utxo... utxos) {
+        if (utxos == null || utxos.length == 0) return this;
+        if (intentions == null) intentions = new ArrayList<>();
+        com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention intention = new com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention();
         for (Utxo utxo : utxos) {
-            readFrom(utxo.getTxHash(), utxo.getOutputIndex());
+            intention.addRef(utxo.getTxHash(), utxo.getOutputIndex());
         }
+        intentions.add(intention);
         return this;
     }
 
@@ -248,9 +276,13 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx readFrom(TransactionInput... transactionInputs) {
+        if (transactionInputs == null || transactionInputs.length == 0) return this;
+        if (intentions == null) intentions = new ArrayList<>();
+        com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention intention = new com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention();
         for (TransactionInput transactionInput : transactionInputs) {
-            readFrom(transactionInput.getTransactionId(), transactionInput.getIndex());
+            intention.addRef(transactionInput.getTransactionId(), transactionInput.getIndex());
         }
+        intentions.add(intention);
         return this;
     }
 
@@ -262,12 +294,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx readFrom(String txHash, int outputIndex) {
-        TransactionInput transactionInput = new TransactionInput(txHash, outputIndex);
-        if (referenceInputs == null)
-            referenceInputs = new ArrayList<>();
-
-        if (!referenceInputs.contains(transactionInput))
-            referenceInputs.add(transactionInput);
+        if (txHash == null || txHash.isBlank()) return this;
+        if (intentions == null) intentions = new ArrayList<>();
+        com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention intention = new com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention();
+        intention.addRef(txHash, outputIndex);
+        intentions.add(intention);
         return this;
     }
 
@@ -338,39 +369,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx mintAsset(PlutusScript script, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
-        Redeemer _redeemer = Redeemer.builder()
-                .tag(RedeemerTag.Mint)
-                .data(redeemer)
-                .exUnits(ExUnits.builder()
-                        .mem(BigInteger.valueOf(10000)) // Some dummy value
-                        .steps(BigInteger.valueOf(10000))
-                        .build())
-                .build();
-
-        MintingContext mintingContext = null;
-        String policyId;
-        try {
-            policyId = script.getPolicyId();
-            mintingContext = new MintingContext(policyId, assets, _redeemer);
-        } catch (CborSerializationException e) {
-            throw new TxBuildException("Error getting policy id from script", e);
-        }
-
-        mintingContexts.add(mintingContext);
-
-        List<Amount> amounts = assets.stream()
-                .map(asset -> Amount.asset(policyId, asset.getName(), asset.getValue()))
-                .collect(Collectors.toList());
-
-        if (receiver != null) {
-            if (outputDatum != null)
-                payToContract(receiver, amounts, outputDatum);
-            else
-                payToAddress(receiver, amounts);
-        }
-
-        addToMultiAssetList(script, assets);
-        attachMintValidator(script);
+        // Record a script minting intention; intention will add mint + witnesses + optional receiver output
+        ScriptMintingIntention intention =
+                ScriptMintingIntention.of(script, assets, redeemer, receiver, outputDatum);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(intention);
         return this;
     }
 
@@ -381,7 +384,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachSpendingValidator(PlutusScript plutusScript) {
-        spendingValidators.add(plutusScript);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(ScriptValidatorAttachmentIntention
+                .of(RedeemerTag.Spend, plutusScript));
         return this;
     }
 
@@ -402,7 +407,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachCertificateValidator(PlutusScript plutusScript) {
-        certValidators.add(plutusScript);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+                .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Cert, plutusScript));
         return this;
     }
 
@@ -412,7 +419,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachRewardValidator(PlutusScript plutusScript) {
-        rewardValidators.add(plutusScript);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+                .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Reward, plutusScript));
         return this;
     }
 
@@ -422,7 +431,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachProposingValidator(PlutusScript plutusScript) {
-        proposingValidators.add(plutusScript);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+                .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Proposing, plutusScript));
         return this;
     }
 
@@ -432,7 +443,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     public ScriptTx attachVotingValidator(PlutusScript plutusScript) {
-        votingValidators.add(plutusScript);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+                .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Voting, plutusScript));
         return this;
     }
 
@@ -770,6 +783,50 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     @Override
     TxBuilder complete() {
+        if (this.intentions != null && !this.intentions.isEmpty()) {
+            //Check ScriptCollectionFromIntention
+            var lazyUtxoStrategies = this.intentions.stream()
+                    .filter(it -> it instanceof ScriptCollectFromIntention)
+                    .map(it -> (ScriptCollectFromIntention) it)
+                    .map(scriptCollectFromIntention -> scriptCollectFromIntention.utxoStrategy())
+                    .collect(java.util.stream.Collectors.toList());
+            if (!lazyUtxoStrategies.isEmpty()) {
+                this.lazyStrategies.addAll(lazyUtxoStrategies);
+            }
+        }
+
+        if (lazyStrategies != null && !lazyStrategies.isEmpty()) {
+            this.lazyUtxoResolver = (supplier) -> {
+                List<Utxo> resolved = new ArrayList<>();
+                for (LazyUtxoStrategy strategy : new ArrayList<>(lazyStrategies)) {
+                    try {
+                        List<Utxo> strategyUtxos = strategy.resolve(supplier);
+                        if (!strategyUtxos.isEmpty()) {
+                            resolved.addAll(strategyUtxos);
+                            // Add resolved UTXOs to ScriptTx using regular collectFrom
+                           // this.collectFrom(strategyUtxos, strategy.getRedeemer(), strategy.getDatum());
+                        }
+                    } catch (Exception e) {
+                        throw new TxBuildException("Failed to resolve lazy UTXO strategy: " + e.getMessage(), e);
+                    }
+                }
+                // Clear lazy strategies after resolution
+                lazyStrategies.clear();
+                return resolved;
+            };
+        }
+
+        /**
+        // Pre-process script collect intentions to set inputs and spending contexts before input selection
+        if (this.intentions != null && !this.intentions.isEmpty()) {
+            java.util.List<com.bloxbean.cardano.client.quicktx.plan.TxIntention> collectIntents = this.intentions.stream()
+                    .filter(it -> "script_collect_from".equals(it.getType()))
+                    .collect(java.util.stream.Collectors.toList());
+            if (!collectIntents.isEmpty()) {
+                IntentProcessor.processIntentions(this, collectIntents);
+            }
+        }
+
         //stake related
         Tuple<List<DepositRefundContext>, TxBuilder> stakeBuildTuple =
                 stakeTx.build(getFromAddress(), getChangeAddress());
@@ -805,17 +862,19 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                 return resolved;
             };
         }
+         **/
 
         //Invoke common complete logic - AbstractTx will handle lazyUtxoResolver
         TxBuilder txBuilder = super.complete();
 
+        /**
         // Continue with script-specific building
         txBuilder = txBuilder.andThen(prepareScriptCallContext());
 
         //stake, gov related
         txBuilder = txBuilder.andThen(stakeBuildTuple._2)
                 .andThen(govBuildTuple._2);
-
+        **/
         return txBuilder;
     }
 
@@ -825,8 +884,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
         txBuilder = addReferenceInputs(txBuilder);
 
-        txBuilder = txBuilderFromSpendingValidators(txBuilder);
-        txBuilder = txBuilderFromMintingValidators(txBuilder);
+       // txBuilder = txBuilderFromSpendingValidators(txBuilder);
+//        txBuilder = txBuilderFromMintingValidators(txBuilder);
         txBuilder = txBuilderFromValidators(txBuilder, certValidators);//txBuilderFromCertValidators(txBuilder);
         txBuilder = txBuilderFromValidators(txBuilder, rewardValidators); //txBuilderFromRewardValidators(txBuilder);
         txBuilder = txBuilderFromValidators(txBuilder, proposingValidators);//txBuilderFromProposingValidators(txBuilder);
@@ -849,6 +908,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     private TxBuilder txBuilderFromSpendingValidators(TxBuilder txBuilder) {
+        /**
         for (PlutusScript plutusScript : spendingValidators) {
             txBuilder =
                     txBuilder.andThen(((context, transaction) -> {
@@ -889,6 +949,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                 }
             }
         }));
+         **/
 
         return txBuilder;
     }
@@ -991,118 +1052,6 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return lazyStrategies;
     }
 
-    /**
-     * Interface for lazy UTXO resolution strategies.
-     * Implementations define how UTXOs are selected from a script address during execution.
-     */
-    public interface LazyUtxoStrategy {
-        /**
-         * Resolve UTXOs from the supplier based on the strategy.
-         *
-         * @param supplier UTXO supplier
-         * @return list of selected UTXOs
-         */
-        List<Utxo> resolve(UtxoSupplier supplier);
-
-        /**
-         * Get the script address to query UTXOs from.
-         *
-         * @return script address
-         */
-        String getScriptAddress();
-
-        /**
-         * Get the redeemer data for this strategy.
-         *
-         * @return redeemer data
-         */
-        PlutusData getRedeemer();
-
-        /**
-         * Get the datum for this strategy.
-         *
-         * @return datum
-         */
-        PlutusData getDatum();
-    }
-
-    /**
-     * Strategy that selects the first UTXO matching a predicate from a script address.
-     */
-    public static class SingleUtxoPredicateStrategy implements LazyUtxoStrategy {
-        private final String scriptAddress;
-        private final Predicate<Utxo> predicate;
-        private final PlutusData redeemer;
-        private final PlutusData datum;
-
-        public SingleUtxoPredicateStrategy(String scriptAddress, Predicate<Utxo> predicate, PlutusData redeemer, PlutusData datum) {
-            this.scriptAddress = scriptAddress;
-            this.predicate = predicate;
-            this.redeemer = redeemer;
-            this.datum = datum;
-        }
-
-        @Override
-        public List<Utxo> resolve(UtxoSupplier supplier) {
-            return supplier.getAll(scriptAddress).stream()
-                .filter(predicate)
-                .limit(1)  // Single UTXO
-                .collect(Collectors.toList());
-        }
-
-        @Override
-        public String getScriptAddress() {
-            return scriptAddress;
-        }
-
-        @Override
-        public PlutusData getRedeemer() {
-            return redeemer;
-        }
-
-        @Override
-        public PlutusData getDatum() {
-            return datum;
-        }
-    }
-
-    /**
-     * Strategy that applies a predicate to the complete UTXO list from a script address for complex selections.
-     */
-    public static class ListUtxoPredicateStrategy implements LazyUtxoStrategy {
-        private final String scriptAddress;
-        private final Predicate<List<Utxo>> predicate;
-        private final PlutusData redeemer;
-        private final PlutusData datum;
-
-        public ListUtxoPredicateStrategy(String scriptAddress, Predicate<List<Utxo>> predicate, PlutusData redeemer, PlutusData datum) {
-            this.scriptAddress = scriptAddress;
-            this.predicate = predicate;
-            this.redeemer = redeemer;
-            this.datum = datum;
-        }
-
-        @Override
-        public List<Utxo> resolve(UtxoSupplier supplier) {
-            List<Utxo> allUtxos = supplier.getAll(scriptAddress);
-            return predicate.test(allUtxos) ? allUtxos : List.of();
-        }
-
-        @Override
-        public String getScriptAddress() {
-            return scriptAddress;
-        }
-
-        @Override
-        public PlutusData getRedeemer() {
-            return redeemer;
-        }
-
-        @Override
-        public PlutusData getDatum() {
-            return datum;
-        }
-    }
 
     @Data
     @AllArgsConstructor
