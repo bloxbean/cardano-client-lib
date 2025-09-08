@@ -183,6 +183,12 @@ public class TransactionDocument {
         @JsonProperty("change_address")
         private String changeAddress;
 
+        @JsonProperty("change_datum")
+        private String changeDatum;
+
+        @JsonProperty("change_datum_hash")
+        private String changeDatumHash;
+
         @JsonProperty("collect_from")
         private List<CollectFromConfiguration> collectFrom;
 
@@ -205,6 +211,22 @@ public class TransactionDocument {
 
         public void setChangeAddress(String changeAddress) {
             this.changeAddress = changeAddress;
+        }
+
+        public String getChangeDatum() {
+            return changeDatum;
+        }
+
+        public void setChangeDatum(String changeDatum) {
+            this.changeDatum = changeDatum;
+        }
+
+        public String getChangeDatumHash() {
+            return changeDatumHash;
+        }
+
+        public void setChangeDatumHash(String changeDatumHash) {
+            this.changeDatumHash = changeDatumHash;
         }
 
         public List<CollectFromConfiguration> getCollectFrom() {

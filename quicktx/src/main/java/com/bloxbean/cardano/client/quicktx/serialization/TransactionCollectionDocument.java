@@ -99,6 +99,18 @@ public class TransactionCollectionDocument {
                 content.setIntentions(scriptTx.getIntentions());
                 content.setChangeAddress(scriptTx.getPublicChangeAddress());
 
+                // Set change datum attributes if present
+                try {
+                    String changeDatumHex = scriptTx.getChangeDatumHex();
+                    if (changeDatumHex != null && !changeDatumHex.isEmpty())
+                        content.setChangeDatum(changeDatumHex);
+                } catch (Exception e) {
+                    // ignore serialization error for datum
+                }
+                String changeDatumHash = scriptTx.getChangeDatumHash();
+                if (changeDatumHash != null && !changeDatumHash.isEmpty())
+                    content.setChangeDatumHash(changeDatumHash);
+
                 // Note: scripts and collectFrom configurations would be set here
                 // when available from the ScriptTx object
 
@@ -119,6 +131,7 @@ public class TransactionCollectionDocument {
     public static List<AbstractTx<?>> fromYaml(String yaml) {
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
         List<AbstractTx<?>> transactions = new ArrayList<>();
+        Map<String, Object> vars = doc.getVariables();
 
         for (TransactionDocument.TxEntry entry : doc.getTransaction()) {
             if (entry.isTx()) {
@@ -130,7 +143,8 @@ public class TransactionCollectionDocument {
                     tx.from(content.getFrom());
                 }
                 if (content.getChangeAddress() != null) {
-                    tx.withChangeAddress(content.getChangeAddress());
+                    String resolvedChangeAddr = VariableResolver.resolve(content.getChangeAddress(), vars);
+                    tx.withChangeAddress(resolvedChangeAddr);
                 }
 
                 if (content.getIntentions() != null) {
@@ -146,8 +160,24 @@ public class TransactionCollectionDocument {
                 ScriptTx scriptTx = new ScriptTx();
                 TransactionDocument.ScriptTxContent content = entry.getScriptTx();
 
+                // Apply change address and optional change datum/datum hash (with variable resolution)
                 if (content.getChangeAddress() != null) {
-                    scriptTx.withChangeAddress(content.getChangeAddress());
+                    String changeAddr = VariableResolver.resolve(content.getChangeAddress(), vars);
+                    if (content.getChangeDatum() != null && !content.getChangeDatum().isEmpty()) {
+                        String resolvedDatumHex = VariableResolver.resolve(content.getChangeDatum(), vars);
+                        try {
+                            var pd = com.bloxbean.cardano.client.plutus.spec.PlutusData.deserialize(
+                                    com.bloxbean.cardano.client.util.HexUtil.decodeHexString(resolvedDatumHex));
+                            scriptTx.withChangeAddress(changeAddr, pd);
+                        } catch (Exception e) {
+                            throw new RuntimeException("Failed to deserialize change_datum", e);
+                        }
+                    } else if (content.getChangeDatumHash() != null && !content.getChangeDatumHash().isEmpty()) {
+                        String resolvedHash = VariableResolver.resolve(content.getChangeDatumHash(), vars);
+                        scriptTx.withChangeAddress(changeAddr, resolvedHash);
+                    } else {
+                        scriptTx.withChangeAddress(changeAddr);
+                    }
                 }
 
                 if (content.getIntentions() != null) {

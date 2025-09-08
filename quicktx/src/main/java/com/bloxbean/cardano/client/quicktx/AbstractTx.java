@@ -793,4 +793,25 @@ public abstract class AbstractTx<T> {
     public String getPublicChangeAddress() {
         return getChangeAddress();
     }
+
+    /**
+     * Get change inline datum as hex if present; null otherwise.
+     */
+    public String getChangeDatumHex() {
+        if (changeData != null) {
+            try {
+                return changeData.serializeToHex();
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get change datum hash if present; null otherwise.
+     */
+    public String getChangeDatumHash() {
+        return changeDatahash;
+    }
 }
