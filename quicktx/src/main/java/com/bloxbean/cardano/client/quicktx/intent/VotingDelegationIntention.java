@@ -12,8 +12,13 @@ import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.VoteDelegCert;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
+import com.bloxbean.cardano.client.transaction.spec.governance.DRepType;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -79,6 +84,25 @@ public class VotingDelegationIntention implements TxIntention {
     @JsonProperty("drep_hash")
     private String drepHash;
 
+    // Optional redeemer for cert witness
+    @JsonIgnore
+    private PlutusData redeemer;
+
+    @JsonProperty("redeemer_hex")
+    private String redeemerHex;
+
+    @JsonProperty("redeemer_hex")
+    public String getRedeemerHex() {
+        if (redeemer != null) {
+            try {
+                return redeemer.serializeToHex();
+            } catch (Exception e) {
+                // ignore and fall back
+            }
+        }
+        return redeemerHex;
+    }
+
     /**
      * Get address string for serialization.
      */
@@ -111,7 +135,7 @@ public class VotingDelegationIntention implements TxIntention {
     @JsonProperty("drep_type")
     public String getDrepType() {
         if (drep != null) {
-            return drep.getType().toString().toLowerCase();
+            return drepTypeToString(drep.getType());
         }
         return drepType;
     }
@@ -176,6 +200,12 @@ public class VotingDelegationIntention implements TxIntention {
         if ((drepType != null && (drepType.equals("key_hash") || drepType.equals("script_hash"))) &&
             (drepHash == null || drepHash.isEmpty())) {
             throw new IllegalStateException("DRep hash is required for key_hash and script_hash DRep types");
+        }
+
+        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
+                throw new IllegalStateException("Invalid redeemer hex format");
+            }
         }
     }
 
@@ -337,9 +367,45 @@ public class VotingDelegationIntention implements TxIntention {
                         .stakeCredential(stakeCredential)
                         .drep(_drep)
                         .build());
+
+                // Add cert redeemer if provided
+                PlutusData rdData = redeemer;
+                if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
+                    rdData = PlutusData.deserialize(HexUtil.decodeHexString(redeemerHex));
+                }
+                if (rdData != null) {
+                    if (txn.getWitnessSet() == null)
+                        txn.setWitnessSet(new com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet());
+                    int certIndex = txn.getBody().getCerts().size() - 1;
+                    Redeemer rd = Redeemer.builder()
+                            .tag(RedeemerTag.Cert)
+                            .data(rdData)
+                            .index(java.math.BigInteger.valueOf(certIndex))
+                            .exUnits(ExUnits.builder()
+                                    .mem(java.math.BigInteger.valueOf(10000))
+                                    .steps(java.math.BigInteger.valueOf(1000))
+                                    .build())
+                            .build();
+                    txn.getWitnessSet().getRedeemers().add(rd);
+                }
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply VotingDelegationIntention: " + e.getMessage(), e);
             }
         };
+    }
+
+    private String drepTypeToString(DRepType dRepType) {
+        switch (dRepType) {
+            case ADDR_KEYHASH:
+                return "key_hash";
+            case SCRIPTHASH:
+                return "script_hash";
+            case ABSTAIN:
+                return "abstain";
+            case NO_CONFIDENCE:
+                return "no_confidence";
+            default:
+                throw new TxBuildException("Unsupported DRepType: " + dRepType);
+        }
     }
 }

@@ -6,12 +6,17 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeDelegation;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakePoolId;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -48,11 +53,29 @@ public class StakeDelegationIntention implements TxIntention {
     @JsonProperty("pool_id")
     private String poolId;
 
+    // Optional redeemer support for script-based delegation
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private PlutusData redeemer;
+
+    @JsonProperty("redeemer_hex")
+    private String redeemerHex;
+
+    @JsonProperty("redeemer_hex")
+    public String getRedeemerHex() {
+        if (redeemer != null) {
+            try {
+                return redeemer.serializeToHex();
+            } catch (Exception e) {
+                // ignore and fall through
+            }
+        }
+        return redeemerHex;
+    }
+
     @Override
     public String getType() {
         return "stake_delegation";
     }
-
 
     @Override
     public void validate() {
@@ -62,6 +85,11 @@ public class StakeDelegationIntention implements TxIntention {
         }
         if (poolId == null || poolId.isEmpty()) {
             throw new IllegalStateException("Pool ID is required for stake delegation");
+        }
+        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
+                throw new IllegalStateException("Invalid redeemer hex format");
+            }
         }
     }
 
@@ -146,6 +174,29 @@ public class StakeDelegationIntention implements TxIntention {
                 txn.getBody().setCerts(new ArrayList<Certificate>());
             }
             txn.getBody().getCerts().add(new StakeDelegation(stakeCredential, stakePoolId));
+
+            // Add redeemer if provided
+            PlutusData rdData = redeemer;
+            if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
+                try { rdData = PlutusData.deserialize(HexUtil.decodeHexString(redeemerHex)); } catch (Exception e) {
+                    throw new TxBuildException("Failed to deserialize redeemer hex", e);
+                }
+            }
+            if (rdData != null) {
+                if (txn.getWitnessSet() == null)
+                    txn.setWitnessSet(new com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet());
+                int certIndex = txn.getBody().getCerts().size() - 1;
+                Redeemer rd = Redeemer.builder()
+                        .tag(RedeemerTag.Cert)
+                        .data(rdData)
+                        .index(java.math.BigInteger.valueOf(certIndex))
+                        .exUnits(ExUnits.builder()
+                                .mem(java.math.BigInteger.valueOf(10000))
+                                .steps(java.math.BigInteger.valueOf(1000))
+                                .build())
+                        .build();
+                txn.getWitnessSet().getRedeemers().add(rd);
+            }
         };
     }
 }

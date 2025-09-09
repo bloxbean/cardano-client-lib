@@ -4,7 +4,6 @@ plugins {
 }
 
 dependencies {
-    implementation project(':tx-dsl')
     implementation project(':quicktx')
     implementation project(':core')
     implementation project(':common')

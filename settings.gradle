@@ -16,8 +16,7 @@ include 'annotation-processor'
 include 'hd-wallet'
 include 'governance'
 include 'watcher'
-include 'tx-dsl'
-include 'groovy-dsl'
+//include 'groovy-dsl'
 
 //CIPs
 include 'cip'

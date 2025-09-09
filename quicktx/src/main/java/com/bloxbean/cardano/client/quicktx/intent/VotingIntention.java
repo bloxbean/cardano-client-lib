@@ -16,6 +16,10 @@ import com.bloxbean.cardano.client.transaction.spec.governance.VotingProcedures;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.util.HexUtil;
 import co.nstant.in.cbor.model.Array;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -100,6 +104,21 @@ public class VotingIntention implements TxIntention {
      */
     @JsonProperty("anchor_hash")
     private String anchorHash;
+
+    // Optional redeemer for voting
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private PlutusData redeemer;
+
+    @JsonProperty("redeemer_hex")
+    private String redeemerHex;
+
+    @JsonProperty("redeemer_hex")
+    public String getRedeemerHex() {
+        if (redeemer != null) {
+            try { return redeemer.serializeToHex(); } catch (Exception e) { /* ignore */ }
+        }
+        return redeemerHex;
+    }
 
     /**
      * Get voter hex for serialization.
@@ -222,6 +241,12 @@ public class VotingIntention implements TxIntention {
 
         if (govActionIndex != null && govActionIndex < 0) {
             throw new IllegalStateException("Governance action index cannot be negative");
+        }
+
+        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
+                throw new IllegalStateException("Invalid redeemer hex format");
+            }
         }
     }
 
@@ -346,6 +371,27 @@ public class VotingIntention implements TxIntention {
                     txn.getBody().setVotingProcedures(new VotingProcedures());
 
                 txn.getBody().getVotingProcedures().add(_voter, _gaid, new VotingProcedure(_vote, anch));
+
+                // Add voting redeemer if provided
+                PlutusData rdData = redeemer;
+                if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
+                    rdData = PlutusData.deserialize(HexUtil.decodeHexString(redeemerHex));
+                }
+                if (rdData != null) {
+                    if (txn.getWitnessSet() == null)
+                        txn.setWitnessSet(new com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet());
+                    int idx = 0; // approximation
+                    Redeemer rd = Redeemer.builder()
+                            .tag(RedeemerTag.Voting)
+                            .data(rdData)
+                            .index(java.math.BigInteger.valueOf(idx))
+                            .exUnits(ExUnits.builder()
+                                    .mem(java.math.BigInteger.valueOf(10000))
+                                    .steps(java.math.BigInteger.valueOf(1000))
+                                    .build())
+                            .build();
+                    txn.getWitnessSet().getRedeemers().add(rd);
+                }
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply VotingIntention: " + e.getMessage(), e);
             }

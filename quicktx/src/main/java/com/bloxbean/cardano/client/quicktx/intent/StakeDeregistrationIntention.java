@@ -6,11 +6,17 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration;
+import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -48,17 +54,45 @@ public class StakeDeregistrationIntention implements TxIntention {
     @JsonProperty("refund_address")
     private String refundAddress;
 
+    /**
+     * Optional redeemer for script-based deregistration (runtime object).
+     */
+    @JsonIgnore
+    private PlutusData redeemer;
+
+    /**
+     * Optional redeemer as CBOR hex for serialization.
+     */
+    @JsonProperty("redeemer_hex")
+    private String redeemerHex;
+
+    @JsonProperty("redeemer_hex")
+    public String getRedeemerHex() {
+        if (redeemer != null) {
+            try {
+                return redeemer.serializeToHex();
+            } catch (Exception e) {
+                // ignore and fall through
+            }
+        }
+        return redeemerHex;
+    }
+
     @Override
     public String getType() {
         return "stake_deregistration";
     }
-
 
     @Override
     public void validate() {
         TxIntention.super.validate();
         if (stakeAddress == null || stakeAddress.isEmpty()) {
             throw new IllegalStateException("Stake address is required for stake deregistration");
+        }
+        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
+                throw new IllegalStateException("Invalid redeemer hex format");
+            }
         }
     }
 
@@ -151,6 +185,27 @@ public class StakeDeregistrationIntention implements TxIntention {
                     txn.getBody().setCerts(new ArrayList<Certificate>());
                 }
                 txn.getBody().getCerts().add(new StakeDeregistration(stakeCredential));
+
+                // If redeemer provided, add to witness set with Cert tag
+                PlutusData rdData = redeemer;
+                if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
+                    rdData = PlutusData.deserialize(HexUtil.decodeHexString(redeemerHex));
+                }
+                if (rdData != null) {
+                    if (txn.getWitnessSet() == null)
+                        txn.setWitnessSet(new com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet());
+                    int certIndex = txn.getBody().getCerts().size() - 1;
+                    Redeemer rd = Redeemer.builder()
+                            .tag(RedeemerTag.Cert)
+                            .data(rdData)
+                            .index(java.math.BigInteger.valueOf(certIndex))
+                            .exUnits(ExUnits.builder()
+                                    .mem(java.math.BigInteger.valueOf(10000))
+                                    .steps(java.math.BigInteger.valueOf(1000))
+                                    .build())
+                            .build();
+                    txn.getWitnessSet().getRedeemers().add(rd);
+                }
 
                 // Add deposit refund to refund address
                 BigInteger keyDeposit = new BigInteger(ctx.getProtocolParams().getKeyDeposit());

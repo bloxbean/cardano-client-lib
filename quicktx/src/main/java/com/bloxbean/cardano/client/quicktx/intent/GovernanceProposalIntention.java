@@ -13,6 +13,10 @@ import com.bloxbean.cardano.client.transaction.util.UniqueList;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import co.nstant.in.cbor.model.Array;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -83,6 +87,21 @@ public class GovernanceProposalIntention implements TxIntention {
      */
     @JsonProperty("deposit")
     private BigInteger deposit;
+
+    // Optional redeemer for proposing
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private PlutusData redeemer;
+
+    @JsonProperty("redeemer_hex")
+    private String redeemerHex;
+
+    @JsonProperty("redeemer_hex")
+    public String getRedeemerHex() {
+        if (redeemer != null) {
+            try { return redeemer.serializeToHex(); } catch (Exception e) { /* ignore */ }
+        }
+        return redeemerHex;
+    }
 
     /**
      * Get governance action hex for serialization.
@@ -155,6 +174,11 @@ public class GovernanceProposalIntention implements TxIntention {
 
         if (deposit != null && deposit.compareTo(BigInteger.ZERO) < 0) {
             throw new IllegalStateException("Deposit amount cannot be negative");
+        }
+        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
+                throw new IllegalStateException("Invalid redeemer hex format: " + redeemerHex);
+            }
         }
     }
 
@@ -302,6 +326,27 @@ public class GovernanceProposalIntention implements TxIntention {
                         }, () -> {
                             throw new TxBuildException("Output for from address not found to remove governance deposit: " + from);
                         });
+
+                // Add proposing redeemer if provided
+                PlutusData rdData = redeemer;
+                if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
+                    rdData = PlutusData.deserialize(HexUtil.decodeHexString(redeemerHex));
+                }
+                if (rdData != null) {
+                    if (txn.getWitnessSet() == null)
+                        txn.setWitnessSet(new com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet());
+                    int idx = txn.getBody().getProposalProcedures().size() - 1;
+                    Redeemer rd = Redeemer.builder()
+                            .tag(RedeemerTag.Proposing)
+                            .data(rdData)
+                            .index(java.math.BigInteger.valueOf(idx))
+                            .exUnits(ExUnits.builder()
+                                    .mem(java.math.BigInteger.valueOf(10000))
+                                    .steps(java.math.BigInteger.valueOf(1000))
+                                    .build())
+                            .build();
+                    txn.getWitnessSet().getRedeemers().add(rd);
+                }
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply GovernanceProposalIntention: " + e.getMessage(), e);
             }

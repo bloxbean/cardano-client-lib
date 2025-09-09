@@ -136,14 +136,14 @@ public class GovTx {
         dRepDeregestrationContexts.add(new DRepDeregestrationContext(unregDRepCert, refundAddress, _redeemer));
 
         // Record intention for YAML serialization if enabled
-        if (intentionRecordingEnabled) {
-            if (intentions == null) intentions = new ArrayList<>();
-            if (refundAddress != null) {
-                intentions.add(DRepDeregistrationIntention.deregister(drepCredential, refundAddress, refundAmount));
-            } else {
-                intentions.add(DRepDeregistrationIntention.deregister(drepCredential));
-            }
-        }
+//        if (intentionRecordingEnabled) {
+//            if (intentions == null) intentions = new ArrayList<>();
+//            if (refundAddress != null) {
+//                intentions.add(DRepDeregistrationIntention.deregister(drepCredential, refundAddress, refundAmount));
+//            } else {
+//                intentions.add(DRepDeregistrationIntention.deregister(drepCredential));
+//            }
+//        }
 
         return this;
     }
@@ -180,10 +180,10 @@ public class GovTx {
         updateDRepContexts.add(new UpdateDRepContext(updateDRepCert, _redeemer));
 
         // Record intention for YAML serialization if enabled
-        if (intentionRecordingEnabled) {
-            if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(DRepUpdateIntention.update(drepCredential, anchor));
-        }
+//        if (intentionRecordingEnabled) {
+//            if (intentions == null) intentions = new ArrayList<>();
+//            intentions.add(DRepUpdateIntention.update(drepCredential, anchor));
+//        }
 
         return this;
     }

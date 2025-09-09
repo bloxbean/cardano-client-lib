@@ -5,6 +5,10 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
@@ -58,6 +62,12 @@ public class DRepRegistrationIntention implements TxIntention {
     private String drepCredentialHex;
 
     /**
+     * DRep credential type for serialization: key_hash or script_hash
+     */
+    @JsonProperty("drep_credential_type")
+    private String drepCredentialType;
+
+    /**
      * Anchor URL for serialization.
      */
     @JsonProperty("anchor_url")
@@ -76,6 +86,21 @@ public class DRepRegistrationIntention implements TxIntention {
     @JsonProperty("deposit")
     private BigInteger deposit;
 
+    // Optional redeemer for script-based registration
+    @JsonIgnore
+    private PlutusData redeemer;
+
+    @JsonProperty("redeemer_hex")
+    private String redeemerHex;
+
+    @JsonProperty("redeemer_hex")
+    public String getRedeemerHex() {
+        if (redeemer != null) {
+            try { return redeemer.serializeToHex(); } catch (Exception e) { /* ignore */ }
+        }
+        return redeemerHex;
+    }
+
     /**
      * Get DRep credential hex for serialization.
      */
@@ -89,6 +114,17 @@ public class DRepRegistrationIntention implements TxIntention {
             }
         }
         return drepCredentialHex;
+    }
+
+    /**
+     * Get DRep credential type for serialization.
+     */
+    @JsonProperty("drep_credential_type")
+    public String getDrepCredentialType() {
+        if (drepCredential != null) {
+            return drepCredential.getType() == com.bloxbean.cardano.client.address.CredentialType.Key ? "key_hash" : "script_hash";
+        }
+        return drepCredentialType;
     }
 
     /**
@@ -130,6 +166,12 @@ public class DRepRegistrationIntention implements TxIntention {
                 HexUtil.decodeHexString(drepCredentialHex);
             } catch (Exception e) {
                 throw new IllegalStateException("Invalid DRep credential hex format: " + drepCredentialHex);
+            }
+        }
+
+        if (drepCredentialType != null && !drepCredentialType.isEmpty() && !drepCredentialType.startsWith("${")) {
+            if (!"key_hash".equals(drepCredentialType) && !"script_hash".equals(drepCredentialType)) {
+                throw new IllegalStateException("Invalid DRep credential type: " + drepCredentialType);
             }
         }
 
@@ -234,7 +276,11 @@ public class DRepRegistrationIntention implements TxIntention {
             try {
                 Credential cred = drepCredential;
                 if (cred == null && drepCredentialHex != null && !drepCredentialHex.isEmpty()) {
-                    cred = Credential.fromKey(HexUtil.decodeHexString(drepCredentialHex));
+                    byte[] bytes = HexUtil.decodeHexString(drepCredentialHex);
+                    if ("script_hash".equals(drepCredentialType))
+                        cred = Credential.fromScript(bytes);
+                    else
+                        cred = Credential.fromKey(bytes);
                 }
                 if (cred == null)
                     throw new TxBuildException("DRep credential resolution failed");
@@ -272,6 +318,27 @@ public class DRepRegistrationIntention implements TxIntention {
                         }, () -> {
                             throw new TxBuildException("Output for from address not found to remove DRep deposit amount: " + from);
                         });
+
+                // Add cert redeemer if provided
+                PlutusData rdData = redeemer;
+                if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
+                    rdData = PlutusData.deserialize(HexUtil.decodeHexString(redeemerHex));
+                }
+                if (rdData != null) {
+                    if (txn.getWitnessSet() == null)
+                        txn.setWitnessSet(new com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet());
+                    int certIndex = txn.getBody().getCerts().size() - 1;
+                    Redeemer rd = Redeemer.builder()
+                            .tag(RedeemerTag.Cert)
+                            .data(rdData)
+                            .index(java.math.BigInteger.valueOf(certIndex))
+                            .exUnits(ExUnits.builder()
+                                    .mem(java.math.BigInteger.valueOf(10000))
+                                    .steps(java.math.BigInteger.valueOf(1000))
+                                    .build())
+                            .build();
+                    txn.getWitnessSet().getRedeemers().add(rd);
+                }
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply DRepRegistrationIntention: " + e.getMessage(), e);
             }
