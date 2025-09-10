@@ -279,53 +279,10 @@ public class PaymentIntention implements TxIntention {
 
     // Convenience methods
 
-    /**
-     * Set datum from PlutusData object.
-     */
-    public PaymentIntention withDatum(PlutusData datum) {
-        this.datum = datum;
-        return this;
-    }
 
-    /**
-     * Set datum hash from bytes.
-     */
-    public PaymentIntention withDatumHash(byte[] datumHashBytes) {
-        this.datumHashBytes = datumHashBytes;
-        return this;
-    }
 
-    /**
-     * Check if this is a contract payment.
-     */
-    @JsonIgnore
-    public boolean isContractPayment() {
-        return datum != null || datumHex != null || datumHashBytes != null || datumHash != null;
-    }
 
-    /**
-     * Check if this has a script attachment.
-     */
-    @JsonIgnore
-    public boolean hasScript() {
-        return script != null || scriptRefBytes != null || scriptRefBytesHex != null || refScript != null;
-    }
 
-    /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return datum != null || datumHashBytes != null || script != null || scriptRefBytes != null || refScript != null;
-    }
-
-    /**
-     * Check if this intention needs deserialization from hex data.
-     */
-    @JsonIgnore
-    public boolean needsDeserialization() {
-        return !hasRuntimeObjects() && (datumHex != null || datumHash != null || scriptRefBytesHex != null);
-    }
 
     // Self-processing methods for functional TxBuilder architecture
 

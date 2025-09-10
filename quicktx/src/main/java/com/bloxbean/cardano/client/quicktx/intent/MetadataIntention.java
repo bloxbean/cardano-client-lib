@@ -200,24 +200,6 @@ public class MetadataIntention implements TxIntention {
     // Utility methods
 
     /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return metadata != null;
-    }
-
-    /**
-     * Check if this intention needs deserialization from stored data.
-     */
-    @JsonIgnore
-    public boolean needsDeserialization() {
-        return !hasRuntimeObjects() &&
-               (metadataCborHex != null && !metadataCborHex.isEmpty()) ||
-               (metadataJson != null && !metadataJson.isEmpty());
-    }
-
-    /**
      * Check if CBOR hex format is available.
      */
     @JsonIgnore
@@ -234,15 +216,11 @@ public class MetadataIntention implements TxIntention {
     }
 
     /**
-     * Get a description of available formats for debugging.
+     * Check if this intention has runtime objects available.
      */
     @JsonIgnore
-    public String getAvailableFormats() {
-        StringBuilder sb = new StringBuilder();
-        if (hasRuntimeObjects()) sb.append("runtime ");
-        if (hasCborHex()) sb.append("cbor ");
-        if (hasJson()) sb.append("json ");
-        return sb.toString().trim();
+    public boolean hasRuntimeObjects() {
+        return metadata != null;
     }
 
     // Self-processing methods for functional TxBuilder architecture

@@ -144,15 +144,6 @@ public class StakeDeregistrationIntention implements TxIntention {
             .build();
     }
 
-    // Convenience methods
-
-    /**
-     * Set refund address for the key deposit.
-     */
-    public StakeDeregistrationIntention withRefundAddress(String refundAddress) {
-        this.refundAddress = refundAddress;
-        return this;
-    }
 
     // ===== Self-processing methods =====
 

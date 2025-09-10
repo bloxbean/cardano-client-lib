@@ -96,29 +96,6 @@ public class PoolRegistrationIntention implements TxIntention {
 
     // Convenience methods
 
-    /**
-     * Set as pool update instead of registration.
-     */
-    public PoolRegistrationIntention asUpdate() {
-        this.isUpdate = true;
-        return this;
-    }
-
-    /**
-     * Check if this is a pool registration.
-     */
-    @JsonIgnore
-    public boolean isRegistration() {
-        return !isUpdate;
-    }
-
-    /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return poolRegistration != null;
-    }
 
     // ===== Self-processing methods =====
 

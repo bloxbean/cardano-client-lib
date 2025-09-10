@@ -130,15 +130,6 @@ public class StakeDelegationIntention implements TxIntention {
             .build();
     }
 
-    // Convenience methods
-
-    /**
-     * Set the pool ID for delegation.
-     */
-    public StakeDelegationIntention toPool(String poolId) {
-        this.poolId = poolId;
-        return this;
-    }
 
     // ===== Self-processing methods =====
 

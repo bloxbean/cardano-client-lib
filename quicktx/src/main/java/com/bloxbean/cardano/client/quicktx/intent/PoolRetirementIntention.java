@@ -94,15 +94,6 @@ public class PoolRetirementIntention implements TxIntention {
             .build();
     }
 
-    // Convenience methods
-
-    /**
-     * Set retirement epoch.
-     */
-    public PoolRetirementIntention atEpoch(int epoch) {
-        this.retirementEpoch = epoch;
-        return this;
-    }
 
     // ===== Self-processing methods =====
 

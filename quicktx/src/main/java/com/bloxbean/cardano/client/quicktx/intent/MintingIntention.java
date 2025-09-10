@@ -139,13 +139,6 @@ public class MintingIntention implements TxIntention {
             .build();
     }
 
-    /**
-     * Check if this is a burning operation (any asset has negative quantity).
-     */
-    public boolean isBurning() {
-        return assets != null && assets.stream().anyMatch(asset ->
-            asset.getValue() != null && asset.getValue().signum() < 0);
-    }
 
     /**
      * Check if this has a specific receiver address.
@@ -154,37 +147,7 @@ public class MintingIntention implements TxIntention {
         return receiver != null && !receiver.isEmpty();
     }
 
-    /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return script != null;
-    }
 
-    /**
-     * Check if this intention needs deserialization from hex data.
-     */
-    @JsonIgnore
-    public boolean needsDeserialization() {
-        return !hasRuntimeObjects() && scriptHex != null && !scriptHex.isEmpty() && scriptType != null;
-    }
-
-    /**
-     * Get script type description for debugging.
-     */
-    @JsonIgnore
-    public String getScriptTypeDescription() {
-        Integer type = getScriptType();
-        if (type == null) return "Unknown";
-        switch (type) {
-            case 0: return "NativeScript";
-            case 1: return "PlutusV1Script";
-            case 2: return "PlutusV2Script";
-            case 3: return "PlutusV3Script";
-            default: return "Unknown (" + type + ")";
-        }
-    }
 
     @Override
     public void validate() {
@@ -336,6 +299,22 @@ public class MintingIntention implements TxIntention {
     }
 
     // Helper methods
+
+    /**
+     * Check if this intention has runtime objects available.
+     */
+    @JsonIgnore
+    public boolean hasRuntimeObjects() {
+        return script != null;
+    }
+
+    /**
+     * Check if this intention needs deserialization from hex data.
+     */
+    @JsonIgnore
+    public boolean needsDeserialization() {
+        return !hasRuntimeObjects() && scriptHex != null && !scriptHex.isEmpty() && scriptType != null;
+    }
 
     /**
      * Resolve the script from runtime object or deserialized hex.

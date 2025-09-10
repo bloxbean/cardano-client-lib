@@ -120,19 +120,6 @@ public class DonationIntention implements TxIntention {
 
     // Convenience methods
 
-    /**
-     * Get current treasury value as BigInteger.
-     */
-    public BigInteger getCurrentTreasuryValueAsBigInt() {
-        return currentTreasuryValue != null ? new BigInteger(currentTreasuryValue) : null;
-    }
-
-    /**
-     * Get donation amount as BigInteger.
-     */
-    public BigInteger getDonationAmountAsBigInt() {
-        return donationAmount != null ? new BigInteger(donationAmount) : null;
-    }
 
     // Self-processing methods for functional TxBuilder architecture
 

@@ -251,31 +251,6 @@ public class DRepRegistrationIntention implements TxIntention {
 
     // Utility methods
 
-    /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return drepCredential != null || anchor != null;
-    }
-
-    /**
-     * Check if this intention needs deserialization from stored data.
-     */
-    @JsonIgnore
-    public boolean needsDeserialization() {
-        return !hasRuntimeObjects() &&
-               (drepCredentialHex != null && !drepCredentialHex.isEmpty());
-    }
-
-    /**
-     * Check if anchor information is available.
-     */
-    @JsonIgnore
-    public boolean hasAnchor() {
-        return anchor != null ||
-               (anchorUrl != null && !anchorUrl.isEmpty());
-    }
 
     // ===== Self-processing methods =====
 

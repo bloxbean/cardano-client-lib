@@ -142,24 +142,6 @@ public class StakeIntentionTest {
     }
 
     @Test
-    public void testStakeIntentionProcessor() {
-        // Test that the StakeIntentProcessor can handle stake intentions
-        StakeIntentProcessor processor = new StakeIntentProcessor();
-
-        assertTrue(processor.canProcess("stake_registration"));
-        assertTrue(processor.canProcess("stake_delegation"));
-        assertTrue(processor.canProcess("stake_deregistration"));
-        assertTrue(processor.canProcess("stake_withdrawal"));
-        assertTrue(processor.canProcess("pool_registration"));
-        assertTrue(processor.canProcess("pool_update"));
-        assertTrue(processor.canProcess("pool_retirement"));
-
-        assertFalse(processor.canProcess("payment"));
-        assertFalse(processor.canProcess("minting"));
-        assertFalse(processor.canProcess("unknown_type"));
-    }
-
-    @Test
     public void testIntentionValidation() {
         // Test that intentions validate their required fields
         StakeRegistrationIntention registration = new StakeRegistrationIntention();

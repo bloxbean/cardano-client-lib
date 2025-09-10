@@ -144,31 +144,6 @@ public class StakeWithdrawalIntention implements TxIntention {
             .build();
     }
 
-    // Convenience methods
-
-    /**
-     * Set receiver address for the withdrawal.
-     */
-    public StakeWithdrawalIntention withReceiver(String receiver) {
-        this.receiver = receiver;
-        return this;
-    }
-
-    /**
-     * Set withdrawal amount in lovelace.
-     */
-    public StakeWithdrawalIntention withAmount(BigInteger amount) {
-        this.amount = amount;
-        return this;
-    }
-
-    /**
-     * Set withdrawal amount in ADA (converted to lovelace).
-     */
-    public StakeWithdrawalIntention withAmountInAda(double ada) {
-        this.amount = BigInteger.valueOf((long) (ada * 1_000_000));
-        return this;
-    }
 
     // ===== Self-processing methods =====
 
