@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 
 /**
  * Intention to collect specific non-script UTXOs as inputs for Tx.
- * Mirrors Tx.collectFrom(List/Set<Utxo>) and enables YAML serialization.
+ * Mirrors Tx.collectFrom(List/Set&lt;Utxo&gt;) and enables YAML serialization.
  */
 @Data
 @Builder
