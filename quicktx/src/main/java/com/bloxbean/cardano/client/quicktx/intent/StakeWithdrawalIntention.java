@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
@@ -96,6 +97,30 @@ public class StakeWithdrawalIntention implements TxIntention {
         }
     }
 
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedRewardAddress = VariableResolver.resolve(rewardAddress, variables);
+        String resolvedReceiver = VariableResolver.resolve(receiver, variables);
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedRewardAddress, rewardAddress) || 
+            !java.util.Objects.equals(resolvedReceiver, receiver) || 
+            !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
+            return this.toBuilder()
+                .rewardAddress(resolvedRewardAddress)
+                .receiver(resolvedReceiver)
+                .redeemerHex(resolvedRedeemerHex)
+                .build();
+        }
+        
+        return this;
+    }
+
     // Factory methods for clean API
 
     /**
@@ -166,7 +191,7 @@ public class StakeWithdrawalIntention implements TxIntention {
                 throw new TxBuildException("From address is required for stake withdrawal");
             }
 
-            String resolvedReward = ic.resolveVariable(rewardAddress);
+            String resolvedReward = rewardAddress;
             if (resolvedReward == null || resolvedReward.isBlank()) {
                 throw new TxBuildException("Reward address is required for stake withdrawal");
             }
@@ -187,8 +212,8 @@ public class StakeWithdrawalIntention implements TxIntention {
     @Override
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {
-            String resolvedReward = ic.resolveVariable(rewardAddress);
-            String resolvedReceiver = receiver != null ? ic.resolveVariable(receiver) : null;
+            String resolvedReward = rewardAddress;
+            String resolvedReceiver = receiver;
             String targetReceiver = (resolvedReceiver != null && !resolvedReceiver.isBlank())
                     ? resolvedReceiver
                     : ic.getChangeAddress();

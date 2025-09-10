@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
@@ -63,6 +64,24 @@ public class PoolRetirementIntention implements TxIntention {
         }
     }
 
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedPoolId = VariableResolver.resolve(poolId, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedPoolId, poolId)) {
+            return this.toBuilder()
+                .poolId(resolvedPoolId)
+                .build();
+        }
+        
+        return this;
+    }
+
     // Factory methods for clean API
 
     /**
@@ -105,7 +124,7 @@ public class PoolRetirementIntention implements TxIntention {
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for pool retirement");
             }
-            String resolvedPoolId = ic.resolveVariable(poolId);
+            String resolvedPoolId = poolId;
             if (resolvedPoolId == null || resolvedPoolId.isBlank()) {
                 throw new TxBuildException("Pool ID is required for pool retirement");
             }
@@ -119,7 +138,7 @@ public class PoolRetirementIntention implements TxIntention {
     @Override
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {
-            String resolvedPoolId = ic.resolveVariable(poolId);
+            String resolvedPoolId = poolId;
             StakePoolId stakePoolId = resolvedPoolId.startsWith("pool")
                     ? StakePoolId.fromBech32PoolId(resolvedPoolId)
                     : StakePoolId.fromHexPoolId(resolvedPoolId);

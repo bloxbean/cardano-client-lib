@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
@@ -132,7 +133,7 @@ public class DRepDeregistrationIntention implements TxIntention {
             try {
                 HexUtil.decodeHexString(drepCredentialHex);
             } catch (Exception e) {
-                throw new IllegalStateException("Invalid DRep credential hex format: " + drepCredentialHex);
+                throw new IllegalStateException("Invalid drep credential hex format");
             }
         }
 
@@ -145,12 +146,40 @@ public class DRepDeregistrationIntention implements TxIntention {
         if (refundAmount != null && refundAmount.compareTo(BigInteger.ZERO) < 0) {
             throw new IllegalStateException("Refund amount cannot be negative");
         }
+        
         if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
-            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
+            try { 
+                HexUtil.decodeHexString(redeemerHex); 
+            } catch (Exception e) {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
         }
     }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedDrepCredentialHex = VariableResolver.resolve(drepCredentialHex, variables);
+        String resolvedDrepCredentialType = VariableResolver.resolve(drepCredentialType, variables);
+        String resolvedRefundAddress = VariableResolver.resolve(refundAddress, variables);
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedDrepCredentialHex, drepCredentialHex) || !java.util.Objects.equals(resolvedDrepCredentialType, drepCredentialType) || !java.util.Objects.equals(resolvedRefundAddress, refundAddress) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
+            return this.toBuilder()
+                .drepCredentialHex(resolvedDrepCredentialHex)
+                .drepCredentialType(resolvedDrepCredentialType)
+                .refundAddress(resolvedRefundAddress)
+                .redeemerHex(resolvedRedeemerHex)
+                .build();
+        }
+        
+        return this;
+    }
+
 
     // Factory methods for different use cases
 

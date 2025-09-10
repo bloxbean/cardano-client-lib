@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
@@ -93,6 +94,30 @@ public class StakeDelegationIntention implements TxIntention {
         }
     }
 
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedStakeAddress = VariableResolver.resolve(stakeAddress, variables);
+        String resolvedPoolId = VariableResolver.resolve(poolId, variables);
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedStakeAddress, stakeAddress) || 
+            !java.util.Objects.equals(resolvedPoolId, poolId) || 
+            !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
+            return this.toBuilder()
+                .stakeAddress(resolvedStakeAddress)
+                .poolId(resolvedPoolId)
+                .redeemerHex(resolvedRedeemerHex)
+                .build();
+        }
+        
+        return this;
+    }
+
     // Factory methods for clean API
 
     /**
@@ -135,8 +160,8 @@ public class StakeDelegationIntention implements TxIntention {
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for stake delegation");
             }
-            String resolvedStake = ic.resolveVariable(stakeAddress);
-            String resolvedPool = ic.resolveVariable(poolId);
+            String resolvedStake = stakeAddress;
+            String resolvedPool = poolId;
             if (resolvedStake == null || resolvedStake.isBlank()) {
                 throw new TxBuildException("Stake address is required for stake delegation");
             }
@@ -150,8 +175,8 @@ public class StakeDelegationIntention implements TxIntention {
     @Override
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {
-            String resolvedStake = ic.resolveVariable(stakeAddress);
-            String resolvedPool = ic.resolveVariable(poolId);
+            String resolvedStake = stakeAddress;
+            String resolvedPool = poolId;
 
             Address addr = new Address(resolvedStake);
             byte[] delegationHash = addr.getDelegationCredentialHash()

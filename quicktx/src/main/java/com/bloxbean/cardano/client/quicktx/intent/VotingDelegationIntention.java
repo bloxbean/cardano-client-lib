@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
@@ -207,6 +208,32 @@ public class VotingDelegationIntention implements TxIntention {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
         }
+    }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedAddressStr = VariableResolver.resolve(addressStr, variables);
+        String resolvedDrepHex = VariableResolver.resolve(drepHex, variables);
+        String resolvedDrepType = VariableResolver.resolve(drepType, variables);
+        String resolvedDrepHash = VariableResolver.resolve(drepHash, variables);
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedAddressStr, addressStr) || !java.util.Objects.equals(resolvedDrepHex, drepHex) || !java.util.Objects.equals(resolvedDrepType, drepType) || !java.util.Objects.equals(resolvedDrepHash, drepHash) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
+            return this.toBuilder()
+                .addressStr(resolvedAddressStr)
+                .drepHex(resolvedDrepHex)
+                .drepType(resolvedDrepType)
+                .drepHash(resolvedDrepHash)
+                .redeemerHex(resolvedRedeemerHex)
+                .build();
+        }
+        
+        return this;
     }
 
     // Factory methods for different use cases

@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
@@ -90,10 +91,36 @@ public class StakeDeregistrationIntention implements TxIntention {
             throw new IllegalStateException("Stake address is required for stake deregistration");
         }
         if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
-            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
+            try {
+                HexUtil.decodeHexString(redeemerHex);
+            } catch (Exception e) {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
         }
+    }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedStakeAddress = VariableResolver.resolve(stakeAddress, variables);
+        String resolvedRefundAddress = VariableResolver.resolve(refundAddress, variables);
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedStakeAddress, stakeAddress) ||
+            !java.util.Objects.equals(resolvedRefundAddress, refundAddress) ||
+            !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
+            return this.toBuilder()
+                .stakeAddress(resolvedStakeAddress)
+                .refundAddress(resolvedRefundAddress)
+                .redeemerHex(resolvedRedeemerHex)
+                .build();
+        }
+
+    return this;
     }
 
     // Factory methods for clean API
@@ -147,7 +174,7 @@ public class StakeDeregistrationIntention implements TxIntention {
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for stake deregistration");
             }
-            String resolvedStake = ic.resolveVariable(stakeAddress);
+            String resolvedStake = stakeAddress;
             if (resolvedStake == null || resolvedStake.isBlank()) {
                 throw new TxBuildException("Stake address is required for stake deregistration");
             }
@@ -159,8 +186,8 @@ public class StakeDeregistrationIntention implements TxIntention {
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {
             try {
-                String resolvedStake = ic.resolveVariable(stakeAddress);
-                String resolvedRefund = refundAddress != null ? ic.resolveVariable(refundAddress) : null;
+                String resolvedStake = stakeAddress;
+                String resolvedRefund = refundAddress;
                 String from = ic.getFromAddress();
 
                 // Default refund to from address if not provided

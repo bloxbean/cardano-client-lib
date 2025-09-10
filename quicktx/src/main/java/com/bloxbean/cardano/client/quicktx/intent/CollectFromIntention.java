@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.FixedUtxoRefStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.FixedUtxoStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
@@ -70,6 +71,12 @@ public class CollectFromIntention implements TxIntention {
                     throw new IllegalStateException("Invalid transaction hash format: " + ref.getTxHash());
             }
         }
+    }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        // No string fields to resolve
+        return this;
     }
 
     @Override

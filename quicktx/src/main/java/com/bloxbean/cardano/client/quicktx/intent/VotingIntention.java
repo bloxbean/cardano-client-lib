@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
@@ -248,6 +249,34 @@ public class VotingIntention implements TxIntention {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
         }
+    }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedVoterHex = VariableResolver.resolve(voterHex, variables);
+        String resolvedGovActionTxHash = VariableResolver.resolve(govActionTxHash, variables);
+        String resolvedVoteDecision = VariableResolver.resolve(voteDecision, variables);
+        String resolvedAnchorUrl = VariableResolver.resolve(anchorUrl, variables);
+        String resolvedAnchorHash = VariableResolver.resolve(anchorHash, variables);
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedVoterHex, voterHex) || !java.util.Objects.equals(resolvedGovActionTxHash, govActionTxHash) || !java.util.Objects.equals(resolvedVoteDecision, voteDecision) || !java.util.Objects.equals(resolvedAnchorUrl, anchorUrl) || !java.util.Objects.equals(resolvedAnchorHash, anchorHash) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
+            return this.toBuilder()
+                .voterHex(resolvedVoterHex)
+                .govActionTxHash(resolvedGovActionTxHash)
+                .voteDecision(resolvedVoteDecision)
+                .anchorUrl(resolvedAnchorUrl)
+                .anchorHash(resolvedAnchorHash)
+                .redeemerHex(resolvedRedeemerHex)
+                .build();
+        }
+        
+        return this;
     }
 
     // Factory methods for different use cases

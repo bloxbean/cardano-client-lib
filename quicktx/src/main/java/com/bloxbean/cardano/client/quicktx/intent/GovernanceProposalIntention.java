@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
@@ -173,11 +174,40 @@ public class GovernanceProposalIntention implements TxIntention {
         if (deposit != null && deposit.compareTo(BigInteger.ZERO) < 0) {
             throw new IllegalStateException("Deposit amount cannot be negative");
         }
+
         if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
-            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
-                throw new IllegalStateException("Invalid redeemer hex format: " + redeemerHex);
+            try {
+                HexUtil.decodeHexString(redeemerHex);
+            } catch (Exception e) {
+                throw new IllegalStateException("Invalid redeemer hex format");
             }
         }
+    }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedGovActionHex = VariableResolver.resolve(govActionHex, variables);
+        String resolvedReturnAddress = VariableResolver.resolve(returnAddress, variables);
+        String resolvedAnchorUrl = VariableResolver.resolve(anchorUrl, variables);
+        String resolvedAnchorHash = VariableResolver.resolve(anchorHash, variables);
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedGovActionHex, govActionHex) || !java.util.Objects.equals(resolvedReturnAddress, returnAddress) || !java.util.Objects.equals(resolvedAnchorUrl, anchorUrl) || !java.util.Objects.equals(resolvedAnchorHash, anchorHash) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
+            return this.toBuilder()
+                .govActionHex(resolvedGovActionHex)
+                .returnAddress(resolvedReturnAddress)
+                .anchorUrl(resolvedAnchorUrl)
+                .anchorHash(resolvedAnchorHash)
+                .redeemerHex(resolvedRedeemerHex)
+                .build();
+        }
+
+        return this;
     }
 
     // Factory methods for different use cases
@@ -260,7 +290,7 @@ public class GovernanceProposalIntention implements TxIntention {
             throw new TxBuildException("From address is required for governance proposal");
 
         // Use the deposit helper to create the output builder
-        return DepositHelper.createDepositOutputBuilder(from, 
+        return DepositHelper.createDepositOutputBuilder(from,
             DepositHelper.DepositType.GOV_ACTION_PROPOSAL, deposit);
     }
 
@@ -295,7 +325,7 @@ public class GovernanceProposalIntention implements TxIntention {
                     anch = new Anchor(anchorUrl, hash);
                 }
 
-                BigInteger dep = (deposit != null) ? deposit : 
+                BigInteger dep = (deposit != null) ? deposit :
                     DepositHelper.getDepositAmount(ctx.getProtocolParams(), DepositHelper.DepositType.GOV_ACTION_PROPOSAL);
 
                 if (txn.getBody().getProposalProcedures() == null)

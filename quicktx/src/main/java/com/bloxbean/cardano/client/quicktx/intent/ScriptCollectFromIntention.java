@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.FixedUtxoRefStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.FixedUtxoStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
@@ -34,7 +35,7 @@ import java.util.stream.Collectors;
  * - collectFrom(List&lt;Utxo&gt;, PlutusData)
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -217,6 +218,26 @@ public class ScriptCollectFromIntention implements TxIntention {
                 throw new IllegalStateException("Invalid datum hex format: " + datumHex);
             }
         }
+    }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+        String resolvedDatumHex = VariableResolver.resolve(datumHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedRedeemerHex, redeemerHex) || !java.util.Objects.equals(resolvedDatumHex, datumHex)) {
+            return this.toBuilder()
+                .redeemerHex(resolvedRedeemerHex)
+                .datumHex(resolvedDatumHex)
+                .build();
+        }
+        
+        return this;
     }
 
     // Factory methods

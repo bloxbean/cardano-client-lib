@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -64,6 +65,11 @@ public class PoolRegistrationIntention implements TxIntention {
         if (poolRegistration == null && poolRegistrationData == null) {
             throw new IllegalStateException("Pool registration certificate is required");
         }
+    }
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        // No string fields to resolve (poolRegistrationData needs custom serialization logic)
+        return this;
     }
 
     // Factory methods for clean API

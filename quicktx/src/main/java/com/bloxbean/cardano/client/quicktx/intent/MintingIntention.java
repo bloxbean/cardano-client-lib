@@ -12,6 +12,7 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusV1Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV3Script;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -197,6 +198,26 @@ public class MintingIntention implements TxIntention {
         }
     }
 
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedReceiver = VariableResolver.resolve(receiver, variables);
+        String resolvedScriptHex = VariableResolver.resolve(scriptHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedReceiver, receiver) || !java.util.Objects.equals(resolvedScriptHex, scriptHex)) {
+            return this.toBuilder()
+                .receiver(resolvedReceiver)
+                .scriptHex(resolvedScriptHex)
+                .build();
+        }
+        
+        return this;
+    }
+
     // Self-processing methods for functional TxBuilder architecture
 
     @Override
@@ -207,7 +228,7 @@ public class MintingIntention implements TxIntention {
         TxOutputBuilder txOutputBuilder = null;
         if (hasReceiver()) {
             try {
-                String resolvedReceiver = context.resolveVariable(receiver);
+                String resolvedReceiver = receiver;
 
                 // Validate resolved receiver
                 if (resolvedReceiver == null || resolvedReceiver.trim().isEmpty()) {
@@ -285,7 +306,7 @@ public class MintingIntention implements TxIntention {
 
             // Validate receiver if present
             if (hasReceiver()) {
-                String resolvedReceiver = context.resolveVariable(receiver);
+                String resolvedReceiver = receiver;
                 if (resolvedReceiver == null || resolvedReceiver.trim().isEmpty()) {
                     throw new TxBuildException("Receiver address is required after variable resolution");
                 }

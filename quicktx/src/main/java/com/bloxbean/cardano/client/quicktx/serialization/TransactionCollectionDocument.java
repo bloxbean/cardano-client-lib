@@ -150,7 +150,9 @@ public class TransactionCollectionDocument {
 
                 if (content.getIntentions() != null) {
                     for (var intention : content.getIntentions()) {
-                        tx.addIntention(intention);
+                        // Resolve variables using each intention's own resolveVariables method
+                        var resolvedIntention = intention.resolveVariables(vars);
+                        tx.addIntention(resolvedIntention);
                     }
                 }
 
@@ -185,7 +187,9 @@ public class TransactionCollectionDocument {
 
                 if (content.getIntentions() != null) {
                     for (var intention : content.getIntentions()) {
-                        scriptTx.addIntention(intention);
+                        // Resolve variables using each intention's own resolveVariables method
+                        var resolvedIntention = intention.resolveVariables(vars);
+                        scriptTx.addIntention(resolvedIntention);
                     }
                 }
 
@@ -209,70 +213,6 @@ public class TransactionCollectionDocument {
         return new TransactionCollectionDocument().addTransaction(transaction);
     }
 
-    /**
-     * Resolve variables in an intention and return a new intention with resolved values.
-     * This creates a copy of the intention with variable references replaced.
-     */
-    private static com.bloxbean.cardano.client.quicktx.intent.TxIntention resolveIntentionVariables(
-            com.bloxbean.cardano.client.quicktx.intent.TxIntention intention,
-            Map<String, Object> variables) {
-
-        if (variables == null || variables.isEmpty()) {
-            return intention;
-        }
-
-        // Handle different intention types
-        String intentionType = intention.getType();
-        switch (intentionType) {
-            case "payment":
-                return resolvePaymentIntention((com.bloxbean.cardano.client.quicktx.intent.PaymentIntention) intention, variables);
-            case "donation":
-                return resolveDonationIntention((com.bloxbean.cardano.client.quicktx.intent.DonationIntention) intention, variables);
-            case "metadata":
-                return resolveMetadataIntention((com.bloxbean.cardano.client.quicktx.intent.MetadataIntention) intention, variables);
-            // Add other intention types as needed
-            default:
-                // For unsupported types, return as-is
-                return intention;
-        }
-    }
-
-    private static com.bloxbean.cardano.client.quicktx.intent.PaymentIntention resolvePaymentIntention(
-            com.bloxbean.cardano.client.quicktx.intent.PaymentIntention intention,
-            Map<String, Object> variables) {
-
-        String resolvedAddress = VariableResolver.resolve(intention.getAddress(), variables);
-
-        return intention.toBuilder()
-            .address(resolvedAddress)
-            .build();
-    }
-
-    private static com.bloxbean.cardano.client.quicktx.intent.DonationIntention resolveDonationIntention(
-            com.bloxbean.cardano.client.quicktx.intent.DonationIntention intention,
-            Map<String, Object> variables) {
-
-        String resolvedCurrentValue = VariableResolver.resolve(intention.getCurrentTreasuryValue(), variables);
-        String resolvedDonationAmount = VariableResolver.resolve(intention.getDonationAmount(), variables);
-
-        return intention.toBuilder()
-            .currentTreasuryValue(resolvedCurrentValue)
-            .donationAmount(resolvedDonationAmount)
-            .build();
-    }
-
-    private static com.bloxbean.cardano.client.quicktx.intent.MetadataIntention resolveMetadataIntention(
-            com.bloxbean.cardano.client.quicktx.intent.MetadataIntention intention,
-            Map<String, Object> variables) {
-
-        String resolvedJson = VariableResolver.resolve(intention.getMetadataJson(), variables);
-        String resolvedCborHex = VariableResolver.resolve(intention.getMetadataCborHex(), variables);
-
-        return intention.toBuilder()
-            .metadataJson(resolvedJson)
-            .metadataCborHex(resolvedCborHex)
-            .build();
-    }
 
     /**
      * Create a collection document from multiple transactions.

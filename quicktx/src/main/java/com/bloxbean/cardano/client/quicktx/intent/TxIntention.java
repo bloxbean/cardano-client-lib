@@ -148,6 +148,21 @@ public interface TxIntention {
     }
 
     /**
+     * Resolve variables in this intention and return a new intention with resolved values.
+     * This method is called during YAML deserialization to perform early variable resolution.
+     *
+     * Default implementation returns the same intention (no resolution).
+     * Intentions with variable fields should override this method.
+     *
+     * @param variables the variables map for resolution
+     * @return a new intention instance with variables resolved
+     */
+    default TxIntention resolveVariables(Map<String, Object> variables) {
+        // Default: no variable resolution needed
+        return this;
+    }
+
+    /**
      * Helper method to resolve a variable value.
      * If the value starts with "${" and ends with "}", it's treated as a variable reference.
      *

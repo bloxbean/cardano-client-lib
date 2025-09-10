@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.function.helper.AuxDataProviders;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -121,6 +122,27 @@ public class MetadataIntention implements TxIntention {
                 throw new IllegalStateException("Metadata JSON should start with { or [: " + metadataJson);
             }
         }
+    }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedMetadataJson = VariableResolver.resolve(metadataJson, variables);
+        String resolvedMetadataCborHex = VariableResolver.resolve(metadataCborHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedMetadataJson, metadataJson) || 
+            !java.util.Objects.equals(resolvedMetadataCborHex, metadataCborHex)) {
+            return this.toBuilder()
+                .metadataJson(resolvedMetadataJson)
+                .metadataCborHex(resolvedMetadataCborHex)
+                .build();
+        }
+        
+        return this;
     }
 
     // Factory methods for different use cases
@@ -255,16 +277,14 @@ public class MetadataIntention implements TxIntention {
             if (hasRuntimeObjects()) {
                 resolvedMetadata = metadata;
             }
-            // Priority 1: Deserialize from CBOR hex (lossless round-trip)
+            // Priority 1: Deserialize from CBOR hex (lossless round-trip, values already resolved during YAML parsing)
             else if (hasCborHex()) {
-                String resolvedCborHex = context.resolveVariable(metadataCborHex);
-                byte[] cborBytes = HexUtil.decodeHexString(resolvedCborHex);
+                byte[] cborBytes = HexUtil.decodeHexString(metadataCborHex);
                 resolvedMetadata = MetadataBuilder.deserialize(cborBytes);
             }
-            // Priority 2: Deserialize from JSON (fallback)
+            // Priority 2: Deserialize from JSON (fallback, values already resolved during YAML parsing)
             else if (hasJson()) {
-                String resolvedJson = context.resolveVariable(metadataJson);
-                resolvedMetadata = MetadataBuilder.metadataFromJson(resolvedJson);
+                resolvedMetadata = MetadataBuilder.metadataFromJson(metadataJson);
             }
 
             if (resolvedMetadata != null) {

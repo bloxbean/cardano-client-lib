@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -84,6 +85,27 @@ public class DonationIntention implements TxIntention {
         }
     }
 
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedCurrentTreasuryValue = VariableResolver.resolve(currentTreasuryValue, variables);
+        String resolvedDonationAmount = VariableResolver.resolve(donationAmount, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedCurrentTreasuryValue, currentTreasuryValue) || 
+            !java.util.Objects.equals(resolvedDonationAmount, donationAmount)) {
+            return this.toBuilder()
+                .currentTreasuryValue(resolvedCurrentTreasuryValue)
+                .donationAmount(resolvedDonationAmount)
+                .build();
+        }
+        
+        return this;
+    }
+
     // Factory methods
 
     /**
@@ -116,14 +138,14 @@ public class DonationIntention implements TxIntention {
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext context) {
-        // Phase 1: Create dummy output with donation amount to trigger input selection
+        // Phase 1: Create dummy output with donation amount to trigger input selection  
         return (ctx, outputs) -> {
-            String resolvedDonationAmount = context.resolveVariable(donationAmount);
-            if (resolvedDonationAmount == null || resolvedDonationAmount.trim().isEmpty()) {
+            // Donation amount already resolved during YAML parsing
+            if (donationAmount == null || donationAmount.trim().isEmpty()) {
                 throw new TxBuildException("Donation amount is required for output builder");
             }
 
-            BigInteger donationValue = new BigInteger(resolvedDonationAmount);
+            BigInteger donationValue = new BigInteger(donationAmount);
             TransactionOutput dummyOutput = new TransactionOutput(
                 DUMMY_TREASURY_ADDRESS, 
                 Value.builder().coin(donationValue).build()
@@ -135,33 +157,31 @@ public class DonationIntention implements TxIntention {
     @Override
     public TxBuilder preApply(IntentContext context) {
         return (ctx, txn) -> {
-            // Pre-processing: resolve variables and validate
-            String resolvedCurrentTreasuryValue = context.resolveVariable(currentTreasuryValue);
-            String resolvedDonationAmount = context.resolveVariable(donationAmount);
-
-            // Validate resolved values
-            if (resolvedCurrentTreasuryValue == null || resolvedCurrentTreasuryValue.trim().isEmpty()) {
-                throw new TxBuildException("Current treasury value is required after variable resolution");
+            // Pre-processing: validate (values already resolved during YAML parsing)
+            
+            // Validate values
+            if (currentTreasuryValue == null || currentTreasuryValue.trim().isEmpty()) {
+                throw new TxBuildException("Current treasury value is required");
             }
 
-            if (resolvedDonationAmount == null || resolvedDonationAmount.trim().isEmpty()) {
+            if (donationAmount == null || donationAmount.trim().isEmpty()) {
                 throw new TxBuildException("Donation amount is required after variable resolution");
             }
 
             // Validate values are valid BigInteger
             try {
-                new BigInteger(resolvedCurrentTreasuryValue);
+                new BigInteger(currentTreasuryValue);
             } catch (NumberFormatException e) {
-                throw new TxBuildException("Invalid current treasury value after resolution: " + resolvedCurrentTreasuryValue);
+                throw new TxBuildException("Invalid current treasury value: " + currentTreasuryValue);
             }
 
             try {
-                BigInteger donation = new BigInteger(resolvedDonationAmount);
+                BigInteger donation = new BigInteger(donationAmount);
                 if (donation.compareTo(BigInteger.ZERO) <= 0) {
                     throw new TxBuildException("Donation amount must be positive: " + donation);
                 }
             } catch (NumberFormatException e) {
-                throw new TxBuildException("Invalid donation amount after resolution: " + resolvedDonationAmount);
+                throw new TxBuildException("Invalid donation amount: " + donationAmount);
             }
 
             // Check if donation is already set (can't donate multiple times)
@@ -178,15 +198,11 @@ public class DonationIntention implements TxIntention {
     public TxBuilder apply(IntentContext context) {
         return (ctx, txn) -> {
             try {
-                // Resolve variables
-                String resolvedCurrentTreasuryValue = context.resolveVariable(currentTreasuryValue);
-                String resolvedDonationAmount = context.resolveVariable(donationAmount);
-
-                // Convert to BigInteger and set both values in transaction body
-                BigInteger currentTreasuryValue = new BigInteger(resolvedCurrentTreasuryValue);
-                BigInteger donationValue = new BigInteger(resolvedDonationAmount);
+                // Convert to BigInteger and set both values in transaction body (values already resolved during YAML parsing)
+                BigInteger currentTreasuryValueBigInt = new BigInteger(currentTreasuryValue);
+                BigInteger donationValue = new BigInteger(donationAmount);
                 
-                txn.getBody().setCurrentTreasuryValue(currentTreasuryValue);
+                txn.getBody().setCurrentTreasuryValue(currentTreasuryValueBigInt);
                 txn.getBody().setDonation(donationValue);
 
                 // Remove the dummy treasury output that was created during input selection

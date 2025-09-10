@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.OutputBuilders;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
@@ -207,6 +208,26 @@ public class PaymentIntention implements TxIntention {
         }
     }
 
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedAddress = VariableResolver.resolve(address, variables);
+        
+        // For now, only resolve the address field since it's the most common variable field
+        // Other fields like scriptRefBytesHex, datumHex, datumHash could also contain variables
+        // but are less common and typically contain encoded data
+        if (!java.util.Objects.equals(resolvedAddress, address)) {
+            return this.toBuilder()
+                .address(resolvedAddress)
+                .build();
+        }
+        
+        return this;
+    }
+
     // Factory methods for clean API
 
     /**
@@ -311,16 +332,15 @@ public class PaymentIntention implements TxIntention {
     @Override
     public TxOutputBuilder outputBuilder(IntentContext context) {
         try {
-            // Phase 1: Create transaction output
-            String resolvedAddress = context.resolveVariable(address);
-
-            // Validate resolved address is not null/empty
-            if (resolvedAddress == null || resolvedAddress.trim().isEmpty()) {
+            // Phase 1: Create transaction output (address already resolved during YAML parsing)
+            
+            // Validate address is not null/empty
+            if (address == null || address.trim().isEmpty()) {
                 throw new TxBuildException("Payment address is required after variable resolution");
             }
 
             // Create transaction output
-            TransactionOutput output = createTransactionOutput(resolvedAddress);
+            TransactionOutput output = createTransactionOutput(address);
 
             // Return TxOutputBuilder using OutputBuilders
             return OutputBuilders.createFromOutput(output);
@@ -333,12 +353,11 @@ public class PaymentIntention implements TxIntention {
     @Override
     public TxBuilder preApply(IntentContext context) {
         return (ctx, txn) -> {
-            // Pre-processing: resolve variables and validate
-            String resolvedAddress = context.resolveVariable(address);
-
-            // Validate resolved address is not null/empty
-            if (resolvedAddress == null || resolvedAddress.trim().isEmpty()) {
-                throw new TxBuildException("Payment address is required after variable resolution");
+            // Pre-processing: validate (address already resolved during YAML parsing)
+            
+            // Validate address is not null/empty
+            if (address == null || address.trim().isEmpty()) {
+                throw new TxBuildException("Payment address is required");
             }
 
             // Validate amounts

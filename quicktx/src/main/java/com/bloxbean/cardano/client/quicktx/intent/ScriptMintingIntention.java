@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.function.helper.OutputBuilders;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
@@ -124,6 +125,30 @@ public class ScriptMintingIntention implements TxIntention {
     }
 
     @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedReceiver = VariableResolver.resolve(receiver, variables);
+        String resolvedScriptHex = VariableResolver.resolve(scriptHex, variables);
+        String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
+        String resolvedOutputDatumHex = VariableResolver.resolve(outputDatumHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedReceiver, receiver) || !java.util.Objects.equals(resolvedScriptHex, scriptHex) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex) || !java.util.Objects.equals(resolvedOutputDatumHex, outputDatumHex)) {
+            return this.toBuilder()
+                .receiver(resolvedReceiver)
+                .scriptHex(resolvedScriptHex)
+                .redeemerHex(resolvedRedeemerHex)
+                .outputDatumHex(resolvedOutputDatumHex)
+                .build();
+        }
+        
+        return this;
+    }
+
+    @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         try {
             PlutusScript resolvedScript = resolveScript();
@@ -132,7 +157,7 @@ public class ScriptMintingIntention implements TxIntention {
             // 1) Optionally create receiver output
             TxOutputBuilder txOutputBuilder = null;
             if (receiver != null && !receiver.isBlank()) {
-                String resolvedReceiver = ic.resolveVariable(receiver);
+                String resolvedReceiver = receiver;
                 // Convert assets into amounts (no ADA)
                 List<Amount> assetAmounts = assets.stream()
                         .map(asset -> new Amount(AssetUtil.getUnit(policyId, asset), asset.getValue()))
@@ -174,7 +199,7 @@ public class ScriptMintingIntention implements TxIntention {
         return (ctx, txn) -> {
             validate();
             // Minimal receiver validation
-            if (receiver != null && ic.resolveVariable(receiver).isBlank()) {
+            if (receiver != null && receiver.isBlank()) {
                 throw new TxBuildException("Receiver must resolve to a non-empty address");
             }
         };

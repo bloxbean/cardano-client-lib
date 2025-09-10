@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.quicktx.intent;
 
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -43,6 +44,12 @@ public class ReferenceInputIntention implements TxIntention {
             if (r.getOutputIndex() == null || r.getOutputIndex() < 0)
                 throw new IllegalStateException("output_index is required for reference input");
         }
+    }
+
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        // No string fields to resolve
+        return this;
     }
 
     @Override

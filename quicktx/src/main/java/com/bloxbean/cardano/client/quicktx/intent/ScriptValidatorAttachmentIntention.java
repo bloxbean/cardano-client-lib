@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -67,6 +68,23 @@ public class ScriptValidatorAttachmentIntention implements TxIntention {
         if (script == null && (scriptHex == null || scriptHex.isEmpty() || scriptVersion == null)) {
             throw new IllegalStateException("ValidatorAttachment requires script or script_hex + script_version");
         }
+    }
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedScriptHex = VariableResolver.resolve(scriptHex, variables);
+        
+        // Check if any variables were resolved
+        if (!java.util.Objects.equals(resolvedScriptHex, scriptHex)) {
+            return this.toBuilder()
+                .scriptHex(resolvedScriptHex)
+                .build();
+        }
+        
+        return this;
     }
 
     @Override

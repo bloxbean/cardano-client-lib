@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration;
@@ -52,6 +53,23 @@ public class StakeRegistrationIntention implements TxIntention {
         }
     }
 
+    @Override
+    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        String resolvedStakeAddress = VariableResolver.resolve(stakeAddress, variables);
+        
+        if (!resolvedStakeAddress.equals(stakeAddress)) {
+            return this.toBuilder()
+                .stakeAddress(resolvedStakeAddress)
+                .build();
+        }
+        
+        return this;
+    }
+
     // Factory methods for clean API
 
     /**
@@ -85,8 +103,7 @@ public class StakeRegistrationIntention implements TxIntention {
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for stake registration");
             }
-            String resolvedStake = ic.resolveVariable(stakeAddress);
-            if (resolvedStake == null || resolvedStake.isBlank()) {
+            if (stakeAddress == null || stakeAddress.isBlank()) {
                 throw new TxBuildException("Stake address is required for stake registration");
             }
             validate();
@@ -97,11 +114,10 @@ public class StakeRegistrationIntention implements TxIntention {
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {
             try {
-                String resolvedStake = ic.resolveVariable(stakeAddress);
                 String from = ic.getFromAddress();
 
-                // Build StakeRegistration certificate
-                Address addr = new Address(resolvedStake);
+                // Build StakeRegistration certificate (stakeAddress already resolved during YAML parsing)
+                Address addr = new Address(stakeAddress);
                 byte[] delegationHash = addr.getDelegationCredentialHash()
                         .orElseThrow(() -> new TxBuildException("Invalid stake address. No delegation credential"));
 
