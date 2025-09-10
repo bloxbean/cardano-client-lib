@@ -370,6 +370,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
                 ScriptMintingIntention.of(script, assets, redeemer, receiver, outputDatum);
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(intention);
+
+        hasMultiAssetMinting = true;
         return this;
     }
 

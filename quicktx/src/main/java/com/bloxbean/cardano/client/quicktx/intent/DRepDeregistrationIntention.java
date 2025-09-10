@@ -231,9 +231,8 @@ public class DRepDeregistrationIntention implements TxIntention {
             throw new TxBuildException("From address is required for DRep deregistration");
         }
 
-        return (ctx, outputs) -> {
-            outputs.add(new TransactionOutput(from, Value.builder().coin(ADAConversionUtil.adaToLovelace(1)).build()));
-        };
+        // Use helper to create smart dummy output that merges with existing outputs
+        return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
     }
 
     @Override
@@ -259,7 +258,9 @@ public class DRepDeregistrationIntention implements TxIntention {
                 if (cred == null)
                     throw new TxBuildException("DRep credential resolution failed");
 
-                BigInteger refund = (refundAmount != null) ? refundAmount : ctx.getProtocolParams().getDrepDeposit();
+                // Get refund amount (same as original deposit amount)
+                BigInteger refund = (refundAmount != null) ? refundAmount : 
+                    DepositHelper.getDepositAmount(ctx.getProtocolParams(), DepositHelper.DepositType.DREP_REGISTRATION);
                 String refundAddr = (refundAddress != null && !refundAddress.isBlank()) ? refundAddress : ic.getFromAddress();
 
                 if (txn.getBody().getCerts() == null) txn.getBody().setCerts(new ArrayList<Certificate>());
@@ -269,16 +270,8 @@ public class DRepDeregistrationIntention implements TxIntention {
                         .build();
                 txn.getBody().getCerts().add(cert);
 
-                // Add refund to refund address output
-                txn.getBody().getOutputs().stream()
-                        .filter(to -> to.getAddress().equals(refundAddr))
-                        .findFirst()
-                        .ifPresentOrElse(to -> {
-                            to.getValue().setCoin(to.getValue().getCoin().add(refund));
-                        }, () -> {
-                            txn.getBody().getOutputs().add(new TransactionOutput(refundAddr,
-                                    Value.builder().coin(refund).build()));
-                        });
+                // Use helper to add refund to outputs
+                DepositHelper.addRefundToOutputs(txn, refundAddr, refund);
 
                 // Add cert redeemer if provided
                 PlutusData rdData = redeemer;

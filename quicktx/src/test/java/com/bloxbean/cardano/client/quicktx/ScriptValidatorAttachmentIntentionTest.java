@@ -18,9 +18,9 @@ class ScriptValidatorAttachmentIntentionTest {
                 .attachSpendingValidator(script);
 
         String yaml = scriptTx.toYaml();
-        assertThat(yaml).contains("type: validator_attachment");
-        assertThat(yaml).contains("script_version: v2");
-        assertThat(yaml).contains("script_hex:");
+        assertThat(yaml).contains("type: validator");
+        assertThat(yaml).contains("version: v2");
+        assertThat(yaml).contains("cbor_hex:");
         assertThat(yaml).contains("role: spend");
     }
 }

@@ -137,10 +137,8 @@ public class StakeDeregistrationIntention implements TxIntention {
             throw new TxBuildException("From address is required for stake deregistration");
         }
 
-        return (ctx, outputs) -> {
-            // TODO: Remove this dummy output once input selection no longer needs this trigger
-            outputs.add(new TransactionOutput(from, Value.builder().coin(ADAConversionUtil.adaToLovelace(1)).build()));
-        };
+        // Use helper to create smart dummy output that merges with existing outputs
+        return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
     }
 
     @Override
@@ -207,16 +205,10 @@ public class StakeDeregistrationIntention implements TxIntention {
                     txn.getWitnessSet().getRedeemers().add(rd);
                 }
 
-                // Add deposit refund to refund address
-                BigInteger keyDeposit = new BigInteger(ctx.getProtocolParams().getKeyDeposit());
-                txn.getBody().getOutputs().stream()
-                        .filter(to -> to.getAddress().equals(targetRefundAddr))
-                        .findFirst()
-                        .ifPresentOrElse(to -> {
-                            to.getValue().setCoin(to.getValue().getCoin().add(keyDeposit));
-                        }, () -> {
-                            txn.getBody().getOutputs().add(new TransactionOutput(targetRefundAddr, Value.builder().coin(keyDeposit).build()));
-                        });
+                // Use helper to add deposit refund to refund address
+                BigInteger keyDeposit = DepositHelper.getDepositAmount(
+                    ctx.getProtocolParams(), DepositHelper.DepositType.STAKE_KEY_REGISTRATION);
+                DepositHelper.addRefundToOutputs(txn, targetRefundAddr, keyDeposit);
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply StakeDeregistrationIntention: " + e.getMessage(), e);
             }

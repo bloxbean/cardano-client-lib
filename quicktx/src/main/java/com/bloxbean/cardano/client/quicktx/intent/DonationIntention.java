@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
+import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -29,6 +31,12 @@ import java.math.BigInteger;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DonationIntention implements TxIntention {
+
+    /**
+     * Dummy address used for treasury donation output during input selection phase.
+     * This output gets removed in the apply phase after setting the actual donation.
+     */
+    private static final String DUMMY_TREASURY_ADDRESS = "_TREASURY_DONATION_";
 
     /**
      * Current treasury value in lovelace.
@@ -108,8 +116,20 @@ public class DonationIntention implements TxIntention {
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext context) {
-        // Phase 1: No outputs created for donations - return null
-        return null;
+        // Phase 1: Create dummy output with donation amount to trigger input selection
+        return (ctx, outputs) -> {
+            String resolvedDonationAmount = context.resolveVariable(donationAmount);
+            if (resolvedDonationAmount == null || resolvedDonationAmount.trim().isEmpty()) {
+                throw new TxBuildException("Donation amount is required for output builder");
+            }
+
+            BigInteger donationValue = new BigInteger(resolvedDonationAmount);
+            TransactionOutput dummyOutput = new TransactionOutput(
+                DUMMY_TREASURY_ADDRESS, 
+                Value.builder().coin(donationValue).build()
+            );
+            outputs.add(dummyOutput);
+        };
     }
 
     @Override
@@ -159,11 +179,19 @@ public class DonationIntention implements TxIntention {
         return (ctx, txn) -> {
             try {
                 // Resolve variables
+                String resolvedCurrentTreasuryValue = context.resolveVariable(currentTreasuryValue);
                 String resolvedDonationAmount = context.resolveVariable(donationAmount);
 
-                // Convert to BigInteger and set in transaction body
+                // Convert to BigInteger and set both values in transaction body
+                BigInteger currentTreasuryValue = new BigInteger(resolvedCurrentTreasuryValue);
                 BigInteger donationValue = new BigInteger(resolvedDonationAmount);
+                
+                txn.getBody().setCurrentTreasuryValue(currentTreasuryValue);
                 txn.getBody().setDonation(donationValue);
+
+                // Remove the dummy treasury output that was created during input selection
+                txn.getBody().getOutputs().removeIf(output -> 
+                    DUMMY_TREASURY_ADDRESS.equals(output.getAddress()));
 
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply DonationIntention: " + e.getMessage(), e);

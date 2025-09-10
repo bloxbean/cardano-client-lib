@@ -4,8 +4,6 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -127,13 +125,9 @@ public class PoolRegistrationIntention implements TxIntention {
                 throw new TxBuildException("From address is required for pool registration");
             }
 
-            return (ctx, outputs) -> {
-                String poolDepositStr = ctx.getProtocolParams().getPoolDeposit();
-                if (poolDepositStr == null || poolDepositStr.isEmpty())
-                    throw new TxBuildException("Protocol parameter poolDeposit not available");
-                BigInteger poolDeposit = new BigInteger(poolDepositStr);
-                outputs.add(new TransactionOutput(from, Value.builder().coin(poolDeposit).build()));
-            };
+            // Use the deposit helper to create the output builder
+            return DepositHelper.createDepositOutputBuilder(from, 
+                DepositHelper.DepositType.POOL_REGISTRATION);
         }
         // For updates, no outputs needed
         return null;
@@ -166,24 +160,10 @@ public class PoolRegistrationIntention implements TxIntention {
             txn.getBody().getCerts().add(poolRegistration);
 
             if (!isUpdate) {
-                // Deduct pool deposit from fromAddress output
-                String from = ic.getFromAddress();
-                BigInteger poolDeposit = new BigInteger(ctx.getProtocolParams().getPoolDeposit());
-                txn.getBody().getOutputs().stream()
-                        .filter(to -> to.getAddress().equals(from)
-                                && to.getValue() != null && to.getValue().getCoin() != null
-                                && to.getValue().getCoin().compareTo(poolDeposit) >= 0)
-                        .sorted((o1, o2) -> o2.getValue().getCoin().compareTo(o1.getValue().getCoin()))
-                        .findFirst()
-                        .ifPresentOrElse(to -> {
-                            to.getValue().setCoin(to.getValue().getCoin().subtract(poolDeposit));
-                            var ma = to.getValue().getMultiAssets();
-                            if (to.getValue().getCoin().equals(BigInteger.ZERO) && (ma == null || ma.isEmpty())) {
-                                txn.getBody().getOutputs().remove(to);
-                            }
-                        }, () -> {
-                            throw new TxBuildException("Output for from address not found to remove pool deposit amount: " + from);
-                        });
+                // Use the deposit helper to deduct the pool deposit
+                BigInteger poolDeposit = DepositHelper.getDepositAmount(
+                    ctx.getProtocolParams(), DepositHelper.DepositType.POOL_REGISTRATION);
+                DepositHelper.deductDepositFromOutputs(txn, ic.getFromAddress(), poolDeposit);
             }
         };
     }

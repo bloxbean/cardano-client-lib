@@ -5,8 +5,6 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeRegistration;
@@ -20,7 +18,6 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Comparator;
 
 /**
  * Intention for registering a stake address.
@@ -76,18 +73,9 @@ public class StakeRegistrationIntention implements TxIntention {
             throw new TxBuildException("From address is required for stake registration");
         }
 
-        return (ctx, outputs) -> {
-            try {
-                String keyDepositStr = ctx.getProtocolParams().getKeyDeposit();
-                if (keyDepositStr == null || keyDepositStr.isEmpty()) {
-                    throw new TxBuildException("Protocol parameter keyDeposit not available");
-                }
-                BigInteger keyDeposit = new BigInteger(keyDepositStr);
-                outputs.add(new TransactionOutput(from, Value.builder().coin(keyDeposit).build()));
-            } catch (Exception e) {
-                throw new TxBuildException("Failed to add deposit output for stake registration: " + e.getMessage(), e);
-            }
-        };
+        // Use the deposit helper to create the output builder
+        return DepositHelper.createDepositOutputBuilder(from, 
+            DepositHelper.DepositType.STAKE_KEY_REGISTRATION);
     }
 
     @Override
@@ -131,23 +119,10 @@ public class StakeRegistrationIntention implements TxIntention {
                 }
                 txn.getBody().getCerts().add(new StakeRegistration(stakeCredential));
 
-                // Deduct deposit from the output to fromAddress
-                BigInteger keyDeposit = new BigInteger(ctx.getProtocolParams().getKeyDeposit());
-                txn.getBody().getOutputs().stream()
-                        .filter(to -> to.getAddress().equals(from) && to.getValue() != null
-                                && to.getValue().getCoin() != null
-                                && to.getValue().getCoin().compareTo(keyDeposit) >= 0)
-                        .sorted(Comparator.comparing(o -> o.getValue().getCoin(), Comparator.reverseOrder()))
-                        .findFirst()
-                        .ifPresentOrElse(to -> {
-                            to.getValue().setCoin(to.getValue().getCoin().subtract(keyDeposit));
-                            var ma = to.getValue().getMultiAssets();
-                            if (to.getValue().getCoin().equals(BigInteger.ZERO) && (ma == null || ma.isEmpty())) {
-                                txn.getBody().getOutputs().remove(to);
-                            }
-                        }, () -> {
-                            throw new TxBuildException("Output for from address not found to remove deposit: " + from);
-                        });
+                // Use the deposit helper to deduct the deposit
+                BigInteger keyDeposit = DepositHelper.getDepositAmount(
+                    ctx.getProtocolParams(), DepositHelper.DepositType.STAKE_KEY_REGISTRATION);
+                DepositHelper.deductDepositFromOutputs(txn, from, keyDeposit);
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply StakeRegistrationIntention: " + e.getMessage(), e);
             }

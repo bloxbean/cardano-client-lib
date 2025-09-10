@@ -6,7 +6,7 @@ import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.quicktx.intent.TxIntention;
+import com.bloxbean.cardano.client.quicktx.intent.*;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
@@ -18,9 +18,6 @@ import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.spec.script.NativeScript;
 import com.bloxbean.cardano.hdwallet.Wallet;
-import com.bloxbean.cardano.client.quicktx.intent.MintingIntention;
-import com.bloxbean.cardano.client.quicktx.intent.StakeRegistrationIntention;
-import com.bloxbean.cardano.client.quicktx.intent.StakeDelegationIntention;
 import lombok.NonNull;
 
 import java.math.BigInteger;
@@ -30,8 +27,8 @@ import java.util.Set;
 
 public class Tx extends AbstractTx<Tx> {
 
-    private StakeTx stakeTx;
-    private GovTx govTx;
+//    private StakeTx stakeTx;
+//    private GovTx govTx;
 
     private String sender;
     protected boolean senderAdded = false;
@@ -41,8 +38,8 @@ public class Tx extends AbstractTx<Tx> {
      * Create Tx
      */
     public Tx() {
-        stakeTx = new StakeTx();
-        govTx = new GovTx();
+//        stakeTx = new StakeTx();
+//        govTx = new GovTx();
     }
 
     /**
@@ -50,8 +47,8 @@ public class Tx extends AbstractTx<Tx> {
      * This allows capturing stake and governance operations for YAML serialization.
      */
     public void enableIntentionRecording() {
-        stakeTx.enableIntentionRecording();
-        govTx.enableIntentionRecording();
+//        stakeTx.enableIntentionRecording();
+//        govTx.enableIntentionRecording();
     }
 
     /**
@@ -68,14 +65,14 @@ public class Tx extends AbstractTx<Tx> {
         }
 
         // Add stake intentions
-        if (stakeTx.getIntentions() != null) {
-            allIntentions.addAll(stakeTx.getIntentions());
-        }
-
-        // Add governance intentions
-        if (govTx.getIntentions() != null) {
-            allIntentions.addAll(govTx.getIntentions());
-        }
+//        if (stakeTx.getIntentions() != null) {
+//            allIntentions.addAll(stakeTx.getIntentions());
+//        }
+//
+//        // Add governance intentions
+//        if (govTx.getIntentions() != null) {
+//            allIntentions.addAll(govTx.getIntentions());
+//        }
 
         return allIntentions;
     }
@@ -137,6 +134,8 @@ public class Tx extends AbstractTx<Tx> {
         }
         intentions.add(intention);
 
+        hasMultiAssetMinting = true;
+
         return this;
     }
 
@@ -170,7 +169,13 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx collectFrom(List<Utxo> utxos) {
-        this.inputUtxos = utxos;
+        // Record intention for YAML/plan replay
+        if (utxos != null && !utxos.isEmpty()) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(CollectFromIntention.builder()
+                    .utxos(utxos)
+                    .build());
+        }
         return this;
     }
 
@@ -180,7 +185,13 @@ public class Tx extends AbstractTx<Tx> {
      * @return Tx
      */
     public Tx collectFrom(Set<Utxo> utxos) {
-        this.inputUtxos = List.copyOf(utxos);
+        // Record intention for YAML/plan replay
+        if (utxos != null && !utxos.isEmpty()) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(CollectFromIntention.builder()
+                    .utxos(new ArrayList<>(utxos))
+                    .build());
+        }
         return this;
     }
 
@@ -624,6 +635,24 @@ public class Tx extends AbstractTx<Tx> {
 //
 //        //Add gov deposit refund contexts
 //        addDepositRefundContext(govBuildTuple._1);
+
+            // If there are input collection intentions, set a lazy resolver so replay works without direct field state
+            if (this.intentions != null && !this.intentions.isEmpty()) {
+                java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
+                        .filter(i -> i instanceof CollectFromIntention)
+                        .map(i -> (CollectFromIntention) i)
+                        .map(CollectFromIntention::utxoStrategy)
+                        .collect(java.util.stream.Collectors.toList());
+                if (!strategies.isEmpty()) {
+                    this.lazyUtxoResolver = (supplier) -> {
+                        java.util.List<com.bloxbean.cardano.client.api.model.Utxo> resolved = new java.util.ArrayList<>();
+                        for (var s : strategies) {
+                            resolved.addAll(s.resolve(supplier));
+                        }
+                        return resolved;
+                    };
+                }
+            }
 
             TxBuilder txBuilder = super.complete();
 

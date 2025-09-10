@@ -140,7 +140,8 @@ public class TransactionCollectionDocument {
                 TransactionDocument.TxContent content = entry.getTx();
 
                 if (content.getFrom() != null) {
-                    tx.from(content.getFrom());
+                    String resolvedFrom = VariableResolver.resolve(content.getFrom(), vars);
+                    tx.from(resolvedFrom);
                 }
                 if (content.getChangeAddress() != null) {
                     String resolvedChangeAddr = VariableResolver.resolve(content.getChangeAddress(), vars);
@@ -153,6 +154,8 @@ public class TransactionCollectionDocument {
                     }
                 }
 
+                // Set variables from YAML for intention processing
+                tx.setVariables(vars);
                 transactions.add(tx);
 
             } else if (entry.isScriptTx()) {
@@ -186,6 +189,9 @@ public class TransactionCollectionDocument {
                     }
                 }
 
+                // Set variables from YAML for intention processing
+                scriptTx.setVariables(vars);
+                
                 // Note: Script attachments and collectFrom configurations can be restored in a later phase.
                 transactions.add(scriptTx);
             }

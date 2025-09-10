@@ -323,7 +323,9 @@ public class VotingIntention implements TxIntention {
         final String from = ic.getFromAddress();
         if (from == null || from.isBlank())
             throw new TxBuildException("From address is required for voting");
-        return (ctx, outputs) -> outputs.add(new TransactionOutput(from, Value.builder().coin(ADAConversionUtil.adaToLovelace(1)).build()));
+        
+        // Use helper to create smart dummy output that merges with existing outputs
+        return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
     }
 
     @Override

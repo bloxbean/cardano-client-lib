@@ -9,8 +9,6 @@ import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.RegDRepCert;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
@@ -253,10 +251,11 @@ public class DRepRegistrationIntention implements TxIntention {
             throw new TxBuildException("From address is required for DRep registration");
         }
 
-        return (ctx, outputs) -> {
-            BigInteger dep = (deposit != null) ? deposit : ctx.getProtocolParams().getDrepDeposit();
-            outputs.add(new TransactionOutput(from, Value.builder().coin(dep).build()));
-        };
+        // Use the deposit helper to create the output builder
+        //deposit here is a custom deposit amount if provided, otherwise,
+        //it will be fetched from protocol param in Deposit helper.
+        return DepositHelper.createDepositOutputBuilder(from, 
+            DepositHelper.DepositType.DREP_REGISTRATION, deposit);
     }
 
     @Override
@@ -291,7 +290,8 @@ public class DRepRegistrationIntention implements TxIntention {
                     anch = new Anchor(anchorUrl, hash);
                 }
 
-                BigInteger dep = (deposit != null) ? deposit : ctx.getProtocolParams().getDrepDeposit();
+                BigInteger dep = (deposit != null) ? deposit : DepositHelper.getDepositAmount(
+                    ctx.getProtocolParams(), DepositHelper.DepositType.DREP_REGISTRATION);
 
                 if (txn.getBody().getCerts() == null) txn.getBody().setCerts(new ArrayList<Certificate>());
                 RegDRepCert cert = RegDRepCert.builder()
@@ -301,23 +301,8 @@ public class DRepRegistrationIntention implements TxIntention {
                         .build();
                 txn.getBody().getCerts().add(cert);
 
-                // Deduct deposit
-                String from = ic.getFromAddress();
-                txn.getBody().getOutputs().stream()
-                        .filter(to -> to.getAddress().equals(from)
-                                && to.getValue() != null && to.getValue().getCoin() != null
-                                && to.getValue().getCoin().compareTo(dep) >= 0)
-                        .sorted((o1, o2) -> o2.getValue().getCoin().compareTo(o1.getValue().getCoin()))
-                        .findFirst()
-                        .ifPresentOrElse(to -> {
-                            to.getValue().setCoin(to.getValue().getCoin().subtract(dep));
-                            var ma = to.getValue().getMultiAssets();
-                            if (to.getValue().getCoin().equals(BigInteger.ZERO) && (ma == null || ma.isEmpty())) {
-                                txn.getBody().getOutputs().remove(to);
-                            }
-                        }, () -> {
-                            throw new TxBuildException("Output for from address not found to remove DRep deposit amount: " + from);
-                        });
+                // Use the deposit helper to deduct the deposit
+                DepositHelper.deductDepositFromOutputs(txn, ic.getFromAddress(), dep);
 
                 // Add cert redeemer if provided
                 PlutusData rdData = redeemer;
@@ -344,4 +329,5 @@ public class DRepRegistrationIntention implements TxIntention {
             }
         };
     }
+
 }

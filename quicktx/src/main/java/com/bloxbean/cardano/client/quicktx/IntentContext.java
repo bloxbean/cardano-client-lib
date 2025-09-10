@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.quicktx;
 
-import com.bloxbean.cardano.client.quicktx.intent.PlanAttributes;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
@@ -107,41 +106,6 @@ public class IntentContext {
      */
     public Set<String> getResolvedVariables() {
         return new HashSet<>(resolvedVariables);
-    }
-
-    /**
-     * Factory method to create IntentContext from PlanAttributes and variables.
-     * This bridges the recording layer (PlanAttributes) with the execution layer (IntentContext).
-     *
-     * @param planAttributes the plan attributes from recording (may be null)
-     * @param variables the variables map for resolution (may be null)
-     * @return new IntentContext with populated data
-     */
-    public static IntentContext fromPlanAttributes(PlanAttributes planAttributes, Map<String, Object> variables) {
-        IntentContextBuilder builder = IntentContext.builder();
-
-        // Populate from PlanAttributes if available
-        if (planAttributes != null) {
-            builder.fromAddress(planAttributes.getFrom())
-                   .changeAddress(planAttributes.getChangeAddress());
-        }
-
-        // Set variables if provided
-        if (variables != null) {
-            builder.variables(new HashMap<>(variables));
-        }
-
-        return builder.build();
-    }
-
-    /**
-     * Factory method to create IntentContext with just variables.
-     *
-     * @param variables the variables map for resolution
-     * @return new IntentContext with variables
-     */
-    public static IntentContext withVariables(Map<String, Object> variables) {
-        return fromPlanAttributes(null, variables);
     }
 
     /**

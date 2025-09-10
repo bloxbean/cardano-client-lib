@@ -32,26 +32,31 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public abstract class AbstractTx<T> {
-    public static final String DUMMY_TREASURY_ADDRESS = "_TREASURY_ADDRESS_";
-    List<TransactionOutput> outputs; // Package-private for IntentProcessor access
-    List<Tuple<Script, MultiAsset>> multiAssets; // Package-private for IntentProcessor access
-    protected Metadata txMetadata;
+//    public static final String DUMMY_TREASURY_ADDRESS = "_TREASURY_ADDRESS_";
+//    List<TransactionOutput> outputs; // Package-private for IntentProcessor access
+//    List<Tuple<Script, MultiAsset>> multiAssets; // Package-private for IntentProcessor access
+//    protected Metadata txMetadata;
     //custom change address
     protected String changeAddress;
-    List<Utxo> inputUtxos; // Package-private for IntentProcessor access
+//    List<Utxo> inputUtxos; // Package-private for IntentProcessor access
 
     //Required for script
     protected PlutusData changeData;
     protected String changeDatahash;
 
-    protected List<DepositRefundContext> depositRefundContexts;
-    DonationContext donationContext; // Package-private for IntentProcessor access
+    protected boolean hasMultiAssetMinting;
+
+//    protected List<DepositRefundContext> depositRefundContexts;
+//    DonationContext donationContext; // Package-private for IntentProcessor access
 
     // Function-based lazy UTXO resolver for script transactions
     protected Function<UtxoSupplier, List<Utxo>> lazyUtxoResolver;
 
     // Intent-based architecture: Store intentions for deferred resolution
     protected List<TxIntention> intentions;
+
+    // Variables for YAML parameterization and dynamic value resolution
+    protected java.util.Map<String, Object> variables;
 
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
@@ -269,45 +274,45 @@ public abstract class AbstractTx<T> {
      *
      * @return TxPlan containing all recorded intentions, or null if no intentions recorded
      */
-    public TxPlan getPlan() {
-        if (intentions == null || intentions.isEmpty()) {
-            return null;
-        }
-
-        String planType = this instanceof ScriptTx ? "script_tx" : "tx";
-
-        return TxPlan.builder()
-            .type(planType)
-            .version("1.0")
-            .intentions(new ArrayList<>(intentions))
-            .attributes(buildPlanAttributes())
-            .build();
-    }
-
-    /**
-     * Build plan attributes from current transaction state.
-     */
-    private PlanAttributes buildPlanAttributes() {
-        String fromAddress = null;
-        String changeAddress = null;
-
-        try {
-            fromAddress = getFromAddress();
-        } catch (Exception e) {
-            // From address might not be set yet - that's ok
-        }
-
-        try {
-            changeAddress = getChangeAddress();
-        } catch (Exception e) {
-            // Change address might not be set yet - that's ok
-        }
-
-        return PlanAttributes.builder()
-            .from(fromAddress)
-            .changeAddress(changeAddress)
-            .build();
-    }
+//    public TxPlan getPlan() {
+//        if (intentions == null || intentions.isEmpty()) {
+//            return null;
+//        }
+//
+//        String planType = this instanceof ScriptTx ? "script_tx" : "tx";
+//
+//        return TxPlan.builder()
+//            .type(planType)
+//            .version("1.0")
+//            .intentions(new ArrayList<>(intentions))
+//            .attributes(buildPlanAttributes())
+//            .build();
+//    }
+//
+//    /**
+//     * Build plan attributes from current transaction state.
+//     */
+//    private PlanAttributes buildPlanAttributes() {
+//        String fromAddress = null;
+//        String changeAddress = null;
+//
+//        try {
+//            fromAddress = getFromAddress();
+//        } catch (Exception e) {
+//            // From address might not be set yet - that's ok
+//        }
+//
+//        try {
+//            changeAddress = getChangeAddress();
+//        } catch (Exception e) {
+//            // Change address might not be set yet - that's ok
+//        }
+//
+//        return PlanAttributes.builder()
+//            .from(fromAddress)
+//            .changeAddress(changeAddress)
+//            .build();
+//    }
 
     /**
      * Process all recorded intentions using three-phase architecture.
@@ -324,7 +329,7 @@ public abstract class AbstractTx<T> {
 
         // Create IntentContext for intention processing
         IntentContext intentContext = IntentContext.builder()
-            .variables(new HashMap<>())  // TODO: Add support for variables
+            .variables(variables != null ? variables : new HashMap<>())
             .fromAddress(getFromAddress())
             .changeAddress(getChangeAddress())
             .build();
@@ -351,7 +356,7 @@ public abstract class AbstractTx<T> {
 
         // Create IntentContext for intention processing
         IntentContext intentContext = IntentContext.builder()
-            .variables(new HashMap<>())  // TODO: Add support for variables
+            .variables(variables != null ? variables : new HashMap<>())
             .fromAddress(getFromAddress())
             .changeAddress(getChangeAddress())
             .build();
@@ -410,7 +415,8 @@ public abstract class AbstractTx<T> {
      * @return true if there are multi-assets to be minted; false otherwise
      */
     boolean hasMultiAssetMinting() {
-        return multiAssets != null && !multiAssets.isEmpty();
+        return hasMultiAssetMinting;
+        //return multiAssets != null && !multiAssets.isEmpty();
     }
 
     TxBuilder complete() {
@@ -469,9 +475,10 @@ public abstract class AbstractTx<T> {
             };
         } else {
             //Build inputs
-            if (inputUtxos != null && !inputUtxos.isEmpty()) {
-                txBuilder = buildInputBuildersFromUtxos(txOutputBuilder);
-            } else if (lazyUtxoResolver != null) {
+//            if (inputUtxos != null && !inputUtxos.isEmpty()) {
+//                txBuilder = buildInputBuildersFromUtxos(txOutputBuilder);
+//            } else
+            if (lazyUtxoResolver != null) {
                 // Handle function-based lazy UTXO resolution for script transactions
                 ContextAwareSupplier contextSupplier = new ContextAwareSupplier(lazyUtxoResolver);
                 txBuilder = buildInputBuildersFromUtxoSupplier(txOutputBuilder, contextSupplier);
@@ -524,48 +531,48 @@ public abstract class AbstractTx<T> {
      * Build dummy donation output to trigger input selection
      * @return TxOutputBuilder
      */
-    private TxOutputBuilder buildDummyDonationTxOutBuilder() {
-        if (donationContext == null)
-            return null;
-
-        TxOutputBuilder dummyTxOutputBuilder = (context, outputs) -> {
-            var dummyDonationOutput = new TransactionOutput(DUMMY_TREASURY_ADDRESS, Value.builder().coin(donationContext.donationAmount).build());
-            outputs.add(dummyDonationOutput);
-        };
-
-        return dummyTxOutputBuilder;
-    }
+//    private TxOutputBuilder buildDummyDonationTxOutBuilder() {
+//        if (donationContext == null)
+//            return null;
+//
+//        TxOutputBuilder dummyTxOutputBuilder = (context, outputs) -> {
+//            var dummyDonationOutput = new TransactionOutput(DUMMY_TREASURY_ADDRESS, Value.builder().coin(donationContext.donationAmount).build());
+//            outputs.add(dummyDonationOutput);
+//        };
+//
+//        return dummyTxOutputBuilder;
+//    }
 
     /**
      * Build donation TxBuilder to set donation amount and current treasury value
      * Also to remove the dummy donation output
      * @return TxBuilder
      */
-    private TxBuilder buildDonatationTxBuilder() {
-        if (donationContext == null)
-            return null;
+//    private TxBuilder buildDonatationTxBuilder() {
+//        if (donationContext == null)
+//            return null;
+//
+//        return (context, txn) -> {
+//            txn.getBody().getOutputs().removeIf(output -> output.getAddress().equals(DUMMY_TREASURY_ADDRESS));
+//            txn.getBody().setCurrentTreasuryValue(donationContext.currentTreasuryValue);
+//            txn.getBody().setDonation(donationContext.donationAmount);
+//        };
+//    }
 
-        return (context, txn) -> {
-            txn.getBody().getOutputs().removeIf(output -> output.getAddress().equals(DUMMY_TREASURY_ADDRESS));
-            txn.getBody().setCurrentTreasuryValue(donationContext.currentTreasuryValue);
-            txn.getBody().setDonation(donationContext.donationAmount);
-        };
-    }
-
-    private TxBuilder buildInputBuildersFromUtxos(TxOutputBuilder txOutputBuilder) {
-        String _changeAddr = getChangeAddress();
-
-        TxBuilder txBuilder;
-        if (changeData != null) {
-            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr, changeData));
-        } else if (changeDatahash != null) {
-            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr, changeDatahash));
-        } else {
-            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr));
-        }
-
-        return txBuilder;
-    }
+//    private TxBuilder buildInputBuildersFromUtxos(TxOutputBuilder txOutputBuilder) {
+//        String _changeAddr = getChangeAddress();
+//
+//        TxBuilder txBuilder;
+//        if (changeData != null) {
+//            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr, changeData));
+//        } else if (changeDatahash != null) {
+//            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr, changeDatahash));
+//        } else {
+//            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr));
+//        }
+//
+//        return txBuilder;
+//    }
 
     private TxBuilder buildInputBuildersFromUtxoSupplier(TxOutputBuilder txOutputBuilder, Supplier<List<Utxo>> utxoSupplier) {
         String _changeAddr = getChangeAddress();
@@ -599,42 +606,42 @@ public abstract class AbstractTx<T> {
         return txBuilder;
     }
 
-    @SneakyThrows
-    protected void addToMultiAssetList(@NonNull Script script, List<Asset> assets) {
-        String policyId = script.getPolicyId();
-        MultiAsset multiAsset = MultiAsset.builder()
-                .policyId(policyId)
-                .assets(assets)
-                .build();
+//    @SneakyThrows
+//    protected void addToMultiAssetList(@NonNull Script script, List<Asset> assets) {
+//        String policyId = script.getPolicyId();
+//        MultiAsset multiAsset = MultiAsset.builder()
+//                .policyId(policyId)
+//                .assets(assets)
+//                .build();
+//
+//        if (multiAssets == null)
+//            multiAssets = new ArrayList<>();
+//
+//        //Check if multiasset already exists
+//        //If there is another mulitasset with same policy id, add the assets to that multiasset and use MultiAsset.plus method
+//        //to create a new multiasset
+//        multiAssets.stream().filter(ma -> {
+//            try {
+//                return ma._1.getPolicyId().equals(script.getPolicyId());
+//            } catch (CborSerializationException e) {
+//                throw new CborRuntimeException(e);
+//            }
+//        }).findFirst().ifPresentOrElse(ma -> {
+//            multiAssets.remove(ma);
+//            multiAssets.add(new Tuple<>(script, ma._2.add(multiAsset)));
+//        }, () -> {
+//            multiAssets.add(new Tuple<>(script, multiAsset));
+//        });
+//    }
 
-        if (multiAssets == null)
-            multiAssets = new ArrayList<>();
-
-        //Check if multiasset already exists
-        //If there is another mulitasset with same policy id, add the assets to that multiasset and use MultiAsset.plus method
-        //to create a new multiasset
-        multiAssets.stream().filter(ma -> {
-            try {
-                return ma._1.getPolicyId().equals(script.getPolicyId());
-            } catch (CborSerializationException e) {
-                throw new CborRuntimeException(e);
-            }
-        }).findFirst().ifPresentOrElse(ma -> {
-            multiAssets.remove(ma);
-            multiAssets.add(new Tuple<>(script, ma._2.add(multiAsset)));
-        }, () -> {
-            multiAssets.add(new Tuple<>(script, multiAsset));
-        });
-    }
-
-    protected void addDepositRefundContext(List<DepositRefundContext> _depositRefundContexts) {
-        if (this.depositRefundContexts == null)
-            this.depositRefundContexts = new ArrayList<>();
-
-        _depositRefundContexts.forEach(depositRefundContext -> {
-            this.depositRefundContexts.add(depositRefundContext);
-        });
-    }
+//    protected void addDepositRefundContext(List<DepositRefundContext> _depositRefundContexts) {
+//        if (this.depositRefundContexts == null)
+//            this.depositRefundContexts = new ArrayList<>();
+//
+//        _depositRefundContexts.forEach(depositRefundContext -> {
+//            this.depositRefundContexts.add(depositRefundContext);
+//        });
+//    }
 
     /**
      * Return change address
@@ -813,5 +820,22 @@ public abstract class AbstractTx<T> {
      */
     public String getChangeDatumHash() {
         return changeDatahash;
+    }
+
+    /**
+     * Set variables for this transaction.
+     * Used during YAML deserialization to pass variables to intentions.
+     * @param variables the variables map
+     */
+    public void setVariables(java.util.Map<String, Object> variables) {
+        this.variables = variables;
+    }
+
+    /**
+     * Get variables for this transaction.
+     * @return variables map, or null if not set
+     */
+    public java.util.Map<String, Object> getVariables() {
+        return variables;
     }
 }

@@ -4,8 +4,6 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.ProposalProcedure;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
@@ -261,10 +259,9 @@ public class GovernanceProposalIntention implements TxIntention {
         if (from == null || from.isBlank())
             throw new TxBuildException("From address is required for governance proposal");
 
-        return (ctx, outputs) -> {
-            BigInteger dep = (deposit != null) ? deposit : ctx.getProtocolParams().getGovActionDeposit();
-            outputs.add(new TransactionOutput(from, Value.builder().coin(dep).build()));
-        };
+        // Use the deposit helper to create the output builder
+        return DepositHelper.createDepositOutputBuilder(from, 
+            DepositHelper.DepositType.GOV_ACTION_PROPOSAL, deposit);
     }
 
     @Override
@@ -298,7 +295,8 @@ public class GovernanceProposalIntention implements TxIntention {
                     anch = new Anchor(anchorUrl, hash);
                 }
 
-                BigInteger dep = (deposit != null) ? deposit : ctx.getProtocolParams().getGovActionDeposit();
+                BigInteger dep = (deposit != null) ? deposit : 
+                    DepositHelper.getDepositAmount(ctx.getProtocolParams(), DepositHelper.DepositType.GOV_ACTION_PROPOSAL);
 
                 if (txn.getBody().getProposalProcedures() == null)
                     txn.getBody().setProposalProcedures(new UniqueList<>());
@@ -309,23 +307,8 @@ public class GovernanceProposalIntention implements TxIntention {
                         .anchor(anch)
                         .build());
 
-                // Deduct deposit from fromAddress
-                String from = ic.getFromAddress();
-                txn.getBody().getOutputs().stream()
-                        .filter(to -> to.getAddress().equals(from)
-                                && to.getValue() != null && to.getValue().getCoin() != null
-                                && to.getValue().getCoin().compareTo(dep) >= 0)
-                        .sorted((o1, o2) -> o2.getValue().getCoin().compareTo(o1.getValue().getCoin()))
-                        .findFirst()
-                        .ifPresentOrElse(to -> {
-                            to.getValue().setCoin(to.getValue().getCoin().subtract(dep));
-                            var ma = to.getValue().getMultiAssets();
-                            if (to.getValue().getCoin().equals(BigInteger.ZERO) && (ma == null || ma.isEmpty())) {
-                                txn.getBody().getOutputs().remove(to);
-                            }
-                        }, () -> {
-                            throw new TxBuildException("Output for from address not found to remove governance deposit: " + from);
-                        });
+                // Use the deposit helper to deduct the deposit
+                DepositHelper.deductDepositFromOutputs(txn, ic.getFromAddress(), dep);
 
                 // Add proposing redeemer if provided
                 PlutusData rdData = redeemer;

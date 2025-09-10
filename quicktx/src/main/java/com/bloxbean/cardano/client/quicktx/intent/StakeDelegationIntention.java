@@ -125,9 +125,8 @@ public class StakeDelegationIntention implements TxIntention {
             throw new TxBuildException("From address is required for stake delegation");
         }
 
-        return (ctx, outputs) -> {
-            outputs.add(new TransactionOutput(from, Value.builder().coin(ADAConversionUtil.adaToLovelace(1)).build()));
-        };
+        // Use helper to create smart dummy output that merges with existing outputs
+        return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
     }
 
     @Override

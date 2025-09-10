@@ -57,6 +57,9 @@ import java.util.Map;
     @JsonSubTypes.Type(value = ScriptValidatorAttachmentIntention.class, name = "validator")
     ,
     @JsonSubTypes.Type(value = ReferenceInputIntention.class, name = "reference_input")
+    ,
+    // Base Tx input collection intentions
+    @JsonSubTypes.Type(value = CollectFromIntention.class, name = "collect_from")
 
     // Additional intentions will be added as needed for the simplified approach
 })
