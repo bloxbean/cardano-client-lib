@@ -1,0 +1,21 @@
+dependencies {
+    api project(':crypto')
+
+    // Explicitly include CBOR for encoding/decoding of trie nodes
+    implementation(libs.co.nstant.in.cbor)
+
+    integrationTestImplementation(libs.slf4j.reload4j)
+
+    integrationTestImplementation project(':')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client State Trees module'
+                description = 'Cardano Client Lib - State Trees Module'
+            }
+        }
+    }
+}
