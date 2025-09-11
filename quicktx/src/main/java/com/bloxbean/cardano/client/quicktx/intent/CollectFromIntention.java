@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
-import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.FixedUtxoRefStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.FixedUtxoStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
@@ -28,7 +27,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CollectFromIntention implements TxIntention {
+public class CollectFromIntention implements TxInputIntention {
 
     /**
      * Original UTXOs for runtime use (preserves all UTXO data).
@@ -57,7 +56,7 @@ public class CollectFromIntention implements TxIntention {
 
     @Override
     public void validate() {
-        TxIntention.super.validate();
+        TxInputIntention.super.validate();
         if ((utxos == null || utxos.isEmpty()) && (utxoRefs == null || utxoRefs.isEmpty())) {
             throw new IllegalStateException("UTXOs are required for input collection");
         }
@@ -92,7 +91,7 @@ public class CollectFromIntention implements TxIntention {
         }
         // Build from refs
         var inputs = utxoRefs.stream()
-                .map(ref -> new TransactionInput(ref.txHash, ref.outputIndex))
+                .map(ref -> new TransactionInput(ref.getTxHash(), ref.getOutputIndex()))
                 .collect(Collectors.toList());
         return new FixedUtxoRefStrategy(inputs, null, null);
     }
@@ -108,30 +107,4 @@ public class CollectFromIntention implements TxIntention {
         return (ctx, txn) -> {};
     }
 
-    /**
-     * Serializable UTXO reference.
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class UtxoRef {
-        @JsonProperty("tx_hash")
-        private String txHash;
-
-        @JsonProperty("output_index")
-        private Integer outputIndex;
-
-        @JsonProperty("address")
-        private String address;
-
-        public static UtxoRef fromUtxo(Utxo utxo) {
-            return UtxoRef.builder()
-                    .txHash(utxo.getTxHash())
-                    .outputIndex(utxo.getOutputIndex())
-                    .address(utxo.getAddress())
-                    .build();
-        }
-    }
 }

@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ScriptCollectFromIntention implements TxIntention {
+public class ScriptCollectFromIntention implements TxInputIntention {
 
     /**
      * Original UTXOs for runtime use (preserves all UTXO data).
@@ -116,49 +116,6 @@ public class ScriptCollectFromIntention implements TxIntention {
         return datumHex;
     }
 
-    /**
-     * Represents a UTXO reference that can be serialized.
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class UtxoRef {
-        @JsonProperty("tx_hash")
-        private String txHash;
-
-        @JsonProperty("output_index")
-        private Integer outputIndex;
-
-        @JsonProperty("address")
-        private String address;
-
-        /**
-         * Convert to Utxo object.
-         */
-        public Utxo toUtxo() {
-            Utxo utxo = new Utxo();
-            utxo.setTxHash(txHash);
-            utxo.setOutputIndex(outputIndex);
-            if (address != null) {
-                utxo.setAddress(address);
-            }
-            return utxo;
-        }
-
-        /**
-         * Create from Utxo object.
-         */
-        public static UtxoRef fromUtxo(Utxo utxo) {
-            return UtxoRef.builder()
-                    .txHash(utxo.getTxHash())
-                    .outputIndex(utxo.getOutputIndex())
-                    .address(utxo.getAddress())
-                    .build();
-        }
-    }
-
     @Override
     public String getType() {
         return "script_collect_from";
@@ -167,7 +124,7 @@ public class ScriptCollectFromIntention implements TxIntention {
 
     @Override
     public void validate() {
-        TxIntention.super.validate();
+        TxInputIntention.super.validate();
 
         // Check runtime objects first
         if (utxos != null && !utxos.isEmpty()) {
@@ -228,7 +185,7 @@ public class ScriptCollectFromIntention implements TxIntention {
 
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
         String resolvedDatumHex = VariableResolver.resolve(datumHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedRedeemerHex, redeemerHex) || !java.util.Objects.equals(resolvedDatumHex, datumHex)) {
             return this.toBuilder()
@@ -236,7 +193,7 @@ public class ScriptCollectFromIntention implements TxIntention {
                 .datumHex(resolvedDatumHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -324,7 +281,7 @@ public class ScriptCollectFromIntention implements TxIntention {
 
         if (!hasRuntimeObjects()) {
             var txInputs = utxoRefs.stream()
-                    .map(utxoRef -> new TransactionInput(utxoRef.txHash, utxoRef.outputIndex))
+                    .map(utxoRef -> new TransactionInput(utxoRef.getTxHash(), utxoRef.getOutputIndex()))
                     .collect(Collectors.toList());
             return new FixedUtxoRefStrategy(txInputs, redeemerData, datum);
         } else {

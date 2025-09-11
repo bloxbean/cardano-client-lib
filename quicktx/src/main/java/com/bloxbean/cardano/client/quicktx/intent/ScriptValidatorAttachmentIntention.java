@@ -22,7 +22,7 @@ import lombok.*;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ScriptValidatorAttachmentIntention implements TxIntention {
+public class ScriptValidatorAttachmentIntention implements TxValidatorIntention {
 
     // Runtime field
     @JsonIgnore
@@ -76,14 +76,14 @@ public class ScriptValidatorAttachmentIntention implements TxIntention {
         }
 
         String resolvedScriptHex = VariableResolver.resolve(scriptHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedScriptHex, scriptHex)) {
             return this.toBuilder()
                 .scriptHex(resolvedScriptHex)
                 .build();
         }
-        
+
         return this;
     }
 

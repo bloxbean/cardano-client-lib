@@ -3,7 +3,6 @@ package com.bloxbean.cardano.client.quicktx.intent;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
-import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
@@ -105,10 +104,6 @@ public interface TxIntention {
         return null;
     }
 
-    default LazyUtxoStrategy utxoStrategy() {
-        // Default: no inputs created
-        return null;
-    }
 
     /**
      * Self-processing method for pre-processing phase.

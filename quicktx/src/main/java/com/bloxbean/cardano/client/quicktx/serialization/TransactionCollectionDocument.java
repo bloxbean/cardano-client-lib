@@ -3,6 +3,9 @@ package com.bloxbean.cardano.client.quicktx.serialization;
 import com.bloxbean.cardano.client.quicktx.AbstractTx;
 import com.bloxbean.cardano.client.quicktx.ScriptTx;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.quicktx.intent.TxInputIntention;
+import com.bloxbean.cardano.client.quicktx.intent.TxIntention;
+import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntention;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -83,7 +86,28 @@ public class TransactionCollectionDocument {
             if (tx instanceof Tx) {
                 Tx regularTx = (Tx) tx;
                 TransactionDocument.TxContent content = new TransactionDocument.TxContent();
-                content.setIntentions(regularTx.getIntentions());
+
+                // Separate input intentions from regular intentions
+                List<TxInputIntention> inputIntentions = new ArrayList<>();
+                List<TxIntention> regularIntentions = new ArrayList<>();
+
+                if (regularTx.getIntentions() != null) {
+                    for (TxIntention intention : regularTx.getIntentions()) {
+                        if (intention instanceof TxInputIntention) {
+                            inputIntentions.add((TxInputIntention) intention);
+                        } else {
+                            regularIntentions.add(intention);
+                        }
+                    }
+                }
+
+                // Set inputs and intentions separately
+                if (!inputIntentions.isEmpty()) {
+                    content.setInputs(inputIntentions);
+                }
+                if (!regularIntentions.isEmpty()) {
+                    content.setIntentions(regularIntentions);
+                }
 
                 // Set attributes from the transaction
                 content.setFrom(regularTx.getSender());
@@ -96,7 +120,35 @@ public class TransactionCollectionDocument {
             } else if (tx instanceof ScriptTx) {
                 ScriptTx scriptTx = (ScriptTx) tx;
                 TransactionDocument.ScriptTxContent content = new TransactionDocument.ScriptTxContent();
-                content.setIntentions(scriptTx.getIntentions());
+
+                // Separate input intentions from regular intentions
+                List<TxInputIntention> inputIntentions = new ArrayList<>();
+                List<TxValidatorIntention> validatorIntentions = new ArrayList<>();
+                List<TxIntention> regularIntentions = new ArrayList<>();
+
+                if (scriptTx.getIntentions() != null) {
+                    for (TxIntention intention : scriptTx.getIntentions()) {
+                        if (intention instanceof TxInputIntention) {
+                            inputIntentions.add((TxInputIntention) intention);
+                        } else if (intention instanceof TxValidatorIntention) {
+                            validatorIntentions.add((TxValidatorIntention) intention);
+                        } else {
+                            regularIntentions.add(intention);
+                        }
+                    }
+                }
+
+                // Set inputs and intentions separately
+                if (!inputIntentions.isEmpty()) {
+                    content.setInputs(inputIntentions);
+                }
+                if (!regularIntentions.isEmpty()) {
+                    content.setIntentions(regularIntentions);
+                }
+                if (!validatorIntentions.isEmpty()) {
+                    content.setValidators(validatorIntentions);
+                }
+
                 content.setChangeAddress(scriptTx.getPublicChangeAddress());
 
                 // Set change datum attributes if present
@@ -148,12 +200,28 @@ public class TransactionCollectionDocument {
                     tx.withChangeAddress(resolvedChangeAddr);
                 }
 
+                // Add input intentions first (if present)
+                if (content.getInputs() != null) {
+                    for (var inputIntention : content.getInputs()) {
+                        // Resolve variables using each intention's own resolveVariables method
+                        var resolvedIntention = inputIntention.resolveVariables(vars);
+                        tx.addIntention(resolvedIntention);
+                    }
+                }
+
+                // Then add regular intentions
                 if (content.getIntentions() != null) {
                     for (var intention : content.getIntentions()) {
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = intention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
                     }
+                }
+
+                // Backward compatibility: if no inputs section but intentions contain input intentions,
+                // still process them (this ensures old YAML files still work)
+                if (content.getInputs() == null && content.getIntentions() != null) {
+                    // Input intentions are already included in the intentions processing above
                 }
 
                 // Set variables from YAML for intention processing
@@ -185,6 +253,16 @@ public class TransactionCollectionDocument {
                     }
                 }
 
+                // Add input intentions first (if present)
+                if (content.getInputs() != null) {
+                    for (var inputIntention : content.getInputs()) {
+                        // Resolve variables using each intention's own resolveVariables method
+                        var resolvedIntention = inputIntention.resolveVariables(vars);
+                        scriptTx.addIntention(resolvedIntention);
+                    }
+                }
+
+                // Then add regular intentions
                 if (content.getIntentions() != null) {
                     for (var intention : content.getIntentions()) {
                         // Resolve variables using each intention's own resolveVariables method
@@ -193,9 +271,24 @@ public class TransactionCollectionDocument {
                     }
                 }
 
+                // Validator intentions
+                if (content.getValidators() != null) {
+                    for (var validatorIntention : content.getValidators()) {
+                        // Resolve variables using each intention's own resolveVariables method
+                        var resolvedIntention = validatorIntention.resolveVariables(vars);
+                        scriptTx.addIntention(resolvedIntention);
+                    }
+                }
+
+                // Backward compatibility: if no inputs section but intentions contain input intentions,
+                // still process them (this ensures old YAML files still work)
+                if (content.getInputs() == null && content.getIntentions() != null) {
+                    // Input intentions are already included in the intentions processing above
+                }
+
                 // Set variables from YAML for intention processing
                 scriptTx.setVariables(vars);
-                
+
                 // Note: Script attachments and collectFrom configurations can be restored in a later phase.
                 transactions.add(scriptTx);
             }

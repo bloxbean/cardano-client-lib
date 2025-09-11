@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.quicktx.intent;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
+import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -22,7 +23,7 @@ import java.util.List;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ReferenceInputIntention implements TxIntention {
+public class ReferenceInputIntention implements TxInputIntention {
 
     @JsonProperty("refs")
     @Builder.Default
@@ -50,6 +51,12 @@ public class ReferenceInputIntention implements TxIntention {
     public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
         // No string fields to resolve
         return this;
+    }
+
+    @Override
+    public LazyUtxoStrategy utxoStrategy() {
+        // Reference inputs don't consume UTXOs, return null
+        return null;
     }
 
     @Override

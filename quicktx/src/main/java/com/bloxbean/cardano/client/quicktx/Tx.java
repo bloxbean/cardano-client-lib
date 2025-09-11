@@ -637,22 +637,22 @@ public class Tx extends AbstractTx<Tx> {
 //        addDepositRefundContext(govBuildTuple._1);
 
             // If there are input collection intentions, set a lazy resolver so replay works without direct field state
-            if (this.intentions != null && !this.intentions.isEmpty()) {
-                java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
-                        .filter(i -> i instanceof CollectFromIntention)
-                        .map(i -> (CollectFromIntention) i)
-                        .map(CollectFromIntention::utxoStrategy)
-                        .collect(java.util.stream.Collectors.toList());
-                if (!strategies.isEmpty()) {
-                    this.lazyUtxoResolver = (supplier) -> {
-                        java.util.List<com.bloxbean.cardano.client.api.model.Utxo> resolved = new java.util.ArrayList<>();
-                        for (var s : strategies) {
-                            resolved.addAll(s.resolve(supplier));
-                        }
-                        return resolved;
-                    };
-                }
-            }
+//            if (this.intentions != null && !this.intentions.isEmpty()) {
+//                java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
+//                        .filter(i -> i instanceof TxInputIntention)
+//                        .map(i -> (TxInputIntention) i)
+//                        .map(TxInputIntention::utxoStrategy)
+//                        .collect(java.util.stream.Collectors.toList());
+//                if (!strategies.isEmpty()) {
+//                    this.lazyUtxoResolver = (supplier) -> {
+//                        java.util.List<com.bloxbean.cardano.client.api.model.Utxo> resolved = new java.util.ArrayList<>();
+//                        for (var s : strategies) {
+//                            resolved.addAll(s.resolve(supplier));
+//                        }
+//                        return resolved;
+//                    };
+//                }
+//            }
 
             TxBuilder txBuilder = super.complete();
 

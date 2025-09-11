@@ -43,13 +43,16 @@ class ScriptTxYamlRoundTripTest {
         assertThat(yaml).isNotNull();
         assertThat(yaml).contains("transaction:");
         assertThat(yaml).contains("- scriptTx:");
-        assertThat(yaml).contains("intentions:");
+        // Check for new inputs section structure
+        assertThat(yaml).contains("inputs:");
         assertThat(yaml).contains("type: script_collect_from");
         assertThat(yaml).contains("utxo_refs:");
         assertThat(yaml).contains("tx_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         assertThat(yaml).contains("output_index: 0");
         assertThat(yaml).contains("redeemer_hex:");
         assertThat(yaml).contains("datum_hex:");
+        assertThat(yaml).contains("intentions:");
+        assertThat(yaml).contains("type: payment"); // Regular intentions should be in intentions section
 
         // Structure sanity
         Yaml parser = new Yaml();

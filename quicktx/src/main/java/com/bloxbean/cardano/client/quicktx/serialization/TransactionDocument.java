@@ -1,7 +1,9 @@
 package com.bloxbean.cardano.client.quicktx.serialization;
 
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.quicktx.intent.TxInputIntention;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntention;
+import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntention;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -124,6 +126,9 @@ public class TransactionDocument {
         @JsonProperty("collect_from")
         private List<UtxoInput> collectFrom;
 
+        @JsonProperty("inputs")
+        private List<TxInputIntention> inputs;
+
         @JsonProperty("intentions")
         private List<TxIntention> intentions;
 
@@ -166,6 +171,14 @@ public class TransactionDocument {
             this.collectFrom = collectFrom;
         }
 
+        public List<TxInputIntention> getInputs() {
+            return inputs;
+        }
+
+        public void setInputs(List<TxInputIntention> inputs) {
+            this.inputs = inputs;
+        }
+
         public List<TxIntention> getIntentions() {
             return intentions;
         }
@@ -195,8 +208,14 @@ public class TransactionDocument {
         @JsonProperty("scripts")
         private List<ValidatorAttachment> scripts;
 
+        @JsonProperty("inputs")
+        private List<TxInputIntention> inputs;
+
         @JsonProperty("intentions")
         private List<TxIntention> intentions;
+
+        @JsonProperty("validators")
+        private List<TxValidatorIntention> validators;
 
         public ScriptTxContent() {
         }
@@ -245,12 +264,28 @@ public class TransactionDocument {
             this.scripts = scripts;
         }
 
+        public List<TxInputIntention> getInputs() {
+            return inputs;
+        }
+
+        public void setInputs(List<TxInputIntention> inputs) {
+            this.inputs = inputs;
+        }
+
         public List<TxIntention> getIntentions() {
             return intentions;
         }
 
         public void setIntentions(List<TxIntention> intentions) {
             this.intentions = intentions;
+        }
+
+        public List<TxValidatorIntention> getValidators() {
+            return validators;
+        }
+
+        public void setValidators(List<TxValidatorIntention> validators) {
+            this.validators = validators;
         }
     }
 

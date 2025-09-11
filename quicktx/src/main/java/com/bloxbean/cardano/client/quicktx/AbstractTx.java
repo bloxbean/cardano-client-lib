@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.quicktx.intent.*;
 import java.util.Objects;
 import java.util.HashMap;
 
+import com.bloxbean.cardano.client.quicktx.serialization.TransactionCollectionDocument;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -366,7 +367,10 @@ public abstract class AbstractTx<T> {
 
         List<TxIntention> allIntentions = getIntentions();
         for (TxIntention intention : allIntentions) {
-            combinedBuilder = combinedBuilder.andThen(intention.preApply(intentContext));  // Validation
+            combinedBuilder = combinedBuilder.andThen(intention.preApply(intentContext));
+        }
+
+        for (TxIntention intention : allIntentions) {
             combinedBuilder = combinedBuilder.andThen(intention.apply(intentContext));     // Transformations
         }
 
@@ -420,6 +424,25 @@ public abstract class AbstractTx<T> {
     }
 
     TxBuilder complete() {
+        if (this.intentions != null && !this.intentions.isEmpty()) {
+            java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
+                    .filter(i -> i instanceof TxInputIntention)
+                    .map(i -> (TxInputIntention) i)
+                    .map(TxInputIntention::utxoStrategy)
+                    .filter(Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toList());
+
+            if (!strategies.isEmpty()) {
+                this.lazyUtxoResolver = (supplier) -> {
+                    java.util.List<com.bloxbean.cardano.client.api.model.Utxo> resolved = new java.util.ArrayList<>();
+                    for (var s : strategies) {
+                        resolved.addAll(s.resolve(supplier));
+                    }
+                    return resolved;
+                };
+            }
+        }
+
         // Phase 1: Process all recorded intentions to get output builders
         TxOutputBuilder txOutputBuilder = preComplete();
 
@@ -733,8 +756,7 @@ public abstract class AbstractTx<T> {
      * @return YAML string representation
      */
     public String toYaml(java.util.Map<String, Object> variables) {
-        com.bloxbean.cardano.client.quicktx.serialization.TransactionCollectionDocument collection =
-            com.bloxbean.cardano.client.quicktx.serialization.TransactionCollectionDocument.fromTransaction(this);
+        TransactionCollectionDocument collection = TransactionCollectionDocument.fromTransaction(this);
 
         if (variables != null && !variables.isEmpty()) {
             collection.setVariables(variables);

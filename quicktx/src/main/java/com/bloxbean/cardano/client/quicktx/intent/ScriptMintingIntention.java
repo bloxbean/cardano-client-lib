@@ -134,7 +134,7 @@ public class ScriptMintingIntention implements TxIntention {
         String resolvedScriptHex = VariableResolver.resolve(scriptHex, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
         String resolvedOutputDatumHex = VariableResolver.resolve(outputDatumHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedReceiver, receiver) || !java.util.Objects.equals(resolvedScriptHex, scriptHex) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex) || !java.util.Objects.equals(resolvedOutputDatumHex, outputDatumHex)) {
             return this.toBuilder()
@@ -144,7 +144,7 @@ public class ScriptMintingIntention implements TxIntention {
                 .outputDatumHex(resolvedOutputDatumHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -202,17 +202,11 @@ public class ScriptMintingIntention implements TxIntention {
             if (receiver != null && receiver.isBlank()) {
                 throw new TxBuildException("Receiver must resolve to a non-empty address");
             }
-        };
-    }
 
-    @Override
-    public TxBuilder apply(IntentContext ic) {
-        return (ctx, txn) -> {
             try {
                 PlutusScript resolvedScript = resolveScript();
                 String policyId = resolvedScript.getPolicyId();
 
-                // Ensure body mint list and merge assets by policy id
                 MultiAsset newMa = MultiAsset.builder().policyId(policyId).assets(assets).build();
                 if (txn.getBody().getMint() == null) {
                     txn.getBody().setMint(new java.util.ArrayList<>(List.of(newMa)));
@@ -228,6 +222,35 @@ public class ScriptMintingIntention implements TxIntention {
                         mintList.add(newMa);
                     }
                 }
+            } catch (Exception e) {
+                throw new TxBuildException("Failed to preApply ScriptMintingIntention", e);
+            }
+        };
+    }
+
+    @Override
+    public TxBuilder apply(IntentContext ic) {
+        return (ctx, txn) -> {
+            try {
+                PlutusScript resolvedScript = resolveScript();
+                String policyId = resolvedScript.getPolicyId();
+
+                // Ensure body mint list and merge assets by policy id
+//                MultiAsset newMa = MultiAsset.builder().policyId(policyId).assets(assets).build();
+//                if (txn.getBody().getMint() == null) {
+//                    txn.getBody().setMint(new java.util.ArrayList<>(List.of(newMa)));
+//                } else {
+//                    List<MultiAsset> mintList = txn.getBody().getMint();
+//                    MultiAsset existing = mintList.stream()
+//                            .filter(ma -> ma.getPolicyId().equals(policyId))
+//                            .findFirst().orElse(null);
+//                    if (existing != null) {
+//                        mintList.remove(existing);
+//                        mintList.add(existing.add(newMa));
+//                    } else {
+//                        mintList.add(newMa);
+//                    }
+//                }
 
                 //TODO:- Sort may happen multiple times based on no of minting policies
                 List<MultiAsset> multiAssets = MintUtil.getSortedMultiAssets(txn.getBody().getMint());

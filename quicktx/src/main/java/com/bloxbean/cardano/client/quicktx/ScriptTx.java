@@ -34,48 +34,48 @@ import java.util.stream.IntStream;
 
 @Slf4j
 public class ScriptTx extends AbstractTx<ScriptTx> {
-    protected List<PlutusScript> spendingValidators;
-    protected List<PlutusScript> mintingValidators;
-    protected List<PlutusScript> certValidators;
-    protected List<PlutusScript> rewardValidators;
-    protected List<PlutusScript> proposingValidators;
-    protected List<PlutusScript> votingValidators;
-
-    protected List<SpendingContext> spendingContexts;
-    protected List<MintingContext> mintingContexts;
+//    protected List<PlutusScript> spendingValidators;
+//    protected List<PlutusScript> mintingValidators;
+//    protected List<PlutusScript> certValidators;
+//    protected List<PlutusScript> rewardValidators;
+//    protected List<PlutusScript> proposingValidators;
+//    protected List<PlutusScript> votingValidators;
+//
+//    protected List<SpendingContext> spendingContexts;
+//    protected List<MintingContext> mintingContexts;
 
     protected List<LazyUtxoStrategy> lazyStrategies;
 
-    protected List<TransactionInput> referenceInputs;
+//    protected List<TransactionInput> referenceInputs;
 
     protected String fromAddress;
     protected Wallet fromWallet;
-    private StakeTx stakeTx;
-    private GovTx govTx;
+//    private StakeTx stakeTx;
+//    private GovTx govTx;
 
     public ScriptTx() {
-        spendingContexts = new ArrayList<>();
-        mintingContexts = new ArrayList<>();
+//        spendingContexts = new ArrayList<>();
+//        mintingContexts = new ArrayList<>();
         lazyStrategies = new ArrayList<>();
-        spendingValidators = new ArrayList<>();
-        mintingValidators = new ArrayList<>();
-        certValidators = new ArrayList<>();
-        rewardValidators = new ArrayList<>();
-        proposingValidators = new ArrayList<>();
-        votingValidators = new ArrayList<>();
+//        spendingValidators = new ArrayList<>();
+//        mintingValidators = new ArrayList<>();
+//        certValidators = new ArrayList<>();
+//        rewardValidators = new ArrayList<>();
+//        proposingValidators = new ArrayList<>();
+//        votingValidators = new ArrayList<>();
 
-        stakeTx = new StakeTx();
-        govTx = new GovTx();
+//        stakeTx = new StakeTx();
+//        govTx = new GovTx();
     }
 
     /**
      * Enable intention recording for all sub-transactions.
      * This allows capturing stake and governance operations for YAML serialization.
      */
-    public void enableIntentionRecording() {
-        stakeTx.enableIntentionRecording();
-        govTx.enableIntentionRecording();
-    }
+//    public void enableIntentionRecording() {
+//        stakeTx.enableIntentionRecording();
+//        govTx.enableIntentionRecording();
+//    }
 
     /**
      * Get all intentions from this transaction and its sub-transactions.
@@ -85,8 +85,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public java.util.List<TxIntention> getIntentions() {
         java.util.List<TxIntention> all = new java.util.ArrayList<>();
         if (this.intentions != null) all.addAll(this.intentions);
-        if (stakeTx != null && stakeTx.getIntentions() != null) all.addAll(stakeTx.getIntentions());
-        if (govTx != null && govTx.getIntentions() != null) all.addAll(govTx.getIntentions());
+//        if (stakeTx != null && stakeTx.getIntentions() != null) all.addAll(stakeTx.getIntentions());
+//        if (govTx != null && govTx.getIntentions() != null) all.addAll(govTx.getIntentions());
         return all;
     }
 
@@ -395,7 +395,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return ScriptTx
      */
     private ScriptTx attachMintValidator(PlutusScript plutusScript) {
-        mintingValidators.add(plutusScript);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+                .of(RedeemerTag.Mint, plutusScript));
         return this;
     }
 
@@ -817,18 +819,18 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     @Override
     protected void postBalanceTx(Transaction transaction) {
-        if (spendingContexts != null && !spendingContexts.isEmpty()) {
+//        if (spendingContexts != null && !spendingContexts.isEmpty()) {
             //Verify if redeemer indexes are correct, if not set the correct index
             verifyAndAdjustRedeemerIndexes(transaction);
-        }
+//        }
     }
 
     @Override
     protected void preTxEvaluation(Transaction transaction) {
-        if (spendingContexts != null && !spendingContexts.isEmpty()) {
+//        if (spendingContexts != null && !spendingContexts.isEmpty()) {
             //Verify if redeemer indexes are correct, if not set the correct index
             verifyAndAdjustRedeemerIndexes(transaction);
-        }
+//        }
     }
 
     private void verifyAndAdjustRedeemerIndexes(Transaction transaction) {
@@ -847,11 +849,13 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         }
     }
 
+    //TODO -- check how to do this ??
     private Optional<Utxo> getUtxoForRedeemer(Redeemer redeemer) {
-        return spendingContexts.stream()
-                .filter(spendingContext -> spendingContext.getRedeemer() == redeemer) //object reference comparison
-                .findFirst()
-                .map(spendingContext -> spendingContext.getScriptUtxo());
+//        return spendingContexts.stream()
+//                .filter(spendingContext -> spendingContext.getRedeemer() == redeemer) //object reference comparison
+//                .findFirst()
+//                .map(spendingContext -> spendingContext.getScriptUtxo());
+        return Optional.empty();
     }
 
     @Override
@@ -866,38 +870,39 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     @Override
     TxBuilder complete() {
-        if (this.intentions != null && !this.intentions.isEmpty()) {
-            //Check ScriptCollectionFromIntention
-            var lazyUtxoStrategies = this.intentions.stream()
-                    .filter(it -> it instanceof ScriptCollectFromIntention)
-                    .map(it -> (ScriptCollectFromIntention) it)
-                    .map(scriptCollectFromIntention -> scriptCollectFromIntention.utxoStrategy())
-                    .collect(java.util.stream.Collectors.toList());
-            if (!lazyUtxoStrategies.isEmpty()) {
-                this.lazyStrategies.addAll(lazyUtxoStrategies);
-            }
-        }
 
-        if (lazyStrategies != null && !lazyStrategies.isEmpty()) {
-            this.lazyUtxoResolver = (supplier) -> {
-                List<Utxo> resolved = new ArrayList<>();
-                for (LazyUtxoStrategy strategy : new ArrayList<>(lazyStrategies)) {
-                    try {
-                        List<Utxo> strategyUtxos = strategy.resolve(supplier);
-                        if (!strategyUtxos.isEmpty()) {
-                            resolved.addAll(strategyUtxos);
-                            // Add resolved UTXOs to ScriptTx using regular collectFrom
-                           // this.collectFrom(strategyUtxos, strategy.getRedeemer(), strategy.getDatum());
-                        }
-                    } catch (Exception e) {
-                        throw new TxBuildException("Failed to resolve lazy UTXO strategy: " + e.getMessage(), e);
-                    }
-                }
-                // Clear lazy strategies after resolution
-                lazyStrategies.clear();
-                return resolved;
-            };
-        }
+//        if (this.intentions != null && !this.intentions.isEmpty()) {
+//            //Check TxInputIntentions for lazy UTXO strategies
+//            var lazyUtxoStrategies = this.intentions.stream()
+//                    .filter(it -> it instanceof TxInputIntention)
+//                    .map(it -> (TxInputIntention) it)
+//                    .map(txInputIntention -> txInputIntention.utxoStrategy())
+//                    .collect(java.util.stream.Collectors.toList());
+//            if (!lazyUtxoStrategies.isEmpty()) {
+//                this.lazyStrategies.addAll(lazyUtxoStrategies);
+//            }
+//        }
+//
+//        if (lazyStrategies != null && !lazyStrategies.isEmpty()) {
+//            this.lazyUtxoResolver = (supplier) -> {
+//                List<Utxo> resolved = new ArrayList<>();
+//                for (LazyUtxoStrategy strategy : new ArrayList<>(lazyStrategies)) {
+//                    try {
+//                        List<Utxo> strategyUtxos = strategy.resolve(supplier);
+//                        if (!strategyUtxos.isEmpty()) {
+//                            resolved.addAll(strategyUtxos);
+//                            // Add resolved UTXOs to ScriptTx using regular collectFrom
+//                           // this.collectFrom(strategyUtxos, strategy.getRedeemer(), strategy.getDatum());
+//                        }
+//                    } catch (Exception e) {
+//                        throw new TxBuildException("Failed to resolve lazy UTXO strategy: " + e.getMessage(), e);
+//                    }
+//                }
+//                // Clear lazy strategies after resolution
+//                lazyStrategies.clear();
+//                return resolved;
+//            };
+//        }
 
         /**
         // Pre-process script collect intentions to set inputs and spending contexts before input selection
@@ -961,169 +966,169 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return txBuilder;
     }
 
-    protected TxBuilder prepareScriptCallContext() {
-        TxBuilder txBuilder = (context, txn) -> {
-        };
+//    protected TxBuilder prepareScriptCallContext() {
+//        TxBuilder txBuilder = (context, txn) -> {
+//        };
+//
+//        txBuilder = addReferenceInputs(txBuilder);
+//
+//       // txBuilder = txBuilderFromSpendingValidators(txBuilder);
+////        txBuilder = txBuilderFromMintingValidators(txBuilder);
+////        txBuilder = txBuilderFromValidators(txBuilder, certValidators);//txBuilderFromCertValidators(txBuilder);
+////        txBuilder = txBuilderFromValidators(txBuilder, rewardValidators); //txBuilderFromRewardValidators(txBuilder);
+////        txBuilder = txBuilderFromValidators(txBuilder, proposingValidators);//txBuilderFromProposingValidators(txBuilder);
+////        txBuilder = txBuilderFromValidators(txBuilder, votingValidators);
+//
+//        return txBuilder;
+//    }
 
-        txBuilder = addReferenceInputs(txBuilder);
+//    private TxBuilder addReferenceInputs(TxBuilder txBuilder) {
+//        if (referenceInputs != null) {
+//            txBuilder = txBuilder.andThen((context, txn) -> {
+//                List<TransactionInput> txRefInputs = txn.getBody().getReferenceInputs();
+//                if (txRefInputs == null)
+//                    txn.getBody().setReferenceInputs(referenceInputs);
+//                else
+//                    txRefInputs.addAll(referenceInputs);
+//            });
+//        }
+//        return txBuilder;
+//    }
 
-       // txBuilder = txBuilderFromSpendingValidators(txBuilder);
-//        txBuilder = txBuilderFromMintingValidators(txBuilder);
-        txBuilder = txBuilderFromValidators(txBuilder, certValidators);//txBuilderFromCertValidators(txBuilder);
-        txBuilder = txBuilderFromValidators(txBuilder, rewardValidators); //txBuilderFromRewardValidators(txBuilder);
-        txBuilder = txBuilderFromValidators(txBuilder, proposingValidators);//txBuilderFromProposingValidators(txBuilder);
-        txBuilder = txBuilderFromValidators(txBuilder, votingValidators);
+//    private TxBuilder txBuilderFromSpendingValidators(TxBuilder txBuilder) {
+//        /**
+//        for (PlutusScript plutusScript : spendingValidators) {
+//            txBuilder =
+//                    txBuilder.andThen(((context, transaction) -> {
+//                        if (transaction.getWitnessSet() == null)
+//                            transaction.setWitnessSet(new TransactionWitnessSet());
+//                        if (plutusScript instanceof PlutusV1Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV2Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV3Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
+//                        }
+//                    }));
+//        }
+//
+//
+//        txBuilder = txBuilder.andThen(((context, transaction) -> {
+//            for (SpendingContext spendingContext : spendingContexts) {
+//                if (transaction.getWitnessSet() == null) {
+//                    transaction.setWitnessSet(new TransactionWitnessSet());
+//                }
+//                if (spendingContext.datum != null) {
+//                    if (!transaction.getWitnessSet().getPlutusDataList().contains(spendingContext.datum))
+//                        transaction.getWitnessSet().getPlutusDataList().add(spendingContext.datum);
+//                }
+//
+//                if (spendingContext.redeemer != null) {
+//                    int scriptInputIndex = RedeemerUtil.getScriptInputIndex(spendingContext.scriptUtxo, transaction);
+//                    if (scriptInputIndex == -1)
+//                        throw new TxBuildException("Script utxo is not found in transaction inputs : " + spendingContext.scriptUtxo.getTxHash());
+//
+//                    //update script input index
+//                    spendingContext.getRedeemer().setIndex(scriptInputIndex);
+//                    transaction.getWitnessSet().getRedeemers().add(spendingContext.redeemer);
+//                }
+//            }
+//        }));
+//         **/
+//
+//        return txBuilder;
+//    }
 
-        return txBuilder;
-    }
-
-    private TxBuilder addReferenceInputs(TxBuilder txBuilder) {
-        if (referenceInputs != null) {
-            txBuilder = txBuilder.andThen((context, txn) -> {
-                List<TransactionInput> txRefInputs = txn.getBody().getReferenceInputs();
-                if (txRefInputs == null)
-                    txn.getBody().setReferenceInputs(referenceInputs);
-                else
-                    txRefInputs.addAll(referenceInputs);
-            });
-        }
-        return txBuilder;
-    }
-
-    private TxBuilder txBuilderFromSpendingValidators(TxBuilder txBuilder) {
-        /**
-        for (PlutusScript plutusScript : spendingValidators) {
-            txBuilder =
-                    txBuilder.andThen(((context, transaction) -> {
-                        if (transaction.getWitnessSet() == null)
-                            transaction.setWitnessSet(new TransactionWitnessSet());
-                        if (plutusScript instanceof PlutusV1Script) {
-                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV2Script) {
-                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV3Script) {
-                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-                        }
-                    }));
-        }
-
-
-        txBuilder = txBuilder.andThen(((context, transaction) -> {
-            for (SpendingContext spendingContext : spendingContexts) {
-                if (transaction.getWitnessSet() == null) {
-                    transaction.setWitnessSet(new TransactionWitnessSet());
-                }
-                if (spendingContext.datum != null) {
-                    if (!transaction.getWitnessSet().getPlutusDataList().contains(spendingContext.datum))
-                        transaction.getWitnessSet().getPlutusDataList().add(spendingContext.datum);
-                }
-
-                if (spendingContext.redeemer != null) {
-                    int scriptInputIndex = RedeemerUtil.getScriptInputIndex(spendingContext.scriptUtxo, transaction);
-                    if (scriptInputIndex == -1)
-                        throw new TxBuildException("Script utxo is not found in transaction inputs : " + spendingContext.scriptUtxo.getTxHash());
-
-                    //update script input index
-                    spendingContext.getRedeemer().setIndex(scriptInputIndex);
-                    transaction.getWitnessSet().getRedeemers().add(spendingContext.redeemer);
-                }
-            }
-        }));
-         **/
-
-        return txBuilder;
-    }
-
-    private TxBuilder txBuilderFromMintingValidators(TxBuilder txBuilder) {
-        for (PlutusScript plutusScript : mintingValidators) {
-            txBuilder =
-                    txBuilder.andThen(((context, transaction) -> {
-                        if (transaction.getWitnessSet() == null)
-                            transaction.setWitnessSet(new TransactionWitnessSet());
-                        if (plutusScript instanceof PlutusV1Script) {
-                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV2Script) {
-                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV3Script) {
-                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-                        }
-                    }));
-        }
-
-        //Sort mint field in the transaction
-        txBuilder = txBuilder.andThen((context, txn) -> {
-            if (txn.getBody().getMint() != null) {
-                List<MultiAsset> multiAssets = MintUtil.getSortedMultiAssets(txn.getBody().getMint());
-                txn.getBody().setMint(multiAssets);
-            }
-        });
-
-        //Add the redeemer to the transaction witness set
-        for (MintingContext mintingContext : mintingContexts) {
-            txBuilder = txBuilder.andThen(((context, transaction) -> {
-                if (transaction.getWitnessSet() == null) {
-                    transaction.setWitnessSet(new TransactionWitnessSet());
-                }
-
-                if (mintingContext.redeemer != null) {
-                    List<MultiAsset> multiAssets = transaction.getBody().getMint();
-                    int index = IntStream.range(0, multiAssets.size())
-                            .filter(i -> mintingContext.getPolicyId().equals(multiAssets.get(i).getPolicyId()))
-                            .findFirst()
-                            .orElse(-1);
-
-                    if (index == -1)
-                        throw new TxBuildException("Policy id is not found in transaction mint : " + mintingContext.getPolicyId());
-
-                    //update script input index
-                    mintingContext.getRedeemer().setIndex(index);
-
-                    transaction.getWitnessSet().getRedeemers()
-                            .stream().filter(redeemer -> redeemer.getTag() == mintingContext.getRedeemer().getTag()
-                                    && redeemer.getIndex() == mintingContext.getRedeemer().getIndex())
-                            .findFirst()
-                            .ifPresentOrElse(redeemer -> {
-                                //Do nothing
-                            }, () -> {
-                                transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
-                            });
-                }
-            }));
-        }
-
-        return txBuilder;
-    }
-
-    private TxBuilder txBuilderFromValidators(TxBuilder txBuilder, List<PlutusScript> validators) {
-        if (validators == null)
-            return txBuilder;
-
-        for (PlutusScript plutusScript : validators) {
-            txBuilder =
-                    txBuilder.andThen(((context, transaction) -> {
-                        if (transaction.getWitnessSet() == null)
-                            transaction.setWitnessSet(new TransactionWitnessSet());
-                        if (plutusScript instanceof PlutusV1Script) {
-                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV2Script) {
-                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-                        } else if (plutusScript instanceof PlutusV3Script) {
-                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-                        }
-                    }));
-        }
-
-        return txBuilder;
-    }
+//    private TxBuilder txBuilderFromMintingValidators(TxBuilder txBuilder) {
+//        for (PlutusScript plutusScript : mintingValidators) {
+//            txBuilder =
+//                    txBuilder.andThen(((context, transaction) -> {
+//                        if (transaction.getWitnessSet() == null)
+//                            transaction.setWitnessSet(new TransactionWitnessSet());
+//                        if (plutusScript instanceof PlutusV1Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV2Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV3Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
+//                        }
+//                    }));
+//        }
+//
+//        //Sort mint field in the transaction
+//        txBuilder = txBuilder.andThen((context, txn) -> {
+//            if (txn.getBody().getMint() != null) {
+//                List<MultiAsset> multiAssets = MintUtil.getSortedMultiAssets(txn.getBody().getMint());
+//                txn.getBody().setMint(multiAssets);
+//            }
+//        });
+//
+//        //Add the redeemer to the transaction witness set
+//        for (MintingContext mintingContext : mintingContexts) {
+//            txBuilder = txBuilder.andThen(((context, transaction) -> {
+//                if (transaction.getWitnessSet() == null) {
+//                    transaction.setWitnessSet(new TransactionWitnessSet());
+//                }
+//
+//                if (mintingContext.redeemer != null) {
+//                    List<MultiAsset> multiAssets = transaction.getBody().getMint();
+//                    int index = IntStream.range(0, multiAssets.size())
+//                            .filter(i -> mintingContext.getPolicyId().equals(multiAssets.get(i).getPolicyId()))
+//                            .findFirst()
+//                            .orElse(-1);
+//
+//                    if (index == -1)
+//                        throw new TxBuildException("Policy id is not found in transaction mint : " + mintingContext.getPolicyId());
+//
+//                    //update script input index
+//                    mintingContext.getRedeemer().setIndex(index);
+//
+//                    transaction.getWitnessSet().getRedeemers()
+//                            .stream().filter(redeemer -> redeemer.getTag() == mintingContext.getRedeemer().getTag()
+//                                    && redeemer.getIndex() == mintingContext.getRedeemer().getIndex())
+//                            .findFirst()
+//                            .ifPresentOrElse(redeemer -> {
+//                                //Do nothing
+//                            }, () -> {
+//                                transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
+//                            });
+//                }
+//            }));
+//        }
+//
+//        return txBuilder;
+//    }
+//
+//    private TxBuilder txBuilderFromValidators(TxBuilder txBuilder, List<PlutusScript> validators) {
+//        if (validators == null)
+//            return txBuilder;
+//
+//        for (PlutusScript plutusScript : validators) {
+//            txBuilder =
+//                    txBuilder.andThen(((context, transaction) -> {
+//                        if (transaction.getWitnessSet() == null)
+//                            transaction.setWitnessSet(new TransactionWitnessSet());
+//                        if (plutusScript instanceof PlutusV1Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV2Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
+//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
+//                        } else if (plutusScript instanceof PlutusV3Script) {
+//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
+//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
+//                        }
+//                    }));
+//        }
+//
+//        return txBuilder;
+//    }
 
     /**
      * Get lazy UTXO strategies for resolution during execution.
@@ -1136,19 +1141,19 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
 
-    @Data
-    @AllArgsConstructor
-    static class SpendingContext {
-        private Utxo scriptUtxo;
-        private Redeemer redeemer;
-        private PlutusData datum;
-    }
-
-    @Data
-    @AllArgsConstructor
-    static class MintingContext {
-        private String policyId;
-        private List<Asset> assets;
-        private Redeemer redeemer;
-    }
+//    @Data
+//    @AllArgsConstructor
+//    static class SpendingContext {
+//        private Utxo scriptUtxo;
+//        private Redeemer redeemer;
+//        private PlutusData datum;
+//    }
+//
+//    @Data
+//    @AllArgsConstructor
+//    static class MintingContext {
+//        private String policyId;
+//        private List<Asset> assets;
+//        private Redeemer redeemer;
+//    }
 }
