@@ -30,7 +30,7 @@ class ScriptReferenceInputIntentionTest {
         Map<String, Object> doc = parser.load(yaml);
         List<Map<String, Object>> txs = (List<Map<String, Object>>) doc.get("transaction");
         Map<String, Object> content = (Map<String, Object>) txs.get(0).get("scriptTx");
-        List<Map<String, Object>> intentions = (List<Map<String, Object>>) content.get("intentions");
+        List<Map<String, Object>> intentions = (List<Map<String, Object>>) content.get("inputs");
         assertThat(intentions.stream().anyMatch(i -> "reference_input".equals(i.get("type")))).isTrue();
     }
 

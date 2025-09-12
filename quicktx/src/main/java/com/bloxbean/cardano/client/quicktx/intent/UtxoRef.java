@@ -23,14 +23,10 @@ public class UtxoRef {
     @JsonProperty("output_index")
     private Integer outputIndex;
 
-    @JsonProperty("address")
-    private String address;
-
     public static UtxoRef fromUtxo(Utxo utxo) {
         return UtxoRef.builder()
                 .txHash(utxo.getTxHash())
                 .outputIndex(utxo.getOutputIndex())
-                .address(utxo.getAddress())
                 .build();
     }
 }

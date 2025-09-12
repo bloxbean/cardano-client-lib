@@ -86,17 +86,6 @@ public class ReferenceInputIntention implements TxInputIntention {
         return this;
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class UtxoRef {
-        @JsonProperty("tx_hash")
-        private String txHash;
-        @JsonProperty("output_index")
-        private Integer outputIndex;
-    }
-
     // Factory helpers
     public static ReferenceInputIntention of(String txHash, int outputIndex) {
         return ReferenceInputIntention.builder()
