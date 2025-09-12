@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.quicktx;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.MintUtil;
@@ -364,10 +365,44 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @param outputDatum output datum
      * @return ScriptTx
      */
+
     public ScriptTx mintAsset(PlutusScript script, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
         // Record a script minting intention; intention will add mint + witnesses + optional receiver output
+        ScriptMintingIntention intention = null;
+        try {
+            intention = ScriptMintingIntention.of(script.getPolicyId(), assets, redeemer, receiver, outputDatum);
+        } catch (CborSerializationException e) {
+            throw new TxBuildException("Error creating minting intention. Unable to get policyId from the minting script.", e);
+        }
+        ScriptValidatorAttachmentIntention attachmentIntention = ScriptValidatorAttachmentIntention.of(RedeemerTag.Mint, script);
+
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(intention);
+        intentions.add(attachmentIntention);
+
+        hasMultiAssetMinting = true;
+        return this;
+    }
+
+    public ScriptTx mintAsset(String policyId, Asset asset, PlutusData redeemer) {
+        return mintAsset(policyId, List.of(asset), redeemer, null, null);
+    }
+
+    public ScriptTx mintAsset(String policyId, List<Asset> assets, PlutusData redeemer) {
+        return mintAsset(policyId, assets, redeemer, null, null);
+    }
+
+    public ScriptTx mintAsset(String policyId, Asset asset, PlutusData redeemer, String receiver) {
+        return mintAsset(policyId, List.of(asset), redeemer, receiver, null);
+    }
+    public ScriptTx mintAsset(String policyId, List<Asset> assets, PlutusData redeemer, String receiver) {
+        return mintAsset(policyId, assets, redeemer, receiver, null);
+    }
+
+    public ScriptTx mintAsset(String policyId, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
+        // Record a script minting intention; intention will add mint + witnesses + optional receiver output
         ScriptMintingIntention intention =
-                ScriptMintingIntention.of(script, assets, redeemer, receiver, outputDatum);
+                ScriptMintingIntention.of(policyId, assets, redeemer, receiver, outputDatum);
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(intention);
 
@@ -394,7 +429,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @param plutusScript plutus script
      * @return ScriptTx
      */
-    private ScriptTx attachMintValidator(PlutusScript plutusScript) {
+    public ScriptTx attachMintValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
                 .of(RedeemerTag.Mint, plutusScript));
