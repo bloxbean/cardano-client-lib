@@ -44,7 +44,7 @@ import java.util.List;
  * @since 0.6.0
  * @see NodeStore
  * @see HashFunction
- * @see SecureTrie
+ * @see com.bloxbean.cardano.statetrees.mpt.SecureTrie
  */
 public final class MerklePatriciaTrie {
   private final MerklePatriciaTrieImpl impl;

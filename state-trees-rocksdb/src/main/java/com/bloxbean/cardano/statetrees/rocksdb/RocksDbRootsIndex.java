@@ -206,7 +206,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
    * 
    * @param fromInclusive the starting version (inclusive)
    * @param toInclusive the ending version (inclusive)
-   * @return a NavigableMap of version-root pairs within the range, or empty if from > to
+   * @return a NavigableMap of version-root pairs within the range, or empty if from &gt; to
    */
   public java.util.NavigableMap<Long, byte[]> listRange(long fromInclusive, long toInclusive) {
     java.util.NavigableMap<Long, byte[]> rangeResults = new java.util.TreeMap<>();

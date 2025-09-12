@@ -88,7 +88,7 @@ final class LeafNode extends Node {
     leafNode.hp = ((ByteString) cborArray.getDataItems().get(0)).getBytes();
 
     byte[] valueData = ((ByteString) cborArray.getDataItems().get(1)).getBytes();
-    leafNode.value = valueData.length == 0 ? null : valueData;
+    leafNode.value = valueData;
 
     return leafNode;
   }

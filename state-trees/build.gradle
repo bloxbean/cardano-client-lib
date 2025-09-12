@@ -1,3 +1,7 @@
+plugins {
+    id 'me.champeau.jmh' version '0.7.1'
+}
+
 dependencies {
     api project(':crypto')
 
@@ -5,8 +9,32 @@ dependencies {
     implementation(libs.co.nstant.in.cbor)
 
     integrationTestImplementation(libs.slf4j.reload4j)
-
     integrationTestImplementation project(':')
+    
+    // JMH dependencies for performance benchmarking
+    jmhImplementation(libs.jmh.core)
+    jmhAnnotationProcessor(libs.jmh.generator.annprocess)
+}
+
+// Configure JMH plugin
+jmh {
+    iterations = 5          // Number of measurement iterations
+    warmupIterations = 3    // Number of warmup iterations  
+    fork = 1                // Number of forks
+    threads = 1             // Number of threads
+    
+    // Output configuration
+    resultFormat = 'JSON'
+    resultsFile = project.file('build/jmh-results.json')
+    
+    // JVM arguments for consistent benchmarking
+    jvmArgs = ['-server', '-Xms2g', '-Xmx2g']
+    
+    // Include all benchmarks by default
+    // Can be overridden with -Pjmh.include property
+    if (project.hasProperty('jmh.include')) {
+        includes = [project.property('jmh.include')]
+    }
 }
 
 publishing {
