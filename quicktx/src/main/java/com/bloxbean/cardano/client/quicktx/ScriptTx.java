@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.intent.*;
@@ -21,8 +20,6 @@ import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.hdwallet.Wallet;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,72 +28,35 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
-import java.util.stream.IntStream;
 
 @Slf4j
 public class ScriptTx extends AbstractTx<ScriptTx> {
-//    protected List<PlutusScript> spendingValidators;
-//    protected List<PlutusScript> mintingValidators;
-//    protected List<PlutusScript> certValidators;
-//    protected List<PlutusScript> rewardValidators;
-//    protected List<PlutusScript> proposingValidators;
-//    protected List<PlutusScript> votingValidators;
-//
-//    protected List<SpendingContext> spendingContexts;
-//    protected List<MintingContext> mintingContexts;
-
     protected List<LazyUtxoStrategy> lazyStrategies;
-
-//    protected List<TransactionInput> referenceInputs;
-
     protected String fromAddress;
     protected Wallet fromWallet;
-//    private StakeTx stakeTx;
-//    private GovTx govTx;
 
     public ScriptTx() {
-//        spendingContexts = new ArrayList<>();
-//        mintingContexts = new ArrayList<>();
         lazyStrategies = new ArrayList<>();
-//        spendingValidators = new ArrayList<>();
-//        mintingValidators = new ArrayList<>();
-//        certValidators = new ArrayList<>();
-//        rewardValidators = new ArrayList<>();
-//        proposingValidators = new ArrayList<>();
-//        votingValidators = new ArrayList<>();
-
-//        stakeTx = new StakeTx();
-//        govTx = new GovTx();
     }
 
     /**
-     * Enable intention recording for all sub-transactions.
-     * This allows capturing stake and governance operations for YAML serialization.
-     */
-//    public void enableIntentionRecording() {
-//        stakeTx.enableIntentionRecording();
-//        govTx.enableIntentionRecording();
-//    }
-
-    /**
      * Get all intentions from this transaction and its sub-transactions.
+     *
      * @return combined list of all intentions
      */
     @Override
     public java.util.List<TxIntention> getIntentions() {
         java.util.List<TxIntention> all = new java.util.ArrayList<>();
         if (this.intentions != null) all.addAll(this.intentions);
-//        if (stakeTx != null && stakeTx.getIntentions() != null) all.addAll(stakeTx.getIntentions());
-//        if (govTx != null && govTx.getIntentions() != null) all.addAll(govTx.getIntentions());
         return all;
     }
 
     /**
      * Add given script utxo as input of the transaction.
      *
-     * @param utxo Script utxo
+     * @param utxo         Script utxo
      * @param redeemerData Redeemer data
-     * @param datum Datum object. This will be added to witness list
+     * @param datum        Datum object. This will be added to witness list
      * @return ScriptTx
      */
     public ScriptTx collectFrom(Utxo utxo, PlutusData redeemerData, PlutusData datum) {
@@ -106,9 +66,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     /**
      * Add given script utxos as inputs of the transaction.
      *
-     * @param utxos Script utxos
+     * @param utxos        Script utxos
      * @param redeemerData Redeemer data
-     * @param datum Datum object. This will be added to witness list
+     * @param datum        Datum object. This will be added to witness list
      * @return ScriptTx
      */
     public ScriptTx collectFrom(List<Utxo> utxos, PlutusData redeemerData, PlutusData datum) {
@@ -129,7 +89,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     /**
      * Add given script utxo as input of the transaction.
      *
-     * @param utxo     Script utxo
+     * @param utxo         Script utxo
      * @param redeemerData Redeemer data
      * @return ScriptTx
      */
@@ -140,7 +100,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     /**
      * Add given script utxos as inputs of the transaction.
      *
-     * @param utxos    Script utxos
+     * @param utxos        Script utxos
      * @param redeemerData Redeemer data to be used for all the utxos
      * @return ScriptTx
      */
@@ -193,8 +153,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      *
      * @param scriptAddress the script address to query UTXOs from
      * @param utxoPredicate predicate to select UTXOs
-     * @param redeemerData redeemer data
-     * @param datum datum object
+     * @param redeemerData  redeemer data
+     * @param datum         datum object
      * @return ScriptTx
      */
     public ScriptTx collectFrom(String scriptAddress, Predicate<Utxo> utxoPredicate, PlutusData redeemerData, PlutusData datum) {
@@ -210,7 +170,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      *
      * @param scriptAddress the script address to query UTXOs from
      * @param utxoPredicate predicate to select UTXOs
-     * @param redeemerData redeemer data
+     * @param redeemerData  redeemer data
      * @return ScriptTx
      */
     public ScriptTx collectFrom(String scriptAddress, Predicate<Utxo> utxoPredicate, PlutusData redeemerData) {
@@ -225,8 +185,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      *
      * @param scriptAddress the script address to query UTXOs from
      * @param listPredicate predicate to select UTXOs from the complete list
-     * @param redeemerData redeemer data
-     * @param datum datum object
+     * @param redeemerData  redeemer data
+     * @param datum         datum object
      * @return ScriptTx
      */
     public ScriptTx collectFromList(String scriptAddress, Predicate<List<Utxo>> listPredicate, PlutusData redeemerData, PlutusData datum) {
@@ -242,7 +202,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      *
      * @param scriptAddress the script address to query UTXOs from
      * @param listPredicate predicate to select UTXOs from the complete list
-     * @param redeemerData redeemer data
+     * @param redeemerData  redeemer data
      * @return ScriptTx
      */
     public ScriptTx collectFromList(String scriptAddress, Predicate<List<Utxo>> listPredicate, PlutusData redeemerData) {
@@ -320,8 +280,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * Mint assets with given script and redeemer.
      * For minting, provide a positive quantity. For burning, provide a negative quantity.
      *
-     * @param script plutus script
-     * @param assets assets to mint or burn
+     * @param script   plutus script
+     * @param assets   assets to mint or burn
      * @param redeemer redeemer
      * @return ScriptTx
      */
@@ -395,6 +355,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx mintAsset(String policyId, Asset asset, PlutusData redeemer, String receiver) {
         return mintAsset(policyId, List.of(asset), redeemer, receiver, null);
     }
+
     public ScriptTx mintAsset(String policyId, List<Asset> assets, PlutusData redeemer, String receiver) {
         return mintAsset(policyId, assets, redeemer, receiver, null);
     }
@@ -438,6 +399,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Attach a certificate validator script to the transaction
+     *
      * @param plutusScript plutus script
      * @return ScriptTx
      */
@@ -450,6 +412,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Attach a reward validator script to the transaction
+     *
      * @param plutusScript plutus script
      * @return ScriptTx
      */
@@ -462,6 +425,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Attach a proposing validator script to the transaction
+     *
      * @param plutusScript plutus script
      * @return ScriptTx
      */
@@ -474,6 +438,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Attach a voting validator script to the transaction
+     *
      * @param plutusScript plutus script
      * @return ScriptTx
      */
@@ -625,10 +590,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Withdraw rewards from a stake address
+     *
      * @param rewardAddress stake address to withdraw rewards from
-     * @param amount   amount to withdraw
-     * @param redeemer redeemer
-     * @param receiver receiver address
+     * @param amount        amount to withdraw
+     * @param redeemer      redeemer
+     * @param receiver      receiver address
      * @return
      */
     public ScriptTx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount, PlutusData redeemer, String receiver) {
@@ -662,9 +628,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Register DRep
+     *
      * @param drepCredential DRep credential
-     * @param anchor anchor
-     * @param redeemer redeemer
+     * @param anchor         anchor
+     * @param redeemer       redeemer
      * @return ScriptTx
      */
     public ScriptTx registerDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
@@ -679,8 +646,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Register DRep
+     *
      * @param drepCredential - DRep credential
-     * @param redeemer - redeemer
+     * @param redeemer       - redeemer
      * @return ScriptTx
      */
     public ScriptTx registerDRep(@NonNull Credential drepCredential, PlutusData redeemer) {
@@ -695,10 +663,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Unregister DRep
+     *
      * @param drepCredential DRep credential
-     * @param refundAddress refund address
-     * @param refundAmount refund amount
-     * @param redeemer redeemer
+     * @param refundAddress  refund address
+     * @param refundAmount   refund amount
+     * @param redeemer       redeemer
      * @return ScriptTx
      */
     public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount, PlutusData redeemer) {
@@ -713,9 +682,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Unregister DRep
+     *
      * @param drepCredential DRep credential
-     * @param refundAddress refund address
-     * @param redeemer redeemer
+     * @param refundAddress  refund address
+     * @param redeemer       redeemer
      * @return ScriptTx
      */
     public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, PlutusData redeemer) {
@@ -730,9 +700,10 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Update DRep
+     *
      * @param drepCredential DRep credential
-     * @param anchor anchor
-     * @param redeemer redeemer
+     * @param anchor         anchor
+     * @param redeemer       redeemer
      * @return ScriptTx
      */
     public ScriptTx updateDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
@@ -747,10 +718,11 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Create a proposal
-     * @param govAction gov action
+     *
+     * @param govAction     gov action
      * @param returnAddress return address
-     * @param anchor anchor
-     * @param redeemer redeemer
+     * @param anchor        anchor
+     * @param redeemer      redeemer
      * @return ScriptTx
      */
     public ScriptTx createProposal(GovAction govAction, @NonNull String returnAddress, Anchor anchor, PlutusData redeemer) {
@@ -765,11 +737,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Create a vote
-     * @param voter voter
+     *
+     * @param voter       voter
      * @param govActionId gov action id
-     * @param vote vote
-     * @param anchor anchor
-     * @param redeemer redeemer
+     * @param vote        vote
+     * @param anchor      anchor
+     * @param redeemer    redeemer
      * @return ScriptTx
      */
     public ScriptTx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor, PlutusData redeemer) {
@@ -784,8 +757,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Delegate voting power to a DRep
-     * @param address address to delegate
-     * @param drep DRep
+     *
+     * @param address  address to delegate
+     * @param drep     DRep
      * @param redeemer redeemer
      * @return
      */
@@ -803,7 +777,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * Send change to the change address with the output datum hash.
      *
      * @param changeAddress change address
-     * @param datumHash output datum hash
+     * @param datumHash     output datum hash
      * @return ScriptTx
      */
     public ScriptTx withChangeAddress(String changeAddress, String datumHash) {
@@ -855,16 +829,16 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     @Override
     protected void postBalanceTx(Transaction transaction) {
 //        if (spendingContexts != null && !spendingContexts.isEmpty()) {
-            //Verify if redeemer indexes are correct, if not set the correct index
-            verifyAndAdjustRedeemerIndexes(transaction);
+        //Verify if redeemer indexes are correct, if not set the correct index
+        verifyAndAdjustRedeemerIndexes(transaction);
 //        }
     }
 
     @Override
     protected void preTxEvaluation(Transaction transaction) {
 //        if (spendingContexts != null && !spendingContexts.isEmpty()) {
-            //Verify if redeemer indexes are correct, if not set the correct index
-            verifyAndAdjustRedeemerIndexes(transaction);
+        //Verify if redeemer indexes are correct, if not set the correct index
+        verifyAndAdjustRedeemerIndexes(transaction);
 //        }
     }
 
@@ -905,265 +879,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     @Override
     TxBuilder complete() {
-
-//        if (this.intentions != null && !this.intentions.isEmpty()) {
-//            //Check TxInputIntentions for lazy UTXO strategies
-//            var lazyUtxoStrategies = this.intentions.stream()
-//                    .filter(it -> it instanceof TxInputIntention)
-//                    .map(it -> (TxInputIntention) it)
-//                    .map(txInputIntention -> txInputIntention.utxoStrategy())
-//                    .collect(java.util.stream.Collectors.toList());
-//            if (!lazyUtxoStrategies.isEmpty()) {
-//                this.lazyStrategies.addAll(lazyUtxoStrategies);
-//            }
-//        }
-//
-//        if (lazyStrategies != null && !lazyStrategies.isEmpty()) {
-//            this.lazyUtxoResolver = (supplier) -> {
-//                List<Utxo> resolved = new ArrayList<>();
-//                for (LazyUtxoStrategy strategy : new ArrayList<>(lazyStrategies)) {
-//                    try {
-//                        List<Utxo> strategyUtxos = strategy.resolve(supplier);
-//                        if (!strategyUtxos.isEmpty()) {
-//                            resolved.addAll(strategyUtxos);
-//                            // Add resolved UTXOs to ScriptTx using regular collectFrom
-//                           // this.collectFrom(strategyUtxos, strategy.getRedeemer(), strategy.getDatum());
-//                        }
-//                    } catch (Exception e) {
-//                        throw new TxBuildException("Failed to resolve lazy UTXO strategy: " + e.getMessage(), e);
-//                    }
-//                }
-//                // Clear lazy strategies after resolution
-//                lazyStrategies.clear();
-//                return resolved;
-//            };
-//        }
-
-        /**
-        // Pre-process script collect intentions to set inputs and spending contexts before input selection
-        if (this.intentions != null && !this.intentions.isEmpty()) {
-            java.util.List<com.bloxbean.cardano.client.quicktx.plan.TxIntention> collectIntents = this.intentions.stream()
-                    .filter(it -> "script_collect_from".equals(it.getType()))
-                    .collect(java.util.stream.Collectors.toList());
-            if (!collectIntents.isEmpty()) {
-                IntentProcessor.processIntentions(this, collectIntents);
-            }
-        }
-
-        //stake related
-        Tuple<List<DepositRefundContext>, TxBuilder> stakeBuildTuple =
-                stakeTx.build(getFromAddress(), getChangeAddress());
-
-        //Add stake deposit refund context
-        addDepositRefundContext(stakeBuildTuple._1);
-
-        //gov related
-        Tuple<List<DepositRefundContext>, TxBuilder> govBuildTuple =
-                govTx.build(getFromAddress(), getChangeAddress());
-
-        //Add gov deposit refund context
-        addDepositRefundContext(govBuildTuple._1);
-
-        // Set up lazy UTXO resolver if we have lazy strategies
-        if (lazyStrategies != null && !lazyStrategies.isEmpty()) {
-            this.lazyUtxoResolver = (supplier) -> {
-                List<Utxo> resolved = new ArrayList<>();
-                for (LazyUtxoStrategy strategy : new ArrayList<>(lazyStrategies)) {
-                    try {
-                        List<Utxo> strategyUtxos = strategy.resolve(supplier);
-                        if (!strategyUtxos.isEmpty()) {
-                            resolved.addAll(strategyUtxos);
-                            // Add resolved UTXOs to ScriptTx using regular collectFrom
-                            this.collectFrom(strategyUtxos, strategy.getRedeemer(), strategy.getDatum());
-                        }
-                    } catch (Exception e) {
-                        throw new TxBuildException("Failed to resolve lazy UTXO strategy: " + e.getMessage(), e);
-                    }
-                }
-                // Clear lazy strategies after resolution
-                lazyStrategies.clear();
-                return resolved;
-            };
-        }
-         **/
-
-        //Invoke common complete logic - AbstractTx will handle lazyUtxoResolver
         TxBuilder txBuilder = super.complete();
-
-        /**
-        // Continue with script-specific building
-        txBuilder = txBuilder.andThen(prepareScriptCallContext());
-
-        //stake, gov related
-        txBuilder = txBuilder.andThen(stakeBuildTuple._2)
-                .andThen(govBuildTuple._2);
-        **/
         return txBuilder;
     }
-
-//    protected TxBuilder prepareScriptCallContext() {
-//        TxBuilder txBuilder = (context, txn) -> {
-//        };
-//
-//        txBuilder = addReferenceInputs(txBuilder);
-//
-//       // txBuilder = txBuilderFromSpendingValidators(txBuilder);
-////        txBuilder = txBuilderFromMintingValidators(txBuilder);
-////        txBuilder = txBuilderFromValidators(txBuilder, certValidators);//txBuilderFromCertValidators(txBuilder);
-////        txBuilder = txBuilderFromValidators(txBuilder, rewardValidators); //txBuilderFromRewardValidators(txBuilder);
-////        txBuilder = txBuilderFromValidators(txBuilder, proposingValidators);//txBuilderFromProposingValidators(txBuilder);
-////        txBuilder = txBuilderFromValidators(txBuilder, votingValidators);
-//
-//        return txBuilder;
-//    }
-
-//    private TxBuilder addReferenceInputs(TxBuilder txBuilder) {
-//        if (referenceInputs != null) {
-//            txBuilder = txBuilder.andThen((context, txn) -> {
-//                List<TransactionInput> txRefInputs = txn.getBody().getReferenceInputs();
-//                if (txRefInputs == null)
-//                    txn.getBody().setReferenceInputs(referenceInputs);
-//                else
-//                    txRefInputs.addAll(referenceInputs);
-//            });
-//        }
-//        return txBuilder;
-//    }
-
-//    private TxBuilder txBuilderFromSpendingValidators(TxBuilder txBuilder) {
-//        /**
-//        for (PlutusScript plutusScript : spendingValidators) {
-//            txBuilder =
-//                    txBuilder.andThen(((context, transaction) -> {
-//                        if (transaction.getWitnessSet() == null)
-//                            transaction.setWitnessSet(new TransactionWitnessSet());
-//                        if (plutusScript instanceof PlutusV1Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV2Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV3Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-//                        }
-//                    }));
-//        }
-//
-//
-//        txBuilder = txBuilder.andThen(((context, transaction) -> {
-//            for (SpendingContext spendingContext : spendingContexts) {
-//                if (transaction.getWitnessSet() == null) {
-//                    transaction.setWitnessSet(new TransactionWitnessSet());
-//                }
-//                if (spendingContext.datum != null) {
-//                    if (!transaction.getWitnessSet().getPlutusDataList().contains(spendingContext.datum))
-//                        transaction.getWitnessSet().getPlutusDataList().add(spendingContext.datum);
-//                }
-//
-//                if (spendingContext.redeemer != null) {
-//                    int scriptInputIndex = RedeemerUtil.getScriptInputIndex(spendingContext.scriptUtxo, transaction);
-//                    if (scriptInputIndex == -1)
-//                        throw new TxBuildException("Script utxo is not found in transaction inputs : " + spendingContext.scriptUtxo.getTxHash());
-//
-//                    //update script input index
-//                    spendingContext.getRedeemer().setIndex(scriptInputIndex);
-//                    transaction.getWitnessSet().getRedeemers().add(spendingContext.redeemer);
-//                }
-//            }
-//        }));
-//         **/
-//
-//        return txBuilder;
-//    }
-
-//    private TxBuilder txBuilderFromMintingValidators(TxBuilder txBuilder) {
-//        for (PlutusScript plutusScript : mintingValidators) {
-//            txBuilder =
-//                    txBuilder.andThen(((context, transaction) -> {
-//                        if (transaction.getWitnessSet() == null)
-//                            transaction.setWitnessSet(new TransactionWitnessSet());
-//                        if (plutusScript instanceof PlutusV1Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV2Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV3Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-//                        }
-//                    }));
-//        }
-//
-//        //Sort mint field in the transaction
-//        txBuilder = txBuilder.andThen((context, txn) -> {
-//            if (txn.getBody().getMint() != null) {
-//                List<MultiAsset> multiAssets = MintUtil.getSortedMultiAssets(txn.getBody().getMint());
-//                txn.getBody().setMint(multiAssets);
-//            }
-//        });
-//
-//        //Add the redeemer to the transaction witness set
-//        for (MintingContext mintingContext : mintingContexts) {
-//            txBuilder = txBuilder.andThen(((context, transaction) -> {
-//                if (transaction.getWitnessSet() == null) {
-//                    transaction.setWitnessSet(new TransactionWitnessSet());
-//                }
-//
-//                if (mintingContext.redeemer != null) {
-//                    List<MultiAsset> multiAssets = transaction.getBody().getMint();
-//                    int index = IntStream.range(0, multiAssets.size())
-//                            .filter(i -> mintingContext.getPolicyId().equals(multiAssets.get(i).getPolicyId()))
-//                            .findFirst()
-//                            .orElse(-1);
-//
-//                    if (index == -1)
-//                        throw new TxBuildException("Policy id is not found in transaction mint : " + mintingContext.getPolicyId());
-//
-//                    //update script input index
-//                    mintingContext.getRedeemer().setIndex(index);
-//
-//                    transaction.getWitnessSet().getRedeemers()
-//                            .stream().filter(redeemer -> redeemer.getTag() == mintingContext.getRedeemer().getTag()
-//                                    && redeemer.getIndex() == mintingContext.getRedeemer().getIndex())
-//                            .findFirst()
-//                            .ifPresentOrElse(redeemer -> {
-//                                //Do nothing
-//                            }, () -> {
-//                                transaction.getWitnessSet().getRedeemers().add(mintingContext.redeemer);
-//                            });
-//                }
-//            }));
-//        }
-//
-//        return txBuilder;
-//    }
-//
-//    private TxBuilder txBuilderFromValidators(TxBuilder txBuilder, List<PlutusScript> validators) {
-//        if (validators == null)
-//            return txBuilder;
-//
-//        for (PlutusScript plutusScript : validators) {
-//            txBuilder =
-//                    txBuilder.andThen(((context, transaction) -> {
-//                        if (transaction.getWitnessSet() == null)
-//                            transaction.setWitnessSet(new TransactionWitnessSet());
-//                        if (plutusScript instanceof PlutusV1Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV1Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV2Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV2Scripts().contains(plutusScript)) //To avoid duplicate script in list
-//                                transaction.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) plutusScript);
-//                        } else if (plutusScript instanceof PlutusV3Script) {
-//                            if (!transaction.getWitnessSet().getPlutusV3Scripts().contains(plutusScript))
-//                                transaction.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) plutusScript);
-//                        }
-//                    }));
-//        }
-//
-//        return txBuilder;
-//    }
 
     /**
      * Get lazy UTXO strategies for resolution during execution.
@@ -1175,20 +893,4 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return lazyStrategies;
     }
 
-
-//    @Data
-//    @AllArgsConstructor
-//    static class SpendingContext {
-//        private Utxo scriptUtxo;
-//        private Redeemer redeemer;
-//        private PlutusData datum;
-//    }
-//
-//    @Data
-//    @AllArgsConstructor
-//    static class MintingContext {
-//        private String policyId;
-//        private List<Asset> assets;
-//        private Redeemer redeemer;
-//    }
 }

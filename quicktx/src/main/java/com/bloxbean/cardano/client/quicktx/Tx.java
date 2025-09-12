@@ -53,6 +53,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Get all intentions from this transaction and its sub-transactions.
+     *
      * @return combined list of all intentions
      */
     @Override
@@ -165,6 +166,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Create Tx with given utxos as inputs.
+     *
      * @param utxos List of utxos
      * @return Tx
      */
@@ -181,6 +183,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Create Tx with given utxos as inputs.
+     *
      * @param utxos Set of utxos
      * @return Tx
      */
@@ -197,6 +200,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Register stake address
+     *
      * @param address address to register. Address should have delegation credential. So it should be a base address or stake address.
      * @return Tx
      */
@@ -214,6 +218,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Register stake address
+     *
      * @param address address to register. Address should have delegation credential. So it should be a base address or stake address.
      * @return Tx
      */
@@ -225,6 +230,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified
+     *
      * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
      * @return Tx
      */
@@ -236,6 +242,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified
+     *
      * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
      * @return Tx
      */
@@ -253,7 +260,8 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * De-register stake address. The key deposit will be refunded to the refund address.
-     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     *
+     * @param address    address to de-register. Address should have delegation credential. So it should be a base address or stake address.
      * @param refundAddr refund address
      * @return T
      */
@@ -265,7 +273,8 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * De-register stake address. The key deposit will be refunded to the refund address.
-     * @param address address to de-register. Address should have delegation credential. So it should be a base address or stake address.
+     *
+     * @param address    address to de-register. Address should have delegation credential. So it should be a base address or stake address.
      * @param refundAddr refund address
      * @return T
      */
@@ -277,8 +286,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Delegate stake address to a stake pool
+     *
      * @param address address to delegate. Address should have delegation credential. So it should be a base address or stake address.
-     * @param poolId stake pool id Bech32 or hex encoded
+     * @param poolId  stake pool id Bech32 or hex encoded
      * @return ScriptTx
      */
     public Tx delegateTo(@NonNull String address, @NonNull String poolId) {
@@ -295,8 +305,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Delegate stake address to a stake pool
+     *
      * @param address address to delegate. Address should have delegation credential. So it should be a base address or stake address.
-     * @param poolId stake pool id Bech32 or hex encoded
+     * @param poolId  stake pool id Bech32 or hex encoded
      * @return ScriptTx
      */
     public Tx delegateTo(@NonNull Address address, @NonNull String poolId) {
@@ -307,8 +318,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Withdraw rewards from a stake address
+     *
      * @param rewardAddress stake address to withdraw rewards from
-     * @param amount  amount to withdraw
+     * @param amount        amount to withdraw
      * @return Tx
      */
     public Tx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount) {
@@ -319,8 +331,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Withdraw rewards from a stake address
+     *
      * @param rewardAddress stake address to withdraw rewards from
-     * @param amount amount to withdraw
+     * @param amount        amount to withdraw
      * @return Tx
      */
     public Tx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount) {
@@ -331,9 +344,10 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Withdraw rewards from a stake address
+     *
      * @param rewardAddress stake address to withdraw rewards from
-     * @param amount amount to withdraw
-     * @param receiver receiver address
+     * @param amount        amount to withdraw
+     * @param receiver      receiver address
      * @return Tx
      */
     public Tx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount, String receiver) {
@@ -344,9 +358,10 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Withdraw rewards from a stake address
+     *
      * @param rewardAddress stake address to withdraw rewards from
-     * @param amount amount to withdraw
-     * @param receiver receiver address
+     * @param amount        amount to withdraw
+     * @param receiver      receiver address
      * @return Tx
      */
     public Tx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount, String receiver) {
@@ -357,6 +372,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Register a stake pool
+     *
      * @param poolRegistration stake pool registration certificate
      * @return Tx
      */
@@ -368,6 +384,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Update a stake pool
+     *
      * @param poolRegistration
      * @return Tx
      */
@@ -379,8 +396,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Retire a stake pool
+     *
      * @param poolId stake pool id Bech32 or hex encoded
-     * @param epoch epoch to retire the pool
+     * @param epoch  epoch to retire the pool
      * @return Tx
      */
     public Tx retirePool(@NonNull String poolId, @NonNull int epoch) {
@@ -391,8 +409,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Register a DRep
+     *
      * @param account Account
-     * @param anchor Anchor
+     * @param anchor  Anchor
      * @return Tx
      */
     public Tx registerDRep(@NonNull Account account, Anchor anchor) {
@@ -403,6 +422,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Register a DRep
+     *
      * @param account Account
      * @return Tx
      */
@@ -414,8 +434,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Register a DRep
+     *
      * @param drepCredential Credential
-     * @param anchor Anchor
+     * @param anchor         Anchor
      * @return Tx
      */
     public Tx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
@@ -426,6 +447,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Register a DRep
+     *
      * @param drepCredential
      * @return Tx
      */
@@ -437,9 +459,10 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Unregister a DRep
+     *
      * @param drepCredential Credential
-     * @param refundAddress Refund address
-     * @param refundAmount Refund amount
+     * @param refundAddress  Refund address
+     * @param refundAmount   Refund amount
      * @return Tx
      */
     public Tx unregisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount) {
@@ -450,6 +473,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Unregister a DRep
+     *
      * @param drepCredential Credential
      * @return Tx
      */
@@ -461,8 +485,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Unregister a DRep
+     *
      * @param drepCredential Credential
-     * @param refundAddress Refund address
+     * @param refundAddress  Refund address
      * @return Tx
      */
     public Tx unregisterDRep(@NonNull Credential drepCredential, @NonNull String refundAddress) {
@@ -473,8 +498,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Update a DRep
+     *
      * @param drepCredential Credential
-     * @param anchor Anchor
+     * @param anchor         Anchor
      * @return Tx
      */
     public Tx updateDRep(@NonNull Credential drepCredential, Anchor anchor) {
@@ -485,6 +511,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Update a DRep
+     *
      * @param drepCredential Credential
      * @return Tx
      */
@@ -496,9 +523,10 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Create a new governance proposal
-     * @param govAction GovAction
+     *
+     * @param govAction     GovAction
      * @param rewardAccount return address for the deposit refund
-     * @param anchor Anchor
+     * @param anchor        Anchor
      * @return Tx
      */
     public Tx createProposal(@NonNull GovAction govAction, @NonNull String rewardAccount, Anchor anchor) {
@@ -509,9 +537,10 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Create a voting procedure
-     * @param voter Voter
+     *
+     * @param voter       Voter
      * @param govActionId GovActionId
-     * @param vote Vote
+     * @param vote        Vote
      * @param anchor
      * @return Tx
      */
@@ -523,9 +552,10 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Create a voting procedure
-     * @param voter Voter
+     *
+     * @param voter       Voter
      * @param govActionId GovActionId
-     * @param vote Vote
+     * @param vote        Vote
      * @return Tx
      */
     public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote) {
@@ -536,8 +566,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Delegate voting power to a DRep
+     *
      * @param address Address
-     * @param drep Drep
+     * @param drep    Drep
      * @return Tx
      */
     public Tx delegateVotingPowerTo(@NonNull String address, @NonNull DRep drep) {
@@ -548,8 +579,9 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Delegate voting power to a DRep
+     *
      * @param address Address
-     * @param drep Drep
+     * @param drep    Drep
      * @return Tx
      */
     public Tx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep) {
@@ -593,7 +625,7 @@ public class Tx extends AbstractTx<Tx> {
 
     @Override
     protected Wallet getFromWallet() {
-        if(senderWallet != null)
+        if (senderWallet != null)
             return senderWallet;
         else
             return null;
@@ -619,46 +651,7 @@ public class Tx extends AbstractTx<Tx> {
 
     @Override
     TxBuilder complete() {
-        /**
-         * Intention-based build is now the primary path.
-         * Keeping the legacy stakeTx/govTx pipeline commented out for debugging/reference during testing.
-         */
-//       Tuple<List<DepositRefundContext>, TxBuilder> stakeBuildTuple =
-//               stakeTx.build(getFromAddress(), getChangeAddress());
-//
-//        //Add stake deposit refund contexts
-//        addDepositRefundContext(stakeBuildTuple._1);
-//
-//        //Gov txs
-//        Tuple<List<DepositRefundContext>, TxBuilder> govBuildTuple =
-//                govTx.build(getFromAddress(), getChangeAddress());
-//
-//        //Add gov deposit refund contexts
-//        addDepositRefundContext(govBuildTuple._1);
-
-            // If there are input collection intentions, set a lazy resolver so replay works without direct field state
-//            if (this.intentions != null && !this.intentions.isEmpty()) {
-//                java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
-//                        .filter(i -> i instanceof TxInputIntention)
-//                        .map(i -> (TxInputIntention) i)
-//                        .map(TxInputIntention::utxoStrategy)
-//                        .collect(java.util.stream.Collectors.toList());
-//                if (!strategies.isEmpty()) {
-//                    this.lazyUtxoResolver = (supplier) -> {
-//                        java.util.List<com.bloxbean.cardano.client.api.model.Utxo> resolved = new java.util.ArrayList<>();
-//                        for (var s : strategies) {
-//                            resolved.addAll(s.resolve(supplier));
-//                        }
-//                        return resolved;
-//                    };
-//                }
-//            }
-
-            TxBuilder txBuilder = super.complete();
-
-//        txBuilder = txBuilder.andThen(stakeBuildTuple._2)
-//                .andThen(govBuildTuple._2);
-
+        TxBuilder txBuilder = super.complete();
         return txBuilder;
     }
 
@@ -669,6 +662,7 @@ public class Tx extends AbstractTx<Tx> {
 
     /**
      * Get the sender address for this transaction.
+     *
      * @return sender address or null if not set
      */
     public String getSender() {
