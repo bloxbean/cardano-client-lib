@@ -37,8 +37,8 @@ class ScriptMintingIntentionTest {
 
         // Then
         assertThat(yaml).contains("type: script_minting");
-        assertThat(yaml).contains("script_version: v2");
-        assertThat(yaml).contains("script_hex:");
+        assertThat(yaml).contains("version: 1.0");
+        assertThat(yaml).contains("cbor_hex:");
         assertThat(yaml).contains("redeemer_hex:");
         assertThat(yaml).contains("output_datum_hex:");
         assertThat(yaml).contains("receiver: addr_test1_receiver_mint");

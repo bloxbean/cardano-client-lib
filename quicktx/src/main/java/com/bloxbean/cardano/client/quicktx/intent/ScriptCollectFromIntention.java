@@ -48,6 +48,9 @@ public class ScriptCollectFromIntention implements TxInputIntention {
     @JsonIgnore
     private List<Utxo> utxos;
 
+    @JsonIgnore
+    private LazyUtxoStrategy lazyUtxoStrategy;
+
     /**
      * Original redeemer data for runtime use.
      */
@@ -155,8 +158,8 @@ public class ScriptCollectFromIntention implements TxInputIntention {
                     throw new IllegalStateException("Invalid transaction hash format: " + utxoRef.getTxHash());
                 }
             }
-        } else {
-            throw new IllegalStateException("UTXOs are required for script collection");
+        } else if (lazyUtxoStrategy == null) {
+            throw new IllegalStateException("UTXOs or LazyUtxoStrategy are required for script collection");
         }
 
         // Validate hex strings if provided
@@ -254,6 +257,14 @@ public class ScriptCollectFromIntention implements TxInputIntention {
                 .build();
     }
 
+    public static ScriptCollectFromIntention collectFrom(LazyUtxoStrategy lazyUtxoStrategy, PlutusData redeemerData, PlutusData datum) {
+        return ScriptCollectFromIntention.builder()
+                .lazyUtxoStrategy(lazyUtxoStrategy)
+                .redeemerData(redeemerData)
+                .datum(datum)
+                .build();
+    }
+
     /**
      * Check if this intention has runtime objects available.
      */
@@ -279,13 +290,17 @@ public class ScriptCollectFromIntention implements TxInputIntention {
         if (datum == null && datumHex != null)
             datum = PlutusData.deserialize(HexUtil.decodeHexString(datumHex));
 
-        if (!hasRuntimeObjects()) {
-            var txInputs = utxoRefs.stream()
-                    .map(utxoRef -> new TransactionInput(utxoRef.getTxHash(), utxoRef.getOutputIndex()))
-                    .collect(Collectors.toList());
-            return new FixedUtxoRefStrategy(txInputs, redeemerData, datum);
+        if (lazyUtxoStrategy == null) {
+            if (!hasRuntimeObjects()) {
+                var txInputs = utxoRefs.stream()
+                        .map(utxoRef -> new TransactionInput(utxoRef.getTxHash(), utxoRef.getOutputIndex()))
+                        .collect(Collectors.toList());
+                return new FixedUtxoRefStrategy(txInputs, redeemerData, datum);
+            } else {
+                return new FixedUtxoStrategy(utxos, redeemerData, datum);
+            }
         } else {
-            return new FixedUtxoStrategy(utxos, redeemerData, datum);
+            return lazyUtxoStrategy;
         }
     }
 

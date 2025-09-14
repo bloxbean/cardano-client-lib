@@ -159,8 +159,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx collectFrom(String scriptAddress, Predicate<Utxo> utxoPredicate, PlutusData redeemerData, PlutusData datum) {
         // TODO(yaml): Predicate-based collectFrom uses runtime-only lazy strategies and is not serialized to YAML yet.
-        // Consider adding a predicate registry or DSL in a future phase for YAML support.
-        this.lazyStrategies.add(new SingleUtxoPredicateStrategy(scriptAddress, utxoPredicate, redeemerData, datum));
+        var utxoStrategy = new SingleUtxoPredicateStrategy(scriptAddress, utxoPredicate, redeemerData, datum);
+
+        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxoStrategy, redeemerData, datum);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(intention);
+
         return this;
     }
 
@@ -192,7 +196,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx collectFromList(String scriptAddress, Predicate<List<Utxo>> listPredicate, PlutusData redeemerData, PlutusData datum) {
         // TODO(yaml): Predicate-based collectFromList uses runtime-only lazy strategies and is not serialized to YAML yet.
         // Consider registry/DSL or snapshot+hints for future YAML support.
-        this.lazyStrategies.add(new ListUtxoPredicateStrategy(scriptAddress, listPredicate, redeemerData, datum));
+        var utxoStrategy = new ListUtxoPredicateStrategy(scriptAddress, listPredicate, redeemerData, datum);
+
+        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxoStrategy, redeemerData, datum);
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(intention);
+
         return this;
     }
 
