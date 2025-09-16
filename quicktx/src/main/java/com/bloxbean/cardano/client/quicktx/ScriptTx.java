@@ -45,8 +45,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      * @return combined list of all intentions
      */
     @Override
-    public java.util.List<TxIntention> getIntentions() {
-        java.util.List<TxIntention> all = new java.util.ArrayList<>();
+    public java.util.List<TxIntent> getIntentions() {
+        java.util.List<TxIntent> all = new java.util.ArrayList<>();
         if (this.intentions != null) all.addAll(this.intentions);
         return all;
     }
@@ -76,7 +76,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             return this;
 
         // Create intention using the factory method that stores original objects
-        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxos, redeemerData, datum);
+        ScriptCollectFromIntent intention = ScriptCollectFromIntent.collectFrom(utxos, redeemerData, datum);
 
         if (intentions == null) {
             intentions = new ArrayList<>();
@@ -120,7 +120,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             return this;
 
         // Record intention without redeemer/datum
-        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxo);
+        ScriptCollectFromIntent intention = ScriptCollectFromIntent.collectFrom(utxo);
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(intention);
 
@@ -139,7 +139,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
             return this;
 
         // Record a single intention with UTXO list and no redeemer/datum
-        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxos, null, null);
+        ScriptCollectFromIntent intention = ScriptCollectFromIntent.collectFrom(utxos, null, null);
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(intention);
 
@@ -161,7 +161,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         // TODO(yaml): Predicate-based collectFrom uses runtime-only lazy strategies and is not serialized to YAML yet.
         var utxoStrategy = new SingleUtxoPredicateStrategy(scriptAddress, utxoPredicate, redeemerData, datum);
 
-        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxoStrategy, redeemerData, datum);
+        ScriptCollectFromIntent intention = ScriptCollectFromIntent.collectFrom(utxoStrategy, redeemerData, datum);
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(intention);
 
@@ -198,7 +198,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         // Consider registry/DSL or snapshot+hints for future YAML support.
         var utxoStrategy = new ListUtxoPredicateStrategy(scriptAddress, listPredicate, redeemerData, datum);
 
-        ScriptCollectFromIntention intention = ScriptCollectFromIntention.collectFrom(utxoStrategy, redeemerData, datum);
+        ScriptCollectFromIntent intention = ScriptCollectFromIntent.collectFrom(utxoStrategy, redeemerData, datum);
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(intention);
 
@@ -227,7 +227,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx readFrom(Utxo... utxos) {
         if (utxos == null || utxos.length == 0) return this;
         if (intentions == null) intentions = new ArrayList<>();
-        com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention intention = new com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention();
+        ReferenceInputIntent intention = new ReferenceInputIntent();
         for (Utxo utxo : utxos) {
             intention.addRef(utxo.getTxHash(), utxo.getOutputIndex());
         }
@@ -244,7 +244,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx readFrom(TransactionInput... transactionInputs) {
         if (transactionInputs == null || transactionInputs.length == 0) return this;
         if (intentions == null) intentions = new ArrayList<>();
-        com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention intention = new com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention();
+        ReferenceInputIntent intention = new ReferenceInputIntent();
         for (TransactionInput transactionInput : transactionInputs) {
             intention.addRef(transactionInput.getTransactionId(), transactionInput.getIndex());
         }
@@ -262,7 +262,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx readFrom(String txHash, int outputIndex) {
         if (txHash == null || txHash.isBlank()) return this;
         if (intentions == null) intentions = new ArrayList<>();
-        com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention intention = new com.bloxbean.cardano.client.quicktx.intent.ReferenceInputIntention();
+        ReferenceInputIntent intention = new ReferenceInputIntent();
         intention.addRef(txHash, outputIndex);
         intentions.add(intention);
         return this;
@@ -337,13 +337,13 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     public ScriptTx mintAsset(PlutusScript script, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
         // Record a script minting intention; intention will add mint + witnesses + optional receiver output
-        ScriptMintingIntention intention = null;
+        ScriptMintingIntent intention = null;
         try {
-            intention = ScriptMintingIntention.of(script.getPolicyId(), assets, redeemer, receiver, outputDatum);
+            intention = ScriptMintingIntent.of(script.getPolicyId(), assets, redeemer, receiver, outputDatum);
         } catch (CborSerializationException e) {
             throw new TxBuildException("Error creating minting intention. Unable to get policyId from the minting script.", e);
         }
-        ScriptValidatorAttachmentIntention attachmentIntention = ScriptValidatorAttachmentIntention.of(RedeemerTag.Mint, script);
+        ScriptValidatorAttachmentIntent attachmentIntention = ScriptValidatorAttachmentIntent.of(RedeemerTag.Mint, script);
 
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(intention);
@@ -371,8 +371,8 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     public ScriptTx mintAsset(String policyId, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
         // Record a script minting intention; intention will add mint + witnesses + optional receiver output
-        ScriptMintingIntention intention =
-                ScriptMintingIntention.of(policyId, assets, redeemer, receiver, outputDatum);
+        ScriptMintingIntent intention =
+                ScriptMintingIntent.of(policyId, assets, redeemer, receiver, outputDatum);
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(intention);
 
@@ -388,7 +388,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx attachSpendingValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(ScriptValidatorAttachmentIntention
+        intentions.add(ScriptValidatorAttachmentIntent
                 .of(RedeemerTag.Spend, plutusScript));
         return this;
     }
@@ -401,7 +401,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx attachMintValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+        intentions.add(ScriptValidatorAttachmentIntent
                 .of(RedeemerTag.Mint, plutusScript));
         return this;
     }
@@ -414,7 +414,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx attachCertificateValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+        intentions.add(ScriptValidatorAttachmentIntent
                 .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Cert, plutusScript));
         return this;
     }
@@ -427,7 +427,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx attachRewardValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+        intentions.add(ScriptValidatorAttachmentIntent
                 .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Reward, plutusScript));
         return this;
     }
@@ -440,7 +440,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx attachProposingValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+        intentions.add(ScriptValidatorAttachmentIntent
                 .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Proposing, plutusScript));
         return this;
     }
@@ -453,7 +453,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx attachVotingValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.ScriptValidatorAttachmentIntention
+        intentions.add(ScriptValidatorAttachmentIntent
                 .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Voting, plutusScript));
         return this;
     }
@@ -482,7 +482,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx deregisterStakeAddress(@NonNull String address, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeDeregistrationIntention
+        intentions.add(StakeDeregistrationIntent
                 .deregister(address)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -499,7 +499,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx deregisterStakeAddress(@NonNull Address address, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeDeregistrationIntention
+        intentions.add(StakeDeregistrationIntent
                 .deregister(address.toBech32())
                 .toBuilder()
                 .redeemer(redeemer)
@@ -517,7 +517,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx deregisterStakeAddress(@NonNull String address, PlutusData redeemer, String refundAddr) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeDeregistrationIntention
+        intentions.add(StakeDeregistrationIntent
                 .deregister(address, refundAddr)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -535,7 +535,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx delegateTo(@NonNull String address, @NonNull String poolId, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeDelegationIntention
+        intentions.add(StakeDelegationIntent
                 .delegateTo(address, poolId)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -553,7 +553,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx delegateTo(@NonNull Address address, @NonNull String poolId, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeDelegationIntention
+        intentions.add(StakeDelegationIntent
                 .delegateTo(address.toBech32(), poolId)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -571,7 +571,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeWithdrawalIntention
+        intentions.add(StakeWithdrawalIntent
                 .withdraw(rewardAddress, amount)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -589,7 +589,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeWithdrawalIntention
+        intentions.add(StakeWithdrawalIntent
                 .withdraw(rewardAddress.toBech32(), amount)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -608,7 +608,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount, PlutusData redeemer, String receiver) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeWithdrawalIntention
+        intentions.add(StakeWithdrawalIntent
                 .withdraw(rewardAddress, amount, receiver)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -627,7 +627,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount, PlutusData redeemer, String receiver) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeWithdrawalIntention
+        intentions.add(StakeWithdrawalIntent
                 .withdraw(rewardAddress.toBech32(), amount, receiver)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -645,7 +645,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx registerDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(DRepRegistrationIntention
+        intentions.add(DRepRegistrationIntent
                 .register(drepCredential, anchor)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -662,7 +662,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx registerDRep(@NonNull Credential drepCredential, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(DRepRegistrationIntention
+        intentions.add(DRepRegistrationIntent
                 .register(drepCredential)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -681,7 +681,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(DRepDeregistrationIntention
+        intentions.add(DRepDeregistrationIntent
                 .deregister(drepCredential, refundAddress, refundAmount)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -699,7 +699,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx unRegisterDRep(@NonNull Credential drepCredential, String refundAddress, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepDeregistrationIntention
+        intentions.add(DRepDeregistrationIntent
                 .deregister(drepCredential, refundAddress)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -717,7 +717,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx updateDRep(@NonNull Credential drepCredential, Anchor anchor, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepUpdateIntention
+        intentions.add(DRepUpdateIntent
                 .update(drepCredential, anchor)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -736,7 +736,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx createProposal(GovAction govAction, @NonNull String returnAddress, Anchor anchor, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.GovernanceProposalIntention
+        intentions.add(GovernanceProposalIntent
                 .create(govAction, returnAddress, anchor)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -756,7 +756,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.VotingIntention
+        intentions.add(VotingIntent
                 .vote(voter, govActionId, vote, anchor)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -774,7 +774,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep, PlutusData redeemer) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.VotingDelegationIntention
+        intentions.add(VotingDelegationIntent
                 .delegate(address, drep)
                 .toBuilder()
                 .redeemer(redeemer)
@@ -869,11 +869,16 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     //TODO -- check how to do this ??
     private Optional<Utxo> getUtxoForRedeemer(Redeemer redeemer) {
+        return intentions.stream()
+                .filter(intention -> intention instanceof ScriptCollectFromIntent)
+                .map(intention -> ((ScriptCollectFromIntent) intention).getUtxoForRedeemer(redeemer))
+                .findFirst().orElse(Optional.empty());
+
 //        return spendingContexts.stream()
 //                .filter(spendingContext -> spendingContext.getRedeemer() == redeemer) //object reference comparison
 //                .findFirst()
 //                .map(spendingContext -> spendingContext.getScriptUtxo());
-        return Optional.empty();
+//        return Optional.empty();
     }
 
     @Override

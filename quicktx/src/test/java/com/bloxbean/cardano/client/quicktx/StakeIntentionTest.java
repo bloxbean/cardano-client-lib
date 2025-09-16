@@ -24,11 +24,11 @@ public class StakeIntentionTest {
         tx.registerStakeAddress(stakeAddress);
 
         // Check that the intention was recorded
-        List<TxIntention> intentions = tx.getIntentions();
+        List<TxIntent> intentions = tx.getIntentions();
         assertFalse(intentions.isEmpty());
 
-        StakeRegistrationIntention registrationIntention = (StakeRegistrationIntention) intentions.stream()
-            .filter(i -> i instanceof StakeRegistrationIntention)
+        StakeRegistrationIntent registrationIntention = (StakeRegistrationIntent) intentions.stream()
+            .filter(i -> i instanceof StakeRegistrationIntent)
             .findFirst()
             .orElse(null);
 
@@ -49,11 +49,11 @@ public class StakeIntentionTest {
         tx.delegateTo(stakeAddress, poolId);
 
         // Check that the intention was recorded
-        List<TxIntention> intentions = tx.getIntentions();
+        List<TxIntent> intentions = tx.getIntentions();
         assertFalse(intentions.isEmpty());
 
-        StakeDelegationIntention delegationIntention = (StakeDelegationIntention) intentions.stream()
-            .filter(i -> i instanceof StakeDelegationIntention)
+        StakeDelegationIntent delegationIntention = (StakeDelegationIntent) intentions.stream()
+            .filter(i -> i instanceof StakeDelegationIntent)
             .findFirst()
             .orElse(null);
 
@@ -75,11 +75,11 @@ public class StakeIntentionTest {
         tx.withdraw(rewardAddress, amount);
 
         // Check that the intention was recorded
-        List<TxIntention> intentions = tx.getIntentions();
+        List<TxIntent> intentions = tx.getIntentions();
         assertFalse(intentions.isEmpty());
 
-        StakeWithdrawalIntention withdrawalIntention = (StakeWithdrawalIntention) intentions.stream()
-            .filter(i -> i instanceof StakeWithdrawalIntention)
+        StakeWithdrawalIntent withdrawalIntention = (StakeWithdrawalIntent) intentions.stream()
+            .filter(i -> i instanceof StakeWithdrawalIntent)
             .findFirst()
             .orElse(null);
 
@@ -102,11 +102,11 @@ public class StakeIntentionTest {
         tx.deregisterStakeAddress(stakeAddress, refundAddress);
 
         // Check that the intention was recorded
-        List<TxIntention> intentions = tx.getIntentions();
+        List<TxIntent> intentions = tx.getIntentions();
         assertFalse(intentions.isEmpty());
 
-        StakeDeregistrationIntention deregistrationIntention = (StakeDeregistrationIntention) intentions.stream()
-            .filter(i -> i instanceof StakeDeregistrationIntention)
+        StakeDeregistrationIntent deregistrationIntention = (StakeDeregistrationIntent) intentions.stream()
+            .filter(i -> i instanceof StakeDeregistrationIntent)
             .findFirst()
             .orElse(null);
 
@@ -132,19 +132,19 @@ public class StakeIntentionTest {
           .withdraw(stakeAddress, amount);
 
         // Check that all intentions were recorded
-        List<TxIntention> intentions = tx.getIntentions();
+        List<TxIntent> intentions = tx.getIntentions();
         assertEquals(3, intentions.size());
 
         // Verify each intention type exists
-        assertTrue(intentions.stream().anyMatch(i -> i instanceof StakeRegistrationIntention));
-        assertTrue(intentions.stream().anyMatch(i -> i instanceof StakeDelegationIntention));
-        assertTrue(intentions.stream().anyMatch(i -> i instanceof StakeWithdrawalIntention));
+        assertTrue(intentions.stream().anyMatch(i -> i instanceof StakeRegistrationIntent));
+        assertTrue(intentions.stream().anyMatch(i -> i instanceof StakeDelegationIntent));
+        assertTrue(intentions.stream().anyMatch(i -> i instanceof StakeWithdrawalIntent));
     }
 
     @Test
     public void testIntentionValidation() {
         // Test that intentions validate their required fields
-        StakeRegistrationIntention registration = new StakeRegistrationIntention();
+        StakeRegistrationIntent registration = new StakeRegistrationIntent();
 
         // Should fail validation without stake address
         assertThrows(IllegalStateException.class, registration::validate);
@@ -160,17 +160,17 @@ public class StakeIntentionTest {
         String stakeAddress = "stake_test1uqfu74w3wh4gfzu8m6e7j987h4lq9r3t7ef5gaw497uu85qsqfy27";
         String poolId = "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy";
 
-        StakeRegistrationIntention registration = StakeRegistrationIntention.register(stakeAddress);
+        StakeRegistrationIntent registration = StakeRegistrationIntent.register(stakeAddress);
         assertEquals(stakeAddress, registration.getStakeAddress());
         assertEquals("stake_registration", registration.getType());
 
-        StakeDelegationIntention delegation = StakeDelegationIntention.delegateTo(stakeAddress, poolId);
+        StakeDelegationIntent delegation = StakeDelegationIntent.delegateTo(stakeAddress, poolId);
         assertEquals(stakeAddress, delegation.getStakeAddress());
         assertEquals(poolId, delegation.getPoolId());
         assertEquals("stake_delegation", delegation.getType());
 
         BigInteger amount = BigInteger.valueOf(1000000);
-        StakeWithdrawalIntention withdrawal = StakeWithdrawalIntention.withdraw(stakeAddress, amount);
+        StakeWithdrawalIntent withdrawal = StakeWithdrawalIntent.withdraw(stakeAddress, amount);
         assertEquals(stakeAddress, withdrawal.getRewardAddress());
         assertEquals(amount, withdrawal.getAmount());
         assertEquals("stake_withdrawal", withdrawal.getType());

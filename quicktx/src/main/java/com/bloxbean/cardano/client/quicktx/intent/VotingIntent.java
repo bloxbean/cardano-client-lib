@@ -7,8 +7,6 @@ import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.Vote;
 import com.bloxbean.cardano.client.transaction.spec.governance.Voter;
@@ -40,7 +38,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class VotingIntention implements TxIntention {
+public class VotingIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
 
@@ -252,7 +250,7 @@ public class VotingIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -263,7 +261,7 @@ public class VotingIntention implements TxIntention {
         String resolvedAnchorUrl = VariableResolver.resolve(anchorUrl, variables);
         String resolvedAnchorHash = VariableResolver.resolve(anchorHash, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedVoterHex, voterHex) || !java.util.Objects.equals(resolvedGovActionTxHash, govActionTxHash) || !java.util.Objects.equals(resolvedVoteDecision, voteDecision) || !java.util.Objects.equals(resolvedAnchorUrl, anchorUrl) || !java.util.Objects.equals(resolvedAnchorHash, anchorHash) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
             return this.toBuilder()
@@ -275,7 +273,7 @@ public class VotingIntention implements TxIntention {
                 .redeemerHex(resolvedRedeemerHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -284,8 +282,8 @@ public class VotingIntention implements TxIntention {
     /**
      * Create VotingIntention from runtime objects.
      */
-    public static VotingIntention vote(Voter voter, GovActionId govActionId, Vote vote) {
-        return VotingIntention.builder()
+    public static VotingIntent vote(Voter voter, GovActionId govActionId, Vote vote) {
+        return VotingIntent.builder()
             .voter(voter)
             .govActionId(govActionId)
             .vote(vote)
@@ -295,8 +293,8 @@ public class VotingIntention implements TxIntention {
     /**
      * Create VotingIntention with anchor.
      */
-    public static VotingIntention vote(Voter voter, GovActionId govActionId, Vote vote, Anchor anchor) {
-        return VotingIntention.builder()
+    public static VotingIntent vote(Voter voter, GovActionId govActionId, Vote vote, Anchor anchor) {
+        return VotingIntent.builder()
             .voter(voter)
             .govActionId(govActionId)
             .vote(vote)
@@ -307,8 +305,8 @@ public class VotingIntention implements TxIntention {
     /**
      * Create VotingIntention from serializable values.
      */
-    public static VotingIntention vote(String voterHex, String govActionTxHash, Integer govActionIndex, String voteDecision) {
-        return VotingIntention.builder()
+    public static VotingIntent vote(String voterHex, String govActionTxHash, Integer govActionIndex, String voteDecision) {
+        return VotingIntent.builder()
             .voterHex(voterHex)
             .govActionTxHash(govActionTxHash)
             .govActionIndex(govActionIndex)
@@ -352,7 +350,7 @@ public class VotingIntention implements TxIntention {
         final String from = ic.getFromAddress();
         if (from == null || from.isBlank())
             throw new TxBuildException("From address is required for voting");
-        
+
         // Use helper to create smart dummy output that merges with existing outputs
         return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
     }

@@ -41,7 +41,7 @@ public abstract class AbstractTx<T> {
     protected Function<UtxoSupplier, List<Utxo>> lazyUtxoResolver;
 
     // Intent-based architecture: Store intentions for deferred resolution
-    protected List<TxIntention> intentions;
+    protected List<TxIntent> intentions;
 
     // Variables for YAML parameterization and dynamic value resolution
     protected java.util.Map<String, Object> variables;
@@ -210,7 +210,7 @@ public abstract class AbstractTx<T> {
             throw new TxBuildException("Both datumHash and datum cannot be set. Only one of them can be set");
 
         // Create and store payment intention with original objects
-        PaymentIntention.PaymentIntentionBuilder builder = PaymentIntention.builder()
+        PaymentIntent.PaymentIntentBuilder builder = PaymentIntent.builder()
             .address(address)
             .amounts(amounts);
 
@@ -226,7 +226,7 @@ public abstract class AbstractTx<T> {
             builder.scriptRefBytes(scriptRefBytes);
         }
 
-        PaymentIntention intention = builder.build();
+        PaymentIntent intention = builder.build();
 
         if (intentions == null) {
             intentions = new ArrayList<>();
@@ -244,7 +244,7 @@ public abstract class AbstractTx<T> {
      */
     public T donateToTreasury(@NonNull BigInteger currentTreasuryValue, @NonNull BigInteger donationAmount) {
         // Create and store donation intention
-        DonationIntention intention = DonationIntention.of(currentTreasuryValue, donationAmount);
+        DonationIntent intention = DonationIntent.of(currentTreasuryValue, donationAmount);
 
         if (intentions == null) {
             intentions = new ArrayList<>();
@@ -277,7 +277,7 @@ public abstract class AbstractTx<T> {
             .build();
 
         // Phase 1: Collect and compose all TxOutputBuilders
-        List<TxIntention> allIntentions = getIntentions();
+        List<TxIntent> allIntentions = getIntentions();
         TxOutputBuilder composedOutputBuilder = allIntentions.stream()
             .map(intention -> intention.outputBuilder(intentContext))
             .filter(Objects::nonNull)
@@ -306,12 +306,12 @@ public abstract class AbstractTx<T> {
         // Phase 3: Apply all transformations (validation + transaction changes)
         TxBuilder combinedBuilder = (ctx, txn) -> { /* no-op base */ };
 
-        List<TxIntention> allIntentions = getIntentions();
-        for (TxIntention intention : allIntentions) {
+        List<TxIntent> allIntentions = getIntentions();
+        for (TxIntent intention : allIntentions) {
             combinedBuilder = combinedBuilder.andThen(intention.preApply(intentContext));
         }
 
-        for (TxIntention intention : allIntentions) {
+        for (TxIntent intention : allIntentions) {
             combinedBuilder = combinedBuilder.andThen(intention.apply(intentContext));     // Transformations
         }
 
@@ -344,7 +344,7 @@ public abstract class AbstractTx<T> {
      */
     public T attachMetadata(Metadata metadata) {
         // Create and store metadata intention
-        MetadataIntention intention = MetadataIntention.from(metadata);
+        MetadataIntent intention = MetadataIntent.from(metadata);
 
         if (intentions == null) {
             intentions = new ArrayList<>();
@@ -366,9 +366,9 @@ public abstract class AbstractTx<T> {
     TxBuilder complete() {
         if (this.intentions != null && !this.intentions.isEmpty()) {
             java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
-                    .filter(i -> i instanceof TxInputIntention)
-                    .map(i -> (TxInputIntention) i)
-                    .map(TxInputIntention::utxoStrategy)
+                    .filter(i -> i instanceof TxInputIntent)
+                    .map(i -> (TxInputIntent) i)
+                    .map(TxInputIntent::utxoStrategy)
                     .filter(Objects::nonNull)
                     .collect(java.util.stream.Collectors.toList());
 
@@ -587,7 +587,7 @@ public abstract class AbstractTx<T> {
      * This is used internally by the YAML deserialization process.
      * @param intention the intention to add
      */
-    public void addIntention(TxIntention intention) {
+    public void addIntention(TxIntent intention) {
         if (intentions == null) {
             intentions = new ArrayList<>();
         }
@@ -598,7 +598,7 @@ public abstract class AbstractTx<T> {
      * Get the list of intentions for this transaction.
      * @return list of intentions, or empty list if none
      */
-    public java.util.List<TxIntention> getIntentions() {
+    public java.util.List<TxIntent> getIntentions() {
         return intentions != null ? intentions : new ArrayList<>();
     }
 

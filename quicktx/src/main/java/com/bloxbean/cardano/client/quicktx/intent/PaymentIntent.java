@@ -46,7 +46,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PaymentIntention implements TxIntention {
+public class PaymentIntent implements TxIntent {
 
     /**
      * Destination address for the payment.
@@ -172,12 +172,12 @@ public class PaymentIntention implements TxIntention {
     }
 
     // Legacy constructors for compatibility
-    public PaymentIntention(String address, Amount amount) {
+    public PaymentIntent(String address, Amount amount) {
         this.address = address;
         this.amounts = List.of(amount);
     }
 
-    public PaymentIntention(String address, List<Amount> amounts) {
+    public PaymentIntent(String address, List<Amount> amounts) {
         this.address = address;
         this.amounts = amounts;
     }
@@ -209,13 +209,13 @@ public class PaymentIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
 
         String resolvedAddress = VariableResolver.resolve(address, variables);
-        
+
         // For now, only resolve the address field since it's the most common variable field
         // Other fields like scriptRefBytesHex, datumHex, datumHash could also contain variables
         // but are less common and typically contain encoded data
@@ -224,7 +224,7 @@ public class PaymentIntention implements TxIntention {
                 .address(resolvedAddress)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -233,22 +233,22 @@ public class PaymentIntention implements TxIntention {
     /**
      * Create a simple payment intention to an address.
      */
-    public static PaymentIntention toAddress(String address, Amount amount) {
-        return new PaymentIntention(address, amount);
+    public static PaymentIntent toAddress(String address, Amount amount) {
+        return new PaymentIntent(address, amount);
     }
 
     /**
      * Create a simple payment intention to an address with multiple amounts.
      */
-    public static PaymentIntention toAddress(String address, List<Amount> amounts) {
-        return new PaymentIntention(address, amounts);
+    public static PaymentIntent toAddress(String address, List<Amount> amounts) {
+        return new PaymentIntent(address, amounts);
     }
 
     /**
      * Create a contract payment intention with datum.
      */
-    public static PaymentIntention toContract(String address, Amount amount, PlutusData datum) {
-        return PaymentIntention.builder()
+    public static PaymentIntent toContract(String address, Amount amount, PlutusData datum) {
+        return PaymentIntent.builder()
             .address(address)
             .amounts(List.of(amount))
             .datum(datum)
@@ -258,8 +258,8 @@ public class PaymentIntention implements TxIntention {
     /**
      * Create a contract payment intention with datum hash bytes.
      */
-    public static PaymentIntention toContract(String address, Amount amount, byte[] datumHashBytes) {
-        return PaymentIntention.builder()
+    public static PaymentIntent toContract(String address, Amount amount, byte[] datumHashBytes) {
+        return PaymentIntent.builder()
             .address(address)
             .amounts(List.of(amount))
             .datumHashBytes(datumHashBytes)
@@ -269,8 +269,8 @@ public class PaymentIntention implements TxIntention {
     /**
      * Create a contract payment intention with datum hash string.
      */
-    public static PaymentIntention toContract(String address, Amount amount, String datumHashHex) {
-        return PaymentIntention.builder()
+    public static PaymentIntent toContract(String address, Amount amount, String datumHashHex) {
+        return PaymentIntent.builder()
             .address(address)
             .amounts(List.of(amount))
             .datumHash(datumHashHex)
@@ -290,7 +290,7 @@ public class PaymentIntention implements TxIntention {
     public TxOutputBuilder outputBuilder(IntentContext context) {
         try {
             // Phase 1: Create transaction output (address already resolved during YAML parsing)
-            
+
             // Validate address is not null/empty
             if (address == null || address.trim().isEmpty()) {
                 throw new TxBuildException("Payment address is required after variable resolution");
@@ -311,7 +311,7 @@ public class PaymentIntention implements TxIntention {
     public TxBuilder preApply(IntentContext context) {
         return (ctx, txn) -> {
             // Pre-processing: validate (address already resolved during YAML parsing)
-            
+
             // Validate address is not null/empty
             if (address == null || address.trim().isEmpty()) {
                 throw new TxBuildException("Payment address is required");

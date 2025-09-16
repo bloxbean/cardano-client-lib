@@ -37,7 +37,7 @@ import java.math.BigInteger;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class GovernanceProposalIntention implements TxIntention {
+public class GovernanceProposalIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
 
@@ -185,7 +185,7 @@ public class GovernanceProposalIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -215,8 +215,8 @@ public class GovernanceProposalIntention implements TxIntention {
     /**
      * Create GovernanceProposalIntention from runtime objects.
      */
-    public static GovernanceProposalIntention create(GovAction govAction, String returnAddress) {
-        return GovernanceProposalIntention.builder()
+    public static GovernanceProposalIntent create(GovAction govAction, String returnAddress) {
+        return GovernanceProposalIntent.builder()
             .govAction(govAction)
             .returnAddress(returnAddress)
             .build();
@@ -225,8 +225,8 @@ public class GovernanceProposalIntention implements TxIntention {
     /**
      * Create GovernanceProposalIntention with anchor.
      */
-    public static GovernanceProposalIntention create(GovAction govAction, String returnAddress, Anchor anchor) {
-        return GovernanceProposalIntention.builder()
+    public static GovernanceProposalIntent create(GovAction govAction, String returnAddress, Anchor anchor) {
+        return GovernanceProposalIntent.builder()
             .govAction(govAction)
             .returnAddress(returnAddress)
             .anchor(anchor)
@@ -236,8 +236,8 @@ public class GovernanceProposalIntention implements TxIntention {
     /**
      * Create GovernanceProposalIntention from hex strings.
      */
-    public static GovernanceProposalIntention fromHex(String govActionHex, String returnAddress, String anchorUrl, String anchorHash) {
-        return GovernanceProposalIntention.builder()
+    public static GovernanceProposalIntent fromHex(String govActionHex, String returnAddress, String anchorUrl, String anchorHash) {
+        return GovernanceProposalIntent.builder()
             .govActionHex(govActionHex)
             .returnAddress(returnAddress)
             .anchorUrl(anchorUrl)

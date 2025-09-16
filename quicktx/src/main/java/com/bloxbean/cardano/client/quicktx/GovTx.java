@@ -37,7 +37,7 @@ public class GovTx {
     protected List<VotingDelegationContext> votingDelegationContexts;
 
     // Intention recording support
-    protected List<TxIntention> intentions;
+    protected List<TxIntent> intentions;
     protected boolean intentionRecordingEnabled = false;
 
     public GovTx() {
@@ -57,7 +57,7 @@ public class GovTx {
     /**
      * Get recorded intentions for YAML serialization.
      */
-    public List<TxIntention> getIntentions() {
+    public List<TxIntent> getIntentions() {
         return intentions;
     }
 
@@ -97,7 +97,7 @@ public class GovTx {
         // Record intention for YAML serialization if enabled
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(DRepRegistrationIntention.register(drepCredential, anchor));
+            intentions.add(DRepRegistrationIntent.register(drepCredential, anchor));
         }
 
         return this;
@@ -222,7 +222,7 @@ public class GovTx {
         // Record intention for YAML serialization if enabled
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(GovernanceProposalIntention.create(govAction, returnAddress, anchor));
+            intentions.add(GovernanceProposalIntent.create(govAction, returnAddress, anchor));
         }
 
         return this;
@@ -259,7 +259,7 @@ public class GovTx {
         // Record intention for YAML serialization if enabled
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(VotingIntention.vote(voter, govActionId, vote, anchor));
+            intentions.add(VotingIntent.vote(voter, govActionId, vote, anchor));
         }
 
         return this;
@@ -308,7 +308,7 @@ public class GovTx {
         // Record intention for YAML serialization if enabled
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(VotingDelegationIntention.delegate(address, drep));
+            intentions.add(VotingDelegationIntent.delegate(address, drep));
         }
 
         return this;

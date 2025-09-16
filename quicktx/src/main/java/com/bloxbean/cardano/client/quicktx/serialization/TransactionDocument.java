@@ -1,9 +1,9 @@
 package com.bloxbean.cardano.client.quicktx.serialization;
 
 import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.quicktx.intent.TxInputIntention;
-import com.bloxbean.cardano.client.quicktx.intent.TxIntention;
-import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntention;
+import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
+import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
+import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntent;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -127,15 +127,15 @@ public class TransactionDocument {
         private List<UtxoInput> collectFrom;
 
         @JsonProperty("inputs")
-        private List<TxInputIntention> inputs;
+        private List<TxInputIntent> inputs;
 
         @JsonProperty("intentions")
-        private List<TxIntention> intentions;
+        private List<TxIntent> intentions;
 
         public TxContent() {
         }
 
-        public TxContent(List<TxIntention> intentions) {
+        public TxContent(List<TxIntent> intentions) {
             this.intentions = intentions;
         }
 
@@ -171,19 +171,19 @@ public class TransactionDocument {
             this.collectFrom = collectFrom;
         }
 
-        public List<TxInputIntention> getInputs() {
+        public List<TxInputIntent> getInputs() {
             return inputs;
         }
 
-        public void setInputs(List<TxInputIntention> inputs) {
+        public void setInputs(List<TxInputIntent> inputs) {
             this.inputs = inputs;
         }
 
-        public List<TxIntention> getIntentions() {
+        public List<TxIntent> getIntentions() {
             return intentions;
         }
 
-        public void setIntentions(List<TxIntention> intentions) {
+        public void setIntentions(List<TxIntent> intentions) {
             this.intentions = intentions;
         }
     }
@@ -209,18 +209,18 @@ public class TransactionDocument {
         private List<ValidatorAttachment> scripts;
 
         @JsonProperty("inputs")
-        private List<TxInputIntention> inputs;
+        private List<TxInputIntent> inputs;
 
         @JsonProperty("intentions")
-        private List<TxIntention> intentions;
+        private List<TxIntent> intentions;
 
         @JsonProperty("validators")
-        private List<TxValidatorIntention> validators;
+        private List<TxValidatorIntent> validators;
 
         public ScriptTxContent() {
         }
 
-        public ScriptTxContent(List<TxIntention> intentions) {
+        public ScriptTxContent(List<TxIntent> intentions) {
             this.intentions = intentions;
         }
 
@@ -264,27 +264,27 @@ public class TransactionDocument {
             this.scripts = scripts;
         }
 
-        public List<TxInputIntention> getInputs() {
+        public List<TxInputIntent> getInputs() {
             return inputs;
         }
 
-        public void setInputs(List<TxInputIntention> inputs) {
+        public void setInputs(List<TxInputIntent> inputs) {
             this.inputs = inputs;
         }
 
-        public List<TxIntention> getIntentions() {
+        public List<TxIntent> getIntentions() {
             return intentions;
         }
 
-        public void setIntentions(List<TxIntention> intentions) {
+        public void setIntentions(List<TxIntent> intentions) {
             this.intentions = intentions;
         }
 
-        public List<TxValidatorIntention> getValidators() {
+        public List<TxValidatorIntent> getValidators() {
             return validators;
         }
 
-        public void setValidators(List<TxValidatorIntention> validators) {
+        public void setValidators(List<TxValidatorIntent> validators) {
             this.validators = validators;
         }
     }

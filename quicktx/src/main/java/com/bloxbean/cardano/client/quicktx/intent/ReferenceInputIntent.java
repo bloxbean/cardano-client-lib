@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.quicktx.intent;
 
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
-import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -23,7 +22,7 @@ import java.util.List;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ReferenceInputIntention implements TxInputIntention {
+public class ReferenceInputIntent implements TxInputIntent {
 
     @JsonProperty("refs")
     @Builder.Default
@@ -48,7 +47,7 @@ public class ReferenceInputIntention implements TxInputIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         // No string fields to resolve
         return this;
     }
@@ -80,21 +79,21 @@ public class ReferenceInputIntention implements TxInputIntention {
     }
 
     // Helper to add a ref
-    public ReferenceInputIntention addRef(String txHash, int outputIndex) {
+    public ReferenceInputIntent addRef(String txHash, int outputIndex) {
         if (refs == null) refs = new ArrayList<>();
         refs.add(new UtxoRef(txHash, outputIndex));
         return this;
     }
 
     // Factory helpers
-    public static ReferenceInputIntention of(String txHash, int outputIndex) {
-        return ReferenceInputIntention.builder()
+    public static ReferenceInputIntent of(String txHash, int outputIndex) {
+        return ReferenceInputIntent.builder()
                 .refs(new ArrayList<>(List.of(new UtxoRef(txHash, outputIndex))))
                 .build();
     }
 
-    public static ReferenceInputIntention of(List<UtxoRef> refs) {
-        return ReferenceInputIntention.builder().refs(new ArrayList<>(refs)).build();
+    public static ReferenceInputIntent of(List<UtxoRef> refs) {
+        return ReferenceInputIntent.builder().refs(new ArrayList<>(refs)).build();
     }
 }
 

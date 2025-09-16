@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
-import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -29,7 +28,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PoolRegistrationIntention implements TxIntention {
+public class PoolRegistrationIntent implements TxIntent {
 
     /**
      * Pool registration certificate (runtime object).
@@ -61,13 +60,13 @@ public class PoolRegistrationIntention implements TxIntention {
 
     @Override
     public void validate() {
-        TxIntention.super.validate();
+        TxIntent.super.validate();
         if (poolRegistration == null && poolRegistrationData == null) {
             throw new IllegalStateException("Pool registration certificate is required");
         }
     }
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         // No string fields to resolve (poolRegistrationData needs custom serialization logic)
         return this;
     }
@@ -77,8 +76,8 @@ public class PoolRegistrationIntention implements TxIntention {
     /**
      * Create a pool registration intention.
      */
-    public static PoolRegistrationIntention register(PoolRegistration poolRegistration) {
-        return PoolRegistrationIntention.builder()
+    public static PoolRegistrationIntent register(PoolRegistration poolRegistration) {
+        return PoolRegistrationIntent.builder()
             .poolRegistration(poolRegistration)
             .isUpdate(false)
             .build();
@@ -87,8 +86,8 @@ public class PoolRegistrationIntention implements TxIntention {
     /**
      * Create a pool update intention.
      */
-    public static PoolRegistrationIntention update(PoolRegistration poolRegistration) {
-        return PoolRegistrationIntention.builder()
+    public static PoolRegistrationIntent update(PoolRegistration poolRegistration) {
+        return PoolRegistrationIntent.builder()
             .poolRegistration(poolRegistration)
             .isUpdate(true)
             .build();
@@ -109,7 +108,7 @@ public class PoolRegistrationIntention implements TxIntention {
             }
 
             // Use the deposit helper to create the output builder
-            return DepositHelper.createDepositOutputBuilder(from, 
+            return DepositHelper.createDepositOutputBuilder(from,
                 DepositHelper.DepositType.POOL_REGISTRATION);
         }
         // For updates, no outputs needed

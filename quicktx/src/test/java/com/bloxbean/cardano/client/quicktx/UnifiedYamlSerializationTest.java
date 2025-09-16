@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.api.model.Amount;
-import com.bloxbean.cardano.client.quicktx.intent.PaymentIntention;
+import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TransactionCollectionDocument;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
@@ -86,9 +86,9 @@ class UnifiedYamlSerializationTest {
         assertThat(restored.getSender()).isEqualTo("addr1_treasury_test");
         assertThat(restored.getPublicChangeAddress()).isEqualTo("addr1_change_test");
         assertThat(restored.getIntentions()).hasSize(1);
-        assertThat(restored.getIntentions().get(0)).isInstanceOf(PaymentIntention.class);
+        assertThat(restored.getIntentions().get(0)).isInstanceOf(PaymentIntent.class);
 
-        PaymentIntention payment = (PaymentIntention) restored.getIntentions().get(0);
+        PaymentIntent payment = (PaymentIntent) restored.getIntentions().get(0);
         assertThat(payment.getAddress()).isEqualTo("addr1_alice_test");
         assertThat(payment.getAmounts()).hasSize(1);
         assertThat(payment.getAmounts().get(0).getQuantity()).isEqualTo(BigInteger.valueOf(10000000L));
@@ -192,7 +192,7 @@ class UnifiedYamlSerializationTest {
         assertThat(tx.getPublicChangeAddress()).isEqualTo("addr1_treasury_resolved");
         assertThat(tx.getIntentions()).hasSize(1);
 
-        PaymentIntention payment = (PaymentIntention) tx.getIntentions().get(0);
+        PaymentIntent payment = (PaymentIntent) tx.getIntentions().get(0);
         assertThat(payment.getAddress()).isEqualTo("addr1_alice_resolved");
     }
 

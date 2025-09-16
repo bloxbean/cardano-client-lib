@@ -44,7 +44,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class MintingIntention implements TxIntention {
+public class MintingIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
 
@@ -118,8 +118,8 @@ public class MintingIntention implements TxIntention {
     /**
      * Factory method to create MintingIntention from Script object.
      */
-    public static MintingIntention from(Script script, List<Asset> assets, String receiver) {
-        return MintingIntention.builder()
+    public static MintingIntent from(Script script, List<Asset> assets, String receiver) {
+        return MintingIntent.builder()
             .script(script)
             .assets(assets)
             .receiver(receiver)
@@ -130,8 +130,8 @@ public class MintingIntention implements TxIntention {
      * Factory method to create MintingIntention from script hex and type.
      * This is used during deserialization from YAML/JSON.
      */
-    public static MintingIntention fromHex(String scriptHex, Integer scriptType, List<Asset> assets, String receiver) {
-        return MintingIntention.builder()
+    public static MintingIntent fromHex(String scriptHex, Integer scriptType, List<Asset> assets, String receiver) {
+        return MintingIntent.builder()
             .scriptHex(scriptHex)
             .scriptType(scriptType)
             .assets(assets)
@@ -162,14 +162,14 @@ public class MintingIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
 
         String resolvedReceiver = VariableResolver.resolve(receiver, variables);
         String resolvedScriptHex = VariableResolver.resolve(scriptHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedReceiver, receiver) || !java.util.Objects.equals(resolvedScriptHex, scriptHex)) {
             return this.toBuilder()
@@ -177,7 +177,7 @@ public class MintingIntention implements TxIntention {
                 .scriptHex(resolvedScriptHex)
                 .build();
         }
-        
+
         return this;
     }
 

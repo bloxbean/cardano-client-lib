@@ -30,7 +30,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class StakeRegistrationIntention implements TxIntention {
+public class StakeRegistrationIntent implements TxIntent {
 
     /**
      * Stake address to register.
@@ -47,26 +47,26 @@ public class StakeRegistrationIntention implements TxIntention {
 
     @Override
     public void validate() {
-        TxIntention.super.validate();
+        TxIntent.super.validate();
         if (stakeAddress == null || stakeAddress.isEmpty()) {
             throw new IllegalStateException("Stake address is required for stake registration");
         }
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
 
         String resolvedStakeAddress = VariableResolver.resolve(stakeAddress, variables);
-        
+
         if (!resolvedStakeAddress.equals(stakeAddress)) {
             return this.toBuilder()
                 .stakeAddress(resolvedStakeAddress)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -75,8 +75,8 @@ public class StakeRegistrationIntention implements TxIntention {
     /**
      * Create a stake registration intention.
      */
-    public static StakeRegistrationIntention register(String stakeAddress) {
-        return StakeRegistrationIntention.builder()
+    public static StakeRegistrationIntent register(String stakeAddress) {
+        return StakeRegistrationIntent.builder()
             .stakeAddress(stakeAddress)
             .build();
     }
@@ -92,7 +92,7 @@ public class StakeRegistrationIntention implements TxIntention {
         }
 
         // Use the deposit helper to create the output builder
-        return DepositHelper.createDepositOutputBuilder(from, 
+        return DepositHelper.createDepositOutputBuilder(from,
             DepositHelper.DepositType.STAKE_KEY_REGISTRATION);
     }
 

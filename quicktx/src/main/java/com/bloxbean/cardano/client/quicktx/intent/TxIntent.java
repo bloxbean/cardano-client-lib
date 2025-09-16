@@ -26,43 +26,43 @@ import java.util.Map;
 )
 @JsonSubTypes({
     // Core payment intentions - simplified approach
-    @JsonSubTypes.Type(value = PaymentIntention.class, name = "payment"),
-    @JsonSubTypes.Type(value = DonationIntention.class, name = "donation"),
-    @JsonSubTypes.Type(value = MintingIntention.class, name = "minting"),
-    @JsonSubTypes.Type(value = MetadataIntention.class, name = "metadata"),
+    @JsonSubTypes.Type(value = PaymentIntent.class, name = "payment"),
+    @JsonSubTypes.Type(value = DonationIntent.class, name = "donation"),
+    @JsonSubTypes.Type(value = MintingIntent.class, name = "minting"),
+    @JsonSubTypes.Type(value = MetadataIntent.class, name = "metadata"),
 
     // Stake intentions
-    @JsonSubTypes.Type(value = StakeRegistrationIntention.class, name = "stake_registration"),
-    @JsonSubTypes.Type(value = StakeDeregistrationIntention.class, name = "stake_deregistration"),
-    @JsonSubTypes.Type(value = StakeDelegationIntention.class, name = "stake_delegation"),
-    @JsonSubTypes.Type(value = StakeWithdrawalIntention.class, name = "stake_withdrawal"),
-    @JsonSubTypes.Type(value = PoolRegistrationIntention.class, name = "pool_registration"),
-    @JsonSubTypes.Type(value = PoolRegistrationIntention.class, name = "pool_update"),
-    @JsonSubTypes.Type(value = PoolRetirementIntention.class, name = "pool_retirement"),
+    @JsonSubTypes.Type(value = StakeRegistrationIntent.class, name = "stake_registration"),
+    @JsonSubTypes.Type(value = StakeDeregistrationIntent.class, name = "stake_deregistration"),
+    @JsonSubTypes.Type(value = StakeDelegationIntent.class, name = "stake_delegation"),
+    @JsonSubTypes.Type(value = StakeWithdrawalIntent.class, name = "stake_withdrawal"),
+    @JsonSubTypes.Type(value = PoolRegistrationIntent.class, name = "pool_registration"),
+    @JsonSubTypes.Type(value = PoolRegistrationIntent.class, name = "pool_update"),
+    @JsonSubTypes.Type(value = PoolRetirementIntent.class, name = "pool_retirement"),
 
     // Governance intentions
-    @JsonSubTypes.Type(value = DRepRegistrationIntention.class, name = "drep_registration"),
-    @JsonSubTypes.Type(value = DRepDeregistrationIntention.class, name = "drep_deregistration"),
-    @JsonSubTypes.Type(value = DRepUpdateIntention.class, name = "drep_update"),
-    @JsonSubTypes.Type(value = GovernanceProposalIntention.class, name = "governance_proposal"),
-    @JsonSubTypes.Type(value = VotingIntention.class, name = "voting"),
-    @JsonSubTypes.Type(value = VotingDelegationIntention.class, name = "voting_delegation"),
+    @JsonSubTypes.Type(value = DRepRegistrationIntent.class, name = "drep_registration"),
+    @JsonSubTypes.Type(value = DRepDeregistrationIntent.class, name = "drep_deregistration"),
+    @JsonSubTypes.Type(value = DRepUpdateIntent.class, name = "drep_update"),
+    @JsonSubTypes.Type(value = GovernanceProposalIntent.class, name = "governance_proposal"),
+    @JsonSubTypes.Type(value = VotingIntent.class, name = "voting"),
+    @JsonSubTypes.Type(value = VotingDelegationIntent.class, name = "voting_delegation"),
 
     // ScriptTx-specific intentions
-    @JsonSubTypes.Type(value = ScriptCollectFromIntention.class, name = "script_collect_from")
+    @JsonSubTypes.Type(value = ScriptCollectFromIntent.class, name = "script_collect_from")
     ,
-    @JsonSubTypes.Type(value = ScriptMintingIntention.class, name = "script_minting")
+    @JsonSubTypes.Type(value = ScriptMintingIntent.class, name = "script_minting")
     ,
-    @JsonSubTypes.Type(value = ScriptValidatorAttachmentIntention.class, name = "validator")
+    @JsonSubTypes.Type(value = ScriptValidatorAttachmentIntent.class, name = "validator")
     ,
-    @JsonSubTypes.Type(value = ReferenceInputIntention.class, name = "reference_input")
+    @JsonSubTypes.Type(value = ReferenceInputIntent.class, name = "reference_input")
     ,
     // Base Tx input collection intentions
-    @JsonSubTypes.Type(value = CollectFromIntention.class, name = "collect_from")
+    @JsonSubTypes.Type(value = CollectFromIntent.class, name = "collect_from")
 
     // Additional intentions will be added as needed for the simplified approach
 })
-public interface TxIntention {
+public interface TxIntent {
 
     /**
      * Get the type of this intention for serialization.
@@ -152,7 +152,7 @@ public interface TxIntention {
      * @param variables the variables map for resolution
      * @return a new intention instance with variables resolved
      */
-    default TxIntention resolveVariables(Map<String, Object> variables) {
+    default TxIntent resolveVariables(Map<String, Object> variables) {
         // Default: no variable resolution needed
         return this;
     }

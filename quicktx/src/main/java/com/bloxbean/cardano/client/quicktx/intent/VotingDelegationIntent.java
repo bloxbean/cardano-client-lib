@@ -7,8 +7,6 @@ import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.VoteDelegCert;
@@ -41,7 +39,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class VotingDelegationIntention implements TxIntention {
+public class VotingDelegationIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
 
@@ -211,7 +209,7 @@ public class VotingDelegationIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -221,7 +219,7 @@ public class VotingDelegationIntention implements TxIntention {
         String resolvedDrepType = VariableResolver.resolve(drepType, variables);
         String resolvedDrepHash = VariableResolver.resolve(drepHash, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedAddressStr, addressStr) || !java.util.Objects.equals(resolvedDrepHex, drepHex) || !java.util.Objects.equals(resolvedDrepType, drepType) || !java.util.Objects.equals(resolvedDrepHash, drepHash) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
             return this.toBuilder()
@@ -232,7 +230,7 @@ public class VotingDelegationIntention implements TxIntention {
                 .redeemerHex(resolvedRedeemerHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -241,8 +239,8 @@ public class VotingDelegationIntention implements TxIntention {
     /**
      * Create VotingDelegationIntention from runtime objects.
      */
-    public static VotingDelegationIntention delegate(Address address, DRep drep) {
-        return VotingDelegationIntention.builder()
+    public static VotingDelegationIntent delegate(Address address, DRep drep) {
+        return VotingDelegationIntent.builder()
             .address(address)
             .drep(drep)
             .build();
@@ -251,8 +249,8 @@ public class VotingDelegationIntention implements TxIntention {
     /**
      * Create VotingDelegationIntention from address string and DRep.
      */
-    public static VotingDelegationIntention delegate(String addressStr, DRep drep) {
-        return VotingDelegationIntention.builder()
+    public static VotingDelegationIntent delegate(String addressStr, DRep drep) {
+        return VotingDelegationIntent.builder()
             .addressStr(addressStr)
             .drep(drep)
             .build();
@@ -261,8 +259,8 @@ public class VotingDelegationIntention implements TxIntention {
     /**
      * Create VotingDelegationIntention from serializable values.
      */
-    public static VotingDelegationIntention delegate(String addressStr, String drepType, String drepHash) {
-        return VotingDelegationIntention.builder()
+    public static VotingDelegationIntent delegate(String addressStr, String drepType, String drepHash) {
+        return VotingDelegationIntent.builder()
             .addressStr(addressStr)
             .drepType(drepType)
             .drepHash(drepHash)
@@ -272,8 +270,8 @@ public class VotingDelegationIntention implements TxIntention {
     /**
      * Create VotingDelegationIntention for abstain delegation.
      */
-    public static VotingDelegationIntention delegateToAbstain(String addressStr) {
-        return VotingDelegationIntention.builder()
+    public static VotingDelegationIntent delegateToAbstain(String addressStr) {
+        return VotingDelegationIntent.builder()
             .addressStr(addressStr)
             .drepType("abstain")
             .build();
@@ -282,8 +280,8 @@ public class VotingDelegationIntention implements TxIntention {
     /**
      * Create VotingDelegationIntention for no confidence delegation.
      */
-    public static VotingDelegationIntention delegateToNoConfidence(String addressStr) {
-        return VotingDelegationIntention.builder()
+    public static VotingDelegationIntent delegateToNoConfidence(String addressStr) {
+        return VotingDelegationIntent.builder()
             .addressStr(addressStr)
             .drepType("no_confidence")
             .build();
@@ -334,7 +332,7 @@ public class VotingDelegationIntention implements TxIntention {
         final String from = ic.getFromAddress();
         if (from == null || from.isBlank())
             throw new TxBuildException("From address is required for voting delegation");
-        
+
         // Use helper to create smart dummy output that merges with existing outputs
         return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
     }

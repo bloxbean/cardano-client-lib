@@ -3,9 +3,9 @@ package com.bloxbean.cardano.client.quicktx.serialization;
 import com.bloxbean.cardano.client.quicktx.AbstractTx;
 import com.bloxbean.cardano.client.quicktx.ScriptTx;
 import com.bloxbean.cardano.client.quicktx.Tx;
-import com.bloxbean.cardano.client.quicktx.intent.TxInputIntention;
-import com.bloxbean.cardano.client.quicktx.intent.TxIntention;
-import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntention;
+import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
+import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
+import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,13 +88,13 @@ public class TransactionCollectionDocument {
                 TransactionDocument.TxContent content = new TransactionDocument.TxContent();
 
                 // Separate input intentions from regular intentions
-                List<TxInputIntention> inputIntentions = new ArrayList<>();
-                List<TxIntention> regularIntentions = new ArrayList<>();
+                List<TxInputIntent> inputIntentions = new ArrayList<>();
+                List<TxIntent> regularIntentions = new ArrayList<>();
 
                 if (regularTx.getIntentions() != null) {
-                    for (TxIntention intention : regularTx.getIntentions()) {
-                        if (intention instanceof TxInputIntention) {
-                            inputIntentions.add((TxInputIntention) intention);
+                    for (TxIntent intention : regularTx.getIntentions()) {
+                        if (intention instanceof TxInputIntent) {
+                            inputIntentions.add((TxInputIntent) intention);
                         } else {
                             regularIntentions.add(intention);
                         }
@@ -122,16 +122,16 @@ public class TransactionCollectionDocument {
                 TransactionDocument.ScriptTxContent content = new TransactionDocument.ScriptTxContent();
 
                 // Separate input intentions from regular intentions
-                List<TxInputIntention> inputIntentions = new ArrayList<>();
-                List<TxValidatorIntention> validatorIntentions = new ArrayList<>();
-                List<TxIntention> regularIntentions = new ArrayList<>();
+                List<TxInputIntent> inputIntentions = new ArrayList<>();
+                List<TxValidatorIntent> validatorIntentions = new ArrayList<>();
+                List<TxIntent> regularIntentions = new ArrayList<>();
 
                 if (scriptTx.getIntentions() != null) {
-                    for (TxIntention intention : scriptTx.getIntentions()) {
-                        if (intention instanceof TxInputIntention) {
-                            inputIntentions.add((TxInputIntention) intention);
-                        } else if (intention instanceof TxValidatorIntention) {
-                            validatorIntentions.add((TxValidatorIntention) intention);
+                    for (TxIntent intention : scriptTx.getIntentions()) {
+                        if (intention instanceof TxInputIntent) {
+                            inputIntentions.add((TxInputIntent) intention);
+                        } else if (intention instanceof TxValidatorIntent) {
+                            validatorIntentions.add((TxValidatorIntent) intention);
                         } else {
                             regularIntentions.add(intention);
                         }

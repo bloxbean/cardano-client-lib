@@ -7,8 +7,6 @@ import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.UnregDRepCert;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
@@ -38,7 +36,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class DRepDeregistrationIntention implements TxIntention {
+public class DRepDeregistrationIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
 
@@ -146,10 +144,10 @@ public class DRepDeregistrationIntention implements TxIntention {
         if (refundAmount != null && refundAmount.compareTo(BigInteger.ZERO) < 0) {
             throw new IllegalStateException("Refund amount cannot be negative");
         }
-        
+
         if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
-            try { 
-                HexUtil.decodeHexString(redeemerHex); 
+            try {
+                HexUtil.decodeHexString(redeemerHex);
             } catch (Exception e) {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
@@ -157,7 +155,7 @@ public class DRepDeregistrationIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -166,7 +164,7 @@ public class DRepDeregistrationIntention implements TxIntention {
         String resolvedDrepCredentialType = VariableResolver.resolve(drepCredentialType, variables);
         String resolvedRefundAddress = VariableResolver.resolve(refundAddress, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedDrepCredentialHex, drepCredentialHex) || !java.util.Objects.equals(resolvedDrepCredentialType, drepCredentialType) || !java.util.Objects.equals(resolvedRefundAddress, refundAddress) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
             return this.toBuilder()
@@ -176,7 +174,7 @@ public class DRepDeregistrationIntention implements TxIntention {
                 .redeemerHex(resolvedRedeemerHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -186,8 +184,8 @@ public class DRepDeregistrationIntention implements TxIntention {
     /**
      * Create DRepDeregistrationIntention from runtime Credential.
      */
-    public static DRepDeregistrationIntention deregister(Credential drepCredential) {
-        return DRepDeregistrationIntention.builder()
+    public static DRepDeregistrationIntent deregister(Credential drepCredential) {
+        return DRepDeregistrationIntent.builder()
             .drepCredential(drepCredential)
             .build();
     }
@@ -195,8 +193,8 @@ public class DRepDeregistrationIntention implements TxIntention {
     /**
      * Create DRepDeregistrationIntention with refund address.
      */
-    public static DRepDeregistrationIntention deregister(Credential drepCredential, String refundAddress) {
-        return DRepDeregistrationIntention.builder()
+    public static DRepDeregistrationIntent deregister(Credential drepCredential, String refundAddress) {
+        return DRepDeregistrationIntent.builder()
             .drepCredential(drepCredential)
             .refundAddress(refundAddress)
             .build();
@@ -205,8 +203,8 @@ public class DRepDeregistrationIntention implements TxIntention {
     /**
      * Create DRepDeregistrationIntention with refund address and amount.
      */
-    public static DRepDeregistrationIntention deregister(Credential drepCredential, String refundAddress, BigInteger refundAmount) {
-        return DRepDeregistrationIntention.builder()
+    public static DRepDeregistrationIntent deregister(Credential drepCredential, String refundAddress, BigInteger refundAmount) {
+        return DRepDeregistrationIntent.builder()
             .drepCredential(drepCredential)
             .refundAddress(refundAddress)
             .refundAmount(refundAmount)
@@ -216,8 +214,8 @@ public class DRepDeregistrationIntention implements TxIntention {
     /**
      * Create DRepDeregistrationIntention from hex strings.
      */
-    public static DRepDeregistrationIntention fromHex(String drepCredentialHex, String refundAddress) {
-        return DRepDeregistrationIntention.builder()
+    public static DRepDeregistrationIntent fromHex(String drepCredentialHex, String refundAddress) {
+        return DRepDeregistrationIntent.builder()
             .drepCredentialHex(drepCredentialHex)
             .refundAddress(refundAddress)
             .build();
@@ -288,7 +286,7 @@ public class DRepDeregistrationIntention implements TxIntention {
                     throw new TxBuildException("DRep credential resolution failed");
 
                 // Get refund amount (same as original deposit amount)
-                BigInteger refund = (refundAmount != null) ? refundAmount : 
+                BigInteger refund = (refundAmount != null) ? refundAmount :
                     DepositHelper.getDepositAmount(ctx.getProtocolParams(), DepositHelper.DepositType.DREP_REGISTRATION);
                 String refundAddr = (refundAddress != null && !refundAddress.isBlank()) ? refundAddress : ic.getFromAddress();
 

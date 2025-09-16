@@ -39,7 +39,7 @@ class StakeTx {
     protected List<PoolRetirement> poolRetirements;
 
     // Intention recording support
-    protected List<TxIntention> intentions;
+    protected List<TxIntent> intentions;
     protected boolean intentionRecordingEnabled = false;
 
     public StakeTx() {
@@ -58,7 +58,7 @@ class StakeTx {
     /**
      * Get recorded intentions for YAML serialization.
      */
-    public List<TxIntention> getIntentions() {
+    public List<TxIntent> getIntentions() {
         return intentions;
     }
 
@@ -88,7 +88,7 @@ class StakeTx {
         // Record intention for YAML serialization if enabled
 
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeRegistrationIntention.register(address.toBech32()));
+        intentions.add(StakeRegistrationIntent.register(address.toBech32()));
 
 
         return this;
@@ -137,9 +137,9 @@ class StakeTx {
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
             if (refundAddr != null) {
-                intentions.add(StakeDeregistrationIntention.deregister(address.toBech32(), refundAddr));
+                intentions.add(StakeDeregistrationIntent.deregister(address.toBech32(), refundAddr));
             } else {
-                intentions.add(StakeDeregistrationIntention.deregister(address.toBech32()));
+                intentions.add(StakeDeregistrationIntent.deregister(address.toBech32()));
             }
         }
 
@@ -195,7 +195,7 @@ class StakeTx {
         // Record intention for YAML serialization if enabled
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(StakeDelegationIntention.delegateTo(address.toBech32(), poolId));
+            intentions.add(StakeDelegationIntent.delegateTo(address.toBech32(), poolId));
         }
 
         return this;
@@ -236,9 +236,9 @@ class StakeTx {
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
             if (receiver != null) {
-                intentions.add(StakeWithdrawalIntention.withdraw(address.toBech32(), amount, receiver));
+                intentions.add(StakeWithdrawalIntent.withdraw(address.toBech32(), amount, receiver));
             } else {
-                intentions.add(StakeWithdrawalIntention.withdraw(address.toBech32(), amount));
+                intentions.add(StakeWithdrawalIntent.withdraw(address.toBech32(), amount));
             }
         }
 
@@ -260,7 +260,7 @@ class StakeTx {
         // Record intention for YAML serialization if enabled
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(PoolRegistrationIntention.register(poolRegistration));
+            intentions.add(PoolRegistrationIntent.register(poolRegistration));
         }
 
         return this;
@@ -281,7 +281,7 @@ class StakeTx {
         // Record intention for YAML serialization if enabled
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(PoolRegistrationIntention.update(poolRegistration));
+            intentions.add(PoolRegistrationIntent.update(poolRegistration));
         }
 
         return this;
@@ -312,7 +312,7 @@ class StakeTx {
         // Record intention for YAML serialization if enabled
         if (intentionRecordingEnabled) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(PoolRetirementIntention.retire(poolId, epoch));
+            intentions.add(PoolRetirementIntent.retire(poolId, epoch));
         }
 
         return this;

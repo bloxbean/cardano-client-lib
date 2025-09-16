@@ -4,7 +4,7 @@ import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntention;
+import com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
@@ -112,9 +112,9 @@ class ScriptTxYamlRoundTripTest {
         // Then
         assertThat(restored).isNotNull();
         assertThat(restored.getIntentions()).isNotEmpty();
-        assertThat(restored.getIntentions().get(0)).isInstanceOf(ScriptCollectFromIntention.class);
+        assertThat(restored.getIntentions().get(0)).isInstanceOf(ScriptCollectFromIntent.class);
 
-        ScriptCollectFromIntention intent = (ScriptCollectFromIntention) restored.getIntentions().get(0);
+        ScriptCollectFromIntent intent = (ScriptCollectFromIntent) restored.getIntentions().get(0);
         // From YAML path, utxoRefs/redeemerHex/datumHex should be present
         assertThat(intent.getUtxoRefs()).isNotNull();
         assertThat(intent.getUtxoRefs()).hasSize(1);

@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CollectFromIntention implements TxInputIntention {
+public class CollectFromIntent implements TxInputIntent {
 
     /**
      * Original UTXOs for runtime use (preserves all UTXO data).
@@ -56,7 +56,7 @@ public class CollectFromIntention implements TxInputIntention {
 
     @Override
     public void validate() {
-        TxInputIntention.super.validate();
+        TxInputIntent.super.validate();
         if ((utxos == null || utxos.isEmpty()) && (utxoRefs == null || utxoRefs.isEmpty())) {
             throw new IllegalStateException("UTXOs are required for input collection");
         }
@@ -73,7 +73,7 @@ public class CollectFromIntention implements TxInputIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         // No string fields to resolve
         return this;
     }

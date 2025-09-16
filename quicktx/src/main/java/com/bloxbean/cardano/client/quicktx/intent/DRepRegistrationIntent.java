@@ -36,7 +36,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class DRepRegistrationIntention implements TxIntention {
+public class DRepRegistrationIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
 
@@ -192,7 +192,7 @@ public class DRepRegistrationIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -202,7 +202,7 @@ public class DRepRegistrationIntention implements TxIntention {
         String resolvedAnchorUrl = VariableResolver.resolve(anchorUrl, variables);
         String resolvedAnchorHash = VariableResolver.resolve(anchorHash, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedDrepCredentialHex, drepCredentialHex) || !java.util.Objects.equals(resolvedDrepCredentialType, drepCredentialType) || !java.util.Objects.equals(resolvedAnchorUrl, anchorUrl) || !java.util.Objects.equals(resolvedAnchorHash, anchorHash) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
             return this.toBuilder()
@@ -213,7 +213,7 @@ public class DRepRegistrationIntention implements TxIntention {
                 .redeemerHex(resolvedRedeemerHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -222,8 +222,8 @@ public class DRepRegistrationIntention implements TxIntention {
     /**
      * Create DRepRegistrationIntention from runtime Credential.
      */
-    public static DRepRegistrationIntention register(Credential drepCredential) {
-        return DRepRegistrationIntention.builder()
+    public static DRepRegistrationIntent register(Credential drepCredential) {
+        return DRepRegistrationIntent.builder()
             .drepCredential(drepCredential)
             .build();
     }
@@ -231,8 +231,8 @@ public class DRepRegistrationIntention implements TxIntention {
     /**
      * Create DRepRegistrationIntention from runtime Credential and Anchor.
      */
-    public static DRepRegistrationIntention register(Credential drepCredential, Anchor anchor) {
-        return DRepRegistrationIntention.builder()
+    public static DRepRegistrationIntent register(Credential drepCredential, Anchor anchor) {
+        return DRepRegistrationIntent.builder()
             .drepCredential(drepCredential)
             .anchor(anchor)
             .build();
@@ -241,8 +241,8 @@ public class DRepRegistrationIntention implements TxIntention {
     /**
      * Create DRepRegistrationIntention from hex strings.
      */
-    public static DRepRegistrationIntention fromHex(String drepCredentialHex, String anchorUrl, String anchorHash) {
-        return DRepRegistrationIntention.builder()
+    public static DRepRegistrationIntent fromHex(String drepCredentialHex, String anchorUrl, String anchorHash) {
+        return DRepRegistrationIntent.builder()
             .drepCredentialHex(drepCredentialHex)
             .anchorUrl(anchorUrl)
             .anchorHash(anchorHash)
@@ -264,7 +264,7 @@ public class DRepRegistrationIntention implements TxIntention {
         // Use the deposit helper to create the output builder
         //deposit here is a custom deposit amount if provided, otherwise,
         //it will be fetched from protocol param in Deposit helper.
-        return DepositHelper.createDepositOutputBuilder(from, 
+        return DepositHelper.createDepositOutputBuilder(from,
             DepositHelper.DepositType.DREP_REGISTRATION, deposit);
     }
 

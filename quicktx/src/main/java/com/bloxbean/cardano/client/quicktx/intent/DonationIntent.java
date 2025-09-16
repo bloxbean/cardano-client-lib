@@ -31,7 +31,7 @@ import java.math.BigInteger;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class DonationIntention implements TxIntention {
+public class DonationIntent implements TxIntent {
 
     /**
      * Dummy address used for treasury donation output during input selection phase.
@@ -86,23 +86,23 @@ public class DonationIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
 
         String resolvedCurrentTreasuryValue = VariableResolver.resolve(currentTreasuryValue, variables);
         String resolvedDonationAmount = VariableResolver.resolve(donationAmount, variables);
-        
+
         // Check if any variables were resolved
-        if (!java.util.Objects.equals(resolvedCurrentTreasuryValue, currentTreasuryValue) || 
+        if (!java.util.Objects.equals(resolvedCurrentTreasuryValue, currentTreasuryValue) ||
             !java.util.Objects.equals(resolvedDonationAmount, donationAmount)) {
             return this.toBuilder()
                 .currentTreasuryValue(resolvedCurrentTreasuryValue)
                 .donationAmount(resolvedDonationAmount)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -111,8 +111,8 @@ public class DonationIntention implements TxIntention {
     /**
      * Create a donation intention with BigInteger values.
      */
-    public static DonationIntention of(BigInteger currentTreasuryValue, BigInteger donationAmount) {
-        return DonationIntention.builder()
+    public static DonationIntent of(BigInteger currentTreasuryValue, BigInteger donationAmount) {
+        return DonationIntent.builder()
             .currentTreasuryValue(currentTreasuryValue.toString())
             .donationAmount(donationAmount.toString())
             .build();
@@ -125,7 +125,7 @@ public class DonationIntention implements TxIntention {
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext context) {
-        // Phase 1: Create dummy output with donation amount to trigger input selection  
+        // Phase 1: Create dummy output with donation amount to trigger input selection
         return (ctx, outputs) -> {
             // Donation amount already resolved during YAML parsing
             if (donationAmount == null || donationAmount.trim().isEmpty()) {
@@ -134,7 +134,7 @@ public class DonationIntention implements TxIntention {
 
             BigInteger donationValue = new BigInteger(donationAmount);
             TransactionOutput dummyOutput = new TransactionOutput(
-                DUMMY_TREASURY_ADDRESS, 
+                DUMMY_TREASURY_ADDRESS,
                 Value.builder().coin(donationValue).build()
             );
             outputs.add(dummyOutput);
@@ -145,7 +145,7 @@ public class DonationIntention implements TxIntention {
     public TxBuilder preApply(IntentContext context) {
         return (ctx, txn) -> {
             // Pre-processing: validate (values already resolved during YAML parsing)
-            
+
             // Validate values
             if (currentTreasuryValue == null || currentTreasuryValue.trim().isEmpty()) {
                 throw new TxBuildException("Current treasury value is required");
@@ -188,12 +188,12 @@ public class DonationIntention implements TxIntention {
                 // Convert to BigInteger and set both values in transaction body (values already resolved during YAML parsing)
                 BigInteger currentTreasuryValueBigInt = new BigInteger(currentTreasuryValue);
                 BigInteger donationValue = new BigInteger(donationAmount);
-                
+
                 txn.getBody().setCurrentTreasuryValue(currentTreasuryValueBigInt);
                 txn.getBody().setDonation(donationValue);
 
                 // Remove the dummy treasury output that was created during input selection
-                txn.getBody().getOutputs().removeIf(output -> 
+                txn.getBody().getOutputs().removeIf(output ->
                     DUMMY_TREASURY_ADDRESS.equals(output.getAddress()));
 
             } catch (Exception e) {

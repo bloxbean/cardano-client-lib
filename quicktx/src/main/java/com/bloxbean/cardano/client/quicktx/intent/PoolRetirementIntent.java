@@ -6,8 +6,6 @@ import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRetirement;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakePoolId;
@@ -31,7 +29,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class PoolRetirementIntention implements TxIntention {
+public class PoolRetirementIntent implements TxIntent {
 
     /**
      * Pool ID to retire.
@@ -55,7 +53,7 @@ public class PoolRetirementIntention implements TxIntention {
 
     @Override
     public void validate() {
-        TxIntention.super.validate();
+        TxIntent.super.validate();
         if (poolId == null || poolId.isEmpty()) {
             throw new IllegalStateException("Pool ID is required for pool retirement");
         }
@@ -65,20 +63,20 @@ public class PoolRetirementIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
 
         String resolvedPoolId = VariableResolver.resolve(poolId, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedPoolId, poolId)) {
             return this.toBuilder()
                 .poolId(resolvedPoolId)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -87,8 +85,8 @@ public class PoolRetirementIntention implements TxIntention {
     /**
      * Create a pool retirement intention.
      */
-    public static PoolRetirementIntention retire(String poolId, int retirementEpoch) {
-        return PoolRetirementIntention.builder()
+    public static PoolRetirementIntent retire(String poolId, int retirementEpoch) {
+        return PoolRetirementIntent.builder()
             .poolId(poolId)
             .retirementEpoch(retirementEpoch)
             .build();

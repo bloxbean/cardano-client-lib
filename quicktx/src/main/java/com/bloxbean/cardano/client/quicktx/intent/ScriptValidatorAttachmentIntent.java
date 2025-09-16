@@ -22,7 +22,7 @@ import lombok.*;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ScriptValidatorAttachmentIntention implements TxValidatorIntention {
+public class ScriptValidatorAttachmentIntent implements TxValidatorIntent {
 
     // Runtime field
     @JsonIgnore
@@ -70,7 +70,7 @@ public class ScriptValidatorAttachmentIntention implements TxValidatorIntention 
         }
     }
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -133,8 +133,8 @@ public class ScriptValidatorAttachmentIntention implements TxValidatorIntention 
     }
 
     // Factory helper
-    public static ScriptValidatorAttachmentIntention of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag role, PlutusScript script) {
-        return ScriptValidatorAttachmentIntention.builder()
+    public static ScriptValidatorAttachmentIntent of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag role, PlutusScript script) {
+        return ScriptValidatorAttachmentIntent.builder()
                 .role(role)
                 .script(script)
                 .build();

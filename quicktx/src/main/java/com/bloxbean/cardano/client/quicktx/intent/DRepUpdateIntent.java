@@ -35,7 +35,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class DRepUpdateIntention implements TxIntention {
+public class DRepUpdateIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
 
@@ -181,7 +181,7 @@ public class DRepUpdateIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -191,7 +191,7 @@ public class DRepUpdateIntention implements TxIntention {
         String resolvedAnchorUrl = VariableResolver.resolve(anchorUrl, variables);
         String resolvedAnchorHash = VariableResolver.resolve(anchorHash, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
-        
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedDrepCredentialHex, drepCredentialHex) || !java.util.Objects.equals(resolvedDrepCredentialType, drepCredentialType) || !java.util.Objects.equals(resolvedAnchorUrl, anchorUrl) || !java.util.Objects.equals(resolvedAnchorHash, anchorHash) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
             return this.toBuilder()
@@ -202,7 +202,7 @@ public class DRepUpdateIntention implements TxIntention {
                 .redeemerHex(resolvedRedeemerHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -211,8 +211,8 @@ public class DRepUpdateIntention implements TxIntention {
     /**
      * Create DRepUpdateIntention from runtime Credential.
      */
-    public static DRepUpdateIntention update(Credential drepCredential) {
-        return DRepUpdateIntention.builder()
+    public static DRepUpdateIntent update(Credential drepCredential) {
+        return DRepUpdateIntent.builder()
             .drepCredential(drepCredential)
             .build();
     }
@@ -220,8 +220,8 @@ public class DRepUpdateIntention implements TxIntention {
     /**
      * Create DRepUpdateIntention from runtime Credential and Anchor.
      */
-    public static DRepUpdateIntention update(Credential drepCredential, Anchor anchor) {
-        return DRepUpdateIntention.builder()
+    public static DRepUpdateIntent update(Credential drepCredential, Anchor anchor) {
+        return DRepUpdateIntent.builder()
             .drepCredential(drepCredential)
             .anchor(anchor)
             .build();
@@ -230,8 +230,8 @@ public class DRepUpdateIntention implements TxIntention {
     /**
      * Create DRepUpdateIntention from hex strings.
      */
-    public static DRepUpdateIntention fromHex(String drepCredentialHex, String anchorUrl, String anchorHash) {
-        return DRepUpdateIntention.builder()
+    public static DRepUpdateIntent fromHex(String drepCredentialHex, String anchorUrl, String anchorHash) {
+        return DRepUpdateIntent.builder()
             .drepCredentialHex(drepCredentialHex)
             .anchorUrl(anchorUrl)
             .anchorHash(anchorHash)

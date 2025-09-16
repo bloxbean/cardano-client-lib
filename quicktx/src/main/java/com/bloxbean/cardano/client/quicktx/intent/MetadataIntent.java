@@ -34,7 +34,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class MetadataIntention implements TxIntention {
+public class MetadataIntent implements TxIntent {
 
     // Runtime field - original object preserved
 
@@ -125,23 +125,23 @@ public class MetadataIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
 
         String resolvedMetadataJson = VariableResolver.resolve(metadataJson, variables);
         String resolvedMetadataCborHex = VariableResolver.resolve(metadataCborHex, variables);
-        
+
         // Check if any variables were resolved
-        if (!java.util.Objects.equals(resolvedMetadataJson, metadataJson) || 
+        if (!java.util.Objects.equals(resolvedMetadataJson, metadataJson) ||
             !java.util.Objects.equals(resolvedMetadataCborHex, metadataCborHex)) {
             return this.toBuilder()
                 .metadataJson(resolvedMetadataJson)
                 .metadataCborHex(resolvedMetadataCborHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -151,11 +151,11 @@ public class MetadataIntention implements TxIntention {
      * Create MetadataIntention from runtime Metadata object.
      * This is used when attaching metadata programmatically.
      */
-    public static MetadataIntention from(Metadata metadata) {
+    public static MetadataIntent from(Metadata metadata) {
         if (metadata == null) {
             throw new IllegalArgumentException("Metadata cannot be null");
         }
-        return MetadataIntention.builder()
+        return MetadataIntent.builder()
             .metadata(metadata)
             .build();
     }
@@ -164,11 +164,11 @@ public class MetadataIntention implements TxIntention {
      * Create MetadataIntention from JSON string.
      * Used during deserialization from YAML/JSON when only JSON is available.
      */
-    public static MetadataIntention fromJson(String metadataJson) {
+    public static MetadataIntent fromJson(String metadataJson) {
         if (metadataJson == null || metadataJson.isEmpty()) {
             throw new IllegalArgumentException("Metadata JSON cannot be null or empty");
         }
-        return MetadataIntention.builder()
+        return MetadataIntent.builder()
             .metadataJson(metadataJson)
             .build();
     }
@@ -177,11 +177,11 @@ public class MetadataIntention implements TxIntention {
      * Create MetadataIntention from CBOR hex string.
      * Used during deserialization when lossless round-trip is required.
      */
-    public static MetadataIntention fromCborHex(String metadataCborHex) {
+    public static MetadataIntent fromCborHex(String metadataCborHex) {
         if (metadataCborHex == null || metadataCborHex.isEmpty()) {
             throw new IllegalArgumentException("Metadata CBOR hex cannot be null or empty");
         }
-        return MetadataIntention.builder()
+        return MetadataIntent.builder()
             .metadataCborHex(metadataCborHex)
             .build();
     }
@@ -190,8 +190,8 @@ public class MetadataIntention implements TxIntention {
      * Create MetadataIntention with both JSON and CBOR hex formats.
      * Used for complete serialization with both human-readable and lossless formats.
      */
-    public static MetadataIntention fromBoth(String metadataJson, String metadataCborHex) {
-        return MetadataIntention.builder()
+    public static MetadataIntent fromBoth(String metadataJson, String metadataCborHex) {
+        return MetadataIntent.builder()
             .metadataJson(metadataJson)
             .metadataCborHex(metadataCborHex)
             .build();

@@ -11,8 +11,6 @@ import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeDeregistration;
@@ -39,7 +37,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class StakeDeregistrationIntention implements TxIntention {
+public class StakeDeregistrationIntent implements TxIntent {
 
     /**
      * Stake address to deregister.
@@ -86,7 +84,7 @@ public class StakeDeregistrationIntention implements TxIntention {
 
     @Override
     public void validate() {
-        TxIntention.super.validate();
+        TxIntent.super.validate();
         if (stakeAddress == null || stakeAddress.isEmpty()) {
             throw new IllegalStateException("Stake address is required for stake deregistration");
         }
@@ -100,7 +98,7 @@ public class StakeDeregistrationIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -128,8 +126,8 @@ public class StakeDeregistrationIntention implements TxIntention {
     /**
      * Create a stake deregistration intention.
      */
-    public static StakeDeregistrationIntention deregister(String stakeAddress) {
-        return StakeDeregistrationIntention.builder()
+    public static StakeDeregistrationIntent deregister(String stakeAddress) {
+        return StakeDeregistrationIntent.builder()
             .stakeAddress(stakeAddress)
             .build();
     }
@@ -137,8 +135,8 @@ public class StakeDeregistrationIntention implements TxIntention {
     /**
      * Create a stake deregistration intention with refund address.
      */
-    public static StakeDeregistrationIntention deregister(String stakeAddress, String refundAddress) {
-        return StakeDeregistrationIntention.builder()
+    public static StakeDeregistrationIntent deregister(String stakeAddress, String refundAddress) {
+        return StakeDeregistrationIntent.builder()
             .stakeAddress(stakeAddress)
             .refundAddress(refundAddress)
             .build();

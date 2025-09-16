@@ -7,14 +7,12 @@ import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.OutputBuilders;
-import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.*;
@@ -35,7 +33,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ScriptMintingIntention implements TxIntention {
+public class ScriptMintingIntent implements TxIntent {
 
     // Runtime objects
 //    @JsonIgnore
@@ -129,7 +127,7 @@ public class ScriptMintingIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -350,8 +348,8 @@ public class ScriptMintingIntention implements TxIntention {
     }
 
     // Factory helpers
-    public static ScriptMintingIntention of(String policyId, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
-        return ScriptMintingIntention.builder()
+    public static ScriptMintingIntent of(String policyId, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
+        return ScriptMintingIntent.builder()
                 .policyId(policyId)
                 .assets(assets)
                 .redeemer(redeemer)

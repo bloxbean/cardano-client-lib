@@ -38,7 +38,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class StakeWithdrawalIntention implements TxIntention {
+public class StakeWithdrawalIntent implements TxIntent {
 
     /**
      * Reward address to withdraw from.
@@ -83,7 +83,7 @@ public class StakeWithdrawalIntention implements TxIntention {
 
     @Override
     public void validate() {
-        TxIntention.super.validate();
+        TxIntent.super.validate();
         if (rewardAddress == null || rewardAddress.isEmpty()) {
             throw new IllegalStateException("Reward address is required for stake withdrawal");
         }
@@ -98,7 +98,7 @@ public class StakeWithdrawalIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -106,10 +106,10 @@ public class StakeWithdrawalIntention implements TxIntention {
         String resolvedRewardAddress = VariableResolver.resolve(rewardAddress, variables);
         String resolvedReceiver = VariableResolver.resolve(receiver, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
-        
+
         // Check if any variables were resolved
-        if (!java.util.Objects.equals(resolvedRewardAddress, rewardAddress) || 
-            !java.util.Objects.equals(resolvedReceiver, receiver) || 
+        if (!java.util.Objects.equals(resolvedRewardAddress, rewardAddress) ||
+            !java.util.Objects.equals(resolvedReceiver, receiver) ||
             !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
             return this.toBuilder()
                 .rewardAddress(resolvedRewardAddress)
@@ -117,7 +117,7 @@ public class StakeWithdrawalIntention implements TxIntention {
                 .redeemerHex(resolvedRedeemerHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -126,8 +126,8 @@ public class StakeWithdrawalIntention implements TxIntention {
     /**
      * Create a stake withdrawal intention.
      */
-    public static StakeWithdrawalIntention withdraw(String rewardAddress, BigInteger amount) {
-        return StakeWithdrawalIntention.builder()
+    public static StakeWithdrawalIntent withdraw(String rewardAddress, BigInteger amount) {
+        return StakeWithdrawalIntent.builder()
             .rewardAddress(rewardAddress)
             .amount(amount)
             .build();
@@ -136,8 +136,8 @@ public class StakeWithdrawalIntention implements TxIntention {
     /**
      * Create a stake withdrawal intention with receiver.
      */
-    public static StakeWithdrawalIntention withdraw(String rewardAddress, BigInteger amount, String receiver) {
-        return StakeWithdrawalIntention.builder()
+    public static StakeWithdrawalIntent withdraw(String rewardAddress, BigInteger amount, String receiver) {
+        return StakeWithdrawalIntent.builder()
             .rewardAddress(rewardAddress)
             .amount(amount)
             .receiver(receiver)

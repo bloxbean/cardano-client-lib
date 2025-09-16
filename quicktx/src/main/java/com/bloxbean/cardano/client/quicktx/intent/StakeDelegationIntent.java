@@ -11,8 +11,6 @@ import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
-import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
-import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeDelegation;
@@ -38,7 +36,7 @@ import java.util.ArrayList;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class StakeDelegationIntention implements TxIntention {
+public class StakeDelegationIntent implements TxIntent {
 
     /**
      * Stake address to delegate.
@@ -80,7 +78,7 @@ public class StakeDelegationIntention implements TxIntention {
 
     @Override
     public void validate() {
-        TxIntention.super.validate();
+        TxIntent.super.validate();
         if (stakeAddress == null || stakeAddress.isEmpty()) {
             throw new IllegalStateException("Stake address is required for stake delegation");
         }
@@ -95,7 +93,7 @@ public class StakeDelegationIntention implements TxIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -103,10 +101,10 @@ public class StakeDelegationIntention implements TxIntention {
         String resolvedStakeAddress = VariableResolver.resolve(stakeAddress, variables);
         String resolvedPoolId = VariableResolver.resolve(poolId, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
-        
+
         // Check if any variables were resolved
-        if (!java.util.Objects.equals(resolvedStakeAddress, stakeAddress) || 
-            !java.util.Objects.equals(resolvedPoolId, poolId) || 
+        if (!java.util.Objects.equals(resolvedStakeAddress, stakeAddress) ||
+            !java.util.Objects.equals(resolvedPoolId, poolId) ||
             !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)) {
             return this.toBuilder()
                 .stakeAddress(resolvedStakeAddress)
@@ -114,7 +112,7 @@ public class StakeDelegationIntention implements TxIntention {
                 .redeemerHex(resolvedRedeemerHex)
                 .build();
         }
-        
+
         return this;
     }
 
@@ -123,8 +121,8 @@ public class StakeDelegationIntention implements TxIntention {
     /**
      * Create a stake delegation intention.
      */
-    public static StakeDelegationIntention delegateTo(String stakeAddress, String poolId) {
-        return StakeDelegationIntention.builder()
+    public static StakeDelegationIntent delegateTo(String stakeAddress, String poolId) {
+        return StakeDelegationIntent.builder()
             .stakeAddress(stakeAddress)
             .poolId(poolId)
             .build();

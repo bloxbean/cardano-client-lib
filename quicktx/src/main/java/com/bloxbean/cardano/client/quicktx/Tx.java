@@ -57,8 +57,8 @@ public class Tx extends AbstractTx<Tx> {
      * @return combined list of all intentions
      */
     @Override
-    public List<TxIntention> getIntentions() {
-        List<TxIntention> allIntentions = new ArrayList<>();
+    public List<TxIntent> getIntentions() {
+        List<TxIntent> allIntentions = new ArrayList<>();
 
         // Add main transaction intentions
         if (intentions != null) {
@@ -128,7 +128,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx mintAssets(@NonNull NativeScript script, List<Asset> assets, String receiver) {
         // Create and store minting intention
-        MintingIntention intention = MintingIntention.from(script, assets, receiver);
+        MintingIntent intention = MintingIntent.from(script, assets, receiver);
 
         if (intentions == null) {
             intentions = new java.util.ArrayList<>();
@@ -174,7 +174,7 @@ public class Tx extends AbstractTx<Tx> {
         // Record intention for YAML/plan replay
         if (utxos != null && !utxos.isEmpty()) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(CollectFromIntention.builder()
+            intentions.add(CollectFromIntent.builder()
                     .utxos(utxos)
                     .build());
         }
@@ -191,7 +191,7 @@ public class Tx extends AbstractTx<Tx> {
         // Record intention for YAML/plan replay
         if (utxos != null && !utxos.isEmpty()) {
             if (intentions == null) intentions = new ArrayList<>();
-            intentions.add(CollectFromIntention.builder()
+            intentions.add(CollectFromIntent.builder()
                     .utxos(new ArrayList<>(utxos))
                     .build());
         }
@@ -206,13 +206,13 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx registerStakeAddress(@NonNull String address) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeRegistrationIntention.register(address));
+        intentions.add(StakeRegistrationIntent.register(address));
         return this;
     }
 
     public Tx registerStakeAddress(@NonNull Wallet wallet) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeRegistrationIntention.register(wallet.getStakeAddress()));
+        intentions.add(StakeRegistrationIntent.register(wallet.getStakeAddress()));
         return this;
     }
 
@@ -224,7 +224,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx registerStakeAddress(@NonNull Address address) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeRegistrationIntention.register(address.toBech32()));
+        intentions.add(StakeRegistrationIntent.register(address.toBech32()));
         return this;
     }
 
@@ -236,7 +236,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx deregisterStakeAddress(@NonNull String address) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeDeregistrationIntention.deregister(address));
+        intentions.add(StakeDeregistrationIntent.deregister(address));
         return this;
     }
 
@@ -248,13 +248,13 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx deregisterStakeAddress(@NonNull Address address) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeDeregistrationIntention.deregister(address.toBech32()));
+        intentions.add(StakeDeregistrationIntent.deregister(address.toBech32()));
         return this;
     }
 
     public Tx deregisterStakeAddress(@NonNull Wallet wallet) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeDeregistrationIntention.deregister(wallet.getStakeAddress()));
+        intentions.add(StakeDeregistrationIntent.deregister(wallet.getStakeAddress()));
         return this;
     }
 
@@ -267,7 +267,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx deregisterStakeAddress(@NonNull String address, @NonNull String refundAddr) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeDeregistrationIntention.deregister(address, refundAddr));
+        intentions.add(StakeDeregistrationIntent.deregister(address, refundAddr));
         return this;
     }
 
@@ -280,7 +280,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx deregisterStakeAddress(@NonNull Address address, @NonNull String refundAddr) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeDeregistrationIntention.deregister(address.toBech32(), refundAddr));
+        intentions.add(StakeDeregistrationIntent.deregister(address.toBech32(), refundAddr));
         return this;
     }
 
@@ -293,13 +293,13 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx delegateTo(@NonNull String address, @NonNull String poolId) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeDelegationIntention.delegateTo(address, poolId));
+        intentions.add(StakeDelegationIntent.delegateTo(address, poolId));
         return this;
     }
 
     public Tx delegateTo(@NonNull Wallet wallet, @NonNull String poolId) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeDelegationIntention.delegateTo(wallet.getStakeAddress(), poolId));
+        intentions.add(StakeDelegationIntent.delegateTo(wallet.getStakeAddress(), poolId));
         return this;
     }
 
@@ -312,7 +312,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx delegateTo(@NonNull Address address, @NonNull String poolId) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(StakeDelegationIntention.delegateTo(address.toBech32(), poolId));
+        intentions.add(StakeDelegationIntent.delegateTo(address.toBech32(), poolId));
         return this;
     }
 
@@ -325,7 +325,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeWithdrawalIntention.withdraw(rewardAddress, amount));
+        intentions.add(StakeWithdrawalIntent.withdraw(rewardAddress, amount));
         return this;
     }
 
@@ -338,7 +338,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeWithdrawalIntention.withdraw(rewardAddress.toBech32(), amount));
+        intentions.add(StakeWithdrawalIntent.withdraw(rewardAddress.toBech32(), amount));
         return this;
     }
 
@@ -352,7 +352,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx withdraw(@NonNull String rewardAddress, @NonNull BigInteger amount, String receiver) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeWithdrawalIntention.withdraw(rewardAddress, amount, receiver));
+        intentions.add(StakeWithdrawalIntent.withdraw(rewardAddress, amount, receiver));
         return this;
     }
 
@@ -366,7 +366,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx withdraw(@NonNull Address rewardAddress, @NonNull BigInteger amount, String receiver) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.StakeWithdrawalIntention.withdraw(rewardAddress.toBech32(), amount, receiver));
+        intentions.add(StakeWithdrawalIntent.withdraw(rewardAddress.toBech32(), amount, receiver));
         return this;
     }
 
@@ -378,7 +378,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx registerPool(@NonNull PoolRegistration poolRegistration) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.PoolRegistrationIntention.register(poolRegistration));
+        intentions.add(PoolRegistrationIntent.register(poolRegistration));
         return this;
     }
 
@@ -390,7 +390,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx updatePool(@NonNull PoolRegistration poolRegistration) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.PoolRegistrationIntention.update(poolRegistration));
+        intentions.add(PoolRegistrationIntent.update(poolRegistration));
         return this;
     }
 
@@ -403,7 +403,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx retirePool(@NonNull String poolId, @NonNull int epoch) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.PoolRetirementIntention.retire(poolId, epoch));
+        intentions.add(PoolRetirementIntent.retire(poolId, epoch));
         return this;
     }
 
@@ -416,7 +416,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx registerDRep(@NonNull Account account, Anchor anchor) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepRegistrationIntention.register(account.drepCredential(), anchor));
+        intentions.add(DRepRegistrationIntent.register(account.drepCredential(), anchor));
         return this;
     }
 
@@ -428,7 +428,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx registerDRep(@NonNull Account account) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepRegistrationIntention.register(account.drepCredential()));
+        intentions.add(DRepRegistrationIntent.register(account.drepCredential()));
         return this;
     }
 
@@ -441,7 +441,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx registerDRep(@NonNull Credential drepCredential, Anchor anchor) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepRegistrationIntention.register(drepCredential, anchor));
+        intentions.add(DRepRegistrationIntent.register(drepCredential, anchor));
         return this;
     }
 
@@ -453,7 +453,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx registerDRep(@NonNull Credential drepCredential) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepRegistrationIntention.register(drepCredential));
+        intentions.add(DRepRegistrationIntent.register(drepCredential));
         return this;
     }
 
@@ -467,7 +467,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx unregisterDRep(@NonNull Credential drepCredential, String refundAddress, BigInteger refundAmount) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepDeregistrationIntention.deregister(drepCredential, refundAddress, refundAmount));
+        intentions.add(DRepDeregistrationIntent.deregister(drepCredential, refundAddress, refundAmount));
         return this;
     }
 
@@ -479,7 +479,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx unregisterDRep(@NonNull Credential drepCredential) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepDeregistrationIntention.deregister(drepCredential));
+        intentions.add(DRepDeregistrationIntent.deregister(drepCredential));
         return this;
     }
 
@@ -492,7 +492,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx unregisterDRep(@NonNull Credential drepCredential, @NonNull String refundAddress) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepDeregistrationIntention.deregister(drepCredential, refundAddress));
+        intentions.add(DRepDeregistrationIntent.deregister(drepCredential, refundAddress));
         return this;
     }
 
@@ -505,7 +505,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx updateDRep(@NonNull Credential drepCredential, Anchor anchor) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepUpdateIntention.update(drepCredential, anchor));
+        intentions.add(DRepUpdateIntent.update(drepCredential, anchor));
         return this;
     }
 
@@ -517,7 +517,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx updateDRep(@NonNull Credential drepCredential) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.DRepUpdateIntention.update(drepCredential));
+        intentions.add(DRepUpdateIntent.update(drepCredential));
         return this;
     }
 
@@ -531,7 +531,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx createProposal(@NonNull GovAction govAction, @NonNull String rewardAccount, Anchor anchor) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.GovernanceProposalIntention.create(govAction, rewardAccount, anchor));
+        intentions.add(GovernanceProposalIntent.create(govAction, rewardAccount, anchor));
         return this;
     }
 
@@ -546,7 +546,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote, Anchor anchor) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.VotingIntention.vote(voter, govActionId, vote, anchor));
+        intentions.add(VotingIntent.vote(voter, govActionId, vote, anchor));
         return this;
     }
 
@@ -560,7 +560,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx createVote(@NonNull Voter voter, @NonNull GovActionId govActionId, @NonNull Vote vote) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.VotingIntention.vote(voter, govActionId, vote));
+        intentions.add(VotingIntent.vote(voter, govActionId, vote));
         return this;
     }
 
@@ -573,7 +573,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx delegateVotingPowerTo(@NonNull String address, @NonNull DRep drep) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.VotingDelegationIntention.delegate(address, drep));
+        intentions.add(VotingDelegationIntent.delegate(address, drep));
         return this;
     }
 
@@ -586,7 +586,7 @@ public class Tx extends AbstractTx<Tx> {
      */
     public Tx delegateVotingPowerTo(@NonNull Address address, @NonNull DRep drep) {
         if (intentions == null) intentions = new ArrayList<>();
-        intentions.add(com.bloxbean.cardano.client.quicktx.intent.VotingDelegationIntention.delegate(address, drep));
+        intentions.add(VotingDelegationIntent.delegate(address, drep));
         return this;
     }
 

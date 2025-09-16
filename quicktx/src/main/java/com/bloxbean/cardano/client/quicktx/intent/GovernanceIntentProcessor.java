@@ -29,7 +29,7 @@ public class GovernanceIntentProcessor {
     /**
      * Process a governance intention and apply it to the transaction.
      */
-    public static void process(TxIntention intention, AbstractTx<?> tx, Map<String, Object> variables) {
+    public static void process(TxIntent intention, AbstractTx<?> tx, Map<String, Object> variables) {
         if (!(tx instanceof Tx)) {
             throw new UnsupportedOperationException("Governance operations are only supported on Tx instances");
         }
@@ -37,22 +37,22 @@ public class GovernanceIntentProcessor {
         String intentionType = intention.getType();
         switch (intentionType) {
             case "drep_registration":
-                processDRepRegistrationIntention((DRepRegistrationIntention) intention, (Tx) tx, variables);
+                processDRepRegistrationIntention((DRepRegistrationIntent) intention, (Tx) tx, variables);
                 break;
             case "drep_deregistration":
-                processDRepDeregistrationIntention((DRepDeregistrationIntention) intention, (Tx) tx, variables);
+                processDRepDeregistrationIntention((DRepDeregistrationIntent) intention, (Tx) tx, variables);
                 break;
             case "drep_update":
-                processDRepUpdateIntention((DRepUpdateIntention) intention, (Tx) tx, variables);
+                processDRepUpdateIntention((DRepUpdateIntent) intention, (Tx) tx, variables);
                 break;
             case "governance_proposal":
-                processGovernanceProposalIntention((GovernanceProposalIntention) intention, (Tx) tx, variables);
+                processGovernanceProposalIntention((GovernanceProposalIntent) intention, (Tx) tx, variables);
                 break;
             case "voting":
-                processVotingIntention((VotingIntention) intention, (Tx) tx, variables);
+                processVotingIntention((VotingIntent) intention, (Tx) tx, variables);
                 break;
             case "voting_delegation":
-                processVotingDelegationIntention((VotingDelegationIntention) intention, (Tx) tx, variables);
+                processVotingDelegationIntention((VotingDelegationIntent) intention, (Tx) tx, variables);
                 break;
             default:
                 throw new TxBuildException("Unknown governance intention type: " + intentionType);
@@ -62,7 +62,7 @@ public class GovernanceIntentProcessor {
     /**
      * Process DRep registration intention.
      */
-    private static void processDRepRegistrationIntention(DRepRegistrationIntention intention, Tx tx, Map<String, Object> variables) {
+    private static void processDRepRegistrationIntention(DRepRegistrationIntent intention, Tx tx, Map<String, Object> variables) {
         try {
             // Get or deserialize credential
             Credential drepCredential = intention.getDrepCredential();
@@ -105,7 +105,7 @@ public class GovernanceIntentProcessor {
     /**
      * Process DRep deregistration intention.
      */
-    private static void processDRepDeregistrationIntention(DRepDeregistrationIntention intention, Tx tx, Map<String, Object> variables) {
+    private static void processDRepDeregistrationIntention(DRepDeregistrationIntent intention, Tx tx, Map<String, Object> variables) {
         try {
             // Get or deserialize credential
             Credential drepCredential = intention.getDrepCredential();
@@ -137,7 +137,7 @@ public class GovernanceIntentProcessor {
     /**
      * Process DRep update intention.
      */
-    private static void processDRepUpdateIntention(DRepUpdateIntention intention, Tx tx, Map<String, Object> variables) {
+    private static void processDRepUpdateIntention(DRepUpdateIntent intention, Tx tx, Map<String, Object> variables) {
         try {
             // Get or deserialize credential
             Credential drepCredential = intention.getDrepCredential();
@@ -180,7 +180,7 @@ public class GovernanceIntentProcessor {
     /**
      * Process governance proposal intention.
      */
-    private static void processGovernanceProposalIntention(GovernanceProposalIntention intention, Tx tx, Map<String, Object> variables) {
+    private static void processGovernanceProposalIntention(GovernanceProposalIntent intention, Tx tx, Map<String, Object> variables) {
         try {
             // Get or deserialize governance action
             GovAction govAction = intention.getGovAction();
@@ -228,7 +228,7 @@ public class GovernanceIntentProcessor {
     /**
      * Process voting intention.
      */
-    private static void processVotingIntention(VotingIntention intention, Tx tx, Map<String, Object> variables) {
+    private static void processVotingIntention(VotingIntent intention, Tx tx, Map<String, Object> variables) {
         try {
             // Get or deserialize voter
             Voter voter = intention.getVoter();
@@ -289,7 +289,7 @@ public class GovernanceIntentProcessor {
     /**
      * Process voting delegation intention.
      */
-    private static void processVotingDelegationIntention(VotingDelegationIntention intention, Tx tx, Map<String, Object> variables) {
+    private static void processVotingDelegationIntention(VotingDelegationIntent intention, Tx tx, Map<String, Object> variables) {
         try {
             // Get or parse address
             Address address = intention.getAddress();

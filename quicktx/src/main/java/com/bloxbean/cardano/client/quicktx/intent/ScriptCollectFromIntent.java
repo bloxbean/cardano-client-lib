@@ -21,7 +21,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 import java.math.BigInteger;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ScriptCollectFromIntention implements TxInputIntention {
+public class ScriptCollectFromIntent implements TxInputIntent {
 
     /**
      * Original UTXOs for runtime use (preserves all UTXO data).
@@ -72,6 +72,10 @@ public class ScriptCollectFromIntention implements TxInputIntention {
 
     @JsonProperty("datum_hex")
     private String datumHex;
+
+    // Internal use only - to keep track of spending context utxo <-> redeemer mapping
+    @JsonIgnore
+    private List<SpendingContext> spendingContexts;
 
     /**
      * Get UTXO references for serialization.
@@ -127,7 +131,7 @@ public class ScriptCollectFromIntention implements TxInputIntention {
 
     @Override
     public void validate() {
-        TxInputIntention.super.validate();
+        TxInputIntent.super.validate();
 
         // Check runtime objects first
         if (utxos != null && !utxos.isEmpty()) {
@@ -181,7 +185,7 @@ public class ScriptCollectFromIntention implements TxInputIntention {
     }
 
     @Override
-    public TxIntention resolveVariables(java.util.Map<String, Object> variables) {
+    public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return this;
         }
@@ -206,11 +210,11 @@ public class ScriptCollectFromIntention implements TxInputIntention {
      * Create a script collection intention with original objects.
      * Single factory method to eliminate duplication.
      */
-    public static ScriptCollectFromIntention collectFrom(List<Utxo> utxos, PlutusData redeemerData, PlutusData datum) {
+    public static ScriptCollectFromIntent collectFrom(List<Utxo> utxos, PlutusData redeemerData, PlutusData datum) {
         if (utxos == null || utxos.isEmpty()) {
             throw new IllegalArgumentException("UTXOs cannot be null or empty");
         }
-        return ScriptCollectFromIntention.builder()
+        return ScriptCollectFromIntent.builder()
                 .utxos(utxos)
                 .redeemerData(redeemerData)
                 .datum(datum)
@@ -220,33 +224,33 @@ public class ScriptCollectFromIntention implements TxInputIntention {
     /**
      * Create a script collection intention for single UTXO with redeemer and datum.
      */
-    public static ScriptCollectFromIntention collectFrom(Utxo utxo, PlutusData redeemerData, PlutusData datum) {
+    public static ScriptCollectFromIntent collectFrom(Utxo utxo, PlutusData redeemerData, PlutusData datum) {
         return collectFrom(List.of(utxo), redeemerData, datum);
     }
 
     /**
      * Create a script collection intention for single UTXO with redeemer only.
      */
-    public static ScriptCollectFromIntention collectFrom(Utxo utxo, PlutusData redeemerData) {
+    public static ScriptCollectFromIntent collectFrom(Utxo utxo, PlutusData redeemerData) {
         return collectFrom(List.of(utxo), redeemerData, null);
     }
 
     /**
      * Create a script collection intention for single UTXO without redeemer/datum.
      */
-    public static ScriptCollectFromIntention collectFrom(Utxo utxo) {
+    public static ScriptCollectFromIntent collectFrom(Utxo utxo) {
         return collectFrom(List.of(utxo), null, null);
     }
 
     /**
      * Create a script collection intention for multiple UTXOs with redeemer only.
      */
-    public static ScriptCollectFromIntention collectFrom(List<Utxo> utxos, PlutusData redeemerData) {
+    public static ScriptCollectFromIntent collectFrom(List<Utxo> utxos, PlutusData redeemerData) {
         return collectFrom(utxos, redeemerData, null);
     }
 
-    public static ScriptCollectFromIntention collectFrom(LazyUtxoStrategy lazyUtxoStrategy, PlutusData redeemerData, PlutusData datum) {
-        return ScriptCollectFromIntention.builder()
+    public static ScriptCollectFromIntent collectFrom(LazyUtxoStrategy lazyUtxoStrategy, PlutusData redeemerData, PlutusData datum) {
+        return ScriptCollectFromIntent.builder()
                 .lazyUtxoStrategy(lazyUtxoStrategy)
                 .redeemerData(redeemerData)
                 .datum(datum)
@@ -302,6 +306,9 @@ public class ScriptCollectFromIntention implements TxInputIntention {
                 utxos = utxoStrategy().resolve(ctx.getUtxoSupplier());
             }
 
+            if (spendingContexts == null)
+                spendingContexts = new ArrayList<>();
+
             for (Utxo utxo : utxos) {
                 if (transaction.getWitnessSet() == null) {
                     transaction.setWitnessSet(new TransactionWitnessSet());
@@ -329,8 +336,24 @@ public class ScriptCollectFromIntention implements TxInputIntention {
                     //update script input index
                     redeemer.setIndex(scriptInputIndex);
                     transaction.getWitnessSet().getRedeemers().add(redeemer);
+
+                    spendingContexts.add(new SpendingContext(utxo, redeemer));
                 }
             }
         };
+    }
+
+    public Optional<Utxo> getUtxoForRedeemer(Redeemer redeemer) {
+        return spendingContexts.stream()
+                .filter(sc -> sc.getRedeemer() == redeemer)
+                .findFirst()
+                .map(SpendingContext::getUtxo);
+    }
+
+    @Data
+    @AllArgsConstructor
+    class SpendingContext {
+        private Utxo utxo;
+        private Redeemer redeemer;
     }
 }
