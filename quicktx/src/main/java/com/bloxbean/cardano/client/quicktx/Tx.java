@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.TransactionWitnessSet;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
 import com.bloxbean.cardano.client.transaction.spec.governance.Anchor;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
@@ -23,6 +24,8 @@ import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.NonNull;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -34,6 +37,8 @@ public class Tx extends AbstractTx<Tx> {
     private String sender;
     protected boolean senderAdded = false;
     private Wallet senderWallet;
+
+    private Set<NativeScript> nativeScripts;
 
     /**
      * Create Tx
@@ -106,6 +111,22 @@ public class Tx extends AbstractTx<Tx> {
             throw new TxBuildException(e);
         }
 
+        return this;
+    }
+
+    /**
+     * Attaches a NativeScript to the current transaction.
+     * This method ensures that the given NativeScript is added to
+     * the set of native scripts associated with the transaction.
+     *
+     * @param script the NativeScript to be attached to the transaction
+     * @return the current Tx instance with the updated native scripts set
+     */
+    public Tx attachNativeScript(NativeScript script) {
+        if (nativeScripts == null)
+            nativeScripts = new HashSet<>();
+
+        nativeScripts.add(script);
         return this;
     }
 
@@ -562,6 +583,31 @@ public class Tx extends AbstractTx<Tx> {
 
         txBuilder = txBuilder.andThen(stakeBuildTuple._2)
                 .andThen(govBuildTuple._2);
+
+        //native script
+        txBuilder = addNativeScripts(txBuilder);
+
+        return txBuilder;
+    }
+
+    private TxBuilder addNativeScripts(TxBuilder txBuilder) {
+        if (nativeScripts != null && nativeScripts.size() > 0){
+            txBuilder = txBuilder.andThen((context, txn) -> {
+                if (txn.getWitnessSet() == null)
+                    txn.setWitnessSet(new TransactionWitnessSet());
+
+                var nativeScriptList = txn.getWitnessSet().getNativeScripts();
+                if (nativeScriptList == null) {
+                    nativeScriptList = new ArrayList<>();
+                    txn.getWitnessSet().setNativeScripts(nativeScriptList);
+                }
+
+                for (NativeScript script: nativeScripts) {
+                    if (!nativeScriptList.contains(script))
+                        nativeScriptList.add(script);
+                }
+            });
+        }
 
         return txBuilder;
     }
