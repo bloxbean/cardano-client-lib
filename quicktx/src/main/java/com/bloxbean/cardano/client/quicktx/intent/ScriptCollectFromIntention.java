@@ -245,18 +245,6 @@ public class ScriptCollectFromIntention implements TxInputIntention {
         return collectFrom(utxos, redeemerData, null);
     }
 
-    /**
-     * Create a script collection intention from UTXO references with hex strings.
-     * This is used during deserialization from YAML/JSON.
-     */
-    public static ScriptCollectFromIntention collectFromHex(List<UtxoRef> utxoRefs, String redeemerHex, String datumHex) {
-        return ScriptCollectFromIntention.builder()
-                .utxoRefs(utxoRefs)
-                .redeemerHex(redeemerHex)
-                .datumHex(datumHex)
-                .build();
-    }
-
     public static ScriptCollectFromIntention collectFrom(LazyUtxoStrategy lazyUtxoStrategy, PlutusData redeemerData, PlutusData datum) {
         return ScriptCollectFromIntention.builder()
                 .lazyUtxoStrategy(lazyUtxoStrategy)
@@ -271,14 +259,6 @@ public class ScriptCollectFromIntention implements TxInputIntention {
     @JsonIgnore
     public boolean hasRuntimeObjects() {
         return utxos != null && !utxos.isEmpty();
-    }
-
-    /**
-     * Check if this intention needs UTXO resolution from blockchain.
-     */
-    @JsonIgnore
-    public boolean needsUtxoResolution() {
-        return !hasRuntimeObjects() && utxoRefs != null && !utxoRefs.isEmpty();
     }
 
     @Override
@@ -331,23 +311,25 @@ public class ScriptCollectFromIntention implements TxInputIntention {
                         transaction.getWitnessSet().getPlutusDataList().add(datum);
                 }
 
-                Redeemer redeemer = Redeemer.builder()
-                        .tag(RedeemerTag.Spend)
-                        .data(redeemerData)
-                        .index(BigInteger.valueOf(1)) //dummy value
-                        .exUnits(ExUnits.builder()
-                                .mem(BigInteger.valueOf(10000)) // Some dummy value
-                                .steps(BigInteger.valueOf(10000))
-                                .build())
-                        .build();
+                if (redeemerData != null) {
+                    Redeemer redeemer = Redeemer.builder()
+                            .tag(RedeemerTag.Spend)
+                            .data(redeemerData)
+                            .index(BigInteger.valueOf(1)) //dummy value
+                            .exUnits(ExUnits.builder()
+                                    .mem(BigInteger.valueOf(10000)) // Some dummy value
+                                    .steps(BigInteger.valueOf(10000))
+                                    .build())
+                            .build();
 
-                int scriptInputIndex = RedeemerUtil.getScriptInputIndex(utxo, transaction);
-                if (scriptInputIndex == -1)
-                    throw new TxBuildException("Script utxo is not found in transaction inputs : " + utxo.getTxHash());
+                    int scriptInputIndex = RedeemerUtil.getScriptInputIndex(utxo, transaction);
+                    if (scriptInputIndex == -1)
+                        throw new TxBuildException("Script utxo is not found in transaction inputs : " + utxo.getTxHash());
 
-                //update script input index
-                redeemer.setIndex(scriptInputIndex);
-                transaction.getWitnessSet().getRedeemers().add(redeemer);
+                    //update script input index
+                    redeemer.setIndex(scriptInputIndex);
+                    transaction.getWitnessSet().getRedeemers().add(redeemer);
+                }
             }
         };
     }
