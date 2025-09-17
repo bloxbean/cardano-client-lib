@@ -8,7 +8,7 @@ import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import java.io.ByteArrayOutputStream;
 
 /**
- * Extension node in the Merkle Patricia Trie for path compression.
+ * Immutable extension node in the Merkle Patricia Trie for path compression.
  *
  * <p>Extension nodes optimize trie storage by compressing long paths with no branching
  * into a single node. Instead of having multiple nodes each storing one nibble, an
@@ -27,6 +27,21 @@ import java.io.ByteArrayOutputStream;
  * With extension:    Root -> Extension([a,b,c,d]) -> Leaf("value")
  * </pre>
  *
+ * <p><b>Usage:</b></p>
+ * <pre>
+ * // Create with builder
+ * ExtensionNode node = ExtensionNode.builder()
+ *   .hp(hpEncodedPath)
+ *   .child(childHash)
+ *   .build();
+ *
+ * // Create with factory method
+ * ExtensionNode node = ExtensionNode.of(hpEncodedPath, childHash);
+ *
+ * // Create modified copy
+ * ExtensionNode updated = node.withChild(newChildHash);
+ * </pre>
+ *
  * @see com.bloxbean.cardano.statetrees.common.nibbles.Nibbles
  */
 final class ExtensionNode extends Node {
@@ -34,13 +49,83 @@ final class ExtensionNode extends Node {
    * Hex-Prefix encoded path with isLeaf=false flag.
    * Contains the compressed nibble sequence that this extension represents.
    */
-  byte[] hp;
+  private final byte[] hp;
 
   /**
    * Hash of the single child node that this extension points to.
    * Can be a BranchNode, LeafNode, or another ExtensionNode.
    */
-  byte[] child;
+  private final byte[] child;
+
+  /**
+   * Private constructor for builder pattern and factory methods.
+   * Use {@link #builder()} or {@link #of(byte[], byte[])} to create instances.
+   *
+   * @param hp the HP-encoded path (defensive copy made)
+   * @param child the child hash (defensive copy made)
+   */
+  private ExtensionNode(byte[] hp, byte[] child) {
+    this.hp = hp != null ? hp.clone() : new byte[0];
+    this.child = child != null ? child.clone() : new byte[0];
+  }
+
+  /**
+   * Gets the HP-encoded path.
+   *
+   * @return defensive copy of the HP-encoded path
+   */
+  public byte[] getHp() {
+    return hp.clone();
+  }
+
+  /**
+   * Gets the child hash.
+   *
+   * @return defensive copy of the child hash
+   */
+  public byte[] getChild() {
+    return child.clone();
+  }
+
+  /**
+   * Factory method to create an extension node.
+   *
+   * @param hp the HP-encoded path
+   * @param child the child hash
+   * @return new immutable ExtensionNode instance
+   */
+  public static ExtensionNode of(byte[] hp, byte[] child) {
+    return new ExtensionNode(hp, child);
+  }
+
+  /**
+   * Creates a builder for constructing ExtensionNode instances.
+   *
+   * @return new Builder instance
+   */
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  /**
+   * Creates a new ExtensionNode with updated HP path, keeping the same child.
+   *
+   * @param newHp the new HP-encoded path
+   * @return new ExtensionNode instance with updated HP path
+   */
+  public ExtensionNode withHp(byte[] newHp) {
+    return new ExtensionNode(newHp, this.child);
+  }
+
+  /**
+   * Creates a new ExtensionNode with updated child, keeping the same HP path.
+   *
+   * @param newChild the new child hash
+   * @return new ExtensionNode instance with updated child
+   */
+  public ExtensionNode withChild(byte[] newChild) {
+    return new ExtensionNode(this.hp, newChild);
+  }
 
   /**
    * {@inheritDoc}
@@ -60,8 +145,8 @@ final class ExtensionNode extends Node {
   byte[] encode() {
     try {
       Array cborArray = new Array();
-      cborArray.add(new ByteString(hp == null ? new byte[0] : hp));
-      cborArray.add(new ByteString(child == null ? new byte[0] : child));
+      cborArray.add(new ByteString(hp));
+      cborArray.add(new ByteString(child));
 
       ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
       new CborEncoder(outputStream).encode(cborArray);
@@ -69,6 +154,14 @@ final class ExtensionNode extends Node {
     } catch (Exception e) {
       throw new RuntimeException("Failed to encode ExtensionNode", e);
     }
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public <T> T accept(NodeVisitor<T> visitor) {
+    return visitor.visitExtension(this);
   }
 
   /**
@@ -84,12 +177,55 @@ final class ExtensionNode extends Node {
         cborArray.getDataItems().size());
     }
 
-    ExtensionNode extensionNode = new ExtensionNode();
-    extensionNode.hp = ((ByteString) cborArray.getDataItems().get(0)).getBytes();
-
+    byte[] hp = ((ByteString) cborArray.getDataItems().get(0)).getBytes();
     byte[] childData = ((ByteString) cborArray.getDataItems().get(1)).getBytes();
-    extensionNode.child = childData.length == 0 ? null : childData;
+    byte[] child = childData.length == 0 ? null : childData;
 
-    return extensionNode;
+    return new ExtensionNode(hp, child);
+  }
+
+  /**
+   * Builder for constructing ExtensionNode instances with fluent API.
+   */
+  public static final class Builder {
+    private byte[] hp;
+    private byte[] child;
+
+    /**
+     * Private constructor - use {@link ExtensionNode#builder()} to create instances.
+     */
+    private Builder() {
+    }
+
+    /**
+     * Sets the HP-encoded path.
+     *
+     * @param hp the HP-encoded path (defensive copy made)
+     * @return this builder for method chaining
+     */
+    public Builder hp(byte[] hp) {
+      this.hp = hp;
+      return this;
+    }
+
+    /**
+     * Sets the child hash.
+     *
+     * @param child the child hash (defensive copy made)
+     * @return this builder for method chaining
+     */
+    public Builder child(byte[] child) {
+      this.child = child;
+      return this;
+    }
+
+    /**
+     * Builds the immutable ExtensionNode instance.
+     *
+     * @return new ExtensionNode with configured values
+     */
+    public ExtensionNode build() {
+      return new ExtensionNode(hp, child);
+    }
   }
 }

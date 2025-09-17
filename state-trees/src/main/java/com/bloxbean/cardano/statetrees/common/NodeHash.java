@@ -85,6 +85,15 @@ public final class NodeHash {
     }
     
     /**
+     * Returns the raw hash bytes as a defensive copy.
+     * 
+     * @return a copy of the hash bytes
+     */
+    public byte[] toBytes() {
+        return hashBytes.clone();
+    }
+    
+    /**
      * Returns a hexadecimal string representation of this hash.
      * 
      * @return lowercase hex string (64 characters)

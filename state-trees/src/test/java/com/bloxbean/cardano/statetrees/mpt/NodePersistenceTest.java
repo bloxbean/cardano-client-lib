@@ -315,22 +315,7 @@ class NodePersistenceTest {
     }
     
     private LeafNode createTestLeafNodeWithValue(String value) {
-        LeafNode node = new LeafNode();
-        // Access fields using reflection since they're package-private
-        try {
-            java.lang.reflect.Field hpField = LeafNode.class.getDeclaredField("hp");
-            java.lang.reflect.Field valueField = LeafNode.class.getDeclaredField("value");
-            
-            hpField.setAccessible(true);
-            valueField.setAccessible(true);
-            
-            hpField.set(node, Nibbles.packHP(true, new int[]{1, 2, 3}));
-            valueField.set(node, value.getBytes());
-            
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create test node", e);
-        }
-        
-        return node;
+        byte[] hp = Nibbles.packHP(true, new int[]{1, 2, 3});
+        return LeafNode.of(hp, value.getBytes());
     }
 }

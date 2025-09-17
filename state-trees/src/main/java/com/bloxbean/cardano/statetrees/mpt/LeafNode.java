@@ -8,7 +8,7 @@ import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import java.io.ByteArrayOutputStream;
 
 /**
- * Leaf node in the Merkle Patricia Trie storing key-value pairs.
+ * Immutable leaf node in the Merkle Patricia Trie storing key-value pairs.
  *
  * <p>Leaf nodes represent the terminal points of trie paths where actual data values
  * are stored. They contain the remaining portion of a key (after following the path
@@ -27,6 +27,21 @@ import java.io.ByteArrayOutputStream;
  * Path in trie: Root -> Branch[6] -> Extension([8,6,5]) -> Leaf([6,c,6,c,6,f], "world")
  * </pre>
  *
+ * <p><b>Usage:</b></p>
+ * <pre>
+ * // Create with builder
+ * LeafNode node = LeafNode.builder()
+ *   .hp(hpEncodedPath)
+ *   .value(valueBytes)
+ *   .build();
+ *
+ * // Create with factory method
+ * LeafNode node = LeafNode.of(hpEncodedPath, valueBytes);
+ *
+ * // Create modified copy
+ * LeafNode updated = node.withValue(newValueBytes);
+ * </pre>
+ *
  * @see com.bloxbean.cardano.statetrees.common.nibbles.Nibbles
  */
 final class LeafNode extends Node {
@@ -34,13 +49,83 @@ final class LeafNode extends Node {
    * Hex-Prefix encoded key suffix with isLeaf=true flag.
    * Contains the remaining nibbles of the key after traversing the trie path.
    */
-  byte[] hp;
+  private final byte[] hp;
 
   /**
    * The actual value being stored for this key.
    * Can be any byte array representing the application data.
    */
-  byte[] value;
+  private final byte[] value;
+
+  /**
+   * Private constructor for builder pattern and factory methods.
+   * Use {@link #builder()} or {@link #of(byte[], byte[])} to create instances.
+   *
+   * @param hp the HP-encoded key suffix (defensive copy made)
+   * @param value the value data (defensive copy made)
+   */
+  private LeafNode(byte[] hp, byte[] value) {
+    this.hp = hp != null ? hp.clone() : new byte[0];
+    this.value = value != null ? value.clone() : new byte[0];
+  }
+
+  /**
+   * Gets the HP-encoded key suffix.
+   *
+   * @return defensive copy of the HP-encoded key suffix
+   */
+  public byte[] getHp() {
+    return hp.clone();
+  }
+
+  /**
+   * Gets the value stored in this leaf node.
+   *
+   * @return defensive copy of the value data
+   */
+  public byte[] getValue() {
+    return value.clone();
+  }
+
+  /**
+   * Factory method to create a leaf node.
+   *
+   * @param hp the HP-encoded key suffix
+   * @param value the value data
+   * @return new immutable LeafNode instance
+   */
+  public static LeafNode of(byte[] hp, byte[] value) {
+    return new LeafNode(hp, value);
+  }
+
+  /**
+   * Creates a builder for constructing LeafNode instances.
+   *
+   * @return new Builder instance
+   */
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  /**
+   * Creates a new LeafNode with updated value, keeping the same HP path.
+   *
+   * @param newValue the new value data
+   * @return new LeafNode instance with updated value
+   */
+  public LeafNode withValue(byte[] newValue) {
+    return new LeafNode(this.hp, newValue);
+  }
+
+  /**
+   * Creates a new LeafNode with updated HP path, keeping the same value.
+   *
+   * @param newHp the new HP-encoded key suffix
+   * @return new LeafNode instance with updated HP path
+   */
+  public LeafNode withHp(byte[] newHp) {
+    return new LeafNode(newHp, this.value);
+  }
 
   /**
    * {@inheritDoc}
@@ -60,8 +145,8 @@ final class LeafNode extends Node {
   byte[] encode() {
     try {
       Array cborArray = new Array();
-      cborArray.add(new ByteString(hp == null ? new byte[0] : hp));
-      cborArray.add(new ByteString(value == null ? new byte[0] : value));
+      cborArray.add(new ByteString(hp));
+      cborArray.add(new ByteString(value));
 
       ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
       new CborEncoder(outputStream).encode(cborArray);
@@ -69,6 +154,14 @@ final class LeafNode extends Node {
     } catch (Exception e) {
       throw new RuntimeException("Failed to encode LeafNode", e);
     }
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public <T> T accept(NodeVisitor<T> visitor) {
+    return visitor.visitLeaf(this);
   }
 
   /**
@@ -84,12 +177,54 @@ final class LeafNode extends Node {
         cborArray.getDataItems().size());
     }
 
-    LeafNode leafNode = new LeafNode();
-    leafNode.hp = ((ByteString) cborArray.getDataItems().get(0)).getBytes();
+    byte[] hp = ((ByteString) cborArray.getDataItems().get(0)).getBytes();
+    byte[] value = ((ByteString) cborArray.getDataItems().get(1)).getBytes();
 
-    byte[] valueData = ((ByteString) cborArray.getDataItems().get(1)).getBytes();
-    leafNode.value = valueData;
+    return new LeafNode(hp, value);
+  }
 
-    return leafNode;
+  /**
+   * Builder for constructing LeafNode instances with fluent API.
+   */
+  public static final class Builder {
+    private byte[] hp;
+    private byte[] value;
+
+    /**
+     * Private constructor - use {@link LeafNode#builder()} to create instances.
+     */
+    private Builder() {
+    }
+
+    /**
+     * Sets the HP-encoded key suffix.
+     *
+     * @param hp the HP-encoded key suffix (defensive copy made)
+     * @return this builder for method chaining
+     */
+    public Builder hp(byte[] hp) {
+      this.hp = hp;
+      return this;
+    }
+
+    /**
+     * Sets the value data.
+     *
+     * @param value the value data (defensive copy made)
+     * @return this builder for method chaining
+     */
+    public Builder value(byte[] value) {
+      this.value = value;
+      return this;
+    }
+
+    /**
+     * Builds the immutable LeafNode instance.
+     *
+     * @return new LeafNode with configured values
+     */
+    public LeafNode build() {
+      return new LeafNode(hp, value);
+    }
   }
 }

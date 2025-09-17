@@ -2,6 +2,7 @@ package com.bloxbean.cardano.statetrees.mpt;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.api.NodeStore;
+import com.bloxbean.cardano.statetrees.common.NodeHash;
 import com.bloxbean.cardano.statetrees.common.nibbles.Nibbles;
 
 import java.util.ArrayDeque;
@@ -39,6 +40,7 @@ public final class MerklePatriciaTrieImpl {
   private final NodeStore store;
   @SuppressWarnings("unused")
   private final HashFunction hashFn; // reserved for SecureTrie use
+  private final NodePersistence persistence;
   private byte[] root; // nullable => empty trie
 
   /**
@@ -52,6 +54,7 @@ public final class MerklePatriciaTrieImpl {
   public MerklePatriciaTrieImpl(NodeStore store, HashFunction hashFn, byte[] root) {
     this.store = Objects.requireNonNull(store, "NodeStore");
     this.hashFn = Objects.requireNonNull(hashFn, "HashFunction");
+    this.persistence = new NodePersistence(store);
     this.root = root == null || root.length == 0 ? null : root;
   }
 
@@ -83,7 +86,8 @@ public final class MerklePatriciaTrieImpl {
   public void put(byte[] key, byte[] value) {
     if (value == null) throw new IllegalArgumentException("value cannot be null; use delete");
     int[] nibblePath = Nibbles.toNibbles(key);
-    this.root = putAt(this.root, nibblePath, 0, value);
+    NodeHash rootHash = putAtNew(this.root, nibblePath, 0, value);
+    this.root = rootHash != null ? rootHash.toBytes() : null;
   }
 
   /**
@@ -94,7 +98,7 @@ public final class MerklePatriciaTrieImpl {
    */
   public byte[] get(byte[] key) {
     int[] nibblePath = Nibbles.toNibbles(key);
-    return getAt(this.root, nibblePath, 0);
+    return getAtNew(this.root, nibblePath, 0);
   }
 
   /**
@@ -104,7 +108,8 @@ public final class MerklePatriciaTrieImpl {
    */
   public void delete(byte[] key) {
     int[] nibblePath = Nibbles.toNibbles(key);
-    this.root = deleteAt(this.root, nibblePath, 0);
+    NodeHash rootHash = deleteAtNew(this.root, nibblePath, 0);
+    this.root = rootHash != null ? rootHash.toBytes() : null;
   }
 
   /**
@@ -128,7 +133,8 @@ public final class MerklePatriciaTrieImpl {
   }
 
   /**
-   * Recursively inserts a value at the given position in the trie.
+   * DEPRECATED: Use putAtNew() with visitor pattern instead.
+   * This method delegates to the new implementation for backward compatibility.
    *
    * @param nodeHash the hash of the current node (null for non-existent)
    * @param keyNibbles the full key as nibbles
@@ -137,6 +143,15 @@ public final class MerklePatriciaTrieImpl {
    * @return the hash of the modified subtree
    */
   private byte[] putAt(byte[] nodeHash, int[] keyNibbles, int position, byte[] value) {
+    NodeHash result = putAtNew(nodeHash, keyNibbles, position, value);
+    return result != null ? result.toBytes() : null;
+  }
+
+  /*
+   * OLD IMPLEMENTATION - COMMENTED OUT FOR REFACTORING
+   * TODO: Remove after validation of new implementation
+   *
+  private byte[] putAtOld(byte[] nodeHash, int[] keyNibbles, int position, byte[] value) {
     if (nodeHash == null) {
       LeafNode leaf = new LeafNode();
       int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
@@ -203,9 +218,11 @@ public final class MerklePatriciaTrieImpl {
       return h;
     }
   }
+  */
 
   /**
-   * Splits a leaf node when a key conflict occurs and inserts both values.
+   * DEPRECATED: Use NodeSplitter.splitLeafNode() with visitor pattern instead.
+   * This method delegates to the new implementation for backward compatibility.
    *
    * @param existingLeaf the existing leaf node to split
    * @param existingHash the hash of the existing leaf
@@ -216,7 +233,18 @@ public final class MerklePatriciaTrieImpl {
    * @return the hash of the new subtree structure
    */
   private byte[] splitAndInsert(LeafNode existingLeaf, byte[] existingHash, int[] keyNibbles, int position, byte[] value, int commonPrefixLength) {
-    int[] leafNibs = Nibbles.unpackHP(existingLeaf.hp).nibbles;
+    int[] remainingKey = slice(keyNibbles, position, keyNibbles.length);
+    NodeHash result = NodeSplitter.splitLeafNode(persistence, existingLeaf, remainingKey, value, commonPrefixLength);
+    return result.toBytes();
+  }
+
+  /*
+   * ALL OLD METHODS COMMENTED OUT FOR REFACTORING - WILL BE REMOVED
+   * The new visitor-based implementation is now active.
+   */
+
+  // All old methods from here are temporarily commented out
+  /*
     int[] leafRest = slice(leafNibs, commonPrefixLength, leafNibs.length);
     int[] keyRest = slice(keyNibbles, position + commonPrefixLength, keyNibbles.length);
 
@@ -279,66 +307,58 @@ public final class MerklePatriciaTrieImpl {
    * @param commonPrefixLength the length of the common prefix
    * @return the hash of the new subtree structure
    */
+  // DEPRECATED: Old method temporarily preserved but will be removed
+  // This method has been replaced by NodeSplitter and visitor pattern
+  // Keeping for reference during migration - NOT USED IN PRODUCTION
+  /*
   private byte[] splitExtensionAndInsert(ExtensionNode existingExt, byte[] existingHash, int[] keyNibbles, int position, byte[] value, int commonPrefixLength) {
-    int[] extNibs = Nibbles.unpackHP(existingExt.hp).nibbles;
+    int[] extNibs = Nibbles.unpackHP(existingExt.getHp()).nibbles;
     int[] extRest = slice(extNibs, commonPrefixLength, extNibs.length);
     int[] keyRest = slice(keyNibbles, position + commonPrefixLength, keyNibbles.length);
 
-    BranchNode branch = new BranchNode();
+    BranchNode.Builder branchBuilder = BranchNode.builder();
     if (extRest.length == 0) {
       // Defensive: treat as full match of extension; insert below existing child
-      byte[] newChild = putAt(existingExt.child, keyNibbles, position + commonPrefixLength, value);
-      existingExt.child = newChild;
-      byte[] enc = existingExt.encode();
-      byte[] h = existingExt.hash();
-      store.put(h, enc);
-      return h;
+      byte[] newChild = putAt(existingExt.getChild(), keyNibbles, position + commonPrefixLength, value);
+      ExtensionNode updated = existingExt.withChild(newChild);
+      NodeHash hash = persistence.persist(updated);
+      return hash.toBytes();
     } else {
       // child along extRest[0]
       if (extRest.length == 1) {
         // directly to child
-        branch.children[extRest[0]] = existingExt.child;
+        branchBuilder.child(extRest[0], existingExt.getChild());
       } else {
-        ExtensionNode en2 = new ExtensionNode();
-        en2.hp = Nibbles.packHP(false, slice(extRest, 1, extRest.length));
-        en2.child = existingExt.child;
-        byte[] enc2 = en2.encode();
-        byte[] h2 = en2.hash();
-        store.put(h2, enc2);
-        branch.children[extRest[0]] = h2;
+        byte[] hp = Nibbles.packHP(false, slice(extRest, 1, extRest.length));
+        ExtensionNode en2 = ExtensionNode.of(hp, existingExt.getChild());
+        NodeHash hash2 = persistence.persist(en2);
+        branchBuilder.child(extRest[0], hash2.toBytes());
       }
     }
 
     if (keyRest.length == 0) {
-      branch.value = value;
+      branchBuilder.value(value);
     } else {
-      LeafNode newLeaf = new LeafNode();
-      newLeaf.hp = Nibbles.packHP(true, slice(keyRest, 1, keyRest.length));
-      newLeaf.value = value;
-      byte[] enc = newLeaf.encode();
-      byte[] h = newLeaf.hash();
-      store.put(h, enc);
-      branch.children[keyRest[0]] = h;
+      byte[] hp = Nibbles.packHP(true, slice(keyRest, 1, keyRest.length));
+      LeafNode newLeaf = LeafNode.of(hp, value);
+      NodeHash hash = persistence.persist(newLeaf);
+      branchBuilder.child(keyRest[0], hash.toBytes());
     }
 
+    BranchNode branch = branchBuilder.build();
+    
     if (commonPrefixLength > 0) {
-      ExtensionNode en = new ExtensionNode();
-      en.hp = Nibbles.packHP(false, slice(keyNibbles, position, position + commonPrefixLength));
-      byte[] bEnc = branch.encode();
-      byte[] bHash = branch.hash();
-      store.put(bHash, bEnc);
-      en.child = bHash;
-      byte[] eEnc = en.encode();
-      byte[] eHash = en.hash();
-      store.put(eHash, eEnc);
-      return eHash;
+      byte[] hp = Nibbles.packHP(false, slice(keyNibbles, position, position + commonPrefixLength));
+      NodeHash branchHash = persistence.persist(branch);
+      ExtensionNode en = ExtensionNode.of(hp, branchHash.toBytes());
+      NodeHash extensionHash = persistence.persist(en);
+      return extensionHash.toBytes();
     } else {
-      byte[] bEnc = branch.encode();
-      byte[] bHash = branch.hash();
-      store.put(bHash, bEnc);
-      return bHash;
+      NodeHash branchHash = persistence.persist(branch);
+      return branchHash.toBytes();
     }
   }
+  */
 
   /**
    * Recursively deletes a value at the given position in the trie.
@@ -348,6 +368,10 @@ public final class MerklePatriciaTrieImpl {
    * @param position the current position in the key
    * @return the hash of the modified subtree (null if deleted)
    */
+  // DEPRECATED: Old method temporarily preserved but will be removed
+  // This method uses direct field access and needs migration to visitor pattern
+  // Keeping for reference during migration - NOT USED IN PRODUCTION
+  /*
   private byte[] deleteAt(byte[] nodeHash, int[] keyNibbles, int position) {
     if (nodeHash == null) return null;
     byte[] nodeData = store.get(nodeHash);
@@ -357,7 +381,7 @@ public final class MerklePatriciaTrieImpl {
     Node node = TrieEncoding.decode(nodeData);
     if (node instanceof LeafNode) {
       LeafNode ln = (LeafNode) node;
-      int[] nibbles = Nibbles.unpackHP(ln.hp).nibbles;
+      int[] nibbles = Nibbles.unpackHP(ln.getHp()).nibbles;
       int[] targetNibbles = slice(keyNibbles, position, keyNibbles.length);
       if (nibbles.length == targetNibbles.length && Nibbles.commonPrefixLen(nibbles, targetNibbles) == nibbles.length) {
         return null; // delete this leaf
@@ -365,11 +389,11 @@ public final class MerklePatriciaTrieImpl {
       return nodeHash; // not found
     } else if (node instanceof ExtensionNode) {
       ExtensionNode en = (ExtensionNode) node;
-      int[] enNibs = Nibbles.unpackHP(en.hp).nibbles;
+      int[] enNibs = Nibbles.unpackHP(en.getHp()).nibbles;
       int[] targetNibbles = slice(keyNibbles, position, keyNibbles.length);
       int common = Nibbles.commonPrefixLen(targetNibbles, enNibs);
       if (common < enNibs.length) return nodeHash; // not found
-      byte[] newChild = deleteAt(en.child, keyNibbles, position + enNibs.length);
+      byte[] newChild = deleteAt(en.getChild(), keyNibbles, position + enNibs.length);
       if (newChild == null) return null; // child removed, compress away this ext
       // check if child can be merged
       byte[] childData = store.get(newChild);
@@ -380,102 +404,81 @@ public final class MerklePatriciaTrieImpl {
       if (child instanceof ExtensionNode) {
         // merge extensions
         ExtensionNode c = (ExtensionNode) child;
-        ExtensionNode merged = new ExtensionNode();
-        int[] mergedNibs = concat(Nibbles.unpackHP(en.hp).nibbles, Nibbles.unpackHP(c.hp).nibbles);
-        merged.hp = Nibbles.packHP(false, mergedNibs);
-        merged.child = c.child;
-        byte[] enc = merged.encode();
-        byte[] h = merged.hash();
-        store.put(h, enc);
-        return h;
+        int[] mergedNibs = concat(Nibbles.unpackHP(en.getHp()).nibbles, Nibbles.unpackHP(c.getHp()).nibbles);
+        byte[] hp = Nibbles.packHP(false, mergedNibs);
+        ExtensionNode merged = ExtensionNode.of(hp, c.getChild());
+        NodeHash hash = persistence.persist(merged);
+        return hash.toBytes();
       } else if (child instanceof LeafNode) {
         // merge ext + leaf into leaf
         LeafNode c = (LeafNode) child;
-        int[] mergedNibs = concat(Nibbles.unpackHP(en.hp).nibbles, Nibbles.unpackHP(c.hp).nibbles);
-        LeafNode merged = new LeafNode();
-        merged.hp = Nibbles.packHP(true, mergedNibs);
-        merged.value = c.value;
-        byte[] enc = merged.encode();
-        byte[] h = merged.hash();
-        store.put(h, enc);
-        return h;
+        int[] mergedNibs = concat(Nibbles.unpackHP(en.getHp()).nibbles, Nibbles.unpackHP(c.getHp()).nibbles);
+        byte[] hp = Nibbles.packHP(true, mergedNibs);
+        LeafNode merged = LeafNode.of(hp, c.getValue());
+        NodeHash hash = persistence.persist(merged);
+        return hash.toBytes();
       } else {
-        en.child = newChild;
-        byte[] enc = en.encode();
-        byte[] h = en.hash();
-        store.put(h, enc);
-        return h;
+        ExtensionNode updated = en.withChild(newChild);
+        NodeHash hash = persistence.persist(updated);
+        return hash.toBytes();
       }
     } else {
       BranchNode bn = (BranchNode) node;
+      BranchNode updated;
       if (position == keyNibbles.length) {
-        bn.value = null;
+        updated = bn.withValue(null);
       } else {
         int childIndex = keyNibbles[position];
-        bn.children[childIndex] = deleteAt(bn.children[childIndex], keyNibbles, position + 1);
+        byte[] newChild = deleteAt(bn.getChild(childIndex), keyNibbles, position + 1);
+        updated = bn.withChild(childIndex, newChild);
       }
       // compress if needed
-      int childCnt = bn.childCountNonNull();
-      if (childCnt == 0 && bn.value == null) {
+      int childCnt = updated.childCountNonNull();
+      if (childCnt == 0 && updated.getValue() == null) {
         return null;
-      } else if (childCnt == 0 && bn.value != null) {
-        LeafNode ln = new LeafNode();
-        ln.hp = Nibbles.packHP(true, new int[0]);
-        ln.value = bn.value;
-        byte[] enc = ln.encode();
-        byte[] h = ln.hash();
-        store.put(h, enc);
-        return h;
-      } else if (childCnt == 1 && bn.value == null) {
-        int firstChildIdx = bn.firstChildIndex();
-        byte[] childHash = bn.children[firstChildIdx];
+      } else if (childCnt == 0 && updated.getValue() != null) {
+        byte[] hp = Nibbles.packHP(true, new int[0]);
+        LeafNode ln = LeafNode.of(hp, updated.getValue());
+        NodeHash hash = persistence.persist(ln);
+        return hash.toBytes();
+      } else if (childCnt == 1 && updated.getValue() == null) {
+        int firstChildIdx = updated.firstChildIndex();
+        byte[] childHash = updated.getChild(firstChildIdx);
         byte[] cData = store.get(childHash);
         if (cData == null) {
           // child not found, return as-is
-          byte[] enc = bn.encode();
-          byte[] h = bn.hash();
-          store.put(h, enc);
-          return h;
+          NodeHash hash = persistence.persist(updated);
+          return hash.toBytes();
         }
         Node c = TrieEncoding.decode(cData);
         if (c instanceof ExtensionNode) {
           ExtensionNode ce = (ExtensionNode) c;
-          int[] merged = concat(new int[]{firstChildIdx}, Nibbles.unpackHP(ce.hp).nibbles);
-          ExtensionNode en = new ExtensionNode();
-          en.hp = Nibbles.packHP(false, merged);
-          en.child = ce.child;
-          byte[] enc = en.encode();
-          byte[] h = en.hash();
-          store.put(h, enc);
-          return h;
+          int[] merged = concat(new int[]{firstChildIdx}, Nibbles.unpackHP(ce.getHp()).nibbles);
+          byte[] hp = Nibbles.packHP(false, merged);
+          ExtensionNode en = ExtensionNode.of(hp, ce.getChild());
+          NodeHash hash = persistence.persist(en);
+          return hash.toBytes();
         } else if (c instanceof LeafNode) {
           LeafNode cl = (LeafNode) c;
-          int[] merged = concat(new int[]{firstChildIdx}, Nibbles.unpackHP(cl.hp).nibbles);
-          LeafNode ln = new LeafNode();
-          ln.hp = Nibbles.packHP(true, merged);
-          ln.value = cl.value;
-          byte[] enc = ln.encode();
-          byte[] h = ln.hash();
-          store.put(h, enc);
-          return h;
+          int[] merged = concat(new int[]{firstChildIdx}, Nibbles.unpackHP(cl.getHp()).nibbles);
+          byte[] hp = Nibbles.packHP(true, merged);
+          LeafNode ln = LeafNode.of(hp, cl.getValue());
+          NodeHash hash = persistence.persist(ln);
+          return hash.toBytes();
         } else {
           // child branch; create extension of single nibble
-          ExtensionNode en = new ExtensionNode();
-          en.hp = Nibbles.packHP(false, new int[]{firstChildIdx});
-          en.child = childHash;
-          byte[] enc = en.encode();
-          byte[] h = en.hash();
-          store.put(h, enc);
-          return h;
+          byte[] hp = Nibbles.packHP(false, new int[]{firstChildIdx});
+          ExtensionNode en = ExtensionNode.of(hp, childHash);
+          NodeHash hash = persistence.persist(en);
+          return hash.toBytes();
         }
       } else {
-        byte[] enc = bn.encode();
-        byte[] h = bn.hash();
-        store.put(h, enc);
-        return h;
+        NodeHash hash = persistence.persist(updated);
+        return hash.toBytes();
       }
     }
   }
+  */
 
   /**
    * Recursively retrieves a value at the given position in the trie.
@@ -485,6 +488,10 @@ public final class MerklePatriciaTrieImpl {
    * @param position the current position in the key
    * @return the value if found, null otherwise
    */
+  // DEPRECATED: Old method temporarily preserved but will be removed
+  // This method uses direct field access and needs migration to visitor pattern
+  // Keeping for reference during migration - NOT USED IN PRODUCTION
+  /*
   private byte[] getAt(byte[] nodeHash, int[] keyNibbles, int position) {
     if (nodeHash == null) return null;
     byte[] nodeData = store.get(nodeHash);
@@ -494,26 +501,27 @@ public final class MerklePatriciaTrieImpl {
     Node node = TrieEncoding.decode(nodeData);
     if (node instanceof LeafNode) {
       LeafNode ln = (LeafNode) node;
-      int[] nibbles = Nibbles.unpackHP(ln.hp).nibbles;
+      int[] nibbles = Nibbles.unpackHP(ln.getHp()).nibbles;
       int[] targetNibbles = slice(keyNibbles, position, keyNibbles.length);
       if (nibbles.length == targetNibbles.length && Nibbles.commonPrefixLen(nibbles, targetNibbles) == nibbles.length) {
-        return ln.value;
+        return ln.getValue();
       }
       return null;
     } else if (node instanceof ExtensionNode) {
       ExtensionNode en = (ExtensionNode) node;
-      int[] enNibs = Nibbles.unpackHP(en.hp).nibbles;
+      int[] enNibs = Nibbles.unpackHP(en.getHp()).nibbles;
       int[] targetNibbles = slice(keyNibbles, position, keyNibbles.length);
       int common = Nibbles.commonPrefixLen(targetNibbles, enNibs);
       if (common < enNibs.length) return null;
-      return getAt(en.child, keyNibbles, position + enNibs.length);
+      return getAt(en.getChild(), keyNibbles, position + enNibs.length);
     } else {
       BranchNode bn = (BranchNode) node;
-      if (position == keyNibbles.length) return bn.value;
+      if (position == keyNibbles.length) return bn.getValue();
       int childIndex = keyNibbles[position];
-      return getAt(bn.children[childIndex], keyNibbles, position + 1);
+      return getAt(bn.getChild(childIndex), keyNibbles, position + 1);
     }
   }
+  */
 
   /**
    * Recursively scans the trie for keys matching a prefix.
@@ -534,30 +542,32 @@ public final class MerklePatriciaTrieImpl {
     Node node = TrieEncoding.decode(nodeData);
     if (node instanceof LeafNode) {
       LeafNode ln = (LeafNode) node;
-      int[] nibbles = Nibbles.unpackHP(ln.hp).nibbles;
+      int[] nibbles = Nibbles.unpackHP(ln.getHp()).nibbles;
       for (int nib : nibbles) accumulator.addLast(nib);
       // check prefix match
       int[] current = toArray(accumulator);
       if (startsWith(current, prefixNibbles)) {
-        output.add(new com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie.Entry(toBytes(current), ln.value));
+        output.add(new com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie.Entry(toBytes(current), ln.getValue()));
       }
       for (int i = 0; i < nibbles.length; i++) accumulator.removeLast();
     } else if (node instanceof ExtensionNode) {
       ExtensionNode en = (ExtensionNode) node;
-      int[] enNibs = Nibbles.unpackHP(en.hp).nibbles;
+      int[] enNibs = Nibbles.unpackHP(en.getHp()).nibbles;
       for (int nib : enNibs) accumulator.addLast(nib);
-      scan(en.child, prefixNibbles, position + enNibs.length, limit, accumulator, output);
+      scan(en.getChild(), prefixNibbles, position + enNibs.length, limit, accumulator, output);
       for (int i = 0; i < enNibs.length; i++) accumulator.removeLast();
     } else {
       BranchNode bn = (BranchNode) node;
-      if (bn.value != null) {
+      byte[] branchValue = bn.getValue();
+      if (branchValue != null) {
         int[] current = toArray(accumulator);
-        if (startsWith(current, prefixNibbles)) output.add(new com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie.Entry(toBytes(current), bn.value));
+        if (startsWith(current, prefixNibbles)) output.add(new com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie.Entry(toBytes(current), branchValue));
         if (output.size() >= limit) return;
       }
       for (int i = 0; i < 16 && output.size() < limit; i++) {
         accumulator.addLast(i);
-        scan(bn.children[i], prefixNibbles, position + 1, limit, accumulator, output);
+        byte[] childHash = bn.getChild(i);
+        scan(childHash, prefixNibbles, position + 1, limit, accumulator, output);
         accumulator.removeLast();
       }
     }
@@ -630,5 +640,89 @@ public final class MerklePatriciaTrieImpl {
    */
   private static byte[] toBytes(int[] nibbles) {
     return Nibbles.fromNibbles(nibbles);
+  }
+  // END OF COMMENTED OUT METHODS
+
+  // Note: getAt, splitExtensionAndInsert, and deleteAt methods are defined 
+  // in the commented section above. These delegation methods were removed 
+  // to avoid duplicate method definitions during the refactoring transition.
+
+  // ======================================
+  // New Visitor-Based Implementation Methods
+  // ======================================
+
+  /**
+   * New visitor-based implementation for inserting values using immutable nodes.
+   *
+   * @param nodeHash the hash of the current node (null for non-existent)
+   * @param keyNibbles the full key as nibbles
+   * @param position the current position in the key
+   * @param value the value to insert
+   * @return the hash of the modified subtree
+   */
+  private NodeHash putAtNew(byte[] nodeHash, int[] keyNibbles, int position, byte[] value) {
+    if (nodeHash == null) {
+      // Create new leaf node
+      int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
+      byte[] hp = Nibbles.packHP(true, remainingNibbles);
+      LeafNode leaf = LeafNode.of(hp, value);
+      return persistence.persist(leaf);
+    }
+
+    Node node = persistence.load(NodeHash.of(nodeHash));
+    if (node == null) {
+      // Missing node - create new leaf
+      int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
+      byte[] hp = Nibbles.packHP(true, remainingNibbles);
+      LeafNode leaf = LeafNode.of(hp, value);
+      return persistence.persist(leaf);
+    }
+
+    PutOperationVisitor putVisitor = new PutOperationVisitor(persistence, keyNibbles, position, value);
+    return node.accept(putVisitor);
+  }
+
+  /**
+   * New visitor-based implementation for retrieving values using immutable nodes.
+   *
+   * @param nodeHash the hash of the current node (null for non-existent)
+   * @param keyNibbles the full key as nibbles
+   * @param position the current position in the key
+   * @return the value if found, null otherwise
+   */
+  private byte[] getAtNew(byte[] nodeHash, int[] keyNibbles, int position) {
+    if (nodeHash == null) {
+      return null; // No node at this path
+    }
+
+    Node node = persistence.load(NodeHash.of(nodeHash));
+    if (node == null) {
+      return null; // Missing node
+    }
+
+    GetOperationVisitor getVisitor = new GetOperationVisitor(persistence, keyNibbles, position);
+    return node.accept(getVisitor);
+  }
+
+  /**
+   * New visitor-based implementation for deleting values using immutable nodes.
+   *
+   * @param nodeHash the hash of the current node (null for non-existent)
+   * @param keyNibbles the full key as nibbles
+   * @param position the current position in the key
+   * @return the hash of the modified subtree (null if deleted)
+   */
+  private NodeHash deleteAtNew(byte[] nodeHash, int[] keyNibbles, int position) {
+    if (nodeHash == null) {
+      return null; // No node at this path
+    }
+
+    Node node = persistence.load(NodeHash.of(nodeHash));
+    if (node == null) {
+      return null; // Missing node - nothing to delete
+    }
+
+    DeleteOperationVisitor deleteVisitor = new DeleteOperationVisitor(persistence, keyNibbles, position);
+    return node.accept(deleteVisitor);
   }
 }

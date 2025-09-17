@@ -14,6 +14,15 @@ package com.bloxbean.cardano.statetrees.mpt;
  * The hash serves as both the node's identity and ensures data integrity in the
  * distributed storage system.</p>
  *
+ * <p>The visitor pattern is supported for type-safe operations on different node types:</p>
+ * <pre>
+ * T result = node.accept(new NodeVisitor&lt;T&gt;() {
+ *   public T visitLeaf(LeafNode leaf) { ... }
+ *   public T visitBranch(BranchNode branch) { ... }
+ *   public T visitExtension(ExtensionNode extension) { ... }
+ * });
+ * </pre>
+ *
  */
 abstract class Node {
 
@@ -40,5 +49,18 @@ abstract class Node {
    * @return the CBOR-encoded byte representation of this node
    */
   abstract byte[] encode();
+
+  /**
+   * Accepts a visitor for type-safe operations on this node.
+   *
+   * <p>The visitor pattern allows performing operations on different node types
+   * without casting and provides compile-time safety. Each concrete node type
+   * implements this method to call the appropriate visitor method.</p>
+   *
+   * @param <T> the return type of the visitor operation
+   * @param visitor the visitor to accept
+   * @return the result of the visitor operation
+   */
+  public abstract <T> T accept(NodeVisitor<T> visitor);
 }
 
