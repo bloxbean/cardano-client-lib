@@ -12,8 +12,8 @@ import java.util.List;
 /**
  * Parses encoded MPT nodes to extract child hashes without needing internal types.
  */
-final class NodeRefParser {
-  static List<byte[]> childRefs(byte[] enc) {
+public final class NodeRefParser {
+  public static List<byte[]> childRefs(byte[] enc) {
     try {
       List<DataItem> items = new CborDecoder(new ByteArrayInputStream(enc)).decode();
       if (items.isEmpty()) return java.util.Collections.emptyList();

@@ -59,6 +59,14 @@ public class RefcountGcStrategy implements GcStrategy {
 
     /**
      * Increment refcount for every node reachable from root. Call during atomic commit of a new root.
+     * 
+     * @param db the RocksDB instance
+     * @param cfNodes the column family handle for nodes
+     * @param cfRefs the column family handle for reference counts
+     * @param root the root hash to start traversal from
+     * @param wb the write batch for atomic operations
+     * @return the number of nodes processed
+     * @throws RocksDBException if a database operation fails
      */
     public static long incrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb) throws RocksDBException {
         if (root == null || root.length != 32) return 0;
@@ -82,6 +90,14 @@ public class RefcountGcStrategy implements GcStrategy {
 
     /**
      * Decrement refcount for every node reachable from root. Delete nodes whose refcount reaches zero.
+     * 
+     * @param db the RocksDB instance
+     * @param cfNodes the column family handle for nodes
+     * @param cfRefs the column family handle for reference counts
+     * @param root the root hash to start traversal from
+     * @param wb the write batch for atomic operations
+     * @return array containing [nodes processed, nodes deleted]
+     * @throws RocksDBException if a database operation fails
      */
     public static long[] decrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb) throws RocksDBException {
         return decrementAll(db, cfNodes, cfRefs, root, wb, null);
@@ -89,6 +105,15 @@ public class RefcountGcStrategy implements GcStrategy {
 
     /**
      * Decrement with optional ReadOptions (for snapshot-consistent reads).
+     * 
+     * @param db the RocksDB instance
+     * @param cfNodes the column family handle for nodes
+     * @param cfRefs the column family handle for reference counts
+     * @param root the root hash to start traversal from
+     * @param wb the write batch for atomic operations
+     * @param ro optional read options for snapshot consistency
+     * @return array containing [nodes processed, nodes deleted]
+     * @throws RocksDBException if a database operation fails
      */
     public static long[] decrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, ReadOptions ro) throws RocksDBException {
         if (root == null || root.length != 32) return new long[]{0, 0};
