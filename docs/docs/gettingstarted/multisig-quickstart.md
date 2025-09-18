@@ -104,10 +104,10 @@ To create two new regular accounts, check [here](account-setup.md#create-sender-
 
 ```java
 String account1Mnemonic = "<24 words mnemonic>";
-Account account1 = new Account(Networks.testnet(), account1Mnemonic);
+Account account1 = Account.createFromMnemonic(Networks.testnet(), account1Mnemonic);
 
 String account2Mnemonic = "<24 words mnemonic>";
-Account account2 = new Account(Networks.testnet(), account2Mnemonic);
+Account account2 = Account.createFromMnemonic(Networks.testnet(), account2Mnemonic);
 ```
 
 2. Create a new payment key pair (Ed25519 secret key / verification key)
@@ -183,10 +183,10 @@ If you convert ``scriptAtLeast`` object to json, you will see something similar
 
 ## Create Script Address
 
-Now let's use ``AddressService`` to generate a script address from our muti-sig native script.  
+Now let's use ``AddressProvider`` to generate a script address from our muti-sig native script.  
 
-```json
-String scriptAddress = AddressService.getInstance().getEntAddress(scriptAtLeast, Networks.testnet()).toBech32();
+```java
+String scriptAddress = AddressProvider.getEntAddress(scriptAtLeast, Networks.testnet()).toBech32();
 ```
 
 ## Topup script address with test Ada
@@ -353,11 +353,11 @@ public class MultiSigTransfer {
     public void transfer() throws Exception {
         //First account
         String account1Mnemonic = "turkey elder dad veteran they lumber feature garment race answer file erase riot resist sting process law deputy turtle foil legal calm exist civil";
-        Account account1 = new Account(Networks.testnet(), account1Mnemonic);
+        Account account1 = Account.createFromMnemonic(Networks.testnet(), account1Mnemonic);
 
         //Second account
         String account2Mnemonic = "report crowd trophy rough twin column access include evolve awkward world random bounce pave select rocket vote junk farm group main boat tissue mad";
-        Account account2 = new Account(Networks.testnet(), account2Mnemonic);
+        Account account2 = Account.createFromMnemonic(Networks.testnet(), account2Mnemonic);
 
         //Third account payment key
         String paymentSigningKeyCborHex = "58205d9ccc4202bde1785708c10f8b13231d5a57078c326d0e0ff172191f975a983e";
@@ -386,7 +386,7 @@ public class MultiSigTransfer {
         String bf_projectId = "preprod...";
         BackendService backendService = new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bf_projectId);
         // For Koios
-        //BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
+        //BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREVIEW_URL);
 
         //Define outputs
         String address1 = account1.baseAddress();

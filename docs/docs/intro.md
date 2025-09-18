@@ -8,11 +8,12 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 :::info
 
-**Latest Stable Version**: [0.6.3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.3)
+**Latest Stable Version**: [0.7.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.0)
 
 :::
 
 ### Recent Posts
+- [Cardano Indexing Made Simple: Yaci Store Plugin System for Non-Java Developers](https://satran004.medium.com/cardano-indexing-made-simple-yaci-store-plugin-system-for-non-java-developers-39d4c148ffb1)
 - [Introducing QuickTx API to build transactions](https://satran004.medium.com/introducing-new-quicktx-api-in-cardano-client-lib-0-5-0-beta1-5beb491282ce)
 - [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
 - [Demo:- Test Aiken Smart Contract Using Java Offchain Code with Yaci DevKit](https://youtu.be/PTnSc85t0Nk?si=44uK6KFrTIH3m06A)
@@ -97,7 +98,7 @@ Out of box, the library currently supports integration with following providers 
     - **Module :** cardano-client-backend-koios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/koios/README.md)
     - **Status :** Stable
 - [Ogmios](https://ogmios.dev/)
-    - **Module :** cardano-client-backend-koios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/ogmios/README.md)
+    - **Module :** cardano-client-backend-ogmios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/ogmios/README.md)
     - **Status :** Stable
     - **Supported Apis :** submitTransaction, evaluateTx, Kupo support (UtxoService)
 
