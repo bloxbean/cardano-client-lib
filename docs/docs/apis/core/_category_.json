@@ -1,0 +1,9 @@
+{
+  "label": "Core APIs",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "title": "Core APIs",
+    "description": "Essential APIs for basic Cardano operations"
+  }
+}

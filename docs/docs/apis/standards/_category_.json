@@ -1,0 +1,12 @@
+{
+  "label": "Standards & CIPs",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "title": "Standards & CIPs",
+    "description": "Cardano Improvement Proposals (CIPs) and standards implementation"
+  }
+}
+
+
+
