@@ -22,8 +22,11 @@ The Account API provides a simple abstraction for creating and managing Cardano 
 ### Account Class
 The main class for account operations, providing methods for address generation, key management, and transaction signing.
 
+**Constructors:**
+- `Account(Network network)` - Create new account with generated mnemonic
+- `Account(Network network, String mnemonic)` - Create account from existing mnemonic
+
 **Key Methods:**
-- `createFromMnemonic()` - Create account from mnemonic phrase
 - `baseAddress()` - Get base address for payments
 - `enterpriseAddress()` - Get enterprise address (no staking)
 - `stakeAddress()` - Get stake address for delegation
@@ -136,9 +139,6 @@ String mainnetAddress = mainnetAccount.baseAddress(); // addr1...
 Account testnetAccount = new Account(Networks.testnet(), mnemonic);
 String testnetAddress = testnetAccount.baseAddress(); // addr_test1...
 
-// Preview network account
-Account previewAccount = new Account(Networks.preview(), mnemonic);
-String previewAddress = previewAccount.baseAddress(); // addr_test1...
 ```
 
 ## Best Practices
@@ -157,14 +157,15 @@ String mnemonic = account.mnemonic();
 ### Mnemonic Validation
 
 ```java
-// Validate mnemonic before creating account
-public boolean isValidMnemonic(String mnemonic) {
-    try {
-        new Account(Networks.testnet(), mnemonic);
-        return true;
-    } catch (Exception e) {
-        return false;
-    }
+// Validate mnemonic using MnemonicUtil
+String mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+boolean isValid = MnemonicUtil.validateMnemonic(mnemonic);
+if (isValid) {
+    Account account = new Account(Networks.testnet(), mnemonic);
+    System.out.println("Valid mnemonic, account created");
+} else {
+    System.out.println("Invalid mnemonic phrase");
 }
 ```
 
@@ -201,16 +202,3 @@ try {
     }
 }
 ```
-
-## Account vs HD Wallet Comparison
-
-| Feature | Account API | HD Wallet API |
-|---------|-------------|---------------|
-| **Complexity** | Simple | Advanced |
-| **Address Generation** | Fixed addresses | Multiple derived addresses |
-| **Privacy** | Basic | Enhanced (new address per transaction) |
-| **Use Case** | Simple applications | Privacy-focused applications |
-| **Key Management** | Single key pair | Hierarchical key derivation |
-| **Standards** | Basic Cardano | BIP32/CIP1852 compliant |
-
-Choose Account API for simple applications requiring basic account functionality. For enhanced privacy and multiple address generation, consider the HD Wallet API.
