@@ -1,0 +1,9 @@
+{
+  "label": "Governance",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "title": "Governance APIs",
+    "description": "APIs for Cardano governance operations including DRep registration and voting"
+  }
+}

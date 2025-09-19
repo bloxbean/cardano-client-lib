@@ -1,0 +1,11 @@
+{
+  "label": "Providers",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "title": "Provider APIs",
+    "description": "Integration with external services and extensible provider interfaces"
+  }
+}
+
+
