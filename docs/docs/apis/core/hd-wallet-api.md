@@ -15,7 +15,6 @@ The HD Wallet API provides hierarchical deterministic wallet functionality, allo
 - **BIP32/CIP1852 Compliance**: Follow industry standards for key derivation
 - **Multi-Account Support**: Manage multiple accounts within a single wallet
 - **Deterministic Generation**: Same mnemonic always generates same addresses
-- **Backup Simplicity**: Single mnemonic backs up entire wallet structure
 
 ## Core Classes
 
@@ -289,10 +288,8 @@ public class WalletManager {
 | **Key Management** | Hierarchical key derivation | Single key pair |
 | **Address Generation** | Multiple derived addresses | Fixed addresses |
 | **Privacy** | High (new address per transaction) | Limited |
-| **Backup** | Single mnemonic | Individual keys |
 | **Use Case** | Privacy-focused applications | Simple applications |
 | **Complexity** | Medium to High | Low |
-| **Standards** | BIP32/CIP1852 compliant | Basic |
 | **Multi-Account** | Native support | Manual management |
 
-Choose HD Wallet API for applications requiring enhanced privacy, multiple addresses, or hierarchical key management. Use Account API for simpler use cases where basic account functionality is sufficient.
+Use Account API if your application is using only one address or account.
