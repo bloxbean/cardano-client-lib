@@ -8,7 +8,7 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 
 :::info
 
-**Latest Stable Version**: [0.6.3](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.3)
+**Latest Stable Version**: [0.7.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.0)
 
 :::
 
@@ -97,7 +97,7 @@ Out of box, the library currently supports integration with following providers 
     - **Module :** cardano-client-backend-koios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/koios/README.md)
     - **Status :** Stable
 - [Ogmios](https://ogmios.dev/)
-    - **Module :** cardano-client-backend-koios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/ogmios/README.md)
+    - **Module :** cardano-client-backend-ogmios [README](https://github.com/bloxbean/cardano-client-lib/blob/master/backend-modules/ogmios/README.md)
     - **Status :** Stable
     - **Supported Apis :** submitTransaction, evaluateTx, Kupo support (UtxoService)
 

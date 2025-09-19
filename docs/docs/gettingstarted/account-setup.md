@@ -41,7 +41,7 @@ If you already have mnemonic for an existing account, you can create the account
 
 ```java
 String mnemonic = "<24 words mnemonic>";
-Account account = new Account(Networks.testnet(), mnemonic);
+Account account = Account.createFromMnemonic(Networks.testnet(), mnemonic);
 ```
 
 :::info
@@ -82,6 +82,6 @@ or,
 **For Koios :**
 
 ```java
-BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
+BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREVIEW_URL);
 ```
 **Note:** You can find other Koios urls in ``com.bloxbean.cardano.client.backend.koios.Constants``
