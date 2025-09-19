@@ -230,14 +230,4 @@ Metadata appMetadata = ApplicationMetadata.createTransactionMetadata(
 );
 ```
 
-## Common Metadata Labels
-
-| Label | Purpose | Standard | Description |
-|-------|---------|----------|-------------|
-| **674** | Messages | CIP-20 | General message metadata |
-| **675** | Comments | CIP-20 | Transaction comments |
-| **721** | NFT Metadata | CIP-25 | Non-fungible token metadata |
-| **1967** | Royalties | CIP-27 | NFT royalty information |
-| **1968** | Datum | CIP-68 | Reference NFT datum |
-
-The Metadata API provides full support for these standards while allowing custom metadata structures for application-specific needs.
+The Metadata API provides full support for standard metadata formats while allowing custom metadata structures for application-specific needs.
