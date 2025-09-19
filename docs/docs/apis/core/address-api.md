@@ -14,7 +14,6 @@ The Address API provides comprehensive functionality for working with Cardano ad
 - **Address Validation**: Validate address format and network compatibility
 - **Address Conversion**: Convert between different address formats and representations
 - **Credential Extraction**: Extract payment and delegation credentials from addresses
-- **Network Detection**: Determine network (mainnet/testnet) from address
 - **Type Support**: Support for all Cardano address types (base, enterprise, pointer, reward)
 
 ## Core Classes
@@ -29,11 +28,15 @@ Utility class for generating addresses from accounts, keys, and scripts.
 Utility class for address validation, conversion, and manipulation operations.
 
 **Key Methods:**
+- `AddressUtil.isValidAddress(String address)` - Validate address format
+- `AddressUtil.addressToBytes(String address)` - Convert address to bytes
+- `AddressUtil.getBech32Address(Address address)` - Get Bech32 representation
+
+**Address Class Methods:**
 - `Address(String address)` - Create from Bech32 string
 - `toBech32()` - Convert to Bech32 format
 - `getPaymentCredential()` - Extract payment credential
 - `getDelegationCredential()` - Extract delegation credential
-- `AddressUtil.isValidAddress()` - Validate address format
 
 ## Usage Examples
 
