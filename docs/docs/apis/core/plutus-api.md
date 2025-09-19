@@ -6,16 +6,13 @@ sidebar_position: 5
 
 # Plutus API
 
-The Plutus API provides comprehensive functionality for interacting with Plutus smart contracts on the Cardano blockchain. It includes support for Plutus scripts (V1, V2, V3), data serialization, blueprint loading, and object conversion with type safety and annotation support.
+The Plutus API provides comprehensive functionality for interacting with Plutus smart contracts on the Cardano blockchain. It includes support for Plutus scripts (V1, V2, V3) and data serialization with type safety.
 
 ## Key Features
 
 - **Plutus Script Support**: Complete support for V1, V2, and V3 script versions
 - **Data Serialization**: Convert between Java objects and PlutusData
-- **Blueprint Integration**: Load and work with Plutus contract blueprints
 - **Type Safety**: Strong typing for Plutus data structures
-- **Annotation Support**: Automatic conversion using annotations
-- **Object Conversion**: Seamless Java object to PlutusData conversion
 
 ## Core Classes
 
@@ -31,10 +28,6 @@ The Plutus API provides comprehensive functionality for interacting with Plutus 
 - `ListPlutusData`: List data representation
 - `MapPlutusData`: Map data representation
 
-### Utility Classes
-- `PlutusObjectConverter`: Convert Java objects to PlutusData
-- `PlutusBlueprintLoader`: Load contract blueprints
-- `PlutusBlueprintUtil`: Blueprint utility functions
 
 ## Usage Examples
 
@@ -81,98 +74,9 @@ PlutusData mapData = MapPlutusData.of(dataMap);
 System.out.println("PlutusData structures created");
 ```
 
-### Object to PlutusData Conversion
-
-Convert Java objects to PlutusData using annotations:
-
-```java
-@Data
-@PlutusData
-public class TokenInfo {
-    @PlutusField
-    private String name;
-    
-    @PlutusField
-    private BigInteger amount;
-    
-    @PlutusField
-    private byte[] policyId;
-}
-
-// Convert object to PlutusData
-TokenInfo tokenInfo = new TokenInfo();
-tokenInfo.setName("MyToken");
-tokenInfo.setAmount(BigInteger.valueOf(1000));
-tokenInfo.setPolicyId("policy123".getBytes());
-
-PlutusObjectConverter converter = new PlutusObjectConverter();
-PlutusData plutusData = converter.toPlutusData(tokenInfo);
-
-System.out.println("Object converted to PlutusData");
-```
-
-### Blueprint Loading
-
-Load and work with Plutus contract blueprints:
-
-```java
-// Load blueprint from file
-String blueprintPath = "contracts/my-contract.json";
-PlutusBlueprintUtil blueprintUtil = new PlutusBlueprintUtil();
-PlutusBlueprint blueprint = blueprintUtil.loadBlueprint(blueprintPath);
-
-// Get contract information
-String contractTitle = blueprint.getTitle();
-String contractVersion = blueprint.getVersion();
-System.out.println("Contract: " + contractTitle + " v" + contractVersion);
-
-// Get validator script
-PlutusScript validatorScript = blueprint.getValidatorScript();
-System.out.println("Validator loaded: " + validatorScript.getType());
-```
 
 ## Advanced Usage
 
-### Custom Data Types
-
-Create complex custom data structures:
-
-```java
-@Data
-@PlutusData
-public class Auction {
-    @PlutusField
-    private String auctionId;
-    
-    @PlutusField
-    private BigInteger startPrice;
-    
-    @PlutusField
-    private BigInteger currentBid;
-    
-    @PlutusField
-    private String bidder;
-    
-    @PlutusField
-    private Long endTime;
-    
-    @PlutusField
-    private boolean active;
-}
-
-// Usage with converter
-PlutusObjectConverter converter = new PlutusObjectConverter();
-
-Auction auction = new Auction();
-auction.setAuctionId("auction-001");
-auction.setStartPrice(BigInteger.valueOf(1000000));
-auction.setCurrentBid(BigInteger.valueOf(1500000));
-auction.setBidder("addr1...");
-auction.setEndTime(System.currentTimeMillis() + 86400000); // 24 hours
-auction.setActive(true);
-
-PlutusData auctionData = converter.toPlutusData(auction);
-```
 
 ### Script Validation
 
