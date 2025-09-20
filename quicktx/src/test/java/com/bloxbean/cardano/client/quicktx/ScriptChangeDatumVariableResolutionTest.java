@@ -21,7 +21,7 @@ class ScriptChangeDatumVariableResolutionTest {
                 "  - scriptTx:\n" +
                 "      change_address: ${ca}\n" +
                 "      change_datum: ${dh}\n" +
-                "      intentions: []\n";
+                "      intents: []\n";
 
         ScriptTx tx = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(tx.getPublicChangeAddress()).isEqualTo(addrVar);
@@ -42,7 +42,7 @@ class ScriptChangeDatumVariableResolutionTest {
                 "  - scriptTx:\n" +
                 "      change_address: ${ca}\n" +
                 "      change_datum_hash: ${dh}\n" +
-                "      intentions: []\n";
+                "      intents: []\n";
 
         ScriptTx tx = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(tx.getPublicChangeAddress()).isEqualTo(addrVar);

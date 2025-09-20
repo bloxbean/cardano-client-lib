@@ -30,7 +30,7 @@ class SimpleYamlTest {
         assertThat(yaml).contains("transaction:");
         assertThat(yaml).contains("- tx:");
         assertThat(yaml).contains("from: addr1_test");
-        assertThat(yaml).contains("intentions:");
+        assertThat(yaml).contains("intents:");
         assertThat(yaml).doesNotContain("variables:");  // Should not appear if empty
         assertThat(yaml).doesNotContain("null");  // No null values
         assertThat(yaml).doesNotContain("!<");  // No type tags

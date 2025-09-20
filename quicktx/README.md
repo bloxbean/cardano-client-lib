@@ -107,7 +107,7 @@ context:
 transaction:
   - tx:
       from: ${sender}
-      intentions:
+      intents:
         - type: payment
           to: ${receiver}
           amount:
@@ -136,7 +136,7 @@ variables:
 transaction:
   - tx:
       from: ${treasury}
-      intentions:
+      intents:
         - type: payment
           to: ${alice}
           amount:
@@ -161,7 +161,7 @@ context:
 transaction:
   - tx:
       from: ${treasury}
-      intentions:
+      intents:
         - type: payment
           to: ${pool_operator}
           amount:
@@ -169,7 +169,7 @@ transaction:
             quantity: 500000000
             
   - scriptTx:
-      intentions:
+      intents:
         - type: stake_pool_registration
           pool_id: pool1abc123
           # ... pool parameters
@@ -182,7 +182,7 @@ transaction:
   - scriptTx:
       change_address: addr_test1_change
       change_datum: "590a01a1581c..."  # hex-encoded PlutusData
-      intentions:
+      intents:
         - type: script_call
           contract_address: addr_test1_contract
           datum_hex: "d87980"
@@ -212,7 +212,7 @@ String yamlPlan = """
     transaction:
       - tx:
           from: ${sender}
-          intentions:
+          intents:
             - type: payment
               to: ${receiver}
               amount:

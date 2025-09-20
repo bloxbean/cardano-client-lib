@@ -52,8 +52,8 @@ class ScriptTxYamlRoundTripTest {
         assertThat(yaml).contains("output_index: 0");
         assertThat(yaml).contains("redeemer_hex:");
         assertThat(yaml).contains("datum_hex:");
-        assertThat(yaml).contains("intentions:");
-        assertThat(yaml).contains("type: payment"); // Regular intentions should be in intentions section
+        assertThat(yaml).contains("intents:");
+        assertThat(yaml).contains("type: payment"); // Regular intents should be in intents section
 
         // Structure sanity
         Yaml parser = new Yaml();
@@ -63,7 +63,7 @@ class ScriptTxYamlRoundTripTest {
         Map<String, Object> entry = txs.get(0);
         assertThat(entry).containsKey("scriptTx");
         Map<String, Object> content = (Map<String, Object>) entry.get("scriptTx");
-        assertThat(content).containsKey("intentions");
+        assertThat(content).containsKey("intents");
     }
 
     @Test

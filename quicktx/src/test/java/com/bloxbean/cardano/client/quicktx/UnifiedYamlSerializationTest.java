@@ -36,7 +36,7 @@ class UnifiedYamlSerializationTest {
         assertThat(yaml).contains("transaction:");
         assertThat(yaml).contains("- tx:");
         assertThat(yaml).contains("from: addr1_treasury_test");
-        assertThat(yaml).contains("intentions:");
+        assertThat(yaml).contains("intents:");
         assertThat(yaml).contains("type: payment");
         assertThat(yaml).contains("addr1_alice_test");
         assertThat(yaml).contains("addr1_bob_test");
@@ -174,7 +174,7 @@ class UnifiedYamlSerializationTest {
             "- tx:\n" +
             "    from: ${treasury}\n" +
             "    change_address: ${treasury}\n" +
-            "    intentions:\n" +
+            "    intents:\n" +
             "    - type: payment\n" +
             "      address: ${alice}\n" +
             "      amounts:\n" +
@@ -286,16 +286,16 @@ class UnifiedYamlSerializationTest {
         Map<String, Object> txContent = (Map<String, Object>) firstTx.get("tx");
         assertThat(txContent).containsKey("from");
         assertThat(txContent).containsKey("change_address");
-        assertThat(txContent).containsKey("intentions");
+        assertThat(txContent).containsKey("intents");
 
-        // Intentions structure
-        List<Map<String, Object>> intentions = (List<Map<String, Object>>) txContent.get("intentions");
-        assertThat(intentions).hasSize(1);
+        // Intents structure
+        List<Map<String, Object>> intents = (List<Map<String, Object>>) txContent.get("intents");
+        assertThat(intents).hasSize(1);
 
-        Map<String, Object> paymentIntention = intentions.get(0);
-        assertThat(paymentIntention).containsKey("type");
-        assertThat(paymentIntention).containsKey("address");
-        assertThat(paymentIntention).containsKey("amounts");
-        assertThat(paymentIntention.get("type")).isEqualTo("payment");
+        Map<String, Object> paymentIntent = intents.get(0);
+        assertThat(paymentIntent).containsKey("type");
+        assertThat(paymentIntent).containsKey("address");
+        assertThat(paymentIntent).containsKey("amounts");
+        assertThat(paymentIntent.get("type")).isEqualTo("payment");
     }
 }

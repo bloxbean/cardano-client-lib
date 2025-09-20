@@ -73,7 +73,7 @@ class TxPlanRealQuickTxBuilderTest {
                 "transaction:\n" +
                 "  - tx:\n" +
                 "      from: addr1_sender\n" +
-                "      intentions:\n" +
+                "      intents:\n" +
                 "        - type: payment\n" +
                 "          to: addr1_receiver\n" +
                 "          amount:\n" +

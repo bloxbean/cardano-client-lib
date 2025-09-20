@@ -238,7 +238,7 @@ public class TxPlan {
                     content.setInputs(inputIntentions);
                 }
                 if (!regularIntentions.isEmpty()) {
-                    content.setIntentions(regularIntentions);
+                    content.setIntents(regularIntentions);
                 }
 
                 // Set attributes from the transaction
@@ -275,7 +275,7 @@ public class TxPlan {
                     content.setInputs(inputIntentions);
                 }
                 if (!regularIntentions.isEmpty()) {
-                    content.setIntentions(regularIntentions);
+                    content.setIntents(regularIntentions);
                 }
                 if (!validatorIntentions.isEmpty()) {
                     content.setValidators(validatorIntentions);
@@ -395,8 +395,8 @@ public class TxPlan {
                 }
 
                 // Then add regular intentions
-                if (content.getIntentions() != null) {
-                    for (var intention : content.getIntentions()) {
+                if (content.getIntents() != null) {
+                    for (var intention : content.getIntents()) {
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = intention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
@@ -405,7 +405,7 @@ public class TxPlan {
 
                 // Backward compatibility: if no inputs section but intentions contain input intentions,
                 // still process them (this ensures old YAML files still work)
-                if (content.getInputs() == null && content.getIntentions() != null) {
+                if (content.getInputs() == null && content.getIntents() != null) {
                     // Input intentions are already included in the intentions processing above
                 }
 
@@ -448,8 +448,8 @@ public class TxPlan {
                 }
 
                 // Then add regular intentions
-                if (content.getIntentions() != null) {
-                    for (var intention : content.getIntentions()) {
+                if (content.getIntents() != null) {
+                    for (var intention : content.getIntents()) {
                         // Resolve variables using each intention's own resolveVariables method
                         var resolvedIntention = intention.resolveVariables(vars);
                         scriptTx.addIntention(resolvedIntention);
@@ -467,7 +467,7 @@ public class TxPlan {
 
                 // Backward compatibility: if no inputs section but intentions contain input intentions,
                 // still process them (this ensures old YAML files still work)
-                if (content.getInputs() == null && content.getIntentions() != null) {
+                if (content.getInputs() == null && content.getIntents() != null) {
                     // Input intentions are already included in the intentions processing above
                 }
 

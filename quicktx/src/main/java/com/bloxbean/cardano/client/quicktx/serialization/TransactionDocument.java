@@ -123,7 +123,7 @@ public class TransactionDocument {
     }
 
     /**
-     * Regular transaction content with attributes and intentions
+     * Regular transaction content with attributes and intents
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class TxContent {
@@ -142,14 +142,14 @@ public class TransactionDocument {
         @JsonProperty("inputs")
         private List<TxInputIntent> inputs;
 
-        @JsonProperty("intentions")
-        private List<TxIntent> intentions;
+        @JsonProperty("intents")
+        private List<TxIntent> intents;
 
         public TxContent() {
         }
 
-        public TxContent(List<TxIntent> intentions) {
-            this.intentions = intentions;
+        public TxContent(List<TxIntent> intents) {
+            this.intents = intents;
         }
 
         public String getFrom() {
@@ -192,17 +192,17 @@ public class TransactionDocument {
             this.inputs = inputs;
         }
 
-        public List<TxIntent> getIntentions() {
-            return intentions;
+        public List<TxIntent> getIntents() {
+            return intents;
         }
 
-        public void setIntentions(List<TxIntent> intentions) {
-            this.intentions = intentions;
+        public void setIntents(List<TxIntent> intents) {
+            this.intents = intents;
         }
     }
 
     /**
-     * Script transaction content with attributes and intentions
+     * Script transaction content with attributes and intents
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ScriptTxContent {
@@ -224,8 +224,8 @@ public class TransactionDocument {
         @JsonProperty("inputs")
         private List<TxInputIntent> inputs;
 
-        @JsonProperty("intentions")
-        private List<TxIntent> intentions;
+        @JsonProperty("intents")
+        private List<TxIntent> intents;
 
         @JsonProperty("validators")
         private List<TxValidatorIntent> validators;
@@ -233,8 +233,8 @@ public class TransactionDocument {
         public ScriptTxContent() {
         }
 
-        public ScriptTxContent(List<TxIntent> intentions) {
-            this.intentions = intentions;
+        public ScriptTxContent(List<TxIntent> intents) {
+            this.intents = intents;
         }
 
         public String getChangeAddress() {
@@ -285,12 +285,12 @@ public class TransactionDocument {
             this.inputs = inputs;
         }
 
-        public List<TxIntent> getIntentions() {
-            return intentions;
+        public List<TxIntent> getIntents() {
+            return intents;
         }
 
-        public void setIntentions(List<TxIntent> intentions) {
-            this.intentions = intentions;
+        public void setIntents(List<TxIntent> intents) {
+            this.intents = intents;
         }
 
         public List<TxValidatorIntent> getValidators() {

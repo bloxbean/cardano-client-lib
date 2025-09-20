@@ -68,7 +68,7 @@ class TxPlanQuickTxBuilderIntegrationTest {
                 "transaction:\n" +
                 "  - tx:\n" +
                 "      from: ${sender}\n" +
-                "      intentions:\n" +
+                "      intents:\n" +
                 "        - type: payment\n" +
                 "          to: ${receiver}\n" +
                 "          amount:\n" +
