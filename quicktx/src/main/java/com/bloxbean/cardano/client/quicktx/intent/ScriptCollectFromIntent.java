@@ -18,6 +18,13 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import lombok.*;
 
 import java.math.BigInteger;
@@ -72,6 +79,16 @@ public class ScriptCollectFromIntent implements TxInputIntent {
 
     @JsonProperty("datum_hex")
     private String datumHex;
+
+    // New fields for UTXO filter DSL (simplified YAML)
+    @JsonProperty("address")
+    private String address; // script address for lazy strategies
+
+    @JsonProperty("utxo_filter_backend")
+    private String utxoFilterBackend; // optional, default "memory"
+
+    @JsonProperty("utxo_filter")
+    private JsonNode utxoFilter; // simplified YAML mapping
 
     // Internal use only - to keep track of spending context utxo <-> redeemer mapping
     @JsonIgnore
@@ -163,7 +180,10 @@ public class ScriptCollectFromIntent implements TxInputIntent {
                 }
             }
         } else if (lazyUtxoStrategy == null) {
-            throw new IllegalStateException("UTXOs or LazyUtxoStrategy are required for script collection");
+            // If we have a utxo_filter, that is also acceptable; will be transformed to strategy later
+            if (utxoFilter == null) {
+                throw new IllegalStateException("UTXOs, UTXO filter, or LazyUtxoStrategy are required for script collection");
+            }
         }
 
         // Validate hex strings if provided
@@ -193,15 +213,52 @@ public class ScriptCollectFromIntent implements TxInputIntent {
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
         String resolvedDatumHex = VariableResolver.resolve(datumHex, variables);
 
+        String resolvedAddress = VariableResolver.resolve(address, variables);
+
+        JsonNode resolvedFilter = resolveJsonNodeVariables(utxoFilter, variables);
+
         // Check if any variables were resolved
-        if (!java.util.Objects.equals(resolvedRedeemerHex, redeemerHex) || !java.util.Objects.equals(resolvedDatumHex, datumHex)) {
+        if (!java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)
+                || !java.util.Objects.equals(resolvedDatumHex, datumHex)
+                || !java.util.Objects.equals(resolvedAddress, address)
+                || !java.util.Objects.equals(resolvedFilter, utxoFilter)) {
             return this.toBuilder()
                 .redeemerHex(resolvedRedeemerHex)
                 .datumHex(resolvedDatumHex)
+                .address(resolvedAddress)
+                .utxoFilter(resolvedFilter)
                 .build();
         }
 
         return this;
+    }
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private static JsonNode resolveJsonNodeVariables(JsonNode node, Map<String, Object> variables) {
+        if (node == null) return null;
+        if (node.isTextual()) {
+            String resolved = VariableResolver.resolve(node.asText(), variables);
+            if (java.util.Objects.equals(resolved, node.asText())) return node; // unchanged
+            return MAPPER.getNodeFactory().textNode(resolved);
+        } else if (node.isObject()) {
+            ObjectNode obj = (ObjectNode) node.deepCopy();
+            java.util.Iterator<String> names = obj.fieldNames();
+            List<String> keys = new ArrayList<>();
+            while (names.hasNext()) keys.add(names.next());
+            for (String k : keys) {
+                obj.set(k, resolveJsonNodeVariables(obj.get(k), variables));
+            }
+            return obj;
+        } else if (node.isArray()) {
+            ArrayNode arr = (ArrayNode) node.deepCopy();
+            for (int i = 0; i < arr.size(); i++) {
+                arr.set(i, resolveJsonNodeVariables(arr.get(i), variables));
+            }
+            return arr;
+        } else {
+            return node; // numbers, booleans, null
+        }
     }
 
     // Factory methods
@@ -276,10 +333,22 @@ public class ScriptCollectFromIntent implements TxInputIntent {
 
         if (lazyUtxoStrategy == null) {
             if (!hasRuntimeObjects()) {
-                var txInputs = utxoRefs.stream()
-                        .map(utxoRef -> new TransactionInput(utxoRef.getTxHash(), utxoRef.getOutputIndex()))
-                        .collect(Collectors.toList());
-                return new FixedUtxoRefStrategy(txInputs, redeemerData, datum);
+                if (utxoFilter != null) {
+                    // Build strategy from filter
+                    var spec = com.bloxbean.cardano.client.quicktx.filter.yaml.UtxoFilterYaml.parseNode(utxoFilter);
+                    String backend = (utxoFilterBackend == null || utxoFilterBackend.isEmpty()) ? "memory" : utxoFilterBackend;
+                    // backend currently unused (default in-memory)
+                    if (address == null || address.isEmpty())
+                        throw new IllegalStateException("address is required when utxo_filter is provided");
+
+                    lazyUtxoStrategy = new com.bloxbean.cardano.client.quicktx.filter.runtime.UtxoFilterStrategy(address, spec, redeemerData, datum);
+                    return lazyUtxoStrategy;
+                } else {
+                    var txInputs = utxoRefs.stream()
+                            .map(utxoRef -> new TransactionInput(utxoRef.getTxHash(), utxoRef.getOutputIndex()))
+                            .collect(Collectors.toList());
+                    return new FixedUtxoRefStrategy(txInputs, redeemerData, datum);
+                }
             } else {
                 return new FixedUtxoStrategy(utxos, redeemerData, datum);
             }

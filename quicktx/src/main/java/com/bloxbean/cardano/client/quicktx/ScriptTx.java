@@ -9,6 +9,8 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.intent.*;
+import com.bloxbean.cardano.client.quicktx.filter.UtxoFilterSpec;
+import com.bloxbean.cardano.client.quicktx.filter.runtime.UtxoFilterStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.ListUtxoPredicateStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.SingleUtxoPredicateStrategy;
@@ -180,6 +182,36 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx collectFrom(String scriptAddress, Predicate<Utxo> utxoPredicate, PlutusData redeemerData) {
         // TODO(yaml): Predicate-based collectFrom uses runtime-only lazy strategies and is not serialized to YAML yet.
         return collectFrom(scriptAddress, utxoPredicate, redeemerData, null);
+    }
+
+    /**
+     * Add script UTXOs selected by a serializable UTxO filter as inputs of the transaction.
+     * The filter is backend-agnostic; currently evaluated in-memory against UTXOs at the script address.
+     *
+     * @param scriptAddress the script address to query UTXOs from
+     * @param filterSpec    serializable UTXO filter (DSL/AST)
+     * @param redeemerData  redeemer data
+     * @param datum         datum object
+     * @return ScriptTx
+     */
+    public ScriptTx collectFrom(String scriptAddress, UtxoFilterSpec filterSpec, PlutusData redeemerData, PlutusData datum) {
+        var utxoStrategy = new UtxoFilterStrategy(scriptAddress, filterSpec, redeemerData, datum);
+        var filterNode = com.bloxbean.cardano.client.quicktx.filter.yaml.UtxoFilterYaml.toNode(filterSpec);
+        ScriptCollectFromIntent intention = ScriptCollectFromIntent.builder()
+                .lazyUtxoStrategy(utxoStrategy)
+                .redeemerData(redeemerData)
+                .datum(datum)
+                .address(scriptAddress)
+                .utxoFilterBackend(filterSpec.backend() == null ? "memory" : filterSpec.backend())
+                .utxoFilter(filterNode)
+                .build();
+        if (intentions == null) intentions = new ArrayList<>();
+        intentions.add(intention);
+        return this;
+    }
+
+    public ScriptTx collectFrom(String scriptAddress, UtxoFilterSpec filterSpec, PlutusData redeemerData) {
+        return collectFrom(scriptAddress, filterSpec, redeemerData, null);
     }
 
     /**
