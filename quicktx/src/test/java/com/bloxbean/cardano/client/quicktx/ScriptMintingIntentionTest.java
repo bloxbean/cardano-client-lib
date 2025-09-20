@@ -1,4 +1,5 @@
 package com.bloxbean.cardano.client.quicktx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
@@ -33,7 +34,7 @@ class ScriptMintingIntentionTest {
                 .payToAddress("addr_test1_some_other", Amount.ada(1));
 
         // When
-        String yaml = scriptTx.toYaml();
+        String yaml = TxPlan.from(scriptTx).toYaml();
 
         // Then
         assertThat(yaml).contains("type: script_minting");
@@ -63,10 +64,10 @@ class ScriptMintingIntentionTest {
         ScriptTx original = new ScriptTx()
                 .mintAsset(plutusScript, asset, redeemer, "addr_test1_receiver_round");
 
-        String yaml = original.toYaml();
+        String yaml = TxPlan.from(original).toYaml();
 
         // When
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
 
         // Then
         assertThat(restored).isNotNull();

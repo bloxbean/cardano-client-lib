@@ -1,4 +1,5 @@
 package com.bloxbean.cardano.client.quicktx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
@@ -37,7 +38,7 @@ class ScriptTxYamlRoundTripTest {
                 .payToAddress("addr_test1_receiver", Amount.ada(1));
 
         // When
-        String yaml = scriptTx.toYaml();
+        String yaml = TxPlan.from(scriptTx).toYaml();
 
         // Then
         assertThat(yaml).isNotNull();
@@ -78,7 +79,7 @@ class ScriptTxYamlRoundTripTest {
                 .payToAddress("addr_test1_receiver_c", Amount.ada(3));
 
         // When
-        String yaml = scriptTx.toYaml();
+        String yaml = TxPlan.from(scriptTx).toYaml();
 
         // Then
         assertThat(yaml).contains("type: script_collect_from");
@@ -104,10 +105,10 @@ class ScriptTxYamlRoundTripTest {
                 .collectFrom(scriptUtxo, redeemer, datum)
                 .payToAddress("addr_test1_receiver_b", Amount.ada(2));
 
-        String yaml = original.toYaml();
+        String yaml = TxPlan.from(original).toYaml();
 
         // When
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
 
         // Then
         assertThat(restored).isNotNull();

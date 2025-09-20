@@ -13,7 +13,6 @@ import com.bloxbean.cardano.client.quicktx.intent.*;
 import java.util.Objects;
 import java.util.HashMap;
 
-import com.bloxbean.cardano.client.quicktx.serialization.TransactionCollectionDocument;
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -525,61 +524,6 @@ public abstract class AbstractTx<T> {
     public static class DonationContext {
         private BigInteger currentTreasuryValue;
         private BigInteger donationAmount;
-    }
-
-    // ===== YAML SERIALIZATION METHODS =====
-
-    /**
-     * Serialize this transaction to YAML format using the unified transaction document structure.
-     * @return YAML string representation
-     */
-    public String toYaml() {
-        return toYaml(null);
-    }
-
-    /**
-     * Serialize this transaction to YAML format with variables.
-     * @param variables variables to include in the YAML document
-     * @return YAML string representation
-     */
-    public String toYaml(java.util.Map<String, Object> variables) {
-        TransactionCollectionDocument collection = TransactionCollectionDocument.fromTransaction(this);
-
-        if (variables != null && !variables.isEmpty()) {
-            collection.setVariables(variables);
-        }
-
-        return collection.toYaml();
-    }
-
-    /**
-     * Deserialize YAML string to create a transaction of the specified type.
-     * @param yaml the YAML string
-     * @param type the transaction type (Tx.class or ScriptTx.class)
-     * @param <T> the transaction type
-     * @return reconstructed transaction instance
-     * @throws RuntimeException if deserialization fails or YAML contains multiple transactions
-     */
-    @SuppressWarnings("unchecked")
-    public static <T extends AbstractTx<?>> T fromYaml(String yaml, Class<T> type) {
-        java.util.List<AbstractTx<?>> transactions =
-            com.bloxbean.cardano.client.quicktx.serialization.TransactionCollectionDocument.fromYaml(yaml);
-
-        if (transactions.isEmpty()) {
-            throw new RuntimeException("No transactions found in YAML");
-        }
-
-        if (transactions.size() > 1) {
-            throw new RuntimeException("YAML contains multiple transactions, use TransactionCollectionDocument.fromYaml() instead");
-        }
-
-        AbstractTx<?> tx = transactions.get(0);
-
-        if (!type.isInstance(tx)) {
-            throw new RuntimeException("Expected " + type.getSimpleName() + " but found " + tx.getClass().getSimpleName());
-        }
-
-        return (T) tx;
     }
 
     /**

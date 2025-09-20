@@ -1,4 +1,5 @@
 package com.bloxbean.cardano.client.quicktx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
@@ -16,12 +17,12 @@ class ScriptStakeDeregistrationIntentionTest {
         ScriptTx tx = new ScriptTx()
                 .deregisterStakeAddress(stakeAddr, redeemer);
 
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: stake_deregistration");
         assertThat(yaml).contains("stake_address: " + stakeAddr);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_deregistration".equals(i.getType()))).isTrue();
     }

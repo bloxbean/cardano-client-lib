@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.quicktx.intent.PaymentIntent;
-import com.bloxbean.cardano.client.quicktx.serialization.TransactionCollectionDocument;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
@@ -26,7 +26,7 @@ class UnifiedYamlSerializationTest {
             .payToAddress("addr1_bob_test", Amount.ada(5));
 
         // When
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         System.out.println("Single Tx YAML:");
         System.out.println(yaml);
 
@@ -56,7 +56,7 @@ class UnifiedYamlSerializationTest {
         );
 
         // When
-        String yaml = tx.toYaml(variables);
+        String yaml = TxPlan.from(tx).setVariables(variables).toYaml();
         System.out.println("Tx with Variables YAML:");
         System.out.println(yaml);
 
@@ -76,10 +76,10 @@ class UnifiedYamlSerializationTest {
             .payToAddress("addr1_alice_test", Amount.ada(10))
             .withChangeAddress("addr1_change_test");
 
-        String yaml = original.toYaml();
+        String yaml = TxPlan.from(original).toYaml();
 
         // When
-        Tx restored = AbstractTx.fromYaml(yaml, Tx.class);
+        Tx restored = (Tx) TxPlan.fromYaml(yaml).get(0);
 
         // Then
         assertThat(restored).isNotNull();
@@ -105,7 +105,7 @@ class UnifiedYamlSerializationTest {
             .from("addr1_alice_test")
             .payToAddress("addr1_treasury_test", Amount.ada(5));
 
-        TransactionCollectionDocument collection = new TransactionCollectionDocument()
+        TxPlan collection = new TxPlan()
             .addVariable("treasury", "addr1_treasury_test")
             .addVariable("alice", "addr1_alice_test")
             .addTransaction(tx1)
@@ -139,14 +139,14 @@ class UnifiedYamlSerializationTest {
             .from("addr1_alice_test")
             .payToAddress("addr1_treasury_test", Amount.ada(5));
 
-        TransactionCollectionDocument collection = new TransactionCollectionDocument()
+        TxPlan collection = new TxPlan()
             .addTransaction(tx1)
             .addTransaction(tx2);
 
         String yaml = collection.toYaml();
 
         // When
-        List<AbstractTx<?>> restored = TransactionCollectionDocument.fromYaml(yaml);
+        List<AbstractTx<?>> restored = TxPlan.fromYaml(yaml);
 
         // Then
         assertThat(restored).hasSize(2);
@@ -182,7 +182,7 @@ class UnifiedYamlSerializationTest {
             "        quantity: '10000000'\n";
 
         // When
-        List<AbstractTx<?>> restored = TransactionCollectionDocument.fromYaml(yamlWithVariables);
+        List<AbstractTx<?>> restored = TxPlan.fromYaml(yamlWithVariables);
 
         // Then
         assertThat(restored).hasSize(1);
@@ -206,9 +206,9 @@ class UnifiedYamlSerializationTest {
             .withChangeAddress("addr1_change_test");
 
         // When - serialize and deserialize
-        String yaml = original.toYaml();
-        Tx restored = AbstractTx.fromYaml(yaml, Tx.class);
-        String yaml2 = restored.toYaml();
+        String yaml = TxPlan.from(original).toYaml();
+        Tx restored = (Tx) TxPlan.fromYaml(yaml).get(0);
+        String yaml2 = TxPlan.from(restored).toYaml();
 
         // Then - verify structural equivalence
         Yaml yamlParser = new Yaml();
@@ -232,7 +232,7 @@ class UnifiedYamlSerializationTest {
             .donateToTreasury(BigInteger.valueOf(1000000000L), BigInteger.valueOf(5000000L));
 
         // When
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         System.out.println("Complex Intentions YAML:");
         System.out.println(yaml);
 
@@ -257,7 +257,7 @@ class UnifiedYamlSerializationTest {
         );
 
         // When
-        String yaml = tx.toYaml(variables);
+        String yaml = TxPlan.from(tx).setVariables(variables).toYaml();
         System.out.println("Specification-compliant YAML:");
         System.out.println(yaml);
 

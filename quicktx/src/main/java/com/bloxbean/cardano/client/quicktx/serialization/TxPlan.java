@@ -9,28 +9,37 @@ import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Document for handling multiple transactions in a single YAML document.
- * This is the main entry point for creating and parsing multi-transaction YAML.
+ * Plan for handling multiple transactions in a single YAML document.
+ * This is the main entry point for all YAML serialization/deserialization operations.
  */
-public class TransactionCollectionDocument {
+public class TxPlan {
 
     private Map<String, Object> variables = new HashMap<>();
     private List<AbstractTx<?>> transactions = new ArrayList<>();
 
-    public TransactionCollectionDocument() {
+    // TxContext properties for serialization
+    private String feePayer;
+    private String collateralPayer;
+    private Set<String> requiredSigners = new HashSet<>();
+    private Long validFromSlot;
+    private Long validToSlot;
+
+    public TxPlan() {
     }
 
     /**
-     * Add a variable to the document.
+     * Add a variable to the plan.
      * @param key variable name
      * @param value variable value
-     * @return this document for method chaining
+     * @return this plan for method chaining
      */
-    public TransactionCollectionDocument addVariable(String key, Object value) {
+    public TxPlan addVariable(String key, Object value) {
         variables.put(key, value);
         return this;
     }
@@ -40,17 +49,17 @@ public class TransactionCollectionDocument {
      * @param variables the variables map
      * @return this document for method chaining
      */
-    public TransactionCollectionDocument setVariables(Map<String, Object> variables) {
+    public TxPlan setVariables(Map<String, Object> variables) {
         this.variables = new HashMap<>(variables);
         return this;
     }
 
     /**
-     * Add a transaction to the collection.
+     * Add a transaction to the plan.
      * @param transaction the transaction to add (Tx or ScriptTx)
-     * @return this document for method chaining
+     * @return this plan for method chaining
      */
-    public TransactionCollectionDocument addTransaction(AbstractTx<?> transaction) {
+    public TxPlan addTransaction(AbstractTx<?> transaction) {
         this.transactions.add(transaction);
         return this;
     }
@@ -72,12 +81,135 @@ public class TransactionCollectionDocument {
     }
 
     /**
-     * Serialize this collection to YAML format.
+     * Set the fee payer address.
+     * Naming aligned with QuickTxBuilder.TxContext for consistency.
+     * @param address the fee payer address
+     * @return this plan for method chaining
+     */
+    public TxPlan feePayer(String address) {
+        this.feePayer = address;
+        return this;
+    }
+
+    /**
+     * Get the fee payer address.
+     * @return fee payer address
+     */
+    public String getFeePayer() {
+        return feePayer;
+    }
+
+    /**
+     * Set the collateral payer address.
+     * Naming aligned with QuickTxBuilder.TxContext for consistency.
+     * @param address the collateral payer address
+     * @return this plan for method chaining
+     */
+    public TxPlan collateralPayer(String address) {
+        this.collateralPayer = address;
+        return this;
+    }
+
+    /**
+     * Get the collateral payer address.
+     * @return collateral payer address
+     */
+    public String getCollateralPayer() {
+        return collateralPayer;
+    }
+
+    /**
+     * Add required signers (as hex-encoded credential hashes).
+     * Naming aligned with QuickTxBuilder.TxContext for consistency.
+     * @param credentials required signer credentials as hex strings
+     * @return this plan for method chaining
+     */
+    public TxPlan withRequiredSigners(String... credentials) {
+        if (credentials != null) {
+            for (String credential : credentials) {
+                this.requiredSigners.add(credential);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Set all required signers at once.
+     * @param requiredSigners set of required signer credentials as hex strings
+     * @return this plan for method chaining
+     */
+    public TxPlan setRequiredSigners(Set<String> requiredSigners) {
+        this.requiredSigners = new HashSet<>(requiredSigners);
+        return this;
+    }
+
+    /**
+     * Get required signers.
+     * @return set of required signer credentials as hex strings
+     */
+    public Set<String> getRequiredSigners() {
+        return requiredSigners;
+    }
+
+    /**
+     * Set validity window start slot.
+     * Naming aligned with QuickTxBuilder.TxContext for consistency.
+     * @param slot the start slot
+     * @return this plan for method chaining
+     */
+    public TxPlan validFrom(long slot) {
+        this.validFromSlot = slot;
+        return this;
+    }
+
+    /**
+     * Get validity window start slot.
+     * @return start slot (null if no lower bound)
+     */
+    public Long getValidFromSlot() {
+        return validFromSlot;
+    }
+
+    /**
+     * Set validity window end slot.
+     * Naming aligned with QuickTxBuilder.TxContext for consistency.
+     * @param slot the end slot
+     * @return this plan for method chaining
+     */
+    public TxPlan validTo(long slot) {
+        this.validToSlot = slot;
+        return this;
+    }
+
+    /**
+     * Get validity window end slot.
+     * @return end slot (null if no upper bound)
+     */
+    public Long getValidToSlot() {
+        return validToSlot;
+    }
+
+    /**
+     * Serialize this plan to YAML format.
      * @return YAML string representation
      */
     public String toYaml() {
         TransactionDocument doc = new TransactionDocument();
         doc.setVariables(variables);
+
+        // Set context properties if any are specified
+        if (feePayer != null || collateralPayer != null || !requiredSigners.isEmpty() ||
+            validFromSlot != null || validToSlot != null) {
+            TransactionDocument.TxContext context = new TransactionDocument.TxContext();
+            context.setFeePayer(feePayer);
+            context.setCollateralPayer(collateralPayer);
+            if (!requiredSigners.isEmpty()) {
+                context.setRequiredSigners(requiredSigners);
+            }
+            context.setValidFromSlot(validFromSlot);
+            context.setValidToSlot(validToSlot);
+            doc.setContext(context);
+        }
 
         // Convert each transaction to TxEntry
         List<TransactionDocument.TxEntry> entries = new ArrayList<>();
@@ -175,6 +307,50 @@ public class TransactionCollectionDocument {
     }
 
     /**
+     * Deserialize YAML string to a complete TxPlan with context.
+     * @param yaml the YAML string
+     * @return reconstructed TxPlan with all properties restored
+     * @throws RuntimeException if deserialization fails
+     */
+    public static TxPlan fromYamlWithContext(String yaml) {
+        TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
+        TxPlan plan = new TxPlan();
+
+        // Restore variables
+        if (doc.getVariables() != null) {
+            plan.setVariables(doc.getVariables());
+        }
+
+        // Restore context properties
+        if (doc.getContext() != null) {
+            TransactionDocument.TxContext context = doc.getContext();
+            if (context.getFeePayer() != null) {
+                plan.feePayer(context.getFeePayer());
+            }
+            if (context.getCollateralPayer() != null) {
+                plan.collateralPayer(context.getCollateralPayer());
+            }
+            if (context.getRequiredSigners() != null) {
+                plan.setRequiredSigners(context.getRequiredSigners());
+            }
+            if (context.getValidFromSlot() != null) {
+                plan.validFrom(context.getValidFromSlot());
+            }
+            if (context.getValidToSlot() != null) {
+                plan.validTo(context.getValidToSlot());
+            }
+        }
+
+        // Restore transactions (reuse existing logic)
+        List<AbstractTx<?>> transactions = fromYamlTransactions(doc);
+        for (AbstractTx<?> tx : transactions) {
+            plan.addTransaction(tx);
+        }
+
+        return plan;
+    }
+
+    /**
      * Deserialize YAML string to a collection of transactions.
      * @param yaml the YAML string
      * @return list of reconstructed transactions
@@ -182,6 +358,15 @@ public class TransactionCollectionDocument {
      */
     public static List<AbstractTx<?>> fromYaml(String yaml) {
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
+        return fromYamlTransactions(doc);
+    }
+
+    /**
+     * Internal method to extract transactions from TransactionDocument.
+     * @param doc the parsed document
+     * @return list of reconstructed transactions
+     */
+    private static List<AbstractTx<?>> fromYamlTransactions(TransactionDocument doc) {
         List<AbstractTx<?>> transactions = new ArrayList<>();
         Map<String, Object> vars = doc.getVariables();
 
@@ -298,23 +483,45 @@ public class TransactionCollectionDocument {
     }
 
     /**
-     * Create a collection document from a single transaction.
+     * Create a plan from a single transaction.
      * @param transaction the transaction
-     * @return collection document with single transaction
+     * @return plan with single transaction
      */
-    public static TransactionCollectionDocument fromTransaction(AbstractTx<?> transaction) {
-        return new TransactionCollectionDocument().addTransaction(transaction);
+    public static TxPlan from(AbstractTx<?> transaction) {
+        return new TxPlan().addTransaction(transaction);
     }
 
 
     /**
-     * Create a collection document from multiple transactions.
+     * Create a plan from multiple transactions.
      * @param transactions the transactions
-     * @return collection document with all transactions
+     * @return plan with all transactions
      */
-    public static TransactionCollectionDocument fromTransactions(List<AbstractTx<?>> transactions) {
-        TransactionCollectionDocument doc = new TransactionCollectionDocument();
+    public static TxPlan from(List<AbstractTx<?>> transactions) {
+        TxPlan doc = new TxPlan();
         transactions.forEach(doc::addTransaction);
         return doc;
+    }
+
+    /**
+     * Convenience method to directly convert a Tx or ScriptTx to YAML.
+     * Note: This produces YAML without any context properties (no fee_payer, collateral_payer, etc).
+     * For YAML with context properties, use TxPlan.from(transaction).feePayer(...).toYaml()
+     * @param transaction the transaction to serialize (Tx or ScriptTx)
+     * @return YAML string representation of the transaction without context
+     */
+    public static String toYaml(AbstractTx<?> transaction) {
+        return from(transaction).toYaml();
+    }
+
+    /**
+     * Convenience method to directly convert multiple transactions to YAML.
+     * Note: This produces YAML without any context properties (no fee_payer, collateral_payer, etc).
+     * For YAML with context properties, use TxPlan.from(transactions).feePayer(...).toYaml()
+     * @param transactions the list of transactions to serialize
+     * @return YAML string representation of the transactions without context
+     */
+    public static String toYaml(List<AbstractTx<?>> transactions) {
+        return from(transactions).toYaml();
     }
 }

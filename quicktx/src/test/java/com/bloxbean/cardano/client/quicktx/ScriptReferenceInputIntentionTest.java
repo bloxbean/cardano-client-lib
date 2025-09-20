@@ -1,4 +1,5 @@
 package com.bloxbean.cardano.client.quicktx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 
 import com.bloxbean.cardano.client.api.model.Utxo;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ class ScriptReferenceInputIntentionTest {
         ScriptTx scriptTx = new ScriptTx()
                 .readFrom(refUtxo);
 
-        String yaml = scriptTx.toYaml();
+        String yaml = TxPlan.from(scriptTx).toYaml();
         assertThat(yaml).contains("type: reference_input");
         assertThat(yaml).contains("tx_hash: dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd");
         assertThat(yaml).contains("output_index: 3");
@@ -39,8 +40,8 @@ class ScriptReferenceInputIntentionTest {
         ScriptTx original = new ScriptTx()
                 .readFrom("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", 4);
 
-        String yaml = original.toYaml();
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        String yaml = TxPlan.from(original).toYaml();
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
 
         assertThat(restored).isNotNull();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "reference_input".equals(i.getType()))).isTrue();

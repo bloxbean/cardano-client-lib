@@ -1,4 +1,5 @@
 package com.bloxbean.cardano.client.quicktx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 
 import com.bloxbean.cardano.client.address.Credential;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
@@ -19,11 +20,11 @@ class GovIntentionsInScriptTxTest {
         PlutusData redeemer = BigIntPlutusData.of(1);
 
         ScriptTx tx = new ScriptTx().registerDRep(cred, anchor, redeemer);
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: drep_registration");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "drep_registration".equals(i.getType()))).isTrue();
     }
 
@@ -33,11 +34,11 @@ class GovIntentionsInScriptTxTest {
         PlutusData redeemer = BigIntPlutusData.of(2);
 
         ScriptTx tx = new ScriptTx().unRegisterDRep(cred, "addr_test1refund", null, redeemer);
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: drep_deregistration");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "drep_deregistration".equals(i.getType()))).isTrue();
     }
 
@@ -46,10 +47,10 @@ class GovIntentionsInScriptTxTest {
         GovAction action = new NoConfidence();
         PlutusData redeemer = BigIntPlutusData.of(3);
         ScriptTx tx = new ScriptTx().createProposal(action, "stake_test1return", null, redeemer);
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: governance_proposal");
         assertThat(yaml).contains("redeemer_hex:");
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "governance_proposal".equals(i.getType()))).isTrue();
     }
 
@@ -59,10 +60,10 @@ class GovIntentionsInScriptTxTest {
 //        GovActionId gaid = new GovActionId("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0);
 //        PlutusData redeemer = BigIntPlutusData.of(4);
 //        ScriptTx tx = new ScriptTx().createVote(voter, gaid, Vote.YES, null, redeemer);
-//        String yaml = tx.toYaml();
+//        String yaml = TxPlan.fromTransaction(tx).toYaml();
 //        assertThat(yaml).contains("type: voting");
 //        assertThat(yaml).contains("redeemer_hex:");
-//        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+//        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
 //        assertThat(restored.getIntentions().stream().anyMatch(i -> "voting".equals(i.getType()))).isTrue();
 //    }
 }

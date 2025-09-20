@@ -1,4 +1,5 @@
 package com.bloxbean.cardano.client.quicktx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
@@ -19,12 +20,12 @@ class ScriptStakeWithdrawalIntentionTest {
         ScriptTx tx = new ScriptTx()
                 .withdraw(rewardAddr, amount, redeemer);
 
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: stake_withdrawal");
         assertThat(yaml).contains("reward_address: " + rewardAddr);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_withdrawal".equals(i.getType()))).isTrue();
     }
@@ -39,13 +40,13 @@ class ScriptStakeWithdrawalIntentionTest {
         ScriptTx tx = new ScriptTx()
                 .withdraw(rewardAddr, amount, redeemer, receiver);
 
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: stake_withdrawal");
         assertThat(yaml).contains("reward_address: " + rewardAddr);
         assertThat(yaml).contains("receiver: " + receiver);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_withdrawal".equals(i.getType()))).isTrue();
     }

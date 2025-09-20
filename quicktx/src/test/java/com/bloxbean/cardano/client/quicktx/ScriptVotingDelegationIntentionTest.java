@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.transaction.spec.governance.DRep;
 import org.junit.jupiter.api.Test;
 
@@ -20,11 +21,11 @@ class ScriptVotingDelegationIntentionTest {
         ScriptTx tx = new ScriptTx()
                 .delegateVotingPowerTo(addr, drep, redeemer);
 
-        String yaml = tx.toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: voting_delegation");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "voting_delegation".equals(i.getType()))).isTrue();
     }

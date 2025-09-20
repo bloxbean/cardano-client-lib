@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,7 +19,7 @@ class ScriptChangeDatumYamlTest {
                 .withChangeAddress(changeAddr, datum);
 
         // When
-        String yaml = original.toYaml();
+        String yaml = TxPlan.from(original).toYaml();
 
         // Then: YAML contains change_datum and not change_datum_hash
         assertThat(yaml).contains("change_datum:");
@@ -26,7 +27,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum_hash:");
 
         // Round-trip
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
 
         // Verify restored state exposes inline datum hex and not hash
         String restoredDatumHex = restored.getChangeDatumHex();
@@ -44,7 +45,7 @@ class ScriptChangeDatumYamlTest {
                 .withChangeAddress(changeAddr, datumHash);
 
         // When
-        String yaml = original.toYaml();
+        String yaml = TxPlan.from(original).toYaml();
 
         // Then: YAML contains change_datum_hash and not change_datum
         assertThat(yaml).contains("change_datum_hash: " + datumHash);
@@ -52,7 +53,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum:");
 
         // Round-trip
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
 
         // Verify restored state exposes hash and not inline datum
         assertThat(restored.getChangeDatumHash()).isEqualTo(datumHash);
@@ -68,7 +69,7 @@ class ScriptChangeDatumYamlTest {
                 .withChangeAddress(changeAddr);
 
         // When
-        String yaml = original.toYaml();
+        String yaml = TxPlan.from(original).toYaml();
 
         // Then: YAML has change_address only
         assertThat(yaml).contains("change_address: " + changeAddr);
@@ -76,7 +77,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum_hash:");
 
         // Round-trip
-        ScriptTx restored = AbstractTx.fromYaml(yaml, ScriptTx.class);
+        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
         assertThat(restored.getPublicChangeAddress()).isEqualTo(changeAddr);
         assertThat(restored.getChangeDatumHex()).isNull();
         assertThat(restored.getChangeDatumHash()).isNull();

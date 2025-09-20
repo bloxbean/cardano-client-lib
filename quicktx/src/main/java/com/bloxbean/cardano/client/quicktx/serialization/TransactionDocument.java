@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Root document structure for unified transaction YAML format.
@@ -25,6 +26,10 @@ public class TransactionDocument {
     @JsonProperty("variables")
     @JsonInclude(JsonInclude.Include.NON_EMPTY)  // Don't show if empty
     private Map<String, Object> variables = new HashMap<>();
+
+    @JsonProperty("context")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private TxContext context;
 
     @JsonProperty("transaction")
     private List<TxEntry> transaction = new ArrayList<>();
@@ -46,6 +51,14 @@ public class TransactionDocument {
 
     public void setVariables(Map<String, Object> variables) {
         this.variables = variables;
+    }
+
+    public TxContext getContext() {
+        return context;
+    }
+
+    public void setContext(TxContext context) {
+        this.context = context;
     }
 
     public List<TxEntry> getTransaction() {
@@ -521,5 +534,70 @@ public class TransactionDocument {
 
         @JsonProperty("v3")
         V3
+    }
+
+    /**
+     * Transaction context properties for serialization.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class TxContext {
+        @JsonProperty("fee_payer")
+        private String feePayer;
+
+        @JsonProperty("collateral_payer")
+        private String collateralPayer;
+
+        @JsonProperty("required_signers")
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        private Set<String> requiredSigners;
+
+        @JsonProperty("valid_from_slot")
+        private Long validFromSlot;
+
+        @JsonProperty("valid_to_slot")
+        private Long validToSlot;
+
+        public TxContext() {
+        }
+
+        public String getFeePayer() {
+            return feePayer;
+        }
+
+        public void setFeePayer(String feePayer) {
+            this.feePayer = feePayer;
+        }
+
+        public String getCollateralPayer() {
+            return collateralPayer;
+        }
+
+        public void setCollateralPayer(String collateralPayer) {
+            this.collateralPayer = collateralPayer;
+        }
+
+        public Set<String> getRequiredSigners() {
+            return requiredSigners;
+        }
+
+        public void setRequiredSigners(Set<String> requiredSigners) {
+            this.requiredSigners = requiredSigners;
+        }
+
+        public Long getValidFromSlot() {
+            return validFromSlot;
+        }
+
+        public void setValidFromSlot(Long validFromSlot) {
+            this.validFromSlot = validFromSlot;
+        }
+
+        public Long getValidToSlot() {
+            return validToSlot;
+        }
+
+        public void setValidToSlot(Long validToSlot) {
+            this.validToSlot = validToSlot;
+        }
     }
 }

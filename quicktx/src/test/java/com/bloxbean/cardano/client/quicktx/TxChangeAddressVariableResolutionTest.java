@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,7 +19,7 @@ class TxChangeAddressVariableResolutionTest {
                 "      change_address: ${ca}\n" +
                 "      intentions: []\n";
 
-        Tx tx = AbstractTx.fromYaml(yaml, Tx.class);
+        Tx tx = (Tx) TxPlan.fromYaml(yaml).get(0);
         assertThat(tx.getPublicChangeAddress()).isEqualTo(addrVar);
     }
 }

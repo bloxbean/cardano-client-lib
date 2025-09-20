@@ -25,6 +25,8 @@ import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.bloxbean.cardano.hdwallet.Wallet;
 import com.bloxbean.cardano.hdwallet.util.HDWalletAddressIterator;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -141,6 +143,52 @@ public class QuickTxBuilder {
         if (txs == null || txs.length == 0)
             throw new TxBuildException("No txs provided to build transaction");
         return new TxContext(txs);
+    }
+
+    /**
+     * Create TxContext from a TxPlan with automatic property mapping.
+     * This method maps TxPlan context properties to the corresponding TxContext methods.
+     *
+     * @param plan the transaction plan with transactions and context properties
+     * @return TxContext with all properties applied
+     */
+    public TxContext compose(TxPlan plan) {
+        if (plan == null)
+            throw new TxBuildException("TxPlan cannot be null");
+        
+        List<AbstractTx<?>> transactions = plan.getTransactions();
+        if (transactions == null || transactions.isEmpty())
+            throw new TxBuildException("TxPlan must contain at least one transaction");
+
+        // Create TxContext with transactions
+        TxContext context = new TxContext(transactions.toArray(new AbstractTx[0]));
+
+        // Apply context properties from TxPlan
+        if (plan.getFeePayer() != null) {
+            context.feePayer(plan.getFeePayer());
+        }
+
+        if (plan.getCollateralPayer() != null) {
+            context.collateralPayer(plan.getCollateralPayer());
+        }
+
+        if (plan.getRequiredSigners() != null && !plan.getRequiredSigners().isEmpty()) {
+            // Convert hex strings back to byte arrays for TxContext
+            byte[][] signerCredentials = plan.getRequiredSigners().stream()
+                .map(HexUtil::decodeHexString)
+                .toArray(byte[][]::new);
+            context.withRequiredSigners(signerCredentials);
+        }
+
+        if (plan.getValidFromSlot() != null) {
+            context.validFrom(plan.getValidFromSlot());
+        }
+
+        if (plan.getValidToSlot() != null) {
+            context.validTo(plan.getValidToSlot());
+        }
+
+        return context;
     }
 
     /**

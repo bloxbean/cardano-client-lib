@@ -1,4 +1,5 @@
 package com.bloxbean.cardano.client.quicktx;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,7 @@ class ScriptValidatorAttachmentIntentionTest {
         ScriptTx scriptTx = new ScriptTx()
                 .attachSpendingValidator(script);
 
-        String yaml = scriptTx.toYaml();
+        String yaml = TxPlan.from(scriptTx).toYaml();
         assertThat(yaml).contains("type: validator");
         assertThat(yaml).contains("version: v2");
         assertThat(yaml).contains("cbor_hex:");

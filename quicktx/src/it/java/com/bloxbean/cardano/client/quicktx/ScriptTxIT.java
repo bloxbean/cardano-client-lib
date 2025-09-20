@@ -759,8 +759,6 @@ public class ScriptTxIT extends TestDataBaseIT {
                         Amount.asset(policyId, asset.getName(), BigInteger.valueOf(100)), plutusData.getDatumHash())
                 .payToContract(scriptAddress, List.of(Amount.asset(policyId, asset.getName(), BigInteger.valueOf(300))), plutusData);
 
-        System.out.println(scriptTx.toYaml());
-
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
@@ -800,8 +798,6 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .mintAsset(plutusScript3.getPolicyId(), asset3, BigIntPlutusData.of(3), receiver1)
                 .attachMintValidator(plutusScript3)
                 .withChangeAddress(sender2Addr);
-
-        System.out.println(scriptTx.toYaml());
 
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)

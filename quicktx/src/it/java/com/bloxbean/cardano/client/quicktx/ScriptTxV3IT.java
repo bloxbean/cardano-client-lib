@@ -636,8 +636,6 @@ public class ScriptTxV3IT extends TestDataBaseIT {
                 .attachSpendingValidator(plutusScript)
                 .withChangeAddress(scriptAddress, plutusData);
 
-        System.out.println(scriptTx.toYaml());
-
         future = quickTxBuilder.compose(scriptTx)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
