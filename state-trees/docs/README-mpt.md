@@ -369,13 +369,29 @@ secureTrie.put("plaintext-key".getBytes(), "value".getBytes());
 
 ### 2. Proof Generation
 
-While not yet implemented, MPT supports **Merkle proofs**:
+Use `MerklePatriciaTrie.getProof` to build inclusion or non-inclusion proofs and
+`MerklePatriciaVerifier` to validate them:
 
+```java
+MerklePatriciaTrie trie = new MerklePatriciaTrie(store, Blake2b256::digest);
+trie.put(key, value);
+
+MerklePatriciaProof proof = trie.getProof(key);
+if (proof.getType() == MerklePatriciaProof.Type.INCLUSION) {
+  boolean ok = MerklePatriciaVerifier.verifyInclusion(
+      trie.getRootHash(), Blake2b256::digest, key, value, proof.getNodes());
+}
+
+byte[] unknown = com.bloxbean.cardano.client.util.HexUtil.decodeHexString("aa01");
+MerklePatriciaProof absent = trie.getProof(unknown);
+boolean missing = MerklePatriciaVerifier.verifyNonInclusion(
+    trie.getRootHash(), Blake2b256::digest, unknown, absent.getNodes());
 ```
-Proof: Path from leaf to root with all intermediate hashes
-Verification: Recompute root hash from proof
-Use case: Light clients can verify specific values without full state
-```
+
+Proof nodes are CBOR-encoded trie nodes collected along the query path. The proof
+type indicates whether the traversal ended with a matching leaf, a missing
+branch, or a conflicting leaf. See `docs/adr/ADR-0001-mpt-proof-api.md` for the
+full specification.
 
 ### 3. State Synchronization
 

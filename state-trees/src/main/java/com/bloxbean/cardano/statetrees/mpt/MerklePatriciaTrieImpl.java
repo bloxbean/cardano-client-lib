@@ -7,6 +7,7 @@ import com.bloxbean.cardano.statetrees.common.nibbles.Nibbles;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
@@ -130,6 +131,125 @@ public final class MerklePatriciaTrieImpl {
     Deque<Integer> currentPath = new ArrayDeque<>();
     scan(this.root, prefixNibbles, 0, limit <= 0 ? Integer.MAX_VALUE : limit, currentPath, results);
     return results;
+  }
+
+  /**
+   * Builds an inclusion or non-inclusion proof for the provided key.
+   */
+  public com.bloxbean.cardano.statetrees.api.MerklePatriciaProof getProof(byte[] key) {
+    Objects.requireNonNull(key, "key");
+    if (this.root == null) {
+      return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+          com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.NON_INCLUSION_MISSING_BRANCH,
+          Collections.emptyList(),
+          null);
+    }
+
+    int[] keyNibbles = Nibbles.toNibbles(key);
+    List<byte[]> proofNodes = new ArrayList<>();
+    byte[] currentHash = this.root;
+    int position = 0;
+
+    while (true) {
+      byte[] encoded = store.get(currentHash);
+      if (encoded == null) {
+        throw new IllegalStateException("Missing trie node for hash");
+      }
+      proofNodes.add(encoded);
+      Node node = TrieEncoding.decode(encoded);
+
+      if (node instanceof BranchNode) {
+        BranchNode branch = (BranchNode) node;
+        if (position == keyNibbles.length) {
+          byte[] branchValue = branch.getValue();
+          if (branchValue != null) {
+            return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+                com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.INCLUSION,
+                proofNodes,
+                branchValue);
+          }
+          return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+              com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.NON_INCLUSION_MISSING_BRANCH,
+              proofNodes,
+              null);
+        }
+
+        int nibble = keyNibbles[position];
+        byte[] childHash = branch.getChild(nibble);
+        if (childHash == null || childHash.length == 0) {
+          return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+              com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.NON_INCLUSION_MISSING_BRANCH,
+              proofNodes,
+              null);
+        }
+
+        currentHash = childHash;
+        position++;
+        continue;
+      }
+
+      if (node instanceof ExtensionNode) {
+        ExtensionNode extension = (ExtensionNode) node;
+        Nibbles.HP hp = Nibbles.unpackHP(extension.getHp());
+        int[] extNibbles = hp.nibbles;
+        if (position + extNibbles.length > keyNibbles.length) {
+          return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+              com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.NON_INCLUSION_MISSING_BRANCH,
+              proofNodes,
+              null);
+        }
+
+        for (int i = 0; i < extNibbles.length; i++) {
+          if (keyNibbles[position + i] != extNibbles[i]) {
+            return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+                com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.NON_INCLUSION_MISSING_BRANCH,
+                proofNodes,
+                null);
+          }
+        }
+
+        position += extNibbles.length;
+        byte[] childHash = extension.getChild();
+        if (childHash == null || childHash.length == 0) {
+          return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+              com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.NON_INCLUSION_MISSING_BRANCH,
+              proofNodes,
+              null);
+        }
+
+        currentHash = childHash;
+        continue;
+      }
+
+      if (node instanceof LeafNode) {
+        LeafNode leaf = (LeafNode) node;
+        Nibbles.HP hp = Nibbles.unpackHP(leaf.getHp());
+        int[] leafNibbles = hp.nibbles;
+        if (position + leafNibbles.length == keyNibbles.length) {
+          boolean matches = true;
+          for (int i = 0; i < leafNibbles.length; i++) {
+            if (keyNibbles[position + i] != leafNibbles[i]) {
+              matches = false;
+              break;
+            }
+          }
+          if (matches) {
+            return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+                com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.INCLUSION,
+                proofNodes,
+                leaf.getValue());
+          }
+        }
+
+        return new com.bloxbean.cardano.statetrees.api.MerklePatriciaProof(
+            com.bloxbean.cardano.statetrees.api.MerklePatriciaProof.Type.NON_INCLUSION_DIFFERENT_LEAF,
+            proofNodes,
+            null);
+      }
+
+      throw new IllegalStateException(
+          "Unsupported node type " + node.getClass().getSimpleName());
+    }
   }
 
   /**

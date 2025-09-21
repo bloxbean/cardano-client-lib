@@ -157,6 +157,22 @@ public final class MerklePatriciaTrie {
   }
 
   /**
+   * Builds an inclusion or non-inclusion proof for the given key.
+   *
+   * <p>The proof contains the CBOR-encoded nodes encountered while traversing
+   * the trie for {@code key}. Depending on how the traversal terminates, the
+   * proof type indicates inclusion, a missing branch, or a conflicting leaf.</p>
+   *
+   * @param key the key for which a proof is requested (must not be null)
+   * @return a MerklePatriciaProof describing inclusion or non-inclusion
+   * @throws NullPointerException if key is null
+   * @since 0.9.0
+   */
+  public MerklePatriciaProof getProof(byte[] key) {
+    return impl.getProof(key);
+  }
+
+  /**
    * Represents a key-value pair returned by scan operations.
    * 
    * <p>This immutable class encapsulates the results of prefix scans,
