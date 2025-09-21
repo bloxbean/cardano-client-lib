@@ -41,14 +41,36 @@ public class ReferenceInputIntent implements TxInputIntent {
         for (UtxoRef r : refs) {
             if (r.getTxHash() == null || r.getTxHash().isBlank())
                 throw new IllegalStateException("tx_hash is required for reference input");
-            if (r.getOutputIndex() == null || r.getOutputIndex() < 0)
+            if (r.getOutputIndex() == null)
                 throw new IllegalStateException("output_index is required for reference input");
+            int idx = r.asIntOutputIndex();
+            if (idx < 0) throw new IllegalStateException("output_index must be non-negative");
         }
     }
 
     @Override
     public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
-        // No string fields to resolve
+        if (variables == null || variables.isEmpty()) return this;
+
+        if (refs == null || refs.isEmpty()) return this;
+
+        boolean changed = false;
+        List<UtxoRef> newRefs = new ArrayList<>(refs.size());
+        for (UtxoRef r : refs) {
+            if (r == null) {
+                newRefs.add(null);
+                continue;
+            }
+            UtxoRef resolved = r.resolveVariables(variables);
+            if (resolved != r) {
+                changed = true;
+                newRefs.add(resolved);
+            } else {
+                newRefs.add(r);
+            }
+        }
+
+        if (changed) return this.toBuilder().refs(newRefs).build();
         return this;
     }
 
@@ -72,7 +94,7 @@ public class ReferenceInputIntent implements TxInputIntent {
                 txn.getBody().setReferenceInputs(list);
             }
             for (UtxoRef r : refs) {
-                TransactionInput ti = new TransactionInput(r.getTxHash(), r.getOutputIndex());
+                TransactionInput ti = new TransactionInput(r.getTxHash(), r.asIntOutputIndex());
                 if (!list.contains(ti)) list.add(ti);
             }
         };
@@ -81,19 +103,19 @@ public class ReferenceInputIntent implements TxInputIntent {
     // Helper to add a ref
     public ReferenceInputIntent addRef(String txHash, int outputIndex) {
         if (refs == null) refs = new ArrayList<>();
-        refs.add(new UtxoRef(txHash, outputIndex));
+        refs.add(new UtxoRef(txHash, String.valueOf(outputIndex)));
         return this;
     }
 
     // Factory helpers
     public static ReferenceInputIntent of(String txHash, int outputIndex) {
         return ReferenceInputIntent.builder()
-                .refs(new ArrayList<>(List.of(new UtxoRef(txHash, outputIndex))))
+                .refs(new ArrayList<>(List.of(new UtxoRef(txHash, String.valueOf(outputIndex)))))
                 .build();
     }
 
     public static ReferenceInputIntent of(List<UtxoRef> refs) {
         return ReferenceInputIntent.builder().refs(new ArrayList<>(refs)).build();
     }
-}
 
+}

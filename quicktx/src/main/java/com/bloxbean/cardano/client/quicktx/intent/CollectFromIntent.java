@@ -14,7 +14,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -22,7 +24,7 @@ import java.util.stream.Collectors;
  * Mirrors Tx.collectFrom(List/Set&lt;Utxo&gt;) and enables YAML serialization.
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -64,9 +66,12 @@ public class CollectFromIntent implements TxInputIntent {
             for (UtxoRef ref : utxoRefs) {
                 if (ref.getTxHash() == null || ref.getTxHash().isEmpty())
                     throw new IllegalStateException("UTXO transaction hash is required");
-                if (ref.getOutputIndex() == null || ref.getOutputIndex() < 0)
+                if (ref.getOutputIndex() == null)
+                    throw new IllegalStateException("UTXO output index is required");
+                int idx = ref.asIntOutputIndex();
+                if (idx < 0)
                     throw new IllegalStateException("UTXO output index must be non-negative");
-                if (!ref.getTxHash().startsWith("${") && ref.getTxHash().length() != 64)
+                if (ref.getTxHash().length() != 64)
                     throw new IllegalStateException("Invalid transaction hash format: " + ref.getTxHash());
             }
         }
@@ -74,7 +79,30 @@ public class CollectFromIntent implements TxInputIntent {
 
     @Override
     public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
-        // No string fields to resolve
+        boolean changed = false;
+
+        // Resolve UTxO refs if present
+        if (utxoRefs != null && !utxoRefs.isEmpty() && variables != null && !variables.isEmpty()) {
+            List<UtxoRef> newRefs = new ArrayList<>(utxoRefs.size());
+            for (UtxoRef ref : utxoRefs) {
+                if (ref == null) {
+                    newRefs.add(null);
+                    continue;
+                }
+                UtxoRef resolved = ref.resolveVariables(variables);
+                if (resolved != ref) {
+                    changed = true;
+                    newRefs.add(resolved);
+                } else {
+                    newRefs.add(ref);
+                }
+            }
+
+            if (changed) {
+                return this.toBuilder().utxoRefs(newRefs).build();
+            }
+        }
+
         return this;
     }
 
@@ -91,7 +119,7 @@ public class CollectFromIntent implements TxInputIntent {
         }
         // Build from refs
         var inputs = utxoRefs.stream()
-                .map(ref -> new TransactionInput(ref.getTxHash(), ref.getOutputIndex()))
+                .map(ref -> new TransactionInput(ref.getTxHash(), ref.asIntOutputIndex()))
                 .collect(Collectors.toList());
         return new FixedUtxoRefStrategy(inputs, null, null);
     }

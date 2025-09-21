@@ -169,9 +169,8 @@ public class ScriptCollectFromIntent implements TxInputIntent {
                 if (utxoRef.getOutputIndex() == null) {
                     throw new IllegalStateException("UTXO output index is required");
                 }
-                if (utxoRef.getOutputIndex() < 0) {
-                    throw new IllegalStateException("UTXO output index must be non-negative");
-                }
+                int idx = utxoRef.asIntOutputIndex();
+                if (idx < 0) throw new IllegalStateException("UTXO output index must be non-negative");
 
                 // Basic validation for tx hash format
                 if (!utxoRef.getTxHash().startsWith("${") && utxoRef.getTxHash().length() != 64) {
@@ -216,16 +215,38 @@ public class ScriptCollectFromIntent implements TxInputIntent {
 
         JsonNode resolvedFilter = resolveJsonNodeVariables(utxoFilter, variables);
 
+        // Resolve tx_hash inside utxoRefs if provided
+        java.util.List<UtxoRef> resolvedRefs = utxoRefs;
+        boolean refsChanged = false;
+        if (utxoRefs != null && !utxoRefs.isEmpty()) {
+            resolvedRefs = new java.util.ArrayList<>(utxoRefs.size());
+            for (UtxoRef r : utxoRefs) {
+                if (r == null) {
+                    resolvedRefs.add(null);
+                    continue;
+                }
+                UtxoRef resolved = r.resolveVariables(variables);
+                if (resolved != r) {
+                    refsChanged = true;
+                    resolvedRefs.add(resolved);
+                } else {
+                    resolvedRefs.add(r);
+                }
+            }
+        }
+
         // Check if any variables were resolved
         if (!java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)
                 || !java.util.Objects.equals(resolvedDatumHex, datumHex)
                 || !java.util.Objects.equals(resolvedAddress, address)
-                || !java.util.Objects.equals(resolvedFilter, utxoFilter)) {
+                || !java.util.Objects.equals(resolvedFilter, utxoFilter)
+                || refsChanged) {
             return this.toBuilder()
                 .redeemerHex(resolvedRedeemerHex)
                 .datumHex(resolvedDatumHex)
                 .address(resolvedAddress)
                 .utxoFilter(resolvedFilter)
+                .utxoRefs(resolvedRefs)
                 .build();
         }
 
@@ -342,7 +363,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
                     return lazyUtxoStrategy;
                 } else {
                     var txInputs = utxoRefs.stream()
-                            .map(utxoRef -> new TransactionInput(utxoRef.getTxHash(), utxoRef.getOutputIndex()))
+                            .map(utxoRef -> new TransactionInput(utxoRef.getTxHash(), utxoRef.asIntOutputIndex()))
                             .collect(Collectors.toList());
                     return new FixedUtxoRefStrategy(txInputs, redeemerData, datum);
                 }
@@ -415,6 +436,8 @@ public class ScriptCollectFromIntent implements TxInputIntent {
                 .findFirst()
                 .map(SpendingContext::getUtxo);
     }
+
+    
 
     @Data
     @AllArgsConstructor
