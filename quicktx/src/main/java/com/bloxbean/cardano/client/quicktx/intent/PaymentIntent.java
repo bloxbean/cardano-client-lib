@@ -33,7 +33,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 /**
  * Unified intention for all payment operations (payToAddress and payToContract).
  * Supports optional fields for scripts, datum, and other payment variants.
- *
+ * <p>
  * This intention can represent:
  * - Simple payments to addresses
  * - Payments with attached reference scripts
@@ -63,7 +63,6 @@ public class PaymentIntent implements TxIntent {
     private List<Amount> amounts;
 
     // Optional fields for payment variants
-
     // Runtime fields - original objects preserved
 
     /**
@@ -153,40 +152,10 @@ public class PaymentIntent implements TxIntent {
         return datumHash;
     }
 
-    /**
-     * Get script as JSON (needs custom serialization logic).
-     */
-    @JsonProperty("script")
-    public Object getScriptForSerialization() {
-        // TODO: Implement proper Script serialization
-        return null;
-    }
-
-    /**
-     * Get reference script as JSON (needs custom serialization logic).
-     */
-    @JsonProperty("ref_script")
-    public Object getRefScriptForSerialization() {
-        // TODO: Implement proper Script serialization
-        return null;
-    }
-
-    // Legacy constructors for compatibility
-    public PaymentIntent(String address, Amount amount) {
-        this.address = address;
-        this.amounts = List.of(amount);
-    }
-
-    public PaymentIntent(String address, List<Amount> amounts) {
-        this.address = address;
-        this.amounts = amounts;
-    }
-
     @Override
     public String getType() {
         return "payment";
     }
-
 
     @Override
     public void validate() {
@@ -221,68 +190,14 @@ public class PaymentIntent implements TxIntent {
         // but are less common and typically contain encoded data
         if (!java.util.Objects.equals(resolvedAddress, address)) {
             return this.toBuilder()
-                .address(resolvedAddress)
-                .build();
+                    .address(resolvedAddress)
+                    .build();
         }
 
         return this;
     }
 
-    // Factory methods for clean API
-
-    /**
-     * Create a simple payment intention to an address.
-     */
-    public static PaymentIntent toAddress(String address, Amount amount) {
-        return new PaymentIntent(address, amount);
-    }
-
-    /**
-     * Create a simple payment intention to an address with multiple amounts.
-     */
-    public static PaymentIntent toAddress(String address, List<Amount> amounts) {
-        return new PaymentIntent(address, amounts);
-    }
-
-    /**
-     * Create a contract payment intention with datum.
-     */
-    public static PaymentIntent toContract(String address, Amount amount, PlutusData datum) {
-        return PaymentIntent.builder()
-            .address(address)
-            .amounts(List.of(amount))
-            .datum(datum)
-            .build();
-    }
-
-    /**
-     * Create a contract payment intention with datum hash bytes.
-     */
-    public static PaymentIntent toContract(String address, Amount amount, byte[] datumHashBytes) {
-        return PaymentIntent.builder()
-            .address(address)
-            .amounts(List.of(amount))
-            .datumHashBytes(datumHashBytes)
-            .build();
-    }
-
-    /**
-     * Create a contract payment intention with datum hash string.
-     */
-    public static PaymentIntent toContract(String address, Amount amount, String datumHashHex) {
-        return PaymentIntent.builder()
-            .address(address)
-            .amounts(List.of(amount))
-            .datumHash(datumHashHex)
-            .build();
-    }
-
-    // Convenience methods
-
-
-
-
-
+    // Convenience methods removed; prefer builder or AbstractTx APIs.
 
     // Self-processing methods for functional TxBuilder architecture
 
@@ -344,8 +259,8 @@ public class PaymentIntent implements TxIntent {
         try {
             // Build the transaction output
             TransactionOutput.TransactionOutputBuilder builder = TransactionOutput.builder()
-                .address(resolvedAddress)
-                .value(createValueFromAmounts());
+                    .address(resolvedAddress)
+                    .value(createValueFromAmounts());
 
             // Set datum if present (priority: runtime objects > serialized hex)
             if (datum != null) {
@@ -392,7 +307,7 @@ public class PaymentIntent implements TxIntent {
      */
     private Value createValueFromAmounts() {
         Value.ValueBuilder valueBuilder = Value.builder()
-            .coin(BigInteger.ZERO);
+                .coin(BigInteger.ZERO);
 
         // Process each amount
         for (Amount amount : amounts) {
@@ -420,8 +335,8 @@ public class PaymentIntent implements TxIntent {
                     Value currentValue = valueBuilder.build();
                     Value newValue = currentValue.add(new Value(BigInteger.ZERO, List.of(multiAsset)));
                     valueBuilder = Value.builder()
-                        .coin(newValue.getCoin())
-                        .multiAssets(newValue.getMultiAssets());
+                            .coin(newValue.getCoin())
+                            .multiAssets(newValue.getMultiAssets());
                 }
             }
         }
