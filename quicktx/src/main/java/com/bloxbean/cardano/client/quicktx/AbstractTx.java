@@ -11,14 +11,11 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.intent.*;
 import java.util.Objects;
-import java.util.HashMap;
 
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.hdwallet.Wallet;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
 import lombok.NonNull;
 
 import java.math.BigInteger;
@@ -39,11 +36,7 @@ public abstract class AbstractTx<T> {
     // Function-based lazy UTXO resolver for script transactions
     protected Function<UtxoSupplier, List<Utxo>> lazyUtxoResolver;
 
-    // Intent-based architecture: Store intentions for deferred resolution
     protected List<TxIntent> intentions;
-
-    // Variables for YAML parameterization and dynamic value resolution
-    protected java.util.Map<String, Object> variables;
 
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
@@ -270,7 +263,6 @@ public abstract class AbstractTx<T> {
 
         // Create IntentContext for intention processing
         IntentContext intentContext = IntentContext.builder()
-            .variables(variables != null ? variables : new HashMap<>())
             .fromAddress(getFromAddress())
             .changeAddress(getChangeAddress())
             .build();
@@ -297,7 +289,6 @@ public abstract class AbstractTx<T> {
 
         // Create IntentContext for intention processing
         IntentContext intentContext = IntentContext.builder()
-            .variables(variables != null ? variables : new HashMap<>())
             .fromAddress(getFromAddress())
             .changeAddress(getChangeAddress())
             .build();
@@ -519,13 +510,6 @@ public abstract class AbstractTx<T> {
         }
     }
 
-    @Getter
-    @AllArgsConstructor
-    public static class DonationContext {
-        private BigInteger currentTreasuryValue;
-        private BigInteger donationAmount;
-    }
-
     /**
      * Add an intention to this transaction.
      * This is used internally by the YAML deserialization process.
@@ -573,22 +557,5 @@ public abstract class AbstractTx<T> {
      */
     public String getChangeDatumHash() {
         return changeDatahash;
-    }
-
-    /**
-     * Set variables for this transaction.
-     * Used during YAML deserialization to pass variables to intentions.
-     * @param variables the variables map
-     */
-    public void setVariables(java.util.Map<String, Object> variables) {
-        this.variables = variables;
-    }
-
-    /**
-     * Get variables for this transaction.
-     * @return variables map, or null if not set
-     */
-    public java.util.Map<String, Object> getVariables() {
-        return variables;
     }
 }

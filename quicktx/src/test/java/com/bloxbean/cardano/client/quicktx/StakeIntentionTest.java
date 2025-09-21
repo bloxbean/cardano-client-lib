@@ -17,7 +17,6 @@ public class StakeIntentionTest {
     public void testStakeRegistrationIntentionRecording() {
         // Create a Tx and enable intention recording
         Tx tx = new Tx();
-        tx.enableIntentionRecording();
 
         // Register a stake address (using a valid test stake address)
         String stakeAddress = "stake_test1uqfu74w3wh4gfzu8m6e7j987h4lq9r3t7ef5gaw497uu85qsqfy27";
@@ -41,8 +40,6 @@ public class StakeIntentionTest {
     public void testStakeDelegationIntentionRecording() {
         // Create a Tx and enable intention recording
         Tx tx = new Tx();
-        tx.enableIntentionRecording();
-
         // Delegate a stake address to a pool
         String stakeAddress = "stake_test1uqfu74w3wh4gfzu8m6e7j987h4lq9r3t7ef5gaw497uu85qsqfy27";
         String poolId = "pool1pu5jlj4q9w9jlxeu370a3c9myx47md5j5m2str0naunn2q3lkdy";
@@ -67,7 +64,6 @@ public class StakeIntentionTest {
     public void testStakeWithdrawalIntentionRecording() {
         // Create a Tx and enable intention recording
         Tx tx = new Tx();
-        tx.enableIntentionRecording();
 
         // Withdraw rewards
         String rewardAddress = "stake_test1uqfu74w3wh4gfzu8m6e7j987h4lq9r3t7ef5gaw497uu85qsqfy27";
@@ -94,7 +90,6 @@ public class StakeIntentionTest {
     public void testStakeDeregistrationIntentionRecording() {
         // Create a Tx and enable intention recording
         Tx tx = new Tx();
-        tx.enableIntentionRecording();
 
         // Deregister a stake address with refund
         String stakeAddress = "stake_test1uqfu74w3wh4gfzu8m6e7j987h4lq9r3t7ef5gaw497uu85qsqfy27";
@@ -120,7 +115,6 @@ public class StakeIntentionTest {
     public void testMultipleStakeIntentions() {
         // Create a Tx and enable intention recording
         Tx tx = new Tx();
-        tx.enableIntentionRecording();
 
         // Perform multiple stake operations
         String stakeAddress = "stake_test1uqfu74w3wh4gfzu8m6e7j987h4lq9r3t7ef5gaw497uu85qsqfy27";

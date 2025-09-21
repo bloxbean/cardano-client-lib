@@ -158,28 +158,4 @@ public interface TxIntent {
         // Default: no variable resolution needed
         return this;
     }
-
-    /**
-     * Helper method to resolve a variable value.
-     * If the value starts with "${" and ends with "}", it's treated as a variable reference.
-     *
-     * @param value the value that may contain a variable reference
-     * @param variables the variables map for resolution
-     * @return the resolved value
-     * @deprecated Use IntentContext.resolveVariable() instead
-     */
-    @Deprecated
-    default String resolveVariable(String value, Map<String, Object> variables) {
-        if (value == null) {
-            return null;
-        }
-
-        if (value.startsWith("${") && value.endsWith("}") && variables != null) {
-            String varName = value.substring(2, value.length() - 1);
-            Object varValue = variables.get(varName);
-            return varValue != null ? varValue.toString() : value;
-        }
-
-        return value;
-    }
 }

@@ -425,8 +425,6 @@ public class TxPlan {
                     // Input intentions are already included in the intentions processing above
                 }
 
-                // Set variables from YAML for intention processing
-                tx.setVariables(vars);
                 transactions.add(tx);
 
             } else if (entry.isScriptTx()) {
@@ -483,9 +481,6 @@ public class TxPlan {
                 if (content.getInputs() == null && content.getIntents() != null) {
                     // Input intentions are already included in the intentions processing above
                 }
-
-                // Set variables from YAML for intention processing
-                scriptTx.setVariables(vars);
 
                 // Note: Script attachments and collectFrom configurations can be restored in a later phase.
                 transactions.add(scriptTx);

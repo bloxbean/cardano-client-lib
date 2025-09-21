@@ -37,14 +37,6 @@ public class Tx extends AbstractTx<Tx> {
     }
 
     /**
-     * Enable intention recording for all sub-transactions.
-     * This allows capturing stake and governance operations for YAML serialization.
-     */
-    public void enableIntentionRecording() {
-
-    }
-
-    /**
      * Get all intentions from this transaction and its sub-transactions.
      *
      * @return combined list of all intentions
