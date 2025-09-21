@@ -19,6 +19,7 @@ class ScriptValidatorAttachmentIntentionTest {
                 .attachSpendingValidator(script);
 
         String yaml = TxPlan.from(scriptTx).toYaml();
+        assertThat(yaml).contains("scripts:");
         assertThat(yaml).contains("type: validator");
         assertThat(yaml).contains("version: v2");
         assertThat(yaml).contains("cbor_hex:");

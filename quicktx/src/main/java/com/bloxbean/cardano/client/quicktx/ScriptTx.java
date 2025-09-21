@@ -187,10 +187,9 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
 
     /**
      * Add script UTXOs selected by a serializable UTxO filter as inputs of the transaction.
-     * The filter is backend-agnostic; currently evaluated in-memory against UTXOs at the script address.
      *
      * @param scriptAddress the script address to query UTXOs from
-     * @param filterSpec    serializable UTXO filter (DSL/AST)
+     * @param filterSpec    serializable UTXO filter
      * @param redeemerData  redeemer data
      * @param datum         datum object
      * @return ScriptTx
@@ -210,6 +209,14 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return this;
     }
 
+    /**
+     * Add script UTXOs selected by a serializable UTxO filter as inputs of the transaction.
+     *
+     * @param scriptAddress the script address to query UTXOs from
+     * @param filterSpec    serializable UTXO filter
+     * @param redeemerData  redeemer data
+     * @return ScriptTx
+     */
     public ScriptTx collectFrom(String scriptAddress, UtxoFilterSpec filterSpec, PlutusData redeemerData) {
         return collectFrom(scriptAddress, filterSpec, redeemerData, null);
     }

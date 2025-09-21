@@ -25,6 +25,7 @@ import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -956,4 +957,42 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         assertThat(result.isSuccessful()).isTrue();
     }
 
+    @Test
+    void multiSigPayment() throws CborSerializationException {
+        var policy = PolicyUtil.createMultiSigScriptAtLeastPolicy("test_policy", 3, 2);
+        var multiSigAddress = AddressProvider.getEntAddress(policy.getPolicyScript(), Networks.testnet()).toBech32();
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Tx tx = new Tx()
+                .payToAddress(multiSigAddress, Amount.ada(10))
+                .from(sender1Addr);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+
+        //Receive
+        Tx receiveTx = new Tx()
+                .payToAddress(receiver1, Amount.ada(8))
+                .attachNativeScript(policy.getPolicyScript())
+                .from(multiSigAddress);
+
+        //Round trip ser and deser of receiveTx and then use it
+        receiveTx = (Tx) TxPlan.from(TxPlan.toYaml(receiveTx)).getTxs().get(0);
+
+        System.out.println(TxPlan.toYaml(receiveTx));
+
+        result = quickTxBuilder.compose(receiveTx)
+                .withSigner(SignerProviders.signerFrom(policy.getPolicyKeys().get(0)))
+                .withSigner(SignerProviders.signerFrom(policy.getPolicyKeys().get(1)))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result);
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+    }
 }

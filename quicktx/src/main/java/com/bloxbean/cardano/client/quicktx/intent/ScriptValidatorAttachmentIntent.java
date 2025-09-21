@@ -22,7 +22,7 @@ import lombok.*;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ScriptValidatorAttachmentIntent implements TxValidatorIntent {
+public class ScriptValidatorAttachmentIntent implements TxScriptAttachmentIntent {
 
     // Runtime field
     @JsonIgnore

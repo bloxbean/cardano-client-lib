@@ -6,7 +6,7 @@ import com.bloxbean.cardano.client.quicktx.ScriptTx;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
-import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntent;
+import com.bloxbean.cardano.client.quicktx.intent.TxScriptAttachmentIntent;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.ArrayList;
@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Plan for handling multiple transactions in a single YAML document.
+ * Plan for handling multiple Txs/ScriptTxs in a single YAML document.
  * This is the main entry point for all YAML serialization/deserialization operations.
  */
 public class TxPlan {
@@ -224,11 +224,14 @@ public class TxPlan {
                 // Separate input intentions from regular intentions
                 List<TxInputIntent> inputIntentions = new ArrayList<>();
                 List<TxIntent> regularIntentions = new ArrayList<>();
+                List<TxScriptAttachmentIntent> scriptIntentions = new ArrayList<>();
 
                 if (regularTx.getIntentions() != null) {
                     for (TxIntent intention : regularTx.getIntentions()) {
                         if (intention instanceof TxInputIntent) {
                             inputIntentions.add((TxInputIntent) intention);
+                        } else if (intention instanceof TxScriptAttachmentIntent) {
+                            scriptIntentions.add((TxScriptAttachmentIntent) intention);
                         } else {
                             regularIntentions.add(intention);
                         }
@@ -241,6 +244,9 @@ public class TxPlan {
                 }
                 if (!regularIntentions.isEmpty()) {
                     content.setIntents(regularIntentions);
+                }
+                if (!scriptIntentions.isEmpty()) {
+                    content.setScripts(scriptIntentions);
                 }
 
                 // Set attributes from the transaction
@@ -257,15 +263,15 @@ public class TxPlan {
 
                 // Separate input intentions from regular intentions
                 List<TxInputIntent> inputIntentions = new ArrayList<>();
-                List<TxValidatorIntent> validatorIntentions = new ArrayList<>();
                 List<TxIntent> regularIntentions = new ArrayList<>();
+                List<TxScriptAttachmentIntent> scriptIntentions = new ArrayList<>();
 
                 if (scriptTx.getIntentions() != null) {
                     for (TxIntent intention : scriptTx.getIntentions()) {
                         if (intention instanceof TxInputIntent) {
                             inputIntentions.add((TxInputIntent) intention);
-                        } else if (intention instanceof TxValidatorIntent) {
-                            validatorIntentions.add((TxValidatorIntent) intention);
+                        } else if (intention instanceof TxScriptAttachmentIntent) {
+                            scriptIntentions.add((TxScriptAttachmentIntent) intention);
                         } else {
                             regularIntentions.add(intention);
                         }
@@ -279,8 +285,8 @@ public class TxPlan {
                 if (!regularIntentions.isEmpty()) {
                     content.setIntents(regularIntentions);
                 }
-                if (!validatorIntentions.isEmpty()) {
-                    content.setValidators(validatorIntentions);
+                if (!scriptIntentions.isEmpty()) {
+                    content.setScripts(scriptIntentions);
                 }
 
                 content.setChangeAddress(scriptTx.getPublicChangeAddress());
@@ -405,7 +411,15 @@ public class TxPlan {
                     }
                 }
 
-                // Backward compatibility: if no inputs section but intentions contain input intentions,
+                // Script intentions
+                if (content.getScripts() != null) {
+                    for (var scriptIntention : content.getScripts()) {
+                        // Resolve variables using each intention's own resolveVariables method
+                        var resolvedIntention = scriptIntention.resolveVariables(vars);
+                        tx.addIntention(resolvedIntention);
+                    }
+                }
+
                 // still process them (this ensures old YAML files still work)
                 if (content.getInputs() == null && content.getIntents() != null) {
                     // Input intentions are already included in the intentions processing above
@@ -457,11 +471,11 @@ public class TxPlan {
                     }
                 }
 
-                // Validator intentions
-                if (content.getValidators() != null) {
-                    for (var validatorIntention : content.getValidators()) {
+                // Script intentions
+                if (content.getScripts() != null) {
+                    for (var scriptIntention : content.getScripts()) {
                         // Resolve variables using each intention's own resolveVariables method
-                        var resolvedIntention = validatorIntention.resolveVariables(vars);
+                        var resolvedIntention = scriptIntention.resolveVariables(vars);
                         scriptTx.addIntention(resolvedIntention);
                     }
                 }

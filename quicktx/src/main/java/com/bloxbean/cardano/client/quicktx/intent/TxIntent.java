@@ -55,6 +55,8 @@ import java.util.Map;
     ,
     @JsonSubTypes.Type(value = ScriptValidatorAttachmentIntent.class, name = "validator")
     ,
+    @JsonSubTypes.Type(value = NativeScriptAttachmentIntent.class, name = "native_script")
+    ,
     @JsonSubTypes.Type(value = ReferenceInputIntent.class, name = "reference_input")
     ,
     // Base Tx input collection intentions

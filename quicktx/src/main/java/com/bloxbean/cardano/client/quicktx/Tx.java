@@ -53,20 +53,9 @@ public class Tx extends AbstractTx<Tx> {
     public List<TxIntent> getIntentions() {
         List<TxIntent> allIntentions = new ArrayList<>();
 
-        // Add main transaction intentions
         if (intentions != null) {
             allIntentions.addAll(intentions);
         }
-
-        // Add stake intentions
-//        if (stakeTx.getIntentions() != null) {
-//            allIntentions.addAll(stakeTx.getIntentions());
-//        }
-//
-//        // Add governance intentions
-//        if (govTx.getIntentions() != null) {
-//            allIntentions.addAll(govTx.getIntentions());
-//        }
 
         return allIntentions;
     }
@@ -142,7 +131,11 @@ public class Tx extends AbstractTx<Tx> {
      * @return the current Tx instance with the updated native scripts set
      */
     public Tx attachNativeScript(NativeScript script) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (intentions == null) {
+            intentions = new ArrayList<>();
+        }
+        intentions.add(NativeScriptAttachmentIntent.of(script));
+        return this;
     }
 
     /**
