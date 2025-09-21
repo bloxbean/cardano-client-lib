@@ -1,3 +1,0 @@
-moduleName=cardano-groovy-dsl-extensions
-moduleVersion=1.0
-extensionClasses=com.bloxbean.cardano.client.dsl.groovy.AmountExtensions
