@@ -16,6 +16,7 @@ import com.bloxbean.cardano.client.transaction.spec.governance.*;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovAction;
 import com.bloxbean.cardano.client.transaction.spec.governance.actions.GovActionId;
 import com.bloxbean.cardano.client.transaction.util.UniqueList;
+import com.bloxbean.cardano.client.quicktx.intent.*;
 import com.bloxbean.cardano.client.util.Tuple;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -35,8 +36,29 @@ public class GovTx {
     protected List<VotingProcedureContext> votingProcedureContexts;
     protected List<VotingDelegationContext> votingDelegationContexts;
 
+    // Intention recording support
+    protected List<TxIntent> intentions;
+    protected boolean intentionRecordingEnabled = false;
+
     public GovTx() {
 
+    }
+
+    /**
+     * Enable intention recording for YAML serialization support.
+     */
+    public void enableIntentionRecording() {
+        this.intentionRecordingEnabled = true;
+        if (this.intentions == null) {
+            this.intentions = new ArrayList<>();
+        }
+    }
+
+    /**
+     * Get recorded intentions for YAML serialization.
+     */
+    public List<TxIntent> getIntentions() {
+        return intentions;
     }
 
     /**
@@ -71,6 +93,13 @@ public class GovTx {
 
         var drepRegistrationContext = new DRepRegestrationContext(regDRepCert, _redeemer);
         dRepRegistrationContexts.add(drepRegistrationContext);
+
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(DRepRegistrationIntent.register(drepCredential, anchor));
+        }
+
         return this;
     }
 
@@ -105,6 +134,17 @@ public class GovTx {
         }
 
         dRepDeregestrationContexts.add(new DRepDeregestrationContext(unregDRepCert, refundAddress, _redeemer));
+
+        // Record intention for YAML serialization if enabled
+//        if (intentionRecordingEnabled) {
+//            if (intentions == null) intentions = new ArrayList<>();
+//            if (refundAddress != null) {
+//                intentions.add(DRepDeregistrationIntention.deregister(drepCredential, refundAddress, refundAmount));
+//            } else {
+//                intentions.add(DRepDeregistrationIntention.deregister(drepCredential));
+//            }
+//        }
+
         return this;
     }
 
@@ -138,6 +178,13 @@ public class GovTx {
         }
 
         updateDRepContexts.add(new UpdateDRepContext(updateDRepCert, _redeemer));
+
+        // Record intention for YAML serialization if enabled
+//        if (intentionRecordingEnabled) {
+//            if (intentions == null) intentions = new ArrayList<>();
+//            intentions.add(DRepUpdateIntention.update(drepCredential, anchor));
+//        }
+
         return this;
     }
 
@@ -172,6 +219,12 @@ public class GovTx {
 
         createProposalContexts.add(createProposalContext);
 
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(GovernanceProposalIntent.create(govAction, returnAddress, anchor));
+        }
+
         return this;
     }
 
@@ -202,6 +255,13 @@ public class GovTx {
         }
 
         votingProcedureContexts.add(new VotingProcedureContext(voter, govActionId, new VotingProcedure(vote, anchor), _redeemer));
+
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(VotingIntent.vote(voter, govActionId, vote, anchor));
+        }
+
         return this;
     }
 
@@ -244,6 +304,13 @@ public class GovTx {
         }
 
         votingDelegationContexts.add(new VotingDelegationContext(voteDelegation, _redeemer));
+
+        // Record intention for YAML serialization if enabled
+        if (intentionRecordingEnabled) {
+            if (intentions == null) intentions = new ArrayList<>();
+            intentions.add(VotingDelegationIntent.delegate(address, drep));
+        }
+
         return this;
     }
 
