@@ -24,7 +24,7 @@ class GovIntentionsInScriptTxTest {
         assertThat(yaml).contains("type: drep_registration");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "drep_registration".equals(i.getType()))).isTrue();
     }
 
@@ -38,7 +38,7 @@ class GovIntentionsInScriptTxTest {
         assertThat(yaml).contains("type: drep_deregistration");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "drep_deregistration".equals(i.getType()))).isTrue();
     }
 
@@ -50,20 +50,8 @@ class GovIntentionsInScriptTxTest {
         String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: governance_proposal");
         assertThat(yaml).contains("redeemer_hex:");
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "governance_proposal".equals(i.getType()))).isTrue();
     }
 
-//    @Test
-//    void voting_with_redeemer_serializes_and_round_trips() {
-//        Voter voter = Voter.drepId("drep_test_hash");
-//        GovActionId gaid = new GovActionId("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0);
-//        PlutusData redeemer = BigIntPlutusData.of(4);
-//        ScriptTx tx = new ScriptTx().createVote(voter, gaid, Vote.YES, null, redeemer);
-//        String yaml = TxPlan.fromTransaction(tx).toYaml();
-//        assertThat(yaml).contains("type: voting");
-//        assertThat(yaml).contains("redeemer_hex:");
-//        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
-//        assertThat(restored.getIntentions().stream().anyMatch(i -> "voting".equals(i.getType()))).isTrue();
-//    }
 }

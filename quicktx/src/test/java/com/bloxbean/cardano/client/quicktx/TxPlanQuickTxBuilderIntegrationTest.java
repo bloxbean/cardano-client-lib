@@ -78,7 +78,7 @@ class TxPlanQuickTxBuilderIntegrationTest {
         MockQuickTxBuilder builder = new MockQuickTxBuilder();
 
         // When - deserialize YAML to TxPlan and create TxContext
-        TxPlan plan = TxPlan.fromYamlWithContext(yaml);
+        TxPlan plan = TxPlan.from(yaml);
         MockQuickTxBuilder.MockTxContext context = builder.compose(plan);
 
         // Then - verify complete round-trip works
@@ -179,11 +179,11 @@ class TxPlanQuickTxBuilderIntegrationTest {
             if (plan == null)
                 throw new RuntimeException("TxPlan cannot be null");
 
-            if (plan.getTransactions() == null || plan.getTransactions().isEmpty())
+            if (plan.getTxs() == null || plan.getTxs().isEmpty())
                 throw new RuntimeException("TxPlan must contain at least one transaction");
 
             // Create mock context with transactions
-            MockTxContext context = new MockTxContext(plan.getTransactions().toArray(new AbstractTx[0]));
+            MockTxContext context = new MockTxContext(plan.getTxs().toArray(new AbstractTx[0]));
 
             // Apply context properties from TxPlan
             if (plan.getFeePayer() != null) {

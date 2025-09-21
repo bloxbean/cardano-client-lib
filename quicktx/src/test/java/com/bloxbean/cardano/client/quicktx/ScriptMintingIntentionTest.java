@@ -67,7 +67,7 @@ class ScriptMintingIntentionTest {
         String yaml = TxPlan.from(original).toYaml();
 
         // When
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
 
         // Then
         assertThat(restored).isNotNull();

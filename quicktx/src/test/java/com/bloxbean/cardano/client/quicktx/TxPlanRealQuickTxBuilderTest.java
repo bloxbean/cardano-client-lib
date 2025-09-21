@@ -84,13 +84,13 @@ class TxPlanRealQuickTxBuilderTest {
         QuickTxBuilder builder = new QuickTxBuilder(mockBackend);
 
         // When - complete pipeline: YAML → TxPlan → TxContext
-        TxPlan plan = TxPlan.fromYamlWithContext(yaml);
+        TxPlan plan = TxPlan.from(yaml);
         QuickTxBuilder.TxContext context = builder.compose(plan);
 
         // Then - verify pipeline works end-to-end
         assertThat(plan.getFeePayer()).isEqualTo("addr1_fee_payer");
         assertThat(plan.getValidToSlot()).isEqualTo(2000L);
-        assertThat(plan.getTransactions()).hasSize(1);
+        assertThat(plan.getTxs()).hasSize(1);
 
         assertThat(context).isNotNull();
         assertThat(context).isInstanceOf(QuickTxBuilder.TxContext.class);
@@ -121,7 +121,7 @@ class TxPlanRealQuickTxBuilderTest {
 
         // Then
         assertThat(context).isNotNull();
-        assertThat(plan.getTransactions()).hasSize(2);
+        assertThat(plan.getTxs()).hasSize(2);
         assertThat(plan.getFeePayer()).isEqualTo("addr1_fee_payer");
         assertThat(plan.getValidFromSlot()).isEqualTo(1000L);
     }

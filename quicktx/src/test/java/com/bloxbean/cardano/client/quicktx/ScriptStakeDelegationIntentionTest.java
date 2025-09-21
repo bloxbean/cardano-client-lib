@@ -24,7 +24,7 @@ class ScriptStakeDelegationIntentionTest {
         assertThat(yaml).contains("pool_id: " + poolId);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_delegation".equals(i.getType()))).isTrue();
     }

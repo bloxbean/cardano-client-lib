@@ -62,7 +62,7 @@ class TxMetadataSerializationTest {
         System.out.println(yaml);
 
         // Deserialize back
-        Tx restoredTx = (Tx) TxPlan.fromYaml(yaml).get(0);
+        Tx restoredTx = (Tx) TxPlan.getTxs(yaml).get(0);
 
         assertNotNull(restoredTx);
         // Check if the transaction has metadata intents

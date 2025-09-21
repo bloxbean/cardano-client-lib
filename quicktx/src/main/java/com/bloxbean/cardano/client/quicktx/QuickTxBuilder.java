@@ -155,8 +155,8 @@ public class QuickTxBuilder {
     public TxContext compose(TxPlan plan) {
         if (plan == null)
             throw new TxBuildException("TxPlan cannot be null");
-        
-        List<AbstractTx<?>> transactions = plan.getTransactions();
+
+        List<AbstractTx<?>> transactions = plan.getTxs();
         if (transactions == null || transactions.isEmpty())
             throw new TxBuildException("TxPlan must contain at least one transaction");
 

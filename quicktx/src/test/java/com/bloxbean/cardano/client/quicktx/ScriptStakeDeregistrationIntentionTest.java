@@ -22,7 +22,7 @@ class ScriptStakeDeregistrationIntentionTest {
         assertThat(yaml).contains("stake_address: " + stakeAddr);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_deregistration".equals(i.getType()))).isTrue();
     }

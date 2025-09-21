@@ -79,7 +79,7 @@ class UnifiedYamlSerializationTest {
         String yaml = TxPlan.from(original).toYaml();
 
         // When
-        Tx restored = (Tx) TxPlan.fromYaml(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
 
         // Then
         assertThat(restored).isNotNull();
@@ -146,7 +146,7 @@ class UnifiedYamlSerializationTest {
         String yaml = collection.toYaml();
 
         // When
-        List<AbstractTx<?>> restored = TxPlan.fromYaml(yaml);
+        List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
 
         // Then
         assertThat(restored).hasSize(2);
@@ -182,7 +182,7 @@ class UnifiedYamlSerializationTest {
             "        quantity: '10000000'\n";
 
         // When
-        List<AbstractTx<?>> restored = TxPlan.fromYaml(yamlWithVariables);
+        List<AbstractTx<?>> restored = TxPlan.getTxs(yamlWithVariables);
 
         // Then
         assertThat(restored).hasSize(1);
@@ -207,7 +207,7 @@ class UnifiedYamlSerializationTest {
 
         // When - serialize and deserialize
         String yaml = TxPlan.from(original).toYaml();
-        Tx restored = (Tx) TxPlan.fromYaml(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         String yaml2 = TxPlan.from(restored).toYaml();
 
         // Then - verify structural equivalence

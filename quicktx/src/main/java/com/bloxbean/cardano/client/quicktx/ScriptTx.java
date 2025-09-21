@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.quicktx.filter.yaml.UtxoFilterYaml;
 import com.bloxbean.cardano.client.quicktx.intent.*;
 import com.bloxbean.cardano.client.quicktx.filter.UtxoFilterSpec;
 import com.bloxbean.cardano.client.quicktx.filter.runtime.UtxoFilterStrategy;
@@ -196,13 +197,12 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
      */
     public ScriptTx collectFrom(String scriptAddress, UtxoFilterSpec filterSpec, PlutusData redeemerData, PlutusData datum) {
         var utxoStrategy = new UtxoFilterStrategy(scriptAddress, filterSpec, redeemerData, datum);
-        var filterNode = com.bloxbean.cardano.client.quicktx.filter.yaml.UtxoFilterYaml.toNode(filterSpec);
+        var filterNode = UtxoFilterYaml.toNode(filterSpec);
         ScriptCollectFromIntent intention = ScriptCollectFromIntent.builder()
                 .lazyUtxoStrategy(utxoStrategy)
                 .redeemerData(redeemerData)
                 .datum(datum)
                 .address(scriptAddress)
-                .utxoFilterBackend(filterSpec.backend() == null ? "memory" : filterSpec.backend())
                 .utxoFilter(filterNode)
                 .build();
         if (intentions == null) intentions = new ArrayList<>();
@@ -447,7 +447,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx attachCertificateValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(ScriptValidatorAttachmentIntent
-                .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Cert, plutusScript));
+                .of(RedeemerTag.Cert, plutusScript));
         return this;
     }
 
@@ -460,7 +460,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx attachRewardValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(ScriptValidatorAttachmentIntent
-                .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Reward, plutusScript));
+                .of(RedeemerTag.Reward, plutusScript));
         return this;
     }
 
@@ -473,7 +473,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx attachProposingValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(ScriptValidatorAttachmentIntent
-                .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Proposing, plutusScript));
+                .of(RedeemerTag.Proposing, plutusScript));
         return this;
     }
 
@@ -486,7 +486,7 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     public ScriptTx attachVotingValidator(PlutusScript plutusScript) {
         if (intentions == null) intentions = new ArrayList<>();
         intentions.add(ScriptValidatorAttachmentIntent
-                .of(com.bloxbean.cardano.client.plutus.spec.RedeemerTag.Voting, plutusScript));
+                .of(RedeemerTag.Voting, plutusScript));
         return this;
     }
 

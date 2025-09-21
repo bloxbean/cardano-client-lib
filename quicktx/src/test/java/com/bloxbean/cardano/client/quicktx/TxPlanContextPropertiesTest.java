@@ -59,7 +59,7 @@ class TxPlanContextPropertiesTest {
 
         // When - serialize and deserialize
         String yaml = original.toYaml();
-        TxPlan restored = TxPlan.fromYamlWithContext(yaml);
+        TxPlan restored = TxPlan.from(yaml);
 
         // Then - verify all context properties are restored
         assertThat(restored.getFeePayer()).isEqualTo("addr1_fee_payer");
@@ -69,8 +69,8 @@ class TxPlanContextPropertiesTest {
         assertThat(restored.getValidToSlot()).isEqualTo(2000L);
 
         // Verify transactions are also restored
-        assertThat(restored.getTransactions()).hasSize(1);
-        assertThat(restored.getTransactions().get(0)).isInstanceOf(Tx.class);
+        assertThat(restored.getTxs()).hasSize(1);
+        assertThat(restored.getTxs().get(0)).isInstanceOf(Tx.class);
     }
 
     @Test
@@ -126,7 +126,7 @@ class TxPlanContextPropertiesTest {
 
         // When - serialize and deserialize
         String yaml = plan.toYaml();
-        TxPlan restored = TxPlan.fromYamlWithContext(yaml);
+        TxPlan restored = TxPlan.from(yaml);
 
         // Then
         assertThat(restored.getRequiredSigners()).containsExactlyInAnyOrder("ab123def", "cd456efg", "ef789abc");
@@ -167,7 +167,7 @@ class TxPlanContextPropertiesTest {
 
         // When
         String yaml = plan.toYaml();
-        TxPlan restored = TxPlan.fromYamlWithContext(yaml);
+        TxPlan restored = TxPlan.from(yaml);
 
         // Then - both variables and context are restored
         assertThat(restored.getVariables()).containsEntry("sender", "addr1_sender");

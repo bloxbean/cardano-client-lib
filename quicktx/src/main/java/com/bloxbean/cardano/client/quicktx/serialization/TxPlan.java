@@ -1,11 +1,13 @@
 package com.bloxbean.cardano.client.quicktx.serialization;
 
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.AbstractTx;
 import com.bloxbean.cardano.client.quicktx.ScriptTx;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntent;
+import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -21,7 +23,7 @@ import java.util.Set;
 public class TxPlan {
 
     private Map<String, Object> variables = new HashMap<>();
-    private List<AbstractTx<?>> transactions = new ArrayList<>();
+    private List<AbstractTx<?>> txList = new ArrayList<>();
 
     // TxContext properties for serialization
     private String feePayer;
@@ -60,7 +62,7 @@ public class TxPlan {
      * @return this plan for method chaining
      */
     public TxPlan addTransaction(AbstractTx<?> transaction) {
-        this.transactions.add(transaction);
+        this.txList.add(transaction);
         return this;
     }
 
@@ -76,8 +78,8 @@ public class TxPlan {
      * Get all transactions.
      * @return list of transactions
      */
-    public List<AbstractTx<?>> getTransactions() {
-        return transactions;
+    public List<AbstractTx<?>> getTxs() {
+        return txList;
     }
 
     /**
@@ -214,7 +216,7 @@ public class TxPlan {
         // Convert each transaction to TxEntry
         List<TransactionDocument.TxEntry> entries = new ArrayList<>();
 
-        for (AbstractTx<?> tx : transactions) {
+        for (AbstractTx<?> tx : txList) {
             if (tx instanceof Tx) {
                 Tx regularTx = (Tx) tx;
                 TransactionDocument.TxContent content = new TransactionDocument.TxContent();
@@ -312,7 +314,7 @@ public class TxPlan {
      * @return reconstructed TxPlan with all properties restored
      * @throws RuntimeException if deserialization fails
      */
-    public static TxPlan fromYamlWithContext(String yaml) {
+    public static TxPlan from(String yaml) {
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
         TxPlan plan = new TxPlan();
 
@@ -342,7 +344,7 @@ public class TxPlan {
         }
 
         // Restore transactions (reuse existing logic)
-        List<AbstractTx<?>> transactions = fromYamlTransactions(doc);
+        List<AbstractTx<?>> transactions = getTxs(doc);
         for (AbstractTx<?> tx : transactions) {
             plan.addTransaction(tx);
         }
@@ -356,9 +358,9 @@ public class TxPlan {
      * @return list of reconstructed transactions
      * @throws RuntimeException if deserialization fails
      */
-    public static List<AbstractTx<?>> fromYaml(String yaml) {
+    public static List<AbstractTx<?>> getTxs(String yaml) {
         TransactionDocument doc = YamlSerializer.deserialize(yaml, TransactionDocument.class);
-        return fromYamlTransactions(doc);
+        return getTxs(doc);
     }
 
     /**
@@ -366,7 +368,7 @@ public class TxPlan {
      * @param doc the parsed document
      * @return list of reconstructed transactions
      */
-    private static List<AbstractTx<?>> fromYamlTransactions(TransactionDocument doc) {
+    private static List<AbstractTx<?>> getTxs(TransactionDocument doc) {
         List<AbstractTx<?>> transactions = new ArrayList<>();
         Map<String, Object> vars = doc.getVariables();
 
@@ -424,8 +426,7 @@ public class TxPlan {
                     if (content.getChangeDatum() != null && !content.getChangeDatum().isEmpty()) {
                         String resolvedDatumHex = VariableResolver.resolve(content.getChangeDatum(), vars);
                         try {
-                            var pd = com.bloxbean.cardano.client.plutus.spec.PlutusData.deserialize(
-                                    com.bloxbean.cardano.client.util.HexUtil.decodeHexString(resolvedDatumHex));
+                            var pd = PlutusData.deserialize(HexUtil.decodeHexString(resolvedDatumHex));
                             scriptTx.withChangeAddress(changeAddr, pd);
                         } catch (Exception e) {
                             throw new RuntimeException("Failed to deserialize change_datum", e);
@@ -465,8 +466,6 @@ public class TxPlan {
                     }
                 }
 
-                // Backward compatibility: if no inputs section but intentions contain input intentions,
-                // still process them (this ensures old YAML files still work)
                 if (content.getInputs() == null && content.getIntents() != null) {
                     // Input intentions are already included in the intentions processing above
                 }

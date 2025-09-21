@@ -163,6 +163,8 @@ TransactionService txService = backendService.getTransactionService();
 ## Important Development Notes
 
 - Always try to reuse existing class/api if possible instead of creating new ones with similar functionality.
+- Use lombok annotations for reducing boilerplate code.
+- Prefer package imports instead of fully qualified class names
 
 ### Watcher Module Testing
 - Integration tests require Yaci DevKit running on port 8080

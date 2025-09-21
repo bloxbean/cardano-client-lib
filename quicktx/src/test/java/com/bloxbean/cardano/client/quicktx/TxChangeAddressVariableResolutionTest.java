@@ -19,7 +19,7 @@ class TxChangeAddressVariableResolutionTest {
                 "      change_address: ${ca}\n" +
                 "      intents: []\n";
 
-        Tx tx = (Tx) TxPlan.fromYaml(yaml).get(0);
+        Tx tx = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(tx.getPublicChangeAddress()).isEqualTo(addrVar);
     }
 }

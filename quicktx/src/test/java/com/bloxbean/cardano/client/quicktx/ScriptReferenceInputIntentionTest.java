@@ -41,7 +41,7 @@ class ScriptReferenceInputIntentionTest {
                 .readFrom("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", 4);
 
         String yaml = TxPlan.from(original).toYaml();
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
 
         assertThat(restored).isNotNull();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "reference_input".equals(i.getType()))).isTrue();

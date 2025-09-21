@@ -1,12 +1,16 @@
 package com.bloxbean.cardano.client.quicktx.intent;
 
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
+import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.filter.runtime.UtxoFilterStrategy;
+import com.bloxbean.cardano.client.quicktx.filter.yaml.UtxoFilterYaml;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.FixedUtxoRefStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.FixedUtxoStrategy;
@@ -70,7 +74,6 @@ public class ScriptCollectFromIntent implements TxInputIntent {
     @JsonIgnore
     private PlutusData datum;
 
-    // Fields for deserialization from YAML/JSON
     @JsonProperty("utxo_refs")
     private List<UtxoRef> utxoRefs;
 
@@ -80,12 +83,8 @@ public class ScriptCollectFromIntent implements TxInputIntent {
     @JsonProperty("datum_hex")
     private String datumHex;
 
-    // New fields for UTXO filter DSL (simplified YAML)
     @JsonProperty("address")
     private String address; // script address for lazy strategies
-
-    @JsonProperty("utxo_filter_backend")
-    private String utxoFilterBackend; // optional, default "memory"
 
     @JsonProperty("utxo_filter")
     private JsonNode utxoFilter; // simplified YAML mapping
@@ -335,13 +334,11 @@ public class ScriptCollectFromIntent implements TxInputIntent {
             if (!hasRuntimeObjects()) {
                 if (utxoFilter != null) {
                     // Build strategy from filter
-                    var spec = com.bloxbean.cardano.client.quicktx.filter.yaml.UtxoFilterYaml.parseNode(utxoFilter);
-                    String backend = (utxoFilterBackend == null || utxoFilterBackend.isEmpty()) ? "memory" : utxoFilterBackend;
-                    // backend currently unused (default in-memory)
+                    var spec = UtxoFilterYaml.parseNode(utxoFilter);
                     if (address == null || address.isEmpty())
                         throw new IllegalStateException("address is required when utxo_filter is provided");
 
-                    lazyUtxoStrategy = new com.bloxbean.cardano.client.quicktx.filter.runtime.UtxoFilterStrategy(address, spec, redeemerData, datum);
+                    lazyUtxoStrategy = new UtxoFilterStrategy(address, spec, redeemerData, datum);
                     return lazyUtxoStrategy;
                 } else {
                     var txInputs = utxoRefs.stream()
@@ -358,7 +355,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
     }
 
     @Override
-    public com.bloxbean.cardano.client.function.TxBuilder preApply(com.bloxbean.cardano.client.quicktx.IntentContext context) {
+    public TxBuilder preApply(IntentContext context) {
         return (ctx, txn) -> {
             // Basic validation only; input selection is prepared in ScriptTx.complete()
             validate();
@@ -366,7 +363,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
     }
 
     @Override
-    public com.bloxbean.cardano.client.function.TxBuilder apply(com.bloxbean.cardano.client.quicktx.IntentContext context) {
+    public TxBuilder apply(IntentContext context) {
         // No-op: collection is materialized prior to input selection in ScriptTx.complete()
         return (ctx, transaction) -> {
 

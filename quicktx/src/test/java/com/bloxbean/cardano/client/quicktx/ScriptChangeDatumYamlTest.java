@@ -27,7 +27,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum_hash:");
 
         // Round-trip
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
 
         // Verify restored state exposes inline datum hex and not hash
         String restoredDatumHex = restored.getChangeDatumHex();
@@ -53,7 +53,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum:");
 
         // Round-trip
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
 
         // Verify restored state exposes hash and not inline datum
         assertThat(restored.getChangeDatumHash()).isEqualTo(datumHash);
@@ -77,7 +77,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum_hash:");
 
         // Round-trip
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getPublicChangeAddress()).isEqualTo(changeAddr);
         assertThat(restored.getChangeDatumHex()).isNull();
         assertThat(restored.getChangeDatumHash()).isNull();

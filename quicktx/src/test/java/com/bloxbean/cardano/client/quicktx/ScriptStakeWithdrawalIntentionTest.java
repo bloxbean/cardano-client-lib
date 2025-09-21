@@ -25,7 +25,7 @@ class ScriptStakeWithdrawalIntentionTest {
         assertThat(yaml).contains("reward_address: " + rewardAddr);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_withdrawal".equals(i.getType()))).isTrue();
     }
@@ -46,7 +46,7 @@ class ScriptStakeWithdrawalIntentionTest {
         assertThat(yaml).contains("receiver: " + receiver);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_withdrawal".equals(i.getType()))).isTrue();
     }

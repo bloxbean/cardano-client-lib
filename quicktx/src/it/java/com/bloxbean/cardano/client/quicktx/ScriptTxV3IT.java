@@ -711,7 +711,11 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
         System.out.println(TxPlan.toYaml(scriptTx));
 
-        future = quickTxBuilder.compose(scriptTx)
+        var scriptTx1 = TxPlan.from(TxPlan.toYaml(scriptTx));
+        System.out.println("*******");
+        System.out.println(TxPlan.toYaml(scriptTx1.getTxs()));
+
+        future = quickTxBuilder.compose(scriptTx1)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
                 .withRequiredSigners(sender2.getBaseAddress())

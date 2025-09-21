@@ -25,7 +25,7 @@ class ScriptVotingDelegationIntentionTest {
         assertThat(yaml).contains("type: voting_delegation");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "voting_delegation".equals(i.getType()))).isTrue();
     }

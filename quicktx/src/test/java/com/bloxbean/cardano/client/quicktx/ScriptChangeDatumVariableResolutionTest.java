@@ -23,7 +23,7 @@ class ScriptChangeDatumVariableResolutionTest {
                 "      change_datum: ${dh}\n" +
                 "      intents: []\n";
 
-        ScriptTx tx = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx tx = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(tx.getPublicChangeAddress()).isEqualTo(addrVar);
         assertThat(tx.getChangeDatumHex()).isEqualTo(datumHex);
         assertThat(tx.getChangeDatumHash()).isNull();
@@ -44,7 +44,7 @@ class ScriptChangeDatumVariableResolutionTest {
                 "      change_datum_hash: ${dh}\n" +
                 "      intents: []\n";
 
-        ScriptTx tx = (ScriptTx) TxPlan.fromYaml(yaml).get(0);
+        ScriptTx tx = (ScriptTx) TxPlan.getTxs(yaml).get(0);
         assertThat(tx.getPublicChangeAddress()).isEqualTo(addrVar);
         assertThat(tx.getChangeDatumHash()).isEqualTo(datumHash);
         assertThat(tx.getChangeDatumHex()).isNull();

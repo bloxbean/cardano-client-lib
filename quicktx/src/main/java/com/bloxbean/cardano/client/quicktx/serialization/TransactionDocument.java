@@ -6,6 +6,8 @@ import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxValidatorIntent;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,6 +19,8 @@ import java.util.Set;
  * Root document structure for unified transaction YAML format.
  * Supports both single and multiple transactions (tx and scriptTx) in a single document.
  */
+@Data
+@NoArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TransactionDocument {
 
@@ -34,44 +38,45 @@ public class TransactionDocument {
     @JsonProperty("transaction")
     private List<TxEntry> transaction = new ArrayList<>();
 
-    public TransactionDocument() {
-    }
-
-    public String getVersion() {
-        return version;
-    }
-
-    public void setVersion(String version) {
-        this.version = version;
-    }
-
-    public Map<String, Object> getVariables() {
-        return variables;
-    }
-
-    public void setVariables(Map<String, Object> variables) {
-        this.variables = variables;
-    }
-
-    public TxContext getContext() {
-        return context;
-    }
-
-    public void setContext(TxContext context) {
-        this.context = context;
-    }
-
-    public List<TxEntry> getTransaction() {
-        return transaction;
-    }
-
-    public void setTransaction(List<TxEntry> transaction) {
-        this.transaction = transaction;
-    }
+//    public TransactionDocument() {
+//    }
+//
+//    public String getVersion() {
+//        return version;
+//    }
+//
+//    public void setVersion(String version) {
+//        this.version = version;
+//    }
+//
+//    public Map<String, Object> getVariables() {
+//        return variables;
+//    }
+//
+//    public void setVariables(Map<String, Object> variables) {
+//        this.variables = variables;
+//    }
+//
+//    public TxContext getContext() {
+//        return context;
+//    }
+//
+//    public void setContext(TxContext context) {
+//        this.context = context;
+//    }
+//
+//    public List<TxEntry> getTransaction() {
+//        return transaction;
+//    }
+//
+//    public void setTransaction(List<TxEntry> transaction) {
+//        this.transaction = transaction;
+//    }
 
     /**
      * Entry in the unified transaction list - supports both tx and scriptTx
      */
+    @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class TxEntry {
         @JsonProperty("tx")
@@ -91,21 +96,21 @@ public class TransactionDocument {
             this.scriptTx = scriptTx;
         }
 
-        public TxContent getTx() {
-            return tx;
-        }
-
-        public void setTx(TxContent tx) {
-            this.tx = tx;
-        }
-
-        public ScriptTxContent getScriptTx() {
-            return scriptTx;
-        }
-
-        public void setScriptTx(ScriptTxContent scriptTx) {
-            this.scriptTx = scriptTx;
-        }
+//        public TxContent getTx() {
+//            return tx;
+//        }
+//
+//        public void setTx(TxContent tx) {
+//            this.tx = tx;
+//        }
+//
+//        public ScriptTxContent getScriptTx() {
+//            return scriptTx;
+//        }
+//
+//        public void setScriptTx(ScriptTxContent scriptTx) {
+//            this.scriptTx = scriptTx;
+//        }
 
         /**
          * Check if this entry contains a regular transaction
@@ -125,6 +130,8 @@ public class TransactionDocument {
     /**
      * Regular transaction content with attributes and intents
      */
+    @Data
+    @NoArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class TxContent {
         @JsonProperty("from")
@@ -145,56 +152,56 @@ public class TransactionDocument {
         @JsonProperty("intents")
         private List<TxIntent> intents;
 
-        public TxContent() {
-        }
-
-        public TxContent(List<TxIntent> intents) {
-            this.intents = intents;
-        }
-
-        public String getFrom() {
-            return from;
-        }
-
-        public void setFrom(String from) {
-            this.from = from;
-        }
-
-        public String getFromWallet() {
-            return fromWallet;
-        }
-
-        public void setFromWallet(String fromWallet) {
-            this.fromWallet = fromWallet;
-        }
-
-        public String getChangeAddress() {
-            return changeAddress;
-        }
-
-        public void setChangeAddress(String changeAddress) {
-            this.changeAddress = changeAddress;
-        }
-
-        public List<UtxoInput> getCollectFrom() {
-            return collectFrom;
-        }
-
-        public void setCollectFrom(List<UtxoInput> collectFrom) {
-            this.collectFrom = collectFrom;
-        }
-
-        public List<TxInputIntent> getInputs() {
-            return inputs;
-        }
-
-        public void setInputs(List<TxInputIntent> inputs) {
-            this.inputs = inputs;
-        }
-
-        public List<TxIntent> getIntents() {
-            return intents;
-        }
+//        public TxContent() {
+//        }
+//
+//        public TxContent(List<TxIntent> intents) {
+//            this.intents = intents;
+//        }
+//
+//        public String getFrom() {
+//            return from;
+//        }
+//
+//        public void setFrom(String from) {
+//            this.from = from;
+//        }
+//
+//        public String getFromWallet() {
+//            return fromWallet;
+//        }
+//
+//        public void setFromWallet(String fromWallet) {
+//            this.fromWallet = fromWallet;
+//        }
+//
+//        public String getChangeAddress() {
+//            return changeAddress;
+//        }
+//
+//        public void setChangeAddress(String changeAddress) {
+//            this.changeAddress = changeAddress;
+//        }
+//
+//        public List<UtxoInput> getCollectFrom() {
+//            return collectFrom;
+//        }
+//
+//        public void setCollectFrom(List<UtxoInput> collectFrom) {
+//            this.collectFrom = collectFrom;
+//        }
+//
+//        public List<TxInputIntent> getInputs() {
+//            return inputs;
+//        }
+//
+//        public void setInputs(List<TxInputIntent> inputs) {
+//            this.inputs = inputs;
+//        }
+//
+//        public List<TxIntent> getIntents() {
+//            return intents;
+//        }
 
         public void setIntents(List<TxIntent> intents) {
             this.intents = intents;
@@ -204,6 +211,7 @@ public class TransactionDocument {
     /**
      * Script transaction content with attributes and intents
      */
+    @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ScriptTxContent {
         @JsonProperty("change_address")
@@ -230,81 +238,82 @@ public class TransactionDocument {
         @JsonProperty("validators")
         private List<TxValidatorIntent> validators;
 
-        public ScriptTxContent() {
-        }
-
-        public ScriptTxContent(List<TxIntent> intents) {
-            this.intents = intents;
-        }
-
-        public String getChangeAddress() {
-            return changeAddress;
-        }
-
-        public void setChangeAddress(String changeAddress) {
-            this.changeAddress = changeAddress;
-        }
-
-        public String getChangeDatum() {
-            return changeDatum;
-        }
-
-        public void setChangeDatum(String changeDatum) {
-            this.changeDatum = changeDatum;
-        }
-
-        public String getChangeDatumHash() {
-            return changeDatumHash;
-        }
-
-        public void setChangeDatumHash(String changeDatumHash) {
-            this.changeDatumHash = changeDatumHash;
-        }
-
-        public List<CollectFromConfiguration> getCollectFrom() {
-            return collectFrom;
-        }
-
-        public void setCollectFrom(List<CollectFromConfiguration> collectFrom) {
-            this.collectFrom = collectFrom;
-        }
-
-        public List<ValidatorAttachment> getScripts() {
-            return scripts;
-        }
-
-        public void setScripts(List<ValidatorAttachment> scripts) {
-            this.scripts = scripts;
-        }
-
-        public List<TxInputIntent> getInputs() {
-            return inputs;
-        }
-
-        public void setInputs(List<TxInputIntent> inputs) {
-            this.inputs = inputs;
-        }
-
-        public List<TxIntent> getIntents() {
-            return intents;
-        }
-
-        public void setIntents(List<TxIntent> intents) {
-            this.intents = intents;
-        }
-
-        public List<TxValidatorIntent> getValidators() {
-            return validators;
-        }
-
-        public void setValidators(List<TxValidatorIntent> validators) {
-            this.validators = validators;
-        }
+//        public ScriptTxContent() {
+//        }
+//
+//        public ScriptTxContent(List<TxIntent> intents) {
+//            this.intents = intents;
+//        }
+//
+//        public String getChangeAddress() {
+//            return changeAddress;
+//        }
+//
+//        public void setChangeAddress(String changeAddress) {
+//            this.changeAddress = changeAddress;
+//        }
+//
+//        public String getChangeDatum() {
+//            return changeDatum;
+//        }
+//
+//        public void setChangeDatum(String changeDatum) {
+//            this.changeDatum = changeDatum;
+//        }
+//
+//        public String getChangeDatumHash() {
+//            return changeDatumHash;
+//        }
+//
+//        public void setChangeDatumHash(String changeDatumHash) {
+//            this.changeDatumHash = changeDatumHash;
+//        }
+//
+//        public List<CollectFromConfiguration> getCollectFrom() {
+//            return collectFrom;
+//        }
+//
+//        public void setCollectFrom(List<CollectFromConfiguration> collectFrom) {
+//            this.collectFrom = collectFrom;
+//        }
+//
+//        public List<ValidatorAttachment> getScripts() {
+//            return scripts;
+//        }
+//
+//        public void setScripts(List<ValidatorAttachment> scripts) {
+//            this.scripts = scripts;
+//        }
+//
+//        public List<TxInputIntent> getInputs() {
+//            return inputs;
+//        }
+//
+//        public void setInputs(List<TxInputIntent> inputs) {
+//            this.inputs = inputs;
+//        }
+//
+//        public List<TxIntent> getIntents() {
+//            return intents;
+//        }
+//
+//        public void setIntents(List<TxIntent> intents) {
+//            this.intents = intents;
+//        }
+//
+//        public List<TxValidatorIntent> getValidators() {
+//            return validators;
+//        }
+//
+//        public void setValidators(List<TxValidatorIntent> validators) {
+//            this.validators = validators;
+//        }
     }
 
     /**
      * UTXO input reference for serialization
      */
+    @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class UtxoInput {
         @JsonProperty("tx_hash")
@@ -313,34 +322,35 @@ public class TransactionDocument {
         @JsonProperty("output_index")
         private Integer outputIndex;
 
-        public UtxoInput() {
-        }
-
-        public UtxoInput(String txHash, Integer outputIndex) {
-            this.txHash = txHash;
-            this.outputIndex = outputIndex;
-        }
-
-        public String getTxHash() {
-            return txHash;
-        }
-
-        public void setTxHash(String txHash) {
-            this.txHash = txHash;
-        }
-
-        public Integer getOutputIndex() {
-            return outputIndex;
-        }
-
-        public void setOutputIndex(Integer outputIndex) {
-            this.outputIndex = outputIndex;
-        }
+//        public UtxoInput() {
+//        }
+//
+//        public UtxoInput(String txHash, Integer outputIndex) {
+//            this.txHash = txHash;
+//            this.outputIndex = outputIndex;
+//        }
+//
+//        public String getTxHash() {
+//            return txHash;
+//        }
+//
+//        public void setTxHash(String txHash) {
+//            this.txHash = txHash;
+//        }
+//
+//        public Integer getOutputIndex() {
+//            return outputIndex;
+//        }
+//
+//        public void setOutputIndex(Integer outputIndex) {
+//            this.outputIndex = outputIndex;
+//        }
     }
 
     /**
      * Configuration for ScriptTx collectFrom operations
      */
+    @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class CollectFromConfiguration {
         @JsonProperty("tx_hash")
@@ -370,90 +380,91 @@ public class TransactionDocument {
         @JsonProperty("predicate")
         private String predicate;
 
-        public CollectFromConfiguration() {
-        }
-
-        public CollectFromConfiguration(String txHash, Integer outputIndex) {
-            this.txHash = txHash;
-            this.outputIndex = outputIndex;
-        }
-
-        public String getTxHash() {
-            return txHash;
-        }
-
-        public void setTxHash(String txHash) {
-            this.txHash = txHash;
-        }
-
-        public Integer getOutputIndex() {
-            return outputIndex;
-        }
-
-        public void setOutputIndex(Integer outputIndex) {
-            this.outputIndex = outputIndex;
-        }
-
-        public String getAddress() {
-            return address;
-        }
-
-        public void setAddress(String address) {
-            this.address = address;
-        }
-
-        public List<Amount> getAmounts() {
-            return amounts;
-        }
-
-        public void setAmounts(List<Amount> amounts) {
-            this.amounts = amounts;
-        }
-
-        public String getDatumHex() {
-            return datumHex;
-        }
-
-        public void setDatumHex(String datumHex) {
-            this.datumHex = datumHex;
-        }
-
-        public String getRedeemerHex() {
-            return redeemerHex;
-        }
-
-        public void setRedeemerHex(String redeemerHex) {
-            this.redeemerHex = redeemerHex;
-        }
-
-        public String getDatumHash() {
-            return datumHash;
-        }
-
-        public void setDatumHash(String datumHash) {
-            this.datumHash = datumHash;
-        }
-
-        public String getInlineDatumHex() {
-            return inlineDatumHex;
-        }
-
-        public void setInlineDatumHex(String inlineDatumHex) {
-            this.inlineDatumHex = inlineDatumHex;
-        }
-
-        public String getPredicate() {
-            return predicate;
-        }
-
-        public void setPredicate(String predicate) {
-            this.predicate = predicate;
-        }
+//        public CollectFromConfiguration() {
+//        }
+//
+//        public CollectFromConfiguration(String txHash, Integer outputIndex) {
+//            this.txHash = txHash;
+//            this.outputIndex = outputIndex;
+//        }
+//
+//        public String getTxHash() {
+//            return txHash;
+//        }
+//
+//        public void setTxHash(String txHash) {
+//            this.txHash = txHash;
+//        }
+//
+//        public Integer getOutputIndex() {
+//            return outputIndex;
+//        }
+//
+//        public void setOutputIndex(Integer outputIndex) {
+//            this.outputIndex = outputIndex;
+//        }
+//
+//        public String getAddress() {
+//            return address;
+//        }
+//
+//        public void setAddress(String address) {
+//            this.address = address;
+//        }
+//
+//        public List<Amount> getAmounts() {
+//            return amounts;
+//        }
+//
+//        public void setAmounts(List<Amount> amounts) {
+//            this.amounts = amounts;
+//        }
+//
+//        public String getDatumHex() {
+//            return datumHex;
+//        }
+//
+//        public void setDatumHex(String datumHex) {
+//            this.datumHex = datumHex;
+//        }
+//
+//        public String getRedeemerHex() {
+//            return redeemerHex;
+//        }
+//
+//        public void setRedeemerHex(String redeemerHex) {
+//            this.redeemerHex = redeemerHex;
+//        }
+//
+//        public String getDatumHash() {
+//            return datumHash;
+//        }
+//
+//        public void setDatumHash(String datumHash) {
+//            this.datumHash = datumHash;
+//        }
+//
+//        public String getInlineDatumHex() {
+//            return inlineDatumHex;
+//        }
+//
+//        public void setInlineDatumHex(String inlineDatumHex) {
+//            this.inlineDatumHex = inlineDatumHex;
+//        }
+//
+//        public String getPredicate() {
+//            return predicate;
+//        }
+//
+//        public void setPredicate(String predicate) {
+//            this.predicate = predicate;
+//        }
     }
 
     /**
      * Configuration for validator script attachments
      */
+    @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class ValidatorAttachment {
         @JsonProperty("type")
@@ -465,38 +476,38 @@ public class TransactionDocument {
         @JsonProperty("cbor_hex")
         private String cborHex;
 
-        public ValidatorAttachment() {
-        }
-
-        public ValidatorAttachment(ValidatorType type, PlutusVersion version, String cborHex) {
-            this.type = type;
-            this.version = version;
-            this.cborHex = cborHex;
-        }
-
-        public ValidatorType getType() {
-            return type;
-        }
-
-        public void setType(ValidatorType type) {
-            this.type = type;
-        }
-
-        public PlutusVersion getVersion() {
-            return version;
-        }
-
-        public void setVersion(PlutusVersion version) {
-            this.version = version;
-        }
-
-        public String getCborHex() {
-            return cborHex;
-        }
-
-        public void setCborHex(String cborHex) {
-            this.cborHex = cborHex;
-        }
+//        public ValidatorAttachment() {
+//        }
+//
+//        public ValidatorAttachment(ValidatorType type, PlutusVersion version, String cborHex) {
+//            this.type = type;
+//            this.version = version;
+//            this.cborHex = cborHex;
+//        }
+//
+//        public ValidatorType getType() {
+//            return type;
+//        }
+//
+//        public void setType(ValidatorType type) {
+//            this.type = type;
+//        }
+//
+//        public PlutusVersion getVersion() {
+//            return version;
+//        }
+//
+//        public void setVersion(PlutusVersion version) {
+//            this.version = version;
+//        }
+//
+//        public String getCborHex() {
+//            return cborHex;
+//        }
+//
+//        public void setCborHex(String cborHex) {
+//            this.cborHex = cborHex;
+//        }
     }
 
     /**
@@ -539,6 +550,7 @@ public class TransactionDocument {
     /**
      * Transaction context properties for serialization.
      */
+    @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class TxContext {
         @JsonProperty("fee_payer")
@@ -557,47 +569,47 @@ public class TransactionDocument {
         @JsonProperty("valid_to_slot")
         private Long validToSlot;
 
-        public TxContext() {
-        }
-
-        public String getFeePayer() {
-            return feePayer;
-        }
-
-        public void setFeePayer(String feePayer) {
-            this.feePayer = feePayer;
-        }
-
-        public String getCollateralPayer() {
-            return collateralPayer;
-        }
-
-        public void setCollateralPayer(String collateralPayer) {
-            this.collateralPayer = collateralPayer;
-        }
-
-        public Set<String> getRequiredSigners() {
-            return requiredSigners;
-        }
-
-        public void setRequiredSigners(Set<String> requiredSigners) {
-            this.requiredSigners = requiredSigners;
-        }
-
-        public Long getValidFromSlot() {
-            return validFromSlot;
-        }
-
-        public void setValidFromSlot(Long validFromSlot) {
-            this.validFromSlot = validFromSlot;
-        }
-
-        public Long getValidToSlot() {
-            return validToSlot;
-        }
-
-        public void setValidToSlot(Long validToSlot) {
-            this.validToSlot = validToSlot;
-        }
+//        public TxContext() {
+//        }
+//
+//        public String getFeePayer() {
+//            return feePayer;
+//        }
+//
+//        public void setFeePayer(String feePayer) {
+//            this.feePayer = feePayer;
+//        }
+//
+//        public String getCollateralPayer() {
+//            return collateralPayer;
+//        }
+//
+//        public void setCollateralPayer(String collateralPayer) {
+//            this.collateralPayer = collateralPayer;
+//        }
+//
+//        public Set<String> getRequiredSigners() {
+//            return requiredSigners;
+//        }
+//
+//        public void setRequiredSigners(Set<String> requiredSigners) {
+//            this.requiredSigners = requiredSigners;
+//        }
+//
+//        public Long getValidFromSlot() {
+//            return validFromSlot;
+//        }
+//
+//        public void setValidFromSlot(Long validFromSlot) {
+//            this.validFromSlot = validFromSlot;
+//        }
+//
+//        public Long getValidToSlot() {
+//            return validToSlot;
+//        }
+//
+//        public void setValidToSlot(Long validToSlot) {
+//            this.validToSlot = validToSlot;
+//        }
     }
 }
