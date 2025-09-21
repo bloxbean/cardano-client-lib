@@ -20,7 +20,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
  * complex selection patterns like selecting top N by value, filtering with
  * limits, or selecting UTXOs until a target value is reached.
  *
- * The predicates returned implement both Predicate<List<Utxo>> for compatibility
+ * The predicates returned implement both {@code Predicate<List<Utxo>>} for compatibility
  * with ScriptTx.collectFromList(), and also provide access to the transformed
  * result through the SelectingPredicate interface.
  *

@@ -795,7 +795,8 @@ public class ScriptTxIT extends TestDataBaseIT {
         ScriptTx scriptTx = new ScriptTx()
                 .mintAsset(plutusScript1, asset1, BigIntPlutusData.of(1), receiver1)
                 .mintAsset(plutusScript2, asset2, BigIntPlutusData.of(2), sender1Addr)
-                .mintAsset(plutusScript3, asset3, BigIntPlutusData.of(3), receiver1)
+                .mintAsset(plutusScript3.getPolicyId(), asset3, BigIntPlutusData.of(3), receiver1)
+                .attachMintValidator(plutusScript3)
                 .withChangeAddress(sender2Addr);
 
         Result<String> result1 = quickTxBuilder.compose(scriptTx)
@@ -873,7 +874,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> Optional.of(sumScript)): null)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -942,7 +943,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> Optional.of(sumScript)): null)
                 .withReferenceScripts(sumScript)
                 .completeAndWait(System.out::println);
 
