@@ -166,11 +166,12 @@ public class ScriptCollectFromIntent implements TxInputIntent {
                 if (utxoRef.getTxHash() == null || utxoRef.getTxHash().isEmpty()) {
                     throw new IllegalStateException("UTXO transaction hash is required");
                 }
-                if (utxoRef.getOutputIndex() == null) {
+                if (utxoRef.getOutputIndex() == null && !utxoRef.hasPlaceholderOutputIndex()) {
                     throw new IllegalStateException("UTXO output index is required");
                 }
-                int idx = utxoRef.asIntOutputIndex();
-                if (idx < 0) throw new IllegalStateException("UTXO output index must be non-negative");
+                if (utxoRef.getOutputIndex() != null && utxoRef.getOutputIndex() < 0) {
+                    throw new IllegalStateException("UTXO output index must be non-negative");
+                }
 
                 // Basic validation for tx hash format
                 if (!utxoRef.getTxHash().startsWith("${") && utxoRef.getTxHash().length() != 64) {

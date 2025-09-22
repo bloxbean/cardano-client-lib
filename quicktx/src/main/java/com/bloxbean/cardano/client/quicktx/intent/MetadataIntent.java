@@ -8,6 +8,8 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.quicktx.serialization.MetadataDeserializer;
 import com.bloxbean.cardano.client.quicktx.serialization.MetadataSerializer;
+import com.bloxbean.cardano.client.quicktx.serialization.PlaceholderMetadata;
+import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -17,6 +19,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.io.IOException;
 
 /**
  * Intention for attaching metadata to transactions.
@@ -61,7 +65,30 @@ public class MetadataIntent implements TxIntent {
 
     @Override
     public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
-        return this;
+        if (!(metadata instanceof PlaceholderMetadata)) {
+            return this;
+        }
+
+        if (variables == null || variables.isEmpty()) {
+            return this;
+        }
+
+        PlaceholderMetadata placeholder = (PlaceholderMetadata) metadata;
+        String resolvedValue = VariableResolver.resolve(placeholder.getTemplate(), variables);
+
+        if (resolvedValue == null || resolvedValue.isBlank() || resolvedValue.equals(placeholder.getTemplate())) {
+            return this;
+        }
+
+        try {
+            Metadata resolvedMetadata = MetadataDeserializer.parseMetadata(resolvedValue);
+            if (resolvedMetadata == null) {
+                throw new IllegalStateException("Resolved metadata value is empty");
+            }
+            return this.toBuilder().metadata(resolvedMetadata).build();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to resolve metadata variable", e);
+        }
     }
 
     /**

@@ -30,12 +30,38 @@ Build and submit transactions:
 ```java
 QuickTxBuilder builder = new QuickTxBuilder(backendService);
 
-Result<String> result = builder
+TxResult result = builder
     .compose(tx)
     .feePayer("addr_test1_fee_payer")
     .withSigner(SignerProviders.signerFrom(account))
     .completeAndWait();
 ```
+
+### Signer Registry & URI References
+
+QuickTx resolves senders, fee payers, collateral payers, and extra witnesses from URI-style references using a pluggable `SignerRegistry`. This keeps YAML free from secrets while letting the runtime decide how to sign:
+
+```java
+SignerRegistry registry = new InMemorySignerRegistry()
+    .addAccount("account://ops", opsAccount)
+    .addPolicy("policy://nft", policy);
+
+Tx tx = new Tx()
+    .fromRef("account://ops")
+    .payToAddress("addr_test1_receiver", Amount.ada(5));
+
+TxResult result = builder
+    .withSignerRegistry(registry)
+    .compose(tx)
+    .feePayerRef("account://ops")
+    .withSignerRef("policy://nft", "policy")
+    .completeAndWait();
+```
+
+- `fromRef` defers sender selection and automatically provides the payment signer.
+- `feePayerRef` / `collateralPayerRef` resolve to a wallet or preferred address at compose time.
+- `withSignerRef(ref, scope)` adds additional witnesses such as `stake`, `drep`, or `policy`.
+- Mixing address-based APIs with references is allowed; conflicts raise a `TxBuildException`.
 
 ## TxPlan YAML Serialization
 
@@ -59,9 +85,9 @@ Tx tx = new Tx()
     .from("addr_test1_sender")
     .payToAddress("addr_test1_receiver", Amount.ada(5));
 
-TxPlan plan = TxPlan.fromTransaction(tx)
-    .setFeePayer("addr_test1_fee_payer")
-    .setValidToSlot(2000L);
+TxPlan plan = TxPlan.from(tx)
+    .feePayer("addr_test1_fee_payer")
+    .validTo(2000L);
 
 String yaml = plan.toYaml();
 ```
@@ -70,10 +96,10 @@ String yaml = plan.toYaml();
 
 ```java
 // Complete restoration with context
-TxPlan plan = TxPlan.fromYamlWithContext(yaml);
+TxPlan plan = TxPlan.from(yaml);
 
 // Just transactions (legacy compatibility)
-List<AbstractTx<?>> transactions = TxPlan.fromYaml(yaml);
+List<AbstractTx<?>> transactions = plan.getTxs();
 ```
 
 #### Integration with QuickTxBuilder
@@ -81,7 +107,7 @@ List<AbstractTx<?>> transactions = TxPlan.fromYaml(yaml);
 ```java
 // Direct integration
 QuickTxBuilder.TxContext context = builder.compose(plan);
-Result<String> result = context
+TxResult result = context
     .withSigner(SignerProviders.signerFrom(account))
     .completeAndWait();
 ```
@@ -91,14 +117,18 @@ Result<String> result = context
 #### Basic Structure
 
 ```yaml
-version: 1.0
+version: 1.1
 variables:
-  sender: addr_test1_sender_address
+  sender_ref: account://ops_sender
   receiver: addr_test1_receiver_address
   amount: 5000000
 context:
-  fee_payer: addr_test1_fee_payer
-  collateral_payer: addr_test1_collateral_payer
+  fee_payer_ref: account://ops
+  collateral_payer_ref: account://ops
+  signers:
+    - type: policy
+      ref: policy://nft
+      scope: policy
   required_signers:
     - ab123def
     - cd456efa
@@ -106,7 +136,7 @@ context:
   valid_to_slot: 2000
 transaction:
   - tx:
-      from: ${sender}
+      from_ref: ${sender_ref}
       intents:
         - type: payment
           to: ${receiver}
@@ -115,13 +145,20 @@ transaction:
             quantity: ${amount}
 ```
 
+Address-based fields (`from`, `fee_payer`, `collateral_payer`) remain valid for backward compatibility; mix and match them with references as needed.
+
 #### Context Properties
 
 - **fee_payer**: Address that pays transaction fees
+- **fee_payer_ref**: Registry reference that resolves to a wallet or address for paying fees
 - **collateral_payer**: Address that provides collateral for script transactions
+- **collateral_payer_ref**: Registry reference used when collateral should be derived at runtime
+- **signers**: Array of `{ type, ref, scope }` entries resolved via the registry for extra witnesses
 - **required_signers**: List of required signer credentials (hex-encoded)
 - **valid_from_slot**: Transaction validity start slot (optional)
 - **valid_to_slot**: Transaction validity end slot (optional)
+
+Whenever any `*_ref` field or `signers` are present, make sure a compatible `SignerRegistry` is supplied at runtime. If the registry cannot resolve a reference, `QuickTxBuilder` fails fast with a `TxBuildException`.
 
 #### Variable Resolution
 
@@ -222,9 +259,9 @@ String yamlPlan = """
 
 // 2. Load and execute
 QuickTxBuilder builder = new QuickTxBuilder(backendService);
-TxPlan plan = TxPlan.fromYamlWithContext(yamlPlan);
+TxPlan plan = TxPlan.from(yamlPlan);
 
-Result<String> result = builder
+TxResult result = builder
     .compose(plan)
     .withSigner(SignerProviders.signerFrom(account))
     .completeAndWait();
@@ -234,16 +271,16 @@ Result<String> result = builder
 
 ```java
 // Load base plan
-TxPlan basePlan = TxPlan.fromYamlWithContext(yamlContent);
+TxPlan basePlan = TxPlan.from(yamlContent);
 
 // Customize for environment
 TxPlan customPlan = basePlan
-    .setFeePayer(environmentConfig.getFeePayer())
-    .setValidToSlot(getCurrentSlot() + 3600)
+    .feePayer(environmentConfig.getFeePayer())
+    .validTo(getCurrentSlot() + 3600)
     .addVariable("amount", environmentConfig.getAmount());
 
 // Execute
-builder.compose(customPlan)
+TxResult txResult = builder.compose(customPlan)
     .withSigner(signerProvider)
     .completeAndWait();
 ```

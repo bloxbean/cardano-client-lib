@@ -120,7 +120,7 @@ class ScriptTxYamlRoundTripTest {
         assertThat(intent.getUtxoRefs()).isNotNull();
         assertThat(intent.getUtxoRefs()).hasSize(1);
         assertThat(intent.getUtxoRefs().get(0).getTxHash()).isEqualTo("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
-        assertThat(intent.getUtxoRefs().get(0).getOutputIndex()).isEqualTo(1);
+        assertThat(intent.getUtxoRefs().get(0).asIntOutputIndex()).isEqualTo(1);
         assertThat(intent.getRedeemerHex()).isNotBlank();
         assertThat(intent.getDatumHex()).isNotBlank();
     }

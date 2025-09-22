@@ -24,47 +24,20 @@ public class MetadataDeserializer extends JsonDeserializer<Metadata> {
         }
         
         value = value.trim();
-        
-        // Handle variable references - return null to be resolved later
+
+        // Handle variable references by returning placeholder metadata
         if (value.startsWith("${") && value.endsWith("}")) {
-            return null;
+            return new PlaceholderMetadata(value);
         }
-        
-        try {
-            // Auto-detect format and deserialize
-            if (isCborHex(value)) {
-                // CBOR hex format - lossless deserialization
-                byte[] cborBytes = HexUtil.decodeHexString(value);
-                return MetadataBuilder.deserialize(cborBytes);
-            } else if (isJson(value)) {
-                // JSON format - legacy support
-                return MetadataBuilder.metadataFromJson(value);
-            } else {
-                // Assume YAML format - human-readable
-                return MetadataBuilder.metadataFromYaml(value);
-            }
-        } catch (Exception e) {
-            // If YAML parsing fails, try other formats as fallback
-            try {
-                // Try as CBOR hex if YAML fails
-                if (isPossibleHex(value)) {
-                    byte[] cborBytes = HexUtil.decodeHexString(value);
-                    return MetadataBuilder.deserialize(cborBytes);
-                }
-            } catch (Exception hexError) {
-                // Not hex either
-            }
-            
-            // Throw the original error
-            throw new IOException("Failed to deserialize Metadata: " + e.getMessage(), e);
-        }
+
+        return parseMetadata(value);
     }
-    
+
     /**
      * Check if the string is likely CBOR hex format.
      * CBOR hex is pure hexadecimal characters with even length.
      */
-    private boolean isCborHex(String value) {
+    private static boolean isCborHex(String value) {
         // Must be non-empty and even length
         if (value.isEmpty() || value.length() % 2 != 0) {
             return false;
@@ -83,19 +56,52 @@ public class MetadataDeserializer extends JsonDeserializer<Metadata> {
     /**
      * Check if the string is JSON format.
      */
-    private boolean isJson(String value) {
+    private static boolean isJson(String value) {
         // JSON starts with { or [ and ends with } or ]
         return (value.startsWith("{") && value.endsWith("}")) ||
                (value.startsWith("[") && value.endsWith("]"));
     }
-    
+
     /**
      * Check if string could possibly be hex (less strict than isCborHex).
      * Used as a fallback check.
      */
-    private boolean isPossibleHex(String value) {
+    private static boolean isPossibleHex(String value) {
         return !value.isEmpty() && 
                value.length() % 2 == 0 && 
                value.matches("^[0-9a-fA-F]+$");
+    }
+
+    /**
+     * Parse metadata string (YAML / JSON / CBOR hex) into Metadata.
+     */
+    public static Metadata parseMetadata(String value) throws IOException {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+
+        try {
+            if (isCborHex(trimmed)) {
+                byte[] cborBytes = HexUtil.decodeHexString(trimmed);
+                return MetadataBuilder.deserialize(cborBytes);
+            } else if (isJson(trimmed)) {
+                return MetadataBuilder.metadataFromJson(trimmed);
+            } else {
+                return MetadataBuilder.metadataFromYaml(trimmed);
+            }
+        } catch (Exception e) {
+            try {
+                if (isPossibleHex(trimmed)) {
+                    byte[] cborBytes = HexUtil.decodeHexString(trimmed);
+                    return MetadataBuilder.deserialize(cborBytes);
+                }
+            } catch (Exception hexError) {
+                // Ignore and fall through
+            }
+
+            throw new IOException("Failed to deserialize Metadata: " + e.getMessage(), e);
+        }
     }
 }

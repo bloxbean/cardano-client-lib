@@ -28,9 +28,12 @@ public class TxPlan {
     // TxContext properties for serialization
     private String feePayer;
     private String collateralPayer;
+    private String feePayerRef;
+    private String collateralPayerRef;
     private Set<String> requiredSigners = new HashSet<>();
     private Long validFromSlot;
     private Long validToSlot;
+    private List<TransactionDocument.SignerRef> signerRefs = new ArrayList<>();
 
     public TxPlan() {
     }
@@ -121,6 +124,36 @@ public class TxPlan {
     }
 
     /**
+     * Set the fee payer reference.
+     */
+    public TxPlan feePayerRef(String ref) {
+        this.feePayerRef = ref;
+        return this;
+    }
+
+    /**
+     * Get the fee payer reference.
+     */
+    public String getFeePayerRef() {
+        return feePayerRef;
+    }
+
+    /**
+     * Set the collateral payer reference.
+     */
+    public TxPlan collateralPayerRef(String ref) {
+        this.collateralPayerRef = ref;
+        return this;
+    }
+
+    /**
+     * Get the collateral payer reference.
+     */
+    public String getCollateralPayerRef() {
+        return collateralPayerRef;
+    }
+
+    /**
      * Add required signers (as hex-encoded credential hashes).
      * Naming aligned with QuickTxBuilder.TxContext for consistency.
      * @param credentials required signer credentials as hex strings
@@ -151,6 +184,22 @@ public class TxPlan {
      */
     public Set<String> getRequiredSigners() {
         return requiredSigners;
+    }
+
+    /**
+     * Add a signer reference to context.
+     */
+    public TxPlan addSigner(String type, String ref, String scope) {
+        TransactionDocument.SignerRef sr = new TransactionDocument.SignerRef();
+        sr.setType(type);
+        sr.setRef(ref);
+        sr.setScope(scope);
+        this.signerRefs.add(sr);
+        return this;
+    }
+
+    public List<TransactionDocument.SignerRef> getSignerRefs() {
+        return signerRefs;
     }
 
     /**
@@ -200,16 +249,22 @@ public class TxPlan {
         doc.setVariables(variables);
 
         // Set context properties if any are specified
-        if (feePayer != null || collateralPayer != null || !requiredSigners.isEmpty() ||
+        if (feePayer != null || collateralPayer != null || feePayerRef != null || collateralPayerRef != null ||
+            !requiredSigners.isEmpty() || (signerRefs != null && !signerRefs.isEmpty()) ||
             validFromSlot != null || validToSlot != null) {
             TransactionDocument.TxContext context = new TransactionDocument.TxContext();
             context.setFeePayer(feePayer);
             context.setCollateralPayer(collateralPayer);
+            context.setFeePayerRef(feePayerRef);
+            context.setCollateralPayerRef(collateralPayerRef);
             if (!requiredSigners.isEmpty()) {
                 context.setRequiredSigners(requiredSigners);
             }
             context.setValidFromSlot(validFromSlot);
             context.setValidToSlot(validToSlot);
+            if (signerRefs != null && !signerRefs.isEmpty()) {
+                context.setSigners(signerRefs);
+            }
             doc.setContext(context);
         }
 
@@ -251,6 +306,8 @@ public class TxPlan {
 
                 // Set attributes from the transaction
                 content.setFrom(regularTx.getSender());
+                if (regularTx.getFromRef() != null && !regularTx.getFromRef().isEmpty())
+                    content.setFromRef(regularTx.getFromRef());
                 content.setChangeAddress(regularTx.getPublicChangeAddress());
                 // Note: other attributes like fromWallet, collectFrom would be set here
                 // when available from the transaction object
@@ -338,6 +395,12 @@ public class TxPlan {
             if (context.getCollateralPayer() != null) {
                 plan.collateralPayer(context.getCollateralPayer());
             }
+            if (context.getFeePayerRef() != null) {
+                plan.feePayerRef(context.getFeePayerRef());
+            }
+            if (context.getCollateralPayerRef() != null) {
+                plan.collateralPayerRef(context.getCollateralPayerRef());
+            }
             if (context.getRequiredSigners() != null) {
                 plan.setRequiredSigners(context.getRequiredSigners());
             }
@@ -346,6 +409,9 @@ public class TxPlan {
             }
             if (context.getValidToSlot() != null) {
                 plan.validTo(context.getValidToSlot());
+            }
+            if (context.getSigners() != null && !context.getSigners().isEmpty()) {
+                plan.signerRefs.addAll(context.getSigners());
             }
         }
 
@@ -384,7 +450,10 @@ public class TxPlan {
                 Tx tx = new Tx();
                 TransactionDocument.TxContent content = entry.getTx();
 
-                if (content.getFrom() != null) {
+                // Prefer from_ref when present; else use from address
+                if (content.getFromRef() != null && !content.getFromRef().isEmpty()) {
+                    tx.fromRef(content.getFromRef());
+                } else if (content.getFrom() != null) {
                     String resolvedFrom = VariableResolver.resolve(content.getFrom(), vars);
                     tx.from(resolvedFrom);
                 }

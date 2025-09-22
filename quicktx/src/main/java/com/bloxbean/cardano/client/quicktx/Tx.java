@@ -29,6 +29,8 @@ public class Tx extends AbstractTx<Tx> {
     private String sender;
     protected boolean senderAdded = false;
     private Wallet senderWallet;
+    // Reference-based sender; resolved at composition via SignerRegistry
+    private String fromRef;
 
     /**
      * Create Tx
@@ -151,6 +153,25 @@ public class Tx extends AbstractTx<Tx> {
         this.sender = this.senderWallet.getBaseAddress(0).getAddress(); // TODO - is it clever to use the first address as sender here?
         this.changeAddress = this.sender;
         this.senderAdded = true;
+        return this;
+    }
+
+    /**
+     * Set sender using a reference URI (e.g., account://alice, wallet://ops, kms://...).
+     * The actual signer and sender address will be resolved at composition time via a SignerRegistry.
+     * This is mutually exclusive with {@link #from(String)} and {@link #from(Wallet)}.
+     *
+     * @param ref signer reference
+     * @return this Tx
+     */
+    public Tx fromRef(String ref) {
+        if (this.senderAdded || this.sender != null || this.senderWallet != null)
+            throw new TxBuildException("Sender already added. Cannot set fromRef in addition to from address or wallet.");
+        if (ref == null || ref.isBlank())
+            throw new TxBuildException("fromRef cannot be null or blank");
+
+        this.fromRef = ref;
+        // Do not mark senderAdded; resolution happens later
         return this;
     }
 
@@ -657,5 +678,13 @@ public class Tx extends AbstractTx<Tx> {
      */
     public String getSender() {
         return sender;
+    }
+
+    /**
+     * Get the sender reference, if set via {@link #fromRef(String)}.
+     * @return reference string or null if not set
+     */
+    public String getFromRef() {
+        return fromRef;
     }
 }

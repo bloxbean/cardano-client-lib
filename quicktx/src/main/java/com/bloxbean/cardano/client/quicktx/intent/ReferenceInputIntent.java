@@ -41,10 +41,10 @@ public class ReferenceInputIntent implements TxInputIntent {
         for (UtxoRef r : refs) {
             if (r.getTxHash() == null || r.getTxHash().isBlank())
                 throw new IllegalStateException("tx_hash is required for reference input");
-            if (r.getOutputIndex() == null)
+            if (r.getOutputIndex() == null && !r.hasPlaceholderOutputIndex())
                 throw new IllegalStateException("output_index is required for reference input");
-            int idx = r.asIntOutputIndex();
-            if (idx < 0) throw new IllegalStateException("output_index must be non-negative");
+            if (r.getOutputIndex() != null && r.getOutputIndex() < 0)
+                throw new IllegalStateException("output_index must be non-negative");
         }
     }
 
@@ -103,14 +103,14 @@ public class ReferenceInputIntent implements TxInputIntent {
     // Helper to add a ref
     public ReferenceInputIntent addRef(String txHash, int outputIndex) {
         if (refs == null) refs = new ArrayList<>();
-        refs.add(new UtxoRef(txHash, String.valueOf(outputIndex)));
+        refs.add(UtxoRef.builder().txHash(txHash).outputIndex(outputIndex).build());
         return this;
     }
 
     // Factory helpers
     public static ReferenceInputIntent of(String txHash, int outputIndex) {
         return ReferenceInputIntent.builder()
-                .refs(new ArrayList<>(List.of(new UtxoRef(txHash, String.valueOf(outputIndex)))))
+                .refs(new ArrayList<>(List.of(UtxoRef.builder().txHash(txHash).outputIndex(outputIndex).build())))
                 .build();
     }
 

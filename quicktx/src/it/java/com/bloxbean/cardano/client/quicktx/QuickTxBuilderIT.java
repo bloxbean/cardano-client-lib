@@ -26,6 +26,7 @@ import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.quicktx.signing.InMemorySignerRegistry;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -133,6 +134,35 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
         waitForTransaction(result);
 
         checkIfUtxoAvailable(result.getValue(), sender1Addr);
+    }
+
+    @Test
+    void compose_with_signer_registry_refs() {
+        InMemorySignerRegistry registry = new InMemorySignerRegistry()
+                .addAccount("account://sender1", sender1)
+                .addAccount("account://sender2", sender2);
+
+        Tx tx1 = new Tx()
+                .payToAddress(receiver1, Amount.ada(1.2))
+                .fromRef("account://sender1");
+
+        Tx tx2 = new Tx()
+                .payToAddress(receiver2, Amount.ada(1.1))
+                .fromRef("account://sender2");
+
+        TxPlan plan = TxPlan.from(List.of(tx1, tx2))
+                .feePayerRef("account://sender1");
+
+        TxResult result = quickTxBuilder
+                .withSignerRegistry(registry)
+                .compose(plan)
+                .completeAndWait();
+
+        assertTrue(result.isSuccessful());
+        waitForTransaction(result);
+
+        checkIfUtxoAvailable(result.getTxHash(), receiver1);
+        checkIfUtxoAvailable(result.getTxHash(), receiver2);
     }
 
     @Nested

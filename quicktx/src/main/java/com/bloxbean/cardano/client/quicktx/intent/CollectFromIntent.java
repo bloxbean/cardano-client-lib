@@ -16,7 +16,6 @@ import lombok.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -66,10 +65,9 @@ public class CollectFromIntent implements TxInputIntent {
             for (UtxoRef ref : utxoRefs) {
                 if (ref.getTxHash() == null || ref.getTxHash().isEmpty())
                     throw new IllegalStateException("UTXO transaction hash is required");
-                if (ref.getOutputIndex() == null)
+                if (ref.getOutputIndex() == null && !ref.hasPlaceholderOutputIndex())
                     throw new IllegalStateException("UTXO output index is required");
-                int idx = ref.asIntOutputIndex();
-                if (idx < 0)
+                if (ref.getOutputIndex() != null && ref.getOutputIndex() < 0)
                     throw new IllegalStateException("UTXO output index must be non-negative");
                 if (ref.getTxHash().length() != 64)
                     throw new IllegalStateException("Invalid transaction hash format: " + ref.getTxHash());
