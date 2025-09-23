@@ -78,7 +78,7 @@ public final class InMemoryJmtStore implements JmtStore {
         Map.Entry<NodeKey, JmtNode> candidate = nodes.floorEntry(searchKey);
         while (candidate != null) {
             if (Long.compareUnsigned(candidate.getKey().version(), version) <= 0 &&
-                !isStale(candidate.getKey(), version)) {
+                    !isStale(candidate.getKey(), version)) {
                 return Optional.of(new NodeEntry(candidate.getKey(), candidate.getValue()));
             }
             candidate = nodes.lowerEntry(candidate.getKey());
@@ -164,6 +164,36 @@ public final class InMemoryJmtStore implements JmtStore {
             staleByVersion.remove(version);
         }
         return pruned;
+    }
+
+    @Override
+    public synchronized void truncateAfter(long version) {
+        // Remove nodes with version > target
+        java.util.Iterator<NodeKey> nodeIterator = nodes.keySet().iterator();
+        while (nodeIterator.hasNext()) {
+            NodeKey nodeKey = nodeIterator.next();
+            if (Long.compareUnsigned(nodeKey.version(), version) > 0) {
+                nodeIterator.remove();
+            }
+        }
+
+        // Adjust values history and current map
+        valuesByKey.forEach((key, history) -> history.tailMap(Long.valueOf(version + 1)).clear());
+        valuesByKey.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+
+        values.clear();
+        valuesByKey.forEach((key, history) -> {
+            java.util.Map.Entry<Long, byte[]> latest = history.floorEntry(version);
+            if (latest != null && latest.getValue() != null) {
+                values.put(key, latest.getValue());
+            }
+        });
+
+        // Roots
+        roots.tailMap(Long.valueOf(version + 1)).clear();
+
+        // Stale markers
+        staleByVersion.tailMap(Long.valueOf(version + 1)).clear();
     }
 
     @Override

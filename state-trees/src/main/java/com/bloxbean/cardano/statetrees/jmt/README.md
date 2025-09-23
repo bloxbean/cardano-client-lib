@@ -23,13 +23,73 @@ and store-backed facades.
   values, plus a bounded negative-lookup cache that prevents repeated trips to the store for paths
   known to be absent. A high-level `prune(version)` API triggers stale-node deletion in the backing
   store and evicts any cached entries that refer to pruned versions.
+- **Version-aware values** RocksDB-backed stores retain value history under composite keys
+  `(keyHash || version)` so `get(key, t)` returns the last write ≤ `t`. Tombstones record deletions,
+  matching MVCC semantics and keeping MPF proofs correct for historical snapshots.
+
+## RocksDB Store Configuration
+
+`RocksDbJmtStore` can either open its own database directory or attach to an existing `RocksDB`
+instance. Use the `Options` builder to tune pruning behaviour, namespacing, and rollback support:
+
+```java
+RocksDbJmtStore.Options storeOptions = RocksDbJmtStore.Options.builder()
+        .namespace("app1")                 // optional column-family prefix
+        .prunePolicy(RocksDbJmtStore.ValuePrunePolicy.SAFE)
+        .enableRollbackIndex(true)          // enable truncateAfter and rollback indices
+        .build();
+
+try(
+RocksDbJmtStore store = RocksDbJmtStore.open("/var/jmt-db", storeOptions)){
+        // use store with JellyfishMerkleTreeStore
+        }
+
+// For shared RocksDB instances:
+RocksDbJmtStore shared = RocksDbJmtStore.attach(existingDb, storeOptions, existingHandles);
+```
+
+The default prune policy (`SAFE`) keeps the newest value ≤ prune target for every key; historical
+queries at retained versions continue to work. `AGGRESSIVE` removes all value payloads at or below the
+cut-off to minimise disk usage. Tombstones are preserved so reads at versions where the key was deleted
+return empty until it is reinserted.
+
+## Rollback & Truncation
+
+Enable rollback indices in the store options when you need to truncate history (for example, to mirror
+blockchain rollbacks). With `enableRollbackIndex(true)` the store maintains per-version indexes so
+`JellyfishMerkleTreeStore.truncateAfter(version)` can drop nodes, values, stale markers, and roots above
+the target snapshot:
+
+```java
+tree.truncateAfter(rollbackVersion); // drops versions > rollbackVersion and resets caches
+```
+
+Applications that do not need rollback semantics can leave the feature disabled to avoid the extra
+index writes.
+
+## Versioned Reads & Pruning Policies
+
+- `get(key, version)` first checks that the requested version is ≤ the latest persisted root and then
+  returns the most recent write at or before that version. Reads beyond a truncation point (for example
+  after `truncateAfter`) return `null`.
+- Delete operations record a tombstone at the commit version. Historical reads at the delete snapshot
+  (and until the key is written again) return empty, mirroring Diem/Aptos JMT behaviour.
+- `JellyfishMerkleTreeStore.prune(version)` propagates to the store and evicts cached entries that refer
+  to pruned versions. With safe pruning the most recent retained value per key is preserved; aggressive
+  pruning removes all payloads up to the cut-off so future historical reads may return empty even if the
+  leaf node remains.
 
 ## Typical Usage
 
 ```java
 HashFunction hash = Blake2b256::digest;
 CommitmentScheme commitments = new MpfCommitmentScheme(hash);
-JmtStore backend = new RocksDbJmtStore("/var/jmt-db");
+
+RocksDbJmtStore.Options storeOptions = RocksDbJmtStore.Options.builder()
+        .prunePolicy(RocksDbJmtStore.ValuePrunePolicy.SAFE)
+        .enableRollbackIndex(true)
+        .build();
+JmtStore backend = RocksDbJmtStore.open("/var/jmt-db", storeOptions);
 
 JellyfishMerkleTreeStoreConfig config = JellyfishMerkleTreeStoreConfig.builder()
         .enableNodeCache(true).nodeCacheSize(8_192)
@@ -41,7 +101,11 @@ JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(backend, commitment
         JellyfishMerkleTreeStore.EngineMode.STREAMING, config);
 
 Map<byte[], byte[]> updates = new LinkedHashMap<>();
-updates.put("alice".getBytes(StandardCharsets.UTF_8), "100".getBytes(StandardCharsets.UTF_8));
+updates.
+
+put("alice".getBytes(StandardCharsets.UTF_8), "100".
+
+getBytes(StandardCharsets.UTF_8));
 JellyfishMerkleTree.CommitResult commit = tree.commit(1L, updates);
 
 Optional<byte[]> proofCbor = tree.getMpfProofCbor("alice".getBytes(StandardCharsets.UTF_8), 1);
@@ -54,7 +118,15 @@ boolean ok = proofCbor.map(cbor -> MpfProofVerifier.verify(commit.rootHash(),
         commitments)).orElse(false);
 
 JellyfishMerkleTreeStore.PruneReport report = tree.prune(10); // prune stale nodes up to version 10
-System.out.printf("Pruned %,d nodes (cache evictions: %,d)%n", report.nodesPruned(), report.cacheEntriesEvicted());
+System.out.
+
+printf("Pruned %,d nodes (cache evictions: %,d)%n",report.nodesPruned(),report.
+
+cacheEntriesEvicted());
+
+        tree.
+
+truncateAfter(42); // requires enableRollbackIndex(true)
 ```
 
 ## Where to integrate
@@ -84,16 +156,25 @@ System.out.printf("Pruned %,d nodes (cache evictions: %,d)%n", report.nodesPrune
 
 ## Load-testing Harness
 
-`com.bloxbean.cardano.statetrees.jmt.tool.JmtLoadTester` is a thin CLI that drives millions of random
+`com.bloxbean.cardano.statetrees.rocksdb.tools.JmtLoadTester` is a thin CLI that drives millions of random
 updates through the streaming façade. Example:
 
 ```
-./gradlew :state-trees:run --args="--records=2000000 --batch=2000 --rocksdb=/tmp/jmt-bench \
-  --node-cache=8192 --value-cache=8192 --proof-every=5000"
+./gradlew :state-trees-rocksdb:com.bloxbean.cardano.statetrees.rocksdb.tools.JmtLoadTester.main \
+  --args="--records=5_000_000 --batch=1000 --value-size=128 --rocksdb=/Volumes/data/jmt-load \
+          --node-cache=4096 --value-cache=8192 --delete-ratio=0.2 --proof-every=1000"
 ```
 
-It reports throughput, optional proof latency, and heap usage so you can size caches appropriately
-before shipping to production.
+Useful flags:
+
+- `--node-cache` / `--value-cache` size the streaming caches (0 disables each cache).
+- `--delete-ratio` randomly deletes a fraction of each batch while reusing live keys to stress tombstone handling.
+- `--proof-every` periodically performs value+proof fetches to measure proof-generation overhead.
+- `--version-log=path.csv` records version/root pairs for later analysis.
+- `--memory` switches to the in-memory store, making it easy to compare heap pressure vs the RocksDB-backed mode.
+
+It reports throughput, optional proof latency, and heap usage so you can size caches and prune policies before
+shipping to production.
 
 ## Further Reading
 

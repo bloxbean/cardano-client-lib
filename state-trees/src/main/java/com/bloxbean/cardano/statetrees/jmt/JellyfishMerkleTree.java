@@ -169,7 +169,7 @@ public final class JellyfishMerkleTree {
             }
 
             steps.add(new JmtProof.BranchStep(pathPrefix, cloneChildHashes(internal.childHashes), nibble,
-                neighborCount == 1, neighborNibble, forkPrefix, forkRoot, leafNeighborKey, leafNeighborValue));
+                    neighborCount == 1, neighborNibble, forkPrefix, forkRoot, leafNeighborKey, leafNeighborValue));
 
             TreeNode next = internal.children[nibble];
             if (next == null) {

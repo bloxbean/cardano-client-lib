@@ -82,6 +82,15 @@ public interface JmtStore extends AutoCloseable {
     int pruneUpTo(long versionInclusive);
 
     /**
+     * Truncates the persisted state by removing nodes/values/roots whose version is greater than
+     * {@code version}. Implementations that support rollback must override this method; default
+     * behaviour is to throw {@link UnsupportedOperationException}.
+     */
+    default void truncateAfter(long versionExclusive) {
+        throw new UnsupportedOperationException("truncateAfter not supported");
+    }
+
+    /**
      * Configuration for write batches. Implementations may ignore settings they
      * cannot honor, but should document any deviations.
      */
