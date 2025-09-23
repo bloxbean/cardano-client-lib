@@ -11,6 +11,7 @@ import com.bloxbean.cardano.statetrees.common.nibbles.Nibbles;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -322,19 +323,9 @@ public class TypeSafeWrappersBenchmark {
     }
     
     // Helper method to create test leaf nodes
-    private LeafNode createTestLeafNode(int index) throws Exception {
-        LeafNode node = new LeafNode();
-        
-        // Use reflection to set fields (package-private access)
-        java.lang.reflect.Field hpField = LeafNode.class.getDeclaredField("hp");
-        java.lang.reflect.Field valueField = LeafNode.class.getDeclaredField("value");
-        
-        hpField.setAccessible(true);
-        valueField.setAccessible(true);
-        
-        hpField.set(node, Nibbles.packHP(true, new int[]{index % 16, (index / 16) % 16}));
-        valueField.set(node, ("value-" + index).getBytes());
-        
-        return node;
+    private LeafNode createTestLeafNode(int index) {
+        byte[] hp = Nibbles.packHP(true, new int[]{index % 16, (index / 16) % 16});
+        byte[] value = ("value-" + index).getBytes(StandardCharsets.UTF_8);
+        return LeafNode.of(hp, value);
     }
 }
