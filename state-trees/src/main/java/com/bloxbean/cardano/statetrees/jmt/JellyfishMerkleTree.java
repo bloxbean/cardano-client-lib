@@ -5,7 +5,8 @@ import com.bloxbean.cardano.statetrees.common.NibblePath;
 import com.bloxbean.cardano.statetrees.common.nibbles.Nibbles;
 import com.bloxbean.cardano.statetrees.common.util.Bytes;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.mpf.MpfProofSerializer;
+import com.bloxbean.cardano.statetrees.jmt.mode.JmtMode;
+import com.bloxbean.cardano.statetrees.jmt.mode.JmtModes;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,11 +33,22 @@ public final class JellyfishMerkleTree {
 
     private final CommitmentScheme commitments;
     private final HashFunction hashFn;
+    private final JmtMode mode;
     private final NavigableMap<Long, VersionSnapshot> versions = new TreeMap<>();
 
     public JellyfishMerkleTree(CommitmentScheme commitments, HashFunction hashFn) {
         this.commitments = Objects.requireNonNull(commitments, "commitments");
         this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
+        this.mode = JmtModes.mpf(this.hashFn);
+    }
+
+    /**
+     * Construct with a mode; defaults to MPF if mode is null.
+     */
+    public JellyfishMerkleTree(JmtMode mode, HashFunction hashFn) {
+        this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
+        this.mode = (mode == null) ? JmtModes.mpf(this.hashFn) : mode;
+        this.commitments = this.mode.commitments();
     }
 
     public synchronized Optional<Long> latestVersion() {
@@ -196,15 +208,25 @@ public final class JellyfishMerkleTree {
         }
     }
 
-    public synchronized Optional<byte[]> getMpfProofCbor(byte[] key) {
-        Objects.requireNonNull(key, "key");
-        return latestVersion().flatMap(version -> getMpfProofCbor(key, version));
-    }
+    // getMpfProofCbor removed in favor of mode-bound getProofWire
 
-    public synchronized Optional<byte[]> getMpfProofCbor(byte[] key, long version) {
+    /**
+     * Mode-bound wire proof (MPF in default mode) for a specific version.
+     */
+    public synchronized Optional<byte[]> getProofWire(byte[] key, long version) {
         Objects.requireNonNull(key, "key");
         Optional<JmtProof> proof = getProof(key, version);
-        return proof.map(p -> MpfProofSerializer.toCbor(p, hashFn, commitments));
+        return proof.map(p -> mode.proofCodec().toWire(p, key, hashFn, commitments));
+    }
+
+    /**
+     * Verify a mode-bound wire proof against a root for a specific version context.
+     */
+    public synchronized boolean verifyProofWire(byte[] expectedRoot, byte[] key, byte[] valueOrNull,
+                                                boolean including, byte[] wire) {
+        Objects.requireNonNull(wire, "wire");
+        Objects.requireNonNull(key, "key");
+        return mode.proofCodec().verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
     }
 
     private VersionSnapshot snapshotAt(long version) {

@@ -1,23 +1,23 @@
 /**
  * Structured exception hierarchy for RocksDB storage operations.
- * 
+ *
  * <p>This package provides a comprehensive, structured exception hierarchy
  * that enables precise error handling and debugging for RocksDB storage
  * operations. Instead of generic RuntimeExceptions, the system uses
  * specific exception types that provide rich context information.</p>
- * 
+ *
  * <p><b>Exception Hierarchy:</b></p>
  * <ul>
- *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbStorageException} - 
+ *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbStorageException} -
  *       Base class for all storage-related errors</li>
- *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbOperationException} - 
+ *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbOperationException} -
  *       Specific operation failures (GET, PUT, DELETE, etc.)</li>
- *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbBatchException} - 
+ *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbBatchException} -
  *       Batch operation failures with batch context</li>
- *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbConfigurationException} - 
+ *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbConfigurationException} -
  *       Configuration and initialization errors</li>
  * </ul>
- * 
+ *
  * <p><b>Key Benefits:</b></p>
  * <ul>
  *   <li>Rich context information for debugging and monitoring</li>
@@ -26,7 +26,7 @@
  *   <li>Recovery suggestions for common error scenarios</li>
  *   <li>Integration with RocksDB native exceptions as root causes</li>
  * </ul>
- * 
+ *
  * <p><b>Usage Example:</b></p>
  * <pre>{@code
  * try {
@@ -49,12 +49,12 @@
  *     throw new ServiceException("Storage system unavailable", e);
  * }
  * }</pre>
- * 
+ *
  * <p><b>Error Context:</b> All exceptions in this hierarchy provide rich
  * context information through methods like {@code getDiagnosticInfo()},
  * which includes detailed error descriptions, recovery suggestions, and
  * debugging information.</p>
- * 
+ *
  * @author Bloxbean Project
  * @since 0.6.0
  */

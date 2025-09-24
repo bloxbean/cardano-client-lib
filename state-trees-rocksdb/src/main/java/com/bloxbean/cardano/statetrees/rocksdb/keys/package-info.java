@@ -1,11 +1,11 @@
 /**
  * Type-safe key system for RocksDB operations.
- * 
+ *
  * <p>This package provides a comprehensive type-safe key system that prevents
  * key collision bugs and provides compile-time safety for RocksDB operations.
  * All keys extend the {@link com.bloxbean.cardano.statetrees.rocksdb.keys.RocksDbKey}
  * base class and provide specific validation and formatting logic.</p>
- * 
+ *
  * <p><b>Key Types:</b></p>
  * <ul>
  *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.keys.NodeHashKey} - 32-byte node hash keys</li>
@@ -13,7 +13,7 @@
  *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.keys.SpecialKey} - String-based metadata keys</li>
  *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.keys.RefcountKey} - Reference count keys for GC</li>
  * </ul>
- * 
+ *
  * <p><b>Benefits:</b></p>
  * <ul>
  *   <li>Compile-time prevention of key type mixing bugs</li>
@@ -22,7 +22,7 @@
  *   <li>Easy to extend with new key types</li>
  *   <li>Consistent string representations for debugging</li>
  * </ul>
- * 
+ *
  * <p><b>Usage Example:</b></p>
  * <pre>{@code
  * // Create type-safe keys
@@ -30,13 +30,13 @@
  * VersionKey versionKey = VersionKey.of(12345L);
  * SpecialKey latestKey = SpecialKey.LATEST;
  * RefcountKey refKey = RefcountKey.forNode(nodeKey);
- * 
+ *
  * // Type-safe operations - compiler prevents mixing key types
  * nodeStore.put(nodeKey, nodeData);      // ✅ Correct
- * rootsIndex.put(versionKey, rootHash);  // ✅ Correct  
+ * rootsIndex.put(versionKey, rootHash);  // ✅ Correct
  * nodeStore.put(versionKey, nodeData);   // ❌ Compile error - prevents bugs!
  * }</pre>
- * 
+ *
  * @author Bloxbean Project
  * @since 0.6.0
  */

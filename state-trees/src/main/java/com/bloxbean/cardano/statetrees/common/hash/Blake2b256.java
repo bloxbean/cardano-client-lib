@@ -23,22 +23,22 @@ import com.bloxbean.cardano.client.crypto.Blake2bUtil;
  */
 public final class Blake2b256 {
 
-  /**
-   * Private constructor to prevent instantiation of this utility class.
-   */
-  private Blake2b256() {
-    throw new AssertionError("Utility class - do not instantiate");
-  }
+    /**
+     * Private constructor to prevent instantiation of this utility class.
+     */
+    private Blake2b256() {
+        throw new AssertionError("Utility class - do not instantiate");
+    }
 
-  /**
-   * Computes the Blake2b-256 hash of the input data.
-   *
-   * @param inputData the data to hash
-   * @return the 32-byte Blake2b-256 hash digest
-   * @throws NullPointerException if inputData is null
-   */
-  public static byte[] digest(byte[] inputData) {
-    return Blake2bUtil.blake2bHash256(inputData);
-  }
+    /**
+     * Computes the Blake2b-256 hash of the input data.
+     *
+     * @param inputData the data to hash
+     * @return the 32-byte Blake2b-256 hash digest
+     * @throws NullPointerException if inputData is null
+     */
+    public static byte[] digest(byte[] inputData) {
+        return Blake2bUtil.blake2bHash256(inputData);
+    }
 }
 

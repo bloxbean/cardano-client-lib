@@ -36,7 +36,8 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class JmtLoadTester {
 
-    private JmtLoadTester() {}
+    private JmtLoadTester() {
+    }
 
     public static void main(String[] args) throws Exception {
         LoadOptions options = LoadOptions.parse(args);

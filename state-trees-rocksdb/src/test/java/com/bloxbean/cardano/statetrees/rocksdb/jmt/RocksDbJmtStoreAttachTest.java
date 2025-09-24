@@ -68,8 +68,8 @@ class RocksDbJmtStoreAttachTest {
         }
     }
 
-  @Test
-  void attachReusesExistingColumnFamilies() throws Exception {
+    @Test
+    void attachReusesExistingColumnFamilies() throws Exception {
         Path dbPath = tempDir.resolve("jmt-shared-reuse");
         String namespace = "app";
 
@@ -115,125 +115,125 @@ class RocksDbJmtStoreAttachTest {
         } finally {
             handles.close();
             cfOptions.forEach(RocksDbJmtStoreAttachTest::closeQuietly);
-    }
-  }
-
-  @Test
-  void historicalReadsAndDeletes() throws Exception {
-    Path dbPath = tempDir.resolve("jmt-history-db");
-    try (RocksDbJmtStore store = RocksDbJmtStore.open(dbPath.toString())) {
-      JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, COMMITMENTS, HASH);
-
-      Map<byte[], byte[]> updates = new LinkedHashMap<>();
-      updates.put(bytes("alice"), bytes("100"));
-      tree.commit(1, updates);
-
-      updates = new LinkedHashMap<>();
-      updates.put(bytes("alice"), bytes("200"));
-      tree.commit(2, updates);
-
-      updates = new LinkedHashMap<>();
-      updates.put(bytes("alice"), null);
-      tree.commit(3, updates);
-
-      updates = new LinkedHashMap<>();
-      updates.put(bytes("alice"), bytes("300"));
-      tree.commit(4, updates);
-
-      assertArrayEquals(bytes("100"), tree.get(bytes("alice"), 1));
-      assertArrayEquals(bytes("200"), tree.get(bytes("alice"), 2));
-      assertEquals(null, tree.get(bytes("alice"), 3));
-      assertArrayEquals(bytes("300"), tree.get(bytes("alice")));
-    }
-  }
-
-  @Test
-  void prunePoliciesAffectHistoricalValues() throws Exception {
-    Path safePath = tempDir.resolve("jmt-prune-safe");
-    try (RocksDbJmtStore store = RocksDbJmtStore.open(safePath.toString())) {
-      JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, COMMITMENTS, HASH);
-      Map<byte[], byte[]> updates = new LinkedHashMap<>();
-      updates.put(bytes("carol"), bytes("100"));
-      tree.commit(1, updates);
-
-      updates = new LinkedHashMap<>();
-      updates.put(bytes("carol"), bytes("200"));
-      tree.commit(3, updates);
-
-      JellyfishMerkleTreeStore.PruneReport report = tree.prune(1);
-      assertEquals(0, report.nodesPruned());
-
-      assertArrayEquals(bytes("100"), tree.get(bytes("carol"), 2));
-      assertArrayEquals(bytes("200"), tree.get(bytes("carol")));
+        }
     }
 
-    Path aggressivePath = tempDir.resolve("jmt-prune-aggressive");
-    RocksDbJmtStore.Options aggressive = RocksDbJmtStore.Options.builder()
-        .prunePolicy(RocksDbJmtStore.ValuePrunePolicy.AGGRESSIVE)
-        .build();
-    try (RocksDbJmtStore store = RocksDbJmtStore.open(aggressivePath.toString(), aggressive)) {
-      assertEquals(RocksDbJmtStore.ValuePrunePolicy.AGGRESSIVE,
-          getPrunePolicy(store));
-      JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, COMMITMENTS, HASH);
-      Map<byte[], byte[]> updates = new LinkedHashMap<>();
-      updates.put(bytes("dave"), bytes("100"));
-      tree.commit(1, updates);
+    @Test
+    void historicalReadsAndDeletes() throws Exception {
+        Path dbPath = tempDir.resolve("jmt-history-db");
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(dbPath.toString())) {
+            JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, COMMITMENTS, HASH);
 
-      updates = new LinkedHashMap<>();
-      updates.put(bytes("dave"), bytes("200"));
-      tree.commit(3, updates);
+            Map<byte[], byte[]> updates = new LinkedHashMap<>();
+            updates.put(bytes("alice"), bytes("100"));
+            tree.commit(1, updates);
 
-      JellyfishMerkleTreeStore.PruneReport aggressiveReport = tree.prune(1);
-      assertTrue(aggressiveReport.nodesPruned() > 0);
-      byte[] historical = tree.get(bytes("dave"), 1);
-      assertNull(historical, "Aggressive prune should drop historical value");
-      assertArrayEquals(bytes("200"), tree.get(bytes("dave")));
+            updates = new LinkedHashMap<>();
+            updates.put(bytes("alice"), bytes("200"));
+            tree.commit(2, updates);
+
+            updates = new LinkedHashMap<>();
+            updates.put(bytes("alice"), null);
+            tree.commit(3, updates);
+
+            updates = new LinkedHashMap<>();
+            updates.put(bytes("alice"), bytes("300"));
+            tree.commit(4, updates);
+
+            assertArrayEquals(bytes("100"), tree.get(bytes("alice"), 1));
+            assertArrayEquals(bytes("200"), tree.get(bytes("alice"), 2));
+            assertEquals(null, tree.get(bytes("alice"), 3));
+            assertArrayEquals(bytes("300"), tree.get(bytes("alice")));
+        }
     }
-  }
 
-  private static RocksDbJmtStore.ValuePrunePolicy getPrunePolicy(RocksDbJmtStore store) throws Exception {
-    java.lang.reflect.Field field = RocksDbJmtStore.class.getDeclaredField("storeOptions");
-    field.setAccessible(true);
-    RocksDbJmtStore.Options options = (RocksDbJmtStore.Options) field.get(store);
-    return options.prunePolicy();
-  }
+    @Test
+    void prunePoliciesAffectHistoricalValues() throws Exception {
+        Path safePath = tempDir.resolve("jmt-prune-safe");
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(safePath.toString())) {
+            JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, COMMITMENTS, HASH);
+            Map<byte[], byte[]> updates = new LinkedHashMap<>();
+            updates.put(bytes("carol"), bytes("100"));
+            tree.commit(1, updates);
 
-  @Test
-  void truncateAfterRemovesFutureVersions() throws Exception {
-    Path dbPath = tempDir.resolve("jmt-truncate-db");
-    RocksDbJmtStore.Options options = RocksDbJmtStore.Options.builder()
-        .enableRollbackIndex(true)
-        .build();
-    try (RocksDbJmtStore store = RocksDbJmtStore.open(dbPath.toString(), options)) {
-      JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, COMMITMENTS, HASH,
-          JellyfishMerkleTreeStore.EngineMode.STREAMING, JellyfishMerkleTreeStoreConfig.defaults());
+            updates = new LinkedHashMap<>();
+            updates.put(bytes("carol"), bytes("200"));
+            tree.commit(3, updates);
 
-      Map<byte[], byte[]> updates = new LinkedHashMap<>();
-      updates.put(bytes("erin"), bytes("100"));
-      tree.commit(1, updates);
+            JellyfishMerkleTreeStore.PruneReport report = tree.prune(1);
+            assertEquals(0, report.nodesPruned());
 
-      updates = new LinkedHashMap<>();
-      updates.put(bytes("erin"), bytes("150"));
-      tree.commit(2, updates);
+            assertArrayEquals(bytes("100"), tree.get(bytes("carol"), 2));
+            assertArrayEquals(bytes("200"), tree.get(bytes("carol")));
+        }
 
-      updates = new LinkedHashMap<>();
-      updates.put(bytes("erin"), bytes("200"));
-      tree.commit(3, updates);
+        Path aggressivePath = tempDir.resolve("jmt-prune-aggressive");
+        RocksDbJmtStore.Options aggressive = RocksDbJmtStore.Options.builder()
+                .prunePolicy(RocksDbJmtStore.ValuePrunePolicy.AGGRESSIVE)
+                .build();
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(aggressivePath.toString(), aggressive)) {
+            assertEquals(RocksDbJmtStore.ValuePrunePolicy.AGGRESSIVE,
+                    getPrunePolicy(store));
+            JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, COMMITMENTS, HASH);
+            Map<byte[], byte[]> updates = new LinkedHashMap<>();
+            updates.put(bytes("dave"), bytes("100"));
+            tree.commit(1, updates);
 
-      tree.truncateAfter(2);
+            updates = new LinkedHashMap<>();
+            updates.put(bytes("dave"), bytes("200"));
+            tree.commit(3, updates);
 
-      assertEquals(2L, store.latestRoot().orElseThrow().version());
-      assertArrayEquals(bytes("150"), tree.get(bytes("erin")));
-      assertEquals(null, tree.get(bytes("erin"), 3));
-
-      updates = new LinkedHashMap<>();
-      updates.put(bytes("erin"), bytes("180"));
-      tree.commit(3, updates);
-
-      assertArrayEquals(bytes("180"), tree.get(bytes("erin")));
-      assertArrayEquals(bytes("150"), tree.get(bytes("erin"), 2));
+            JellyfishMerkleTreeStore.PruneReport aggressiveReport = tree.prune(1);
+            assertTrue(aggressiveReport.nodesPruned() > 0);
+            byte[] historical = tree.get(bytes("dave"), 1);
+            assertNull(historical, "Aggressive prune should drop historical value");
+            assertArrayEquals(bytes("200"), tree.get(bytes("dave")));
+        }
     }
-  }
+
+    private static RocksDbJmtStore.ValuePrunePolicy getPrunePolicy(RocksDbJmtStore store) throws Exception {
+        java.lang.reflect.Field field = RocksDbJmtStore.class.getDeclaredField("storeOptions");
+        field.setAccessible(true);
+        RocksDbJmtStore.Options options = (RocksDbJmtStore.Options) field.get(store);
+        return options.prunePolicy();
+    }
+
+    @Test
+    void truncateAfterRemovesFutureVersions() throws Exception {
+        Path dbPath = tempDir.resolve("jmt-truncate-db");
+        RocksDbJmtStore.Options options = RocksDbJmtStore.Options.builder()
+                .enableRollbackIndex(true)
+                .build();
+        try (RocksDbJmtStore store = RocksDbJmtStore.open(dbPath.toString(), options)) {
+            JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, COMMITMENTS, HASH,
+                    JellyfishMerkleTreeStore.EngineMode.STREAMING, JellyfishMerkleTreeStoreConfig.defaults());
+
+            Map<byte[], byte[]> updates = new LinkedHashMap<>();
+            updates.put(bytes("erin"), bytes("100"));
+            tree.commit(1, updates);
+
+            updates = new LinkedHashMap<>();
+            updates.put(bytes("erin"), bytes("150"));
+            tree.commit(2, updates);
+
+            updates = new LinkedHashMap<>();
+            updates.put(bytes("erin"), bytes("200"));
+            tree.commit(3, updates);
+
+            tree.truncateAfter(2);
+
+            assertEquals(2L, store.latestRoot().orElseThrow().version());
+            assertArrayEquals(bytes("150"), tree.get(bytes("erin")));
+            assertEquals(null, tree.get(bytes("erin"), 3));
+
+            updates = new LinkedHashMap<>();
+            updates.put(bytes("erin"), bytes("180"));
+            tree.commit(3, updates);
+
+            assertArrayEquals(bytes("180"), tree.get(bytes("erin")));
+            assertArrayEquals(bytes("150"), tree.get(bytes("erin"), 2));
+        }
+    }
 
     private static ColumnFamilyOptions cfOptionsFor(String name,
                                                     RocksDbJmtStore.ColumnFamilies cfNames,

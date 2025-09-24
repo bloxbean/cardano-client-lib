@@ -30,7 +30,7 @@ final class SmtLeafNode extends SmtNode {
      * Private constructor for creating leaf nodes.
      *
      * @param keyHash the 32-byte key hash
-     * @param value the raw value bytes
+     * @param value   the raw value bytes
      */
     private SmtLeafNode(byte[] keyHash, byte[] value) {
         this.keyHash = keyHash == null ? new byte[0] : keyHash.clone();
@@ -41,7 +41,7 @@ final class SmtLeafNode extends SmtNode {
      * Creates a new SMT leaf node with the given key hash and value.
      *
      * @param keyHash the 32-byte Blake2b-256 hash of the key
-     * @param value the raw value bytes to store
+     * @param value   the raw value bytes to store
      * @return a new SmtLeafNode instance
      */
     public static SmtLeafNode of(byte[] keyHash, byte[] value) {
@@ -53,8 +53,8 @@ final class SmtLeafNode extends SmtNode {
      *
      * @return the 32-byte key hash (defensive copy)
      */
-    public byte[] getKeyHash() { 
-        return keyHash.clone(); 
+    public byte[] getKeyHash() {
+        return keyHash.clone();
     }
 
     /**
@@ -62,8 +62,8 @@ final class SmtLeafNode extends SmtNode {
      *
      * @return the raw value bytes (defensive copy)
      */
-    public byte[] getValue() { 
-        return value.clone(); 
+    public byte[] getValue() {
+        return value.clone();
     }
 
     /**
@@ -76,30 +76,30 @@ final class SmtLeafNode extends SmtNode {
         return new SmtLeafNode(this.keyHash, newValue);
     }
 
-  @Override
-  byte[] hash() {
-    return Blake2b256.digest(encode());
-  }
-
-  @Override
-  byte[] encode() {
-    try {
-      Array arr = new Array();
-      arr.add(new ByteString(new byte[] { 1 })); // tag for leaf node
-      arr.add(new ByteString(keyHash));
-      arr.add(new ByteString(value));
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      new CborEncoder(baos).encode(arr);
-      return baos.toByteArray();
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to encode SmtLeafNode", e);
+    @Override
+    byte[] hash() {
+        return Blake2b256.digest(encode());
     }
-  }
 
-  @Override
-  public <T> T accept(SmtNodeVisitor<T> visitor) {
-    return visitor.visitLeaf(this);
-  }
+    @Override
+    byte[] encode() {
+        try {
+            Array arr = new Array();
+            arr.add(new ByteString(new byte[]{1})); // tag for leaf node
+            arr.add(new ByteString(keyHash));
+            arr.add(new ByteString(value));
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            new CborEncoder(baos).encode(arr);
+            return baos.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to encode SmtLeafNode", e);
+        }
+    }
+
+    @Override
+    public <T> T accept(SmtNodeVisitor<T> visitor) {
+        return visitor.visitLeaf(this);
+    }
 
     /**
      * Decodes a CBOR array into a SmtLeafNode.

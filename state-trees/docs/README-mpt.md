@@ -315,7 +315,9 @@ NibblePath prefix = path.prefix(6); // First 6 nibbles
 boolean matches = path.startsWith(NibblePath.fromHexString("68656c"));
 
 // Clean persistence operations
-NodePersistence persistence = new NodePersistence(store);
+HashFunction hashFn = Blake2b256::digest;
+CommitmentScheme commitments = new MpfCommitmentScheme(hashFn);
+NodePersistence persistence = new NodePersistence(store, commitments, hashFn);
 NodeHash nodeHash = persistence.persist(someNode);
 Node loadedNode = persistence.load(nodeHash);
 boolean exists = persistence.exists(nodeHash);
@@ -369,29 +371,94 @@ secureTrie.put("plaintext-key".getBytes(), "value".getBytes());
 
 ### 2. Proof Generation
 
-Use `MerklePatriciaTrie.getProof` to build inclusion or non-inclusion proofs and
-`MerklePatriciaVerifier` to validate them:
+Mode‑bound wire helpers (recommended for MPF/Classic pairing):
 
 ```java
+// Default trie (MPF mode)
 MerklePatriciaTrie trie = new MerklePatriciaTrie(store, Blake2b256::digest);
 trie.put(key, value);
 
-MerklePatriciaProof proof = trie.getProof(key);
-if (proof.getType() == MerklePatriciaProof.Type.INCLUSION) {
-  boolean ok = MerklePatriciaVerifier.verifyInclusion(
-      trie.getRootHash(), Blake2b256::digest, key, value, proof.getNodes());
-}
+byte[] wire = trie.getProofWire(key).orElseThrow();    // MPF CBOR proof (no top-level tag; Aiken-compatible)
+boolean ok = trie.verifyProofWire(trie.getRootHash(), key, value, true, wire);
 
-byte[] unknown = com.bloxbean.cardano.client.util.HexUtil.decodeHexString("aa01");
-MerklePatriciaProof absent = trie.getProof(unknown);
-boolean missing = MerklePatriciaVerifier.verifyNonInclusion(
-    trie.getRootHash(), Blake2b256::digest, unknown, absent.getNodes());
+// Classic mode
+MerklePatriciaTrie classic = new MerklePatriciaTrie(store, Blake2b256::digest, com.bloxbean.cardano.statetrees.mpt.mode.Modes.classic(Blake2b256::digest));
+classic.put(key, value);
+
+byte[] cWire = classic.getProofWire(key).orElseThrow(); // Classic node list (CBOR array of node CBORs)
+boolean cok = classic.verifyProofWire(classic.getRootHash(), key, value, true, cWire);
+```
+
+Classic proof API (node‑encoding) usage:
+
+```java
+import com.bloxbean.cardano.statetrees.api.ClassicProof;
+import com.bloxbean.cardano.statetrees.mpt.ClassicProofVerifier;
+import com.bloxbean.cardano.statetrees.mpt.commitment.ClassicMptCommitmentScheme;
+
+// Build Classic wire proof and verify via public ClassicProof API
+MerklePatriciaTrie classic = new MerklePatriciaTrie(
+    store, Blake2b256::digest, com.bloxbean.cardano.statetrees.mpt.mode.Modes.classic(Blake2b256::digest));
+classic.put(key, value);
+
+byte[] wire = classic.getProofWire(key).orElseThrow();
+ClassicProof cp = ClassicProof.fromWire(wire);
+boolean ok = ClassicProofVerifier.verifyInclusion(
+    classic.getRootHash(), Blake2b256::digest, key, value, cp,
+    new ClassicMptCommitmentScheme(Blake2b256::digest));
+```
+
+SecureTrie (hashed keys) wire‑proof examples:
+
+```java
+import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
+import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
+
+SecureTrie secure = new SecureTrie(store, Blake2b256::digest);
+secure.put(b("dragonfruit"), b("🍇?")); // key is hashed internally
+
+byte[] w = secure.getProofWire(b("dragonfruit")).orElseThrow();
+boolean ok = secure.verifyProofWire(secure.getRootHash(), b("dragonfruit"), b("🍇?"), true, w);
 ```
 
 Proof nodes are CBOR-encoded trie nodes collected along the query path. The proof
 type indicates whether the traversal ended with a matching leaf, a missing
 branch, or a conflicting leaf. See `docs/adr/ADR-0001-mpt-proof-api.md` for the
 full specification.
+
+### 2.1 MPF vs Classic Commitment Schemes
+
+State Trees supports two commitment schemes for the hexary MPT:
+
+- MPF (default):
+  - Branch value slot is empty (not mixed into branch commitment).
+  - Optimized for on-chain MPF/Aiken verifier compatibility; proofs are serialized in MPF CBOR.
+  - Recommended with `SecureTrie` so keys are hashed and branch-terminal values are rare/nonexistent.
+  - Slightly smaller proofs: branch steps omit the optional branch-value hash (saves ~32 bytes per affected step plus CBOR overhead).
+
+- Classic MPT:
+  - Preserves the branch value slot by mixing a terminal value into the branch’s commitment.
+  - Roots can differ from MPF when a key terminates at a branch.
+  - Not compatible with MPF proof verification; do not use Classic roots with the MPF (Aiken) verifier.
+
+Selecting a scheme at construction time:
+
+```java
+import com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie;
+import com.bloxbean.cardano.statetrees.mpt.commitment.*;
+import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
+
+// MPF (default)
+MerklePatriciaTrie mpfTrie = new MerklePatriciaTrie(store, Blake2b256::digest);
+
+// Classic (branch value preserved)
+MerklePatriciaTrie classicTrie = new MerklePatriciaTrie(
+    store, Blake2b256::digest, new ClassicMptCommitmentScheme(Blake2b256::digest));
+
+// Proofs are MPF-formatted; use MPF roots/verifier for on-chain compatibility.
+```
+
+When integrating with the Aiken MPF verifier or other MPF-compatible tooling, prefer MPF mode and hashed keys (`SecureTrie`). Use the Classic scheme only if your application needs legacy MPT semantics off-chain and does not require MPF proof interoperability.
 
 ### 3. State Synchronization
 

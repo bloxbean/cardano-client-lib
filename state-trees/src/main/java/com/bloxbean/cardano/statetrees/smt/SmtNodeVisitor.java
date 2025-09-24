@@ -13,17 +13,17 @@ package com.bloxbean.cardano.statetrees.smt;
  * SmtNodeVisitor<String> describer = new SmtNodeVisitor<String>() {
  *     @Override
  *     public String visitInternal(SmtInternalNode node) {
- *         return "Internal node with " + 
+ *         return "Internal node with " +
  *                (node.getLeft() != null ? "left" : "no left") + " and " +
  *                (node.getRight() != null ? "right" : "no right") + " children";
  *     }
- *     
+ *
  *     @Override
  *     public String visitLeaf(SmtLeafNode node) {
  *         return "Leaf node with " + node.getValue().length + " bytes of data";
  *     }
  * };
- * 
+ *
  * String description = node.accept(describer);
  * }</pre>
  *
@@ -31,7 +31,7 @@ package com.bloxbean.cardano.statetrees.smt;
  * @since 0.8.0
  */
 interface SmtNodeVisitor<T> {
-    
+
     /**
      * Visits an internal node.
      *
@@ -39,7 +39,7 @@ interface SmtNodeVisitor<T> {
      * @return the result of the visit operation
      */
     T visitInternal(SmtInternalNode node);
-    
+
     /**
      * Visits a leaf node.
      *

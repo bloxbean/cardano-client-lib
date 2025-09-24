@@ -3,6 +3,8 @@ package com.bloxbean.cardano.statetrees.jmt;
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
+import com.bloxbean.cardano.statetrees.jmt.mode.JmtMode;
+import com.bloxbean.cardano.statetrees.jmt.mode.JmtModes;
 
 import java.util.Map;
 import java.util.Objects;
@@ -19,6 +21,9 @@ import java.util.Optional;
 public final class JellyfishMerkleTreeStore {
 
     private final Engine engine;
+    private final CommitmentScheme commitments;
+    private final HashFunction hashFn;
+    private final JmtMode mode;
 
     public JellyfishMerkleTreeStore(JmtStore store,
                                     CommitmentScheme commitments,
@@ -42,9 +47,40 @@ public final class JellyfishMerkleTreeStore {
         Objects.requireNonNull(commitments, "commitments");
         Objects.requireNonNull(hashFn, "hashFn");
         EngineMode effective = mode == null ? EngineMode.STREAMING : mode;
+        this.commitments = commitments;
+        this.hashFn = hashFn;
+        this.mode = JmtModes.mpf(hashFn);
         this.engine = (effective == EngineMode.REFERENCE)
                 ? new ReferenceEngine(store, commitments, hashFn)
                 : new StreamingEngine(store, commitments, hashFn, Objects.requireNonNullElse(config, JellyfishMerkleTreeStoreConfig.defaults()));
+    }
+
+    /**
+     * Constructor that accepts a mode (defaults to MPF if null).
+     */
+    public JellyfishMerkleTreeStore(JmtStore store,
+                                    JmtMode mode,
+                                    HashFunction hashFn,
+                                    EngineMode engineMode,
+                                    JellyfishMerkleTreeStoreConfig config) {
+        Objects.requireNonNull(store, "store");
+        Objects.requireNonNull(hashFn, "hashFn");
+        EngineMode effective = engineMode == null ? EngineMode.STREAMING : engineMode;
+        this.mode = (mode == null) ? JmtModes.mpf(hashFn) : mode;
+        this.commitments = this.mode.commitments();
+        this.hashFn = hashFn;
+        this.engine = (effective == EngineMode.REFERENCE)
+                ? new ReferenceEngine(store, this.commitments, hashFn)
+                : new StreamingEngine(store, this.commitments, hashFn, Objects.requireNonNullElse(config, JellyfishMerkleTreeStoreConfig.defaults()));
+    }
+
+    /**
+     * Convenience constructor: mode + default STREAMING engine and defaults config.
+     */
+    public JellyfishMerkleTreeStore(JmtStore store,
+                                    JmtMode mode,
+                                    HashFunction hashFn) {
+        this(store, mode, hashFn, EngineMode.STREAMING, JellyfishMerkleTreeStoreConfig.defaults());
     }
 
     public Optional<Long> latestVersion() {
@@ -75,8 +111,22 @@ public final class JellyfishMerkleTreeStore {
         return engine.getProof(key, version);
     }
 
-    public Optional<byte[]> getMpfProofCbor(byte[] key, long version) {
-        return engine.getMpfProofCbor(key, version);
+    /**
+     * Mode-bound wire proof (MPF in default mode).
+     */
+    public Optional<byte[]> getProofWire(byte[] key, long version) {
+        Objects.requireNonNull(key, "key");
+        return getProof(key, version).map(p -> mode.proofCodec().toWire(p, key, hashFn, commitments));
+    }
+
+    /**
+     * Verify a mode-bound wire proof (MPF in default mode).
+     */
+    public boolean verifyProofWire(byte[] expectedRoot, byte[] key, byte[] valueOrNull,
+                                   boolean including, byte[] wire) {
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(wire, "wire");
+        return mode.proofCodec().verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
     }
 
     public PruneReport prune(long versionInclusive) {
@@ -101,8 +151,6 @@ public final class JellyfishMerkleTreeStore {
         byte[] get(byte[] key, long version);
 
         Optional<JmtProof> getProof(byte[] key, long version);
-
-        Optional<byte[]> getMpfProofCbor(byte[] key, long version);
 
         PruneReport prune(long versionInclusive);
 
@@ -176,11 +224,6 @@ public final class JellyfishMerkleTreeStore {
         @Override
         public Optional<JmtProof> getProof(byte[] key, long version) {
             return delegate.getProof(key, version);
-        }
-
-        @Override
-        public Optional<byte[]> getMpfProofCbor(byte[] key, long version) {
-            return delegate.getMpfProofCbor(key, version);
         }
 
         @Override
@@ -314,12 +357,6 @@ public final class JellyfishMerkleTreeStore {
                 return Optional.empty();
             }
             return computeStoreProof(key, version);
-        }
-
-        @Override
-        public Optional<byte[]> getMpfProofCbor(byte[] key, long version) {
-            return getProof(key, version)
-                    .map(proof -> com.bloxbean.cardano.statetrees.jmt.mpf.MpfProofSerializer.toCbor(proof, hashFn, commitments));
         }
 
         private Optional<JmtProof> computeStoreProof(byte[] key, long version) {

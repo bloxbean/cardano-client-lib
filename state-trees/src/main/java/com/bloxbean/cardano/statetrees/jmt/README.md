@@ -5,6 +5,79 @@ This package hosts the ADR-0004 implementation of the Jellyfish Merkle Tree used
 hexary Merkle structure with an MPF-compatible commitment scheme and both in-memory
 and store-backed facades.
 
+Note: JMT is MPF-only end-to-end today. There is no proof/commitment “mode” selection for JMT; its
+commitments and CBOR proofs are fixed to the MPF format (Aiken-compatible). If a Classic mode is
+introduced later, it will be an explicit API selection similar to MPT, pairing Classic commitments
+with a Classic proof codec. Until then, use the MPF wire APIs.
+
+## Wire Proof APIs (Mode-bound)
+
+JMT now exposes wire-first proof helpers aligned with ADR-0008. MPF is the default and only mode today:
+
+```
+HashFunction hash = Blake2b256::digest;
+JmtMode mode = JmtModes.mpf(hash); // MPF commitments + MPF wire proofs
+
+// In-memory facade
+JellyfishMerkleTree tree = new JellyfishMerkleTree(mode, hash);
+Optional<byte[]> wire = tree.getProofWire("alice".getBytes(UTF_8), 1L);
+boolean ok = tree.verifyProofWire(tree.rootHash(1L), "alice".getBytes(UTF_8),
+                                  "100".getBytes(UTF_8), true, wire.orElseThrow());
+
+// Store-backed facade
+JellyfishMerkleTreeStore storeTree = new JellyfishMerkleTreeStore(backendStore, mode, hash,
+        JellyfishMerkleTreeStore.EngineMode.STREAMING, JellyfishMerkleTreeStoreConfig.defaults());
+Optional<byte[]> w = storeTree.getProofWire("alice".getBytes(UTF_8), 1L);
+boolean ok2 = storeTree.verifyProofWire(storeTree.rootHash(1L), "alice".getBytes(UTF_8),
+                                       "100".getBytes(UTF_8), true, w.orElseThrow());
+```
+
+## Classic Mode Example
+
+Classic mode offers off-chain–friendly verification: proofs are CBOR arrays of node ByteStrings and
+verification re-hashes exactly what is in the proof. It is not Aiken-compatible.
+
+```
+HashFunction hash = Blake2b256::digest;
+JmtMode classic = JmtModes.classic(hash);
+
+// In-memory Classic
+JellyfishMerkleTree cTree = new JellyfishMerkleTree(classic, hash);
+Map<byte[], byte[]> u = new LinkedHashMap<>();
+u.put("alice".getBytes(UTF_8), "100".getBytes(UTF_8));
+u.put("bob".getBytes(UTF_8),   "200".getBytes(UTF_8));
+JellyfishMerkleTree.CommitResult r = cTree.commit(1L, u);
+byte[] root = r.rootHash();
+
+byte[] wInc = cTree.getProofWire("alice".getBytes(UTF_8), 1L).orElseThrow();
+boolean okInc = cTree.verifyProofWire(root, "alice".getBytes(UTF_8), "100".getBytes(UTF_8), true, wInc);
+
+byte[] wNI = cTree.getProofWire("carol".getBytes(UTF_8), 1L).orElseThrow();
+boolean okNI = cTree.verifyProofWire(root, "carol".getBytes(UTF_8), null, false, wNI);
+```
+
+### Store-backed Classic Proof Example
+
+```
+HashFunction hash = Blake2b256::digest;
+JmtMode classic = JmtModes.classic(hash);
+
+RocksDbJmtStore.Options opts = RocksDbJmtStore.Options.builder().build();
+try (RocksDbJmtStore store = RocksDbJmtStore.open("/tmp/jmt-classic", opts)) {
+  JellyfishMerkleTreeStoreConfig cfg = JellyfishMerkleTreeStoreConfig.defaults();
+  JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, classic, hash,
+      JellyfishMerkleTreeStore.EngineMode.STREAMING, cfg);
+
+  Map<byte[], byte[]> updates = new LinkedHashMap<>();
+  updates.put("alice".getBytes(UTF_8), "100".getBytes(UTF_8));
+  JellyfishMerkleTree.CommitResult result = tree.commit(1L, updates);
+
+  byte[] wire = tree.getProofWire("alice".getBytes(UTF_8), 1L).orElseThrow();
+  boolean ok = tree.verifyProofWire(result.rootHash(), "alice".getBytes(UTF_8),
+                                    "100".getBytes(UTF_8), true, wire);
+}
+```
+
 ## Core Features
 
 - **Store-backed streaming façade** `JellyfishMerkleTreeStore` streams commits directly into a
@@ -108,8 +181,8 @@ put("alice".getBytes(StandardCharsets.UTF_8), "100".
 getBytes(StandardCharsets.UTF_8));
 JellyfishMerkleTree.CommitResult commit = tree.commit(1L, updates);
 
-Optional<byte[]> proofCbor = tree.getMpfProofCbor("alice".getBytes(StandardCharsets.UTF_8), 1);
-boolean ok = proofCbor.map(cbor -> MpfProofVerifier.verify(commit.rootHash(),
+Optional<byte[]> proofWire = tree.getProofWire("alice".getBytes(StandardCharsets.UTF_8), 1);
+boolean ok = proofWire.map(cbor -> com.bloxbean.cardano.statetrees.jmt.mpf.MpfProofVerifier.verify(commit.rootHash(),
         "alice".getBytes(StandardCharsets.UTF_8),
         "100".getBytes(StandardCharsets.UTF_8),
         true,
@@ -134,8 +207,8 @@ truncateAfter(42); // requires enableRollbackIndex(true)
 - **State persistence** Use the classes in `state-trees-rocksdb/jmt` to store nodes, values, roots and
   stale metadata. The streaming façade already emits the correct writes through `JmtStore.CommitBatch`
   and exposes `prune(version)` for orchestrating stale clean-up.
-- **Proof services** Expose `getMpfProofCbor` over RPC/APIs when you need byte-compatible proof delivery
-  for Aiken contracts. Consumers can use the public `mpf` package to decode/verify proofs without touching
+- **Proof services** Expose `getProofWire` over RPC/APIs (MPF CBOR today). Consumers can use the
+  public `jmt.mpf` package (`MpfProofDecoder`/`MpfProofVerifier`) to decode/verify proofs without touching
   internal tree structures.
 - **Offline tooling** `JmtProofVerifier` can be used wherever inclusion/non-inclusion checks are required.
   When MPF interoperability is needed, prefer `MpfProofDecoder` + `MpfProofVerifier`.

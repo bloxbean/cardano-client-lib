@@ -4,6 +4,7 @@ import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.model.Array;
 import co.nstant.in.cbor.model.ByteString;
+
 import java.io.ByteArrayOutputStream;
 
 /**
@@ -32,14 +33,16 @@ import java.io.ByteArrayOutputStream;
  * @since 0.8.0
  */
 final class EmptyCommitments {
-    
-    /** Array of empty commitments indexed by tree depth (0..256). */
+
+    /**
+     * Array of empty commitments indexed by tree depth (0..256).
+     */
     static final byte[][] EMPTY = new byte[257][];
 
     static {
         // Base at depth 256: hash of a single zero byte
-        EMPTY[256] = Blake2b256.digest(new byte[] { 0x00 });
-        
+        EMPTY[256] = Blake2b256.digest(new byte[]{0x00});
+
         // For each level, compute hash of internal node with identical empty children
         // EMPTY[d] = H( [0, EMPTY[d+1], EMPTY[d+1]] ) using SMT internal node encoding
         for (int d = 255; d >= 0; d--) {
@@ -51,19 +54,20 @@ final class EmptyCommitments {
     /**
      * Private constructor to prevent instantiation.
      */
-    private EmptyCommitments() {}
+    private EmptyCommitments() {
+    }
 
     /**
      * Computes the digest of an internal node with the given left and right children.
      *
-     * @param left the left child hash
+     * @param left  the left child hash
      * @param right the right child hash
      * @return the Blake2b-256 hash of the CBOR-encoded internal node
      */
     private static byte[] internalDigest(byte[] left, byte[] right) {
         try {
             Array arr = new Array();
-            arr.add(new ByteString(new byte[] { 0 }));  // tag=0 for internal node
+            arr.add(new ByteString(new byte[]{0}));  // tag=0 for internal node
             arr.add(new ByteString(left));
             arr.add(new ByteString(right));
             ByteArrayOutputStream baos = new ByteArrayOutputStream();

@@ -34,13 +34,13 @@ public class MptComprehensiveTest {
     void testEmptyTrieOperations() {
         // Empty trie should have null root
         assertNull(trie.getRootHash());
-        
+
         // Get on empty trie should return null
         assertNull(trie.get(hex("aa")));
-        
+
         // Delete on empty trie should not crash
         assertDoesNotThrow(() -> trie.delete(hex("aa")));
-        
+
         // Scan on empty trie should return empty list
         var results = trie.scanByPrefix(hex(""), 10);
         assertTrue(results.isEmpty());
@@ -50,17 +50,17 @@ public class MptComprehensiveTest {
     void testSingleKeyOperations() {
         byte[] key = hex("abcd");
         byte[] value = b("test-value");
-        
+
         // Put single key
         trie.put(key, value);
         assertNotNull(trie.getRootHash());
         assertArrayEquals(value, trie.get(key));
-        
+
         // Update same key
         byte[] newValue = b("updated-value");
         trie.put(key, newValue);
         assertArrayEquals(newValue, trie.get(key));
-        
+
         // Delete key
         trie.delete(key);
         assertNull(trie.getRootHash());
@@ -75,18 +75,18 @@ public class MptComprehensiveTest {
         testData.put(hex("aa10"), b("value3"));
         testData.put(hex("bb00"), b("value4"));
         testData.put(hex("ccdd"), b("value5"));
-        
+
         // Insert all keys
         for (var entry : testData.entrySet()) {
             trie.put(entry.getKey(), entry.getValue());
         }
-        
+
         // Verify all keys are retrievable
         for (var entry : testData.entrySet()) {
-            assertArrayEquals(entry.getValue(), trie.get(entry.getKey()), 
-                "Failed to retrieve value for key: " + bytesToHex(entry.getKey()));
+            assertArrayEquals(entry.getValue(), trie.get(entry.getKey()),
+                    "Failed to retrieve value for key: " + bytesToHex(entry.getKey()));
         }
-        
+
         // Verify root hash is consistent
         byte[] rootHash1 = trie.getRootHash().clone();
         byte[] rootHash2 = trie.getRootHash().clone();
@@ -96,13 +96,13 @@ public class MptComprehensiveTest {
     @Test
     void testKeyOverwrites() {
         byte[] key = hex("aabbcc");
-        
+
         trie.put(key, b("original"));
         assertArrayEquals(b("original"), trie.get(key));
-        
+
         trie.put(key, b("updated"));
         assertArrayEquals(b("updated"), trie.get(key));
-        
+
         trie.put(key, b("final"));
         assertArrayEquals(b("final"), trie.get(key));
     }
@@ -115,11 +115,11 @@ public class MptComprehensiveTest {
         trie.put(hex("aa10"), b("aa10-value"));
         trie.put(hex("bb00"), b("bb00-value"));
         trie.put(hex("cc"), b("cc-value"));
-        
+
         // Test prefix scanning
         var results = trie.scanByPrefix(hex("aa"), 10);
         assertEquals(3, results.size());
-        
+
         // Verify results contain expected keys
         Set<String> foundKeys = new HashSet<>();
         for (var entry : results) {
@@ -128,11 +128,11 @@ public class MptComprehensiveTest {
         assertTrue(foundKeys.contains("aa00"));
         assertTrue(foundKeys.contains("aa01"));
         assertTrue(foundKeys.contains("aa10"));
-        
+
         // Test empty prefix (should return all)
         var allResults = trie.scanByPrefix(hex(""), 10);
         assertEquals(5, allResults.size());
-        
+
         // Test limit
         var limitedResults = trie.scanByPrefix(hex(""), 2);
         assertEquals(2, limitedResults.size());
@@ -144,15 +144,15 @@ public class MptComprehensiveTest {
         trie.put(hex("aa00"), b("value1"));
         trie.put(hex("aa01"), b("value2"));
         trie.put(hex("aa10"), b("value3"));
-        
+
         byte[] rootBefore = trie.getRootHash().clone();
-        
+
         // Delete one key, should trigger compression
         trie.delete(hex("aa10"));
-        
+
         byte[] rootAfter = trie.getRootHash();
         assertFalse(Arrays.equals(rootBefore, rootAfter));
-        
+
         // Verify remaining keys still accessible
         assertArrayEquals(b("value1"), trie.get(hex("aa00")));
         assertArrayEquals(b("value2"), trie.get(hex("aa01")));
@@ -162,10 +162,10 @@ public class MptComprehensiveTest {
     @Test
     void testNullValuePrevention() {
         byte[] key = hex("test");
-        
+
         // Null values should be rejected
         assertThrows(IllegalArgumentException.class, () -> trie.put(key, null));
-        
+
         // Empty array should be allowed
         assertDoesNotThrow(() -> trie.put(key, new byte[0]));
         byte[] retrieved = trie.get(key);
@@ -176,30 +176,30 @@ public class MptComprehensiveTest {
     @Test
     void testRootHashConsistency() {
         Map<String, byte[]> operations = new HashMap<>();
-        
+
         // Perform series of operations and track root hashes
         operations.put("step1", null);
         byte[] key1 = hex("aa");
         trie.put(key1, b("value1"));
         operations.put("step2", trie.getRootHash().clone());
-        
+
         byte[] key2 = hex("bb");
         trie.put(key2, b("value2"));
         operations.put("step3", trie.getRootHash().clone());
-        
+
         trie.delete(key1);
         operations.put("step4", trie.getRootHash().clone());
-        
+
         trie.delete(key2);
         operations.put("step5", trie.getRootHash()); // Should be null
-        
+
         // Verify all steps have different root hashes (except first and last)
         assertNull(operations.get("step1"));
         assertNotNull(operations.get("step2"));
         assertNotNull(operations.get("step3"));
         assertNotNull(operations.get("step4"));
         assertNull(operations.get("step5"));
-        
+
         assertFalse(Arrays.equals(operations.get("step2"), operations.get("step3")));
         assertFalse(Arrays.equals(operations.get("step3"), operations.get("step4")));
     }
@@ -208,33 +208,33 @@ public class MptComprehensiveTest {
     @ValueSource(ints = {1, 10, 50, 100, 500})
     void testRandomOperations(int numOperations) {
         Map<String, byte[]> expectedState = new HashMap<>();
-        
+
         for (int i = 0; i < numOperations; i++) {
             byte[] key = randomBytes(4);
             byte[] value = randomBytes(8);
             String keyStr = bytesToHex(key);
-            
+
             trie.put(key, value);
             expectedState.put(keyStr, value);
-            
+
             // Occasionally delete some keys
             if (i > 10 && random.nextDouble() < 0.1) {
                 var keyToDelete = expectedState.keySet().stream()
-                    .skip(random.nextInt(expectedState.size()))
-                    .findFirst();
-                
+                        .skip(random.nextInt(expectedState.size()))
+                        .findFirst();
+
                 if (keyToDelete.isPresent()) {
                     trie.delete(hexToBytes(keyToDelete.get()));
                     expectedState.remove(keyToDelete.get());
                 }
             }
         }
-        
+
         // Verify final state matches expectations
         for (var entry : expectedState.entrySet()) {
             byte[] actualValue = trie.get(hexToBytes(entry.getKey()));
             assertArrayEquals(entry.getValue(), actualValue,
-                "Mismatch for key: " + entry.getKey());
+                    "Mismatch for key: " + entry.getKey());
         }
     }
 
@@ -243,7 +243,7 @@ public class MptComprehensiveTest {
         byte[] key = hex("large-value-key");
         byte[] largeValue = new byte[1024 * 10]; // 10KB value
         random.nextBytes(largeValue);
-        
+
         trie.put(key, largeValue);
         assertArrayEquals(largeValue, trie.get(key));
     }
@@ -254,11 +254,11 @@ public class MptComprehensiveTest {
         byte[] key1 = hex("aabbccdd");
         byte[] key2 = hex("aabbccde"); // Differs in last nibble
         byte[] key3 = hex("aabbcddd"); // Differs in 3rd-to-last nibble
-        
+
         trie.put(key1, b("value1"));
         trie.put(key2, b("value2"));
         trie.put(key3, b("value3"));
-        
+
         assertArrayEquals(b("value1"), trie.get(key1));
         assertArrayEquals(b("value2"), trie.get(key2));
         assertArrayEquals(b("value3"), trie.get(key3));
@@ -270,10 +270,10 @@ public class MptComprehensiveTest {
         trie.put(hex("aa"), b("value1"));
         trie.put(hex("bb"), b("value2"));
         byte[] rootHash = trie.getRootHash();
-        
+
         // Create new trie with same root
         MerklePatriciaTrie trie2 = new MerklePatriciaTrie(store, HASH_FN, rootHash);
-        
+
         // Should be able to access same data
         assertArrayEquals(b("value1"), trie2.get(hex("aa")));
         assertArrayEquals(b("value2"), trie2.get(hex("bb")));

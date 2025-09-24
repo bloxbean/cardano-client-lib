@@ -30,7 +30,7 @@ final class SmtInternalNode extends SmtNode {
     /**
      * Private constructor for creating internal nodes.
      *
-     * @param left the left child hash (nullable)
+     * @param left  the left child hash (nullable)
      * @param right the right child hash (nullable)
      */
     private SmtInternalNode(byte[] left, byte[] right) {
@@ -41,7 +41,7 @@ final class SmtInternalNode extends SmtNode {
     /**
      * Creates a new SMT internal node with the given child hashes.
      *
-     * @param left the left child hash (can be null for empty subtree)
+     * @param left  the left child hash (can be null for empty subtree)
      * @param right the right child hash (can be null for empty subtree)
      * @return a new SmtInternalNode instance
      */
@@ -54,8 +54,8 @@ final class SmtInternalNode extends SmtNode {
      *
      * @return the left child hash (defensive copy, can be null)
      */
-    public byte[] getLeft() { 
-        return left == null ? null : left.clone(); 
+    public byte[] getLeft() {
+        return left == null ? null : left.clone();
     }
 
     /**
@@ -63,8 +63,8 @@ final class SmtInternalNode extends SmtNode {
      *
      * @return the right child hash (defensive copy, can be null)
      */
-    public byte[] getRight() { 
-        return right == null ? null : right.clone(); 
+    public byte[] getRight() {
+        return right == null ? null : right.clone();
     }
 
     /**
@@ -73,8 +73,8 @@ final class SmtInternalNode extends SmtNode {
      * @param newLeft the new left child hash
      * @return a new SmtInternalNode with updated left child
      */
-    public SmtInternalNode withLeft(byte[] newLeft) { 
-        return new SmtInternalNode(newLeft, this.right); 
+    public SmtInternalNode withLeft(byte[] newLeft) {
+        return new SmtInternalNode(newLeft, this.right);
     }
 
     /**
@@ -83,34 +83,34 @@ final class SmtInternalNode extends SmtNode {
      * @param newRight the new right child hash
      * @return a new SmtInternalNode with updated right child
      */
-    public SmtInternalNode withRight(byte[] newRight) { 
-        return new SmtInternalNode(this.left, newRight); 
+    public SmtInternalNode withRight(byte[] newRight) {
+        return new SmtInternalNode(this.left, newRight);
     }
 
-  @Override
-  byte[] hash() {
-    return Blake2b256.digest(encode());
-  }
-
-  @Override
-  byte[] encode() {
-    try {
-      Array arr = new Array();
-      arr.add(new ByteString(new byte[] { 0 })); // tag for internal node
-      arr.add(new ByteString(left == null ? new byte[0] : left));
-      arr.add(new ByteString(right == null ? new byte[0] : right));
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      new CborEncoder(baos).encode(arr);
-      return baos.toByteArray();
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to encode SmtInternalNode", e);
+    @Override
+    byte[] hash() {
+        return Blake2b256.digest(encode());
     }
-  }
 
-  @Override
-  public <T> T accept(SmtNodeVisitor<T> visitor) {
-    return visitor.visitInternal(this);
-  }
+    @Override
+    byte[] encode() {
+        try {
+            Array arr = new Array();
+            arr.add(new ByteString(new byte[]{0})); // tag for internal node
+            arr.add(new ByteString(left == null ? new byte[0] : left));
+            arr.add(new ByteString(right == null ? new byte[0] : right));
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            new CborEncoder(baos).encode(arr);
+            return baos.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to encode SmtInternalNode", e);
+        }
+    }
+
+    @Override
+    public <T> T accept(SmtNodeVisitor<T> visitor) {
+        return visitor.visitInternal(this);
+    }
 
     /**
      * Decodes a CBOR array into a SmtInternalNode.

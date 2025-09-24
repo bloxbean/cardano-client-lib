@@ -44,65 +44,65 @@ import java.util.List;
  */
 final class TrieEncoding {
 
-  /**
-   * Private constructor to prevent instantiation of this utility class.
-   */
-  private TrieEncoding() {
-    throw new AssertionError("Utility class - do not instantiate");
-  }
-
-  /**
-   * Decodes CBOR-encoded bytes into the appropriate Node type.
-   *
-   * <p>This method analyzes the CBOR structure to determine the correct node type:
-   * <ul>
-   *   <li>17-element arrays are decoded as {@link BranchNode}</li>
-   *   <li>2-element arrays are decoded based on HP encoding flags:
-   *       <ul>
-   *         <li>HP isLeaf=true → {@link LeafNode}</li>
-   *         <li>HP isLeaf=false → {@link ExtensionNode}</li>
-   *       </ul>
-   *   </li>
-   * </ul>
-   *
-   * @param encodedBytes the CBOR-encoded node data
-   * @return the decoded Node instance (BranchNode, LeafNode, or ExtensionNode)
-   * @throws IllegalArgumentException if encodedBytes is null, empty, or has invalid format
-   * @throws RuntimeException if CBOR decoding fails
-   */
-  static Node decode(byte[] encodedBytes) {
-    if (encodedBytes == null) {
-      throw new IllegalArgumentException("Cannot decode null bytes");
+    /**
+     * Private constructor to prevent instantiation of this utility class.
+     */
+    private TrieEncoding() {
+        throw new AssertionError("Utility class - do not instantiate");
     }
 
-    try {
-      List<DataItem> items = new CborDecoder(new ByteArrayInputStream(encodedBytes)).decode();
-      if (items.isEmpty()) {
-        throw new IllegalArgumentException("Empty CBOR data");
-      }
+    /**
+     * Decodes CBOR-encoded bytes into the appropriate Node type.
+     *
+     * <p>This method analyzes the CBOR structure to determine the correct node type:
+     * <ul>
+     *   <li>17-element arrays are decoded as {@link BranchNode}</li>
+     *   <li>2-element arrays are decoded based on HP encoding flags:
+     *       <ul>
+     *         <li>HP isLeaf=true → {@link LeafNode}</li>
+     *         <li>HP isLeaf=false → {@link ExtensionNode}</li>
+     *       </ul>
+     *   </li>
+     * </ul>
+     *
+     * @param encodedBytes the CBOR-encoded node data
+     * @return the decoded Node instance (BranchNode, LeafNode, or ExtensionNode)
+     * @throws IllegalArgumentException if encodedBytes is null, empty, or has invalid format
+     * @throws RuntimeException         if CBOR decoding fails
+     */
+    static Node decode(byte[] encodedBytes) {
+        if (encodedBytes == null) {
+            throw new IllegalArgumentException("Cannot decode null bytes");
+        }
 
-      DataItem dataItem = items.get(0);
-      if (!(dataItem instanceof Array)) {
-        throw new IllegalArgumentException("Expected CBOR array, got " + dataItem.getClass().getSimpleName());
-      }
+        try {
+            List<DataItem> items = new CborDecoder(new ByteArrayInputStream(encodedBytes)).decode();
+            if (items.isEmpty()) {
+                throw new IllegalArgumentException("Empty CBOR data");
+            }
 
-      Array cborArray = (Array) dataItem;
-      int arraySize = cborArray.getDataItems().size();
+            DataItem dataItem = items.get(0);
+            if (!(dataItem instanceof Array)) {
+                throw new IllegalArgumentException("Expected CBOR array, got " + dataItem.getClass().getSimpleName());
+            }
 
-      // Determine node type based on array size
-      if (arraySize == 17) {
-        return BranchNode.decode(cborArray);
-      } else if (arraySize == 2) {
-        // Analyze HP encoding to distinguish leaf from extension
-        byte[] hpBytes = ((ByteString) cborArray.getDataItems().get(0)).getBytes();
-        Nibbles.HP hpInfo = Nibbles.unpackHP(hpBytes);
-        return hpInfo.isLeaf ? LeafNode.decode(cborArray) : ExtensionNode.decode(cborArray);
-      } else {
-        throw new IllegalArgumentException(
-          "Invalid node array size: " + arraySize + ". Expected 2 (leaf/extension) or 17 (branch)");
-      }
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to decode CBOR node data", e);
+            Array cborArray = (Array) dataItem;
+            int arraySize = cborArray.getDataItems().size();
+
+            // Determine node type based on array size
+            if (arraySize == 17) {
+                return BranchNode.decode(cborArray);
+            } else if (arraySize == 2) {
+                // Analyze HP encoding to distinguish leaf from extension
+                byte[] hpBytes = ((ByteString) cborArray.getDataItems().get(0)).getBytes();
+                Nibbles.HP hpInfo = Nibbles.unpackHP(hpBytes);
+                return hpInfo.isLeaf ? LeafNode.decode(cborArray) : ExtensionNode.decode(cborArray);
+            } else {
+                throw new IllegalArgumentException(
+                        "Invalid node array size: " + arraySize + ". Expected 2 (leaf/extension) or 17 (branch)");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to decode CBOR node data", e);
+        }
     }
-  }
 }

@@ -58,7 +58,7 @@ final class SmtPersistence {
      * @param node the SMT node to persist, must not be null
      * @return the hash of the persisted node
      * @throws NullPointerException if node is null
-     * @throws RuntimeException if encoding or storage fails
+     * @throws RuntimeException     if encoding or storage fails
      */
     NodeHash persist(SmtNode node) {
         Objects.requireNonNull(node, "node");
@@ -78,7 +78,7 @@ final class SmtPersistence {
      * @param hash the hash of the node to load, must not be null
      * @return the decoded SMT node instance, or null if not found
      * @throws NullPointerException if hash is null
-     * @throws RuntimeException if decoding fails
+     * @throws RuntimeException     if decoding fails
      */
     SmtNode load(NodeHash hash) {
         Objects.requireNonNull(hash, "hash");

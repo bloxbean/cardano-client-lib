@@ -25,21 +25,21 @@
  * // Option 1: Use unified manager (recommended)
  * try (RocksDbStateTrees stateTrees = new RocksDbStateTrees("/path/to/db")) {
  *     MerklePatriciaTrie trie = new MerklePatriciaTrie(
- *         stateTrees.nodeStore(), 
+ *         stateTrees.nodeStore(),
  *         Blake2b256::digest
  *     );
- *     
+ *
  *     // Perform operations
  *     trie.put("key".getBytes(), "value".getBytes());
- *     
+ *
  *     // Store versioned root
  *     stateTrees.rootsIndex().put(blockHeight, trie.getRootHash());
  * }
- * 
+ *
  * // Option 2: Use components separately
  * try (RocksDbNodeStore nodeStore = new RocksDbNodeStore("/path/to/nodes");
  *      RocksDbRootsIndex rootsIndex = new RocksDbRootsIndex("/path/to/roots")) {
- *     
+ *
  *     MerklePatriciaTrie trie = new MerklePatriciaTrie(nodeStore, Blake2b256::digest);
  *     // ... operations
  * }

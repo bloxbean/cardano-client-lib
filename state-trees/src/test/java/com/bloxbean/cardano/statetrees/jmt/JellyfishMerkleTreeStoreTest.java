@@ -17,35 +17,35 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class JellyfishMerkleTreeStoreTest {
 
-  private static final HashFunction HASH = Blake2b256::digest;
-  private static final CommitmentScheme COMMITMENTS = new MpfCommitmentScheme(HASH);
+    private static final HashFunction HASH = Blake2b256::digest;
+    private static final CommitmentScheme COMMITMENTS = new MpfCommitmentScheme(HASH);
 
-  @Test
-  void commitPersistAndProofs() {
-    JmtStore backend = new InMemoryJmtStore();
-    JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(backend, COMMITMENTS, HASH);
+    @Test
+    void commitPersistAndProofs() {
+        JmtStore backend = new InMemoryJmtStore();
+        JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(backend, COMMITMENTS, HASH);
 
-    Map<byte[], byte[]> updates = new LinkedHashMap<>();
-    updates.put(bytes("alice"), bytes("100"));
-    updates.put(bytes("bob"), bytes("200"));
-    JellyfishMerkleTree.CommitResult r1 = tree.commit(1, updates);
+        Map<byte[], byte[]> updates = new LinkedHashMap<>();
+        updates.put(bytes("alice"), bytes("100"));
+        updates.put(bytes("bob"), bytes("200"));
+        JellyfishMerkleTree.CommitResult r1 = tree.commit(1, updates);
 
-    assertArrayEquals(r1.rootHash(), tree.rootHash(1));
-    assertArrayEquals(bytes("100"), tree.get(bytes("alice")));
+        assertArrayEquals(r1.rootHash(), tree.rootHash(1));
+        assertArrayEquals(bytes("100"), tree.get(bytes("alice")));
 
-    byte[] root = tree.rootHash(1);
-    Optional<JmtProof> inclusion = tree.getProof(bytes("alice"), 1);
-    assertTrue(inclusion.isPresent());
-    assertTrue(JmtProofVerifier.verify(root, bytes("alice"), bytes("100"), inclusion.get(), HASH, COMMITMENTS));
+        byte[] root = tree.rootHash(1);
+        Optional<JmtProof> inclusion = tree.getProof(bytes("alice"), 1);
+        assertTrue(inclusion.isPresent());
+        assertTrue(JmtProofVerifier.verify(root, bytes("alice"), bytes("100"), inclusion.get(), HASH, COMMITMENTS));
 
-    Map<byte[], byte[]> del = new LinkedHashMap<>();
-    del.put(bytes("bob"), null);
-    JellyfishMerkleTree.CommitResult r2 = tree.commit(2, del);
-    assertNull(tree.get(bytes("bob")));
-  }
+        Map<byte[], byte[]> del = new LinkedHashMap<>();
+        del.put(bytes("bob"), null);
+        JellyfishMerkleTree.CommitResult r2 = tree.commit(2, del);
+        assertNull(tree.get(bytes("bob")));
+    }
 
-  private static byte[] bytes(String value) {
-    return value.getBytes(StandardCharsets.UTF_8);
-  }
+    private static byte[] bytes(String value) {
+        return value.getBytes(StandardCharsets.UTF_8);
+    }
 }
 

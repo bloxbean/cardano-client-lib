@@ -56,7 +56,7 @@ abstract class SmtNode {
      * without casting and provides compile-time safety. Each concrete node type
      * implements this method to call the appropriate visitor method.</p>
      *
-     * @param <T> the return type of the visitor operation
+     * @param <T>     the return type of the visitor operation
      * @param visitor the visitor to accept
      * @return the result of the visitor operation
      */

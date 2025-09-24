@@ -34,27 +34,27 @@ package com.bloxbean.cardano.statetrees.mpt;
  */
 public interface NodeVisitor<T> {
 
-  /**
-   * Visits a leaf node and performs the specific operation.
-   *
-   * @param node the leaf node to visit
-   * @return the result of the operation
-   */
-  T visitLeaf(LeafNode node);
+    /**
+     * Visits a leaf node and performs the specific operation.
+     *
+     * @param node the leaf node to visit
+     * @return the result of the operation
+     */
+    T visitLeaf(LeafNode node);
 
-  /**
-   * Visits a branch node and performs the specific operation.
-   *
-   * @param node the branch node to visit
-   * @return the result of the operation
-   */
-  T visitBranch(BranchNode node);
+    /**
+     * Visits a branch node and performs the specific operation.
+     *
+     * @param node the branch node to visit
+     * @return the result of the operation
+     */
+    T visitBranch(BranchNode node);
 
-  /**
-   * Visits an extension node and performs the specific operation.
-   *
-   * @param node the extension node to visit
-   * @return the result of the operation
-   */
-  T visitExtension(ExtensionNode node);
+    /**
+     * Visits an extension node and performs the specific operation.
+     *
+     * @param node the extension node to visit
+     * @return the result of the operation
+     */
+    T visitExtension(ExtensionNode node);
 }
