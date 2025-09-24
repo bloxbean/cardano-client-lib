@@ -403,3 +403,38 @@ Contributions are welcome! Please:
 4. Consider performance implications of changes
 
 For questions or support, please refer to the main project documentation or open an issue in the project repository.
+
+### MPT Batched Writes (Session Helper)
+
+For a JMT-like ergonomics (single batch + write options in one place), use
+`com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbMptSession`:
+
+```
+import static java.nio.charset.StandardCharsets.UTF_8;
+import com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie;
+import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
+import com.bloxbean.cardano.statetrees.rocksdb.RocksDbNodeStore;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbMptSession;
+
+try (RocksDbNodeStore nodeStore = new RocksDbNodeStore("/path/mpt-db")) {
+  MerklePatriciaTrie trie = new MerklePatriciaTrie(nodeStore, Blake2b256::digest);
+
+  // Optional: disable WAL for throughput benchmarking (unsafe for durability)
+  RocksDbMptSession.Options opts = RocksDbMptSession.Options.builder()
+      .disableWal(true)
+      .build();
+
+  try (RocksDbMptSession session = RocksDbMptSession.of(nodeStore, opts)) {
+    session.write(() -> {
+      trie.put("alice".getBytes(UTF_8), "100".getBytes(UTF_8));
+      trie.put("bob".getBytes(UTF_8),   "200".getBytes(UTF_8));
+      trie.delete("carol".getBytes(UTF_8));
+      return null;
+    });
+  }
+}
+```
+
+This keeps RocksDB-specific knobs (like WAL) in the RocksDB adapter, while the MPT API stays
+platform-agnostic — similar to how `RocksDbJmtStore.Options` configures JMT batches.
+

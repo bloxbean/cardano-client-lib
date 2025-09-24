@@ -102,8 +102,8 @@ public final class MptLoadTester {
             if (stateTrees != null) {
                 try (org.rocksdb.WriteBatch wb = new org.rocksdb.WriteBatch();
                      org.rocksdb.WriteOptions wo = new org.rocksdb.WriteOptions()) {
-                    // For stress/throughput tests you may disable WAL (uncomment). Keep WAL for durability.
-                    // wo.setDisableWAL(true);
+                    // Optionally disable WAL for stress tests (unsafe for durability)
+                    if (options.noWal) wo.setDisableWAL(true);
                     ((RocksDbNodeStore) stateTrees.nodeStore()).withBatch(wb, () -> {
                         for (Map.Entry<byte[], byte[]> e : updates.entrySet()) {
                             byte[] key = e.getKey();
@@ -269,6 +269,7 @@ public final class MptLoadTester {
         final int keepLatest;
         final long gcInterval; // batches between GC runs (mark-sweep)
         final long refcountEvery; // batches between refcount increments
+        final boolean noWal; // disable WAL for throughput tests
 
         private LoadOptions(long totalRecords,
                             int batchSize,
@@ -283,7 +284,8 @@ public final class MptLoadTester {
                             String gcMode,
                             int keepLatest,
                             long gcInterval,
-                            long refcountEvery) {
+                            long refcountEvery,
+                            boolean noWal) {
             this.totalRecords = totalRecords;
             this.batchSize = batchSize;
             this.valueSize = valueSize;
@@ -298,6 +300,7 @@ public final class MptLoadTester {
             this.keepLatest = keepLatest;
             this.gcInterval = gcInterval;
             this.refcountEvery = refcountEvery;
+            this.noWal = noWal;
         }
 
         static LoadOptions parse(String[] args) {
@@ -315,6 +318,7 @@ public final class MptLoadTester {
             int keepLatest = 1;
             long gcInterval = 0L;
             long refcountEvery = 1L;
+            boolean noWal = false;
 
             for (String arg : args) {
                 if (arg.startsWith("--records=")) {
@@ -347,6 +351,8 @@ public final class MptLoadTester {
                     gcInterval = Long.parseLong(arg.substring("--gc-interval=".length()));
                 } else if (arg.startsWith("--refcount-every=")) {
                     refcountEvery = Long.parseLong(arg.substring("--refcount-every=".length()));
+                } else if (arg.equals("--no-wal")) {
+                    noWal = true;
                 } else if (arg.equals("--help") || arg.equals("-h")) {
                     printUsageAndExit();
                 }
@@ -356,7 +362,7 @@ public final class MptLoadTester {
             if (deleteRatio < 0.0d || deleteRatio > 1.0d) throw new IllegalArgumentException("--delete-ratio must be between 0.0 and 1.0");
 
             return new LoadOptions(records, batch, valueSize, inMemory, rocksPath, progress, proofEvery, deleteRatio, secure, recordRoots,
-                    gcMode, keepLatest, gcInterval, refcountEvery);
+                    gcMode, keepLatest, gcInterval, refcountEvery, noWal);
         }
 
         private static void printUsageAndExit() {
@@ -376,6 +382,7 @@ public final class MptLoadTester {
                     "  --progress=N       Progress interval (default 100_000 ops)\n" +
                     "  --proof-every=N    Build value+proof every N batches\n" +
                     "  --delete-ratio=F   Fraction of deletes per batch (0-1)\n" +
+                    "  --no-wal           Disable WAL for faster ingest (unsafe)\n" +
                     "  --help             Show this message and exit");
             System.exit(0);
         }

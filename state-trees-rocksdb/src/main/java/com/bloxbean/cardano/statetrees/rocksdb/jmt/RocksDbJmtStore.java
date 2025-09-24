@@ -85,11 +85,13 @@ public final class RocksDbJmtStore implements JmtStore {
         private final String namespace;
         private final boolean enableRollbackIndex;
         private final ValuePrunePolicy prunePolicy;
+        private final boolean disableWalForBatches;
 
         private Options(Builder builder) {
             this.namespace = builder.namespace;
             this.enableRollbackIndex = builder.enableRollbackIndex;
             this.prunePolicy = builder.prunePolicy;
+            this.disableWalForBatches = builder.disableWalForBatches;
         }
 
         public static Builder builder() {
@@ -112,10 +114,15 @@ public final class RocksDbJmtStore implements JmtStore {
             return prunePolicy;
         }
 
+        public boolean disableWalForBatches() {
+            return disableWalForBatches;
+        }
+
         public static final class Builder {
             private String namespace;
             private boolean enableRollbackIndex;
             private ValuePrunePolicy prunePolicy = ValuePrunePolicy.SAFE;
+            private boolean disableWalForBatches = false;
 
             public Builder namespace(String namespace) {
                 this.namespace = namespace;
@@ -129,6 +136,12 @@ public final class RocksDbJmtStore implements JmtStore {
 
             public Builder prunePolicy(ValuePrunePolicy prunePolicy) {
                 this.prunePolicy = Objects.requireNonNull(prunePolicy, "prunePolicy");
+                return this;
+            }
+
+            /** Disable WAL in WriteOptions for commit batches (unsafe; for benchmarking only). */
+            public Builder disableWalForBatches(boolean disableWal) {
+                this.disableWalForBatches = disableWal;
                 return this;
             }
 
@@ -781,6 +794,9 @@ public final class RocksDbJmtStore implements JmtStore {
 
         private RocksCommitBatch(long version) {
             this.version = version;
+            if (storeOptions != null && storeOptions.disableWalForBatches()) {
+                this.writeOptions.setDisableWAL(true);
+            }
         }
 
         @Override

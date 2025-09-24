@@ -54,20 +54,31 @@ public final class JmtLoadTester {
         cfg.resultNodeLimit(options.resultNodeLimit);
         JellyfishMerkleTreeStoreConfig config = cfg.build();
 
-        try (JmtStore store = options.inMemory ? new InMemoryJmtStore() : createRocksStore(options.rocksDbPath)) {
+        try (JmtStore store = options.inMemory ? new InMemoryJmtStore() : createRocksStore(options)) {
             JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, commitments, hash,
                     JellyfishMerkleTreeStore.EngineMode.STREAMING, config);
             runLoad(tree, options);
         }
     }
 
-    private static JmtStore createRocksStore(Path path) throws Exception {
-        if (Files.notExists(path)) {
-            Files.createDirectories(path);
+    private static JmtStore createRocksStore(LoadOptions options) throws Exception {
+        if (Files.notExists(options.rocksDbPath)) {
+            Files.createDirectories(options.rocksDbPath);
         }
         try {
             Class<?> clazz = Class.forName("com.bloxbean.cardano.statetrees.rocksdb.jmt.RocksDbJmtStore");
-            return (JmtStore) clazz.getConstructor(String.class).newInstance(path.toString());
+            if (options.noWal) {
+                // Build store Options with WAL disabled
+                Class<?> optsClass = Class.forName("com.bloxbean.cardano.statetrees.rocksdb.jmt.RocksDbJmtStore$Options");
+                Object builder = optsClass.getMethod("builder").invoke(null);
+                builder.getClass().getMethod("disableWalForBatches", boolean.class).invoke(builder, true);
+                Object opts = builder.getClass().getMethod("build").invoke(builder);
+                return (JmtStore) clazz.getMethod("open", String.class, optsClass)
+                        .invoke(null, options.rocksDbPath.toString(), opts);
+            } else {
+                return (JmtStore) clazz.getMethod("open", String.class)
+                        .invoke(null, options.rocksDbPath.toString());
+            }
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException("RocksDbJmtStore not found on classpath. Add the state-trees-rocksdb module.", e);
         }
@@ -215,6 +226,7 @@ public final class JmtLoadTester {
         final long proofEvery;
         final double deleteRatio;
         final Path versionLogPath;
+        final boolean noWal;
 
         private LoadOptions(long totalRecords,
                             int batchSize,
@@ -227,7 +239,8 @@ public final class JmtLoadTester {
                             long progressPeriod,
                             long proofEvery,
                             double deleteRatio,
-                            Path versionLogPath) {
+                            Path versionLogPath,
+                            boolean noWal) {
             this.totalRecords = totalRecords;
             this.batchSize = batchSize;
             this.valueSize = valueSize;
@@ -240,6 +253,7 @@ public final class JmtLoadTester {
             this.proofEvery = proofEvery;
             this.deleteRatio = deleteRatio;
             this.versionLogPath = versionLogPath;
+            this.noWal = noWal;
         }
 
         static LoadOptions parse(String[] args) {
@@ -255,6 +269,7 @@ public final class JmtLoadTester {
             long proofEvery = 0L;
             double deleteRatio = 0.0d;
             Path versionLog = null;
+            boolean noWal = false;
 
             for (String arg : args) {
                 if (arg.startsWith("--records=")) {
@@ -281,6 +296,8 @@ public final class JmtLoadTester {
                     deleteRatio = Double.parseDouble(arg.substring("--delete-ratio=".length()));
                 } else if (arg.startsWith("--version-log=")) {
                     versionLog = Path.of(arg.substring("--version-log=".length()));
+                } else if (arg.equals("--no-wal")) {
+                    noWal = true;
                 } else if (arg.equals("--help") || arg.equals("-h")) {
                     printUsageAndExit();
                 }
@@ -305,7 +322,8 @@ public final class JmtLoadTester {
                     progress,
                     proofEvery,
                     deleteRatio,
-                    versionLog);
+                    versionLog,
+                    noWal);
         }
 
         private static void printUsageAndExit() {
@@ -322,6 +340,7 @@ public final class JmtLoadTester {
                     "  --progress=N          Progress interval (default 100_000 operations)\n" +
                     "  --proof-every=N       Fetch value+proof every N commits\n" +
                     "  --version-log=PATH    Write version/root CSV to PATH\n" +
+                    "  --no-wal              Disable WAL for faster ingest (unsafe)\n" +
                     "  --help                Show this message and exit");
             System.exit(0);
         }
