@@ -383,6 +383,66 @@ See the `src/test/java` directory for comprehensive examples:
 - `RocksDbSharedDbTest`: Shared database scenarios  
 - `RefcountGcIntegrationTest`: Garbage collection workflows
 
+### JMT Load Tester
+
+Drive long-haul ingest and measure throughput, heap usage, and DB growth. Supports time-bound runs,
+mixed workloads, periodic pruning, and durability toggles:
+
+```
+./gradlew :state-trees-rocksdb:com.bloxbean.cardano.statetrees.rocksdb.tools.JmtLoadTester.main \
+  --args="--records=0 --duration=7200 --batch=1000 --value-size=128 --rocksdb=/var/jmt \
+          --node-cache=4096 --value-cache=8192 --mix=60:30:10:0 --prune-interval=10000 \
+          --prune-to=window:100000 --stats-csv=/tmp/jmt-stats.csv --stats-period=10 \
+          --sync-commit=true"
+```
+
+Flags of interest:
+- `--duration=SEC`: time-bound run (use `--records=0` with duration)
+- `--mix=P:U:D:R`: put:update:delete:proof ratios (sum 1.0 or 100)
+- `--prune-interval=N`, `--prune-to=V|window:W`: periodic pruning
+- `--stats-csv=PATH`, `--stats-period=SEC`: periodic CSV stats
+- `--no-wal`, `--sync-commit=BOOL`: durability vs throughput (unsafe when `--no-wal`)
+
+CSV columns: `ts_iso,processed_ops,ops_per_sec,deletes_total,proofs_total,latest_version,heap_mb,db_size_mb,wal_disabled,sync_commit`.
+
+To visualize stats quickly (optional):
+
+```
+python3 state-trees-rocksdb/tools/jmt_stats_plot.py /tmp/jmt-stats.csv
+```
+
+This requires matplotlib (`pip install matplotlib`). It shows ops/s, heap/db MB, and compaction indicators over time.
+
+#### Soak Recipes
+
+- 2h single-run soak with mixed workload, rolling prune window, safe durability:
+
+```
+./gradlew :state-trees-rocksdb:com.bloxbean.cardano.statetrees.rocksdb.tools.JmtLoadTester.main \
+  --args="--records=0 --duration=7200 --batch=1000 --value-size=128 --rocksdb=/var/jmt \
+          --node-cache=4096 --value-cache=8192 --mix=60:30:10:0 --prune-interval=10000 \
+          --prune-to=window:100000 --stats-csv=/tmp/jmt-stats.csv --stats-period=10 \
+          --sync-commit=true"
+```
+
+- Segmented soak (fresh JVM per segment):
+
+```
+state-trees-rocksdb/tools/jmt_soak.sh /var/jmt 6 3600 "--batch=1000 --value-size=128 --mix=60:30:10:0 \
+  --prune-interval=10000 --prune-to=window:100000 --stats-period=10 --sync-commit=true"
+```
+
+#### Safe vs Fast Defaults (Summary)
+
+| Goal                   | WAL           | syncOnCommit | syncOnPrune/Truncate | Caches                 | Expected                           |
+|------------------------|---------------|--------------|----------------------|------------------------|-------------------------------------|
+| Safe (production)      | Enabled       | true         | true                 | Node+Value as needed   | Durable commits; steady throughput |
+| Fast (benchmark only)  | Disabled      | false        | true/false           | Node+Value sized up    | Higher ingest; crash can lose data |
+
+Notes:
+- Disabling WAL and sync is unsafe; use on disposable data only.
+- Keep prune/truncate synced in production environments.
+
 ## Dependencies
 
 - **RocksDB**: `org.rocksdb:rocksdbjni:8.8.1+`
@@ -437,4 +497,3 @@ try (RocksDbNodeStore nodeStore = new RocksDbNodeStore("/path/mpt-db")) {
 
 This keeps RocksDB-specific knobs (like WAL) in the RocksDB adapter, while the MPT API stays
 platform-agnostic — similar to how `RocksDbJmtStore.Options` configures JMT batches.
-

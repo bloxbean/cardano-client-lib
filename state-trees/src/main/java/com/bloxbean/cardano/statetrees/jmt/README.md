@@ -126,6 +126,20 @@ queries at retained versions continue to work. `AGGRESSIVE` removes all value pa
 cut-off to minimise disk usage. Tombstones are preserved so reads at versions where the key was deleted
 return empty until it is reinserted.
 
+### Durability vs throughput
+
+For benchmarking, you can disable WAL on commit batches:
+
+```java
+RocksDbJmtStore.Options fastIngest = RocksDbJmtStore.Options.builder()
+        .disableWalForBatches(true)   // UNSAFE: do not use in production
+        .syncOnCommit(false)          // skip fsync for commit batches
+        .build();
+```
+
+In production, prefer the safer defaults (`syncOnCommit=true`, WAL enabled). The load tester supports
+`--no-wal` and `--sync-commit=BOOL` flags to experiment with these trade-offs.
+
 ## Rollback & Truncation
 
 Enable rollback indices in the store options when you need to truncate history (for example, to mirror
@@ -254,3 +268,76 @@ shipping to production.
 - ADR-0004 (`state-trees/docs/adr/ADR-0004-jmt-mode.md`) for full design context.
 - `state-trees-rocksdb/src/test/.../RocksDbJmtStoreTest` for persistence examples.
 - `state-trees/src/test/.../mpf/MpfProofSerializerTest` for proof generation and verification patterns.
+## Production Operations
+
+- Single-writer policy: use one writer thread/process for commits; multiple readers are safe. This avoids lock contention and simplifies ordering guarantees (see concurrency tests).
+- Durability vs throughput:
+  - Safe defaults: WAL on, `syncOnCommit=true`, `syncOnPrune=true`, `syncOnTruncate=true`.
+  - Benchmarking only: `disableWalForBatches(true)` and `syncOnCommit(false)` to maximise ingest. Risk of data loss on crash.
+- Pruning strategy:
+  - Periodic prune on a moving window (e.g., keep last 100k versions). Use the load tester’s `--prune-interval` and `--prune-to=window:W` to model policies.
+  - Value pruning policy in RocksDbJmtStore: SAFE keeps the most recent ≤ target per key; AGGRESSIVE removes all payloads to minimise disk.
+- RocksDB tuning guidelines (starting points):
+  - Increase write buffers/memtables for sustained ingest; ensure enough background compaction threads.
+  - Use LZ4 compression for a balance of speed and space in most environments.
+  - Monitor compaction pressure using the load tester CSV: pending_compaction_mb, running_compactions, running_flushes, and memtable sizes.
+
+### Metrics (Micrometer Adapter)
+
+Integrate metrics via a no-dependency adapter that reflects into Micrometer at runtime:
+
+```java
+import com.bloxbean.cardano.statetrees.jmt.metrics.JmtMicrometerAdapter;
+import com.bloxbean.cardano.statetrees.jmt.JmtMetrics;
+
+Object registry = io.micrometer.core.instrument.Metrics.globalRegistry; // or your MeterRegistry
+JmtMetrics metrics = JmtMicrometerAdapter.create(registry, "jmt");
+JellyfishMerkleTreeStoreConfig cfg = JellyfishMerkleTreeStoreConfig.builder()
+        .metrics(metrics)
+        .enableNodeCache(true).nodeCacheSize(8192)
+        .enableValueCache(true).valueCacheSize(8192)
+        .build();
+```
+
+Emitted metric names (prefix configurable, default `jmt`):
+- Counters: `jmt.node.cache.hit`, `jmt.node.cache.miss`, `jmt.value.cache.hit`, `jmt.value.cache.miss`,
+  `jmt.commit.count`, `jmt.commit.puts`, `jmt.commit.deletes`, `jmt.prune.count`, `jmt.prune.nodes`, `jmt.prune.cacheEvicted`
+- Timers: `jmt.commit.latency`, `jmt.prune.latency`
+
+## Soak Recipes
+
+Long-haul ingest and measurement using the RocksDB-backed tester.
+
+- Time-bound single process (2h), mixed workload, rolling prune window, safe durability:
+
+```
+./gradlew :state-trees-rocksdb:com.bloxbean.cardano.statetrees.rocksdb.tools.JmtLoadTester.main \
+  --args="--records=0 --duration=7200 --batch=1000 --value-size=128 --rocksdb=/var/jmt \
+          --node-cache=4096 --value-cache=8192 --mix=60:30:10:0 --prune-interval=10000 \
+          --prune-to=window:100000 --stats-csv=/tmp/jmt-stats.csv --stats-period=10 \
+          --sync-commit=true"
+```
+
+- Segmented soak (6x 1h) with fresh JVMs each segment; see per-segment CSVs in `/tmp`:
+
+```
+state-trees-rocksdb/tools/jmt_soak.sh /var/jmt 6 3600 "--batch=1000 --value-size=128 --mix=60:30:10:0 \
+  --prune-interval=10000 --prune-to=window:100000 --stats-period=10 --sync-commit=true"
+```
+
+Use the plotting helper to visualize ops/s, heap/db MB and compaction:
+
+```
+python3 state-trees-rocksdb/tools/jmt_stats_plot.py /tmp/jmt-stats.csv
+```
+
+## Safe vs Fast Defaults (Summary)
+
+| Goal                   | WAL           | syncOnCommit | syncOnPrune/Truncate | Caches                 | Expected                           |
+|------------------------|---------------|--------------|----------------------|------------------------|-------------------------------------|
+| Safe (production)      | Enabled       | true         | true                 | Node+Value as needed   | Durable commits; steady throughput |
+| Fast (benchmark only)  | Disabled      | false        | true/false           | Node+Value sized up    | Higher ingest; crash can lose data |
+
+Notes:
+- Disabling WAL and sync is unsafe; use only for stress testing on disposable data.
+- Keep prune ops synced in production. For pure benchmarking, you may set syncOnPrune=false.

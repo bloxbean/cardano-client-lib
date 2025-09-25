@@ -1,7 +1,5 @@
 package com.bloxbean.cardano.statetrees.jmt;
 
-import java.util.Objects;
-
 /**
  * Tunable knobs for {@link JellyfishMerkleTreeStore} behaviour.
  */
@@ -13,6 +11,7 @@ public final class JellyfishMerkleTreeStoreConfig {
     private final int valueCacheSize;
     private final int resultNodeLimit;
     private final int resultStaleLimit;
+    private final JmtMetrics metrics;
 
     private JellyfishMerkleTreeStoreConfig(Builder builder) {
         this.nodeCacheEnabled = builder.nodeCacheEnabled;
@@ -21,6 +20,7 @@ public final class JellyfishMerkleTreeStoreConfig {
         this.valueCacheSize = builder.valueCacheSize;
         this.resultNodeLimit = builder.resultNodeLimit;
         this.resultStaleLimit = builder.resultStaleLimit;
+        this.metrics = builder.metrics == null ? JmtMetrics.NOOP : builder.metrics;
     }
 
     public static Builder builder() {
@@ -55,6 +55,8 @@ public final class JellyfishMerkleTreeStoreConfig {
         return resultStaleLimit;
     }
 
+    public JmtMetrics metrics() { return metrics; }
+
     public static final class Builder {
         private boolean nodeCacheEnabled;
         private int nodeCacheSize = 0;
@@ -62,6 +64,7 @@ public final class JellyfishMerkleTreeStoreConfig {
         private int valueCacheSize = 0;
         private int resultNodeLimit = Integer.MAX_VALUE;
         private int resultStaleLimit = Integer.MAX_VALUE;
+        private JmtMetrics metrics = null;
 
         private Builder() {
         }
@@ -107,6 +110,12 @@ public final class JellyfishMerkleTreeStoreConfig {
         public Builder resultStaleLimit(int limit) {
             if (limit < 0) throw new IllegalArgumentException("resultStaleLimit must be >= 0");
             this.resultStaleLimit = limit;
+            return this;
+        }
+
+        /** Supply a metrics sink. Defaults to a no-op if not provided. */
+        public Builder metrics(JmtMetrics metrics) {
+            this.metrics = metrics;
             return this;
         }
 

@@ -244,6 +244,7 @@ public final class JellyfishMerkleTreeStore {
         private final HashFunction hashFn;
 
         private final JellyfishMerkleTreeStoreConfig config;
+        private final JmtMetrics metrics;
         private final NodeCache nodeCache;
         private final NegativeNodeCache negativeNodeCache;
         private final ValueCache valueCache;
@@ -253,6 +254,7 @@ public final class JellyfishMerkleTreeStore {
             this.commitments = commitments;
             this.hashFn = hashFn;
             this.config = Objects.requireNonNull(config, "config");
+            this.metrics = this.config.metrics();
             this.nodeCache = config.nodeCacheEnabled() ? new NodeCache(config.nodeCacheSize()) : null;
             this.negativeNodeCache = config.nodeCacheEnabled() ? new NegativeNodeCache(config.nodeCacheSize()) : null;
             this.valueCache = config.valueCacheEnabled() ? new ValueCache(config.valueCacheSize()) : null;
@@ -310,8 +312,14 @@ public final class JellyfishMerkleTreeStore {
             }
 
             try (JmtStore.CommitBatch batch = store.beginCommit(version, JmtStore.CommitConfig.defaults())) {
+                long t0 = System.currentTimeMillis();
                 working.flush(batch);
-                return working.commitResult();
+                JellyfishMerkleTree.CommitResult res = working.commitResult();
+                long elapsed = System.currentTimeMillis() - t0;
+                int puts = res.nodes().size() + (int) res.valueOperations().stream().filter(op -> op.type() == JellyfishMerkleTree.CommitResult.ValueOperation.Type.PUT).count();
+                int dels = (int) res.valueOperations().stream().filter(op -> op.type() == JellyfishMerkleTree.CommitResult.ValueOperation.Type.DELETE).count() + res.staleNodes().size();
+                metrics.recordCommit(elapsed, puts, dels);
+                return res;
             } catch (RuntimeException e) {
                 throw e;
             } catch (Exception e) {
@@ -339,6 +347,7 @@ public final class JellyfishMerkleTreeStore {
                 return null;
             }
             Optional<byte[]> cached = cachedValue(keyHash, version);
+            metrics.valueCacheHit(cached.isPresent());
             if (cached.isPresent()) {
                 return cached.get().clone();
             }
@@ -519,6 +528,7 @@ public final class JellyfishMerkleTreeStore {
             }
             NodeAddress address = new NodeAddress(path, version);
             java.util.Optional<JmtStore.NodeEntry> cached = cachedNode(address);
+            metrics.nodeCacheHit(cached.isPresent());
             if (cached.isPresent()) {
                 return cached;
             }

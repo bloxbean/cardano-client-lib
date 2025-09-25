@@ -81,17 +81,54 @@ public final class RocksDbJmtStore implements JmtStore {
 
     public enum ValuePrunePolicy {SAFE, AGGRESSIVE}
 
+    /** Snapshot of selected RocksDB DB-wide properties for observability. */
+    public static final class DbProperties {
+        private final long pendingCompactionBytes;
+        private final int runningCompactions;
+        private final int runningFlushes;
+        private final long curSizeActiveMemTable;
+        private final long curSizeAllMemTables;
+        private final long numImmutableMemTables;
+
+        public DbProperties(long pendingCompactionBytes,
+                            int runningCompactions,
+                            int runningFlushes,
+                            long curSizeActiveMemTable,
+                            long curSizeAllMemTables,
+                            long numImmutableMemTables) {
+            this.pendingCompactionBytes = pendingCompactionBytes;
+            this.runningCompactions = runningCompactions;
+            this.runningFlushes = runningFlushes;
+            this.curSizeActiveMemTable = curSizeActiveMemTable;
+            this.curSizeAllMemTables = curSizeAllMemTables;
+            this.numImmutableMemTables = numImmutableMemTables;
+        }
+
+        public long pendingCompactionBytes() { return pendingCompactionBytes; }
+        public int runningCompactions() { return runningCompactions; }
+        public int runningFlushes() { return runningFlushes; }
+        public long curSizeActiveMemTable() { return curSizeActiveMemTable; }
+        public long curSizeAllMemTables() { return curSizeAllMemTables; }
+        public long numImmutableMemTables() { return numImmutableMemTables; }
+    }
+
     public static final class Options {
         private final String namespace;
         private final boolean enableRollbackIndex;
         private final ValuePrunePolicy prunePolicy;
         private final boolean disableWalForBatches;
+        private final boolean syncOnCommit;
+        private final boolean syncOnPrune;
+        private final boolean syncOnTruncate;
 
         private Options(Builder builder) {
             this.namespace = builder.namespace;
             this.enableRollbackIndex = builder.enableRollbackIndex;
             this.prunePolicy = builder.prunePolicy;
             this.disableWalForBatches = builder.disableWalForBatches;
+            this.syncOnCommit = builder.syncOnCommit;
+            this.syncOnPrune = builder.syncOnPrune;
+            this.syncOnTruncate = builder.syncOnTruncate;
         }
 
         public static Builder builder() {
@@ -118,11 +155,29 @@ public final class RocksDbJmtStore implements JmtStore {
             return disableWalForBatches;
         }
 
+        /** If true, set WriteOptions.sync(true) when flushing commit batches. */
+        public boolean syncOnCommit() {
+            return syncOnCommit;
+        }
+
+        /** If true, set WriteOptions.sync(true) for prune writes. */
+        public boolean syncOnPrune() {
+            return syncOnPrune;
+        }
+
+        /** If true, set WriteOptions.sync(true) for truncate writes. */
+        public boolean syncOnTruncate() {
+            return syncOnTruncate;
+        }
+
         public static final class Builder {
             private String namespace;
             private boolean enableRollbackIndex;
             private ValuePrunePolicy prunePolicy = ValuePrunePolicy.SAFE;
             private boolean disableWalForBatches = false;
+            private boolean syncOnCommit = true;
+            private boolean syncOnPrune = true;
+            private boolean syncOnTruncate = true;
 
             public Builder namespace(String namespace) {
                 this.namespace = namespace;
@@ -142,6 +197,24 @@ public final class RocksDbJmtStore implements JmtStore {
             /** Disable WAL in WriteOptions for commit batches (unsafe; for benchmarking only). */
             public Builder disableWalForBatches(boolean disableWal) {
                 this.disableWalForBatches = disableWal;
+                return this;
+            }
+
+            /** Enable/disable WriteOptions.sync for commit batches (default true for durability). */
+            public Builder syncOnCommit(boolean sync) {
+                this.syncOnCommit = sync;
+                return this;
+            }
+
+            /** Enable/disable WriteOptions.sync for prune operations (default true for durability). */
+            public Builder syncOnPrune(boolean sync) {
+                this.syncOnPrune = sync;
+                return this;
+            }
+
+            /** Enable/disable WriteOptions.sync for truncate operations (default true for durability). */
+            public Builder syncOnTruncate(boolean sync) {
+                this.syncOnTruncate = sync;
                 return this;
             }
 
@@ -296,6 +369,9 @@ public final class RocksDbJmtStore implements JmtStore {
              WriteOptions writeOptions = new WriteOptions();
              ReadOptions readOptions = new ReadOptions().setTotalOrderSeek(true);
              RocksIterator iterator = db.newIterator(cfValues, readOptions)) {
+            if (storeOptions != null && storeOptions.syncOnPrune()) {
+                writeOptions.setSync(true);
+            }
             byte[] currentKeyHash = null;
             java.util.List<byte[]> deletions = new java.util.ArrayList<>();
             byte[] sentinel = null;
@@ -638,6 +714,9 @@ public final class RocksDbJmtStore implements JmtStore {
              WriteOptions writeOptions = new WriteOptions();
              ReadOptions readOptions = new ReadOptions();
              RocksIterator iterator = db.newIterator(cfStale, readOptions)) {
+            if (storeOptions != null && storeOptions.syncOnPrune()) {
+                writeOptions.setSync(true);
+            }
             for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
                 byte[] key = iterator.key();
                 long staleSince = ByteBuffer.wrap(key, 0, 8).getLong();
@@ -670,6 +749,9 @@ public final class RocksDbJmtStore implements JmtStore {
         }
         try (WriteBatch batch = new WriteBatch();
              WriteOptions writeOptions = new WriteOptions()) {
+            if (storeOptions != null && storeOptions.syncOnTruncate()) {
+                writeOptions.setSync(true);
+            }
 
             // Roots
             try (RocksIterator iterator = db.newIterator(cfRoots)) {
@@ -760,6 +842,36 @@ public final class RocksDbJmtStore implements JmtStore {
         }
     }
 
+    /**
+     * Returns a snapshot of selected RocksDB properties useful for monitoring compaction/flush pressure.
+     * Values default to 0 if a property is unavailable.
+     */
+    public DbProperties sampleDbProperties() {
+        try {
+            long pending = parseLong(db.getProperty("rocksdb.estimate-pending-compaction-bytes"));
+            int runningComp = (int) parseLong(db.getProperty("rocksdb.num-running-compactions"));
+            int runningFlush = (int) parseLong(db.getProperty("rocksdb.num-running-flushes"));
+            long activeMem = parseLong(db.getProperty("rocksdb.cur-size-active-mem-table"));
+            long allMem = parseLong(db.getProperty("rocksdb.cur-size-all-mem-tables"));
+            long imm = parseLong(db.getProperty("rocksdb.num-immutable-mem-table"));
+            return new DbProperties(pending, runningComp, runningFlush, activeMem, allMem, imm);
+        } catch (Exception e) {
+            return new DbProperties(0, 0, 0, 0, 0, 0);
+        }
+    }
+
+    private static long parseLong(String s) {
+        if (s == null) return 0L;
+        try {
+            return Long.parseLong(s.trim());
+        } catch (NumberFormatException e) {
+            // Some builds return key=value style; attempt to strip non-digits
+            String digits = s.replaceAll("[^0-9]", "");
+            if (digits.isEmpty()) return 0L;
+            try { return Long.parseLong(digits); } catch (NumberFormatException ex) { return 0L; }
+        }
+    }
+
     private int comparePath(NibblePath a, NibblePath b) {
         int[] an = a.getNibbles();
         int[] bn = b.getNibbles();
@@ -796,6 +908,9 @@ public final class RocksDbJmtStore implements JmtStore {
             this.version = version;
             if (storeOptions != null && storeOptions.disableWalForBatches()) {
                 this.writeOptions.setDisableWAL(true);
+            }
+            if (storeOptions != null && storeOptions.syncOnCommit()) {
+                this.writeOptions.setSync(true);
             }
         }
 
