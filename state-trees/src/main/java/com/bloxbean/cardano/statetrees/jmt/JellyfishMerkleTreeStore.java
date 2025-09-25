@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.statetrees.jmt;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
+import com.bloxbean.cardano.statetrees.common.NibblePath;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
 import com.bloxbean.cardano.statetrees.jmt.mode.JmtMode;
@@ -761,8 +762,10 @@ public final class JellyfishMerkleTreeStore {
             }
 
             void flush(JmtStore.CommitBatch batch) {
-                for (NodeWrite write : pendingNodes) {
-                    batch.putNode(write.key, write.node);
+                // Persist only the final staged nodes to avoid writing
+                // nodes that were later collapsed or superseded.
+                for (java.util.Map.Entry<NibblePath, JmtStore.NodeEntry> e : stagedNodes.entrySet()) {
+                    batch.putNode(e.getValue().nodeKey(), e.getValue().node());
                 }
                 pendingNodes.clear();
 
@@ -882,7 +885,10 @@ public final class JellyfishMerkleTreeStore {
                                     byte[] valueHash) {
                 recordStale(existingLeafEntry.nodeKey());
 
-                byte[] leafHash = commitments.commitLeaf(fullPath.slice(traversal.depth, fullPath.length()), valueHash);
+                // Use the number of traversed internal frames as the prefix length
+                // to compute the leaf suffix, matching the reference implementation.
+                int prefixLen = traversal.frames.size();
+                byte[] leafHash = commitments.commitLeaf(fullPath.slice(prefixLen, fullPath.length()), valueHash);
                 JmtLeafNode newLeaf = JmtLeafNode.of(keyHash, valueHash);
                 NodeKey leafKey = NodeKey.of(fullPath, newVersion);
                 stagedNodes.put(fullPath, new JmtStore.NodeEntry(leafKey, newLeaf));
@@ -973,6 +979,30 @@ public final class JellyfishMerkleTreeStore {
                         }
                         stagedNodes.remove(prefix);
                         childHash = null;
+                        continue;
+                    }
+
+                    if (childCount == 1) {
+                        // Collapse unary branch: do not persist an internal node at this prefix.
+                        // Propagate the sole child's digest upward so the parent directly
+                        // references the leaf/subtree, matching the reference implementation.
+                        if (existingKey != null) {
+                            // Mark any previously persisted node at this prefix as stale.
+                            if (existingKey.version() != newVersion) {
+                                recordStale(existingKey);
+                            }
+                        }
+                        stagedNodes.remove(prefix);
+
+                        // Find and propagate the only child digest
+                        byte[] onlyChild = null;
+                        for (int c = 0; c < 16; c++) {
+                            if (full[c] != null) {
+                                onlyChild = full[c];
+                                break;
+                            }
+                        }
+                        childHash = onlyChild == null ? null : onlyChild.clone();
                         continue;
                     }
 
