@@ -762,10 +762,8 @@ public final class JellyfishMerkleTreeStore {
             }
 
             void flush(JmtStore.CommitBatch batch) {
-                // Persist only the final staged nodes to avoid writing
-                // nodes that were later collapsed or superseded.
-                for (java.util.Map.Entry<NibblePath, JmtStore.NodeEntry> e : stagedNodes.entrySet()) {
-                    batch.putNode(e.getValue().nodeKey(), e.getValue().node());
+                for (NodeWrite write : pendingNodes) {
+                    batch.putNode(write.key, write.node);
                 }
                 pendingNodes.clear();
 
@@ -1018,6 +1016,8 @@ public final class JellyfishMerkleTreeStore {
                 }
                 return childHash;
             }
+
+            // helper methods removed
 
             private void recordNode(NodeKey nodeKey, JmtNode node) {
                 pendingNodes.add(new NodeWrite(nodeKey, node));
