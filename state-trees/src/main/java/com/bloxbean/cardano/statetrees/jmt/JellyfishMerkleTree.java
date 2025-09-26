@@ -141,6 +141,7 @@ public final class JellyfishMerkleTree {
 
         byte[] keyHash = hashFn.digest(key);
         int[] nibbles = Nibbles.toNibbles(keyHash);
+        NibblePath fullPath = NibblePath.of(nibbles);
         List<JmtProof.BranchStep> steps = new ArrayList<>();
         TreeNode current = snapshot.root;
         int depth = 0;
@@ -200,8 +201,16 @@ public final class JellyfishMerkleTree {
         if (Arrays.equals(leaf.keyHash, keyHash)) {
             ValueRecord record = snapshot.values.get(Bytes.toHex(keyHash));
             byte[] value = record == null ? null : record.value.clone();
-            NibblePath suffix = leaf.fullPath.slice(depth, leaf.fullPath.length());
-            return Optional.of(JmtProof.inclusion(steps, value, leaf.valueHash.clone(), suffix, leaf.keyHash.clone()));
+            // Check if the key actually exists at this version (not deleted)
+            if (value != null) {
+                // Calculate suffix as the untraversed portion of the target key's path
+                // This matches Diem's approach where verification uses the target key's path
+                NibblePath suffix = fullPath.slice(steps.size(), fullPath.length());
+                return Optional.of(JmtProof.inclusion(steps, value, leaf.valueHash.clone(), suffix, leaf.keyHash.clone()));
+            } else {
+                // Key was deleted - treat as non-inclusion (empty position)
+                return Optional.of(JmtProof.nonInclusionEmpty(steps));
+            }
         } else {
             NibblePath suffix = leaf.fullPath.slice(depth, leaf.fullPath.length());
             return Optional.of(JmtProof.nonInclusionDifferentLeaf(steps, leaf.keyHash.clone(), leaf.valueHash.clone(), suffix));

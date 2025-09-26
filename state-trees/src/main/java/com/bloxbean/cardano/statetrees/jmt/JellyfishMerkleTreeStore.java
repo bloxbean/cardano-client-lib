@@ -373,23 +373,15 @@ public final class JellyfishMerkleTreeStore {
             byte[] keyHash = hashFn.digest(key);
             int[] nibbles = com.bloxbean.cardano.statetrees.common.nibbles.Nibbles.toNibbles(keyHash);
             com.bloxbean.cardano.statetrees.common.NibblePath fullPath = com.bloxbean.cardano.statetrees.common.NibblePath.of(nibbles);
+
+            // Check if the key has a value (not deleted) at this version
+            // If the key was deleted (value is null), we treat it as non-existent
+            boolean hasValue = store.getValueAt(keyHash, version).isPresent();
+
             java.util.List<JmtProof.BranchStep> steps = new java.util.ArrayList<>();
             com.bloxbean.cardano.statetrees.common.NibblePath prefix = com.bloxbean.cardano.statetrees.common.NibblePath.EMPTY;
             java.util.Optional<JmtStore.NodeEntry> current = fetchNode(version, prefix);
             if (!current.isPresent()) {
-                java.util.Optional<JmtStore.NodeEntry> leafEntry = fetchNode(version, fullPath);
-                if (leafEntry.isPresent() && leafEntry.get().node() instanceof JmtLeafNode) {
-                    JmtLeafNode leaf = (JmtLeafNode) leafEntry.get().node();
-                    if (java.util.Arrays.equals(leaf.keyHash(), keyHash)) {
-                        byte[] value = store.getValueAt(keyHash, version).orElse(null);
-                        return java.util.Optional.of(JmtProof.inclusion(
-                                java.util.Collections.emptyList(),
-                                value,
-                                leaf.valueHash(),
-                                com.bloxbean.cardano.statetrees.common.NibblePath.EMPTY,
-                                leaf.keyHash()));
-                    }
-                }
                 return java.util.Optional.of(JmtProof.nonInclusionEmpty(java.util.Collections.emptyList()));
             }
 
@@ -407,16 +399,46 @@ public final class JellyfishMerkleTreeStore {
                 if (!hasChild) {
                     return java.util.Optional.of(JmtProof.nonInclusionEmpty(steps));
                 }
-                prefix = append(prefix, nibble);
-                current = fetchNode(version, prefix);
-                depth++;
-                if (!current.isPresent()) {
-                    java.util.Optional<JmtStore.NodeEntry> leafEntry = fetchNode(version, fullPath);
-                    if (leafEntry.isPresent() && leafEntry.get().node() instanceof JmtLeafNode) {
-                        current = leafEntry;
-                        prefix = fullPath;
-                        break;
+
+                // Descend towards target child. If the direct child node is not materialized
+                // at prefix+Nibble (because it may be a leaf deeper down), try to locate any
+                // descendant node under that prefix using floorNode on an upper bound path.
+                com.bloxbean.cardano.statetrees.common.NibblePath childPrefix = append(prefix, nibble);
+                java.util.Optional<JmtStore.NodeEntry> next = fetchNode(version, childPrefix);
+                if (!next.isPresent()) {
+                    // If the target key has a value at this version, try jumping directly to its leaf.
+                    if (hasValue) {
+                        // Walk down along the target key path to find the next materialized node (internal or leaf).
+                        boolean advanced = false;
+                        for (int j = childPrefix.length() + 1; j <= fullPath.length(); j++) {
+                            com.bloxbean.cardano.statetrees.common.NibblePath pfx = fullPath.slice(0, j);
+                            java.util.Optional<JmtStore.NodeEntry> e = fetchNode(version, pfx);
+                            if (e.isPresent()) {
+                                current = e;
+                                prefix = e.get().nodeKey().path();
+                                depth = prefix.length();
+                                advanced = true;
+                                break;
+                            }
+                        }
+                        if (advanced) {
+                            continue;
+                        }
                     }
+                    // Otherwise, find any descendant under this child prefix (e.g., neighbor leaf).
+                    java.util.Optional<JmtStore.NodeEntry> descendant = findDescendant(version, childPrefix);
+                    if (descendant.isPresent()) {
+                        current = descendant;
+                        prefix = descendant.get().nodeKey().path();
+                        depth = prefix.length();
+                        continue;
+                    }
+                    current = java.util.Optional.empty();
+                    break;
+                } else {
+                    prefix = childPrefix;
+                    current = next;
+                    depth++;
                 }
             }
 
@@ -427,23 +449,93 @@ public final class JellyfishMerkleTreeStore {
             JmtLeafNode leaf = (JmtLeafNode) current.get().node();
             if (java.util.Arrays.equals(leaf.keyHash(), keyHash)) {
                 byte[] value = store.getValueAt(keyHash, version).orElse(null);
-                com.bloxbean.cardano.statetrees.common.NibblePath suffix = current.get().nodeKey().path()
-                        .slice(depth, current.get().nodeKey().path().length());
-                return java.util.Optional.of(JmtProof.inclusion(
-                        java.util.Collections.unmodifiableList(steps),
-                        value,
-                        leaf.valueHash(),
-                        suffix,
-                        leaf.keyHash()));
+                // Calculate suffix as the untraversed portion of the target key's path
+                // This matches Diem's approach where verification uses the target key's path
+                com.bloxbean.cardano.statetrees.common.NibblePath suffix = fullPath.slice(steps.size(), fullPath.length());
+                // Check if the key actually exists at this version (not deleted)
+                if (value != null) {
+                    return java.util.Optional.of(JmtProof.inclusion(
+                            java.util.Collections.unmodifiableList(steps),
+                            value,
+                            leaf.valueHash(),
+                            suffix,
+                            leaf.keyHash()));
+                } else {
+                    // Key was deleted - treat as non-inclusion (empty position)
+                    return java.util.Optional.of(JmtProof.nonInclusionEmpty(
+                            java.util.Collections.unmodifiableList(steps)));
+                }
             } else {
                 com.bloxbean.cardano.statetrees.common.NibblePath suffix = current.get().nodeKey().path()
                         .slice(depth, current.get().nodeKey().path().length());
+                // For MPF wire compatibility, append a terminal LEAF step that supplies the
+                // conflicting leaf's key/value hashes. The LEAF step's 'skip' is relative to the
+                // current cursor (i.e., number of nibbles already consumed by earlier steps), so
+                // compute it from the common prefix length between the query key and the conflicting key.
+                // For the terminal LEAF step we must set prefix length to the absolute common prefix
+                // length between the query key and the conflicting leaf key. MpfProofSerializer will
+                // derive the relative skip as (absPrefixLen - cursor).
+                int[] keyNibbles = com.bloxbean.cardano.statetrees.common.nibbles.Nibbles.toNibbles(hashFn.digest(key));
+                int[] neighborNibbles = com.bloxbean.cardano.statetrees.common.nibbles.Nibbles.toNibbles(leaf.keyHash());
+                int cpl = 0;
+                int lim = Math.min(keyNibbles.length, neighborNibbles.length);
+                while (cpl < lim && keyNibbles[cpl] == neighborNibbles[cpl]) cpl++;
+                com.bloxbean.cardano.statetrees.common.NibblePath relPrefix = cpl == 0
+                        ? com.bloxbean.cardano.statetrees.common.NibblePath.EMPTY
+                        : com.bloxbean.cardano.statetrees.common.NibblePath.of(java.util.Arrays.copyOf(keyNibbles, cpl));
+                steps.add(new JmtProof.BranchStep(
+                        relPrefix,
+                        new byte[16][],
+                        0,
+                        true,
+                        0,
+                        null,
+                        null,
+                        leaf.keyHash(),
+                        leaf.valueHash()
+                ));
                 return java.util.Optional.of(JmtProof.nonInclusionDifferentLeaf(
                         steps,
                         leaf.keyHash(),
                         leaf.valueHash(),
                         suffix));
             }
+        }
+
+        /**
+         * Attempts to locate any node that is a descendant of the supplied prefix at the given version.
+         * This is used when an internal node reports a child at a nibble, but the concrete child node
+         * is not directly materialized at prefix+Nibble (e.g., the child is a leaf deeper down).
+         */
+        private java.util.Optional<JmtStore.NodeEntry> findDescendant(long version,
+                                                                       com.bloxbean.cardano.statetrees.common.NibblePath prefix) {
+            // Construct an upper bound path by appending a large number of 0xF nibbles to ensure
+            // we seek past any descendants under this prefix, then use floorNode to get the last
+            // node <= upperBound and check if it shares the prefix.
+            int[] base = prefix.getNibbles();
+            int extra = 128; // generous upper bound beyond any realistic path length
+            int[] upper = java.util.Arrays.copyOf(base, base.length + extra);
+            java.util.Arrays.fill(upper, base.length, upper.length, 0xF);
+            com.bloxbean.cardano.statetrees.common.NibblePath upperBound =
+                    com.bloxbean.cardano.statetrees.common.NibblePath.of(upper);
+
+            java.util.Optional<JmtStore.NodeEntry> floor = store.floorNode(version, upperBound);
+            if (!floor.isPresent()) return java.util.Optional.empty();
+            com.bloxbean.cardano.statetrees.common.NibblePath candidate = floor.get().nodeKey().path();
+            int cpl = commonPrefixLength(prefix, candidate);
+            return (cpl >= prefix.length()) ? floor : java.util.Optional.empty();
+        }
+
+        private int commonPrefixLength(com.bloxbean.cardano.statetrees.common.NibblePath a,
+                                       com.bloxbean.cardano.statetrees.common.NibblePath b) {
+            int[] an = a.getNibbles();
+            int[] bn = b.getNibbles();
+            int len = Math.min(an.length, bn.length);
+            int idx = 0;
+            while (idx < len && an[idx] == bn[idx]) {
+                idx++;
+            }
+            return idx;
         }
 
         private NeighborInfo neighborInfo(long version,
