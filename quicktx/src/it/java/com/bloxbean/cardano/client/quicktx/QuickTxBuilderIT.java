@@ -26,7 +26,7 @@ import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
-import com.bloxbean.cardano.client.quicktx.signing.InMemorySignerRegistry;
+import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -138,7 +138,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
     @Test
     void compose_with_signer_registry_refs() {
-        InMemorySignerRegistry registry = new InMemorySignerRegistry()
+        DefaultSignerRegistry registry = new DefaultSignerRegistry()
                 .addAccount("account://sender1", sender1)
                 .addAccount("account://sender2", sender2);
 
@@ -154,8 +154,8 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .feePayerRef("account://sender1");
 
         TxResult result = quickTxBuilder
-                .withSignerRegistry(registry)
                 .compose(plan)
+                .withSignerRegistry(registry)
                 .completeAndWait();
 
         assertTrue(result.isSuccessful());

@@ -73,9 +73,6 @@ public class QuickTxBuilder {
 
     private ScriptSupplier backendScriptSupplier;
 
-    // Optional signer registry; used to resolve refs at composition time
-    private SignerRegistry signerRegistry;
-
     /**
      * Create QuickTxBuilder
      *
@@ -123,16 +120,6 @@ public class QuickTxBuilder {
         } catch (UnsupportedOperationException e) {
             //Not supported
         }
-    }
-
-    /**
-     * Configure a SignerRegistry at builder level. Used to resolve refs provided in Tx/TxPlan/TxContext.
-     * @param registry signer registry
-     * @return this builder
-     */
-    public QuickTxBuilder withSignerRegistry(SignerRegistry registry) {
-        this.signerRegistry = registry;
-        return this;
     }
 
     /**
@@ -464,18 +451,18 @@ public class QuickTxBuilder {
 
         private Tuple<TxBuilderContext, TxBuilder> _build() {
             // Resolve references (fromRef, payer refs, additional signer refs) before building
-            SignerRegistry effectiveRegistry = (this.contextSignerRegistry != null) ? this.contextSignerRegistry : QuickTxBuilder.this.signerRegistry;
+            SignerRegistry effectiveRegistry = this.contextSignerRegistry;
 
             if (effectiveRegistry != null) {
                 // Resolve tx-level fromRef for regular Txs and add payment signer
                 for (AbstractTx tx : txList) {
                     if (tx instanceof Tx) {
                         Tx regularTx = (Tx) tx;
-                        String ref = regularTx.getFromRef();
-                        if (ref != null && !ref.isBlank()) {
-                            var bindingOpt = effectiveRegistry.resolve(ref);
+                        String fromRef = regularTx.getFromRef();
+                        if (fromRef != null && !fromRef.isBlank()) {
+                            var bindingOpt = effectiveRegistry.resolve(fromRef);
                             if (bindingOpt.isEmpty())
-                                throw new TxBuildException("Unable to resolve fromRef: " + ref);
+                                throw new TxBuildException("Unable to resolve fromRef: " + fromRef);
                             var binding = bindingOpt.get();
                             // Prefer wallet when available; else preferred address
                             if (binding.asWallet().isPresent()) {
@@ -483,13 +470,7 @@ public class QuickTxBuilder {
                             } else if (binding.preferredAddress().isPresent()) {
                                 regularTx.from(binding.preferredAddress().get());
                             } else {
-                                throw new TxBuildException("Resolved fromRef has neither wallet nor preferred address: " + ref);
-                            }
-                            // Add payment signer from binding
-                            try {
-                                this.withSigner(binding.signerFor("payment"));
-                            } catch (Exception e) {
-                                throw new TxBuildException("Failed to create payment signer for fromRef: " + ref, e);
+                                throw new TxBuildException("Resolved fromRef has neither wallet nor preferred address: " + fromRef);
                             }
                         }
                     }

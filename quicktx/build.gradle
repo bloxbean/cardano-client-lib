@@ -12,6 +12,7 @@ dependencies {
     integrationTestImplementation(libs.aiken.java.binding)
 
     integrationTestImplementation project(':')
+    integrationTestImplementation project(':it-support')
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':backend-modules:koios')
     integrationTestImplementation project(':backend-modules:ogmios')

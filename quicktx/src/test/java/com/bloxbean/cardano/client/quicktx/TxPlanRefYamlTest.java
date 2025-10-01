@@ -18,7 +18,7 @@ class TxPlanRefYamlTest {
         TxPlan plan = TxPlan.from(tx)
                 .feePayerRef("wallet://ops")
                 .collateralPayerRef("wallet://ops")
-                .addSigner("policy", "policy://nft", "policy");
+                .withSigner("policy://nft", "policy");
 
         String yaml = plan.toYaml();
 

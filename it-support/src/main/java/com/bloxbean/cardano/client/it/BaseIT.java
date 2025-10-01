@@ -471,4 +471,29 @@ public class BaseIT {
             return false;
         }
     }
+
+    protected static void resetDevNet() {
+        try {
+            // URL to reset the network
+            String url = DEVKIT_ADMIN_BASE_URL + "local-cluster/api/admin/devnet/reset";
+            URL obj = new URL(url);
+            HttpURLConnection connection = (HttpURLConnection) obj.openConnection();
+
+            // Set request method to POST
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json; utf-8");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setDoOutput(true);
+
+            // Check the response code
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                System.out.println("Devnet reset successful");
+            } else {
+                System.out.println("Failed to reset the network. Response code: " + responseCode);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }

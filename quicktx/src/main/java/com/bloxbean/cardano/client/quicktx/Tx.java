@@ -621,6 +621,8 @@ public class Tx extends AbstractTx<Tx> {
             return sender;
         else if (senderWallet != null)
             return senderWallet.getBaseAddress(0).getAddress(); // TODO - Change address to a new index??
+        else if (fromRef != null)
+            return null; //Change address will be set later during final transaction and set to fromRef address
         else
             throw new TxBuildException("No change address. " +
                     "Please define at least one of sender address or sender account or change address");

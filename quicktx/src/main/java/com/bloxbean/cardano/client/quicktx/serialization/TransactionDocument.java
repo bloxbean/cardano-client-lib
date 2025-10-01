@@ -212,9 +212,6 @@ public class TransactionDocument {
     @Data
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class SignerRef {
-        @JsonProperty("type")
-        private String type; // account|wallet|policy|secret|hdkey|custom
-
         @JsonProperty("ref")
         private String ref;  // e.g., account://alice
 

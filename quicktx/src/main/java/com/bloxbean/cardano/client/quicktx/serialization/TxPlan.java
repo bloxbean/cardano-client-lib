@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxScriptAttachmentIntent;
+import com.bloxbean.cardano.client.quicktx.signing.SignerScopes;
 import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.util.ArrayList;
@@ -186,12 +187,32 @@ public class TxPlan {
         return requiredSigners;
     }
 
+
     /**
-     * Add a signer reference to context.
+     * Add a payment scope signer reference to context.
+     * Equivalent to {@code withSigner(ref, SignerScopes.PAYMENT)}.
+     *
+     * @param ref the signer reference URI (e.g., account://alice, wallet://ops)
+     * @return this TxPlan instance for method chaining
      */
-    public TxPlan addSigner(String type, String ref, String scope) {
+    public TxPlan withSigner(String ref) {
         TransactionDocument.SignerRef sr = new TransactionDocument.SignerRef();
-        sr.setType(type);
+        sr.setRef(ref);
+        sr.setScope(SignerScopes.PAYMENT);
+        this.signerRefs.add(sr);
+        return this;
+    }
+
+    /**
+     * Add a signer reference with a specific scope to context.
+     *
+     * @param ref the signer reference URI (e.g., account://alice, wallet://ops, policy://nft)
+     * @param scope the signer scope - use constants from {@link SignerScopes}
+     *              (payment, stake, drep, committeeCold, committeeHot, policy)
+     * @return this TxPlan instance for method chaining
+     */
+    public TxPlan withSigner(String ref, String scope) {
+        TransactionDocument.SignerRef sr = new TransactionDocument.SignerRef();
         sr.setRef(ref);
         sr.setScope(scope);
         this.signerRefs.add(sr);

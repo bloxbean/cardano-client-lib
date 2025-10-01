@@ -9,29 +9,29 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Simple in-memory registry for tests and examples.
+ * Default in-memory registry.
  * Allows registering accounts, wallets, and policies against reference strings.
  */
-public class InMemorySignerRegistry implements SignerRegistry {
+public class DefaultSignerRegistry implements SignerRegistry {
 
     private final Map<String, SignerBinding> bindings = new ConcurrentHashMap<>();
 
-    public InMemorySignerRegistry addAccount(String ref, Account account) {
+    public DefaultSignerRegistry addAccount(String ref, Account account) {
         bindings.put(ref, BasicSignerBinding.fromAccount(account));
         return this;
     }
 
-    public InMemorySignerRegistry addWallet(String ref, Wallet wallet) {
+    public DefaultSignerRegistry addWallet(String ref, Wallet wallet) {
         bindings.put(ref, BasicSignerBinding.fromWallet(wallet));
         return this;
     }
 
-    public InMemorySignerRegistry addPolicy(String ref, Policy policy) {
+    public DefaultSignerRegistry addPolicy(String ref, Policy policy) {
         bindings.put(ref, BasicSignerBinding.fromPolicy(policy));
         return this;
     }
 
-    public InMemorySignerRegistry addCustom(String ref, SignerBinding binding) {
+    public DefaultSignerRegistry addCustom(String ref, SignerBinding binding) {
         bindings.put(ref, binding);
         return this;
     }
