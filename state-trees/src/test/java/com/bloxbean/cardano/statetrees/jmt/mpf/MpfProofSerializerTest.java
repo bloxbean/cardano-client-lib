@@ -43,7 +43,7 @@ class MpfProofSerializerTest {
     void inclusionProofSerialisesToExpectedHex() {
         Optional<JmtProof> proof = tree.getProof(bytes("alice"), 1);
         assertTrue(proof.isPresent());
-        byte[] cbor = MpfProofSerializer.toCbor(proof.get(), HASH, COMMITMENTS);
+        byte[] cbor = MpfProofSerializer.toCbor(proof.get(), bytes("alice"), HASH, COMMITMENTS);
 
         String actualHex = Bytes.toHex(cbor);
         assertEquals("81d879820058804e80802838c3b4fae0948c36e2172448d5f2a67e55887c32dc8717446524941688b5d37a1a31fc4ef3da04f9c22339d4e03af5020c5bdc32b1a4a5902dbb1a7e0eb923b0cbd24df54401d998531feead35a47a99f4deed205de4af81120f97610000000000000000000000000000000000000000000000000000000000000000", actualHex);
@@ -64,7 +64,7 @@ class MpfProofSerializerTest {
     void nonInclusionProofSerialisesToExpectedHex() {
         Optional<JmtProof> proof = tree.getProof(bytes("dave"), 1);
         assertTrue(proof.isPresent());
-        byte[] cbor = MpfProofSerializer.toCbor(proof.get(), HASH, COMMITMENTS);
+        byte[] cbor = MpfProofSerializer.toCbor(proof.get(), bytes("dave"), HASH, COMMITMENTS);
 
         String actualHex = Bytes.toHex(cbor);
         assertEquals("81d879820058804e80802838c3b4fae0948c36e2172448d5f2a67e55887c32dc871744652494161bbce9c0747aa60ff35a5b494aab8e274f4603be5483ab7421116c790158dd65a839a1739d9d1a5e863db7ac28624078213e02b474d081cd4b37b1825027aacb0000000000000000000000000000000000000000000000000000000000000000", actualHex);

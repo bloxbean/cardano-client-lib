@@ -60,22 +60,19 @@ public final class MpfProofSerializer {
         // For conflicting-leaf non-inclusion, append a terminal Leaf step so the
         // verifier can reconstruct the neighbor's leaf commitment and roll it up.
         if (proof.getType() == MerklePatriciaProof.Type.NON_INCLUSION_DIFFERENT_LEAF) {
-            // Derive the hashed key path (hex nibbles)
-            String pathHex = Bytes.toHex(hashFn.digest(key));
-            String querySuffix = pathHex.substring(Math.min(consumed, pathHex.length()));
-
-            NibblePath conflicting = proof.getConflictingSuffix();
-            String neighborSuffix = conflicting == null ? "" : conflicting.toHexString();
-
-            // Compute first mismatch within the suffix (number of nibbles to skip inside leaf)
-            int common = commonPrefixLen(querySuffix, neighborSuffix);
-
-            // Reconstruct neighbor full key hash by combining known prefix with leaf suffix
-            String neighborFullHex = pathHex.substring(0, Math.min(consumed, pathHex.length())) + neighborSuffix;
-            byte[] neighborKeyHash = Bytes.fromHex(neighborFullHex);
-
+            byte[] conflictingKeyHash = proof.getConflictingKeyHash();
             byte[] valueHash = proof.getConflictingValueHash();
-            steps.add(new MpfProof.LeafStep(common, neighborKeyHash, valueHash));
+            if (conflictingKeyHash == null || valueHash == null) {
+                throw new IllegalStateException("Conflicting key and value hash required for non-inclusion proof");
+            }
+
+            // Compute skip: number of nibbles the two keys share in common from the consumed position
+            // Note: 'key' parameter is already the hashed key (trie path), don't hash again!
+            String queryPathHex = Bytes.toHex(key);
+            String conflictingPathHex = Bytes.toHex(conflictingKeyHash);
+            int common = commonPrefixLen(queryPathHex.substring(consumed), conflictingPathHex.substring(consumed));
+
+            steps.add(new MpfProof.LeafStep(common, conflictingKeyHash, valueHash));
         }
         return steps;
     }

@@ -167,6 +167,7 @@ public final class MerklePatriciaTrieImpl {
         NibblePath pendingPrefix = NibblePath.EMPTY;
         byte[] currentHash = this.root;
         int depth = 0;
+        List<Integer> traversedNibbles = new ArrayList<>(); // Track actual path taken through trie
 
         while (true) {
             Node node = persistence.load(NodeHash.of(currentHash));
@@ -200,6 +201,7 @@ public final class MerklePatriciaTrieImpl {
                 }
 
                 currentHash = childCommit;
+                traversedNibbles.add(childIndex);
                 depth++;
                 continue;
             }
@@ -225,6 +227,9 @@ public final class MerklePatriciaTrieImpl {
                     steps.add(new MerklePatriciaProof.BranchStep(extended, last.childHashes(), last.childIndex(), last.branchValueHash()));
                 }
 
+                for (int nibble : extNibbles) {
+                    traversedNibbles.add(nibble);
+                }
                 depth += extNibbles.length;
                 byte[] childCommit = extension.getChild();
                 if (childCommit == null || childCommit.length == 0) {
@@ -254,9 +259,17 @@ public final class MerklePatriciaTrieImpl {
                     }
                 }
 
+                // Reconstruct the conflicting key hash from the actual path traversed plus the leaf's nibbles
+                int[] conflictingPathNibbles = new int[traversedNibbles.size() + leafNibbles.length];
+                for (int i = 0; i < traversedNibbles.size(); i++) {
+                    conflictingPathNibbles[i] = traversedNibbles.get(i);
+                }
+                System.arraycopy(leafNibbles, 0, conflictingPathNibbles, traversedNibbles.size(), leafNibbles.length);
+                byte[] conflictingKeyHash = Nibbles.fromNibbles(conflictingPathNibbles);
+
                 byte[] conflictingValueHash = hashFn.digest(leaf.getValue());
                 NibblePath conflictingSuffix = NibblePath.of(leafNibbles);
-                return MerklePatriciaProof.nonInclusionDifferentLeaf(steps, conflictingValueHash, conflictingSuffix);
+                return MerklePatriciaProof.nonInclusionDifferentLeaf(steps, conflictingKeyHash, conflictingValueHash, conflictingSuffix);
             }
 
             throw new IllegalStateException("Unsupported node type " + node.getClass().getSimpleName());

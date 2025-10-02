@@ -13,7 +13,7 @@ final class MpfJmtProofCodec implements JmtProofCodec {
 
     @Override
     public byte[] toWire(JmtProof proof, byte[] key, HashFunction hashFn, CommitmentScheme cs) {
-        return MpfProofSerializer.toCbor(proof, hashFn, cs);
+        return MpfProofSerializer.toCbor(proof, key, hashFn, cs);
     }
 
     @Override
@@ -22,4 +22,3 @@ final class MpfJmtProofCodec implements JmtProofCodec {
         return MpfProofVerifier.verify(expectedRoot, key, valueOrNull, including, wire, hashFn, cs);
     }
 }
-

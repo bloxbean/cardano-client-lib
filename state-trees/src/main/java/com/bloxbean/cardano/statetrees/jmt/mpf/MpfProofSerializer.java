@@ -31,16 +31,12 @@ public final class MpfProofSerializer {
         throw new AssertionError("Utility class");
     }
 
-    public static byte[] toCbor(JmtProof proof, HashFunction hashFn, CommitmentScheme commitments) {
+    public static byte[] toCbor(JmtProof proof, byte[] key, HashFunction hashFn, CommitmentScheme commitments) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
             Array stepsArray = new Array();
-            int cursor = 0; // number of nibbles consumed so far in the path
             for (JmtProof.BranchStep step : proof.steps()) {
-                int abs = step.prefix().length();
-                int skip = Math.max(0, abs - cursor);
-                stepsArray.add(encodeStep(step, skip, hashFn, commitments));
-                cursor += 1 + skip;
+                stepsArray.add(encodeStep(step, hashFn, commitments));
             }
             new CborEncoder(baos).encode(stepsArray);
         } catch (CborException e) {
@@ -49,7 +45,8 @@ public final class MpfProofSerializer {
         return baos.toByteArray();
     }
 
-    private static DataItem encodeStep(JmtProof.BranchStep step, int skip, HashFunction hashFn, CommitmentScheme commitments) {
+    private static DataItem encodeStep(JmtProof.BranchStep step, HashFunction hashFn, CommitmentScheme commitments) {
+        int skip = step.prefix().length();
 
         if (step.hasSingleNeighbor()) {
             if (step.hasLeafNeighbor()) {

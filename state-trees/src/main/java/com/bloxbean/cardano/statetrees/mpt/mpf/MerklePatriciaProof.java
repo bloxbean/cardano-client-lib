@@ -20,6 +20,7 @@ public final class MerklePatriciaProof {
     private final byte[] value;
     private final byte[] valueHash;
     private final NibblePath suffix;
+    private final byte[] conflictingKeyHash;
     private final byte[] conflictingValueHash;
     private final NibblePath conflictingSuffix;
 
@@ -28,6 +29,7 @@ public final class MerklePatriciaProof {
                                 byte[] value,
                                 byte[] valueHash,
                                 NibblePath suffix,
+                                byte[] conflictingKeyHash,
                                 byte[] conflictingValueHash,
                                 NibblePath conflictingSuffix) {
         this.type = Objects.requireNonNull(type);
@@ -35,6 +37,7 @@ public final class MerklePatriciaProof {
         this.value = copy(value);
         this.valueHash = copy(valueHash);
         this.suffix = suffix;
+        this.conflictingKeyHash = copy(conflictingKeyHash);
         this.conflictingValueHash = copy(conflictingValueHash);
         this.conflictingSuffix = conflictingSuffix;
     }
@@ -59,6 +62,10 @@ public final class MerklePatriciaProof {
         return suffix;
     }
 
+    public byte[] getConflictingKeyHash() {
+        return copy(conflictingKeyHash);
+    }
+
     public byte[] getConflictingValueHash() {
         return copy(conflictingValueHash);
     }
@@ -68,15 +75,15 @@ public final class MerklePatriciaProof {
     }
 
     public static MerklePatriciaProof inclusion(List<BranchStep> steps, byte[] value, byte[] valueHash, NibblePath suffix) {
-        return new MerklePatriciaProof(Type.INCLUSION, steps, value, valueHash, suffix, null, null);
+        return new MerklePatriciaProof(Type.INCLUSION, steps, value, valueHash, suffix, null, null, null);
     }
 
     public static MerklePatriciaProof nonInclusionMissingBranch(List<BranchStep> steps) {
-        return new MerklePatriciaProof(Type.NON_INCLUSION_MISSING_BRANCH, steps, null, null, null, null, null);
+        return new MerklePatriciaProof(Type.NON_INCLUSION_MISSING_BRANCH, steps, null, null, null, null, null, null);
     }
 
-    public static MerklePatriciaProof nonInclusionDifferentLeaf(List<BranchStep> steps, byte[] conflictingValueHash, NibblePath conflictingSuffix) {
-        return new MerklePatriciaProof(Type.NON_INCLUSION_DIFFERENT_LEAF, steps, null, null, null, conflictingValueHash, conflictingSuffix);
+    public static MerklePatriciaProof nonInclusionDifferentLeaf(List<BranchStep> steps, byte[] conflictingKeyHash, byte[] conflictingValueHash, NibblePath conflictingSuffix) {
+        return new MerklePatriciaProof(Type.NON_INCLUSION_DIFFERENT_LEAF, steps, null, null, null, conflictingKeyHash, conflictingValueHash, conflictingSuffix);
     }
 
     private static List<BranchStep> immutable(List<BranchStep> src) {
