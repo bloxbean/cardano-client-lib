@@ -9,9 +9,15 @@
 
 A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
 
-### **Latest Stable Version**: [0.6.6](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.6)
+### **Latest Stable Version**
+[0.7.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.0)
 
-### **Latest Beta Version**: [0.7.0-beta4](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.0-beta4)
+### **Previous Stable / Maintenance Release**
+[0.6.7](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.7)
+
+### **Branches**
+- **master**: Active development branch (0.7.x and beyond)  
+- **release_0.6.x**: Maintenance branch for 0.6.x line (patch releases only)  
 
 ### More details --> [Documentation](https://cardano-client.dev/)
 
@@ -97,7 +103,7 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-lib</artifactId>
-            <version>0.6.6</version>
+            <version>0.7.0</version>
         </dependency>
 ```
 - Backend modules
@@ -108,21 +114,21 @@ For fine-grained dependency management, add one or more below modules as require
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-blockfrost</artifactId>
-            <version>0.6.6</version>
+            <version>0.7.0</version>
         </dependency>
         
          <!-- For Koios backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-koios</artifactId>
-            <version>0.6.6</version>
+            <version>0.7.0</version>
         </dependency>
         
          <!-- For Ogmios / Kupo backend -->
         <dependency>
             <groupId>com.bloxbean.cardano</groupId>
             <artifactId>cardano-client-backend-ogmios</artifactId>
-            <version>0.6.6</version>
+            <version>0.7.0</version>
         </dependency>
 ```
 
@@ -130,27 +136,27 @@ For fine-grained dependency management, add one or more below modules as require
 
 - Core Module
 ```
-implementation 'com.bloxbean.cardano:cardano-client-lib:0.6.6'
+implementation 'com.bloxbean.cardano:cardano-client-lib:0.7.0'
 ```
 - Backend modules
     - For backend support, use one of the following supported backend module
 
 ```groovy
 //For Blockfrost
-implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.6.6'
+implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.7.0'
 
 //For Koios
-implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.6.6'
+implementation 'com.bloxbean.cardano:cardano-client-backend-koios:0.7.0'
 
 //For Ogmios / Kupo
-implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.6.6'
+implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.7.0'
 
 ```
 
 
 ### For snapshot binaries
 
-**SNAPSHOT_VERSION :** 0.7.0-beta2-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
+**SNAPSHOT_VERSION :** 0.7.1-SNAPSHOT (Please verify the latest snapshot version in gradle.properties)
 
 - For Maven, add the following dependencies and repository to project's pom.xml
 ```
@@ -170,7 +176,7 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.6.6'
     <repositories>
         <repository>
             <id>snapshots-repo</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <url>https://central.sonatype.com/repository/maven-snapshots</url>
             <releases>
                 <enabled>false</enabled>
             </releases>
@@ -186,7 +192,7 @@ implementation 'com.bloxbean.cardano:cardano-client-backend-ogmios:0.6.6'
 repositories {
     ...
     maven {
-        url "https://oss.sonatype.org/content/repositories/snapshots"
+        url "https://central.sonatype.com/repository/maven-snapshots"
     }
 }
 
