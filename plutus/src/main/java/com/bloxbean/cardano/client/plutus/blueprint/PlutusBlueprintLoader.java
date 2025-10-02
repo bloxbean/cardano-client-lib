@@ -92,8 +92,8 @@ public class PlutusBlueprintLoader {
         }
         blueprintSchema.setFields(extracted(definitions, blueprintSchema.getFields()));
         blueprintSchema.setAnyOf(extracted(definitions, blueprintSchema.getAnyOf()));
-        if(blueprintSchema.getItems() != null)
-            blueprintSchema.setItems(extracted(definitions, List.of(blueprintSchema.getItems())).get(0));
+        if(blueprintSchema.getItems() != null && !blueprintSchema.getItems().isEmpty())
+            blueprintSchema.setItems(extracted(definitions, blueprintSchema.getItems()));
         if(blueprintSchema.getKeys() != null)
             blueprintSchema.setKeys(extracted(definitions, List.of(blueprintSchema.getKeys())).get(0));
         if(blueprintSchema.getValues() != null)

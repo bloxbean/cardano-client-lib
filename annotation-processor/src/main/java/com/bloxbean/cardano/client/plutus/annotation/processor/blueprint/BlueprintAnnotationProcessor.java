@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
 import com.bloxbean.cardano.client.plutus.blueprint.model.*;
@@ -20,6 +21,10 @@ import java.util.*;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.getNSFromReferenceKey;
 
+/**
+ * Annotation processor that consumes {@link com.bloxbean.cardano.client.plutus.annotation.Blueprint}
+ * types and emits validator/datum classes according to CIP-57 blueprint metadata.
+ */
 @AutoService(Processor.class)
 @Slf4j
 public class BlueprintAnnotationProcessor extends AbstractProcessor {
@@ -28,6 +33,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
     private List<TypeElement> typeElements = new ArrayList<>();
     private ValidatorProcessor validatorProcessor;
     private FieldSpecProcessor fieldSpecProcessor;
+    private final GeneratedTypesRegistry generatedTypesRegistry = new GeneratedTypesRegistry();
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -69,8 +75,9 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 error(typeElement, "Blueprint annotation not found for class %s", typeElement.getSimpleName());
                 return false;
             } else {
-                validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv);
-                fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv);
+                generatedTypesRegistry.clear();
+                validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry);
+                fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry);
             }
 
 

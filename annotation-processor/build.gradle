@@ -10,6 +10,7 @@ dependencies {
     api libs.apache.common.text
 
     testImplementation libs.google.testing.compile
+    testImplementation libs.mockito.core
     testImplementation libs.lombok
 
     testAnnotationProcessor project(':annotation-processor')
