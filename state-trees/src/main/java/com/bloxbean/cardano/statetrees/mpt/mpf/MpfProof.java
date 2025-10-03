@@ -81,14 +81,11 @@ public final class MpfProof {
         } else if (step instanceof ForkStep) {
             ForkStep fork = (ForkStep) step;
             if (!including && isLastStep) {
-                byte[] prefixBytes;
-                if (fork.skip() == 0) {
-                    prefixBytes = Bytes.concat(new byte[]{(byte) fork.nibble()}, fork.prefix());
-                } else {
-                    byte[] skipped = nibbleBytes(pathHex.substring(cursor, cursor + fork.skip()));
-                    prefixBytes = Bytes.concat(skipped, new byte[]{(byte) fork.nibble()}, fork.prefix());
+                int queryNibble = hexCharToNibble(pathHex.charAt(cursor + fork.skip()));
+                if (queryNibble == fork.nibble()) {
+                    throw new IllegalStateException("Fork step must diverge from query nibble");
                 }
-                return hashFn.digest(Bytes.concat(prefixBytes, fork.root()));
+                return fork.root();
             }
 
             byte[] neighborHash = hashFn.digest(Bytes.concat(fork.prefix(), fork.root()));
@@ -313,4 +310,5 @@ public final class MpfProof {
         }
         return out;
     }
+
 }

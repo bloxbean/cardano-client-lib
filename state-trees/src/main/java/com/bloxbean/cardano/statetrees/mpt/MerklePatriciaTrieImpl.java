@@ -6,6 +6,7 @@ import com.bloxbean.cardano.statetrees.api.NodeStore;
 import com.bloxbean.cardano.statetrees.common.NodeHash;
 import com.bloxbean.cardano.statetrees.common.NibblePath;
 import com.bloxbean.cardano.statetrees.common.nibbles.Nibbles;
+import com.bloxbean.cardano.statetrees.common.util.Bytes;
 import com.bloxbean.cardano.statetrees.mpt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.mpt.mode.Modes;
 import com.bloxbean.cardano.statetrees.mpt.mode.MptMode;
@@ -163,7 +164,7 @@ public final class MerklePatriciaTrieImpl {
         }
 
         int[] keyNibbles = Nibbles.toNibbles(key);
-        List<MerklePatriciaProof.BranchStep> steps = new ArrayList<>();
+        List<MerklePatriciaProof.Step> steps = new ArrayList<>();
         NibblePath pendingPrefix = NibblePath.EMPTY;
         byte[] currentHash = this.root;
         int depth = 0;
@@ -180,15 +181,15 @@ public final class MerklePatriciaTrieImpl {
                 byte[][] childHashes = materializeChildHashes(branch);
                 int childIndex = depth < keyNibbles.length ? keyNibbles[depth] : -1;
 
-                byte[] branchValueHash = null;
-                if (commitments.encodesBranchValueInBranchCommitment()) {
-                    branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
-                }
-                steps.add(new MerklePatriciaProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
-                pendingPrefix = NibblePath.EMPTY;
-
                 if (depth >= keyNibbles.length) {
                     byte[] branchValue = branch.getValue();
+                    byte[] branchValueHash = null;
+                    if (commitments.encodesBranchValueInBranchCommitment()) {
+                        branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
+                    }
+                    steps.add(new MerklePatriciaProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
+                    pendingPrefix = NibblePath.EMPTY;
+
                     if (branchValue != null) {
                         return MerklePatriciaProof.inclusion(steps, branchValue, branchValueHash, NibblePath.EMPTY);
                     }
@@ -197,8 +198,22 @@ public final class MerklePatriciaTrieImpl {
 
                 byte[] childCommit = branch.getChild(childIndex);
                 if (childCommit == null || childCommit.length == 0) {
+                    byte[] branchValueHash = null;
+                    if (commitments.encodesBranchValueInBranchCommitment()) {
+                        branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
+                    }
+                    steps.add(new MerklePatriciaProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
+                    pendingPrefix = NibblePath.EMPTY;
                     return MerklePatriciaProof.nonInclusionMissingBranch(steps);
                 }
+
+                // Add BranchStep and continue traversal
+                byte[] branchValueHash = null;
+                if (commitments.encodesBranchValueInBranchCommitment()) {
+                    branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
+                }
+                steps.add(new MerklePatriciaProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
+                pendingPrefix = NibblePath.EMPTY;
 
                 currentHash = childCommit;
                 traversedNibbles.add(childIndex);
@@ -210,19 +225,60 @@ public final class MerklePatriciaTrieImpl {
                 ExtensionNode extension = (ExtensionNode) node;
                 Nibbles.HP hp = Nibbles.unpackHP(extension.getHp());
                 int[] extNibbles = hp.nibbles;
+                // Check for path mismatch or overflow
+                boolean pathMismatch = false;
+                int mismatchPosition = -1;
+
                 if (depth + extNibbles.length > keyNibbles.length) {
-                    return MerklePatriciaProof.nonInclusionMissingBranch(steps);
-                }
-                for (int i = 0; i < extNibbles.length; i++) {
-                    if (keyNibbles[depth + i] != extNibbles[i]) {
-                        return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                    pathMismatch = true;
+                    mismatchPosition = keyNibbles.length - depth;
+                } else {
+                    for (int i = 0; i < extNibbles.length; i++) {
+                        if (keyNibbles[depth + i] != extNibbles[i]) {
+                            pathMismatch = true;
+                            mismatchPosition = i;
+                            break;
+                        }
                     }
                 }
 
+                if (pathMismatch) {
+                    // Extension path diverges from query path
+                    // This should not happen with temporary insertion strategy, but handle gracefully
+                    int matched = mismatchPosition < 0 ? 0 : mismatchPosition;
+                    if (matched >= extNibbles.length) {
+                        return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                    }
+
+                    byte[] childCommit = extension.getChild();
+                    if (childCommit == null || childCommit.length == 0) {
+                        System.out.println("DEBUG Extension child missing during mismatch, returning nonInclusionMissingBranch");
+                        return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                    }
+
+                    int[] skipPrefix = matched == 0 ? new int[0] : Arrays.copyOf(extNibbles, matched);
+                    int neighborNibble = extNibbles[matched];
+                    int[] suffixNibbles = matched + 1 < extNibbles.length
+                            ? Arrays.copyOfRange(extNibbles, matched + 1, extNibbles.length)
+                            : new int[0];
+
+                    NibblePath forkSkip = concat(pendingPrefix, skipPrefix);
+                    NibblePath forkSuffix = NibblePath.of(suffixNibbles);
+                    byte[] flattenedCommit = persistence.computeExtensionCommitForProof(extension);
+
+                    steps.add(new MerklePatriciaProof.ForkStep(forkSkip, neighborNibble, forkSuffix, flattenedCommit));
+                    return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                }
+
+                // Path matches - continue traversal
                 if (steps.isEmpty()) {
                     pendingPrefix = concat(pendingPrefix, extNibbles);
                 } else {
-                    MerklePatriciaProof.BranchStep last = steps.remove(steps.size() - 1);
+                    MerklePatriciaProof.Step lastStep = steps.remove(steps.size() - 1);
+                    if (!(lastStep instanceof MerklePatriciaProof.BranchStep)) {
+                        throw new IllegalStateException("Expected BranchStep before extension but found " + lastStep.getClass().getSimpleName());
+                    }
+                    MerklePatriciaProof.BranchStep last = (MerklePatriciaProof.BranchStep) lastStep;
                     NibblePath extended = concat(last.skipPath(), extNibbles);
                     steps.add(new MerklePatriciaProof.BranchStep(extended, last.childHashes(), last.childIndex(), last.branchValueHash()));
                 }
@@ -284,6 +340,7 @@ public final class MerklePatriciaTrieImpl {
         if ("CLASSIC".equalsIgnoreCase(mode.name())) {
             return Optional.of(buildClassicProofWire(key));
         } else {
+            // Check if we should use temporary insertion strategy for MPF
             MerklePatriciaProof proof = getProof(key);
             byte[] wire = mode.proofCodec().toWire(proof, key, hashFn, commitments);
             return Optional.of(wire);
@@ -1169,5 +1226,158 @@ public final class MerklePatriciaTrieImpl {
         int[] combined = Arrays.copyOf(baseNibbles, baseNibbles.length + extras.length);
         System.arraycopy(extras, 0, combined, baseNibbles.length, extras.length);
         return NibblePath.of(combined);
+    }
+
+    /**
+     * Find any leaf's key hash in the given subtree. Used for non-inclusion proofs when
+     * an extension node diverges from the query path.
+     * @param node the root of the subtree to search
+     * @param traversedNibbles the nibbles traversed so far (including extension nibbles)
+     * @return the full key hash of any leaf found, or null if no leaf exists
+     */
+    private byte[] findAnyLeafKeyHash(Node node, List<Integer> traversedNibbles) {
+        if (node instanceof LeafNode) {
+            LeafNode leaf = (LeafNode) node;
+            Nibbles.HP hp = Nibbles.unpackHP(leaf.getHp());
+            int[] leafNibbles = hp.nibbles;
+
+            // Reconstruct full key path: traversed nibbles + leaf nibbles
+            int[] fullPath = new int[traversedNibbles.size() + leafNibbles.length];
+            for (int i = 0; i < traversedNibbles.size(); i++) {
+                fullPath[i] = traversedNibbles.get(i);
+            }
+            System.arraycopy(leafNibbles, 0, fullPath, traversedNibbles.size(), leafNibbles.length);
+
+            return Nibbles.fromNibbles(fullPath);
+        }
+
+        if (node instanceof ExtensionNode) {
+            ExtensionNode ext = (ExtensionNode) node;
+            byte[] childHash = ext.getChild();
+            if (childHash != null && childHash.length > 0) {
+                Node child = persistence.load(NodeHash.of(childHash));
+                if (child != null) {
+                    Nibbles.HP hp = Nibbles.unpackHP(ext.getHp());
+                    List<Integer> extendedPath = new ArrayList<>(traversedNibbles);
+                    for (int nibble : hp.nibbles) {
+                        extendedPath.add(nibble);
+                    }
+                    return findAnyLeafKeyHash(child, extendedPath);
+                }
+            }
+        }
+
+        if (node instanceof BranchNode) {
+            BranchNode branch = (BranchNode) node;
+            byte[][] childHashes = materializeChildHashes(branch);
+            for (int i = 0; i < childHashes.length; i++) {
+                if (childHashes[i] != null) {
+                    Node child = persistence.load(NodeHash.of(childHashes[i]));
+                    if (child != null) {
+                        List<Integer> branchPath = new ArrayList<>(traversedNibbles);
+                        branchPath.add(i);
+                        byte[] result = findAnyLeafKeyHash(child, branchPath);
+                        if (result != null) return result;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find any leaf's value hash in the given subtree. Used for non-inclusion proofs.
+     */
+    private byte[] findAnyLeafValueHash(Node node) {
+        if (node instanceof LeafNode) {
+            LeafNode leaf = (LeafNode) node;
+            return leaf.getValue() != null ? hashFn.digest(leaf.getValue()) : null;
+        }
+
+        if (node instanceof ExtensionNode) {
+            ExtensionNode ext = (ExtensionNode) node;
+            byte[] childHash = ext.getChild();
+            if (childHash != null && childHash.length > 0) {
+                Node child = persistence.load(NodeHash.of(childHash));
+                if (child != null) {
+                    return findAnyLeafValueHash(child);
+                }
+            }
+        }
+
+        if (node instanceof BranchNode) {
+            BranchNode branch = (BranchNode) node;
+            byte[][] childHashes = materializeChildHashes(branch);
+            for (int i = 0; i < childHashes.length; i++) {
+                if (childHashes[i] != null) {
+                    Node child = persistence.load(NodeHash.of(childHashes[i]));
+                    if (child != null) {
+                        byte[] result = findAnyLeafValueHash(child);
+                        if (result != null) return result;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find the suffix nibbles from the current position to any leaf in the subtree.
+     * This includes all extension and leaf nibbles from the starting node.
+     *
+     * @param node the node to start searching from
+     * @param accumulatedNibbles the nibbles accumulated so far (starting empty)
+     * @return the nibble array from current position to leaf, or null if no leaf found
+     */
+    private int[] findLeafSuffixNibbles(Node node, List<Integer> accumulatedNibbles) {
+        if (node instanceof LeafNode) {
+            LeafNode leaf = (LeafNode) node;
+            Nibbles.HP hp = Nibbles.unpackHP(leaf.getHp());
+            int[] leafNibbles = hp.nibbles;
+
+            // Return accumulated + leaf nibbles
+            int[] result = new int[accumulatedNibbles.size() + leafNibbles.length];
+            for (int i = 0; i < accumulatedNibbles.size(); i++) {
+                result[i] = accumulatedNibbles.get(i);
+            }
+            System.arraycopy(leafNibbles, 0, result, accumulatedNibbles.size(), leafNibbles.length);
+            return result;
+        }
+
+        if (node instanceof ExtensionNode) {
+            ExtensionNode ext = (ExtensionNode) node;
+            byte[] childHash = ext.getChild();
+            if (childHash != null && childHash.length > 0) {
+                Node child = persistence.load(NodeHash.of(childHash));
+                if (child != null) {
+                    Nibbles.HP hp = Nibbles.unpackHP(ext.getHp());
+                    List<Integer> extendedPath = new ArrayList<>(accumulatedNibbles);
+                    for (int nibble : hp.nibbles) {
+                        extendedPath.add(nibble);
+                    }
+                    return findLeafSuffixNibbles(child, extendedPath);
+                }
+            }
+        }
+
+        if (node instanceof BranchNode) {
+            BranchNode branch = (BranchNode) node;
+            byte[][] childHashes = materializeChildHashes(branch);
+            for (int i = 0; i < childHashes.length; i++) {
+                if (childHashes[i] != null) {
+                    Node child = persistence.load(NodeHash.of(childHashes[i]));
+                    if (child != null) {
+                        List<Integer> branchPath = new ArrayList<>(accumulatedNibbles);
+                        branchPath.add(i);
+                        int[] result = findLeafSuffixNibbles(child, branchPath);
+                        if (result != null) return result;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }

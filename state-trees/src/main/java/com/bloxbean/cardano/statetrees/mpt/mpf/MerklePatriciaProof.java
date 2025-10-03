@@ -16,7 +16,7 @@ public final class MerklePatriciaProof {
     public enum Type {INCLUSION, NON_INCLUSION_MISSING_BRANCH, NON_INCLUSION_DIFFERENT_LEAF}
 
     private final Type type;
-    private final List<BranchStep> steps;
+    private final List<Step> steps;
     private final byte[] value;
     private final byte[] valueHash;
     private final NibblePath suffix;
@@ -25,7 +25,7 @@ public final class MerklePatriciaProof {
     private final NibblePath conflictingSuffix;
 
     private MerklePatriciaProof(Type type,
-                                List<BranchStep> steps,
+                                List<Step> steps,
                                 byte[] value,
                                 byte[] valueHash,
                                 NibblePath suffix,
@@ -46,7 +46,7 @@ public final class MerklePatriciaProof {
         return type;
     }
 
-    public List<BranchStep> getSteps() {
+    public List<Step> getSteps() {
         return steps;
     }
 
@@ -74,22 +74,22 @@ public final class MerklePatriciaProof {
         return conflictingSuffix;
     }
 
-    public static MerklePatriciaProof inclusion(List<BranchStep> steps, byte[] value, byte[] valueHash, NibblePath suffix) {
+    public static MerklePatriciaProof inclusion(List<Step> steps, byte[] value, byte[] valueHash, NibblePath suffix) {
         return new MerklePatriciaProof(Type.INCLUSION, steps, value, valueHash, suffix, null, null, null);
     }
 
-    public static MerklePatriciaProof nonInclusionMissingBranch(List<BranchStep> steps) {
+    public static MerklePatriciaProof nonInclusionMissingBranch(List<Step> steps) {
         return new MerklePatriciaProof(Type.NON_INCLUSION_MISSING_BRANCH, steps, null, null, null, null, null, null);
     }
 
-    public static MerklePatriciaProof nonInclusionDifferentLeaf(List<BranchStep> steps, byte[] conflictingKeyHash, byte[] conflictingValueHash, NibblePath conflictingSuffix) {
+    public static MerklePatriciaProof nonInclusionDifferentLeaf(List<Step> steps, byte[] conflictingKeyHash, byte[] conflictingValueHash, NibblePath conflictingSuffix) {
         return new MerklePatriciaProof(Type.NON_INCLUSION_DIFFERENT_LEAF, steps, null, null, null, conflictingKeyHash, conflictingValueHash, conflictingSuffix);
     }
 
-    private static List<BranchStep> immutable(List<BranchStep> src) {
+    private static List<Step> immutable(List<Step> src) {
         Objects.requireNonNull(src, "steps");
-        List<BranchStep> out = new ArrayList<>(src.size());
-        for (BranchStep s : src) out.add(s.cloneStep());
+        List<Step> out = new ArrayList<>(src.size());
+        for (Step s : src) out.add(s.cloneStep());
         return Collections.unmodifiableList(out);
     }
 
@@ -97,7 +97,15 @@ public final class MerklePatriciaProof {
         return in == null ? null : Arrays.copyOf(in, in.length);
     }
 
-    public static final class BranchStep {
+    public interface Step {
+        int skip();
+
+        NibblePath skipPath();
+
+        Step cloneStep();
+    }
+
+    public static final class BranchStep implements Step {
         private final NibblePath skipPath;
         private final byte[][] childHashes;
         private final int childIndex;
@@ -110,14 +118,17 @@ public final class MerklePatriciaProof {
             this.branchValueHash = branchValueHash == null ? null : Arrays.copyOf(branchValueHash, branchValueHash.length);
         }
 
-        private BranchStep cloneStep() {
+        @Override
+        public BranchStep cloneStep() {
             return new BranchStep(skipPath, childHashes, childIndex, branchValueHash);
         }
 
+        @Override
         public int skip() {
             return skipPath.length();
         }
 
+        @Override
         public NibblePath skipPath() {
             return skipPath;
         }
@@ -138,6 +149,47 @@ public final class MerklePatriciaProof {
             byte[][] c = new byte[m.length][];
             for (int i = 0; i < m.length; i++) c[i] = m[i] == null ? null : Arrays.copyOf(m[i], m[i].length);
             return c;
+        }
+    }
+
+    public static final class ForkStep implements Step {
+        private final NibblePath skipPath;
+        private final int neighborNibble;
+        private final NibblePath suffix;
+        private final byte[] neighborRoot;
+
+        public ForkStep(NibblePath skipPath, int neighborNibble, NibblePath suffix, byte[] neighborRoot) {
+            this.skipPath = Objects.requireNonNull(skipPath, "skipPath");
+            this.neighborNibble = neighborNibble;
+            this.suffix = Objects.requireNonNull(suffix, "suffix");
+            this.neighborRoot = neighborRoot == null ? null : Arrays.copyOf(neighborRoot, neighborRoot.length);
+        }
+
+        @Override
+        public ForkStep cloneStep() {
+            return new ForkStep(skipPath, neighborNibble, suffix, neighborRoot);
+        }
+
+        @Override
+        public int skip() {
+            return skipPath.length();
+        }
+
+        @Override
+        public NibblePath skipPath() {
+            return skipPath;
+        }
+
+        public int neighborNibble() {
+            return neighborNibble;
+        }
+
+        public NibblePath suffix() {
+            return suffix;
+        }
+
+        public byte[] neighborRoot() {
+            return neighborRoot == null ? null : Arrays.copyOf(neighborRoot, neighborRoot.length);
         }
     }
 }

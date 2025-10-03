@@ -52,8 +52,16 @@ public final class MpfProofSerializer {
                                                CommitmentScheme commitments) {
         List<MpfProof.Step> steps = new ArrayList<>();
         int consumed = 0;
-        for (MerklePatriciaProof.BranchStep step : proof.getSteps()) {
-            steps.add(encodeBranchStep(step, hashFn, commitments));
+        for (MerklePatriciaProof.Step step : proof.getSteps()) {
+            if (step instanceof MerklePatriciaProof.BranchStep) {
+                MerklePatriciaProof.BranchStep branch = (MerklePatriciaProof.BranchStep) step;
+                steps.add(encodeBranchStep(branch, hashFn, commitments));
+            } else if (step instanceof MerklePatriciaProof.ForkStep) {
+                MerklePatriciaProof.ForkStep fork = (MerklePatriciaProof.ForkStep) step;
+                steps.add(encodeForkStep(fork, commitments));
+            } else {
+                throw new IllegalStateException("Unsupported proof step " + step.getClass());
+            }
             consumed += 1 + step.skip();
         }
 
@@ -82,6 +90,13 @@ public final class MpfProofSerializer {
                                                         CommitmentScheme commitments) {
         byte[][] neighbors = computeNeighbors(step.childHashes(), step.childIndex(), hashFn, commitments.nullHash());
         return new MpfProof.BranchStep(step.skip(), neighbors, step.childIndex(), step.branchValueHash());
+    }
+
+    private static MpfProof.ForkStep encodeForkStep(MerklePatriciaProof.ForkStep step,
+                                                    CommitmentScheme commitments) {
+        byte[] prefix = toNibbleBytes(step.suffix());
+        byte[] root = sanitizeRoot(step.neighborRoot(), commitments);
+        return new MpfProof.ForkStep(step.skip(), step.neighborNibble(), prefix, root);
     }
 
     private static int commonPrefixLen(String a, String b) {
@@ -177,5 +192,24 @@ public final class MpfProofSerializer {
             layer = next;
         }
         return layer.get(0);
+    }
+
+    private static byte[] toNibbleBytes(NibblePath path) {
+        if (path == null || path.isEmpty()) {
+            return Bytes.EMPTY;
+        }
+        int[] nibbles = path.getNibbles();
+        byte[] out = new byte[nibbles.length];
+        for (int i = 0; i < nibbles.length; i++) {
+            out[i] = (byte) (nibbles[i] & 0xFF);
+        }
+        return out;
+    }
+
+    private static byte[] sanitizeRoot(byte[] root, CommitmentScheme commitments) {
+        if (root == null || root.length == 0) {
+            return commitments.nullHash();
+        }
+        return Arrays.copyOf(root, root.length);
     }
 }

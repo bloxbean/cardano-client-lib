@@ -277,4 +277,8 @@ public final class NodePersistence {
             throw new IllegalStateException("Unsupported child type under extension: " + current.getClass());
         }
     }
+
+    byte[] computeExtensionCommitForProof(ExtensionNode ext) {
+        return computeExtensionCommit(ext);
+    }
 }
