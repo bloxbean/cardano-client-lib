@@ -3,8 +3,8 @@ package com.bloxbean.cardano.statetrees.rocksdb.jmt;
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class RocksDbJmtStoreTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
-    private static final CommitmentScheme COMMITMENTS = new MpfCommitmentScheme(HASH);
+    private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
 
     @TempDir
     Path tempDir;

@@ -5,11 +5,8 @@ import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.JmtProof;
 import com.bloxbean.cardano.statetrees.jmt.JmtProofVerifier;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.commitment.MpfCommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.mpf.MpfProof;
-import com.bloxbean.cardano.statetrees.jmt.mpf.MpfProofDecoder;
-import com.bloxbean.cardano.statetrees.jmt.mpf.MpfProofVerifier;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -34,7 +31,7 @@ public class JmtBenchmark {
     public int initialSize;
 
     private final HashFunction hash = Blake2b256::digest;
-    private final CommitmentScheme commitments = new MpfCommitmentScheme(hash);
+    private final CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hash);
 
     private JellyfishMerkleTree tree;
     private List<byte[]> rawKeys;
@@ -79,10 +76,10 @@ public class JmtBenchmark {
     }
 
     @Benchmark
-    public void getMpfProof(Blackhole bh) {
+    public void getWireProof(Blackhole bh) {
         byte[] key = rawKeys.get(nextIndex());
         Optional<byte[]> proof = tree.getProofWire(key, version);
-        bh.consume(proof.orElseThrow(() -> new IllegalStateException("Missing MPF proof")));
+        bh.consume(proof.orElseThrow(() -> new IllegalStateException("Missing proof")));
     }
 
     @Benchmark
@@ -93,26 +90,6 @@ public class JmtBenchmark {
         Optional<JmtProof> proof = tree.getProof(key, version);
         boolean ok = JmtProofVerifier.verify(root, key, value, proof.orElseThrow(() -> new IllegalStateException("Missing proof")), hash, commitments);
         bh.consume(ok);
-    }
-
-    @Benchmark
-    public void verifyMpfProof(Blackhole bh) {
-        int idx = nextIndex();
-        byte[] key = rawKeys.get(idx);
-        byte[] value = rawValues.get(idx);
-        byte[] proof = tree.getProofWire(key, version).orElseThrow(() -> new IllegalStateException("Missing MPF proof"));
-        boolean ok = MpfProofVerifier.verify(root, key, value, true, proof, hash, commitments);
-        bh.consume(ok);
-    }
-
-    @Benchmark
-    public void verifyMpfProofDecoded(Blackhole bh) {
-        int idx = nextIndex();
-        byte[] key = rawKeys.get(idx);
-        byte[] value = rawValues.get(idx);
-        byte[] proof = tree.getProofWire(key, version).orElseThrow(() -> new IllegalStateException("Missing MPF proof"));
-        MpfProof decoded = MpfProofDecoder.decode(proof);
-        bh.consume(decoded.computeRoot(key, value, true, hash, commitments));
     }
 
     @Benchmark

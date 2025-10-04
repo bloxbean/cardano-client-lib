@@ -2,8 +2,8 @@ package com.bloxbean.cardano.statetrees.jmt;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
 import org.junit.jupiter.api.Test;
@@ -24,7 +24,7 @@ class JmtConcurrentReadWriteTest {
     @Test
     void concurrent_gets_while_committing_should_be_safe_and_correct() throws Exception {
         HashFunction hash = Blake2b256::digest;
-        CommitmentScheme commitments = new MpfCommitmentScheme(hash);
+        CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hash);
         JmtStore backend = new InMemoryJmtStore();
         JellyfishMerkleTreeStoreConfig config = JellyfishMerkleTreeStoreConfig.builder()
                 .enableNodeCache(true).nodeCacheSize(1024)
@@ -84,4 +84,3 @@ class JmtConcurrentReadWriteTest {
         assertEquals(1000L, tree.latestVersion().orElse(-1L));
     }
 }
-

@@ -4,9 +4,9 @@ import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.NibblePath;
 import com.bloxbean.cardano.statetrees.common.nibbles.Nibbles;
 import com.bloxbean.cardano.statetrees.common.util.Bytes;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.mode.JmtMode;
-import com.bloxbean.cardano.statetrees.jmt.mode.JmtModes;
+import com.bloxbean.cardano.statetrees.jmt.proof.ClassicJmtProofCodec;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,34 +21,30 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * In-memory Jellyfish Merkle Tree implementation with MPF-compatible commitments.
+ * In-memory Jellyfish Merkle Tree implementation following the default JMT
+ * commitment and proof semantics from Diem.
  *
- * <p>This implementation focuses on correctness and reference behaviour. It builds
- * a fully persistent tree snapshot for each committed version and can generate
- * MPF-style inclusion and non-inclusion proofs. Storage is currently in-memory;
- * persistence backends (e.g. RocksDB) can consume the emitted {@link CommitResult}
- * to durably store nodes and stale markers.</p>
+ * <p>This implementation focuses on correctness and reference behaviour. It
+ * builds a fully persistent tree snapshot for each committed version and can
+ * generate classic inclusion and non-inclusion proofs. Storage is currently
+ * in-memory; persistence backends (e.g. RocksDB) can consume the emitted
+ * {@link CommitResult} to durably store nodes and stale markers.</p>
  */
 public final class JellyfishMerkleTree {
 
     private final CommitmentScheme commitments;
     private final HashFunction hashFn;
-    private final JmtMode mode;
+    private final ClassicJmtProofCodec proofCodec;
     private final NavigableMap<Long, VersionSnapshot> versions = new TreeMap<>();
+
+    public JellyfishMerkleTree(HashFunction hashFn) {
+        this(new ClassicJmtCommitmentScheme(hashFn), hashFn);
+    }
 
     public JellyfishMerkleTree(CommitmentScheme commitments, HashFunction hashFn) {
         this.commitments = Objects.requireNonNull(commitments, "commitments");
         this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
-        this.mode = JmtModes.mpf(this.hashFn);
-    }
-
-    /**
-     * Construct with a mode; defaults to MPF if mode is null.
-     */
-    public JellyfishMerkleTree(JmtMode mode, HashFunction hashFn) {
-        this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
-        this.mode = (mode == null) ? JmtModes.mpf(this.hashFn) : mode;
-        this.commitments = this.mode.commitments();
+        this.proofCodec = new ClassicJmtProofCodec();
     }
 
     public synchronized Optional<Long> latestVersion() {
@@ -217,25 +213,25 @@ public final class JellyfishMerkleTree {
         }
     }
 
-    // getMpfProofCbor removed in favor of mode-bound getProofWire
-
     /**
-     * Mode-bound wire proof (MPF in default mode) for a specific version.
+     * Encodes a proof using the classic JMT wire format (CBOR node list) for a
+     * specific version.
      */
     public synchronized Optional<byte[]> getProofWire(byte[] key, long version) {
         Objects.requireNonNull(key, "key");
         Optional<JmtProof> proof = getProof(key, version);
-        return proof.map(p -> mode.proofCodec().toWire(p, key, hashFn, commitments));
+        return proof.map(p -> proofCodec.toWire(p, key, hashFn, commitments));
     }
 
     /**
-     * Verify a mode-bound wire proof against a root for a specific version context.
+     * Verifies a classic wire proof against a root for a specific version
+     * context.
      */
     public synchronized boolean verifyProofWire(byte[] expectedRoot, byte[] key, byte[] valueOrNull,
                                                 boolean including, byte[] wire) {
         Objects.requireNonNull(wire, "wire");
         Objects.requireNonNull(key, "key");
-        return mode.proofCodec().verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
+        return proofCodec.verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
     }
 
     private VersionSnapshot snapshotAt(long version) {

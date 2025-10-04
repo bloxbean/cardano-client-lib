@@ -3,7 +3,6 @@ package com.bloxbean.cardano.statetrees.rocksdb;
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeStore;
-import com.bloxbean.cardano.statetrees.jmt.mode.JmtModes;
 import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
 import com.bloxbean.cardano.statetrees.mpt.mpf.MpfProofFormatter;
 import com.bloxbean.cardano.statetrees.rocksdb.jmt.RocksDbJmtStore;
@@ -64,7 +63,7 @@ public class CompatibilityTest {
         String dbPath = tempDir.resolve("jmt-facade-db").toString();
         try (RocksDbJmtStore store = new RocksDbJmtStore(dbPath)) {
             HashFunction hash = Blake2b256::digest; // our default
-            JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, JmtModes.mpf(hash), hash);
+            JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, hash);
 
             tree.commit(1, Map.of("mango".getBytes(), "100".getBytes()));
             tree.commit(2, Map.of("apple".getBytes(), "200".getBytes()));
@@ -90,11 +89,6 @@ public class CompatibilityTest {
             boolean verify = tree.verifyProofWire(root, key, value, true, proof);
             System.out.println("VERIFY=" + verify);
 
-            String json = com.bloxbean.cardano.statetrees.jmt.mpf.MpfProofFormatter.toJson(proof);
-            System.out.println("JSON=" + json);
-
-            String aiken = com.bloxbean.cardano.statetrees.jmt.mpf.MpfProofFormatter.toAiken(proof);
-            System.out.println("AIKEN=" + aiken);
             assertTrue(verify);
         }
 

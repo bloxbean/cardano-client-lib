@@ -5,8 +5,8 @@ import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeStore;
 import com.bloxbean.cardano.statetrees.jmt.NodeKey;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.commitment.MpfCommitmentScheme;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class JellyfishMerkleTreeStoreRocksDbTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
-    private static final CommitmentScheme COMMITMENTS = new MpfCommitmentScheme(HASH);
+    private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
 
     @TempDir
     Path tempDir;
@@ -63,4 +63,3 @@ class JellyfishMerkleTreeStoreRocksDbTest {
         return v.getBytes(StandardCharsets.UTF_8);
     }
 }
-

@@ -74,6 +74,7 @@ public final class JmtProofVerifier {
     private static byte[] ascend(byte[] leafHash, List<JmtProof.BranchStep> steps,
                                  CommitmentScheme commitments, int[] nibbles) {
         byte[] hash = Arrays.copyOf(leafHash, leafHash.length);
+        byte[] nullHash = commitments.nullHash();
         for (int i = steps.size() - 1; i >= 0; i--) {
             JmtProof.BranchStep step = steps.get(i);
             byte[][] childHashes = step.childHashes();
@@ -81,10 +82,11 @@ public final class JmtProofVerifier {
                 throw new IllegalArgumentException("Branch step must contain 16 child hashes");
             }
             int nibble = nibbles[i];
-            childHashes[nibble] = Arrays.copyOf(hash, hash.length);
+            if (childHashes[nibble] != null || !Arrays.equals(hash, nullHash)) {
+                childHashes[nibble] = Arrays.copyOf(hash, hash.length);
+            }
             hash = commitments.commitBranch(step.prefix(), childHashes);
         }
         return hash;
     }
 }
-

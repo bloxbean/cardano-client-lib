@@ -2,8 +2,8 @@ package com.bloxbean.cardano.statetrees.jmt;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ class JmtConcurrentCommitsMonotonicTest {
     @Test
     void multi_thread_commits_with_monotonic_versions_succeed() throws Exception {
         HashFunction hash = Blake2b256::digest;
-        CommitmentScheme commitments = new MpfCommitmentScheme(hash);
+        CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hash);
         JmtStore backend = new InMemoryJmtStore();
         JellyfishMerkleTreeStoreConfig config = JellyfishMerkleTreeStoreConfig.builder()
                 .enableNodeCache(false)

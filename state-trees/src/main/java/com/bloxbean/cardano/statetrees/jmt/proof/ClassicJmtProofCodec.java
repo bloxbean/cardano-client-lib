@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.statetrees.jmt.mode;
+package com.bloxbean.cardano.statetrees.jmt.proof;
 
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.CborEncoder;
@@ -9,7 +9,12 @@ import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.NibblePath;
 import com.bloxbean.cardano.statetrees.common.nibbles.Nibbles;
-import com.bloxbean.cardano.statetrees.jmt.*;
+import com.bloxbean.cardano.statetrees.jmt.JmtEncoding;
+import com.bloxbean.cardano.statetrees.jmt.JmtExtensionNode;
+import com.bloxbean.cardano.statetrees.jmt.JmtInternalNode;
+import com.bloxbean.cardano.statetrees.jmt.JmtLeafNode;
+import com.bloxbean.cardano.statetrees.jmt.JmtNode;
+import com.bloxbean.cardano.statetrees.jmt.JmtProof;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 
 import java.io.ByteArrayInputStream;
@@ -22,9 +27,8 @@ import java.util.List;
  * Classic wire codec: proof is a CBOR array of ByteStrings, each a CBOR-encoded node
  * (JmtInternalNode/JmtLeafNode/JmtExtensionNode) along the path.
  */
-final class ClassicJmtProofCodec implements JmtProofCodec {
+public final class ClassicJmtProofCodec {
 
-    @Override
     public byte[] toWire(JmtProof proof, byte[] key, HashFunction hashFn, CommitmentScheme cs) {
         try {
             Array arr = new Array();
@@ -77,7 +81,6 @@ final class ClassicJmtProofCodec implements JmtProofCodec {
         }
     }
 
-    @Override
     public boolean verify(byte[] expectedRoot, byte[] key, byte[] valueOrNull, boolean including,
                           byte[] wire, HashFunction hashFn, CommitmentScheme cs) {
         byte[] normalizedExpected = expectedRoot == null ? cs.nullHash() : expectedRoot;
@@ -216,4 +219,3 @@ final class ClassicJmtProofCodec implements JmtProofCodec {
         }
     }
 }
-

@@ -1,81 +1,34 @@
-# Jellyfish Merkle Tree (JMT) Mode
+# Jellyfish Merkle Tree (JMT)
 
 This package hosts the ADR-0004 implementation of the Jellyfish Merkle Tree used by
-`cardano-client-lib` when JMT-mode is enabled. It provides an immutable, versioned
-hexary Merkle structure with an MPF-compatible commitment scheme and both in-memory
-and store-backed facades.
+`cardano-client-lib`. It provides an immutable, versioned hexary Merkle structure with
+the default commitment and proof semantics from the Diem reference implementation, and
+exposes both in-memory and store-backed facades.
 
-Note: JMT is MPF-only end-to-end today. There is no proof/commitment “mode” selection for JMT; its
-commitments and CBOR proofs are fixed to the MPF format (Aiken-compatible). If a Classic mode is
-introduced later, it will be an explicit API selection similar to MPT, pairing Classic commitments
-with a Classic proof codec. Until then, use the MPF wire APIs.
+## Wire Proof APIs
 
-## Wire Proof APIs (Mode-bound)
-
-JMT now exposes wire-first proof helpers aligned with ADR-0008. MPF is the default and only mode today:
+JMT exposes wire-first proof helpers aligned with ADR-0008. Proofs are encoded as CBOR
+arrays of node payloads; verification mirrors the reference implementation.
 
 ```
 HashFunction hash = Blake2b256::digest;
-JmtMode mode = JmtModes.mpf(hash); // MPF commitments + MPF wire proofs
 
 // In-memory facade
-JellyfishMerkleTree tree = new JellyfishMerkleTree(mode, hash);
+JellyfishMerkleTree tree = new JellyfishMerkleTree(hash);
 Optional<byte[]> wire = tree.getProofWire("alice".getBytes(UTF_8), 1L);
 boolean ok = tree.verifyProofWire(tree.rootHash(1L), "alice".getBytes(UTF_8),
                                   "100".getBytes(UTF_8), true, wire.orElseThrow());
 
 // Store-backed facade
-JellyfishMerkleTreeStore storeTree = new JellyfishMerkleTreeStore(backendStore, mode, hash,
-        JellyfishMerkleTreeStore.EngineMode.STREAMING, JellyfishMerkleTreeStoreConfig.defaults());
+JellyfishMerkleTreeStore storeTree = new JellyfishMerkleTreeStore(
+        backendStore,
+        null,
+        hash,
+        JellyfishMerkleTreeStore.EngineMode.STREAMING,
+        JellyfishMerkleTreeStoreConfig.defaults());
 Optional<byte[]> w = storeTree.getProofWire("alice".getBytes(UTF_8), 1L);
 boolean ok2 = storeTree.verifyProofWire(storeTree.rootHash(1L), "alice".getBytes(UTF_8),
                                        "100".getBytes(UTF_8), true, w.orElseThrow());
-```
-
-## Classic Mode Example
-
-Classic mode offers off-chain–friendly verification: proofs are CBOR arrays of node ByteStrings and
-verification re-hashes exactly what is in the proof. It is not Aiken-compatible.
-
-```
-HashFunction hash = Blake2b256::digest;
-JmtMode classic = JmtModes.classic(hash);
-
-// In-memory Classic
-JellyfishMerkleTree cTree = new JellyfishMerkleTree(classic, hash);
-Map<byte[], byte[]> u = new LinkedHashMap<>();
-u.put("alice".getBytes(UTF_8), "100".getBytes(UTF_8));
-u.put("bob".getBytes(UTF_8),   "200".getBytes(UTF_8));
-JellyfishMerkleTree.CommitResult r = cTree.commit(1L, u);
-byte[] root = r.rootHash();
-
-byte[] wInc = cTree.getProofWire("alice".getBytes(UTF_8), 1L).orElseThrow();
-boolean okInc = cTree.verifyProofWire(root, "alice".getBytes(UTF_8), "100".getBytes(UTF_8), true, wInc);
-
-byte[] wNI = cTree.getProofWire("carol".getBytes(UTF_8), 1L).orElseThrow();
-boolean okNI = cTree.verifyProofWire(root, "carol".getBytes(UTF_8), null, false, wNI);
-```
-
-### Store-backed Classic Proof Example
-
-```
-HashFunction hash = Blake2b256::digest;
-JmtMode classic = JmtModes.classic(hash);
-
-RocksDbJmtStore.Options opts = RocksDbJmtStore.Options.builder().build();
-try (RocksDbJmtStore store = RocksDbJmtStore.open("/tmp/jmt-classic", opts)) {
-  JellyfishMerkleTreeStoreConfig cfg = JellyfishMerkleTreeStoreConfig.defaults();
-  JellyfishMerkleTreeStore tree = new JellyfishMerkleTreeStore(store, classic, hash,
-      JellyfishMerkleTreeStore.EngineMode.STREAMING, cfg);
-
-  Map<byte[], byte[]> updates = new LinkedHashMap<>();
-  updates.put("alice".getBytes(UTF_8), "100".getBytes(UTF_8));
-  JellyfishMerkleTree.CommitResult result = tree.commit(1L, updates);
-
-  byte[] wire = tree.getProofWire("alice".getBytes(UTF_8), 1L).orElseThrow();
-  boolean ok = tree.verifyProofWire(result.rootHash(), "alice".getBytes(UTF_8),
-                                    "100".getBytes(UTF_8), true, wire);
-}
 ```
 
 ## Core Features
@@ -86,19 +39,18 @@ try (RocksDbJmtStore store = RocksDbJmtStore.open("/tmp/jmt-classic", opts)) {
   configuration knobs for adaptive node/value caching and for limiting commit result verbosity.
 - **Versioned tree state** The reference `JellyfishMerkleTree` rebuilds a copy-on-write tree for every
   commit. It remains useful for deterministic testing and parity checks.
-- **MPF-compatible commitments** The `commitment` package contains the `MpfCommitmentScheme`
-  which reproduces the Aiken Merkle Patricia Forestry (MPF) hashing rules; proofs generated by
-  the tree interoperate with the Aiken on-chain/verifier code.
+- **Classic commitments** The `commitment` package contains the `ClassicJmtCommitmentScheme`
+  mirroring the hashing rules from the Diem implementation.
 - **Proofs** `JmtProof` captures branch steps, optional fork neighbors, and alternative leaf data.
-  `JmtProofVerifier` and `JellyfishMerkleTree#getProof` cover inclusion/non-inclusion cases. The
-  `mpf` subpackage adds a CBOR serializer/decoder pair that emits the exact MPF proof format.
+  `JmtProofVerifier` and `JellyfishMerkleTree#getProof` cover inclusion/non-inclusion cases, and the
+  built-in codec emits the classic CBOR node-list format.
 - **Adaptive caching and pruning** The streaming façade maintains optional LRU caches for nodes and
   values, plus a bounded negative-lookup cache that prevents repeated trips to the store for paths
   known to be absent. A high-level `prune(version)` API triggers stale-node deletion in the backing
   store and evicts any cached entries that refer to pruned versions.
 - **Version-aware values** RocksDB-backed stores retain value history under composite keys
   `(keyHash || version)` so `get(key, t)` returns the last write ≤ `t`. Tombstones record deletions,
-  matching MVCC semantics and keeping MPF proofs correct for historical snapshots.
+  matching MVCC semantics and keeping proofs correct for historical snapshots.
 
 ## RocksDB Store Configuration
 
@@ -170,7 +122,7 @@ index writes.
 
 ```java
 HashFunction hash = Blake2b256::digest;
-CommitmentScheme commitments = new MpfCommitmentScheme(hash);
+CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hash);
 
 RocksDbJmtStore.Options storeOptions = RocksDbJmtStore.Options.builder()
         .prunePolicy(RocksDbJmtStore.ValuePrunePolicy.SAFE)
@@ -196,13 +148,12 @@ getBytes(StandardCharsets.UTF_8));
 JellyfishMerkleTree.CommitResult commit = tree.commit(1L, updates);
 
 Optional<byte[]> proofWire = tree.getProofWire("alice".getBytes(StandardCharsets.UTF_8), 1);
-boolean ok = proofWire.map(cbor -> com.bloxbean.cardano.statetrees.jmt.mpf.MpfProofVerifier.verify(commit.rootHash(),
+boolean ok = proofWire.map(cbor -> tree.verifyProofWire(
+        commit.rootHash(),
         "alice".getBytes(StandardCharsets.UTF_8),
         "100".getBytes(StandardCharsets.UTF_8),
         true,
-        cbor,
-        hash,
-        commitments)).orElse(false);
+        cbor)).orElse(false);
 
 JellyfishMerkleTreeStore.PruneReport report = tree.prune(10); // prune stale nodes up to version 10
 System.out.
@@ -221,20 +172,18 @@ truncateAfter(42); // requires enableRollbackIndex(true)
 - **State persistence** Use the classes in `state-trees-rocksdb/jmt` to store nodes, values, roots and
   stale metadata. The streaming façade already emits the correct writes through `JmtStore.CommitBatch`
   and exposes `prune(version)` for orchestrating stale clean-up.
-- **Proof services** Expose `getProofWire` over RPC/APIs (MPF CBOR today). Consumers can use the
-  public `jmt.mpf` package (`MpfProofDecoder`/`MpfProofVerifier`) to decode/verify proofs without touching
-  internal tree structures.
+- **Proof services** Expose `getProofWire` over RPC/APIs (classic CBOR node list). Consumers can use
+  `JmtProofVerifier` to verify proofs without touching internal tree structures.
 - **Offline tooling** `JmtProofVerifier` can be used wherever inclusion/non-inclusion checks are required.
-  When MPF interoperability is needed, prefer `MpfProofDecoder` + `MpfProofVerifier`.
 
 ## Advantages
 
 - **MVCC-friendly** Each commit is versioned via ADR-0004 NodeKeys, enabling efficient reads for
   historical versions and controlled pruning through the stale index.
 - **Hexary compression** The tree compresses single-child paths and avoids binary depth explosion,
-  matching the MPF/Aiken layout for efficient proof size and performance.
-- **Interoperability** MPF-compatible commitments allow reuse of on-chain verification logic and
-  existing MPF tooling. Proofs produced here are byte-for-byte compatible with the Aiken verifier.
+  matching the Diem layout for efficient proof size and performance.
+- **Interoperability** Commitments follow the Diem JMT specification, enabling reuse of its verifier
+  implementations and tooling.
 - **Persistence isolation** The RocksDB store keeps nodes, values, roots, and stale metadata in
   dedicated column families, making pruner operations straightforward while isolating hot data.
 - **Adaptive memory footprint** Enable the node/value caches for hot-path acceleration or disable them
@@ -267,7 +216,7 @@ shipping to production.
 
 - ADR-0004 (`state-trees/docs/adr/ADR-0004-jmt-mode.md`) for full design context.
 - `state-trees-rocksdb/src/test/.../RocksDbJmtStoreTest` for persistence examples.
-- `state-trees/src/test/.../mpf/MpfProofSerializerTest` for proof generation and verification patterns.
+- `state-trees/src/test/java/com/bloxbean/cardano/statetrees/jmt/JmtClassicProofWireTest` for proof generation and verification patterns.
 ## Production Operations
 
 - Single-writer policy: use one writer thread/process for commits; multiple readers are safe. This avoids lock contention and simplifies ordering guarantees (see concurrency tests).

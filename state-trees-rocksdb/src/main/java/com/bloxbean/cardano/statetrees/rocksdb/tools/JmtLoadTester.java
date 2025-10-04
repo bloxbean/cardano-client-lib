@@ -4,8 +4,8 @@ import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeStore;
 import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeStoreConfig;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.statetrees.jmt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
 
@@ -42,7 +42,7 @@ public final class JmtLoadTester {
     public static void main(String[] args) throws Exception {
         LoadOptions options = LoadOptions.parse(args);
         HashFunction hash = Blake2b256::digest;
-        CommitmentScheme commitments = new MpfCommitmentScheme(hash);
+        CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hash);
 
         JellyfishMerkleTreeStoreConfig.Builder cfg = JellyfishMerkleTreeStoreConfig.builder();
         if (options.nodeCacheSize > 0) {

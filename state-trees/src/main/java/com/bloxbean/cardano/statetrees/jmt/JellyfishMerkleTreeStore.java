@@ -2,21 +2,22 @@ package com.bloxbean.cardano.statetrees.jmt;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.NibblePath;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
+import com.bloxbean.cardano.statetrees.jmt.proof.ClassicJmtProofCodec;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
-import com.bloxbean.cardano.statetrees.jmt.mode.JmtMode;
-import com.bloxbean.cardano.statetrees.jmt.mode.JmtModes;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Store-backed Jellyfish Merkle Tree façade with pluggable engine modes.
+ * Store-backed Jellyfish Merkle Tree façade built around the classic JMT
+ * commitment and proof semantics.
  *
  * <p>REFERENCE mode defers to the in-memory reference JMT for correctness,
- * persisting results to the provided store. STREAMING mode performs lazy lookups
- * and streams updates via {@link JmtStore.CommitBatch} while preserving MPF
+ * persisting results to the provided store. STREAMING mode performs lazy
+ * lookups and streams updates via {@link JmtStore.CommitBatch} while preserving
  * proof behaviour.</p>
  */
 public final class JellyfishMerkleTreeStore {
@@ -24,7 +25,12 @@ public final class JellyfishMerkleTreeStore {
     private final Engine engine;
     private final CommitmentScheme commitments;
     private final HashFunction hashFn;
-    private final JmtMode mode;
+    private final ClassicJmtProofCodec proofCodec;
+
+    public JellyfishMerkleTreeStore(JmtStore store,
+                                    HashFunction hashFn) {
+        this(store, null, hashFn, EngineMode.STREAMING, JellyfishMerkleTreeStoreConfig.defaults());
+    }
 
     public JellyfishMerkleTreeStore(JmtStore store,
                                     CommitmentScheme commitments,
@@ -45,43 +51,14 @@ public final class JellyfishMerkleTreeStore {
                                     EngineMode mode,
                                     JellyfishMerkleTreeStoreConfig config) {
         Objects.requireNonNull(store, "store");
-        Objects.requireNonNull(commitments, "commitments");
         Objects.requireNonNull(hashFn, "hashFn");
         EngineMode effective = mode == null ? EngineMode.STREAMING : mode;
-        this.commitments = commitments;
         this.hashFn = hashFn;
-        this.mode = JmtModes.mpf(hashFn);
-        this.engine = (effective == EngineMode.REFERENCE)
-                ? new ReferenceEngine(store, commitments, hashFn)
-                : new StreamingEngine(store, commitments, hashFn, Objects.requireNonNullElse(config, JellyfishMerkleTreeStoreConfig.defaults()));
-    }
-
-    /**
-     * Constructor that accepts a mode (defaults to MPF if null).
-     */
-    public JellyfishMerkleTreeStore(JmtStore store,
-                                    JmtMode mode,
-                                    HashFunction hashFn,
-                                    EngineMode engineMode,
-                                    JellyfishMerkleTreeStoreConfig config) {
-        Objects.requireNonNull(store, "store");
-        Objects.requireNonNull(hashFn, "hashFn");
-        EngineMode effective = engineMode == null ? EngineMode.STREAMING : engineMode;
-        this.mode = (mode == null) ? JmtModes.mpf(hashFn) : mode;
-        this.commitments = this.mode.commitments();
-        this.hashFn = hashFn;
+        this.commitments = commitments != null ? commitments : new ClassicJmtCommitmentScheme(hashFn);
+        this.proofCodec = new ClassicJmtProofCodec();
         this.engine = (effective == EngineMode.REFERENCE)
                 ? new ReferenceEngine(store, this.commitments, hashFn)
                 : new StreamingEngine(store, this.commitments, hashFn, Objects.requireNonNullElse(config, JellyfishMerkleTreeStoreConfig.defaults()));
-    }
-
-    /**
-     * Convenience constructor: mode + default STREAMING engine and defaults config.
-     */
-    public JellyfishMerkleTreeStore(JmtStore store,
-                                    JmtMode mode,
-                                    HashFunction hashFn) {
-        this(store, mode, hashFn, EngineMode.STREAMING, JellyfishMerkleTreeStoreConfig.defaults());
     }
 
     public Optional<Long> latestVersion() {
@@ -113,21 +90,21 @@ public final class JellyfishMerkleTreeStore {
     }
 
     /**
-     * Mode-bound wire proof (MPF in default mode).
+     * Encodes a classic JMT proof using the wire format (CBOR node list).
      */
     public Optional<byte[]> getProofWire(byte[] key, long version) {
         Objects.requireNonNull(key, "key");
-        return getProof(key, version).map(p -> mode.proofCodec().toWire(p, key, hashFn, commitments));
+        return getProof(key, version).map(p -> proofCodec.toWire(p, key, hashFn, commitments));
     }
 
     /**
-     * Verify a mode-bound wire proof (MPF in default mode).
+     * Verifies a classic wire proof (CBOR node list).
      */
     public boolean verifyProofWire(byte[] expectedRoot, byte[] key, byte[] valueOrNull,
                                    boolean including, byte[] wire) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(wire, "wire");
-        return mode.proofCodec().verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
+        return proofCodec.verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
     }
 
     public PruneReport prune(long versionInclusive) {
@@ -379,13 +356,29 @@ public final class JellyfishMerkleTreeStore {
             boolean hasValue = store.getValueAt(keyHash, version).isPresent();
 
             java.util.List<JmtProof.BranchStep> steps = new java.util.ArrayList<>();
+            int fallbackStepIndex = -1;
             com.bloxbean.cardano.statetrees.common.NibblePath prefix = com.bloxbean.cardano.statetrees.common.NibblePath.EMPTY;
             java.util.Optional<JmtStore.NodeEntry> current = fetchNode(version, prefix);
+            if (!current.isPresent() && hasValue) {
+                current = fetchNode(version, fullPath);
+                if (!current.isPresent()) {
+                    current = findDescendant(version, fullPath);
+                }
+            }
+            if (!current.isPresent()) {
+                current = findDescendant(version, prefix);
+                if (!hasValue && current.isPresent()) {
+                    System.out.println("[JMT debug] missing key version=" + version + " resolved to node "
+                            + current.get().node().getClass().getSimpleName() + " pathLen="
+                            + current.get().nodeKey().path().length());
+                }
+            }
             if (!current.isPresent()) {
                 return java.util.Optional.of(JmtProof.nonInclusionEmpty(java.util.Collections.emptyList()));
             }
 
-            int depth = 0;
+            prefix = current.get().nodeKey().path();
+            int depth = (current.get().node() instanceof JmtLeafNode) ? steps.size() : prefix.length();
             while (current.isPresent() && current.get().node() instanceof JmtInternalNode) {
                 JmtInternalNode internal = (JmtInternalNode) current.get().node();
                 byte[][] fullHashes = expandChildHashes(internal);
@@ -406,10 +399,9 @@ public final class JellyfishMerkleTreeStore {
                 com.bloxbean.cardano.statetrees.common.NibblePath childPrefix = append(prefix, nibble);
                 java.util.Optional<JmtStore.NodeEntry> next = fetchNode(version, childPrefix);
                 if (!next.isPresent()) {
-                    // If the target key has a value at this version, try jumping directly to its leaf.
+                    boolean advanced = false;
                     if (hasValue) {
                         // Walk down along the target key path to find the next materialized node (internal or leaf).
-                        boolean advanced = false;
                         for (int j = childPrefix.length() + 1; j <= fullPath.length(); j++) {
                             com.bloxbean.cardano.statetrees.common.NibblePath pfx = fullPath.slice(0, j);
                             java.util.Optional<JmtStore.NodeEntry> e = fetchNode(version, pfx);
@@ -425,9 +417,13 @@ public final class JellyfishMerkleTreeStore {
                             continue;
                         }
                     }
+                    if (!hasValue) {
+                        return java.util.Optional.of(JmtProof.nonInclusionEmpty(steps));
+                    }
                     // Otherwise, find any descendant under this child prefix (e.g., neighbor leaf).
                     java.util.Optional<JmtStore.NodeEntry> descendant = findDescendant(version, childPrefix);
                     if (descendant.isPresent()) {
+                        fallbackStepIndex = steps.size() - 1;
                         current = descendant;
                         prefix = descendant.get().nodeKey().path();
                         depth = prefix.length();
@@ -468,32 +464,26 @@ public final class JellyfishMerkleTreeStore {
             } else {
                 com.bloxbean.cardano.statetrees.common.NibblePath suffix = current.get().nodeKey().path()
                         .slice(depth, current.get().nodeKey().path().length());
-                // For MPF wire compatibility, append a terminal LEAF step that supplies the
-                // conflicting leaf's key/value hashes. The LEAF step's 'skip' is relative to the
-                // current cursor (i.e., number of nibbles already consumed by earlier steps), so
-                // compute it from the common prefix length between the query key and the conflicting key.
-                // For the terminal LEAF step we must set prefix length to the absolute common prefix
-                // length between the query key and the conflicting leaf key. MpfProofSerializer will
-                // derive the relative skip as (absPrefixLen - cursor).
-                int[] keyNibbles = com.bloxbean.cardano.statetrees.common.nibbles.Nibbles.toNibbles(hashFn.digest(key));
-                int[] neighborNibbles = com.bloxbean.cardano.statetrees.common.nibbles.Nibbles.toNibbles(leaf.keyHash());
-                int cpl = 0;
-                int lim = Math.min(keyNibbles.length, neighborNibbles.length);
-                while (cpl < lim && keyNibbles[cpl] == neighborNibbles[cpl]) cpl++;
-                com.bloxbean.cardano.statetrees.common.NibblePath relPrefix = cpl == 0
-                        ? com.bloxbean.cardano.statetrees.common.NibblePath.EMPTY
-                        : com.bloxbean.cardano.statetrees.common.NibblePath.of(java.util.Arrays.copyOf(keyNibbles, cpl));
-                steps.add(new JmtProof.BranchStep(
-                        relPrefix,
-                        new byte[16][],
-                        0,
-                        true,
-                        0,
-                        null,
-                        null,
-                        leaf.keyHash(),
-                        leaf.valueHash()
-                ));
+                if (!steps.isEmpty()) {
+                    int targetIndex = fallbackStepIndex >= 0 ? fallbackStepIndex : steps.size() - 1;
+                    JmtProof.BranchStep target = steps.get(targetIndex);
+                    byte[][] adjusted = target.childHashes();
+                    int childIdx = target.childIndex();
+                    if (adjusted[childIdx] == null) {
+                        byte[] leafDigest = commitments.commitLeaf(suffix, leaf.valueHash());
+                        adjusted[childIdx] = leafDigest;
+                    }
+                    steps.set(targetIndex, new JmtProof.BranchStep(
+                            target.prefix(),
+                            adjusted,
+                            target.childIndex(),
+                            target.hasSingleNeighbor(),
+                            target.neighborNibble(),
+                            target.forkNeighborPrefix(),
+                            target.forkNeighborRoot(),
+                            target.leafNeighborKeyHash(),
+                            target.leafNeighborValueHash()));
+                }
                 return java.util.Optional.of(JmtProof.nonInclusionDifferentLeaf(
                         steps,
                         leaf.keyHash(),
@@ -912,7 +902,7 @@ public final class JellyfishMerkleTreeStore {
                     if (frames.isEmpty() && baseVersion >= 0) {
                         java.util.Optional<JmtStore.NodeEntry> floor = store.floorNode(baseVersion, fullPath);
                         floor.ifPresent(StreamingEngine.this::cacheNodeEntry);
-                        if (floor.isPresent()) {
+                        if (floor.isPresent() && !pendingStale.contains(floor.get().nodeKey())) {
                             int prefixLen = commonPrefixLength(fullPath, floor.get().nodeKey().path());
                             return new Traversal(frames, floor, prefixLen);
                         }

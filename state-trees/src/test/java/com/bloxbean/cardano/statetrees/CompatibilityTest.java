@@ -3,7 +3,6 @@ package com.bloxbean.cardano.statetrees;
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
-import com.bloxbean.cardano.statetrees.jmt.mode.JmtModes;
 import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
 import com.bloxbean.cardano.statetrees.mpt.mpf.MpfProofFormatter;
 import org.junit.jupiter.api.Test;
@@ -46,7 +45,7 @@ public class CompatibilityTest {
     @Test
     void generateProofJmt() {
         HashFunction hash = Blake2b256::digest; // our default
-        JellyfishMerkleTree tree = new JellyfishMerkleTree(JmtModes.mpf(hash), hash);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(hash);
 
         tree.commit(1, Map.of("mango".getBytes(), "100".getBytes()));
         tree.commit(2, Map.of("apple".getBytes(), "200".getBytes()));
@@ -68,11 +67,6 @@ public class CompatibilityTest {
         boolean verify = tree.verifyProofWire(root, key, value, true, proof);
         System.out.println("VERIFY=" + verify);
 
-        String json = MpfProofFormatter.toJson(proof);
-        System.out.println("JSON=" + json);
-
-        String aiken = MpfProofFormatter.toAiken(proof);
-        System.out.println("AIKEN=" + aiken);
         assertTrue(verify);
 
     }
