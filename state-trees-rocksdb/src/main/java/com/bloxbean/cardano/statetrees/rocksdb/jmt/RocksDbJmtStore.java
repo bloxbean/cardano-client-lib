@@ -120,6 +120,7 @@ public final class RocksDbJmtStore implements JmtStore {
         private final boolean syncOnCommit;
         private final boolean syncOnPrune;
         private final boolean syncOnTruncate;
+        private final RocksDbConfig rocksDbConfig;
 
         private Options(Builder builder) {
             this.namespace = builder.namespace;
@@ -129,6 +130,7 @@ public final class RocksDbJmtStore implements JmtStore {
             this.syncOnCommit = builder.syncOnCommit;
             this.syncOnPrune = builder.syncOnPrune;
             this.syncOnTruncate = builder.syncOnTruncate;
+            this.rocksDbConfig = builder.rocksDbConfig != null ? builder.rocksDbConfig : RocksDbConfig.balanced();
         }
 
         public static Builder builder() {
@@ -170,6 +172,11 @@ public final class RocksDbJmtStore implements JmtStore {
             return syncOnTruncate;
         }
 
+        /** Returns the RocksDB configuration settings. */
+        public RocksDbConfig rocksDbConfig() {
+            return rocksDbConfig;
+        }
+
         public static final class Builder {
             private String namespace;
             private boolean enableRollbackIndex;
@@ -178,6 +185,7 @@ public final class RocksDbJmtStore implements JmtStore {
             private boolean syncOnCommit = true;
             private boolean syncOnPrune = true;
             private boolean syncOnTruncate = true;
+            private RocksDbConfig rocksDbConfig;
 
             public Builder namespace(String namespace) {
                 this.namespace = namespace;
@@ -215,6 +223,17 @@ public final class RocksDbJmtStore implements JmtStore {
             /** Enable/disable WriteOptions.sync for truncate operations (default true for durability). */
             public Builder syncOnTruncate(boolean sync) {
                 this.syncOnTruncate = sync;
+                return this;
+            }
+
+            /**
+             * Sets the RocksDB configuration to use. If not specified, defaults to {@link RocksDbConfig#balanced()}.
+             *
+             * @param rocksDbConfig configuration for RocksDB performance tuning
+             * @return this builder
+             */
+            public Builder rocksDbConfig(RocksDbConfig rocksDbConfig) {
+                this.rocksDbConfig = rocksDbConfig;
                 return this;
             }
 
@@ -1041,13 +1060,24 @@ public final class RocksDbJmtStore implements JmtStore {
             throw new RuntimeException("Failed to create RocksDB directory: " + dbPath);
         }
 
+        // Apply RocksDB configuration
+        RocksDbConfig config = options.rocksDbConfig();
+        org.rocksdb.Cache blockCache = config.createBlockCache();
+
         ColumnFamilyOptions defaultCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
+        config.applyToCfOptions(defaultCfOptions, blockCache);
+
         ColumnFamilyOptions valuesCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
         valuesCfOptions.useFixedLengthPrefixExtractor(KEY_HASH_LENGTH);
+        config.applyToCfOptions(valuesCfOptions, blockCache);
+
         ColumnFamilyOptions indexCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
         indexCfOptions.useFixedLengthPrefixExtractor(Long.BYTES);
+        config.applyToCfOptions(indexCfOptions, blockCache);
 
         DBOptions dbOptions = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
+        config.applyToDbOptions(dbOptions);
+
         RocksDbJmtSchema.ColumnFamilies names = RocksDbJmtSchema.columnFamilies(options.namespace());
 
         RocksDB db = null;
@@ -1091,6 +1121,9 @@ public final class RocksDbJmtStore implements JmtStore {
 
             List<ColumnFamilyHandle> ownedHandles = new ArrayList<>(handles);
             List<AutoCloseable> ownedResources = new ArrayList<>();
+            if (blockCache != null) {
+                ownedResources.add(blockCache);
+            }
             ownedResources.add(defaultCfOptions);
             ownedResources.add(valuesCfOptions);
             if (options.enableRollbackIndex()) {
@@ -1118,11 +1151,21 @@ public final class RocksDbJmtStore implements JmtStore {
                                        Options options,
                                        Map<String, ColumnFamilyHandle> existingHandles) throws RocksDBException {
         RocksDbJmtSchema.ColumnFamilies names = RocksDbJmtSchema.columnFamilies(options.namespace());
+
+        // Apply RocksDB configuration
+        RocksDbConfig config = options.rocksDbConfig();
+        org.rocksdb.Cache blockCache = config.createBlockCache();
+
         ColumnFamilyOptions defaultCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
+        config.applyToCfOptions(defaultCfOptions, blockCache);
+
         ColumnFamilyOptions valuesCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
         valuesCfOptions.useFixedLengthPrefixExtractor(KEY_HASH_LENGTH);
+        config.applyToCfOptions(valuesCfOptions, blockCache);
+
         ColumnFamilyOptions indexCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
         indexCfOptions.useFixedLengthPrefixExtractor(Long.BYTES);
+        config.applyToCfOptions(indexCfOptions, blockCache);
 
         List<ColumnFamilyHandle> ownedHandles = new ArrayList<>();
         boolean success = false;
@@ -1136,6 +1179,9 @@ public final class RocksDbJmtStore implements JmtStore {
             ColumnFamilyHandle valuesByVersion = options.enableRollbackIndex() ? ensureHandle(db, names.valuesByVersion(), indexCfOptions, handles, ownedHandles) : null;
 
             List<AutoCloseable> ownedResources = new ArrayList<>();
+            if (blockCache != null) {
+                ownedResources.add(blockCache);
+            }
             ownedResources.add(defaultCfOptions);
             ownedResources.add(valuesCfOptions);
             if (options.enableRollbackIndex()) {

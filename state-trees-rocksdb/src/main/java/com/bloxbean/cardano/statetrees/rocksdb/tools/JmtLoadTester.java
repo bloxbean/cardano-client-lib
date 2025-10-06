@@ -8,6 +8,7 @@ import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.InMemoryJmtStore;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
+import com.bloxbean.cardano.statetrees.rocksdb.jmt.RocksDbConfig;
 import com.bloxbean.cardano.statetrees.rocksdb.jmt.RocksDbJmtStore;
 
 import java.nio.file.Files;
@@ -68,6 +69,7 @@ public final class JmtLoadTester {
                 RocksDbJmtStore.Options storeOpts = RocksDbJmtStore.Options.builder()
                         .enableRollbackIndex(options.enableRollbackIndex)
                         .prunePolicy(options.prunePolicy)
+                        .rocksDbConfig(RocksDbConfig.highThroughput())
                         .build();
 
                 try (RocksDbJmtStore store = RocksDbJmtStore.open(
@@ -81,6 +83,8 @@ public final class JmtLoadTester {
             }
         }
     }
+
+    private static final int MAX_UPDATE_POOL = 100_000;  // Cap update key pool to 100K keys
 
     private static void runLoad(JmtStore store, HashFunction hashFn,
                                  CommitmentScheme commitments, LoadOptions options) {
@@ -97,9 +101,9 @@ public final class JmtLoadTester {
         long totalInserts = 0;
         long totalUpdates = 0;
 
-        // Track live keys to support updates
-        List<byte[]> liveKeys = new ArrayList<>();
-        Map<ByteArrayWrapper, Integer> liveIndex = new HashMap<>();
+        // Track live keys to support updates (only if updateRatio > 0)
+        List<byte[]> liveKeys = options.updateRatio > 0.0 ? new ArrayList<>(MAX_UPDATE_POOL) : null;
+        Map<ByteArrayWrapper, Integer> liveIndex = options.updateRatio > 0.0 ? new HashMap<>(MAX_UPDATE_POOL) : null;
 
         // Statistics accumulators
         long totalCommitTimeMs = 0;
@@ -112,6 +116,9 @@ public final class JmtLoadTester {
         System.out.printf("Batch size: %,d%n", options.batchSize);
         System.out.printf("Value size: %d bytes%n", options.valueSize);
         System.out.printf("Update ratio: %.2f%n", options.updateRatio);
+        if (options.updateRatio > 0.0) {
+            System.out.printf("Update pool size: %,d keys (bounded)%n", MAX_UPDATE_POOL);
+        }
         if (options.pruneEvery > 0) {
             System.out.printf("Pruning: every %,d batches, keep latest %,d versions%n",
                     options.pruneEvery, options.keepLatest);
@@ -124,19 +131,21 @@ public final class JmtLoadTester {
 
             // Decide how many updates vs inserts
             int numUpdates = 0;
-            if (!liveKeys.isEmpty() && options.updateRatio > 0.0) {
+            if (liveKeys != null && !liveKeys.isEmpty() && options.updateRatio > 0.0) {
                 numUpdates = (int) Math.round(batchSize * options.updateRatio);
                 numUpdates = Math.min(numUpdates, liveKeys.size());
             }
 
             // Generate updates to existing keys
-            for (int i = 0; i < numUpdates; i++) {
-                int idx = ThreadLocalRandom.current().nextInt(liveKeys.size());
-                byte[] existingKey = liveKeys.get(idx);
-                byte[] newValue = new byte[options.valueSize];
-                random.nextBytes(newValue);
-                updates.put(existingKey, newValue);
-                totalUpdates++;
+            if (liveKeys != null) {
+                for (int i = 0; i < numUpdates; i++) {
+                    int idx = ThreadLocalRandom.current().nextInt(liveKeys.size());
+                    byte[] existingKey = liveKeys.get(idx);
+                    byte[] newValue = new byte[options.valueSize];
+                    random.nextBytes(newValue);
+                    updates.put(existingKey, newValue);
+                    totalUpdates++;
+                }
             }
 
             // Generate inserts for new keys
@@ -157,22 +166,37 @@ public final class JmtLoadTester {
             totalCommitTimeMs += commitElapsed;
             totalCommits++;
 
-            // Maintain live keys index
-            for (Map.Entry<byte[], byte[]> entry : updates.entrySet()) {
-                ByteArrayWrapper keyWrapper = new ByteArrayWrapper(entry.getKey());
-                Integer existingIdx = liveIndex.get(keyWrapper);
-                if (existingIdx == null) {
-                    // New key
-                    liveKeys.add(entry.getKey());
-                    liveIndex.put(keyWrapper, liveKeys.size() - 1);
-                } else {
-                    // Update existing key (already in index)
-                    liveKeys.set(existingIdx, entry.getKey());
+            // Maintain live keys index (bounded pool)
+            if (liveKeys != null && liveIndex != null) {
+                for (Map.Entry<byte[], byte[]> entry : updates.entrySet()) {
+                    ByteArrayWrapper keyWrapper = new ByteArrayWrapper(entry.getKey());
+                    Integer existingIdx = liveIndex.get(keyWrapper);
+                    if (existingIdx == null) {
+                        // New key - enforce pool limit
+                        if (liveKeys.size() >= MAX_UPDATE_POOL) {
+                            // Remove oldest 10% when limit reached
+                            int removeCount = MAX_UPDATE_POOL / 10;
+                            for (int i = 0; i < removeCount; i++) {
+                                byte[] removedKey = liveKeys.remove(0);
+                                liveIndex.remove(new ByteArrayWrapper(removedKey));
+                            }
+                            // Rebuild index to fix indices after removals
+                            liveIndex.clear();
+                            for (int i = 0; i < liveKeys.size(); i++) {
+                                liveIndex.put(new ByteArrayWrapper(liveKeys.get(i)), i);
+                            }
+                        }
+                        liveKeys.add(entry.getKey());
+                        liveIndex.put(keyWrapper, liveKeys.size() - 1);
+                    } else {
+                        // Update existing key (already in index)
+                        liveKeys.set(existingIdx, entry.getKey());
+                    }
                 }
             }
 
             // Optional proof generation exercise
-            if (options.proofEvery > 0 && (totalCommits % options.proofEvery) == 0 && !liveKeys.isEmpty()) {
+            if (options.proofEvery > 0 && (totalCommits % options.proofEvery) == 0 && liveKeys != null && !liveKeys.isEmpty()) {
                 byte[] sampleKey = liveKeys.get(ThreadLocalRandom.current().nextInt(liveKeys.size()));
                 byte[] keyHash = hashFn.digest(sampleKey);
 
@@ -251,7 +275,11 @@ public final class JmtLoadTester {
         // Memory usage
         System.out.println("==== Memory Usage ====");
         System.out.printf("Heap used: %.2f MB%n", usedHeap / 1024.0 / 1024.0);
-        System.out.printf("Live keys tracked: %,d%n", liveKeys.size());
+        if (liveKeys != null) {
+            System.out.printf("Live keys tracked: %,d%n", liveKeys.size());
+        } else {
+            System.out.println("Live keys tracked: 0 (tracking disabled, insert-only mode)");
+        }
 
         // Storage statistics (RocksDB only)
         if (store instanceof RocksDbJmtStore) {
