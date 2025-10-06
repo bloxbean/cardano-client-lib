@@ -133,7 +133,6 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
@@ -156,7 +155,6 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
@@ -175,7 +173,6 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
@@ -198,7 +195,6 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
@@ -219,7 +215,6 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
@@ -238,7 +233,6 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
@@ -259,7 +253,6 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
