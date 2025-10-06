@@ -5,10 +5,9 @@ import com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie;
 import com.bloxbean.cardano.statetrees.api.NodeStore;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
-import com.bloxbean.cardano.statetrees.rocksdb.RocksDbNodeStore;
-import com.bloxbean.cardano.statetrees.rocksdb.RocksDbStateTrees;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbNodeStore;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbStateTrees;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
@@ -129,14 +128,14 @@ public final class MptLoadTester {
                                 return null;
                             });
                             versionsRecorded = vHolder[0];
-                            com.bloxbean.cardano.statetrees.rocksdb.gc.RefcountGcStrategy.incrementAll(
+                            com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RefcountGcStrategy.incrementAll(
                                     stateTrees.db(), stateTrees.nodeStore().nodesHandle(), stateTrees.nodeStore().nodesHandle(), root, wb);
                             versionWindow.addLast(versionsRecorded);
                             while (versionWindow.size() > options.keepLatest) {
                                 Long oldVer = versionWindow.removeFirst();
                                 byte[] oldRoot = stateTrees.rootsIndex().get(oldVer);
                                 if (oldRoot != null) {
-                                    com.bloxbean.cardano.statetrees.rocksdb.gc.RefcountGcStrategy.decrementAll(
+                                    com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RefcountGcStrategy.decrementAll(
                                             stateTrees.db(), stateTrees.nodeStore().nodesHandle(), stateTrees.nodeStore().nodesHandle(), oldRoot, wb);
                                 }
                             }
@@ -201,13 +200,13 @@ public final class MptLoadTester {
             commits++;
             if (gcMarkSweep && options.gcInterval > 0 && (commits % options.gcInterval) == 0 && stateTrees != null) {
                 try {
-                    var gcManager = new com.bloxbean.cardano.statetrees.rocksdb.gc.GcManager(
+                    var gcManager = new com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcManager(
                             (RocksDbNodeStore) stateTrees.nodeStore(), stateTrees.rootsIndex());
-                    var policy = com.bloxbean.cardano.statetrees.rocksdb.gc.RetentionPolicy.keepLatestN(options.keepLatest);
-                    var gcOpts = new com.bloxbean.cardano.statetrees.rocksdb.gc.GcOptions();
+                    var policy = com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RetentionPolicy.keepLatestN(options.keepLatest);
+                    var gcOpts = new com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcOptions();
                     gcOpts.deleteBatchSize = 20_000;
                     gcOpts.useSnapshot = true;
-                    gcManager.runSync(new com.bloxbean.cardano.statetrees.rocksdb.gc.OnDiskMarkSweepStrategy(), policy, gcOpts);
+                    gcManager.runSync(new com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.OnDiskMarkSweepStrategy(), policy, gcOpts);
                 } catch (Exception e) {
                     throw new RuntimeException("Mark-sweep GC failed", e);
                 }

@@ -41,6 +41,17 @@ public final class JellyfishMerkleTree {
         this(new ClassicJmtCommitmentScheme(hashFn), hashFn);
     }
 
+    // Debug helper for tests
+    JmtNode debugNode(com.bloxbean.cardano.statetrees.common.NibblePath path, long version) {
+        synchronized (this) {
+            VersionSnapshot snapshot = snapshotAt(version);
+            if (snapshot == null) {
+                return null;
+            }
+            return snapshot.nodes.get(NodeKey.of(path, version));
+        }
+    }
+
     public JellyfishMerkleTree(CommitmentScheme commitments, HashFunction hashFn) {
         this.commitments = Objects.requireNonNull(commitments, "commitments");
         this.hashFn = Objects.requireNonNull(hashFn, "hashFn");

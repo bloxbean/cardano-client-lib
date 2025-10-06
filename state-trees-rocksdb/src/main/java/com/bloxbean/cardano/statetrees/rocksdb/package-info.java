@@ -7,9 +7,9 @@
  *
  * <p><b>Core Components:</b></p>
  * <ul>
- *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.RocksDbNodeStore} - Persistent storage for MPT nodes</li>
- *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.RocksDbRootsIndex} - Versioned storage for trie root hashes</li>
- *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.RocksDbStateTrees} - Unified database manager</li>
+ *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbNodeStore} - Persistent storage for MPT nodes</li>
+ *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbRootsIndex} - Versioned storage for trie root hashes</li>
+ *   <li>{@link com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbStateTrees} - Unified database manager</li>
  * </ul>
  *
  * <p><b>Advanced Features:</b></p>

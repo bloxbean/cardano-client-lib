@@ -1,7 +1,5 @@
 package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 
-import com.bloxbean.cardano.statetrees.rocksdb.RocksDbNodeStore;
-import com.bloxbean.cardano.statetrees.rocksdb.RocksDbStateTrees;
 import org.rocksdb.WriteBatch;
 import org.rocksdb.WriteOptions;
 

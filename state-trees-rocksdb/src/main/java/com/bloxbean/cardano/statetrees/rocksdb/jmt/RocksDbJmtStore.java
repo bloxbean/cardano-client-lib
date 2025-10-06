@@ -632,6 +632,27 @@ public final class RocksDbJmtStore implements JmtStore {
     }
 
     @Override
+    public Optional<NodeEntry> ceilingNode(long version, NibblePath path) {
+        Objects.requireNonNull(path, "path");
+        byte[] searchKey = NodeKey.of(path, version).toBytes();
+        try (ReadOptions options = new ReadOptions();
+             RocksIterator iterator = db.newIterator(cfNodes, options)) {
+            iterator.seek(searchKey);
+            while (iterator.isValid()) {
+                byte[] keyBytes = iterator.key();
+                NodeKey nodeKey = NodeKey.fromBytes(keyBytes);
+                if (comparePath(nodeKey.path(), path) >= 0 &&
+                        Long.compareUnsigned(nodeKey.version(), version) <= 0) {
+                    JmtNode node = JmtEncoding.decode(iterator.value());
+                    return Optional.of(new NodeEntry(nodeKey, node));
+                }
+                iterator.next();
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public Optional<byte[]> getValue(byte[] keyHash) {
         Objects.requireNonNull(keyHash, "keyHash");
         try {

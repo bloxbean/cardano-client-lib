@@ -87,6 +87,42 @@ public final class InMemoryJmtStore implements JmtStore {
     }
 
     @Override
+    public synchronized Optional<NodeEntry> ceilingNode(long version, NibblePath path) {
+        Objects.requireNonNull(path, "path");
+        // We need the smallest node whose PATH is >= requested path and whose version <= requested version,
+        // skipping nodes that are stale at the requested version. Since NodeKey ordering is (path, version),
+        // we must handle the version constraint explicitly, potentially stepping back to an older version for
+        // the same path before moving to the next path.
+
+        // Start at the first entry with path >= requested path (ignoring version for the initial probe)
+        NodeKey probe = NodeKey.of(path, 0L);
+        Map.Entry<NodeKey, JmtNode> candidate = nodes.ceilingEntry(probe);
+        while (candidate != null) {
+            NodeKey candKey = candidate.getKey();
+            // If the candidate's version is too new, try to find an older version for the same path
+            if (Long.compareUnsigned(candKey.version(), version) > 0) {
+                Map.Entry<NodeKey, JmtNode> older = nodes.floorEntry(NodeKey.of(candKey.path(), version));
+                if (older != null && older.getKey().path().equals(candKey.path())) {
+                    candKey = older.getKey();
+                    candidate = older;
+                } else {
+                    // Jump to the first entry of the next path strictly greater than the current one
+                    candidate = nodes.higherEntry(NodeKey.of(candKey.path(), Long.MAX_VALUE));
+                    continue;
+                }
+            }
+
+            if (!isStale(candKey, version)) {
+                return Optional.of(new NodeEntry(candKey, candidate.getValue()));
+            }
+
+            // Move to the next entry for this path/version ordering
+            candidate = nodes.higherEntry(candKey);
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public synchronized Optional<byte[]> getValue(byte[] keyHash) {
         Objects.requireNonNull(keyHash, "keyHash");
         byte[] value = values.get(new ByteArrayWrapper(keyHash));

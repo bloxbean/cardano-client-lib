@@ -6,7 +6,7 @@ import com.bloxbean.cardano.statetrees.common.util.Bytes;
 import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
 import com.bloxbean.cardano.statetrees.mpt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.mpt.commitment.MpfCommitmentScheme;
-import com.bloxbean.cardano.statetrees.rocksdb.RocksDbNodeStore;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbNodeStore;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

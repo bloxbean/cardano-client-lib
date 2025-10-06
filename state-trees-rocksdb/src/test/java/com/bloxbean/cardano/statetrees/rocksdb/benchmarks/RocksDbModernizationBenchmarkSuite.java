@@ -114,11 +114,11 @@ public class RocksDbModernizationBenchmarkSuite {
             java.util.Arrays.fill(hash, (byte) i);
 
             if (i % 4 == 0) {
-                keys[i] = com.bloxbean.cardano.statetrees.rocksdb.keys.NodeHashKey.of(hash);
+                keys[i] = com.bloxbean.cardano.statetrees.rocksdb.mpt.keys.NodeHashKey.of(hash);
             } else if (i % 4 == 1) {
-                keys[i] = com.bloxbean.cardano.statetrees.rocksdb.keys.VersionKey.of(i);
+                keys[i] = com.bloxbean.cardano.statetrees.rocksdb.mpt.keys.VersionKey.of(i);
             } else if (i % 4 == 2) {
-                keys[i] = com.bloxbean.cardano.statetrees.rocksdb.keys.SpecialKey.of("test_" + i);
+                keys[i] = com.bloxbean.cardano.statetrees.rocksdb.mpt.keys.SpecialKey.of("test_" + i);
             } else {
                 keys[i] = hash; // Raw bytes for comparison
             }

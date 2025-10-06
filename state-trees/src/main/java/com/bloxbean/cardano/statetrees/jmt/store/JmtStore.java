@@ -48,6 +48,16 @@ public interface JmtStore extends AutoCloseable {
     Optional<NodeEntry> floorNode(long version, NibblePath path);
 
     /**
+     * Returns the smallest node whose path is greater than or equal to {@code path}
+     * among nodes visible at {@code version}. Implementations may return {@link Optional#empty()}
+     * if no such node exists. Default implementation delegates to {@link #floorNode(long, NibblePath)}
+     * and may be overridden for efficiency.
+     */
+    default Optional<NodeEntry> ceilingNode(long version, NibblePath path) {
+        return Optional.empty();
+    }
+
+    /**
      * Loads the raw value associated with {@code keyHash} (32 bytes) if it is
      * stored separate from the tree nodes.
      */

@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.statetrees.rocksdb.exceptions;
 
-import com.bloxbean.cardano.statetrees.rocksdb.keys.RocksDbKey;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.keys.RocksDbKey;
 
 import java.util.Arrays;
 import java.util.Objects;

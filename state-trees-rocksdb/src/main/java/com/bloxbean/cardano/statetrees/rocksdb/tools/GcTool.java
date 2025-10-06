@@ -4,11 +4,10 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.rocksdb.RocksDbStateTrees;
-import com.bloxbean.cardano.statetrees.rocksdb.gc.*;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbStateTrees;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.*;
 import org.rocksdb.*;
 
-import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.util.Random;
 
