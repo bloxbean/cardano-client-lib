@@ -2,7 +2,7 @@ package com.bloxbean.cardano.statetrees.jmt.bench;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeV2;
+import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.JmtProof;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
@@ -70,7 +70,7 @@ public class JmtV2Benchmark {
     private final CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hashFn);
 
     private JmtStore store;
-    private JellyfishMerkleTreeV2 tree;
+    private JellyfishMerkleTree tree;
     private long version;
 
     // Pre-generated keys for consistent benchmarking
@@ -81,7 +81,7 @@ public class JmtV2Benchmark {
     public void setUp() {
         // Create in-memory store
         store = new InMemoryJmtStore();
-        tree = new JellyfishMerkleTreeV2(store, commitments, hashFn);
+        tree = new JellyfishMerkleTree(store, commitments, hashFn);
 
         // Build initial tree
         version = 0;
@@ -125,7 +125,7 @@ public class JmtV2Benchmark {
             updates.put(randomKey(), randomValue());
         }
 
-        JellyfishMerkleTreeV2.CommitResult result = tree.put(++version, updates);
+        JellyfishMerkleTree.CommitResult result = tree.put(++version, updates);
         bh.consume(result.rootHash());
     }
 
@@ -141,7 +141,7 @@ public class JmtV2Benchmark {
             updates.put(existingKey, randomValue());
         }
 
-        JellyfishMerkleTreeV2.CommitResult result = tree.put(++version, updates);
+        JellyfishMerkleTree.CommitResult result = tree.put(++version, updates);
         bh.consume(result.rootHash());
     }
 
@@ -164,7 +164,7 @@ public class JmtV2Benchmark {
             updates.put(existingKey, randomValue());
         }
 
-        JellyfishMerkleTreeV2.CommitResult result = tree.put(++version, updates);
+        JellyfishMerkleTree.CommitResult result = tree.put(++version, updates);
         bh.consume(result.rootHash());
     }
 
@@ -176,7 +176,7 @@ public class JmtV2Benchmark {
     public void insertSingleKey(Blackhole bh) {
         Map<byte[], byte[]> updates = Map.of(randomKey(), randomValue());
 
-        JellyfishMerkleTreeV2.CommitResult result = tree.put(++version, updates);
+        JellyfishMerkleTree.CommitResult result = tree.put(++version, updates);
         bh.consume(result.rootHash());
     }
 

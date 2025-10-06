@@ -25,14 +25,14 @@ class DebugTreeStructureTest {
     void debugTreeStructure() throws Exception {
         // New implementation
         try (JmtStore store = new InMemoryJmtStore()) {
-            JellyfishMerkleTreeV2 v2 = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree v2 = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Same update
             Map<byte[], byte[]> updates = new HashMap<>();
             updates.put("key1".getBytes(), "value1".getBytes());
 
             // Commit
-            JellyfishMerkleTreeV2.CommitResult v2Result = v2.put(0, updates);
+            JellyfishMerkleTree.CommitResult v2Result = v2.put(0, updates);
 
             // Print tree structure
             System.out.println("=== V2 Tree Structure ===");

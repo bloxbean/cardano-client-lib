@@ -2,7 +2,7 @@ package com.bloxbean.cardano.statetrees.metrics;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeV2;
+import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.JmtProof;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
@@ -33,7 +33,7 @@ class JmtMetricsIntegrationTest {
         InMemoryJmtStore store = new InMemoryJmtStore();
 
         // Create JMT with metrics enabled
-        JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, commitments, hashFn, metrics);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, commitments, hashFn, metrics);
 
         // Perform commits
         Map<byte[], byte[]> batch1 = new LinkedHashMap<>();
@@ -101,7 +101,7 @@ class JmtMetricsIntegrationTest {
         InMemoryJmtStore store = new InMemoryJmtStore();
 
         // Create JMT without metrics (defaults to NOOP)
-        JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, commitments, hashFn);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, commitments, hashFn);
 
         // Perform operations
         Map<byte[], byte[]> batch = new LinkedHashMap<>();

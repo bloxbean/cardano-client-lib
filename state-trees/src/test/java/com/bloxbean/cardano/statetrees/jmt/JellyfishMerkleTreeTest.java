@@ -2,7 +2,7 @@ package com.bloxbean.cardano.statetrees.jmt;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeV2.CommitResult;
+import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree.CommitResult;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.InMemoryJmtStore;
@@ -15,12 +15,12 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Basic tests for the unified JellyfishMerkleTreeV2 implementation.
+ * Basic tests for the unified JellyfishMerkleTree implementation.
  *
  * <p>These tests verify that the TreeCache-based implementation works correctly
  * with both in-memory storage.</p>
  */
-class JellyfishMerkleTreeV2Test {
+class JellyfishMerkleTreeTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
     private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
@@ -28,7 +28,7 @@ class JellyfishMerkleTreeV2Test {
     @Test
     void testBasicInsert_SingleKeyValue() throws Exception {
         try (JmtStore store = new InMemoryJmtStore()) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Insert single key-value
             Map<byte[], byte[]> updates = new HashMap<>();
@@ -49,7 +49,7 @@ class JellyfishMerkleTreeV2Test {
     @Test
     void testMultipleInserts_SameVersion() throws Exception {
         try (JmtStore store = new InMemoryJmtStore()) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Insert multiple keys in one batch
             Map<byte[], byte[]> updates = new HashMap<>();
@@ -69,7 +69,7 @@ class JellyfishMerkleTreeV2Test {
     @Test
     void testSequentialVersions() throws Exception {
         try (JmtStore store = new InMemoryJmtStore()) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Version 0
             Map<byte[], byte[]> updates0 = new HashMap<>();
@@ -96,7 +96,7 @@ class JellyfishMerkleTreeV2Test {
     @Test
     void testUpdateSameKey() throws Exception {
         try (JmtStore store = new InMemoryJmtStore()) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Version 0: Insert key1
             Map<byte[], byte[]> updates0 = new HashMap<>();
@@ -123,7 +123,7 @@ class JellyfishMerkleTreeV2Test {
     @Test
     void testEmptyBatch() throws Exception {
         try (JmtStore store = new InMemoryJmtStore()) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Empty update
             Map<byte[], byte[]> updates = new HashMap<>();
@@ -140,7 +140,7 @@ class JellyfishMerkleTreeV2Test {
     @Test
     void testLargerBatch() throws Exception {
         try (JmtStore store = new InMemoryJmtStore()) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Insert 10 keys
             Map<byte[], byte[]> updates = new HashMap<>();

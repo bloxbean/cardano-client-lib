@@ -6,6 +6,7 @@ import com.bloxbean.cardano.statetrees.common.nibbles.Nibbles;
 import com.bloxbean.cardano.statetrees.jmt.TreeCache.NodeEntry;
 import com.bloxbean.cardano.statetrees.jmt.TreeCache.StaleNodeIndex;
 import com.bloxbean.cardano.statetrees.jmt.TreeCache.TreeUpdateBatch;
+import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
 
@@ -30,7 +31,7 @@ import java.util.*;
  * @see TreeCache
  * @see JmtStore
  */
-public final class JellyfishMerkleTreeV2 {
+public final class JellyfishMerkleTree {
 
     private final JmtStore store;
     private final CommitmentScheme commitments;
@@ -44,7 +45,7 @@ public final class JellyfishMerkleTreeV2 {
      * @param commitments the commitment scheme for computing node hashes
      * @param hashFn      the hash function for keys and values
      */
-    public JellyfishMerkleTreeV2(JmtStore store, CommitmentScheme commitments, HashFunction hashFn) {
+    public JellyfishMerkleTree(JmtStore store, CommitmentScheme commitments, HashFunction hashFn) {
         this(store, commitments, hashFn, JmtMetrics.NOOP);
     }
 
@@ -56,11 +57,37 @@ public final class JellyfishMerkleTreeV2 {
      * @param hashFn      the hash function for keys and values
      * @param metrics     metrics collector (use JmtMetrics.NOOP to disable)
      */
-    public JellyfishMerkleTreeV2(JmtStore store, CommitmentScheme commitments, HashFunction hashFn, JmtMetrics metrics) {
+    public JellyfishMerkleTree(JmtStore store, CommitmentScheme commitments, HashFunction hashFn, JmtMetrics metrics) {
         this.store = Objects.requireNonNull(store, "store");
         this.commitments = Objects.requireNonNull(commitments, "commitments");
         this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
         this.metrics = Objects.requireNonNull(metrics, "metrics");
+    }
+
+    /**
+     * Creates a new JellyfishMerkleTree with default ClassicJmtCommitmentScheme and no metrics.
+     *
+     * <p>This is the simplest constructor for most use cases. It uses the classic JMT commitment scheme
+     * which is compatible with Diem's reference implementation.
+     *
+     * @param store  the storage layer for nodes and values
+     * @param hashFn the hash function for keys and values
+     */
+    public JellyfishMerkleTree(JmtStore store, HashFunction hashFn) {
+        this(store, new ClassicJmtCommitmentScheme(hashFn), hashFn, JmtMetrics.NOOP);
+    }
+
+    /**
+     * Creates a new JellyfishMerkleTree with default ClassicJmtCommitmentScheme and metrics enabled.
+     *
+     * <p>This constructor is useful when you want metrics but don't need a custom commitment scheme.
+     *
+     * @param store   the storage layer for nodes and values
+     * @param hashFn  the hash function for keys and values
+     * @param metrics metrics collector
+     */
+    public JellyfishMerkleTree(JmtStore store, HashFunction hashFn, JmtMetrics metrics) {
+        this(store, new ClassicJmtCommitmentScheme(hashFn), hashFn, metrics);
     }
 
     /**
@@ -188,7 +215,7 @@ public final class JellyfishMerkleTreeV2 {
      * Retrieves the value for a key at a specific version.
      *
      * <p><b>Performance:</b> Fast storage-layer read without tree traversal or proof generation.
-     * Approximately 20-30x faster than {@link #getWithProof} for deep trees.
+     * Approximately 20-30x faster than {@link #getProof(byte[], long)} for deep trees.
      *
      * <p><b>Use Cases:</b>
      * <ul>
@@ -199,7 +226,7 @@ public final class JellyfishMerkleTreeV2 {
      *
      * <p><b>Verifiability:</b> This method does NOT verify that the value is in the tree
      * or that the tree structure is correct. For untrusted data or when cryptographic
-     * verification is required, use {@link #getWithProof(byte[], long)} instead.
+     * verification is required, use {@link #getProof(byte[], long)} (byte[], long)} instead.
      *
      * @param key     the key to look up (will be hashed)
      * @param version the tree version to query

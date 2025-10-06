@@ -2,7 +2,7 @@ package com.bloxbean.cardano.statetrees.rocksdb.jmt;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeV2;
+import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 import org.junit.jupiter.api.Test;
@@ -17,9 +17,9 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests for JellyfishMerkleTreeV2 with RocksDB backend.
+ * Integration tests for JellyfishMerkleTree with RocksDB backend.
  */
-class JellyfishMerkleTreeV2RocksDbTest {
+class JellyfishMerkleTreeRocksDbTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
     private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
@@ -34,12 +34,12 @@ class JellyfishMerkleTreeV2RocksDbTest {
     @Test
     void testBasicInsert_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-basic").toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("key1"), bytes("value1"));
 
-            JellyfishMerkleTreeV2.CommitResult result = tree.put(0, updates);
+            JellyfishMerkleTree.CommitResult result = tree.put(0, updates);
 
             assertEquals(0, result.version());
             assertNotNull(result.rootHash());
@@ -59,14 +59,14 @@ class JellyfishMerkleTreeV2RocksDbTest {
     @Test
     void testMultipleInserts_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-multiple").toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("alice"), bytes("100"));
             updates.put(bytes("bob"), bytes("200"));
             updates.put(bytes("charlie"), bytes("300"));
 
-            JellyfishMerkleTreeV2.CommitResult result = tree.put(0, updates);
+            JellyfishMerkleTree.CommitResult result = tree.put(0, updates);
 
             assertEquals(0, result.version());
             assertNotNull(result.rootHash());
@@ -82,22 +82,22 @@ class JellyfishMerkleTreeV2RocksDbTest {
     @Test
     void testSequentialVersions_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-sequential").toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Version 0
             Map<byte[], byte[]> updates0 = new LinkedHashMap<>();
             updates0.put(bytes("key1"), bytes("value1"));
-            JellyfishMerkleTreeV2.CommitResult result0 = tree.put(0, updates0);
+            JellyfishMerkleTree.CommitResult result0 = tree.put(0, updates0);
 
             // Version 1
             Map<byte[], byte[]> updates1 = new LinkedHashMap<>();
             updates1.put(bytes("key2"), bytes("value2"));
-            JellyfishMerkleTreeV2.CommitResult result1 = tree.put(1, updates1);
+            JellyfishMerkleTree.CommitResult result1 = tree.put(1, updates1);
 
             // Version 2
             Map<byte[], byte[]> updates2 = new LinkedHashMap<>();
             updates2.put(bytes("key3"), bytes("value3"));
-            JellyfishMerkleTreeV2.CommitResult result2 = tree.put(2, updates2);
+            JellyfishMerkleTree.CommitResult result2 = tree.put(2, updates2);
 
             // Verify all versions are persisted
             assertArrayEquals(result0.rootHash(), store.rootHash(0).orElseThrow());
@@ -113,17 +113,17 @@ class JellyfishMerkleTreeV2RocksDbTest {
     @Test
     void testUpdateSameKey_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-update").toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Initial insert
             Map<byte[], byte[]> updates0 = new LinkedHashMap<>();
             updates0.put(bytes("key1"), bytes("value1"));
-            JellyfishMerkleTreeV2.CommitResult result0 = tree.put(0, updates0);
+            JellyfishMerkleTree.CommitResult result0 = tree.put(0, updates0);
 
             // Update same key
             Map<byte[], byte[]> updates1 = new LinkedHashMap<>();
             updates1.put(bytes("key1"), bytes("value2"));
-            JellyfishMerkleTreeV2.CommitResult result1 = tree.put(1, updates1);
+            JellyfishMerkleTree.CommitResult result1 = tree.put(1, updates1);
 
             // Root hashes should be different
             assertFalse(Arrays.equals(result0.rootHash(), result1.rootHash()));
@@ -143,14 +143,14 @@ class JellyfishMerkleTreeV2RocksDbTest {
     @Test
     void testLargerBatch_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-large").toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             for (int i = 0; i < 100; i++) {
                 updates.put(bytes("key" + i), bytes("value" + i));
             }
 
-            JellyfishMerkleTreeV2.CommitResult result = tree.put(0, updates);
+            JellyfishMerkleTree.CommitResult result = tree.put(0, updates);
 
             assertEquals(0, result.version());
             assertNotNull(result.rootHash());
@@ -170,7 +170,7 @@ class JellyfishMerkleTreeV2RocksDbTest {
     @Test
     void testPruneStaleNodes_WithRocksDb() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-v2-prune").toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             // Version 0: Insert
             Map<byte[], byte[]> updates0 = new LinkedHashMap<>();
@@ -180,7 +180,7 @@ class JellyfishMerkleTreeV2RocksDbTest {
             // Version 1: Update (creates stale nodes)
             Map<byte[], byte[]> updates1 = new LinkedHashMap<>();
             updates1.put(bytes("key1"), bytes("value2"));
-            JellyfishMerkleTreeV2.CommitResult result1 = tree.put(1, updates1);
+            JellyfishMerkleTree.CommitResult result1 = tree.put(1, updates1);
 
             // Verify stale nodes exist
             assertFalse(store.staleNodesUpTo(1).isEmpty());

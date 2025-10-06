@@ -30,11 +30,11 @@ import java.util.function.Consumer;
  * // Full control with custom configurators
  * RocksDbConfig config = RocksDbConfig.builder()
  *     .profile(RocksDbConfig.Profile.BALANCED)
- *     .customDbOptions(dbOpts -> {
+ *     .customDbOptions(dbOpts -&gt; {
  *         dbOpts.setMaxOpenFiles(1000);
  *         dbOpts.setStatsDumpPeriodSec(600);
  *     })
- *     .customCfOptions(cfOpts -> {
+ *     .customCfOptions(cfOpts -&gt; {
  *         cfOpts.setCompressionType(CompressionType.LZ4_COMPRESSION);
  *     })
  *     .build();
@@ -121,6 +121,8 @@ public final class RocksDbConfig {
     /**
      * Creates a HIGH_THROUGHPUT profile configuration.
      * Optimized for production blockchain nodes with high write rates.
+     *
+     * @return high-throughput configuration
      */
     public static RocksDbConfig highThroughput() {
         return builder().profile(Profile.HIGH_THROUGHPUT).build();
@@ -129,6 +131,8 @@ public final class RocksDbConfig {
     /**
      * Creates a BALANCED profile configuration.
      * Good default for most use cases.
+     *
+     * @return balanced configuration
      */
     public static RocksDbConfig balanced() {
         return builder().profile(Profile.BALANCED).build();
@@ -137,6 +141,8 @@ public final class RocksDbConfig {
     /**
      * Creates a LOW_MEMORY profile configuration.
      * Optimized for memory-constrained environments.
+     *
+     * @return low-memory configuration
      */
     public static RocksDbConfig lowMemory() {
         return builder().profile(Profile.LOW_MEMORY).build();
@@ -145,6 +151,8 @@ public final class RocksDbConfig {
     /**
      * Creates a configuration using RocksDB defaults.
      * No preset optimizations applied.
+     *
+     * @return default configuration
      */
     public static RocksDbConfig defaults() {
         return builder().profile(Profile.DEFAULT).build();
@@ -152,6 +160,8 @@ public final class RocksDbConfig {
 
     /**
      * Creates a new builder for custom configuration.
+     *
+     * @return new builder instance
      */
     public static Builder builder() {
         return new Builder();

@@ -2,7 +2,7 @@ package com.bloxbean.cardano.statetrees.rocksdb.jmt;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeV2;
+import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
@@ -30,13 +30,13 @@ class RocksDbJmtStoreTest {
     @Test
     void commitPersistsRootsNodesAndValues() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-db").toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("alice"), bytes("100"));
             updates.put(bytes("bob"), bytes("200"));
 
-            JellyfishMerkleTreeV2.CommitResult v1 = tree.put(1, updates);
+            JellyfishMerkleTree.CommitResult v1 = tree.put(1, updates);
 
             // Verify root and values persisted
             assertArrayEquals(v1.rootHash(), store.rootHash(1).orElseThrow());
@@ -52,7 +52,7 @@ class RocksDbJmtStoreTest {
             // Second commit updates alice
             Map<byte[], byte[]> updates2 = new LinkedHashMap<>();
             updates2.put(bytes("alice"), bytes("150"));
-            JellyfishMerkleTreeV2.CommitResult v2 = tree.put(2, updates2);
+            JellyfishMerkleTree.CommitResult v2 = tree.put(2, updates2);
 
             // Verify stale nodes tracked
             assertFalse(store.staleNodesUpTo(2).isEmpty());
@@ -68,7 +68,7 @@ class RocksDbJmtStoreTest {
     @Test
     void crashMidCommitLeavesStoreUntouched() {
         try (RocksDbJmtStore store = new RocksDbJmtStore(tempDir.resolve("jmt-crash-db").toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             Map<byte[], byte[]> updates = new LinkedHashMap<>();
             updates.put(bytes("alice"), bytes("100"));
@@ -89,7 +89,7 @@ class RocksDbJmtStoreTest {
             assertTrue(store.getValue(aliceHash).isEmpty(), "value writes must not leak without commit");
 
             // Successful commit should work normally
-            JellyfishMerkleTreeV2.CommitResult result = tree.put(version, updates);
+            JellyfishMerkleTree.CommitResult result = tree.put(version, updates);
             assertArrayEquals(result.rootHash(), store.rootHash(1).orElseThrow());
             assertArrayEquals(bytes("100"), store.getValue(aliceHash).orElseThrow());
         }
@@ -103,7 +103,7 @@ class RocksDbJmtStoreTest {
 
         // Initial writes and prune
         try (RocksDbJmtStore store = new RocksDbJmtStore(dbPath.toString())) {
-            JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+            JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
             Map<byte[], byte[]> v1 = new LinkedHashMap<>();
             v1.put(bytes("alice"), bytes("100"));
@@ -116,7 +116,7 @@ class RocksDbJmtStoreTest {
 
             Map<byte[], byte[]> v3 = new LinkedHashMap<>();
             v3.put(bytes("carol"), bytes("50")); // add carol
-            JellyfishMerkleTreeV2.CommitResult c3 = tree.put(3, v3);
+            JellyfishMerkleTree.CommitResult c3 = tree.put(3, v3);
             root3 = c3.rootHash();
 
             // Prune up to version 2

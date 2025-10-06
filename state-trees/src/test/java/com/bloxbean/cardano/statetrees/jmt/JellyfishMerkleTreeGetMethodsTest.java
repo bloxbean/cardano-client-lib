@@ -17,9 +17,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Tests for the three get methods: get(), get(version), and getProof().
  */
-class JellyfishMerkleTreeV2GetMethodsTest {
+class JellyfishMerkleTreeGetMethodsTest {
 
-    private JellyfishMerkleTreeV2 tree;
+    private JellyfishMerkleTree tree;
     private InMemoryJmtStore store;
 
     @BeforeEach
@@ -27,7 +27,7 @@ class JellyfishMerkleTreeV2GetMethodsTest {
         HashFunction hashFn = Blake2b256::digest;
         CommitmentScheme commitments = new ClassicJmtCommitmentScheme(hashFn);
         store = new InMemoryJmtStore();
-        tree = new JellyfishMerkleTreeV2(store, commitments, hashFn);
+        tree = new JellyfishMerkleTree(store, commitments, hashFn);
 
         // Setup: Create multiple versions with different data
         Map<byte[], byte[]> v1 = new LinkedHashMap<>();

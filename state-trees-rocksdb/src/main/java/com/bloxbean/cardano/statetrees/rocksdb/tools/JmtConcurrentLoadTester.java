@@ -2,7 +2,7 @@ package com.bloxbean.cardano.statetrees.rocksdb.tools;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeV2;
+import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.JmtProof;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
@@ -75,7 +75,7 @@ public final class JmtConcurrentLoadTester {
 
     private static void runConcurrentLoad(RocksDbJmtStore store, HashFunction hashFn,
                                           CommitmentScheme commitments, ConcurrentLoadOptions options) throws Exception {
-        JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, commitments, hashFn);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, commitments, hashFn);
 
         // Shared state
         AtomicLong version = new AtomicLong(0);

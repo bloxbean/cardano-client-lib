@@ -2,7 +2,7 @@ package com.bloxbean.cardano.statetrees.rocksdb.tools;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeV2;
+import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.JmtProof;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
@@ -88,7 +88,7 @@ public final class JmtLoadTester {
 
     private static void runLoad(JmtStore store, HashFunction hashFn,
                                  CommitmentScheme commitments, LoadOptions options) {
-        JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, commitments, hashFn);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, commitments, hashFn);
         Random random = new SecureRandom();
 
         long version = 0;
@@ -161,7 +161,7 @@ public final class JmtLoadTester {
             // Commit batch
             long commitStart = System.currentTimeMillis();
             version++;
-            JellyfishMerkleTreeV2.CommitResult result = tree.put(version, updates);
+            JellyfishMerkleTree.CommitResult result = tree.put(version, updates);
             long commitElapsed = System.currentTimeMillis() - commitStart;
             totalCommitTimeMs += commitElapsed;
             totalCommits++;

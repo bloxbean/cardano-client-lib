@@ -2,7 +2,7 @@ package com.bloxbean.cardano.statetrees.jmt.metrics;
 
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTreeV2;
+import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.JmtMetrics;
 import com.bloxbean.cardano.statetrees.jmt.JmtProof;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
@@ -33,7 +33,7 @@ class JmtMetricsExampleTest {
 
         // Create JMT tree
         InMemoryJmtStore store = new InMemoryJmtStore();
-        JellyfishMerkleTreeV2 tree = new JellyfishMerkleTreeV2(store, COMMITMENTS, HASH);
+        JellyfishMerkleTree tree = new JellyfishMerkleTree(store, COMMITMENTS, HASH);
 
         // Wrap operations with metrics
         Map<byte[], byte[]> updates = new LinkedHashMap<>();
@@ -42,7 +42,7 @@ class JmtMetricsExampleTest {
 
         // Record commit metrics
         long commitStart = System.currentTimeMillis();
-        JellyfishMerkleTreeV2.CommitResult result = tree.put(1, updates);
+        JellyfishMerkleTree.CommitResult result = tree.put(1, updates);
         long commitDuration = System.currentTimeMillis() - commitStart;
 
         collector.recordCommit(
