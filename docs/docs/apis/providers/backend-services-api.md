@@ -6,16 +6,13 @@ sidebar_position: 1
 
 # Backend Services API
 
-The Backend Services API provides integration with various Cardano backend services through a unified interface. This allows applications to interact with the Cardano blockchain without running a local node, supporting multiple providers for flexibility and redundancy.
+The Backend Services API provides integration with various Cardano backend services through a unified interface.
 
 ## Key Features
 
 - **Unified Interface**: Single API for multiple backend providers
 - **Provider Flexibility**: Switch between different backend services easily
-- **Service Coverage**: Complete access to blockchain data and transaction services
-- **Network Support**: Mainnet, testnet, and preview network compatibility
-- **Automatic Failover**: Built-in support for provider redundancy
-- **Rate Limiting**: Respect provider rate limits and quotas
+- **Service Coverage**: Access to blockchain data and transaction services
 
 ## Core Classes
 
@@ -41,7 +38,7 @@ The main interface for all backend service implementations, providing access to 
 |----------|--------|----------|--------|
 | **Blockfrost** | `cardano-client-backend-blockfrost` | Complete API coverage, high reliability | ✅ Stable |
 | **Koios** | `cardano-client-backend-koios` | REST API, community-driven | ✅ Stable |
-| **Ogmios** | `cardano-client-backend-ogmios` | WebSocket, real-time updates | ✅ Stable |
+| **Ogmios** | `cardano-client-backend-ogmios` | JSON over HTTP | ✅ Stable |
 
 ## Usage Examples
 
@@ -52,7 +49,7 @@ Initialize Blockfrost backend service with API key:
 ```java
 // Initialize Blockfrost service
 BackendService backendService = new BFBackendService(
-    Constants.BLOCKFROST_TESTNET_URL, 
+    Constants.BLOCKFROST_PREPROD_URL, 
     "your-project-id"
 );
 
@@ -88,17 +85,16 @@ System.out.println("Address balance: " + addressInfo.get(0).getAmount());
 
 ### Ogmios Integration
 
-Initialize Ogmios backend service for WebSocket-based API:
+Initialize Ogmios backend service:
 
 ```java
-// Initialize Ogmios service
+// Initialize Ogmios service (HTTP)
 BackendService backendService = new OgmiosBackendService(
-    "ws://localhost:1337"
+    "http://localhost:1337"
 );
 
 // Access services
 TransactionService transactionService = backendService.getTransactionService();
-UtxoService utxoService = backendService.getUtxoService();
 
 // Submit transaction
 Result<String> result = transactionService.submitTransaction(transactionCbor);
@@ -106,6 +102,30 @@ if (result.isSuccessful()) {
     System.out.println("Transaction submitted: " + result.getValue());
 }
 ```
+
+**Note:** Ogmios backend implements protocol parameters and transaction services. 
+For UTXO queries, use Kupo with `KupmiosBackendService` (see below).
+
+### Kupmios Integration (Ogmios + Kupo)
+
+For complete transaction building capabilities, use `KupmiosBackendService` which combines Ogmios and Kupo:
+
+```java
+// Initialize Kupmios service (Ogmios + Kupo)
+BackendService backendService = new KupmiosBackendService(
+    "http://localhost:1337",  // Ogmios URL
+    "http://localhost:1442"   // Kupo URL
+);
+
+// Now you have access to all services:
+// - Kupo provides: UtxoService
+// - Ogmios provides: TransactionService, ProtocolParams
+TransactionService transactionService = backendService.getTransactionService();
+UtxoService utxoService = backendService.getUtxoService();
+EpochService epochService = backendService.getEpochService();
+```
+
+For more details about Ogmios/Kupo integration, see the [Ogmios backend README](https://github.com/bloxbean/cardano-client-lib/tree/master/backend-modules/ogmios).
 
 ## Advanced Usage
 
