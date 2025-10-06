@@ -138,9 +138,7 @@ public final class InMemoryJmtStore implements JmtStore {
         java.util.Map.Entry<Long, byte[]> e = history.floorEntry(version);
         if (e == null) return Optional.empty();
         byte[] val = e.getValue();
-        if (val == null) return Optional.empty();
-        // Ensure the corresponding leaf exists and is not stale at this version
-        if (!leafExistsAt(keyHash, version)) return Optional.empty();
+        if (val == null) return Optional.empty(); // Tombstone (deleted)
         return Optional.of(val.clone());
     }
 
