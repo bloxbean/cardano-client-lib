@@ -6,16 +6,30 @@ sidebar_position: 2
 
 # Supplier Interfaces API
 
-The Supplier Interfaces API provides extensible interfaces for integrating custom data providers with the Cardano Client Library. These interfaces enable custom backend implementations, service extensions, and flexible provider switching for enhanced testability and integration capabilities.
+The Supplier Interfaces API provides extensible interfaces for integrating custom data providers with the Cardano Client Library. These interfaces provide the **essential APIs required to build and submit transactions**, making them the quickest and clearest way to integrate any third-party data provider.
+
+## What are Supplier Interfaces?
+
+Supplier interfaces provide the core functionality needed for transaction building and submission:
+- **Getting UTXOs** - Retrieve unspent transaction outputs for addresses
+- **Fetching protocol parameters** - Get current network protocol parameters
+- **Evaluating transaction script costs** - Calculate execution costs for Plutus scripts
+- **Submitting transactions** - Send transactions to the blockchain
+
+**Important:** The transaction builder APIs depend on **Supplier interfaces**, not directly on `BackendService`. This provides the right level of abstraction to integrate any third-party provider with minimal effort.
+
+### Supplier Interfaces vs BackendService
+
+While `BackendService` provides many additional APIs useful for dApps (address history, asset metadata, block data, etc.), creating a new `BackendService` implementation requires significantly more effort. Supplier interfaces focus only on what's **strictly required for transaction building and submission**, making integration faster and simpler.
 
 ## Key Features
 
+- **Minimal Integration Surface**: Only implement what's needed for transactions
 - **Extensible Architecture**: Define custom data provider implementations
 - **Interface Standardization**: Consistent contracts for different data sources
 - **Provider Flexibility**: Switch between implementations seamlessly
 - **Testing Support**: Mock implementations for unit and integration testing
 - **Service Composition**: Combine multiple suppliers for complex scenarios
-- **Custom Integration**: Integrate with proprietary or specialized data sources
 
 ## Core Classes
 
@@ -26,7 +40,23 @@ The Supplier Interfaces API provides extensible interfaces for integrating custo
 - `ScriptSupplier` - Provides Plutus scripts by hash
 - `TransactionEvaluator` - Evaluates transaction execution costs
 
-### Built-in Implementations
+### Default Implementations
+
+The library provides default implementations that are automatically used when creating `QuickTxBuilder` from `BackendService`:
+
+- `DefaultUtxoSupplier` - Default UTXO supplier from BackendService
+- `DefaultProtocolParamsSupplier` - Default protocol parameters from BackendService  
+- `DefaultTransactionProcessor` - Default transaction processor from BackendService
+
+These are instantiated automatically when using:
+```java
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+```
+
+### Third-Party Implementations
+
+For specialized use cases, third-party supplier implementations are available:
+
 - `OgmiosProtocolParamSupplier` - Ogmios-based protocol parameters
 - `OgmiosTransactionProcessor` - Ogmios transaction processing
 - `KupoUtxoSupplier` - Kupo-based UTXO provider
@@ -85,16 +115,20 @@ public class CustomProtocolParamsSupplier implements ProtocolParamsSupplier {
 
 ### Using Custom Suppliers
 
-Integrate custom suppliers with QuickTx:
+Integrate custom suppliers with QuickTx via constructor:
 
 ```java
 // Create custom suppliers
 UtxoSupplier customUtxoSupplier = new CustomUtxoSupplier();
 ProtocolParamsSupplier protocolParamsSupplier = new CustomProtocolParamsSupplier();
+TransactionProcessor transactionProcessor = new CustomTransactionProcessor();
 
-// Use with QuickTx
-QuickTxBuilder quickTxBuilder = new QuickTxBuilder(customUtxoSupplier)
-    .protocolParamsSupplier(protocolParamsSupplier);
+// Use with QuickTx - suppliers must be provided through constructor
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(
+    customUtxoSupplier,
+    protocolParamsSupplier,
+    transactionProcessor
+);
 
 // Build and submit transaction
 Tx tx = new Tx()
@@ -124,14 +158,39 @@ OgmiosTransactionProcessor ogmiosProcessor =
 
 ### Kupo Suppliers
 
-Use Kupo for UTXO data:
+Use Kupo for UTXO data combined with Ogmios for other services:
 
 ```java
 // Kupo UTXO supplier
 KupoUtxoSupplier kupoUtxoSupplier = new KupoUtxoSupplier("http://localhost:1442");
 
-// Use with QuickTx
-QuickTxBuilder builder = new QuickTxBuilder(kupoUtxoSupplier);
+// Ogmios for protocol params and transaction processing
+OgmiosProtocolParamSupplier protocolParamsSupplier = 
+    new OgmiosProtocolParamSupplier("http://localhost:1337");
+OgmiosTransactionProcessor transactionProcessor = 
+    new OgmiosTransactionProcessor("http://localhost:1337");
+
+// Use with QuickTx - all suppliers provided through constructor
+QuickTxBuilder builder = new QuickTxBuilder(
+    kupoUtxoSupplier,
+    protocolParamsSupplier,
+    transactionProcessor
+);
+```
+
+### Combining with BackendService
+
+You can also combine a custom supplier with BackendService:
+
+```java
+// Use Kupo for UTXOs, BackendService for everything else
+KupoUtxoSupplier kupoUtxoSupplier = new KupoUtxoSupplier("http://localhost:1442");
+BackendService backendService = new BFBackendService(
+    Constants.BLOCKFROST_TESTNET_URL,
+    "your-project-id"
+);
+
+QuickTxBuilder builder = new QuickTxBuilder(backendService, kupoUtxoSupplier);
 ```
 
 The Supplier Interfaces API provides extensible integration points for custom data providers and backend services.
