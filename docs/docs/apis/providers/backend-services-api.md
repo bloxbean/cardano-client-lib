@@ -122,17 +122,23 @@ public class BackendServiceFactory {
                 return new BFBackendService(endpoint, apiKey);
             case "koios":
                 return new KoiosBackendService(endpoint);
-            case "ogmios":
-                return new OgmiosBackendService(endpoint);
+            case "kupomios":
+                // Kupomios requires both Ogmios and Kupo URLs
+                String ogmiosUrl = endpoint; // e.g., "http://localhost:1337"
+                String kupoUrl = apiKey;     // e.g., "http://localhost:1442" (reusing apiKey param for kupoUrl)
+                return new KupmiosBackendService(ogmiosUrl, kupoUrl);
             default:
                 throw new IllegalArgumentException("Unknown provider: " + provider);
         }
     }
 }
 
-// Usage
-BackendService service = BackendServiceFactory.createService("blockfrost", 
+// Usage examples
+BackendService blockfrostService = BackendServiceFactory.createService("blockfrost", 
     Constants.BLOCKFROST_MAINNET_URL, "your-api-key");
+    
+BackendService kupmiosService = BackendServiceFactory.createService("kupomios",
+    "http://localhost:1337", "http://localhost:1442");
 ```
 
 ### Service Usage Examples
