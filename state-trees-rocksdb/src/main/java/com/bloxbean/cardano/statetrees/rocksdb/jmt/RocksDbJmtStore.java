@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.statetrees.rocksdb.jmt;
 
 import com.bloxbean.cardano.statetrees.common.NibblePath;
-import com.bloxbean.cardano.statetrees.jmt.JellyfishMerkleTree;
 import com.bloxbean.cardano.statetrees.jmt.JmtEncoding;
 import com.bloxbean.cardano.statetrees.jmt.JmtNode;
 import com.bloxbean.cardano.statetrees.jmt.NodeKey;
@@ -10,7 +9,6 @@ import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
 import org.rocksdb.DBOptions;
-import org.rocksdb.Options;
 import org.rocksdb.ReadOptions;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -705,31 +703,6 @@ public final class RocksDbJmtStore implements JmtStore {
         return new RocksCommitBatch(version);
     }
 
-    public void applyCommit(JellyfishMerkleTree.CommitResult result) {
-        Objects.requireNonNull(result, "result");
-        try (CommitBatch batch = beginCommit(result.version(), CommitConfig.defaults())) {
-            for (Map.Entry<NodeKey, JmtNode> entry : result.nodes().entrySet()) {
-                batch.putNode(entry.getKey(), entry.getValue());
-            }
-            for (NodeKey stale : result.staleNodes()) {
-                batch.markStale(stale);
-            }
-            for (JellyfishMerkleTree.CommitResult.ValueOperation op : result.valueOperations()) {
-                switch (op.type()) {
-                    case PUT:
-                        batch.putValue(op.keyHash(), op.value());
-                        break;
-                    case DELETE:
-                        batch.deleteValue(op.keyHash());
-                        break;
-                    default:
-                        throw new IllegalStateException("Unhandled value operation: " + op.type());
-                }
-            }
-            batch.setRootHash(result.rootHash());
-            batch.commit();
-        }
-    }
 
     @Override
     public List<NodeKey> staleNodesUpTo(long versionInclusive) {

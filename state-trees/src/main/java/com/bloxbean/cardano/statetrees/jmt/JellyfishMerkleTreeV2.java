@@ -35,6 +35,7 @@ public final class JellyfishMerkleTreeV2 {
     private final JmtStore store;
     private final CommitmentScheme commitments;
     private final HashFunction hashFn;
+    private final JmtMetrics metrics;
 
     /**
      * Creates a new JellyfishMerkleTree backed by the specified store.
@@ -44,9 +45,22 @@ public final class JellyfishMerkleTreeV2 {
      * @param hashFn      the hash function for keys and values
      */
     public JellyfishMerkleTreeV2(JmtStore store, CommitmentScheme commitments, HashFunction hashFn) {
+        this(store, commitments, hashFn, JmtMetrics.NOOP);
+    }
+
+    /**
+     * Creates a new JellyfishMerkleTree with metrics enabled.
+     *
+     * @param store       the storage layer for nodes and values
+     * @param commitments the commitment scheme for computing node hashes
+     * @param hashFn      the hash function for keys and values
+     * @param metrics     metrics collector (use JmtMetrics.NOOP to disable)
+     */
+    public JellyfishMerkleTreeV2(JmtStore store, CommitmentScheme commitments, HashFunction hashFn, JmtMetrics metrics) {
         this.store = Objects.requireNonNull(store, "store");
         this.commitments = Objects.requireNonNull(commitments, "commitments");
         this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
+        this.metrics = Objects.requireNonNull(metrics, "metrics");
     }
 
     /**
@@ -72,6 +86,8 @@ public final class JellyfishMerkleTreeV2 {
      */
     public CommitResult put(long version, Map<byte[], byte[]> updates) {
         Objects.requireNonNull(updates, "updates");
+
+        long startTime = System.currentTimeMillis();
 
         // 1. Create TreeCache for this version
         TreeCache cache = new TreeCache(store, version);
@@ -121,6 +137,16 @@ public final class JellyfishMerkleTreeV2 {
             staleNodes.add(staleIndex.nodeKey());
         }
 
+        // 8. Record metrics
+        long durationMs = System.currentTimeMillis() - startTime;
+        metrics.recordCommit(durationMs, version, updates.size(), nodes.size(), staleNodes.size());
+
+        // Record storage stats (partial: version and root hash size available)
+        metrics.recordStorageStats(version, rootHash.length, 0, 0);
+
+        // Record cache stats (cache size only, no hit/miss tracking)
+        metrics.recordCacheStats(0, 0, batch.nodes().size());
+
         return new CommitResult(version, rootHash, nodes, staleNodes, valueOps);
     }
 
@@ -133,6 +159,8 @@ public final class JellyfishMerkleTreeV2 {
      */
     public Optional<JmtProof> getProof(byte[] key, long version) {
         Objects.requireNonNull(key, "key");
+
+        long startTime = System.currentTimeMillis();
 
         // Get root hash for this version
         Optional<byte[]> rootHashOpt = store.rootHash(version);
@@ -176,13 +204,19 @@ public final class JellyfishMerkleTreeV2 {
                     int pathLen = currentPath.getNibbles().length;
                     NibblePath suffix = fullPath.slice(pathLen, fullPath.length());
 
-                    return Optional.of(JmtProof.inclusion(
+                    JmtProof proof = JmtProof.inclusion(
                             steps,
                             value,
                             leaf.valueHash(),
                             suffix,
                             leaf.keyHash()
-                    ));
+                    );
+
+                    // Record metrics
+                    long durationMs = System.currentTimeMillis() - startTime;
+                    metrics.recordProofGeneration(durationMs, steps.size(), true);
+
+                    return Optional.of(proof);
                 } else {
                     // Non-inclusion proof - found a different leaf
                     int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
@@ -190,12 +224,18 @@ public final class JellyfishMerkleTreeV2 {
                     int pathLen = currentPath.getNibbles().length;
                     NibblePath suffix = fullPath.slice(pathLen, fullPath.length());
 
-                    return Optional.of(JmtProof.nonInclusionDifferentLeaf(
+                    JmtProof proof = JmtProof.nonInclusionDifferentLeaf(
                             steps,
                             leaf.keyHash(),
                             leaf.valueHash(),
                             suffix
-                    ));
+                    );
+
+                    // Record metrics
+                    long durationMs = System.currentTimeMillis() - startTime;
+                    metrics.recordProofGeneration(durationMs, steps.size(), false);
+
+                    return Optional.of(proof);
                 }
             } else if (node instanceof JmtInternalNode) {
                 JmtInternalNode internal = (JmtInternalNode) node;
@@ -261,6 +301,8 @@ public final class JellyfishMerkleTreeV2 {
                 // Check if child exists at this nibble
                 if (fullChildHashes[nibble] == null) {
                     // Non-inclusion - path doesn't exist
+                    long durationMs = System.currentTimeMillis() - startTime;
+                    metrics.recordProofGeneration(durationMs, steps.size(), false);
                     return Optional.of(JmtProof.nonInclusionEmpty(steps));
                 }
 
@@ -274,6 +316,8 @@ public final class JellyfishMerkleTreeV2 {
         }
 
         // Path doesn't exist - non-inclusion proof
+        long durationMs = System.currentTimeMillis() - startTime;
+        metrics.recordProofGeneration(durationMs, steps.size(), false);
         return Optional.of(JmtProof.nonInclusionEmpty(steps));
     }
 
