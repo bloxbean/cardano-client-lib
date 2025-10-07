@@ -36,7 +36,7 @@ import java.util.Objects;
  *
  * @since 0.6.0
  */
-public final class NibblePath {
+public final class NibblePath implements Comparable<NibblePath> {
 
     /**
      * Empty nibble path constant.
@@ -51,7 +51,11 @@ public final class NibblePath {
      * @param nibbles the nibble array (will be cloned for immutability)
      */
     private NibblePath(int[] nibbles) {
-        this.nibbles = nibbles.clone();
+        this(nibbles, true);
+    }
+
+    private NibblePath(int[] nibbles, boolean cloneArray) {
+        this.nibbles = cloneArray ? nibbles.clone() : nibbles;
     }
 
     /**
@@ -65,6 +69,34 @@ public final class NibblePath {
         Objects.requireNonNull(nibbles, "Nibbles array cannot be null");
         validateNibbles(nibbles);
         return new NibblePath(nibbles);
+    }
+
+    /**
+     * Creates a NibblePath directly from a raw nibble array. The caller must
+     * not mutate the array after passing it to this method.
+     */
+    public static NibblePath fromRaw(int[] nibbles) {
+        Objects.requireNonNull(nibbles, "Nibbles array cannot be null");
+        validateNibbles(nibbles);
+        return new NibblePath(nibbles, false);
+    }
+
+    /**
+     * Creates a NibblePath from a sub-range of an existing nibble array.
+     */
+    public static NibblePath fromRange(int[] nibbles, int start, int length) {
+        Objects.requireNonNull(nibbles, "Nibbles array cannot be null");
+        if (start < 0 || length < 0 || start + length > nibbles.length) {
+            throw new IndexOutOfBoundsException(
+                    "Invalid range start=" + start + " length=" + length + " for array of length " + nibbles.length);
+        }
+        if (length == 0) {
+            return EMPTY;
+        }
+        int[] copy = new int[length];
+        System.arraycopy(nibbles, start, copy, 0, length);
+        validateNibbles(copy);
+        return new NibblePath(copy, false);
     }
 
     /**
@@ -306,5 +338,18 @@ public final class NibblePath {
     @Override
     public String toString() {
         return "NibblePath{" + toHexString() + "}";
+    }
+
+    @Override
+    public int compareTo(NibblePath other) {
+        Objects.requireNonNull(other, "other");
+        int min = Math.min(this.nibbles.length, other.nibbles.length);
+        for (int i = 0; i < min; i++) {
+            int diff = Integer.compare(this.nibbles[i], other.nibbles[i]);
+            if (diff != 0) {
+                return diff;
+            }
+        }
+        return Integer.compare(this.nibbles.length, other.nibbles.length);
     }
 }

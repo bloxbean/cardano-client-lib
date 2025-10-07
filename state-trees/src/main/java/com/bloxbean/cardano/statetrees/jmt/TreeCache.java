@@ -476,7 +476,7 @@ public class TreeCache {
         private final List<byte[]> rootHashes;
 
         FrozenTreeCache() {
-            this.nodeCache = new TreeMap<>(Comparator.comparing(NibblePath::toString));
+            this.nodeCache = new TreeMap<>();
             this.staleNodeIndexBatch = new TreeSet<>();
             this.nodeStats = new ArrayList<>();
             this.rootHashes = new ArrayList<>();
