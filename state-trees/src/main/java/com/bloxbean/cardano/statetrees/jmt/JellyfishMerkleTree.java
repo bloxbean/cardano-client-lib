@@ -138,7 +138,7 @@ public final class JellyfishMerkleTree {
 
         // 4. Compute root hash before freezing
         NodeKey finalRoot = cache.getRootNodeKey();
-        Optional<NodeEntry> rootEntryOpt = cache.getNode(finalRoot.path());
+        Optional<NodeEntry> rootEntryOpt = cache.getNode(finalRoot);
         byte[] rootHash;
         if (rootEntryOpt.isPresent()) {
             rootHash = computeNodeHash(finalRoot, rootEntryOpt.get().node());
@@ -156,8 +156,8 @@ public final class JellyfishMerkleTree {
 
         // 7. Build result
         Map<NodeKey, JmtNode> nodes = new LinkedHashMap<>();
-        for (Map.Entry<NibblePath, NodeEntry> entry : batch.nodes().entrySet()) {
-            nodes.put(entry.getValue().nodeKey(), entry.getValue().node());
+        for (Map.Entry<NodeKey, NodeEntry> entry : batch.nodes().entrySet()) {
+            nodes.put(entry.getKey(), entry.getValue().node());
         }
 
         List<NodeKey> staleNodes = new ArrayList<>();
@@ -627,7 +627,7 @@ public final class JellyfishMerkleTree {
         long version = cache.nextVersion();
 
         // Retrieve current node (or empty if doesn't exist)
-        Optional<NodeEntry> nodeOpt = cache.getNode(nodeKey.path());
+        Optional<NodeEntry> nodeOpt = cache.getNode(nodeKey);
 
         if (!nodeOpt.isPresent()) {
             // Empty position - create new leaf
@@ -919,7 +919,7 @@ public final class JellyfishMerkleTree {
             TreeCache cache) {
 
         // Compute new child hash
-        Optional<NodeEntry> childEntry = cache.getNode(newChildKey.path());
+        Optional<NodeEntry> childEntry = cache.getNode(newChildKey);
         byte[] newChildHash = childEntry.map(e -> computeNodeHash(newChildKey, e.node()))
                 .orElseThrow(() -> new IllegalStateException("Child node not found after insert"));
 
@@ -989,7 +989,10 @@ public final class JellyfishMerkleTree {
      */
     private long findChildVersion(NibblePath childPath, TreeCache cache, long parentVersion) {
         // Look up the existing child node to get its version
-        Optional<TreeCache.NodeEntry> childEntry = cache.getNode(childPath);
+        // We need to try multiple versions: first the parent version (most common case),
+        // then fall back to checking if the child exists from an earlier frozen transaction
+        NodeKey childKey = NodeKey.of(childPath, parentVersion);
+        Optional<TreeCache.NodeEntry> childEntry = cache.getNode(childKey);
         if (childEntry.isPresent()) {
             return childEntry.get().nodeKey().version();
         }
@@ -1113,7 +1116,7 @@ public final class JellyfishMerkleTree {
 
         try {
             // Write all nodes
-            for (Map.Entry<NibblePath, NodeEntry> entry : batch.nodes().entrySet()) {
+            for (Map.Entry<NodeKey, NodeEntry> entry : batch.nodes().entrySet()) {
                 NodeEntry nodeEntry = entry.getValue();
                 storeBatch.putNode(nodeEntry.nodeKey(), nodeEntry.node());
             }

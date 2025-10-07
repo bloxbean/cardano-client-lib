@@ -152,29 +152,37 @@ public class TreeCache {
      *
      * <p>Lookup order:
      * <ol>
-     *   <li>Check {@code nodeCache} (current transaction)</li>
-     *   <li>Check {@code frozenCache} (earlier transactions in batch)</li>
-     *   <li>Query underlying storage</li>
+     *   <li>Check {@code nodeCache} (current transaction) - uses path only since all nodes are at nextVersion</li>
+     *   <li>Check {@code frozenCache} (earlier transactions in batch) - uses full NodeKey for version-specific lookup</li>
+     *   <li>Query underlying storage - uses version from NodeKey parameter</li>
      * </ol>
      *
-     * @param path the nibble path to the node
+     * @param nodeKey the full node key (path + version) to retrieve
      * @return the node entry if found, empty otherwise
      */
-    public Optional<NodeEntry> getNode(NibblePath path) {
+    public Optional<NodeEntry> getNode(NodeKey nodeKey) {
+        NibblePath path = nodeKey.path();
+        long version = nodeKey.version();
+
         // 1. Check batch-local mutable cache first (current transaction)
-        NodeEntry staged = nodeCache.get(path);
-        if (staged != null) {
-            return Optional.of(staged);
+        // Current transaction nodes are always at nextVersion, so we can optimize by checking
+        // if the requested version matches. If it does, check path-only cache.
+        if (version == nextVersion) {
+            NodeEntry staged = nodeCache.get(path);
+            if (staged != null) {
+                return Optional.of(staged);
+            }
         }
 
         // 2. Check frozen cache (earlier uncommitted transactions)
-        NodeEntry frozen = frozenCache.getNode(path);
+        // Frozen cache must use full NodeKey since it contains nodes from multiple versions
+        NodeEntry frozen = frozenCache.getNode(nodeKey);
         if (frozen != null) {
             return Optional.of(frozen);
         }
 
         // 3. Fall back to persistent storage
-        Optional<JmtStore.NodeEntry> storeEntry = store.getNode(baseVersion, path);
+        Optional<JmtStore.NodeEntry> storeEntry = store.getNode(version, path);
         return storeEntry.map(e -> new NodeEntry(e.nodeKey(), e.node()));
     }
 
@@ -453,12 +461,18 @@ public class TreeCache {
      *
      * <p>This structure holds all nodes, stale indices, and metadata from
      * transactions that have been frozen but not yet committed to storage.
+     *
+     * <p><b>CRITICAL</b>: This cache MUST key by full {@link NodeKey} (version + path),
+     * not just path, to support multiple frozen transactions that modify the same path
+     * at different versions. This follows Diem's MVCC semantics and prevents data corruption.
      */
     private static final class FrozenTreeCache {
         /**
-         * Nodes from all frozen transactions (sorted for deterministic serialization).
+         * Nodes from all frozen transactions keyed by (version, path).
+         * Sorted by NodeKey natural ordering for deterministic serialization.
+         * This ensures nodes at the same path but different versions coexist correctly.
          */
-        private final TreeMap<NibblePath, NodeEntry> nodeCache;
+        private final TreeMap<NodeKey, NodeEntry> nodeCache;
 
         /**
          * Stale node indices from all frozen transactions (sorted by version then key).
@@ -482,12 +496,28 @@ public class TreeCache {
             this.rootHashes = new ArrayList<>();
         }
 
-        NodeEntry getNode(NibblePath path) {
-            return nodeCache.get(path);
+        /**
+         * Retrieves a node by its full NodeKey (version + path).
+         *
+         * @param nodeKey the full key including version
+         * @return the node entry if found, null otherwise
+         */
+        NodeEntry getNode(NodeKey nodeKey) {
+            return nodeCache.get(nodeKey);
         }
 
+        /**
+         * Adds nodes from the current transaction to frozen cache.
+         * Converts path-keyed entries to NodeKey-keyed entries using their embedded version.
+         *
+         * @param nodes map of path → NodeEntry to freeze
+         */
         void addNodes(Map<NibblePath, NodeEntry> nodes) {
-            nodeCache.putAll(nodes);
+            for (Map.Entry<NibblePath, NodeEntry> entry : nodes.entrySet()) {
+                NodeEntry nodeEntry = entry.getValue();
+                // Use the NodeKey embedded in the NodeEntry (which includes version)
+                nodeCache.put(nodeEntry.nodeKey(), nodeEntry);
+            }
         }
 
         void addStaleNodeIndex(StaleNodeIndex index) {
@@ -519,14 +549,15 @@ public class TreeCache {
      * Batch of updates to be atomically committed to storage.
      *
      * <p>Contains all nodes and metadata from one or more frozen transactions.
+     * Nodes are keyed by full NodeKey (version + path) to preserve MVCC semantics.
      */
     public static final class TreeUpdateBatch {
-        private final TreeMap<NibblePath, NodeEntry> nodes;
+        private final TreeMap<NodeKey, NodeEntry> nodes;
         private final TreeSet<StaleNodeIndex> staleIndices;
         private final List<NodeStats> stats;
 
         TreeUpdateBatch(
-                TreeMap<NibblePath, NodeEntry> nodes,
+                TreeMap<NodeKey, NodeEntry> nodes,
                 TreeSet<StaleNodeIndex> staleIndices,
                 List<NodeStats> stats) {
             this.nodes = nodes;
@@ -534,7 +565,12 @@ public class TreeCache {
             this.stats = stats;
         }
 
-        public Map<NibblePath, NodeEntry> nodes() {
+        /**
+         * Returns all nodes in this batch, keyed by full NodeKey (version + path).
+         *
+         * @return immutable map of NodeKey → NodeEntry
+         */
+        public Map<NodeKey, NodeEntry> nodes() {
             return Collections.unmodifiableMap(nodes);
         }
 

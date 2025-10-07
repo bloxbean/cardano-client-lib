@@ -50,7 +50,7 @@ class TreeCacheTest {
 
         // For genesis, should start with empty tree (no null root node)
         // The first insert will create a leaf at the root
-        Optional<NodeEntry> root = cache.getNode(NibblePath.EMPTY);
+        Optional<NodeEntry> root = cache.getNode(NodeKey.of(NibblePath.EMPTY, 0));
         assertFalse(root.isPresent(), "Genesis should start with empty tree, no null root");
     }
 
@@ -73,7 +73,7 @@ class TreeCacheTest {
 
         cache.putNode(key, node);
 
-        Optional<NodeEntry> retrieved = cache.getNode(path);
+        Optional<NodeEntry> retrieved = cache.getNode(key);
         assertTrue(retrieved.isPresent());
         assertEquals(key, retrieved.get().nodeKey());
         assertEquals(node, retrieved.get().node());
@@ -110,7 +110,7 @@ class TreeCacheTest {
         cache.putNode(cacheKey, cacheNode);
 
         // Should return cached node (higher priority)
-        Optional<NodeEntry> result = cache.getNode(path);
+        Optional<NodeEntry> result = cache.getNode(cacheKey);
         assertTrue(result.isPresent());
         assertEquals(cacheNode, result.get().node());
         assertEquals(cacheKey, result.get().nodeKey());
@@ -131,7 +131,7 @@ class TreeCacheTest {
         cache.freeze(DUMMY_HASH); // Moves to frozen cache
 
         // Now frozen node should be returned (not storage)
-        Optional<NodeEntry> result = cache.getNode(path);
+        Optional<NodeEntry> result = cache.getNode(frozenKey);
         assertTrue(result.isPresent());
         assertEquals(frozenNode, result.get().node());
         assertEquals(frozenKey, result.get().nodeKey());
@@ -147,7 +147,7 @@ class TreeCacheTest {
         TreeCache cache = new TreeCache(mockStore, 1);
 
         // Should fall back to storage
-        Optional<NodeEntry> result = cache.getNode(path);
+        Optional<NodeEntry> result = cache.getNode(storageKey);
         assertTrue(result.isPresent());
         assertEquals(storageNode, result.get().node());
         assertEquals(storageKey, result.get().nodeKey());
@@ -158,7 +158,7 @@ class TreeCacheTest {
         TreeCache cache = new TreeCache(mockStore, 1);
         NibblePath path = NibblePath.of(new int[]{9, 9, 9});
 
-        Optional<NodeEntry> result = cache.getNode(path);
+        Optional<NodeEntry> result = cache.getNode(NodeKey.of(path, 1));
         assertFalse(result.isPresent());
     }
 
@@ -177,7 +177,7 @@ class TreeCacheTest {
         cache.deleteNode(key, true);
 
         // Should be removed from cache (undo insertion)
-        Optional<NodeEntry> result = cache.getNode(path);
+        Optional<NodeEntry> result = cache.getNode(key);
         assertFalse(result.isPresent());
     }
 
@@ -239,8 +239,8 @@ class TreeCacheTest {
         assertNotNull(rootHash);
 
         // Should still be able to read frozen nodes
-        assertTrue(cache.getNode(path1).isPresent());
-        assertTrue(cache.getNode(path2).isPresent());
+        assertTrue(cache.getNode(key1).isPresent());
+        assertTrue(cache.getNode(key2).isPresent());
 
         // Version should be incremented
         assertEquals(2, cache.nextVersion());
@@ -348,7 +348,7 @@ class TreeCacheTest {
         cache.freeze(DUMMY_HASH);
 
         // Transaction 2: should see node from transaction 1
-        Optional<NodeEntry> found = cache.getNode(path);
+        Optional<NodeEntry> found = cache.getNode(key1);
         assertTrue(found.isPresent());
         assertEquals(node1, found.get().node());
     }
@@ -415,11 +415,11 @@ class TreeCacheTest {
         TreeUpdateBatch batch = cache.toBatch();
 
         // Nodes should be in sorted order (TreeMap)
-        List<NibblePath> paths = new ArrayList<>(batch.nodes().keySet());
-        assertEquals(3, paths.size());
+        List<NodeKey> keys = new ArrayList<>(batch.nodes().keySet());
+        assertEquals(3, keys.size());
         // TreeMap uses comparator based on toString(), so check they're sorted
-        assertTrue(paths.get(0).toString().compareTo(paths.get(1).toString()) <= 0);
-        assertTrue(paths.get(1).toString().compareTo(paths.get(2).toString()) <= 0);
+        assertTrue(keys.get(0).toString().compareTo(keys.get(1).toString()) <= 0);
+        assertTrue(keys.get(1).toString().compareTo(keys.get(2).toString()) <= 0);
     }
 
     // ===== Helper Methods =====
