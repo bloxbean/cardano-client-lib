@@ -333,7 +333,7 @@ public final class JellyfishMerkleTree {
                     byte[] value = store.getValueAt(keyHash, version).orElse(null);
                     int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
                     NibblePath fullPath = NibblePath.of(fullNibbles);
-                    int pathLen = currentPath.getNibbles().length;
+                    int pathLen = currentPath.length(); // Zero-allocation accessor
                     NibblePath suffix = fullPath.slice(pathLen, fullPath.length());
 
                     JmtProof proof = JmtProof.inclusion(
@@ -353,7 +353,7 @@ public final class JellyfishMerkleTree {
                     // Non-inclusion proof - found a different leaf
                     int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
                     NibblePath fullPath = NibblePath.of(fullNibbles);
-                    int pathLen = currentPath.getNibbles().length;
+                    int pathLen = currentPath.length(); // Zero-allocation accessor
                     NibblePath suffix = fullPath.slice(pathLen, fullPath.length());
 
                     JmtProof proof = JmtProof.nonInclusionDifferentLeaf(

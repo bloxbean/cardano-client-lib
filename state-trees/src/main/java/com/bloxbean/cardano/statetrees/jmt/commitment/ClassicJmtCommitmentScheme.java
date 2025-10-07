@@ -68,9 +68,12 @@ public final class ClassicJmtCommitmentScheme implements CommitmentScheme {
         if (valueHash == null || valueHash.length != digestLength) {
             throw new IllegalArgumentException("valueHash must be digest-sized");
         }
-        int[] nibbles = suffix.getNibbles();
-        byte[] suffixBytes = new byte[nibbles.length];
-        for (int i = 0; i < nibbles.length; i++) suffixBytes[i] = (byte) (nibbles[i] & 0x0F);
+        // Zero-allocation access using get() instead of getNibbles()
+        int suffixLen = suffix.length();
+        byte[] suffixBytes = new byte[suffixLen];
+        for (int i = 0; i < suffixLen; i++) {
+            suffixBytes[i] = (byte) (suffix.get(i) & 0x0F);
+        }
         return hashFn.digest(Bytes.concat(new byte[]{TAG_LEAF}, suffixBytes, Arrays.copyOf(valueHash, valueHash.length)));
     }
 

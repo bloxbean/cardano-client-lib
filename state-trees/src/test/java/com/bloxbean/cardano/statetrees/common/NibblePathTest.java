@@ -306,4 +306,109 @@ class NibblePathTest {
         assertThrows(NullPointerException.class, () -> path.concat(null));
         assertThrows(NullPointerException.class, () -> NibblePath.fromBytes(null));
     }
+
+    // === Zero-allocation accessor tests (Phase 3 optimization) ===
+
+    @Test
+    void testCopyNibbles_basic() {
+        NibblePath path = NibblePath.of(1, 2, 3, 4, 5);
+        int[] dest = new int[10];
+
+        path.copyNibbles(dest, 0);
+
+        // Verify copied values
+        assertEquals(1, dest[0]);
+        assertEquals(2, dest[1]);
+        assertEquals(3, dest[2]);
+        assertEquals(4, dest[3]);
+        assertEquals(5, dest[4]);
+
+        // Verify rest is still zero
+        assertEquals(0, dest[5]);
+        assertEquals(0, dest[9]);
+    }
+
+    @Test
+    void testCopyNibbles_withOffset() {
+        NibblePath path = NibblePath.of(7, 8, 9);
+        int[] dest = new int[10];
+
+        path.copyNibbles(dest, 3);
+
+        // Verify offset positioning
+        assertEquals(0, dest[0]);
+        assertEquals(0, dest[1]);
+        assertEquals(0, dest[2]);
+        assertEquals(7, dest[3]);
+        assertEquals(8, dest[4]);
+        assertEquals(9, dest[5]);
+        assertEquals(0, dest[6]);
+    }
+
+    @Test
+    void testCopyNibbles_emptyPath() {
+        NibblePath empty = NibblePath.EMPTY;
+        int[] dest = new int[5];
+        dest[0] = 99; // Pre-fill to verify no overwrite
+
+        empty.copyNibbles(dest, 0);
+
+        // Should not modify array for empty path
+        assertEquals(99, dest[0]);
+    }
+
+    @Test
+    void testCopyNibbles_reuseBuffer() {
+        // Simulate hot path: reusing buffer across multiple paths
+        int[] buffer = new int[20];
+
+        NibblePath path1 = NibblePath.of(1, 2, 3);
+        path1.copyNibbles(buffer, 0);
+        assertEquals(1, buffer[0]);
+        assertEquals(2, buffer[1]);
+        assertEquals(3, buffer[2]);
+
+        NibblePath path2 = NibblePath.of(4, 5, 6, 7);
+        path2.copyNibbles(buffer, 5);
+        assertEquals(4, buffer[5]);
+        assertEquals(5, buffer[6]);
+        assertEquals(6, buffer[7]);
+        assertEquals(7, buffer[8]);
+    }
+
+    @Test
+    void testCopyNibbles_nullDestination() {
+        NibblePath path = NibblePath.of(1, 2, 3);
+        assertThrows(NullPointerException.class, () -> path.copyNibbles(null, 0));
+    }
+
+    @Test
+    void testCopyNibbles_indexOutOfBounds() {
+        NibblePath path = NibblePath.of(1, 2, 3, 4, 5);
+        int[] dest = new int[4]; // Too small
+
+        // Should throw IndexOutOfBoundsException when copying 5 nibbles to array of size 4
+        assertThrows(IndexOutOfBoundsException.class, () -> path.copyNibbles(dest, 0));
+    }
+
+    @Test
+    void testZeroAllocationAccessors_noNewAllocations() {
+        // This test documents the zero-allocation pattern
+        NibblePath path = NibblePath.of(1, 2, 3, 4, 5);
+
+        // Pattern 1: Use length() instead of getNibbles().length
+        int len = path.length(); // Zero allocations
+        assertEquals(5, len);
+
+        // Pattern 2: Use get(i) instead of getNibbles()[i]
+        for (int i = 0; i < path.length(); i++) {
+            int nibble = path.get(i); // Zero allocations per iteration
+            assertTrue(nibble >= 0 && nibble <= 15);
+        }
+
+        // Pattern 3: Use copyNibbles() with reusable buffer
+        int[] buffer = new int[10]; // Allocate once, reuse many times
+        path.copyNibbles(buffer, 0); // Zero allocations
+        assertEquals(1, buffer[0]);
+    }
 }

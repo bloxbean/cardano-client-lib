@@ -150,10 +150,42 @@ public final class NibblePath implements Comparable<NibblePath> {
      *
      * <p>The returned array is a defensive copy to maintain immutability.</p>
      *
+     * <p><b>Performance Note:</b> This method allocates a new array on every call.
+     * For performance-critical code that only needs read access, prefer using
+     * {@link #length()}, {@link #get(int)}, or {@link #copyNibbles(int[], int)} instead.
+     *
      * @return a copy of the nibbles array
      */
     public int[] getNibbles() {
         return nibbles.clone();
+    }
+
+    /**
+     * Zero-allocation bulk copy of nibbles to a pre-allocated destination array.
+     *
+     * <p>This method is optimized for performance-critical paths where avoiding
+     * allocations is important. Instead of creating a new array (like {@link #getNibbles()}),
+     * this copies nibbles to a caller-provided buffer.
+     *
+     * <p><b>Example usage:</b></p>
+     * <pre>{@code
+     * // Reuse buffer across multiple reads
+     * int[] buffer = new int[maxPathLength];
+     * for (NibblePath path : paths) {
+     *     path.copyNibbles(buffer, 0);
+     *     processNibbles(buffer, 0, path.length());
+     * }
+     * }</pre>
+     *
+     * @param dest the destination array
+     * @param destPos starting position in the destination array
+     * @throws NullPointerException if dest is null
+     * @throws IndexOutOfBoundsException if copying would cause access outside array bounds
+     * @since 0.6.1
+     */
+    public void copyNibbles(int[] dest, int destPos) {
+        Objects.requireNonNull(dest, "Destination array cannot be null");
+        System.arraycopy(nibbles, 0, dest, destPos, nibbles.length);
     }
 
     /**
