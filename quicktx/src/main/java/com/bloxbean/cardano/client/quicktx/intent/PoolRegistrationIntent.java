@@ -6,7 +6,6 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
 import com.bloxbean.cardano.client.transaction.spec.cert.Certificate;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -31,9 +30,9 @@ import java.util.ArrayList;
 public class PoolRegistrationIntent implements TxIntent {
 
     /**
-     * Pool registration certificate (runtime object).
+     * Pool registration certificate.
      */
-    @JsonIgnore
+    @JsonProperty("pool_registration")
     private PoolRegistration poolRegistration;
 
     /**
@@ -43,35 +42,37 @@ public class PoolRegistrationIntent implements TxIntent {
     @Builder.Default
     private boolean isUpdate = false;
 
-    // Serialization fields - TODO: implement proper PoolRegistration serialization
-
-    /**
-     * Pool registration data for serialization (placeholder).
-     * TODO: Implement proper PoolRegistration to/from JSON conversion.
-     */
-    @JsonProperty("pool_registration_data")
-    private Object poolRegistrationData;
-
     @Override
     public String getType() {
         return isUpdate ? "pool_update" : "pool_registration";
     }
 
-
     @Override
     public void validate() {
         TxIntent.super.validate();
-        if (poolRegistration == null && poolRegistrationData == null) {
+        if (poolRegistration == null) {
             throw new IllegalStateException("Pool registration certificate is required");
         }
     }
+
     @Override
     public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
-        // No string fields to resolve (poolRegistrationData needs custom serialization logic)
+        // No string fields to resolve in pool registration
         return this;
     }
 
-    // Factory methods for clean API
+    /**
+     * Infer isUpdate flag from type field during deserialization.
+     * Called automatically by Jackson after setting the type.
+     */
+    @JsonProperty("type")
+    private void setTypeFromJson(String type) {
+        if ("pool_update".equals(type)) {
+            this.isUpdate = true;
+        } else if ("pool_registration".equals(type)) {
+            this.isUpdate = false;
+        }
+    }
 
     /**
      * Create a pool registration intention.
@@ -92,11 +93,6 @@ public class PoolRegistrationIntent implements TxIntent {
             .isUpdate(true)
             .build();
     }
-
-    // Convenience methods
-
-
-    // ===== Self-processing methods =====
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
@@ -120,9 +116,6 @@ public class PoolRegistrationIntent implements TxIntent {
         return (ctx, txn) -> {
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for pool operations");
-            }
-            if (poolRegistration == null && poolRegistrationData == null) {
-                throw new TxBuildException("Pool registration certificate is required");
             }
             validate();
         };
