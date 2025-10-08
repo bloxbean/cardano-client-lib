@@ -1,7 +1,10 @@
 package com.bloxbean.cardano.client.quicktx;
 
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.util.PolicyUtil;
+import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.transaction.spec.Policy;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,10 +12,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TxPlanRefYamlTest {
 
     @Test
-    void tx_from_ref_serializes_and_deserializes() {
+    void tx_from_ref_serializes_and_deserializes() throws CborSerializationException {
+        Policy policy = PolicyUtil.createMultiSigScriptAllPolicy("Some Policy", 1);
         Tx tx = new Tx()
                 .payToAddress("addr_test1qxyz...receiver", Amount.ada(1))
                 .fromRef("account://alice")
+                .attachNativeScript(policy.getPolicyScript())
                 .withChangeAddress("addr_test1qchange...111");
 
         TxPlan plan = TxPlan.from(tx)
@@ -25,7 +30,6 @@ class TxPlanRefYamlTest {
         assertThat(yaml).contains("from_ref: account://alice");
         assertThat(yaml).contains("fee_payer_ref: wallet://ops");
         assertThat(yaml).contains("collateral_payer_ref: wallet://ops");
-        assertThat(yaml).contains("- type: policy");
         assertThat(yaml).contains("ref: policy://nft");
         assertThat(yaml).contains("scope: policy");
 
