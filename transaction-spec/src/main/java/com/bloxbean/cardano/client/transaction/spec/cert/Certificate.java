@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.EraSerializationConfig;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.List;
 import java.util.Objects;
@@ -100,6 +101,7 @@ public interface Certificate {
 
     Array serialize(Era era) throws CborSerializationException;
 
+    @JsonIgnore
     default String getCborHex() throws CborSerializationException {
         try {
             return HexUtil.encodeHexString(CborSerializationUtil.serialize(serialize()));
