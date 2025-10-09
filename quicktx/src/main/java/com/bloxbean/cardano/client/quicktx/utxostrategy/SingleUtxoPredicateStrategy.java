@@ -46,4 +46,9 @@ public class SingleUtxoPredicateStrategy implements LazyUtxoStrategy {
     public PlutusData getDatum() {
         return datum;
     }
+
+    @Override
+    public boolean isSerializable() {
+        return false; // Predicate-based strategies cannot be serialized
+    }
 }

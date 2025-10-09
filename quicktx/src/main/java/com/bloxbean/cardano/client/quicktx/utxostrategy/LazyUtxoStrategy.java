@@ -39,4 +39,12 @@ public interface LazyUtxoStrategy {
      * @return datum
      */
     PlutusData getDatum();
+
+    /**
+     * Check if this strategy can be serialized to YAML.
+     * Predicate-based strategies cannot be serialized.
+     *
+     * @return true if serializable, false if runtime-only
+     */
+    boolean isSerializable();
 }

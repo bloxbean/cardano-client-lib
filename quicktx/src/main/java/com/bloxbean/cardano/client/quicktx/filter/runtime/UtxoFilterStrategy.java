@@ -47,5 +47,10 @@ public class UtxoFilterStrategy implements LazyUtxoStrategy {
     public PlutusData getDatum() {
         return datum;
     }
+
+    @Override
+    public boolean isSerializable() {
+        return true;
+    }
 }
 

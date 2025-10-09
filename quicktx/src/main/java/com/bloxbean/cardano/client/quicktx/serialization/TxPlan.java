@@ -293,6 +293,12 @@ public class TxPlan {
         List<TransactionDocument.TxEntry> entries = new ArrayList<>();
 
         for (AbstractTx<?> tx : txList) {
+
+            List<TxIntent> intentions = tx.getIntentions();
+            if (intentions != null) {
+                intentions.forEach(txIntent -> txIntent.checkSerializable());
+            }
+
             if (tx instanceof Tx) {
                 Tx regularTx = (Tx) tx;
                 TransactionDocument.TxContent content = new TransactionDocument.TxContent();

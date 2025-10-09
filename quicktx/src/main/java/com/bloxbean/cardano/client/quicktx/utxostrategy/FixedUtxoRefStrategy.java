@@ -50,4 +50,9 @@ public class FixedUtxoRefStrategy implements LazyUtxoStrategy {
     public PlutusData getDatum() {
         return datum;
     }
+
+    @Override
+    public boolean isSerializable() {
+        return true;
+    }
 }

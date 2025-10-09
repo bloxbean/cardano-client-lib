@@ -88,6 +88,17 @@ public interface TxIntent {
     }
 
     /**
+     * Check if this intention can be serialized to YAML.
+     * Throws an exception with a specific, actionable error message if not serializable.
+     * Default implementation is no-op (all intents serializable by default).
+     *
+     * @throws IllegalStateException if this intention cannot be serialized
+     */
+    default void checkSerializable() {
+        // By default, all intents are serializable - no-op
+    }
+
+    /**
      * Self-processing method for output building phase (Phase 1).
      * This phase creates transaction outputs using TxOutputBuilder.
      *

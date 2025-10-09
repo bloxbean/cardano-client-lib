@@ -344,6 +344,18 @@ public class ScriptCollectFromIntent implements TxInputIntent {
     }
 
     @Override
+    public void checkSerializable() {
+        if (lazyUtxoStrategy != null && !lazyUtxoStrategy.isSerializable()) {
+            throw new IllegalStateException(
+                "Cannot serialize ScriptTx with predicate-based collectFrom(). " +
+                "Predicate-based methods (collectFrom(address, Predicate, ...) and " +
+                "collectFromList(address, Predicate, ...)) are runtime-only and cannot be serialized to YAML. " +
+                "Use UtxoFilterSpec-based collectFrom(address, UtxoFilterSpec, ...) instead for serializable transactions."
+            );
+        }
+    }
+
+    @Override
     @SneakyThrows
     public LazyUtxoStrategy utxoStrategy() {
         if (redeemerData == null && redeemerHex != null)
