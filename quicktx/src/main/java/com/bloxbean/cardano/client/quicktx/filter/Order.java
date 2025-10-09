@@ -9,6 +9,7 @@ public final class Order {
         ADDRESS,
         DATA_HASH,
         INLINE_DATUM,
+        REFERENCE_SCRIPT_HASH,
         TX_HASH,
         OUTPUT_INDEX
     }
@@ -43,6 +44,7 @@ public final class Order {
     public static Order address(Direction dir) { return new Order(Field.ADDRESS, dir, null); }
     public static Order dataHash(Direction dir) { return new Order(Field.DATA_HASH, dir, null); }
     public static Order inlineDatum(Direction dir) { return new Order(Field.INLINE_DATUM, dir, null); }
+    public static Order referenceScriptHash(Direction dir) { return new Order(Field.REFERENCE_SCRIPT_HASH, dir, null); }
     public static Order txHash(Direction dir) { return new Order(Field.TX_HASH, dir, null); }
     public static Order outputIndex(Direction dir) { return new Order(Field.OUTPUT_INDEX, dir, null); }
 

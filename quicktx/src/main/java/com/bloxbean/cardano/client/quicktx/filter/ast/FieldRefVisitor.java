@@ -6,8 +6,8 @@ package com.bloxbean.cardano.client.quicktx.filter.ast;
  *
  * <p>Each visit method corresponds to a specific UTxO field type:
  * <ul>
- *   <li>String fields: address, dataHash, inlineDatum</li>
- *   <li>Numeric fields: amountQuantity (for specific asset units)</li>
+ *   <li>String fields: address, dataHash, inlineDatum, referenceScriptHash, txHash</li>
+ *   <li>Numeric fields: amountQuantity (for specific asset units), outputIndex</li>
  * </ul>
  *
  * @param <T> the type produced by this visitor (e.g., Function, SqlColumn)
@@ -45,5 +45,29 @@ public interface FieldRefVisitor<T> {
      * @return the compiled representation for accessing the quantity of the specified unit
      */
     T visit(AmountQuantityField f);
+
+    /**
+     * Visits a reference script hash field reference.
+     *
+     * @param f the reference script hash field (singleton instance)
+     * @return the compiled representation for accessing the referenceScriptHash field
+     */
+    T visit(ReferenceScriptHashField f);
+
+    /**
+     * Visits a transaction hash field reference.
+     *
+     * @param f the transaction hash field (singleton instance)
+     * @return the compiled representation for accessing the txHash field
+     */
+    T visit(TxHashField f);
+
+    /**
+     * Visits an output index field reference.
+     *
+     * @param f the output index field (singleton instance)
+     * @return the compiled representation for accessing the outputIndex field
+     */
+    T visit(OutputIndexField f);
 }
 

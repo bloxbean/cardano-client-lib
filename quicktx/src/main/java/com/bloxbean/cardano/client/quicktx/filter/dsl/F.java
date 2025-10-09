@@ -14,10 +14,13 @@ public final class F {
     public static StrField dataHash() { return new StrField(DataHashField.INSTANCE); }
     public static StrField inlineDatum() { return new StrField(InlineDatumField.INSTANCE); }
     public static StrField address() { return new StrField(AddressField.INSTANCE); }
+    public static StrField referenceScriptHash() { return new StrField(ReferenceScriptHashField.INSTANCE); }
+    public static StrField txHash() { return new StrField(TxHashField.INSTANCE); }
 
     // -------- Numeric fields --------
     public static NumField lovelace() { return new NumField(new AmountQuantityField("lovelace")); }
     public static NumField amountUnit(String unit) { return new NumField(new AmountQuantityField(unit)); }
+    public static NumField outputIndex() { return new NumField(OutputIndexField.INSTANCE); }
 
     // -------- Builders --------
     public static final class StrField {

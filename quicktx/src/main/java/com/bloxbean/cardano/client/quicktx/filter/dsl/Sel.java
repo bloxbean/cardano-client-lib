@@ -18,6 +18,8 @@ public final class Sel {
     public static Order dataHashDesc() { return Order.dataHash(Order.Direction.DESC); }
     public static Order inlineDatumAsc() { return Order.inlineDatum(Order.Direction.ASC); }
     public static Order inlineDatumDesc() { return Order.inlineDatum(Order.Direction.DESC); }
+    public static Order referenceScriptHashAsc() { return Order.referenceScriptHash(Order.Direction.ASC); }
+    public static Order referenceScriptHashDesc() { return Order.referenceScriptHash(Order.Direction.DESC); }
     public static Order txHashAsc() { return Order.txHash(Order.Direction.ASC); }
     public static Order txHashDesc() { return Order.txHash(Order.Direction.DESC); }
     public static Order outputIndexAsc() { return Order.outputIndex(Order.Direction.ASC); }

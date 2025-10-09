@@ -106,6 +106,9 @@ public final class InMemoryUtxoFilterEngine {
             case INLINE_DATUM:
                 c = Comparator.comparing(Utxo::getInlineDatum, Comparator.nullsLast(String::compareTo));
                 break;
+            case REFERENCE_SCRIPT_HASH:
+                c = Comparator.comparing(Utxo::getReferenceScriptHash, Comparator.nullsLast(String::compareTo));
+                break;
             case TX_HASH:
                 c = Comparator.comparing(Utxo::getTxHash, Comparator.nullsLast(String::compareTo));
                 break;

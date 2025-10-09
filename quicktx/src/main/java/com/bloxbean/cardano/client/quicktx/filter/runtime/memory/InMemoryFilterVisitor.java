@@ -54,10 +54,19 @@ public final class InMemoryFilterVisitor implements FilterVisitor<Predicate<Utxo
         } else if (field instanceof InlineDatumField) {
             ensureStringOp(op, "inlineDatum");
             return strCmp(Utxo::getInlineDatum, op, val);
+        } else if (field instanceof ReferenceScriptHashField) {
+            ensureStringOp(op, "referenceScriptHash");
+            return strCmp(Utxo::getReferenceScriptHash, op, val);
+        } else if (field instanceof TxHashField) {
+            ensureStringOp(op, "txHash");
+            return strCmp(Utxo::getTxHash, op, val);
         } else if (field instanceof AmountQuantityField) {
             String unit = ((AmountQuantityField) field).getUnit();
             ensureNumericOp(op, "amount.quantity(" + unit + ")");
             return numCmp(u -> quantityOf(u, unit), op, val);
+        } else if (field instanceof OutputIndexField) {
+            ensureNumericOp(op, "outputIndex");
+            return numCmp(u -> BigInteger.valueOf(u.getOutputIndex()), op, val);
         } else {
             throw new IllegalArgumentException("Unknown field: " + field);
         }

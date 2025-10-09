@@ -91,6 +91,12 @@ public final class UtxoFilterYaml {
                 return parseStringComparison(DataHashField.INSTANCE, valueNode);
             case "inlineDatum":
                 return parseStringComparison(InlineDatumField.INSTANCE, valueNode);
+            case "referenceScriptHash":
+                return parseStringComparison(ReferenceScriptHashField.INSTANCE, valueNode);
+            case "txHash":
+                return parseStringComparison(TxHashField.INSTANCE, valueNode);
+            case "outputIndex":
+                return parseNumericComparison(OutputIndexField.INSTANCE, valueNode);
             case "lovelace":
                 return parseNumericComparison(new AmountQuantityField("lovelace"), valueNode);
             case "amount":
@@ -249,6 +255,7 @@ public final class UtxoFilterYaml {
         if (h.equals("address")) return com.bloxbean.cardano.client.quicktx.filter.Order.address(dir);
         if (h.equals("datahash") || h.equals("data_hash")) return com.bloxbean.cardano.client.quicktx.filter.Order.dataHash(dir);
         if (h.equals("inlinedatum") || h.equals("inline_datum")) return com.bloxbean.cardano.client.quicktx.filter.Order.inlineDatum(dir);
+        if (h.equals("referencescripthash") || h.equals("reference_script_hash")) return com.bloxbean.cardano.client.quicktx.filter.Order.referenceScriptHash(dir);
         if (h.equals("txhash") || h.equals("tx_hash")) return com.bloxbean.cardano.client.quicktx.filter.Order.txHash(dir);
         if (h.equals("outputindex") || h.equals("output_index")) return com.bloxbean.cardano.client.quicktx.filter.Order.outputIndex(dir);
 
@@ -330,6 +337,12 @@ public final class UtxoFilterYaml {
                 putStringField(obj, "dataHash", op, v);
             } else if (f instanceof InlineDatumField) {
                 putStringField(obj, "inlineDatum", op, v);
+            } else if (f instanceof ReferenceScriptHashField) {
+                putStringField(obj, "referenceScriptHash", op, v);
+            } else if (f instanceof TxHashField) {
+                putStringField(obj, "txHash", op, v);
+            } else if (f instanceof OutputIndexField) {
+                putNumericField(obj, "outputIndex", op, v);
             } else if (f instanceof AmountQuantityField) {
                 String unit = ((AmountQuantityField) f).getUnit();
                 if ("lovelace".equals(unit)) {
@@ -400,6 +413,7 @@ public final class UtxoFilterYaml {
             case ADDRESS: head = "address"; break;
             case DATA_HASH: head = "dataHash"; break;
             case INLINE_DATUM: head = "inlineDatum"; break;
+            case REFERENCE_SCRIPT_HASH: head = "referenceScriptHash"; break;
             case TX_HASH: head = "txHash"; break;
             case OUTPUT_INDEX: head = "outputIndex"; break;
             default: head = o.getField().name();
