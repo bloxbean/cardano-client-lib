@@ -6,6 +6,7 @@ import com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbStateTrees;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.*;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.*;
 import org.rocksdb.*;
 
 import java.security.SecureRandom;

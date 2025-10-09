@@ -3,7 +3,7 @@ package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
-import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RocksDbGc;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.internal.RocksDbGc;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

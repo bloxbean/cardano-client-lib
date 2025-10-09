@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.statetrees.rocksdb.mpt.gc;
+package com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.internal;
 
 import co.nstant.in.cbor.CborDecoder;
 import co.nstant.in.cbor.model.Array;

@@ -5,7 +5,7 @@ import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcManager;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcOptions;
-import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RefcountGcStrategy;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.RefcountGcStrategy;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RetentionPolicy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

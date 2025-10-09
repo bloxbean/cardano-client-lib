@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 
-import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RefcountGcStrategy;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.RefcountGcStrategy;
 import org.rocksdb.*;
 
 import java.io.File;

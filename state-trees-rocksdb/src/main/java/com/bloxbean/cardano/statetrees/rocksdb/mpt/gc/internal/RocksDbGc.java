@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.statetrees.rocksdb.mpt.gc;
+package com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.internal;
 
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbNodeStore;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbRootsIndex;
