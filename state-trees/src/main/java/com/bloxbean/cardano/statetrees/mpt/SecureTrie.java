@@ -13,9 +13,25 @@ import java.util.Optional;
 /**
  * Secure Merkle Patricia Trie that hashes keys before storage.
  *
- * <p>SecureTrie is a wrapper around the standard Merkle Patricia Trie that automatically
- * hashes all keys using the configured hash function before storing them. This provides
- * several security and performance benefits:</p>
+ * <p><b>⚠️ CARDANO DEVELOPERS: Use this class for on-chain compatibility.</b></p>
+ *
+ * <p>This implementation matches the behavior of Cardano's
+ * <a href="https://github.com/aiken-lang/merkle-patricia-forestry">merkle-patricia-forestry</a>
+ * library in Aiken, which always hashes keys using Blake2b-256 before storage. All keys are
+ * automatically hashed before being stored in the trie.</p>
+ *
+ * <p><b>When to Use SecureTrie:</b></p>
+ * <ul>
+ *   <li>Building Cardano smart contracts or dApps</li>
+ *   <li>Need compatibility with Aiken merkle-patricia-forestry</li>
+ * </ul>
+ *
+ * <p><b>When NOT to Use SecureTrie:</b></p>
+ * <ul>
+ *   <li>Need prefix queries on original keys → use {@link MerklePatriciaTrie}</li>
+ *   <li>Building off-chain indexers → use {@link MerklePatriciaTrie}</li>
+ *   <li>Want to recover original keys from trie → use {@link MerklePatriciaTrie}</li>
+ * </ul>
  *
  * <p><b>Security Benefits:</b></p>
  * <ul>
@@ -36,24 +52,31 @@ import java.util.Optional;
  *
  * <p><b>Trade-offs:</b></p>
  * <ul>
- *   <li><b>No Prefix Queries:</b> Cannot perform prefix scans on original keys</li>
+ *   <li><b>No Prefix Queries:</b> Cannot perform prefix scans on original keys (hashing destroys prefix relationships)</li>
  *   <li><b>Hash Overhead:</b> Additional computation for each key operation</li>
  *   <li><b>Key Recovery:</b> Original keys cannot be recovered from the trie</li>
  * </ul>
  *
- * <p><b>Usage Example:</b></p>
+ * <p><b>Cardano Compatibility Example:</b></p>
  * <pre>{@code
- * NodeStore store = new InMemoryNodeStore();
+ * // Cardano-compatible (matches Aiken MPF behavior)
+ * NodeStore store = new RocksDbNodeStore(...);
  * HashFunction blake2b = Blake2b256::digest;
- * SecureTrie secureTrie = new SecureTrie(store, blake2b);
+ * SecureTrie trie = new SecureTrie(store, blake2b);
  *
- * // Keys are automatically hashed before storage
- * secureTrie.put("user123".getBytes(), userData);
- * byte[] data = secureTrie.get("user123".getBytes());
+ * // Keys are automatically hashed with Blake2b-256 before storage
+ * trie.put("account123".getBytes(), accountData);
+ * byte[] rootHash = trie.getRootHash(); // Use in Cardano transactions
  * }</pre>
+ *
+ * <p><b>Implementation Note:</b> This class wraps {@link MerklePatriciaTrie} and automatically
+ * applies {@code hashFn.digest(key)} before all operations, matching the behavior of
+ * Aiken's {@code blake2b_256(key)} in the including/excluding functions.</p>
  *
  * @see MerklePatriciaTrie
  * @see HashFunction
+ * @see <a href="https://github.com/aiken-lang/merkle-patricia-forestry">Cardano Merkle Patricia Forestry (Aiken)</a>
+ * @since 0.8.0
  */
 public final class SecureTrie {
     /**

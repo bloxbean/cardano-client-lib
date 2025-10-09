@@ -10,10 +10,31 @@ import java.util.Optional;
 /**
  * Public API for the Merkle Patricia Trie data structure.
  *
+ * <p><b>⚠️ CARDANO DEVELOPERS: For on-chain compatibility, use {@link com.bloxbean.cardano.statetrees.mpt.SecureTrie} instead.</b></p>
+ *
  * <p>This class provides a high-level interface to the Merkle Patricia Trie (MPT),
  * a persistent data structure that combines the properties of a Patricia trie
  * (radix tree) with Merkle tree cryptographic authentication. The MPT is widely
  * used in blockchain systems for efficient and verifiable state storage.</p>
+ *
+ * <p>This implementation stores keys <b>as-is</b> without hashing. For Cardano smart contracts
+ * that need to match Aiken's merkle-patricia-forestry behavior (which hashes keys with Blake2b-256),
+ * use {@link com.bloxbean.cardano.statetrees.mpt.SecureTrie} instead.</p>
+ *
+ * <p><b>When to Use MerklePatriciaTrie:</b></p>
+ * <ul>
+ *   <li>Off-chain indexing and databases</li>
+ *   <li>Prefix queries on original keys</li>
+ *   <li>Trusted key environments (not user-provided)</li>
+ *   <li>Need to recover original keys from the trie</li>
+ * </ul>
+ *
+ * <p><b>When NOT to Use MerklePatriciaTrie:</b></p>
+ * <ul>
+ *   <li>Building Cardano smart contracts → use {@link com.bloxbean.cardano.statetrees.mpt.SecureTrie}</li>
+ *   <li>Storing untrusted keys (vulnerable to DoS) → use {@link com.bloxbean.cardano.statetrees.mpt.SecureTrie}</li>
+ *   <li>Need Aiken compatibility → use {@link com.bloxbean.cardano.statetrees.mpt.SecureTrie}</li>
+ * </ul>
  *
  * <p><b>Key Features:</b></p>
  * <ul>
@@ -23,21 +44,22 @@ import java.util.Optional;
  *   <li>Supports efficient prefix scanning for range queries</li>
  * </ul>
  *
- * <p><b>Usage Example:</b></p>
+ * <p><b>Off-Chain Usage Example:</b></p>
  * <pre>{@code
+ * // For off-chain indexing, databases, prefix queries
  * NodeStore store = new InMemoryNodeStore();
  * HashFunction hashFn = Blake2b256::digest;
  * MerklePatriciaTrie trie = new MerklePatriciaTrie(store, hashFn);
  *
- * // Store key-value pairs
- * trie.put("hello".getBytes(), "world".getBytes());
- * trie.put("foo".getBytes(), "bar".getBytes());
+ * // Store key-value pairs with original keys
+ * trie.put("user:alice".getBytes(), aliceData);
+ * trie.put("user:bob".getBytes(), bobData);
+ *
+ * // Prefix scan works on original keys
+ * List<Entry> users = trie.scanByPrefix("user:".getBytes(), 100);
  *
  * // Retrieve values
- * byte[] value = trie.get("hello".getBytes());
- *
- * // Get cryptographic root hash
- * byte[] rootHash = trie.getRootHash();
+ * byte[] value = trie.get("user:alice".getBytes());
  * }</pre>
  *
  * <p><b>Thread Safety:</b> This class is NOT thread-safe. External synchronization
@@ -47,7 +69,7 @@ import java.util.Optional;
  * @see NodeStore
  * @see HashFunction
  * @see com.bloxbean.cardano.statetrees.mpt.SecureTrie
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class MerklePatriciaTrie {
     private final MerklePatriciaTrieImpl impl;

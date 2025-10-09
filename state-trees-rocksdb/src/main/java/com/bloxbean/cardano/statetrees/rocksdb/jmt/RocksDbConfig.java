@@ -62,13 +62,6 @@ public final class RocksDbConfig {
          *   <li>Block cache: 512MB shared cache</li>
          * </ul>
          *
-         * <p><b>Expected performance:</b>
-         * <ul>
-         *   <li>Write amplification: 50x → 15x (3.3× reduction)</li>
-         *   <li>Write stalls: 40-60% → <5% of operation time</li>
-         *   <li>Throughput at 28M keys: 2.6k → 8-13k ops/s (3-5× improvement)</li>
-         * </ul>
-         *
          * <p><b>Use when:</b> High insert/update rate, plenty of RAM available (≥4GB recommended)
          */
         HIGH_THROUGHPUT,
