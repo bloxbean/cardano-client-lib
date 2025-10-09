@@ -30,6 +30,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * ./gradlew :state-trees-rocksdb:run --args="com.bloxbean.cardano.statetrees.rocksdb.tools.JmtLoadTester \
  *     --records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/jmt-load"
  *
+ * # With frequent RocksDB metrics monitoring (every 100k records)
+ * ./gradlew :state-trees-rocksdb:run --args="com.bloxbean.cardano.statetrees.rocksdb.tools.JmtLoadTester \
+ *     --records=50000000 --batch=2000 --progress=100000 --rocksdb=/tmp/jmt-load"
+ *
  * # With pruning enabled
  * ./gradlew :state-trees-rocksdb:run --args="com.bloxbean.cardano.statetrees.rocksdb.tools.JmtLoadTester \
  *     --records=1000000 --batch=1000 --prune-every=100 --keep-latest=1000 --rocksdb=/tmp/jmt-load"
@@ -111,7 +115,7 @@ public final class JmtLoadTester {
         long totalPruneTimeMs = 0;
 
         System.out.println("==== JMT V2 Load Test ====");
-        System.out.printf("Backend: %s%n", options.inMemory ? "InMemory" : "RocksDB");
+        System.out.printf("Backend: %s%n", options.inMemory ? "InMemory" : "RocksDB (HIGH_THROUGHPUT profile)");
         System.out.printf("Total operations: %,d%n", options.totalRecords);
         System.out.printf("Batch size: %,d%n", options.batchSize);
         System.out.printf("Value size: %d bytes%n", options.valueSize);
@@ -123,6 +127,11 @@ public final class JmtLoadTester {
             System.out.printf("Pruning: every %,d batches, keep latest %,d versions%n",
                     options.pruneEvery, options.keepLatest);
         }
+        System.out.println();
+        System.out.println("Expected Performance (ADR-0015 Phase 2):");
+        System.out.println("  - Throughput: 10-13k ops/s sustained (vs 2.6k baseline)");
+        System.out.println("  - Write amplification: ~15x (vs 50x baseline)");
+        System.out.println("  - Write stalls: <5% (vs 40-60% baseline)");
         System.out.println("==========================\n");
 
         while (remaining > 0) {
@@ -240,6 +249,25 @@ public final class JmtLoadTester {
                         avgCommitMs,
                         totalInserts,
                         totalUpdates);
+
+                // RocksDB monitoring (ADR-0015 Phase 5 - diagnose performance degradation)
+                if (store instanceof RocksDbJmtStore) {
+                    try {
+                        RocksDbJmtStore rocksStore = (RocksDbJmtStore) store;
+                        RocksDbJmtStore.DbProperties props = rocksStore.sampleDbProperties();
+                        System.out.printf(
+                                "  RocksDB: pending_compact=%.1fMB | running_compact=%d | running_flush=%d | " +
+                                "active_mem=%.1fMB | all_mem=%.1fMB | immutable_mem=%d%n",
+                                props.pendingCompactionBytes() / 1024.0 / 1024.0,
+                                props.runningCompactions(),
+                                props.runningFlushes(),
+                                props.curSizeActiveMemTable() / 1024.0 / 1024.0,
+                                props.curSizeAllMemTables() / 1024.0 / 1024.0,
+                                props.numImmutableMemTables());
+                    } catch (Exception e) {
+                        // Ignore monitoring errors
+                    }
+                }
             }
         }
 
@@ -429,8 +457,9 @@ public final class JmtLoadTester {
             System.out.println("Rollback Options:");
             System.out.println("  --enable-rollback-index  Enable rollback indices (~15-20% storage overhead)");
             System.out.println();
-            System.out.println("Testing Options:");
-            System.out.println("  --progress=N          Progress reporting interval in operations (default: 100,000)");
+            System.out.println("Testing & Monitoring Options:");
+            System.out.println("  --progress=N          Progress & RocksDB metrics reporting interval in operations");
+            System.out.println("                        (default: 100,000; use 100000 for every 100k records)");
             System.out.println("  --proof-every=N       Generate proof every N batches (default: 0 = disabled)");
             System.out.println();
             System.out.println("Examples:");

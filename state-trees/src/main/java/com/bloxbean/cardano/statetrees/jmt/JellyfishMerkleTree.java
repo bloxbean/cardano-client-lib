@@ -314,8 +314,8 @@ public final class JellyfishMerkleTree {
         }
 
         // Navigate tree to find leaf
+        // Use depth indexing to avoid concat() allocations during traversal
         List<JmtProof.BranchStep> steps = new ArrayList<>();
-        NibblePath currentPath = NibblePath.EMPTY;
         int depth = 0;
 
         Optional<JmtStore.NodeEntry> currentEntryOpt = rootEntryOpt;
@@ -333,8 +333,8 @@ public final class JellyfishMerkleTree {
                     byte[] value = store.getValueAt(keyHash, version).orElse(null);
                     int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
                     NibblePath fullPath = NibblePath.of(fullNibbles);
-                    int pathLen = currentPath.length(); // Zero-allocation accessor
-                    NibblePath suffix = fullPath.slice(pathLen, fullPath.length());
+                    // Use depth directly instead of materializing path (zero-allocation)
+                    NibblePath suffix = fullPath.slice(depth, fullPath.length());
 
                     JmtProof proof = JmtProof.inclusion(
                             steps,
@@ -353,8 +353,8 @@ public final class JellyfishMerkleTree {
                     // Non-inclusion proof - found a different leaf
                     int[] fullNibbles = Nibbles.toNibbles(leaf.keyHash());
                     NibblePath fullPath = NibblePath.of(fullNibbles);
-                    int pathLen = currentPath.length(); // Zero-allocation accessor
-                    NibblePath suffix = fullPath.slice(pathLen, fullPath.length());
+                    // Use depth directly instead of materializing path (zero-allocation)
+                    NibblePath suffix = fullPath.slice(depth, fullPath.length());
 
                     JmtProof proof = JmtProof.nonInclusionDifferentLeaf(
                             steps,
@@ -396,7 +396,12 @@ public final class JellyfishMerkleTree {
                         neighborNibble = idx;
 
                         // Try to load the neighbor node to determine its type
-                        NibblePath neighborPath = currentPath.concat(NibblePath.of(idx));
+                        // Build path: nibbles[0..depth-1] + idx
+                        // We need to construct a path with one more nibble (the neighbor idx)
+                        int[] neighborNibbles = new int[depth + 1];
+                        System.arraycopy(nibbles, 0, neighborNibbles, 0, depth);
+                        neighborNibbles[depth] = idx;
+                        NibblePath neighborPath = NibblePath.fromRaw(neighborNibbles);
                         Optional<JmtStore.NodeEntry> neighborOpt = store.getNode(version, neighborPath);
 
                         if (neighborOpt.isPresent()) {
@@ -416,6 +421,9 @@ public final class JellyfishMerkleTree {
                 }
 
                 boolean singleNeighbor = (neighborCount == 1);
+
+                // Materialize current path for BranchStep (only when needed)
+                NibblePath currentPath = NibblePath.fromRange(nibbles, 0, depth);
 
                 // Add branch step
                 steps.add(new JmtProof.BranchStep(
@@ -438,10 +446,10 @@ public final class JellyfishMerkleTree {
                     return Optional.of(JmtProof.nonInclusionEmpty(steps));
                 }
 
-                // Navigate to child
-                currentPath = currentPath.concat(NibblePath.of(nibble));
-                currentEntryOpt = store.getNode(version, currentPath);
+                // Navigate to child: increment depth to include this nibble in the path
                 depth++;
+                NibblePath childPath = NibblePath.fromRange(nibbles, 0, depth);
+                currentEntryOpt = store.getNode(version, childPath);
             } else {
                 throw new IllegalStateException("Unknown node type: " + node.getClass());
             }

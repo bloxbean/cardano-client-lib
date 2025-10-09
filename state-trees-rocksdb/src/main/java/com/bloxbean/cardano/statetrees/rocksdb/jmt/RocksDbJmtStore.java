@@ -858,17 +858,23 @@ public final class RocksDbJmtStore implements JmtStore {
     /**
      * Returns a snapshot of selected RocksDB properties useful for monitoring compaction/flush pressure.
      * Values default to 0 if a property is unavailable.
+     *
+     * <p>Note: Properties are sampled from the primary 'nodes' column family as it contains
+     * the bulk of the data and best represents overall database health.
      */
     public DbProperties sampleDbProperties() {
         try {
-            long pending = parseLong(db.getProperty("rocksdb.estimate-pending-compaction-bytes"));
-            int runningComp = (int) parseLong(db.getProperty("rocksdb.num-running-compactions"));
-            int runningFlush = (int) parseLong(db.getProperty("rocksdb.num-running-flushes"));
-            long activeMem = parseLong(db.getProperty("rocksdb.cur-size-active-mem-table"));
-            long allMem = parseLong(db.getProperty("rocksdb.cur-size-all-mem-tables"));
-            long imm = parseLong(db.getProperty("rocksdb.num-immutable-mem-table"));
+            // Most properties need to be queried on a specific column family, not the DB
+            // We use cfNodes as it contains the bulk of data
+            long pending = parseLong(db.getProperty(cfNodes, "rocksdb.estimate-pending-compaction-bytes"));
+            int runningComp = (int) parseLong(db.getProperty(cfNodes, "rocksdb.num-running-compactions"));
+            int runningFlush = (int) parseLong(db.getProperty(cfNodes, "rocksdb.num-running-flushes"));
+            long activeMem = parseLong(db.getProperty(cfNodes, "rocksdb.cur-size-active-mem-table"));
+            long allMem = parseLong(db.getProperty(cfNodes, "rocksdb.cur-size-all-mem-tables"));
+            long imm = parseLong(db.getProperty(cfNodes, "rocksdb.num-immutable-mem-table"));
             return new DbProperties(pending, runningComp, runningFlush, activeMem, allMem, imm);
         } catch (Exception e) {
+            // Silently return zeros if properties unavailable
             return new DbProperties(0, 0, 0, 0, 0, 0);
         }
     }
