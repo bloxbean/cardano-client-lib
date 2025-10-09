@@ -9,6 +9,7 @@ import com.bloxbean.cardano.statetrees.jmt.TreeCache.TreeUpdateBatch;
 import com.bloxbean.cardano.statetrees.jmt.commitment.ClassicJmtCommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.statetrees.jmt.proof.ClassicJmtProofCodec;
+import com.bloxbean.cardano.statetrees.jmt.proof.JmtProofCodec;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
 
 import java.util.*;
@@ -38,6 +39,7 @@ public final class JellyfishMerkleTree {
     private final CommitmentScheme commitments;
     private final HashFunction hashFn;
     private final JmtMetrics metrics;
+    private final JmtProofCodec proofCodec;
 
     /**
      * Creates a new JellyfishMerkleTree backed by the specified store.
@@ -59,10 +61,24 @@ public final class JellyfishMerkleTree {
      * @param metrics     metrics collector (use JmtMetrics.NOOP to disable)
      */
     public JellyfishMerkleTree(JmtStore store, CommitmentScheme commitments, HashFunction hashFn, JmtMetrics metrics) {
+        this(store, commitments, hashFn, metrics, new ClassicJmtProofCodec());
+    }
+
+    /**
+     * Creates a new JellyfishMerkleTree with full customization (metrics and custom proof codec).
+     *
+     * @param store       the storage layer for nodes and values
+     * @param commitments the commitment scheme for computing node hashes
+     * @param hashFn      the hash function for keys and values
+     * @param metrics     metrics collector (use JmtMetrics.NOOP to disable)
+     * @param proofCodec  the codec for encoding/decoding proofs to wire format
+     */
+    public JellyfishMerkleTree(JmtStore store, CommitmentScheme commitments, HashFunction hashFn, JmtMetrics metrics, JmtProofCodec proofCodec) {
         this.store = Objects.requireNonNull(store, "store");
         this.commitments = Objects.requireNonNull(commitments, "commitments");
         this.hashFn = Objects.requireNonNull(hashFn, "hashFn");
         this.metrics = Objects.requireNonNull(metrics, "metrics");
+        this.proofCodec = Objects.requireNonNull(proofCodec, "proofCodec");
     }
 
     /**
@@ -509,11 +525,9 @@ public final class JellyfishMerkleTree {
     public Optional<byte[]> getProofWire(byte[] key, long version) {
         Objects.requireNonNull(key, "key");
 
-        return getProof(key, version).map(proof -> {
-            ClassicJmtProofCodec codec =
-                new ClassicJmtProofCodec();
-            return codec.toWire(proof, key, hashFn, commitments);
-        });
+        return getProof(key, version).map(proof ->
+            proofCodec.toWire(proof, key, hashFn, commitments)
+        );
     }
 
     /**
@@ -576,9 +590,7 @@ public final class JellyfishMerkleTree {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(wire, "wire");
 
-        ClassicJmtProofCodec codec =
-            new ClassicJmtProofCodec();
-        return codec.verify(expectedRoot, key, value, including, wire, hashFn, commitments);
+        return proofCodec.verify(expectedRoot, key, value, including, wire, hashFn, commitments);
     }
 
     /**

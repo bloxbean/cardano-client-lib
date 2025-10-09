@@ -26,9 +26,27 @@ import java.util.List;
 /**
  * Classic wire codec: proof is a CBOR array of ByteStrings, each a CBOR-encoded node
  * (JmtInternalNode/JmtLeafNode/JmtExtensionNode) along the path.
+ *
+ * <p>This is the default implementation compatible with Diem's JMT reference implementation.
+ * The wire format is a CBOR array where each element is a CBOR-encoded node along the
+ * Merkle path from root to leaf.
+ *
+ * <p><b>Wire Format Structure:</b>
+ * <pre>
+ * [
+ *   node_0,  // CBOR-encoded JmtInternalNode (root level)
+ *   node_1,  // CBOR-encoded JmtInternalNode (next level)
+ *   ...
+ *   node_n   // CBOR-encoded JmtLeafNode (terminal, if inclusion/conflicting leaf)
+ * ]
+ * </pre>
+ *
+ * @see JmtProofCodec
+ * @since 0.6.0
  */
-public final class ClassicJmtProofCodec {
+public final class ClassicJmtProofCodec implements JmtProofCodec {
 
+    @Override
     public byte[] toWire(JmtProof proof, byte[] key, HashFunction hashFn, CommitmentScheme cs) {
         try {
             Array arr = new Array();
@@ -81,6 +99,7 @@ public final class ClassicJmtProofCodec {
         }
     }
 
+    @Override
     public boolean verify(byte[] expectedRoot, byte[] key, byte[] valueOrNull, boolean including,
                           byte[] wire, HashFunction hashFn, CommitmentScheme cs) {
         byte[] normalizedExpected = expectedRoot == null ? cs.nullHash() : expectedRoot;
