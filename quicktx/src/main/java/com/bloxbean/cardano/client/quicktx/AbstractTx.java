@@ -292,11 +292,16 @@ public abstract class AbstractTx<T> {
             .fromAddress(getFromAddress())
             .changeAddress(getChangeAddress())
             .build();
+        
+        // This ensures all intents are valid before any transaction building begins
+        List<TxIntent> allIntentions = getIntentions();
+        for (TxIntent intention : allIntentions) {
+            intention.validate();
+        }
 
-        // Phase 3: Apply all transformations (validation + transaction changes)
+        // Phase 3: Apply all transformations (pre-processing + transaction changes)
         TxBuilder combinedBuilder = (ctx, txn) -> { /* no-op base */ };
 
-        List<TxIntent> allIntentions = getIntentions();
         for (TxIntent intention : allIntentions) {
             combinedBuilder = combinedBuilder.andThen(intention.preApply(intentContext));
         }

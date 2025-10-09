@@ -62,7 +62,6 @@ public class PaymentIntent implements TxIntent {
     @JsonProperty("amounts")
     private List<Amount> amounts;
 
-    // Optional fields for payment variants
     // Runtime fields - original objects preserved
 
     /**
@@ -220,26 +219,6 @@ public class PaymentIntent implements TxIntent {
         } catch (Exception e) {
             throw new TxBuildException("Failed to create output builder for PaymentIntention: " + e.getMessage(), e);
         }
-    }
-
-    @Override
-    public TxBuilder preApply(IntentContext context) {
-        return (ctx, txn) -> {
-            // Pre-processing: validate (address already resolved during YAML parsing)
-
-            // Validate address is not null/empty
-            if (address == null || address.trim().isEmpty()) {
-                throw new TxBuildException("Payment address is required");
-            }
-
-            // Validate amounts
-            if (amounts == null || amounts.isEmpty()) {
-                throw new TxBuildException("Payment amounts are required");
-            }
-
-            // Perform standard validation
-            validate();
-        };
     }
 
     @Override

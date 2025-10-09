@@ -38,7 +38,6 @@ import java.util.ArrayList;
 public class DRepUpdateIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
-
     /**
      * DRep credential for update (runtime object).
      */
@@ -52,7 +51,6 @@ public class DRepUpdateIntent implements TxIntent {
     private Anchor anchor;
 
     // Serialization fields - computed from runtime objects or set during deserialization
-
     /**
      * DRep credential as hex string for serialization.
      */
@@ -152,7 +150,7 @@ public class DRepUpdateIntent implements TxIntent {
         }
 
         // Validate hex format if provided
-        if (drepCredentialHex != null && !drepCredentialHex.isEmpty() && !drepCredentialHex.startsWith("${")) {
+        if (drepCredentialHex != null && !drepCredentialHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(drepCredentialHex);
             } catch (Exception e) {
@@ -160,21 +158,24 @@ public class DRepUpdateIntent implements TxIntent {
             }
         }
 
-        if (drepCredentialType != null && !drepCredentialType.isEmpty() && !drepCredentialType.startsWith("${")) {
+        if (drepCredentialType != null && !drepCredentialType.isEmpty()) {
             if (!"key_hash".equals(drepCredentialType) && !"script_hash".equals(drepCredentialType)) {
                 throw new IllegalStateException("Invalid DRep credential type: " + drepCredentialType);
             }
         }
 
-        if (anchorHash != null && !anchorHash.isEmpty() && !anchorHash.startsWith("${")) {
+        if (anchorHash != null && !anchorHash.isEmpty()) {
             try {
                 HexUtil.decodeHexString(anchorHash);
             } catch (Exception e) {
                 throw new IllegalStateException("Invalid anchor hash format: " + anchorHash);
             }
         }
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
-            try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
+
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
+            try {
+                HexUtil.decodeHexString(redeemerHex);
+            } catch (Exception e) {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
         }
@@ -206,8 +207,6 @@ public class DRepUpdateIntent implements TxIntent {
         return this;
     }
 
-    // Factory methods for different use cases
-
     /**
      * Create DRepUpdateIntention from runtime Credential.
      */
@@ -238,36 +237,6 @@ public class DRepUpdateIntent implements TxIntent {
             .build();
     }
 
-    // Utility methods
-
-    /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return drepCredential != null || anchor != null;
-    }
-
-    /**
-     * Check if this intention needs deserialization from stored data.
-     */
-    @JsonIgnore
-    public boolean needsDeserialization() {
-        return !hasRuntimeObjects() &&
-               (drepCredentialHex != null && !drepCredentialHex.isEmpty());
-    }
-
-    /**
-     * Check if anchor information is available.
-     */
-    @JsonIgnore
-    public boolean hasAnchor() {
-        return anchor != null ||
-               (anchorUrl != null && !anchorUrl.isEmpty());
-    }
-
-    // ===== Self-processing methods =====
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         // No outputs needed for update
@@ -277,11 +246,9 @@ public class DRepUpdateIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank())
                 throw new TxBuildException("From address is required for DRep update");
-            if (drepCredential == null && (drepCredentialHex == null || drepCredentialHex.isEmpty()))
-                throw new TxBuildException("DRep credential is required for update");
-            validate();
         };
     }
 

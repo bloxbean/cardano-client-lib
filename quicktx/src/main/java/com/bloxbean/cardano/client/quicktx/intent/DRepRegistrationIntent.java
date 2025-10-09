@@ -38,8 +38,6 @@ import java.util.ArrayList;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DRepRegistrationIntent implements TxIntent {
 
-    // Runtime fields - original objects preserved
-
     /**
      * DRep credential for registration (runtime object).
      */
@@ -51,8 +49,6 @@ public class DRepRegistrationIntent implements TxIntent {
      */
     @JsonIgnore
     private Anchor anchor;
-
-    // Serialization fields - computed from runtime objects or set during deserialization
 
     /**
      * DRep credential as hex string for serialization.
@@ -159,8 +155,8 @@ public class DRepRegistrationIntent implements TxIntent {
             throw new IllegalStateException("DRep credential is required for registration");
         }
 
-        // Validate hex format if provided
-        if (drepCredentialHex != null && !drepCredentialHex.isEmpty() && !drepCredentialHex.startsWith("${")) {
+        // Validate hex format if provided (variables already resolved at this point)
+        if (drepCredentialHex != null && !drepCredentialHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(drepCredentialHex);
             } catch (Exception e) {
@@ -168,13 +164,13 @@ public class DRepRegistrationIntent implements TxIntent {
             }
         }
 
-        if (drepCredentialType != null && !drepCredentialType.isEmpty() && !drepCredentialType.startsWith("${")) {
+        if (drepCredentialType != null && !drepCredentialType.isEmpty()) {
             if (!"key_hash".equals(drepCredentialType) && !"script_hash".equals(drepCredentialType)) {
                 throw new IllegalStateException("Invalid DRep credential type: " + drepCredentialType);
             }
         }
 
-        if (anchorHash != null && !anchorHash.isEmpty() && !anchorHash.startsWith("${")) {
+        if (anchorHash != null && !anchorHash.isEmpty()) {
             try {
                 HexUtil.decodeHexString(anchorHash);
             } catch (Exception e) {
@@ -182,7 +178,7 @@ public class DRepRegistrationIntent implements TxIntent {
             }
         }
 
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(redeemerHex);
             } catch (Exception e) {
@@ -217,8 +213,6 @@ public class DRepRegistrationIntent implements TxIntent {
         return this;
     }
 
-    // Factory methods for different use cases
-
     /**
      * Create DRepRegistrationIntention from runtime Credential.
      */
@@ -249,11 +243,6 @@ public class DRepRegistrationIntent implements TxIntent {
             .build();
     }
 
-    // Utility methods
-
-
-    // ===== Self-processing methods =====
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         final String from = ic.getFromAddress();
@@ -271,11 +260,9 @@ public class DRepRegistrationIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank())
                 throw new TxBuildException("From address is required for DRep registration");
-            if (drepCredential == null && (drepCredentialHex == null || drepCredentialHex.isEmpty()))
-                throw new TxBuildException("DRep credential is required for registration");
-            validate();
         };
     }
 

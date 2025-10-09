@@ -28,11 +28,9 @@ public class ScriptValidatorAttachmentIntent implements TxScriptAttachmentIntent
     @JsonIgnore
     private PlutusScript script;
 
-    // For completeness (not used in apply logic but useful for YAML semantics)
     @JsonProperty("role")
     private RedeemerTag role;
 
-    // Serialization fields
     @JsonProperty("cbor_hex")
     private String scriptHex;
 
@@ -86,12 +84,7 @@ public class ScriptValidatorAttachmentIntent implements TxScriptAttachmentIntent
 
         return this;
     }
-
-    @Override
-    public TxBuilder preApply(IntentContext ic) {
-        return (ctx, txn) -> validate();
-    }
-
+    
     @Override
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {

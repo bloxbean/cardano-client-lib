@@ -16,6 +16,7 @@ import com.bloxbean.cardano.client.transaction.spec.cert.StakeCredential;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakeDelegation;
 import com.bloxbean.cardano.client.transaction.spec.cert.StakePoolId;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -53,7 +54,7 @@ public class StakeDelegationIntent implements TxIntent {
     private String poolId;
 
     // Optional redeemer support for script-based delegation
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @JsonIgnore
     private PlutusData redeemer;
 
     @JsonProperty("redeemer_hex")
@@ -65,7 +66,6 @@ public class StakeDelegationIntent implements TxIntent {
             try {
                 return redeemer.serializeToHex();
             } catch (Exception e) {
-                // ignore and fall through
             }
         }
         return redeemerHex;
@@ -85,7 +85,7 @@ public class StakeDelegationIntent implements TxIntent {
         if (poolId == null || poolId.isEmpty()) {
             throw new IllegalStateException("Pool ID is required for stake delegation");
         }
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
             try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
@@ -116,8 +116,6 @@ public class StakeDelegationIntent implements TxIntent {
         return this;
     }
 
-    // Factory methods for clean API
-
     /**
      * Create a stake delegation intention.
      */
@@ -127,9 +125,6 @@ public class StakeDelegationIntent implements TxIntent {
             .poolId(poolId)
             .build();
     }
-
-
-    // ===== Self-processing methods =====
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
@@ -146,18 +141,10 @@ public class StakeDelegationIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for stake delegation");
             }
-            String resolvedStake = stakeAddress;
-            String resolvedPool = poolId;
-            if (resolvedStake == null || resolvedStake.isBlank()) {
-                throw new TxBuildException("Stake address is required for stake delegation");
-            }
-            if (resolvedPool == null || resolvedPool.isBlank()) {
-                throw new TxBuildException("Pool id is required for stake delegation");
-            }
-            validate();
         };
     }
 

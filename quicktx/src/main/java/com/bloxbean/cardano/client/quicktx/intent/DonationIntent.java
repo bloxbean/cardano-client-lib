@@ -106,8 +106,6 @@ public class DonationIntent implements TxIntent {
         return this;
     }
 
-    // Factory methods
-
     /**
      * Create a donation intention with BigInteger values.
      */
@@ -117,11 +115,6 @@ public class DonationIntent implements TxIntent {
             .donationAmount(donationAmount.toString())
             .build();
     }
-
-    // Convenience methods
-
-
-    // Self-processing methods for functional TxBuilder architecture
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext context) {
@@ -140,51 +133,16 @@ public class DonationIntent implements TxIntent {
             outputs.add(dummyOutput);
         };
     }
-
-    @Override
-    public TxBuilder preApply(IntentContext context) {
-        return (ctx, txn) -> {
-            // Pre-processing: validate (values already resolved during YAML parsing)
-
-            // Validate values
-            if (currentTreasuryValue == null || currentTreasuryValue.trim().isEmpty()) {
-                throw new TxBuildException("Current treasury value is required");
-            }
-
-            if (donationAmount == null || donationAmount.trim().isEmpty()) {
-                throw new TxBuildException("Donation amount is required after variable resolution");
-            }
-
-            // Validate values are valid BigInteger
-            try {
-                new BigInteger(currentTreasuryValue);
-            } catch (NumberFormatException e) {
-                throw new TxBuildException("Invalid current treasury value: " + currentTreasuryValue);
-            }
-
-            try {
-                BigInteger donation = new BigInteger(donationAmount);
-                if (donation.compareTo(BigInteger.ZERO) <= 0) {
-                    throw new TxBuildException("Donation amount must be positive: " + donation);
-                }
-            } catch (NumberFormatException e) {
-                throw new TxBuildException("Invalid donation amount: " + donationAmount);
-            }
-
-            // Check if donation is already set (can't donate multiple times)
-            if (txn.getBody().getDonation() != null) {
-                throw new TxBuildException("Can't donate to treasury multiple times in a single transaction");
-            }
-
-            // Perform standard validation
-            validate();
-        };
-    }
-
+    
     @Override
     public TxBuilder apply(IntentContext context) {
         return (ctx, txn) -> {
             try {
+                // Check for duplicate donations (must be in apply phase to catch multiple intents)
+                if (txn.getBody().getDonation() != null) {
+                    throw new TxBuildException("Can't donate to treasury multiple times in a single transaction");
+                }
+
                 // Convert to BigInteger and set both values in transaction body (values already resolved during YAML parsing)
                 BigInteger currentTreasuryValueBigInt = new BigInteger(currentTreasuryValue);
                 BigInteger donationValue = new BigInteger(donationAmount);

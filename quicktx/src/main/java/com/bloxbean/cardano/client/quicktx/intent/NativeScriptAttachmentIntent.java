@@ -34,7 +34,6 @@ public class NativeScriptAttachmentIntent implements TxScriptAttachmentIntent {
     @JsonIgnore
     private NativeScript script;
 
-    // Field for JSON deserialization support
     @JsonProperty("script_hex")
     private String scriptHex;
 
@@ -90,11 +89,6 @@ public class NativeScriptAttachmentIntent implements TxScriptAttachmentIntent {
         }
 
         return this;
-    }
-
-    @Override
-    public TxBuilder preApply(IntentContext ic) {
-        return (ctx, txn) -> validate();
     }
 
     @Override

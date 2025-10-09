@@ -35,10 +35,6 @@ import java.util.stream.Collectors;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ScriptMintingIntent implements TxIntent {
 
-    // Runtime objects
-//    @JsonIgnore
-//    private PlutusScript script;
-
     @JsonProperty
     private String policyId;
 
@@ -54,14 +50,6 @@ public class ScriptMintingIntent implements TxIntent {
     @JsonIgnore
     private PlutusData outputDatum;
 
-//    // Serialization fields
-//    @JsonProperty("script_hex")
-//    private String scriptHex;
-//
-//    // 1=V1, 2=V2, 3=V3
-//    @JsonProperty("script_version")
-//    private com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion scriptVersion;
-
     @JsonProperty("redeemer_hex")
     private String redeemerHex;
 
@@ -72,27 +60,6 @@ public class ScriptMintingIntent implements TxIntent {
     public String getType() {
         return "script_minting";
     }
-
-//    @JsonProperty("script_hex")
-//    public String getScriptHex() {
-//        if (script != null) {
-//            return script.getCborHex();
-//        }
-//        return scriptHex;
-//    }
-
-//    @JsonProperty("script_version")
-//    public com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion getScriptVersion() {
-//        if (script != null) {
-//            if (script instanceof PlutusV1Script)
-//                return com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion.v1;
-//            if (script instanceof PlutusV2Script)
-//                return com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion.v2;
-//            if (script instanceof PlutusV3Script)
-//                return com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion.v3;
-//        }
-//        return scriptVersion;
-//    }
 
     @JsonProperty("redeemer_hex")
     public String getRedeemerHex() {
@@ -118,11 +85,12 @@ public class ScriptMintingIntent implements TxIntent {
 
     @Override
     public void validate() {
-//        if ((script == null) && (scriptHex == null || scriptHex.isEmpty() || scriptVersion == null)) {
-//            throw new IllegalStateException("ScriptMintingIntention requires Plutus script or script_hex + script_version");
-//        }
         if (assets == null || assets.isEmpty()) {
             throw new IllegalStateException("ScriptMintingIntention requires assets");
+        }
+
+        if (receiver != null && receiver.isBlank()) {
+            throw new IllegalStateException("Receiver must not be blank");
         }
     }
 
@@ -134,16 +102,16 @@ public class ScriptMintingIntent implements TxIntent {
 
         String resolvedPolicyId = VariableResolver.resolve(policyId, variables);
         String resolvedReceiver = VariableResolver.resolve(receiver, variables);
-//        String resolvedScriptHex = VariableResolver.resolve(scriptHex, variables);
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
         String resolvedOutputDatumHex = VariableResolver.resolve(outputDatumHex, variables);
 
-        // Check if any variables were resolved
-        if (!java.util.Objects.equals(resolvedReceiver, receiver) || !Objects.equals(resolvedPolicyId, policyId) || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex) || !java.util.Objects.equals(resolvedOutputDatumHex, outputDatumHex)) {
+        if (!Objects.equals(resolvedReceiver, receiver)
+                || !Objects.equals(resolvedPolicyId, policyId)
+                || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)
+                || !Objects.equals(resolvedOutputDatumHex, outputDatumHex)) {
             return this.toBuilder()
                     .policyId(resolvedPolicyId)
                     .receiver(resolvedReceiver)
-//                .scriptHex(resolvedScriptHex)
                     .redeemerHex(resolvedRedeemerHex)
                     .outputDatumHex(resolvedOutputDatumHex)
                     .build();
@@ -155,9 +123,6 @@ public class ScriptMintingIntent implements TxIntent {
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         try {
-//            PlutusScript resolvedScript = resolveScript();
-//            String policyId = resolvedScript.getPolicyId();
-
             // 1) Optionally create receiver output
             TxOutputBuilder txOutputBuilder = null;
             if (receiver != null && !receiver.isBlank()) {
@@ -201,16 +166,7 @@ public class ScriptMintingIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
-            validate();
-            // Minimal receiver validation
-            if (receiver != null && receiver.isBlank()) {
-                throw new TxBuildException("Receiver must resolve to a non-empty address");
-            }
-
             try {
-//                PlutusScript resolvedScript = resolveScript();
-//                String policyId = resolvedScript.getPolicyId();
-
                 MultiAsset newMa = MultiAsset.builder().policyId(policyId).assets(assets).build();
                 if (txn.getBody().getMint() == null) {
                     txn.getBody().setMint(new java.util.ArrayList<>(List.of(newMa)));
@@ -236,42 +192,9 @@ public class ScriptMintingIntent implements TxIntent {
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {
             try {
-//                PlutusScript resolvedScript = resolveScript();
-//                String policyId = resolvedScript.getPolicyId();
-
-                // Ensure body mint list and merge assets by policy id
-//                MultiAsset newMa = MultiAsset.builder().policyId(policyId).assets(assets).build();
-//                if (txn.getBody().getMint() == null) {
-//                    txn.getBody().setMint(new java.util.ArrayList<>(List.of(newMa)));
-//                } else {
-//                    List<MultiAsset> mintList = txn.getBody().getMint();
-//                    MultiAsset existing = mintList.stream()
-//                            .filter(ma -> ma.getPolicyId().equals(policyId))
-//                            .findFirst().orElse(null);
-//                    if (existing != null) {
-//                        mintList.remove(existing);
-//                        mintList.add(existing.add(newMa));
-//                    } else {
-//                        mintList.add(newMa);
-//                    }
-//                }
-
                 //TODO:- Sort may happen multiple times based on no of minting policies
                 List<MultiAsset> multiAssets = MintUtil.getSortedMultiAssets(txn.getBody().getMint());
                 txn.getBody().setMint(multiAssets);
-
-                // Ensure witness set and add script
-//                if (txn.getWitnessSet() == null) txn.setWitnessSet(new TransactionWitnessSet());
-//                if (resolvedScript instanceof PlutusV1Script) {
-//                    if (!txn.getWitnessSet().getPlutusV1Scripts().contains(resolvedScript))
-//                        txn.getWitnessSet().getPlutusV1Scripts().add((PlutusV1Script) resolvedScript);
-//                } else if (resolvedScript instanceof PlutusV2Script) {
-//                    if (!txn.getWitnessSet().getPlutusV2Scripts().contains(resolvedScript))
-//                        txn.getWitnessSet().getPlutusV2Scripts().add((PlutusV2Script) resolvedScript);
-//                } else if (resolvedScript instanceof PlutusV3Script) {
-//                    if (!txn.getWitnessSet().getPlutusV3Scripts().contains(resolvedScript))
-//                        txn.getWitnessSet().getPlutusV3Scripts().add((PlutusV3Script) resolvedScript);
-//                }
 
                 // Add mint redeemer
                 PlutusData resolvedRedeemer = resolveRedeemer();
@@ -304,25 +227,6 @@ public class ScriptMintingIntent implements TxIntent {
             }
         };
     }
-
-    // Helpers
-//    private PlutusScript resolveScript() {
-//        if (script != null) return script;
-//        if (scriptVersion == PlutusVersion.v1)
-//            return PlutusV1Script.builder()
-//                    .cborHex(scriptHex)
-//                    .build();
-//        if (scriptVersion == PlutusVersion.v2)
-//            return PlutusV2Script.builder()
-//                    .cborHex(scriptHex)
-//                    .build();
-//        if (scriptVersion == PlutusVersion.v3)
-//            return PlutusV3Script.builder()
-//                    .cborHex(scriptHex)
-//                    .build();
-//
-//        throw new IllegalStateException("Invalid script version: " + scriptVersion);
-//    }
 
     private PlutusData resolveRedeemer() throws Exception {
         if (redeemer != null) return redeemer;

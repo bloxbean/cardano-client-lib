@@ -37,9 +37,6 @@ import java.util.ArrayList;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DRepDeregistrationIntent implements TxIntent {
-
-    // Runtime fields - original objects preserved
-
     /**
      * DRep credential for deregistration (runtime object).
      */
@@ -47,7 +44,6 @@ public class DRepDeregistrationIntent implements TxIntent {
     private Credential drepCredential;
 
     // Serialization fields - computed from runtime objects or set during deserialization
-
     /**
      * DRep credential as hex string for serialization.
      */
@@ -126,8 +122,8 @@ public class DRepDeregistrationIntent implements TxIntent {
             throw new IllegalStateException("DRep credential is required for deregistration");
         }
 
-        // Validate hex format if provided
-        if (drepCredentialHex != null && !drepCredentialHex.isEmpty() && !drepCredentialHex.startsWith("${")) {
+        // Validate hex format if provided (variables already resolved at this point)
+        if (drepCredentialHex != null && !drepCredentialHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(drepCredentialHex);
             } catch (Exception e) {
@@ -135,7 +131,7 @@ public class DRepDeregistrationIntent implements TxIntent {
             }
         }
 
-        if (drepCredentialType != null && !drepCredentialType.isEmpty() && !drepCredentialType.startsWith("${")) {
+        if (drepCredentialType != null && !drepCredentialType.isEmpty()) {
             if (!"key_hash".equals(drepCredentialType) && !"script_hash".equals(drepCredentialType)) {
                 throw new IllegalStateException("Invalid DRep credential type: " + drepCredentialType);
             }
@@ -145,7 +141,7 @@ public class DRepDeregistrationIntent implements TxIntent {
             throw new IllegalStateException("Refund amount cannot be negative");
         }
 
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(redeemerHex);
             } catch (Exception e) {
@@ -177,9 +173,6 @@ public class DRepDeregistrationIntent implements TxIntent {
 
         return this;
     }
-
-
-    // Factory methods for different use cases
 
     /**
      * Create DRepDeregistrationIntention from runtime Credential.
@@ -221,35 +214,6 @@ public class DRepDeregistrationIntent implements TxIntent {
             .build();
     }
 
-    // Utility methods
-
-    /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return drepCredential != null;
-    }
-
-    /**
-     * Check if this intention needs deserialization from stored data.
-     */
-    @JsonIgnore
-    public boolean needsDeserialization() {
-        return !hasRuntimeObjects() &&
-               (drepCredentialHex != null && !drepCredentialHex.isEmpty());
-    }
-
-    /**
-     * Check if refund address is specified.
-     */
-    @JsonIgnore
-    public boolean hasRefundAddress() {
-        return refundAddress != null && !refundAddress.isEmpty();
-    }
-
-    // ===== Self-processing methods =====
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         // Add a small dummy output to trigger input selection
@@ -265,11 +229,9 @@ public class DRepDeregistrationIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank())
                 throw new TxBuildException("From address is required for DRep deregistration");
-            if (drepCredential == null && (drepCredentialHex == null || drepCredentialHex.isEmpty()))
-                throw new TxBuildException("DRep credential is required for deregistration");
-            validate();
         };
     }
 

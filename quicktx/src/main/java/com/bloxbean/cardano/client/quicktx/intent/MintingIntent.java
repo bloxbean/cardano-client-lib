@@ -47,7 +47,6 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 public class MintingIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
-
     /**
      * The original minting policy script (runtime object).
      */
@@ -68,7 +67,6 @@ public class MintingIntent implements TxIntent {
     private String receiver;
 
     // Serialization fields - computed from runtime objects or set during deserialization
-
     /**
      * Script hex for serialization.
      */
@@ -232,53 +230,13 @@ public class MintingIntent implements TxIntent {
             };
 
         txOutputBuilder = txOutputBuilder.and((ctx, txn) -> {
-//            if (ctx.getMintMultiAssets() == null || ctx.getMintMultiAssets().isEmpty()) {
-//                multiAssets.forEach(multiAssetTuple -> {
-//                    context.addMintMultiAsset(multiAssetTuple._2);
-//                });
-
-                ctx.addMintMultiAsset(multiAsset);
-//            }
+            ctx.addMintMultiAsset(multiAsset);
         });
 
-//        if (multiAssets != null && !multiAssets.isEmpty()) {
-//            if (txOutputBuilder == null)
-//                txOutputBuilder = (context, txn) -> {
-//                };
-//
-//            txOutputBuilder = txOutputBuilder.and((context, txn) -> {
-//                if (context.getMintMultiAssets() == null || context.getMintMultiAssets().isEmpty()) {
-//                    multiAssets.forEach(multiAssetTuple -> {
-//                        context.addMintMultiAsset(multiAssetTuple._2);
-//                    });
-//                }
-//            });
-//        }
-
-        // No receiver = no outputs
         return txOutputBuilder;
     }
 
-    @Override
-    public TxBuilder preApply(IntentContext context) {
-        return (ctx, txn) -> {
-            // Pre-processing: validate script and assets
-            if (assets == null || assets.isEmpty()) {
-                throw new TxBuildException("Minting intention requires assets");
-            }
-
-            // Validate receiver if present
-            if (hasReceiver()) {
-                String resolvedReceiver = receiver;
-                if (resolvedReceiver == null || resolvedReceiver.trim().isEmpty()) {
-                    throw new TxBuildException("Receiver address is required after variable resolution");
-                }
-            }
-
-            // Perform standard validation
-            validate();
-        };
-    }
+    // Uses default preApply() - no context-specific checks needed
 
     @Override
     public TxBuilder apply(IntentContext context) {

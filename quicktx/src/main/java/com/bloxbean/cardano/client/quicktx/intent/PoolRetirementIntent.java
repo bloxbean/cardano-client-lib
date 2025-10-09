@@ -79,9 +79,7 @@ public class PoolRetirementIntent implements TxIntent {
 
         return this;
     }
-
-    // Factory methods for clean API
-
+    
     /**
      * Create a pool retirement intention.
      */
@@ -92,8 +90,6 @@ public class PoolRetirementIntent implements TxIntent {
             .build();
     }
 
-
-    // ===== Self-processing methods =====
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
@@ -110,17 +106,10 @@ public class PoolRetirementIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for pool retirement");
             }
-            String resolvedPoolId = poolId;
-            if (resolvedPoolId == null || resolvedPoolId.isBlank()) {
-                throw new TxBuildException("Pool ID is required for pool retirement");
-            }
-            if (retirementEpoch <= 0) {
-                throw new TxBuildException("Retirement epoch must be positive");
-            }
-            validate();
         };
     }
 

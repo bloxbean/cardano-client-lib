@@ -40,7 +40,6 @@ import java.math.BigInteger;
 public class GovernanceProposalIntent implements TxIntent {
 
     // Runtime fields - original objects preserved
-
     /**
      * Governance action for the proposal (runtime object).
      */
@@ -54,7 +53,6 @@ public class GovernanceProposalIntent implements TxIntent {
     private Anchor anchor;
 
     // Serialization fields - computed from runtime objects or set during deserialization
-
     /**
      * Governance action as CBOR hex for serialization.
      * GovAction objects can be complex and need CBOR serialization.
@@ -154,8 +152,8 @@ public class GovernanceProposalIntent implements TxIntent {
             throw new IllegalStateException("Return address is required for governance proposal");
         }
 
-        // Validate hex format if provided
-        if (govActionHex != null && !govActionHex.isEmpty() && !govActionHex.startsWith("${")) {
+        // Validate hex format if provided 
+        if (govActionHex != null && !govActionHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(govActionHex);
             } catch (Exception e) {
@@ -163,7 +161,7 @@ public class GovernanceProposalIntent implements TxIntent {
             }
         }
 
-        if (anchorHash != null && !anchorHash.isEmpty() && !anchorHash.startsWith("${")) {
+        if (anchorHash != null && !anchorHash.isEmpty()) {
             try {
                 HexUtil.decodeHexString(anchorHash);
             } catch (Exception e) {
@@ -175,7 +173,7 @@ public class GovernanceProposalIntent implements TxIntent {
             throw new IllegalStateException("Deposit amount cannot be negative");
         }
 
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(redeemerHex);
             } catch (Exception e) {
@@ -245,44 +243,6 @@ public class GovernanceProposalIntent implements TxIntent {
             .build();
     }
 
-    // Utility methods
-
-    /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return govAction != null || anchor != null;
-    }
-
-    /**
-     * Check if this intention needs deserialization from stored data.
-     */
-    @JsonIgnore
-    public boolean needsDeserialization() {
-        return !hasRuntimeObjects() &&
-               (govActionHex != null && !govActionHex.isEmpty());
-    }
-
-    /**
-     * Check if anchor information is available.
-     */
-    @JsonIgnore
-    public boolean hasAnchor() {
-        return anchor != null ||
-               (anchorUrl != null && !anchorUrl.isEmpty());
-    }
-
-    /**
-     * Check if deposit is specified.
-     */
-    @JsonIgnore
-    public boolean hasCustomDeposit() {
-        return deposit != null;
-    }
-
-    // ===== Self-processing methods =====
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         final String from = ic.getFromAddress();
@@ -297,13 +257,9 @@ public class GovernanceProposalIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank())
                 throw new TxBuildException("From address is required for governance proposal");
-            if (returnAddress == null || returnAddress.isBlank())
-                throw new TxBuildException("Return address is required for governance proposal");
-            if (govAction == null && (govActionHex == null || govActionHex.isEmpty()))
-                throw new TxBuildException("Governance action is required for proposal");
-            validate();
         };
     }
 

@@ -79,12 +79,7 @@ public class ReferenceInputIntent implements TxInputIntent {
         // Reference inputs don't consume UTXOs, return null
         return null;
     }
-
-    @Override
-    public TxBuilder preApply(IntentContext ic) {
-        return (ctx, txn) -> validate();
-    }
-
+    
     @Override
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {

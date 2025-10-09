@@ -70,8 +70,6 @@ public class StakeRegistrationIntent implements TxIntent {
         return this;
     }
 
-    // Factory methods for clean API
-
     /**
      * Create a stake registration intention.
      */
@@ -80,8 +78,6 @@ public class StakeRegistrationIntent implements TxIntent {
             .stakeAddress(stakeAddress)
             .build();
     }
-
-    // ===== Self-processing methods =====
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
@@ -99,14 +95,10 @@ public class StakeRegistrationIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
-            // Validate presence
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for stake registration");
             }
-            if (stakeAddress == null || stakeAddress.isBlank()) {
-                throw new TxBuildException("Stake address is required for stake registration");
-            }
-            validate();
         };
     }
 

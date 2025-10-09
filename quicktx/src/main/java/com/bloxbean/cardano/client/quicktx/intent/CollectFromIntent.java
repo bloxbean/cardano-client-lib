@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 
 /**
  * Intention to collect specific non-script UTXOs as inputs for Tx.
- * Mirrors Tx.collectFrom(List/Set&lt;Utxo&gt;) and enables YAML serialization.
  */
 @Data
 @Builder(toBuilder = true)
@@ -120,11 +119,6 @@ public class CollectFromIntent implements TxInputIntent {
                 .map(ref -> new TransactionInput(ref.getTxHash(), ref.asIntOutputIndex()))
                 .collect(Collectors.toList());
         return new FixedUtxoRefStrategy(inputs, null, null);
-    }
-
-    @Override
-    public TxBuilder preApply(IntentContext ic) {
-        return (ctx, txn) -> validate();
     }
 
     @Override

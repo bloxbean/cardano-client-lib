@@ -87,10 +87,17 @@ public class StakeWithdrawalIntent implements TxIntent {
         if (rewardAddress == null || rewardAddress.isEmpty()) {
             throw new IllegalStateException("Reward address is required for stake withdrawal");
         }
+
+        Address addr = new Address(rewardAddress);
+        if (AddressType.Reward != addr.getAddressType()) {
+            throw new TxBuildException("Invalid address type. Only reward address can be used for withdrawal");
+        }
+
         if (amount == null || amount.compareTo(BigInteger.ZERO) <= 0) {
             throw new IllegalStateException("Withdrawal amount must be positive");
         }
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
             try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
@@ -121,8 +128,6 @@ public class StakeWithdrawalIntent implements TxIntent {
         return this;
     }
 
-    // Factory methods for clean API
-
     /**
      * Create a stake withdrawal intention.
      */
@@ -144,9 +149,6 @@ public class StakeWithdrawalIntent implements TxIntent {
             .build();
     }
 
-
-    // ===== Self-processing methods =====
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         // Add a dummy output (1 ADA) to fromAddress to trigger input selection
@@ -162,25 +164,10 @@ public class StakeWithdrawalIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for stake withdrawal");
             }
-
-            String resolvedReward = rewardAddress;
-            if (resolvedReward == null || resolvedReward.isBlank()) {
-                throw new TxBuildException("Reward address is required for stake withdrawal");
-            }
-            if (amount == null || amount.compareTo(BigInteger.ZERO) <= 0) {
-                throw new TxBuildException("Withdrawal amount must be positive");
-            }
-
-            // Validate reward address type
-            Address addr = new Address(resolvedReward);
-            if (AddressType.Reward != addr.getAddressType()) {
-                throw new TxBuildException("Invalid address type. Only reward address can be used for withdrawal");
-            }
-
-            validate();
         };
     }
 

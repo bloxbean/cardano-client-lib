@@ -104,25 +104,10 @@ public class MetadataIntent implements TxIntent {
             .build();
     }
 
-    // Self-processing methods for functional TxBuilder architecture
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext context) {
         // Phase 1: No outputs created for metadata
         return null;
-    }
-
-    @Override
-    public TxBuilder preApply(IntentContext context) {
-        return (ctx, txn) -> {
-            // Pre-processing: validate metadata availability
-            if (metadata == null) {
-                throw new TxBuildException("Metadata intention requires metadata to be set");
-            }
-
-            // Perform standard validation
-            validate();
-        };
     }
 
     @Override

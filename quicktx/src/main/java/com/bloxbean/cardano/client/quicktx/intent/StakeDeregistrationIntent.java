@@ -121,8 +121,6 @@ public class StakeDeregistrationIntent implements TxIntent {
     return this;
     }
 
-    // Factory methods for clean API
-
     /**
      * Create a stake deregistration intention.
      */
@@ -142,9 +140,6 @@ public class StakeDeregistrationIntent implements TxIntent {
             .build();
     }
 
-
-    // ===== Self-processing methods =====
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         // Add a dummy output (1 ADA) to fromAddress to trigger input selection
@@ -160,14 +155,10 @@ public class StakeDeregistrationIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for stake deregistration");
             }
-            String resolvedStake = stakeAddress;
-            if (resolvedStake == null || resolvedStake.isBlank()) {
-                throw new TxBuildException("Stake address is required for stake deregistration");
-            }
-            validate();
         };
     }
 

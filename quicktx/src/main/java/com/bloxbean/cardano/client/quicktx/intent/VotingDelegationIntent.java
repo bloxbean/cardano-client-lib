@@ -41,8 +41,6 @@ import java.util.ArrayList;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class VotingDelegationIntent implements TxIntent {
 
-    // Runtime fields - original objects preserved
-
     /**
      * Address to delegate from (runtime object).
      * Should have delegation credential (base address or stake address).
@@ -55,8 +53,6 @@ public class VotingDelegationIntent implements TxIntent {
      */
     @JsonIgnore
     private DRep drep;
-
-    // Serialization fields - computed from runtime objects or set during deserialization
 
     /**
      * Address to delegate from.
@@ -169,7 +165,7 @@ public class VotingDelegationIntent implements TxIntent {
         }
 
         // Validate DRep type format
-        if (drepType != null && !drepType.startsWith("${")) {
+        if (drepType != null) {
             if (!drepType.equals("key_hash") &&
                 !drepType.equals("script_hash") &&
                 !drepType.equals("abstain") &&
@@ -179,7 +175,7 @@ public class VotingDelegationIntent implements TxIntent {
         }
 
         // Validate hex formats
-        if (drepHex != null && !drepHex.isEmpty() && !drepHex.startsWith("${")) {
+        if (drepHex != null && !drepHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(drepHex);
             } catch (Exception e) {
@@ -187,7 +183,7 @@ public class VotingDelegationIntent implements TxIntent {
             }
         }
 
-        if (drepHash != null && !drepHash.isEmpty() && !drepHash.startsWith("${")) {
+        if (drepHash != null && !drepHash.isEmpty()) {
             try {
                 HexUtil.decodeHexString(drepHash);
             } catch (Exception e) {
@@ -201,7 +197,7 @@ public class VotingDelegationIntent implements TxIntent {
             throw new IllegalStateException("DRep hash is required for key_hash and script_hash DRep types");
         }
 
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
             try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
@@ -234,8 +230,6 @@ public class VotingDelegationIntent implements TxIntent {
         return this;
     }
 
-    // Factory methods for different use cases
-
     /**
      * Create VotingDelegationIntention from runtime objects.
      */
@@ -256,77 +250,6 @@ public class VotingDelegationIntent implements TxIntent {
             .build();
     }
 
-    /**
-     * Create VotingDelegationIntention from serializable values.
-     */
-    public static VotingDelegationIntent delegate(String addressStr, String drepType, String drepHash) {
-        return VotingDelegationIntent.builder()
-            .addressStr(addressStr)
-            .drepType(drepType)
-            .drepHash(drepHash)
-            .build();
-    }
-
-    /**
-     * Create VotingDelegationIntention for abstain delegation.
-     */
-    public static VotingDelegationIntent delegateToAbstain(String addressStr) {
-        return VotingDelegationIntent.builder()
-            .addressStr(addressStr)
-            .drepType("abstain")
-            .build();
-    }
-
-    /**
-     * Create VotingDelegationIntention for no confidence delegation.
-     */
-    public static VotingDelegationIntent delegateToNoConfidence(String addressStr) {
-        return VotingDelegationIntent.builder()
-            .addressStr(addressStr)
-            .drepType("no_confidence")
-            .build();
-    }
-
-    // Utility methods
-
-    /**
-     * Check if this intention has runtime objects available.
-     */
-    @JsonIgnore
-    public boolean hasRuntimeObjects() {
-        return address != null || drep != null;
-    }
-
-    /**
-     * Check if this intention needs deserialization from stored data.
-     */
-    @JsonIgnore
-    public boolean needsDeserialization() {
-        return !hasRuntimeObjects() &&
-               (addressStr != null && !addressStr.isEmpty()) &&
-               (drepHex != null && !drepHex.isEmpty() || drepType != null && !drepType.isEmpty());
-    }
-
-    /**
-     * Check if this is an abstain delegation.
-     */
-    @JsonIgnore
-    public boolean isAbstainDelegation() {
-        return "abstain".equals(drepType) ||
-               (drep != null && drep.getType().toString().equalsIgnoreCase("abstain"));
-    }
-
-    /**
-     * Check if this is a no confidence delegation.
-     */
-    @JsonIgnore
-    public boolean isNoConfidenceDelegation() {
-        return "no_confidence".equals(drepType) ||
-               (drep != null && drep.getType().toString().equalsIgnoreCase("no_confidence"));
-    }
-
-    // ===== Self-processing methods =====
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
         final String from = ic.getFromAddress();
@@ -340,14 +263,9 @@ public class VotingDelegationIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank())
                 throw new TxBuildException("From address is required for voting delegation");
-            String addr = (address != null) ? address.getAddress() : addressStr;
-            if (addr == null || addr.isBlank())
-                throw new TxBuildException("Address is required for voting delegation");
-            if (drep == null && (drepHex == null && (drepType == null || drepType.isEmpty())))
-                throw new TxBuildException("DRep is required for voting delegation");
-            validate();
         };
     }
 

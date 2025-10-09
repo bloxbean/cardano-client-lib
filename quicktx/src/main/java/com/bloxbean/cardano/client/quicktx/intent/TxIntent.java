@@ -109,11 +109,11 @@ public interface TxIntent {
 
     /**
      * Self-processing method for pre-processing phase.
-     * This phase handles validation, variable resolution, and preparation.
+     * This phase handles context-specific checks and preparation.
      * Returns a TxBuilder function that performs pre-processing operations.
      *
      * Default implementation returns a no-op TxBuilder.
-     * Intentions should override this for validation and preparation logic.
+     * Intentions should override this for preparation logic.
      *
      * @param context the execution context with variables and configuration
      * @return TxBuilder function for pre-processing (typically no-op)
@@ -121,8 +121,7 @@ public interface TxIntent {
     default TxBuilder preApply(IntentContext context) {
         // Default: no-op TxBuilder for pre-processing
         return (ctx, txn) -> {
-            // Perform basic validation by default
-            validate();
+            // no-op
         };
     }
 

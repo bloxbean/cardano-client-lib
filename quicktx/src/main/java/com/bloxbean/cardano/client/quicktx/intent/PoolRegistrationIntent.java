@@ -117,7 +117,6 @@ public class PoolRegistrationIntent implements TxIntent {
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank()) {
                 throw new TxBuildException("From address is required for pool operations");
             }
-            validate();
         };
     }
 

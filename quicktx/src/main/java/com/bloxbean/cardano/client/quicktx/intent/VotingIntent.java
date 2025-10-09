@@ -40,8 +40,6 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class VotingIntent implements TxIntent {
 
-    // Runtime fields - original objects preserved
-
     /**
      * Voter for the vote (runtime object).
      */
@@ -213,7 +211,7 @@ public class VotingIntent implements TxIntent {
         }
 
         // Validate vote decision format
-        if (voteDecision != null && !voteDecision.startsWith("${")) {
+        if (voteDecision != null) {
             if (!voteDecision.equalsIgnoreCase("Yes") &&
                 !voteDecision.equalsIgnoreCase("No") &&
                 !voteDecision.equalsIgnoreCase("Abstain")) {
@@ -222,7 +220,7 @@ public class VotingIntent implements TxIntent {
         }
 
         // Validate hex formats
-        if (voterHex != null && !voterHex.isEmpty() && !voterHex.startsWith("${")) {
+        if (voterHex != null && !voterHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(voterHex);
             } catch (Exception e) {
@@ -230,7 +228,7 @@ public class VotingIntent implements TxIntent {
             }
         }
 
-        if (anchorHash != null && !anchorHash.isEmpty() && !anchorHash.startsWith("${")) {
+        if (anchorHash != null && !anchorHash.isEmpty()) {
             try {
                 HexUtil.decodeHexString(anchorHash);
             } catch (Exception e) {
@@ -242,7 +240,7 @@ public class VotingIntent implements TxIntent {
             throw new IllegalStateException("Governance action index cannot be negative");
         }
 
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
             try { HexUtil.decodeHexString(redeemerHex); } catch (Exception e) {
                 throw new IllegalStateException("Invalid redeemer hex format");
             }
@@ -358,15 +356,9 @@ public class VotingIntent implements TxIntent {
     @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
+            // Context-specific check only
             if (ic.getFromAddress() == null || ic.getFromAddress().isBlank())
                 throw new TxBuildException("From address is required for voting");
-            if (voter == null && (voterHex == null || voterHex.isEmpty()))
-                throw new TxBuildException("Voter is required for voting");
-            if (govActionId == null && (govActionTxHash == null || govActionTxHash.isEmpty() || govActionIndex == null))
-                throw new TxBuildException("Governance action id is required for voting");
-            if (vote == null && (voteDecision == null || voteDecision.isEmpty()))
-                throw new TxBuildException("Vote decision is required for voting");
-            validate();
         };
     }
 

@@ -174,7 +174,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
                 }
 
                 // Basic validation for tx hash format
-                if (!utxoRef.getTxHash().startsWith("${") && utxoRef.getTxHash().length() != 64) {
+                if (utxoRef.getTxHash().length() != 64) {
                     throw new IllegalStateException("Invalid transaction hash format: " + utxoRef.getTxHash());
                 }
             }
@@ -186,7 +186,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
         }
 
         // Validate hex strings if provided
-        if (redeemerHex != null && !redeemerHex.isEmpty() && !redeemerHex.startsWith("${")) {
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(redeemerHex);
             } catch (Exception e) {
@@ -194,7 +194,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
             }
         }
 
-        if (datumHex != null && !datumHex.isEmpty() && !datumHex.startsWith("${")) {
+        if (datumHex != null && !datumHex.isEmpty()) {
             try {
                 HexUtil.decodeHexString(datumHex);
             } catch (Exception e) {
@@ -375,15 +375,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
             return lazyUtxoStrategy;
         }
     }
-
-    @Override
-    public TxBuilder preApply(IntentContext context) {
-        return (ctx, txn) -> {
-            // Basic validation only; input selection is prepared in ScriptTx.complete()
-            validate();
-        };
-    }
-
+    
     @Override
     public TxBuilder apply(IntentContext context) {
         // No-op: collection is materialized prior to input selection in ScriptTx.complete()
