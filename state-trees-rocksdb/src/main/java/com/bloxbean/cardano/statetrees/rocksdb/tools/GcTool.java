@@ -92,7 +92,7 @@ public class GcTool {
                             return null;
                         });
                         // Increment refcounts for the new root (refs stored in nodes CF)
-                        RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), refsCF, trie.getRootHash(), wb);
+                        RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), refsCF, trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
                         return null;
                     });
                     st.db().write(wo, wb);

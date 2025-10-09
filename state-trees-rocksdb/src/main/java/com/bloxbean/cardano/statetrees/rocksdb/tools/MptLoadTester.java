@@ -129,14 +129,14 @@ public final class MptLoadTester {
                             });
                             versionsRecorded = vHolder[0];
                             com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.RefcountGcStrategy.incrementAll(
-                                    stateTrees.db(), stateTrees.nodeStore().nodesHandle(), stateTrees.nodeStore().nodesHandle(), root, wb);
+                                    stateTrees.db(), stateTrees.nodeStore().nodesHandle(), stateTrees.nodeStore().nodesHandle(), root, wb, stateTrees.nodeStore().keyPrefixer());
                             versionWindow.addLast(versionsRecorded);
                             while (versionWindow.size() > options.keepLatest) {
                                 Long oldVer = versionWindow.removeFirst();
                                 byte[] oldRoot = stateTrees.rootsIndex().get(oldVer);
                                 if (oldRoot != null) {
                                     com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.RefcountGcStrategy.decrementAll(
-                                            stateTrees.db(), stateTrees.nodeStore().nodesHandle(), stateTrees.nodeStore().nodesHandle(), oldRoot, wb);
+                                            stateTrees.db(), stateTrees.nodeStore().nodesHandle(), stateTrees.nodeStore().nodesHandle(), oldRoot, wb, stateTrees.nodeStore().keyPrefixer());
                                 }
                             }
                         } else if (!gcRefcount) {

@@ -5,6 +5,7 @@ import com.bloxbean.cardano.statetrees.jmt.JmtEncoding;
 import com.bloxbean.cardano.statetrees.jmt.JmtNode;
 import com.bloxbean.cardano.statetrees.jmt.NodeKey;
 import com.bloxbean.cardano.statetrees.jmt.store.JmtStore;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.KeyPrefixer;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
@@ -249,6 +250,7 @@ public final class RocksDbJmtStore implements JmtStore {
     private final ColumnFamilyHandle cfNodesByVersion;
     private final ColumnFamilyHandle cfValuesByVersion;
     private final RocksDbJmtSchema.ColumnFamilies names;
+    private final KeyPrefixer keyPrefixer;
     private final boolean ownsDb;
     private final List<ColumnFamilyHandle> ownedHandles;
     private final List<AutoCloseable> ownedResources;
@@ -260,25 +262,25 @@ public final class RocksDbJmtStore implements JmtStore {
     private static final byte VALUE_TOMBSTONE = 0;
     private static final byte[] INDEX_PLACEHOLDER = new byte[0];
 
-    private static byte[] valueKey(byte[] keyHash, long version) {
+    private byte[] valueKey(byte[] keyHash, long version) {
         byte[] key = new byte[VALUE_KEY_LENGTH];
         System.arraycopy(keyHash, 0, key, 0, KEY_HASH_LENGTH);
         ByteBuffer.wrap(key, KEY_HASH_LENGTH, Long.BYTES).putLong(version);
-        return key;
+        return keyPrefixer.prefix(key);
     }
 
-    private static byte[] valueVersionKey(long version, byte[] keyHash) {
+    private byte[] valueVersionKey(long version, byte[] keyHash) {
         byte[] key = new byte[Long.BYTES + KEY_HASH_LENGTH];
         ByteBuffer.wrap(key).putLong(version);
         System.arraycopy(keyHash, 0, key, Long.BYTES, KEY_HASH_LENGTH);
-        return key;
+        return keyPrefixer.prefix(key);
     }
 
-    private static byte[] nodeVersionKey(long version, byte[] nodeKeyBytes) {
+    private byte[] nodeVersionKey(long version, byte[] nodeKeyBytes) {
         byte[] key = new byte[Long.BYTES + nodeKeyBytes.length];
         ByteBuffer.wrap(key).putLong(version);
         System.arraycopy(nodeKeyBytes, 0, key, Long.BYTES, nodeKeyBytes.length);
-        return key;
+        return keyPrefixer.prefix(key);
     }
 
     private static byte[] encodeValue(byte[] value) {
@@ -304,16 +306,16 @@ public final class RocksDbJmtStore implements JmtStore {
         return ValueEntry.value(value, version);
     }
 
-    private static boolean hasKeyPrefix(byte[] rawKey, byte[] keyHash) {
-        if (rawKey.length < KEY_HASH_LENGTH) return false;
+    private static boolean hasKeyPrefix(byte[] unprefixedKey, byte[] keyHash) {
+        if (unprefixedKey.length < KEY_HASH_LENGTH) return false;
         for (int i = 0; i < KEY_HASH_LENGTH; i++) {
-            if (rawKey[i] != keyHash[i]) return false;
+            if (unprefixedKey[i] != keyHash[i]) return false;
         }
         return true;
     }
 
-    private static long decodeVersion(byte[] rawKey) {
-        return ByteBuffer.wrap(rawKey, KEY_HASH_LENGTH, Long.BYTES).getLong();
+    private static long decodeVersion(byte[] unprefixedKey) {
+        return ByteBuffer.wrap(unprefixedKey, KEY_HASH_LENGTH, Long.BYTES).getLong();
     }
 
     private static ReadOptions prefixReadOptions() {
@@ -361,15 +363,15 @@ public final class RocksDbJmtStore implements JmtStore {
 
     private ValueEntry seekValue(byte[] keyHash, long version) throws RocksDBException {
         byte[] seekKey = valueKey(keyHash, version);
-        try (ReadOptions options = prefixReadOptions();
+        try (ReadOptions options = keyPrefixer.createPrefixReadOptions();
              RocksIterator iterator = db.newIterator(cfValues, options)) {
             iterator.seekForPrev(seekKey);
             while (iterator.isValid()) {
-                byte[] rawKey = iterator.key();
-                if (!hasKeyPrefix(rawKey, keyHash)) {
+                byte[] unprefixedKey = keyPrefixer.unprefix(iterator.key());
+                if (!hasKeyPrefix(unprefixedKey, keyHash)) {
                     return null;
                 }
-                long foundVersion = decodeVersion(rawKey);
+                long foundVersion = decodeVersion(unprefixedKey);
                 byte[] encoded = iterator.value();
                 return decodeValue(encoded, foundVersion);
             }
@@ -384,7 +386,7 @@ public final class RocksDbJmtStore implements JmtStore {
         int pruned = 0;
         try (WriteBatch batch = new WriteBatch();
              WriteOptions writeOptions = new WriteOptions();
-             ReadOptions readOptions = new ReadOptions().setTotalOrderSeek(true);
+             ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
              RocksIterator iterator = db.newIterator(cfValues, readOptions)) {
             if (storeOptions != null && storeOptions.syncOnPrune()) {
                 writeOptions.setSync(true);
@@ -393,9 +395,10 @@ public final class RocksDbJmtStore implements JmtStore {
             java.util.List<byte[]> deletions = new java.util.ArrayList<>();
             byte[] sentinel = null;
             for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
-                byte[] rawKey = iterator.key();
-                byte[] keyHash = Arrays.copyOfRange(rawKey, 0, KEY_HASH_LENGTH);
-                long version = decodeVersion(rawKey);
+                byte[] prefixedKey = iterator.key();
+                byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                byte[] keyHash = Arrays.copyOfRange(unprefixedKey, 0, KEY_HASH_LENGTH);
+                long version = decodeVersion(unprefixedKey);
 
                 if (currentKeyHash == null || !Arrays.equals(currentKeyHash, keyHash)) {
                     pruned += applyValueDeletions(deletions, sentinel, batch);
@@ -405,9 +408,9 @@ public final class RocksDbJmtStore implements JmtStore {
                 }
 
                 if (Long.compareUnsigned(version, versionInclusive) <= 0) {
-                    deletions.add(Arrays.copyOf(rawKey, rawKey.length));
+                    deletions.add(Arrays.copyOf(prefixedKey, prefixedKey.length));
                     if (storeOptions.prunePolicy() == ValuePrunePolicy.SAFE) {
-                        sentinel = Arrays.copyOf(rawKey, rawKey.length);
+                        sentinel = Arrays.copyOf(prefixedKey, prefixedKey.length);
                     }
                 }
 
@@ -429,14 +432,15 @@ public final class RocksDbJmtStore implements JmtStore {
             return 0;
         }
         int removed = 0;
-        for (byte[] rawKey : deletions) {
-            if (storeOptions.prunePolicy() == ValuePrunePolicy.SAFE && sentinel != null && Arrays.equals(rawKey, sentinel)) {
+        for (byte[] prefixedKey : deletions) {
+            if (storeOptions.prunePolicy() == ValuePrunePolicy.SAFE && sentinel != null && Arrays.equals(prefixedKey, sentinel)) {
                 continue;
             }
-            batch.delete(cfValues, rawKey);
+            batch.delete(cfValues, prefixedKey);
             if (cfValuesByVersion != null) {
-                long version = decodeVersion(rawKey);
-                byte[] keyHash = Arrays.copyOfRange(rawKey, 0, KEY_HASH_LENGTH);
+                byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                long version = decodeVersion(unprefixedKey);
+                byte[] keyHash = Arrays.copyOfRange(unprefixedKey, 0, KEY_HASH_LENGTH);
                 batch.delete(cfValuesByVersion, valueVersionKey(version, keyHash));
             }
             removed++;
@@ -458,6 +462,17 @@ public final class RocksDbJmtStore implements JmtStore {
      */
     public RocksDbJmtStore(String dbPath, String namespace) {
         this(openStandalone(dbPath, Options.builder().namespace(namespace).build()));
+    }
+
+    /**
+     * Opens (or creates) a dedicated RocksDB instance with namespace options applied.
+     * The store owns the database lifecycle.
+     *
+     * NOTE: For now, only columnFamilyPrefix from NamespaceOptions is supported.
+     * Key prefix support requires changes to Options class.
+     */
+    public RocksDbJmtStore(String dbPath, com.bloxbean.cardano.statetrees.rocksdb.namespace.NamespaceOptions namespaceOptions) {
+        this(dbPath, namespaceOptions.columnFamilyPrefix());
     }
 
     /**
@@ -531,6 +546,7 @@ public final class RocksDbJmtStore implements JmtStore {
         this.cfNodesByVersion = init.nodesByVersion;
         this.cfValuesByVersion = init.valuesByVersion;
         this.names = init.names;
+        this.keyPrefixer = new KeyPrefixer(init.names.keyPrefix());
         this.ownsDb = init.ownsDb;
         this.ownedHandles = init.ownedHandles;
         this.ownedResources = init.ownedResources;
@@ -549,24 +565,28 @@ public final class RocksDbJmtStore implements JmtStore {
     @Override
     public Optional<VersionedRoot> latestRoot() {
         try {
-            byte[] root = db.get(cfRoots, LATEST_ROOT_KEY);
+            byte[] prefixedLatestRootKey = keyPrefixer.prefix(LATEST_ROOT_KEY);
+            byte[] prefixedLatestVersionKey = keyPrefixer.prefix(LATEST_VERSION_KEY);
+
+            byte[] root = db.get(cfRoots, prefixedLatestRootKey);
             if (root == null) {
                 return Optional.empty();
             }
-            byte[] versionBytes = db.get(cfRoots, LATEST_VERSION_KEY);
+            byte[] versionBytes = db.get(cfRoots, prefixedLatestVersionKey);
             long version = versionBytes == null ? -1 : ByteBuffer.wrap(versionBytes).getLong();
             if (version < 0) {
                 // Fallback to scanning the last entry if version metadata is missing.
-                try (ReadOptions readOptions = new ReadOptions();
+                try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
                      RocksIterator iterator = db.newIterator(cfRoots, readOptions)) {
                     iterator.seekToLast();
                     while (iterator.isValid()) {
                         byte[] key = iterator.key();
-                        if (Arrays.equals(key, LATEST_ROOT_KEY) || Arrays.equals(key, LATEST_VERSION_KEY)) {
+                        if (Arrays.equals(key, prefixedLatestRootKey) || Arrays.equals(key, prefixedLatestVersionKey)) {
                             iterator.prev();
                             continue;
                         }
-                        version = ByteBuffer.wrap(key).getLong();
+                        byte[] unprefixed = keyPrefixer.unprefix(key);
+                        version = ByteBuffer.wrap(unprefixed).getLong();
                         root = iterator.value();
                         break;
                     }
@@ -584,7 +604,8 @@ public final class RocksDbJmtStore implements JmtStore {
     @Override
     public Optional<byte[]> rootHash(long version) {
         try {
-            byte[] root = db.get(cfRoots, versionKey(version));
+            byte[] prefixedKey = keyPrefixer.prefix(versionKey(version));
+            byte[] root = db.get(cfRoots, prefixedKey);
             return root == null ? Optional.empty() : Optional.of(root.clone());
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to read JMT root for version " + version, e);
@@ -594,12 +615,12 @@ public final class RocksDbJmtStore implements JmtStore {
     @Override
     public Optional<NodeEntry> getNode(long version, NibblePath path) {
         Objects.requireNonNull(path, "path");
-        byte[] searchKey = NodeKey.of(path, version).toBytes();
-        try (ReadOptions options = new ReadOptions();
+        byte[] searchKey = keyPrefixer.prefix(NodeKey.of(path, version).toBytes());
+        try (ReadOptions options = keyPrefixer.createPrefixReadOptions();
              RocksIterator iterator = db.newIterator(cfNodes, options)) {
             iterator.seekForPrev(searchKey);
             while (iterator.isValid()) {
-                byte[] keyBytes = iterator.key();
+                byte[] keyBytes = keyPrefixer.unprefix(iterator.key());
                 NodeKey nodeKey = NodeKey.fromBytes(keyBytes);
                 int cmp = comparePath(nodeKey.path(), path);
                 if (cmp < 0) {
@@ -620,7 +641,8 @@ public final class RocksDbJmtStore implements JmtStore {
     public Optional<JmtNode> getNode(NodeKey nodeKey) {
         Objects.requireNonNull(nodeKey, "nodeKey");
         try {
-            byte[] nodeBytes = db.get(cfNodes, nodeKey.toBytes());
+            byte[] prefixedKey = keyPrefixer.prefix(nodeKey.toBytes());
+            byte[] nodeBytes = db.get(cfNodes, prefixedKey);
             return nodeBytes == null ? Optional.empty() : Optional.of(JmtEncoding.decode(nodeBytes));
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to load JMT node", e);
@@ -630,12 +652,12 @@ public final class RocksDbJmtStore implements JmtStore {
     @Override
     public Optional<NodeEntry> floorNode(long version, NibblePath path) {
         Objects.requireNonNull(path, "path");
-        byte[] searchKey = NodeKey.of(path, version).toBytes();
-        try (ReadOptions options = new ReadOptions();
+        byte[] searchKey = keyPrefixer.prefix(NodeKey.of(path, version).toBytes());
+        try (ReadOptions options = keyPrefixer.createPrefixReadOptions();
              RocksIterator iterator = db.newIterator(cfNodes, options)) {
             iterator.seekForPrev(searchKey);
             while (iterator.isValid()) {
-                byte[] keyBytes = iterator.key();
+                byte[] keyBytes = keyPrefixer.unprefix(iterator.key());
                 NodeKey nodeKey = NodeKey.fromBytes(keyBytes);
                 if (comparePath(nodeKey.path(), path) <= 0 &&
                         Long.compareUnsigned(nodeKey.version(), version) <= 0) {
@@ -651,12 +673,12 @@ public final class RocksDbJmtStore implements JmtStore {
     @Override
     public Optional<NodeEntry> ceilingNode(long version, NibblePath path) {
         Objects.requireNonNull(path, "path");
-        byte[] searchKey = NodeKey.of(path, version).toBytes();
-        try (ReadOptions options = new ReadOptions();
+        byte[] searchKey = keyPrefixer.prefix(NodeKey.of(path, version).toBytes());
+        try (ReadOptions options = keyPrefixer.createPrefixReadOptions();
              RocksIterator iterator = db.newIterator(cfNodes, options)) {
             iterator.seek(searchKey);
             while (iterator.isValid()) {
-                byte[] keyBytes = iterator.key();
+                byte[] keyBytes = keyPrefixer.unprefix(iterator.key());
                 NodeKey nodeKey = NodeKey.fromBytes(keyBytes);
                 if (comparePath(nodeKey.path(), path) >= 0 &&
                         Long.compareUnsigned(nodeKey.version(), version) <= 0) {
@@ -707,13 +729,13 @@ public final class RocksDbJmtStore implements JmtStore {
     @Override
     public List<NodeKey> staleNodesUpTo(long versionInclusive) {
         List<NodeKey> results = new ArrayList<>();
-        try (ReadOptions readOptions = new ReadOptions();
+        try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
              RocksIterator iterator = db.newIterator(cfStale, readOptions)) {
             for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
-                byte[] key = iterator.key();
-                long staleSince = ByteBuffer.wrap(key, 0, 8).getLong();
+                byte[] unprefixedKey = keyPrefixer.unprefix(iterator.key());
+                long staleSince = ByteBuffer.wrap(unprefixedKey, 0, 8).getLong();
                 if (staleSince > versionInclusive) break;
-                byte[] nodeKeyBytes = Arrays.copyOfRange(key, 8, key.length);
+                byte[] nodeKeyBytes = Arrays.copyOfRange(unprefixedKey, 8, unprefixedKey.length);
                 results.add(NodeKey.fromBytes(nodeKeyBytes));
             }
         }
@@ -725,24 +747,25 @@ public final class RocksDbJmtStore implements JmtStore {
         int nodesPruned = 0;
         try (WriteBatch batch = new WriteBatch();
              WriteOptions writeOptions = new WriteOptions();
-             ReadOptions readOptions = new ReadOptions();
+             ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
              RocksIterator iterator = db.newIterator(cfStale, readOptions)) {
             if (storeOptions != null && storeOptions.syncOnPrune()) {
                 writeOptions.setSync(true);
             }
             for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
-                byte[] key = iterator.key();
-                long staleSince = ByteBuffer.wrap(key, 0, 8).getLong();
+                byte[] prefixedKey = iterator.key();
+                byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                long staleSince = ByteBuffer.wrap(unprefixedKey, 0, 8).getLong();
                 if (staleSince > versionInclusive) {
                     break;
                 }
-                byte[] nodeKeyBytes = Arrays.copyOfRange(key, 8, key.length);
-                batch.delete(cfNodes, nodeKeyBytes);
+                byte[] nodeKeyBytes = Arrays.copyOfRange(unprefixedKey, 8, unprefixedKey.length);
+                batch.delete(cfNodes, keyPrefixer.prefix(nodeKeyBytes));
                 if (cfNodesByVersion != null) {
                     NodeKey nodeKey = NodeKey.fromBytes(nodeKeyBytes);
                     batch.delete(cfNodesByVersion, nodeVersionKey(nodeKey.version(), nodeKeyBytes));
                 }
-                batch.delete(cfStale, key);
+                batch.delete(cfStale, prefixedKey);
                 nodesPruned++;
             }
             if (nodesPruned > 0) {
@@ -766,53 +789,62 @@ public final class RocksDbJmtStore implements JmtStore {
                 writeOptions.setSync(true);
             }
 
+            byte[] prefixedLatestRootKey = keyPrefixer.prefix(LATEST_ROOT_KEY);
+            byte[] prefixedLatestVersionKey = keyPrefixer.prefix(LATEST_VERSION_KEY);
+
             // Roots
-            try (RocksIterator iterator = db.newIterator(cfRoots)) {
+            try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
+                 RocksIterator iterator = db.newIterator(cfRoots, readOptions)) {
                 for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
-                    byte[] key = iterator.key();
-                    if (Arrays.equals(key, LATEST_ROOT_KEY) || Arrays.equals(key, LATEST_VERSION_KEY)) {
+                    byte[] prefixedKey = iterator.key();
+                    if (Arrays.equals(prefixedKey, prefixedLatestRootKey) || Arrays.equals(prefixedKey, prefixedLatestVersionKey)) {
                         continue;
                     }
-                    long version = ByteBuffer.wrap(key).getLong();
+                    byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                    long version = ByteBuffer.wrap(unprefixedKey).getLong();
                     if (Long.compareUnsigned(version, versionExclusive) > 0) {
-                        batch.delete(cfRoots, key);
+                        batch.delete(cfRoots, prefixedKey);
                     }
                 }
             }
 
-            byte[] retainedRoot = db.get(cfRoots, versionKey(versionExclusive));
+            byte[] retainedRoot = db.get(cfRoots, keyPrefixer.prefix(versionKey(versionExclusive)));
             if (retainedRoot != null) {
-                batch.put(cfRoots, LATEST_ROOT_KEY, retainedRoot);
-                batch.put(cfRoots, LATEST_VERSION_KEY, versionKey(versionExclusive));
+                batch.put(cfRoots, prefixedLatestRootKey, retainedRoot);
+                batch.put(cfRoots, prefixedLatestVersionKey, versionKey(versionExclusive));
             } else {
-                batch.delete(cfRoots, LATEST_ROOT_KEY);
-                batch.delete(cfRoots, LATEST_VERSION_KEY);
+                batch.delete(cfRoots, prefixedLatestRootKey);
+                batch.delete(cfRoots, prefixedLatestVersionKey);
             }
 
             // Stale markers
-            try (RocksIterator iterator = db.newIterator(cfStale)) {
+            try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
+                 RocksIterator iterator = db.newIterator(cfStale, readOptions)) {
                 for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
-                    byte[] key = iterator.key();
-                    long staleSince = ByteBuffer.wrap(key, 0, 8).getLong();
+                    byte[] prefixedKey = iterator.key();
+                    byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                    long staleSince = ByteBuffer.wrap(unprefixedKey, 0, 8).getLong();
                     if (Long.compareUnsigned(staleSince, versionExclusive) > 0) {
-                        batch.delete(cfStale, key);
+                        batch.delete(cfStale, prefixedKey);
                     }
                 }
             }
 
             // Nodes by version
             if (cfNodesByVersion != null) {
-                try (RocksIterator iterator = db.newIterator(cfNodesByVersion)) {
-                    iterator.seek(versionKey(versionExclusive + 1));
+                try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
+                     RocksIterator iterator = db.newIterator(cfNodesByVersion, readOptions)) {
+                    iterator.seek(keyPrefixer.prefix(versionKey(versionExclusive + 1)));
                     while (iterator.isValid()) {
-                        byte[] key = iterator.key();
-                        long version = ByteBuffer.wrap(key, 0, Long.BYTES).getLong();
+                        byte[] prefixedKey = iterator.key();
+                        byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                        long version = ByteBuffer.wrap(unprefixedKey, 0, Long.BYTES).getLong();
                         if (Long.compareUnsigned(version, versionExclusive) <= 0) {
                             break;
                         }
-                        byte[] nodeKeyBytes = Arrays.copyOfRange(key, Long.BYTES, key.length);
-                        batch.delete(cfNodes, nodeKeyBytes);
-                        batch.delete(cfNodesByVersion, key);
+                        byte[] nodeKeyBytes = Arrays.copyOfRange(unprefixedKey, Long.BYTES, unprefixedKey.length);
+                        batch.delete(cfNodes, keyPrefixer.prefix(nodeKeyBytes));
+                        batch.delete(cfNodesByVersion, prefixedKey);
                         iterator.next();
                     }
                 }
@@ -820,17 +852,19 @@ public final class RocksDbJmtStore implements JmtStore {
 
             // Values by version
             if (cfValuesByVersion != null) {
-                try (RocksIterator iterator = db.newIterator(cfValuesByVersion)) {
-                    iterator.seek(versionKey(versionExclusive + 1));
+                try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
+                     RocksIterator iterator = db.newIterator(cfValuesByVersion, readOptions)) {
+                    iterator.seek(keyPrefixer.prefix(versionKey(versionExclusive + 1)));
                     while (iterator.isValid()) {
-                        byte[] key = iterator.key();
-                        long version = ByteBuffer.wrap(key, 0, Long.BYTES).getLong();
+                        byte[] prefixedKey = iterator.key();
+                        byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                        long version = ByteBuffer.wrap(unprefixedKey, 0, Long.BYTES).getLong();
                         if (Long.compareUnsigned(version, versionExclusive) <= 0) {
                             break;
                         }
-                        byte[] keyHash = Arrays.copyOfRange(key, Long.BYTES, key.length);
+                        byte[] keyHash = Arrays.copyOfRange(unprefixedKey, Long.BYTES, unprefixedKey.length);
                         batch.delete(cfValues, valueKey(keyHash, version));
-                        batch.delete(cfValuesByVersion, key);
+                        batch.delete(cfValuesByVersion, prefixedKey);
                         iterator.next();
                     }
                 }
@@ -904,11 +938,11 @@ public final class RocksDbJmtStore implements JmtStore {
         return Integer.compare(an.length, bn.length);
     }
 
-    private static byte[] staleKey(long version, NodeKey nodeKey) {
+    private byte[] staleKey(long version, NodeKey nodeKey) {
         byte[] nodeBytes = nodeKey.toBytes();
         byte[] key = new byte[8 + nodeBytes.length];
         ByteBuffer.wrap(key).putLong(version).put(nodeBytes);
-        return key;
+        return keyPrefixer.prefix(key);
     }
 
     private static byte[] versionKey(long version) {
@@ -939,7 +973,7 @@ public final class RocksDbJmtStore implements JmtStore {
             Objects.requireNonNull(node, "node");
             try {
                 byte[] nodeBytes = nodeKey.toBytes();
-                batch.put(cfNodes, nodeBytes, node.encode());
+                batch.put(cfNodes, keyPrefixer.prefix(nodeBytes), node.encode());
                 if (cfNodesByVersion != null) {
                     batch.put(cfNodesByVersion, nodeVersionKey(nodeKey.version(), nodeBytes), INDEX_PLACEHOLDER);
                 }
@@ -999,9 +1033,9 @@ public final class RocksDbJmtStore implements JmtStore {
             }
             try {
                 if (rootHash != null) {
-                    batch.put(cfRoots, versionKey(version), rootHash);
-                    batch.put(cfRoots, LATEST_ROOT_KEY, rootHash);
-                    batch.put(cfRoots, LATEST_VERSION_KEY, versionKey(version));
+                    batch.put(cfRoots, keyPrefixer.prefix(versionKey(version)), rootHash);
+                    batch.put(cfRoots, keyPrefixer.prefix(LATEST_ROOT_KEY), rootHash);
+                    batch.put(cfRoots, keyPrefixer.prefix(LATEST_VERSION_KEY), versionKey(version));
                 }
                 db.write(writeOptions, batch);
                 committed = true;
@@ -1043,15 +1077,19 @@ public final class RocksDbJmtStore implements JmtStore {
         RocksDbConfig config = options.rocksDbConfig();
         org.rocksdb.Cache blockCache = config.createBlockCache();
 
+        // All CFs use 1-byte key prefix for namespace support
         ColumnFamilyOptions defaultCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
+        defaultCfOptions.useFixedLengthPrefixExtractor(1);
         config.applyToCfOptions(defaultCfOptions, blockCache);
 
+        // Values CF has composite prefix: 1-byte namespace + KEY_HASH_LENGTH
         ColumnFamilyOptions valuesCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
-        valuesCfOptions.useFixedLengthPrefixExtractor(KEY_HASH_LENGTH);
+        valuesCfOptions.useFixedLengthPrefixExtractor(1 + KEY_HASH_LENGTH);
         config.applyToCfOptions(valuesCfOptions, blockCache);
 
+        // Index CFs have composite prefix: 1-byte namespace + Long.BYTES
         ColumnFamilyOptions indexCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
-        indexCfOptions.useFixedLengthPrefixExtractor(Long.BYTES);
+        indexCfOptions.useFixedLengthPrefixExtractor(1 + Long.BYTES);
         config.applyToCfOptions(indexCfOptions, blockCache);
 
         DBOptions dbOptions = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
@@ -1135,15 +1173,19 @@ public final class RocksDbJmtStore implements JmtStore {
         RocksDbConfig config = options.rocksDbConfig();
         org.rocksdb.Cache blockCache = config.createBlockCache();
 
+        // All CFs use 1-byte key prefix for namespace support
         ColumnFamilyOptions defaultCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
+        defaultCfOptions.useFixedLengthPrefixExtractor(1);
         config.applyToCfOptions(defaultCfOptions, blockCache);
 
+        // Values CF has composite prefix: 1-byte namespace + KEY_HASH_LENGTH
         ColumnFamilyOptions valuesCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
-        valuesCfOptions.useFixedLengthPrefixExtractor(KEY_HASH_LENGTH);
+        valuesCfOptions.useFixedLengthPrefixExtractor(1 + KEY_HASH_LENGTH);
         config.applyToCfOptions(valuesCfOptions, blockCache);
 
+        // Index CFs have composite prefix: 1-byte namespace + Long.BYTES
         ColumnFamilyOptions indexCfOptions = new ColumnFamilyOptions().setOptimizeFiltersForHits(true);
-        indexCfOptions.useFixedLengthPrefixExtractor(Long.BYTES);
+        indexCfOptions.useFixedLengthPrefixExtractor(1 + Long.BYTES);
         config.applyToCfOptions(indexCfOptions, blockCache);
 
         List<ColumnFamilyHandle> ownedHandles = new ArrayList<>();

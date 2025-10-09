@@ -7,6 +7,7 @@ import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcReport;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcStrategy;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RetentionPolicy;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.internal.NodeRefParser;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.KeyPrefixer;
 import org.rocksdb.*;
 
 import java.util.*;
@@ -34,8 +35,9 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
         if (snapshot != null) ro.setSnapshot(snapshot);
 
         try {
-            long marked = mark(db, store.nodesHandle(), cfMarks, roots, ro);
-            long[] totals = sweep(db, store.nodesHandle(), cfMarks, options);
+            KeyPrefixer keyPrefixer = store.keyPrefixer();
+            long marked = mark(db, store.nodesHandle(), cfMarks, roots, ro, keyPrefixer);
+            long[] totals = sweep(db, store.nodesHandle(), cfMarks, options, keyPrefixer);
 
             GcReport report = new GcReport();
             report.marked = marked;
@@ -63,7 +65,7 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
         return db.createColumnFamily(new ColumnFamilyDescriptor(name.getBytes(), new ColumnFamilyOptions()));
     }
 
-    private long mark(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfMarks, Collection<byte[]> roots, ReadOptions ro) throws RocksDBException {
+    private long mark(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfMarks, Collection<byte[]> roots, ReadOptions ro, KeyPrefixer keyPrefixer) throws RocksDBException {
         Deque<byte[]> q = new ArrayDeque<>();
         for (byte[] r : roots) if (r != null && r.length == 32) q.add(r);
         long marked = 0;
@@ -72,22 +74,28 @@ public class OnDiskMarkSweepStrategy implements GcStrategy {
             if (db.get(cfMarks, h) != null) continue; // already seen on disk
             db.put(cfMarks, h, ONE);
             marked++;
-            byte[] enc = db.get(cfNodes, ro, h);
+            // Use prefixed key to read from nodes CF
+            byte[] enc = db.get(cfNodes, ro, keyPrefixer.prefix(h));
             if (enc == null) continue;
             for (byte[] ch : NodeRefParser.childRefs(enc)) q.addLast(ch);
         }
         return marked;
     }
 
-    private long[] sweep(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfMarks, GcOptions options) throws RocksDBException {
+    private long[] sweep(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfMarks, GcOptions options, KeyPrefixer keyPrefixer) throws RocksDBException {
         long total = 0, deleted = 0;
-        try (ReadOptions ro = new ReadOptions(); RocksIterator it = db.newIterator(cfNodes, ro);
-             WriteOptions wo = new WriteOptions(); WriteBatch wb = new WriteBatch()) {
+        try (ReadOptions ro = keyPrefixer.createPrefixReadOptions();
+             RocksIterator it = db.newIterator(cfNodes, ro);
+             WriteOptions wo = new WriteOptions();
+             WriteBatch wb = new WriteBatch()) {
             for (it.seekToFirst(); it.isValid(); it.next()) {
                 total++;
-                byte[] k = it.key();
-                if (db.get(cfMarks, k) == null) {
-                    if (!options.dryRun) wb.delete(cfNodes, k);
+                byte[] prefixedKey = it.key();
+                // Unprefix to get the actual node hash for checking marks
+                byte[] nodeHash = keyPrefixer.unprefix(prefixedKey);
+                if (db.get(cfMarks, nodeHash) == null) {
+                    // Node not marked, delete using prefixed key
+                    if (!options.dryRun) wb.delete(cfNodes, prefixedKey);
                     deleted++;
                     if (!options.dryRun && deleted % options.deleteBatchSize == 0) {
                         db.write(wo, wb);

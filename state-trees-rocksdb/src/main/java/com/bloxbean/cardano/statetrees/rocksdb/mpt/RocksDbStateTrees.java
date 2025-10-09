@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.RefcountGcStrategy;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.KeyPrefixer;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
 
 import java.io.File;
@@ -62,7 +64,7 @@ public final class RocksDbStateTrees implements AutoCloseable {
     private final RocksDbRootsIndex rootsIndex;
 
     /**
-     * Creates a new unified RocksDB state trees storage.
+     * Creates a new unified RocksDB state trees storage with default namespace options.
      *
      * <p>Initializes a complete RocksDB instance with all required column families
      * for both node storage and root indexing. Automatically handles database
@@ -72,21 +74,40 @@ public final class RocksDbStateTrees implements AutoCloseable {
      * @throws RuntimeException if RocksDB initialization fails
      */
     public RocksDbStateTrees(String dbPath) {
+        this(dbPath, NamespaceOptions.defaults());
+    }
+
+    /**
+     * Creates a new unified RocksDB state trees storage with custom namespace options.
+     *
+     * <p>Enables multiple isolated trees within the same database using namespacing.</p>
+     *
+     * @param dbPath the file system path where the RocksDB database should be stored
+     * @param namespaceOptions the namespace configuration for this tree
+     * @throws RuntimeException if RocksDB initialization fails
+     */
+    public RocksDbStateTrees(String dbPath, NamespaceOptions namespaceOptions) {
         try {
             RocksDB.loadLibrary();
             File dbDirectory = new File(dbPath);
             if (!dbDirectory.exists()) dbDirectory.mkdirs();
 
+            RocksDbMptSchema.ColumnFamilies schema = RocksDbMptSchema.columnFamilies(namespaceOptions);
+
             // List existing CFs and open them all; also ensure nodes and roots exist
             java.util.List<byte[]> existingCfNames = RocksDB.listColumnFamilies(new org.rocksdb.Options().setCreateIfMissing(true), dbPath);
+
+            // CF options with 1-byte prefix extractor for namespace support
             ColumnFamilyOptions columnFamilyOptions = new ColumnFamilyOptions();
+            columnFamilyOptions.useFixedLengthPrefixExtractor(1);
+
             java.util.List<ColumnFamilyDescriptor> cfDescriptors = new java.util.ArrayList<>();
             int nodesColumnFamilyIndex = -1, rootsColumnFamilyIndex = -1;
             for (byte[] cfName : existingCfNames) {
                 cfDescriptors.add(new ColumnFamilyDescriptor(cfName, columnFamilyOptions));
-                if (java.util.Arrays.equals(cfName, RocksDbNodeStore.CF_NODES.getBytes()))
+                if (java.util.Arrays.equals(cfName, schema.nodes().getBytes()))
                     nodesColumnFamilyIndex = cfDescriptors.size() - 1;
-                if (java.util.Arrays.equals(cfName, RocksDbRootsIndex.CF_ROOTS.getBytes()))
+                if (java.util.Arrays.equals(cfName, schema.roots().getBytes()))
                     rootsColumnFamilyIndex = cfDescriptors.size() - 1;
             }
             // Ensure default CF present
@@ -100,11 +121,11 @@ public final class RocksDbStateTrees implements AutoCloseable {
                 cfDescriptors.add(0, new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, columnFamilyOptions));
             // Ensure nodes/roots CFs present
             if (nodesColumnFamilyIndex < 0) {
-                cfDescriptors.add(new ColumnFamilyDescriptor(RocksDbNodeStore.CF_NODES.getBytes(), columnFamilyOptions));
+                cfDescriptors.add(new ColumnFamilyDescriptor(schema.nodes().getBytes(), columnFamilyOptions));
                 nodesColumnFamilyIndex = cfDescriptors.size() - 1;
             }
             if (rootsColumnFamilyIndex < 0) {
-                cfDescriptors.add(new ColumnFamilyDescriptor(RocksDbRootsIndex.CF_ROOTS.getBytes(), columnFamilyOptions));
+                cfDescriptors.add(new ColumnFamilyDescriptor(schema.roots().getBytes(), columnFamilyOptions));
                 rootsColumnFamilyIndex = cfDescriptors.size() - 1;
             }
 
@@ -114,8 +135,9 @@ public final class RocksDbStateTrees implements AutoCloseable {
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
 
-            this.nodeStore = new RocksDbNodeStore(db, cfNodes);
-            this.rootsIndex = new RocksDbRootsIndex(db, cfRoots);
+            KeyPrefixer keyPrefixer = new KeyPrefixer(schema.keyPrefix());
+            this.nodeStore = new RocksDbNodeStore(db, cfNodes, keyPrefixer);
+            this.rootsIndex = new RocksDbRootsIndex(db, cfRoots, keyPrefixer);
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to open RocksDB for state trees", e);
         }
@@ -184,7 +206,7 @@ public final class RocksDbStateTrees implements AutoCloseable {
                 verHolder[0] = ver;
                 return null;
             });
-            RefcountGcStrategy.incrementAll(db, nodeStore.nodesHandle(), nodeStore.nodesHandle(), root, wb);
+            RefcountGcStrategy.incrementAll(db, nodeStore.nodesHandle(), nodeStore.nodesHandle(), root, wb, nodeStore.keyPrefixer());
             db.write(wo, wb);
             return verHolder[0];
         } catch (RocksDBException e) {

@@ -7,6 +7,7 @@ import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcReport;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcStrategy;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RetentionPolicy;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.internal.NodeRefParser;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.KeyPrefixer;
 import org.rocksdb.*;
 
 import java.nio.ByteBuffer;
@@ -30,6 +31,7 @@ public class RefcountGcStrategy implements GcStrategy {
         RocksDB db = store.db();
         ColumnFamilyHandle cfNodes = store.nodesHandle();
         ColumnFamilyHandle cfRefs = cfNodes; // store refcounts alongside nodes with a special key prefix
+        KeyPrefixer keyPrefixer = store.keyPrefixer();
 
         // Determine versions to keep and to drop
         NavigableMap<Long, byte[]> all = index.listAll();
@@ -46,7 +48,7 @@ public class RefcountGcStrategy implements GcStrategy {
             ReadOptions ro = new ReadOptions();
             for (var e : drop) {
                 // Decrement refcounts for the entire subtree of this dropped root
-                long[] res = decrementAll(db, cfNodes, cfRefs, e.getValue(), wb, ro);
+                long[] res = decrementAll(db, cfNodes, cfRefs, e.getValue(), wb, ro, keyPrefixer);
                 total += res[0];
                 deleted += res[1];
             }
@@ -70,10 +72,11 @@ public class RefcountGcStrategy implements GcStrategy {
      * @param cfRefs  the column family handle for reference counts
      * @param root    the root hash to start traversal from
      * @param wb      the write batch for atomic operations
+     * @param keyPrefixer the key prefixer for namespace support
      * @return the number of nodes processed
      * @throws RocksDBException if a database operation fails
      */
-    public static long incrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb) throws RocksDBException {
+    public static long incrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, KeyPrefixer keyPrefixer) throws RocksDBException {
         if (root == null || root.length != 32) return 0;
         long touched = 0;
         Deque<byte[]> q = new ArrayDeque<>();
@@ -83,10 +86,10 @@ public class RefcountGcStrategy implements GcStrategy {
             byte[] h = q.removeFirst();
             String key = Arrays.toString(h);
             if (!seen.add(key)) continue;
-            long cnt = getRef(db, cfNodes, h);
-            putRef(wb, cfNodes, h, cnt + 1);
+            long cnt = getRef(db, cfNodes, h, keyPrefixer);
+            putRef(wb, cfNodes, h, cnt + 1, keyPrefixer);
             touched++;
-            byte[] enc = db.get(cfNodes, h);
+            byte[] enc = db.get(cfNodes, keyPrefixer.prefix(h));
             if (enc == null) continue;
             for (byte[] ch : NodeRefParser.childRefs(enc)) q.addLast(ch);
         }
@@ -101,11 +104,12 @@ public class RefcountGcStrategy implements GcStrategy {
      * @param cfRefs  the column family handle for reference counts
      * @param root    the root hash to start traversal from
      * @param wb      the write batch for atomic operations
+     * @param keyPrefixer the key prefixer for namespace support
      * @return array containing [nodes processed, nodes deleted]
      * @throws RocksDBException if a database operation fails
      */
-    public static long[] decrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb) throws RocksDBException {
-        return decrementAll(db, cfNodes, cfRefs, root, wb, null);
+    public static long[] decrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, KeyPrefixer keyPrefixer) throws RocksDBException {
+        return decrementAll(db, cfNodes, cfRefs, root, wb, null, keyPrefixer);
     }
 
     /**
@@ -117,10 +121,11 @@ public class RefcountGcStrategy implements GcStrategy {
      * @param root    the root hash to start traversal from
      * @param wb      the write batch for atomic operations
      * @param ro      optional read options for snapshot consistency
+     * @param keyPrefixer the key prefixer for namespace support
      * @return array containing [nodes processed, nodes deleted]
      * @throws RocksDBException if a database operation fails
      */
-    public static long[] decrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, ReadOptions ro) throws RocksDBException {
+    public static long[] decrementAll(RocksDB db, ColumnFamilyHandle cfNodes, ColumnFamilyHandle cfRefs, byte[] root, WriteBatch wb, ReadOptions ro, KeyPrefixer keyPrefixer) throws RocksDBException {
         if (root == null || root.length != 32) return new long[]{0, 0};
         long touched = 0, deleted = 0;
         Deque<byte[]> q = new ArrayDeque<>();
@@ -130,18 +135,19 @@ public class RefcountGcStrategy implements GcStrategy {
             byte[] h = q.removeFirst();
             String key = Arrays.toString(h);
             if (!seen.add(key)) continue;
-            long cnt = getRef(db, cfNodes, h);
+            long cnt = getRef(db, cfNodes, h, keyPrefixer);
             long next = Math.max(0, cnt - 1);
             if (next == 0) {
                 // delete count and node
-                wb.delete(cfNodes, refKey(h));
-                wb.delete(cfNodes, h);
+                wb.delete(cfNodes, keyPrefixer.prefix(refKey(h)));
+                wb.delete(cfNodes, keyPrefixer.prefix(h));
                 deleted++;
             } else {
-                putRef(wb, cfNodes, h, next);
+                putRef(wb, cfNodes, h, next, keyPrefixer);
             }
             touched++;
-            byte[] enc = (ro != null) ? db.get(cfNodes, ro, h) : db.get(cfNodes, h);
+            byte[] prefixedKey = keyPrefixer.prefix(h);
+            byte[] enc = (ro != null) ? db.get(cfNodes, ro, prefixedKey) : db.get(cfNodes, prefixedKey);
             if (enc == null) continue;
             for (byte[] ch : NodeRefParser.childRefs(enc)) q.addLast(ch);
         }
@@ -153,16 +159,16 @@ public class RefcountGcStrategy implements GcStrategy {
         return false;
     }
 
-    private static long getRef(RocksDB db, ColumnFamilyHandle cfNodes, byte[] key) throws RocksDBException {
-        byte[] v = db.get(cfNodes, refKey(key));
+    private static long getRef(RocksDB db, ColumnFamilyHandle cfNodes, byte[] key, KeyPrefixer keyPrefixer) throws RocksDBException {
+        byte[] v = db.get(cfNodes, keyPrefixer.prefix(refKey(key)));
         if (v == null || v.length != 8) return 0L;
         return ByteBuffer.wrap(v).getLong();
     }
 
-    private static void putRef(WriteBatch wb, ColumnFamilyHandle cfNodes, byte[] key, long val) throws RocksDBException {
+    private static void putRef(WriteBatch wb, ColumnFamilyHandle cfNodes, byte[] key, long val, KeyPrefixer keyPrefixer) throws RocksDBException {
         ByteBuffer bb = ByteBuffer.allocate(8);
         bb.putLong(val);
-        wb.put(cfNodes, refKey(key), bb.array());
+        wb.put(cfNodes, keyPrefixer.prefix(refKey(key)), bb.array());
     }
 
     private static byte[] refKey(byte[] nodeHash) {

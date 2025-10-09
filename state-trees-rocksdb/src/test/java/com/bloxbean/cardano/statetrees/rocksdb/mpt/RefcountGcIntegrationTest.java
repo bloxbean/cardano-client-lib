@@ -39,7 +39,7 @@ public class RefcountGcIntegrationTest {
                             st.rootsIndex().put(v, trie.getRootHash());
                             return null;
                         });
-                        RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb);
+                        RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
                         return null;
                     });
                     st.db().write(wo, wb);
@@ -58,7 +58,7 @@ public class RefcountGcIntegrationTest {
                             st.rootsIndex().put(v, trie.getRootHash());
                             return null;
                         });
-                        RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb);
+                        RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
                         return null;
                     });
                     st.db().write(wo, wb);

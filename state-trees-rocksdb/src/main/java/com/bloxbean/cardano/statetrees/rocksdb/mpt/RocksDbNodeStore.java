@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 
 import com.bloxbean.cardano.statetrees.api.NodeStore;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.KeyPrefixer;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
 
 import java.io.File;
@@ -45,12 +47,13 @@ import java.util.List;
  * </ul>
  *
  * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public class RocksDbNodeStore implements NodeStore, AutoCloseable {
 
     private final RocksDB db;
     private final ColumnFamilyHandle cfNodes;
+    private final KeyPrefixer keyPrefixer;
     private final DBOptions options;
     private final List<AutoCloseable> closeables;
     private static final ThreadLocal<WriteBatch> TL_BATCH = new ThreadLocal<>();
@@ -72,19 +75,28 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
      * @throws RuntimeException if RocksDB initialization fails
      */
     public RocksDbNodeStore(String dbPath) {
+        this(dbPath, NamespaceOptions.defaults());
+    }
+
+    public RocksDbNodeStore(String dbPath, NamespaceOptions namespaceOptions) {
         try {
             RocksDB.loadLibrary();
             File dbDirectory = new File(dbPath);
             if (!dbDirectory.exists()) dbDirectory.mkdirs();
 
+            RocksDbMptSchema.ColumnFamilies schema = RocksDbMptSchema.columnFamilies(namespaceOptions);
+
             java.util.List<byte[]> existingCfNames = RocksDB.listColumnFamilies(new org.rocksdb.Options().setCreateIfMissing(true), dbPath);
 
+            // CF options with 1-byte prefix extractor for namespace support
             ColumnFamilyOptions columnFamilyOptions = new ColumnFamilyOptions();
+            columnFamilyOptions.useFixedLengthPrefixExtractor(1);
+
             java.util.List<ColumnFamilyDescriptor> cfDescriptors = new java.util.ArrayList<>();
             int nodesColumnFamilyIndex = -1;
             for (byte[] cfName : existingCfNames) {
                 cfDescriptors.add(new ColumnFamilyDescriptor(cfName, columnFamilyOptions));
-                if (Arrays.equals(cfName, CF_NODES.getBytes())) nodesColumnFamilyIndex = cfDescriptors.size() - 1;
+                if (Arrays.equals(cfName, schema.nodes().getBytes())) nodesColumnFamilyIndex = cfDescriptors.size() - 1;
             }
             boolean hasDefaultCf = false;
             for (byte[] cfName : existingCfNames)
@@ -95,7 +107,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             if (!hasDefaultCf)
                 cfDescriptors.add(0, new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, columnFamilyOptions));
             if (nodesColumnFamilyIndex < 0) {
-                cfDescriptors.add(new ColumnFamilyDescriptor(CF_NODES.getBytes(), columnFamilyOptions));
+                cfDescriptors.add(new ColumnFamilyDescriptor(schema.nodes().getBytes(), columnFamilyOptions));
                 nodesColumnFamilyIndex = cfDescriptors.size() - 1;
             }
 
@@ -103,6 +115,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
             this.options = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
             this.db = RocksDB.open(this.options, dbPath, cfDescriptors, cfHandles);
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
+            this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.closeables = new java.util.ArrayList<>();
             this.closeables.add(columnFamilyOptions);
             this.closeables.add(cfNodes);
@@ -124,8 +137,13 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
      * @param cfNodes the column family handle for node storage
      */
     public RocksDbNodeStore(RocksDB db, ColumnFamilyHandle cfNodes) {
+        this(db, cfNodes, new KeyPrefixer((byte) 0x00));
+    }
+
+    public RocksDbNodeStore(RocksDB db, ColumnFamilyHandle cfNodes, KeyPrefixer keyPrefixer) {
         this.db = db;
         this.cfNodes = cfNodes;
+        this.keyPrefixer = keyPrefixer;
         this.options = null;
         this.closeables = java.util.Collections.emptyList();
     }
@@ -144,7 +162,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
                 byte[] cachedValue = stagedWrites.get(java.util.Arrays.toString(hash));
                 if (cachedValue != null) return cachedValue;
             }
-            return db.get(cfNodes, hash);
+            return db.get(cfNodes, keyPrefixer.prefix(hash));
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to read node from RocksDB", e);
         }
@@ -162,7 +180,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         try {
             WriteBatch currentBatch = TL_BATCH.get();
             if (currentBatch != null) {
-                currentBatch.put(cfNodes, hash, nodeBytes);
+                currentBatch.put(cfNodes, keyPrefixer.prefix(hash), nodeBytes);
                 java.util.Map<String, byte[]> stagedWrites = TL_STAGED.get();
                 if (stagedWrites == null) {
                     stagedWrites = new java.util.HashMap<>();
@@ -170,7 +188,7 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
                 }
                 stagedWrites.put(java.util.Arrays.toString(hash), nodeBytes);
             } else {
-                db.put(cfNodes, hash, nodeBytes);
+                db.put(cfNodes, keyPrefixer.prefix(hash), nodeBytes);
             }
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to write node to RocksDB", e);
@@ -188,11 +206,11 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
         try {
             WriteBatch currentBatch = TL_BATCH.get();
             if (currentBatch != null) {
-                currentBatch.delete(cfNodes, hash);
+                currentBatch.delete(cfNodes, keyPrefixer.prefix(hash));
                 java.util.Map<String, byte[]> stagedWrites = TL_STAGED.get();
                 if (stagedWrites != null) stagedWrites.remove(java.util.Arrays.toString(hash));
             } else {
-                db.delete(cfNodes, hash);
+                db.delete(cfNodes, keyPrefixer.prefix(hash));
             }
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to delete node from RocksDB", e);
@@ -221,6 +239,18 @@ public class RocksDbNodeStore implements NodeStore, AutoCloseable {
      */
     public ColumnFamilyHandle nodesHandle() {
         return cfNodes;
+    }
+
+    /**
+     * Returns the key prefixer used for namespace support.
+     *
+     * <p>Components that directly access RocksDB (like GC) need this to properly
+     * prefix/unprefix keys when iterating over the database.</p>
+     *
+     * @return the key prefixer instance
+     */
+    public KeyPrefixer keyPrefixer() {
+        return keyPrefixer;
     }
 
     /**

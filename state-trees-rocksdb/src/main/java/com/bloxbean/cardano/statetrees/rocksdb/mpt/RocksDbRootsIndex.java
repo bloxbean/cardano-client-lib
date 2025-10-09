@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 
 import com.bloxbean.cardano.statetrees.api.RootsIndex;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.KeyPrefixer;
+import com.bloxbean.cardano.statetrees.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.*;
 
 import java.io.File;
@@ -53,6 +55,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
 
     private final RocksDB db;
     private final ColumnFamilyHandle cfRoots;
+    private final KeyPrefixer keyPrefixer;
     private final DBOptions options;
     private final java.util.List<AutoCloseable> closeables;
     private static final ThreadLocal<WriteBatch> TL_BATCH = new ThreadLocal<>();
@@ -71,19 +74,28 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      * @throws RuntimeException if RocksDB initialization fails
      */
     public RocksDbRootsIndex(String dbPath) {
+        this(dbPath, NamespaceOptions.defaults());
+    }
+
+    public RocksDbRootsIndex(String dbPath, NamespaceOptions namespaceOptions) {
         try {
             RocksDB.loadLibrary();
             File dbDirectory = new File(dbPath);
             if (!dbDirectory.exists()) dbDirectory.mkdirs();
 
+            RocksDbMptSchema.ColumnFamilies schema = RocksDbMptSchema.columnFamilies(namespaceOptions);
+
             java.util.List<byte[]> existingCfNames = RocksDB.listColumnFamilies(new org.rocksdb.Options().setCreateIfMissing(true), dbPath);
 
+            // CF options with 1-byte prefix extractor for namespace support
             ColumnFamilyOptions columnFamilyOptions = new ColumnFamilyOptions();
+            columnFamilyOptions.useFixedLengthPrefixExtractor(1);
+
             java.util.List<ColumnFamilyDescriptor> cfDescriptors = new java.util.ArrayList<>();
             int rootsColumnFamilyIndex = -1;
             for (byte[] cfName : existingCfNames) {
                 cfDescriptors.add(new ColumnFamilyDescriptor(cfName, columnFamilyOptions));
-                if (Arrays.equals(cfName, CF_ROOTS.getBytes())) rootsColumnFamilyIndex = cfDescriptors.size() - 1;
+                if (Arrays.equals(cfName, schema.roots().getBytes())) rootsColumnFamilyIndex = cfDescriptors.size() - 1;
             }
             boolean hasDefaultCf = false;
             for (byte[] cfName : existingCfNames)
@@ -94,7 +106,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
             if (!hasDefaultCf)
                 cfDescriptors.add(0, new ColumnFamilyDescriptor(RocksDB.DEFAULT_COLUMN_FAMILY, columnFamilyOptions));
             if (rootsColumnFamilyIndex < 0) {
-                cfDescriptors.add(new ColumnFamilyDescriptor(CF_ROOTS.getBytes(), columnFamilyOptions));
+                cfDescriptors.add(new ColumnFamilyDescriptor(schema.roots().getBytes(), columnFamilyOptions));
                 rootsColumnFamilyIndex = cfDescriptors.size() - 1;
             }
 
@@ -102,6 +114,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
             this.options = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
             this.db = RocksDB.open(this.options, dbPath, cfDescriptors, cfHandles);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
+            this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.closeables = new java.util.ArrayList<>();
             this.closeables.add(columnFamilyOptions);
             this.closeables.add(cfRoots);
@@ -123,8 +136,13 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      * @param cfRoots the column family handle for root storage
      */
     public RocksDbRootsIndex(RocksDB db, ColumnFamilyHandle cfRoots) {
+        this(db, cfRoots, new KeyPrefixer((byte) 0x00));
+    }
+
+    public RocksDbRootsIndex(RocksDB db, ColumnFamilyHandle cfRoots, KeyPrefixer keyPrefixer) {
         this.db = db;
         this.cfRoots = cfRoots;
+        this.keyPrefixer = keyPrefixer;
         this.options = null;
         this.closeables = java.util.Collections.emptyList();
     }
@@ -137,21 +155,23 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      */
     @Override
     public void put(long versionOrSlot, byte[] rootHash) {
-        byte[] versionKey = toBytes(versionOrSlot);
+        byte[] versionKey = keyPrefixer.prefix(toBytes(versionOrSlot));
+        byte[] prefixedLatestKey = keyPrefixer.prefix(LATEST_KEY);
+        byte[] prefixedLastVersionKey = keyPrefixer.prefix(LAST_VERSION_KEY);
         try {
             WriteBatch currentBatch = TL_BATCH.get();
             if (currentBatch != null) {
                 currentBatch.put(cfRoots, versionKey, rootHash);
-                currentBatch.put(cfRoots, LATEST_KEY, rootHash);
+                currentBatch.put(cfRoots, prefixedLatestKey, rootHash);
             } else {
                 db.put(cfRoots, versionKey, rootHash);
-                db.put(cfRoots, LATEST_KEY, rootHash);
+                db.put(cfRoots, prefixedLatestKey, rootHash);
             }
             // Maintain LAST_VERSION_KEY for monotonic versioning utilities
             long currentMaxVersion = lastVersion();
             if (versionOrSlot > currentMaxVersion) {
-                if (currentBatch != null) currentBatch.put(cfRoots, LAST_VERSION_KEY, toBytes(versionOrSlot));
-                else db.put(cfRoots, LAST_VERSION_KEY, toBytes(versionOrSlot));
+                if (currentBatch != null) currentBatch.put(cfRoots, prefixedLastVersionKey, toBytes(versionOrSlot));
+                else db.put(cfRoots, prefixedLastVersionKey, toBytes(versionOrSlot));
             }
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to store root hash", e);
@@ -164,7 +184,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
     @Override
     public byte[] get(long versionOrSlot) {
         try {
-            return db.get(cfRoots, toBytes(versionOrSlot));
+            return db.get(cfRoots, keyPrefixer.prefix(toBytes(versionOrSlot)));
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to retrieve root hash for version " + versionOrSlot, e);
         }
@@ -176,7 +196,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
     @Override
     public byte[] latest() {
         try {
-            return db.get(cfRoots, LATEST_KEY);
+            return db.get(cfRoots, keyPrefixer.prefix(LATEST_KEY));
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to retrieve latest root hash", e);
         }
@@ -192,13 +212,17 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      */
     public java.util.NavigableMap<Long, byte[]> listAll() {
         java.util.NavigableMap<Long, byte[]> versionRootMap = new java.util.TreeMap<>();
-        try (ReadOptions readOptions = new ReadOptions(); RocksIterator iterator = db.newIterator(cfRoots, readOptions)) {
+        byte[] prefixedLatestKey = keyPrefixer.prefix(LATEST_KEY);
+        byte[] prefixedLastVersionKey = keyPrefixer.prefix(LAST_VERSION_KEY);
+        try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
+             RocksIterator iterator = db.newIterator(cfRoots, readOptions)) {
             for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
-                byte[] key = iterator.key();
-                if (java.util.Arrays.equals(key, LATEST_KEY) || java.util.Arrays.equals(key, LAST_VERSION_KEY))
+                byte[] prefixedKey = iterator.key();
+                if (java.util.Arrays.equals(prefixedKey, prefixedLatestKey) || java.util.Arrays.equals(prefixedKey, prefixedLastVersionKey))
                     continue;
-                if (key.length != 8) continue; // skip unknown keys
-                long version = java.nio.ByteBuffer.wrap(key).getLong();
+                byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                if (unprefixedKey.length != 8) continue; // skip unknown keys
+                long version = java.nio.ByteBuffer.wrap(unprefixedKey).getLong();
                 byte[] rootHash = iterator.value();
                 versionRootMap.put(version, rootHash);
             }
@@ -220,14 +244,18 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         java.util.NavigableMap<Long, byte[]> rangeResults = new java.util.TreeMap<>();
         if (fromInclusive > toInclusive) return rangeResults;
 
-        byte[] startKey = toBytes(fromInclusive);
-        try (ReadOptions readOptions = new ReadOptions(); RocksIterator iterator = db.newIterator(cfRoots, readOptions)) {
+        byte[] startKey = keyPrefixer.prefix(toBytes(fromInclusive));
+        byte[] prefixedLatestKey = keyPrefixer.prefix(LATEST_KEY);
+        byte[] prefixedLastVersionKey = keyPrefixer.prefix(LAST_VERSION_KEY);
+        try (ReadOptions readOptions = keyPrefixer.createPrefixReadOptions();
+             RocksIterator iterator = db.newIterator(cfRoots, readOptions)) {
             for (iterator.seek(startKey); iterator.isValid(); iterator.next()) {
-                byte[] key = iterator.key();
-                if (java.util.Arrays.equals(key, LATEST_KEY) || java.util.Arrays.equals(key, LAST_VERSION_KEY))
+                byte[] prefixedKey = iterator.key();
+                if (java.util.Arrays.equals(prefixedKey, prefixedLatestKey) || java.util.Arrays.equals(prefixedKey, prefixedLastVersionKey))
                     continue;
-                if (key.length != 8) continue;
-                long version = java.nio.ByteBuffer.wrap(key).getLong();
+                byte[] unprefixedKey = keyPrefixer.unprefix(prefixedKey);
+                if (unprefixedKey.length != 8) continue;
+                long version = java.nio.ByteBuffer.wrap(unprefixedKey).getLong();
                 if (version > toInclusive) break;
                 rangeResults.put(version, iterator.value());
             }
@@ -246,7 +274,7 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
      */
     public long lastVersion() {
         try {
-            byte[] versionBytes = db.get(cfRoots, LAST_VERSION_KEY);
+            byte[] versionBytes = db.get(cfRoots, keyPrefixer.prefix(LAST_VERSION_KEY));
             if (versionBytes == null || versionBytes.length != 8) return -1L;
             return ByteBuffer.wrap(versionBytes).getLong();
         } catch (RocksDBException e) {
@@ -266,8 +294,9 @@ public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
         long nextVersionNumber = lastVersion() + 1;
         try {
             WriteBatch currentBatch = TL_BATCH.get();
-            if (currentBatch != null) currentBatch.put(cfRoots, LAST_VERSION_KEY, toBytes(nextVersionNumber));
-            else db.put(cfRoots, LAST_VERSION_KEY, toBytes(nextVersionNumber));
+            byte[] prefixedKey = keyPrefixer.prefix(LAST_VERSION_KEY);
+            if (currentBatch != null) currentBatch.put(cfRoots, prefixedKey, toBytes(nextVersionNumber));
+            else db.put(cfRoots, prefixedKey, toBytes(nextVersionNumber));
             return nextVersionNumber;
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to generate next version", e);

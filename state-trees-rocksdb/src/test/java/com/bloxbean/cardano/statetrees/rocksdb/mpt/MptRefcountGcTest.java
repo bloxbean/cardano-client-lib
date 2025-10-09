@@ -54,7 +54,7 @@ class MptRefcountGcTest {
                 trie.put(b("k2"), b("v2"));
                 long ver = st.rootsIndex().nextVersion();
                 st.rootsIndex().put(ver, trie.getRootHash());
-                RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb);
+                RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
                 return null;
             });
             st.db().write(wo, wb);
@@ -68,7 +68,7 @@ class MptRefcountGcTest {
                 trie.put(b("k3"), b("v3"));
                 long ver = st.rootsIndex().nextVersion();
                 st.rootsIndex().put(ver, trie.getRootHash());
-                RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb);
+                RefcountGcStrategy.incrementAll(st.db(), st.nodeStore().nodesHandle(), st.nodeStore().nodesHandle(), trie.getRootHash(), wb, st.nodeStore().keyPrefixer());
                 return null;
             });
             st.db().write(wo, wb);
