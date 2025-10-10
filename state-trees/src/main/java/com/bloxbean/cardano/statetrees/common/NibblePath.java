@@ -34,7 +34,7 @@ import java.util.Objects;
  * boolean matches = keyPath.startsWith(NibblePath.fromHexString("68"));
  * }</pre>
  *
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class NibblePath implements Comparable<NibblePath> {
 

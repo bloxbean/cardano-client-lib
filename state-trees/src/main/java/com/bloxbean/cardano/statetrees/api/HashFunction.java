@@ -13,8 +13,7 @@ package com.bloxbean.cardano.statetrees.api;
  * MerklePatriciaTrie trie = new MerklePatriciaTrie(store, blake2b);
  * }</pre>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 @FunctionalInterface
 public interface HashFunction {

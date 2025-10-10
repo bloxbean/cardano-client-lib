@@ -42,7 +42,7 @@ import java.util.List;
  * </pre>
  *
  * @see JmtProofCodec
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class ClassicJmtProofCodec implements JmtProofCodec {
 

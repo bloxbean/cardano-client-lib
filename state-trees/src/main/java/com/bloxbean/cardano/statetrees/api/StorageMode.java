@@ -7,7 +7,6 @@ package com.bloxbean.cardano.statetrees.api;
  * in snapshot mode with only the current state. This is a storage-agnostic concept
  * that applies to all backends (RocksDB, RDBMS, etc.).</p>
  *
- * @author Bloxbean Project
  * @since 0.8.0
  */
 public enum StorageMode {

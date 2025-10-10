@@ -39,8 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * are aggregated into a single RuntimeException with suppressed exceptions containing
  * the individual failure details.</p>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class RocksDbResources implements AutoCloseable {
 

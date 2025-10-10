@@ -42,8 +42,7 @@ import java.util.Objects;
  * }
  * }</pre>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class RocksDbOperationException extends RocksDbStorageException {
 

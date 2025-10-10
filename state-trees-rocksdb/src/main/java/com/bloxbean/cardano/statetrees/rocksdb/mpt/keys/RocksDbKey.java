@@ -21,8 +21,7 @@ import java.util.Objects;
  *
  * <p><b>Thread Safety:</b> All RocksDbKey implementations are immutable and thread-safe.</p>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public abstract class RocksDbKey {
 

@@ -36,8 +36,7 @@ import java.util.Objects;
  * rootsIndex.put(customKey, checkpointData);
  * }</pre>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class SpecialKey extends RocksDbKey {
 

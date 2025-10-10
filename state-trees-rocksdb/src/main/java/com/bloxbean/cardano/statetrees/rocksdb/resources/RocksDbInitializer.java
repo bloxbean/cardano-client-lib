@@ -41,8 +41,7 @@ import java.util.Objects;
  * } // All resources automatically cleaned up
  * }</pre>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class RocksDbInitializer {
 

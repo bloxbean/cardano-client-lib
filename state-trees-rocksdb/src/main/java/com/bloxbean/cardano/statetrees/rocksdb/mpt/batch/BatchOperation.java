@@ -55,8 +55,7 @@ import com.bloxbean.cardano.statetrees.rocksdb.exceptions.RocksDbStorageExceptio
  * handle cleanup and provide appropriate context in case of failures.</p>
  *
  * @param <T> the return type of the batch operation
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 @FunctionalInterface
 public interface BatchOperation<T> {

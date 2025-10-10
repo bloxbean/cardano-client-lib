@@ -45,8 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * create its own batch context. Unlike ThreadLocal, this design makes the
  * single-threaded nature explicit and prevents accidental sharing bugs.</p>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class RocksDbBatchContext implements AutoCloseable {
 

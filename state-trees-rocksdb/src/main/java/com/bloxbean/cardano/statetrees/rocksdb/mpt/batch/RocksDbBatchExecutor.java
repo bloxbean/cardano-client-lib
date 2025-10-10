@@ -58,8 +58,7 @@ import java.util.concurrent.ForkJoinPool;
  * with detailed context about the failure. The batch context is automatically
  * cleaned up even in case of errors.</p>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class RocksDbBatchExecutor {
 

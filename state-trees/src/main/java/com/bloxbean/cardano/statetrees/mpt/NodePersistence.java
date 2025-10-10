@@ -47,7 +47,7 @@ import java.util.Objects;
  * direct storage operations, as it simply delegates to the underlying store
  * with better type safety and organization.</p>
  *
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class NodePersistence {
     private final NodeStore store;

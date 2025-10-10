@@ -41,8 +41,7 @@ package com.bloxbean.cardano.statetrees.rocksdb.exceptions;
  * }
  * }</pre>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class RocksDbBatchException extends RocksDbStorageException {
 

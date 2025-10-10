@@ -34,7 +34,6 @@ package com.bloxbean.cardano.statetrees.api;
  * <p><b>Lifecycle:</b> Implementations must properly manage backend resources.
  * Always use try-with-resources or ensure {@link #close()} is called.</p>
  *
- * @author Bloxbean Project
  * @since 0.8.0
  * @see NodeStore
  * @see RootsIndex

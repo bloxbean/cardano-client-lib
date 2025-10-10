@@ -18,9 +18,8 @@ package com.bloxbean.cardano.statetrees.api;
  * <p>Thread Safety: Implementations should document their thread safety guarantees.
  * The MPT itself is not thread-safe and requires external synchronization.</p>
  *
- * @author Bloxbean Project
  * @see com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie
- * @since 0.6.0
+ * @since 0.8.0
  */
 public interface NodeStore {
     /**

@@ -45,11 +45,10 @@ import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbRootsIndex;
  * can be executed concurrently, though individual strategies may have their
  * own concurrency characteristics.</p>
  *
- * @author Bloxbean Project
  * @see GcStrategy
  * @see RetentionPolicy
  * @see GcOptions
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class GcManager {
     private final RocksDbNodeStore nodeStore;

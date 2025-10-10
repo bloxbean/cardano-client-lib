@@ -56,8 +56,7 @@ import java.io.File;
  * <p><b>Thread Safety:</b> The underlying RocksDB instance is thread-safe, but
  * the MPT operations require external synchronization.</p>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class RocksDbStateTrees implements StateTrees {
 

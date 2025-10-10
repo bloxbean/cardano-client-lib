@@ -48,8 +48,7 @@ import java.util.Arrays;
  *   <li>Batch operations reduce write amplification</li>
  * </ul>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public class RocksDbRootsIndex implements RootsIndex, AutoCloseable {
 

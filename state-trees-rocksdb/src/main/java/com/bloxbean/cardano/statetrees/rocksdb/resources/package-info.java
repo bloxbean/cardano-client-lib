@@ -39,7 +39,6 @@
  * } // All resources automatically cleaned up
  * }</pre>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 package com.bloxbean.cardano.statetrees.rocksdb.resources;

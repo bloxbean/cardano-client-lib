@@ -65,7 +65,6 @@ import java.util.Optional;
  * <p><b>Thread Safety:</b> This class is NOT thread-safe. External synchronization
  * is required for concurrent access.</p>
  *
- * @author Bloxbean Project
  * @see NodeStore
  * @see HashFunction
  * @see com.bloxbean.cardano.statetrees.mpt.SecureTrie
@@ -234,7 +233,7 @@ public final class MerklePatriciaTrie {
      * <p>This immutable class encapsulates the results of prefix scans,
      * providing access to both the key and its associated value.</p>
      *
-     * @since 0.6.0
+     * @since 0.8.0
      */
     public static final class Entry {
         private final byte[] key;

@@ -46,7 +46,6 @@ import java.util.List;
  *   <li>Consider tuning RocksDB options for your workload</li>
  * </ul>
  *
- * @author Bloxbean Project
  * @since 0.8.0
  */
 public class RocksDbNodeStore implements NodeStore, AutoCloseable {

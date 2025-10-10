@@ -50,8 +50,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * from multiple threads concurrently. Batch execution is serialized to maintain
  * consistency.</p>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class BatchAccumulator implements AutoCloseable {
 

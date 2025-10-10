@@ -25,8 +25,7 @@ package com.bloxbean.cardano.statetrees.rocksdb.mpt.keys;
  * byte[] retrieved = nodeStore.get(key);
  * }</pre>
  *
- * @author Bloxbean Project
- * @since 0.6.0
+ * @since 0.8.0
  */
 public final class NodeHashKey extends RocksDbKey {
 
