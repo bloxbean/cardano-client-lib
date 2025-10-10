@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 
 import com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie;
+import com.bloxbean.cardano.statetrees.api.StorageMode;
 import com.bloxbean.cardano.statetrees.rocksdb.namespace.NamespaceOptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

@@ -3,11 +3,11 @@ package com.bloxbean.cardano.statetrees.rocksdb.tools;
 import com.bloxbean.cardano.statetrees.api.HashFunction;
 import com.bloxbean.cardano.statetrees.api.MerklePatriciaTrie;
 import com.bloxbean.cardano.statetrees.api.NodeStore;
+import com.bloxbean.cardano.statetrees.api.StorageMode;
 import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbNodeStore;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbStateTrees;
-import com.bloxbean.cardano.statetrees.rocksdb.mpt.StorageMode;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

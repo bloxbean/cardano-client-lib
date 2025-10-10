@@ -1,10 +1,11 @@
-package com.bloxbean.cardano.statetrees.rocksdb.mpt;
+package com.bloxbean.cardano.statetrees.api;
 
 /**
- * Storage mode for MPT RocksDB state trees.
+ * Storage mode for state trees (applicable to all storage backends).
  *
- * <p>Determines whether the database stores multiple historical versions or operates
- * in snapshot mode with only the current state.</p>
+ * <p>Determines whether the state tree stores multiple historical versions or operates
+ * in snapshot mode with only the current state. This is a storage-agnostic concept
+ * that applies to all backends (RocksDB, RDBMS, etc.).</p>
  *
  * @author Bloxbean Project
  * @since 0.8.0
@@ -29,8 +30,7 @@ public enum StorageMode {
      * Single-version snapshot mode.
      *
      * <p>Stores only the current state (always at version 0). Each commit overwrites
-     * the previous root, creating orphaned nodes that must be periodically cleaned up
-     * via {@link RocksDbStateTrees#cleanupOrphanedNodes}.</p>
+     * the previous root, creating orphaned nodes that must be periodically cleaned up.</p>
      *
      * <p><b>Use when:</b></p>
      * <ul>

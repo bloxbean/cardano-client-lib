@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 
+import com.bloxbean.cardano.statetrees.api.StateTrees;
+import com.bloxbean.cardano.statetrees.api.StorageMode;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcOptions;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcReport;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RetentionPolicy;
@@ -57,7 +59,7 @@ import java.io.File;
  * @author Bloxbean Project
  * @since 0.6.0
  */
-public final class RocksDbStateTrees implements AutoCloseable {
+public final class RocksDbStateTrees implements StateTrees {
 
     private static final String MODE_METADATA_KEY_SUFFIX = "_storage_mode";
 
@@ -386,6 +388,26 @@ public final class RocksDbStateTrees implements AutoCloseable {
             throw new IllegalStateException("getCurrentRoot() requires SINGLE_VERSION mode. Use rootsIndex().get(version) for MULTI_VERSION mode.");
         }
         return rootsIndex.get(0L);
+    }
+
+    /**
+     * Clean up orphaned nodes in snapshot mode (StateTrees interface implementation).
+     *
+     * <p>This is the generic interface method that accepts Object for backend-agnostic
+     * usage. For RocksDB, the options parameter should be a {@link GcOptions} instance.</p>
+     *
+     * @param options garbage collection options (must be {@link GcOptions} for RocksDB)
+     * @return a GcReport wrapped as Object
+     * @throws IllegalStateException if called in MULTI_VERSION mode
+     * @throws IllegalArgumentException if options is not a GcOptions instance
+     * @throws Exception if GC operation fails
+     */
+    @Override
+    public Object cleanupOrphanedNodes(Object options) throws Exception {
+        if (!(options instanceof GcOptions)) {
+            throw new IllegalArgumentException("Options must be a GcOptions instance for RocksDB backend");
+        }
+        return cleanupOrphanedNodes((GcOptions) options);
     }
 
     /**
