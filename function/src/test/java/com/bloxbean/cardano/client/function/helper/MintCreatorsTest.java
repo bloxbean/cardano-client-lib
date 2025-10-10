@@ -175,7 +175,14 @@ class MintCreatorsTest extends BaseTest {
                 .andThen(MintCreators.mintCreator(policy1.getPolicyScript(), multiAsset2, true))
                 .apply(context, transaction);
 
-        assertThat(transaction.getBody().getMint()).contains(multiAsset1, multiAsset2);
+        // When using the same policy multiple times, assets should be merged into a single MultiAsset
+        MultiAsset expectedMergedAsset = MultiAsset.builder()
+                .policyId(policy1.getPolicyId())
+                .assets(List.of(
+                        Asset.builder().name("abc").value(BigInteger.valueOf(100)).build(),
+                        Asset.builder().name("xyz").value(BigInteger.valueOf(200)).build()
+                )).build();
+        assertThat(transaction.getBody().getMint()).containsExactly(expectedMergedAsset);
         assertThat(transaction.getWitnessSet().getNativeScripts()).hasSize(1);
         assertThat(transaction.getAuxiliaryData().getNativeScripts()).hasSize(1);
         assertThat(transaction.getWitnessSet().getNativeScripts()).contains(policy1.getPolicyScript());

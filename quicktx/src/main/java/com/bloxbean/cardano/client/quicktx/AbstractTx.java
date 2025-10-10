@@ -1,50 +1,42 @@
 package com.bloxbean.cardano.client.quicktx;
 
+import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
-import com.bloxbean.cardano.client.api.util.AssetUtil;
-import com.bloxbean.cardano.client.exception.CborRuntimeException;
-import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.AuxDataProviders;
 import com.bloxbean.cardano.client.function.helper.InputBuilders;
-import com.bloxbean.cardano.client.function.helper.MintCreators;
-import com.bloxbean.cardano.client.function.helper.OutputBuilders;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.quicktx.intent.*;
+import java.util.Objects;
+
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
-import com.bloxbean.cardano.client.util.Tuple;
 import com.bloxbean.cardano.hdwallet.Wallet;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public abstract class AbstractTx<T> {
-    public static final String DUMMY_TREASURY_ADDRESS = "_TREASURY_ADDRESS_";
-    protected List<TransactionOutput> outputs;
-    protected List<Tuple<Script, MultiAsset>> multiAssets;
-    protected Metadata txMetadata;
-    //custom change address
     protected String changeAddress;
-    protected List<Utxo> inputUtxos;
 
     //Required for script
     protected PlutusData changeData;
     protected String changeDatahash;
 
-    protected List<DepositRefundContext> depositRefundContexts;
-    protected DonationContext donationContext;
+    protected boolean hasMultiAssetMinting;
+
+    // Function-based lazy UTXO resolver for script transactions
+    protected Function<UtxoSupplier, List<Utxo>> lazyUtxoResolver;
+
+    protected List<TxIntent> intentions;
 
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
@@ -209,39 +201,29 @@ public abstract class AbstractTx<T> {
         if (datumHash != null && datumHash.length > 0 && datum != null)
             throw new TxBuildException("Both datumHash and datum cannot be set. Only one of them can be set");
 
-        TransactionOutput transactionOutput = TransactionOutput.builder()
-                .address(address)
-                .value(Value.builder().coin(BigInteger.ZERO).build())
-                .build();
+        // Create and store payment intention with original objects
+        PaymentIntent.PaymentIntentBuilder builder = PaymentIntent.builder()
+            .address(address)
+            .amounts(amounts);
 
-        for (Amount amount : amounts) {
-            String unit = amount.getUnit();
-            if (unit.equals(LOVELACE)) {
-                transactionOutput.getValue().setCoin(amount.getQuantity());
-            } else {
-                Tuple<String, String> policyAssetName = AssetUtil.getPolicyIdAndAssetName(unit);
-                Asset asset = new Asset(policyAssetName._2, amount.getQuantity());
-                MultiAsset multiAsset = new MultiAsset(policyAssetName._1, List.of(asset));
-                Value newValue = transactionOutput.getValue().add(new Value(BigInteger.ZERO, List.of(multiAsset)));
-                transactionOutput.setValue(newValue);
-            }
-        }
-
-        //set datum
         if (datum != null) {
-            transactionOutput.setInlineDatum(datum);
+            builder.datum(datum);
         } else if (datumHash != null) {
-            transactionOutput.setDatumHash(datumHash);
+            builder.datumHashBytes(datumHash);
         }
 
         if (scriptRef != null) {
-            transactionOutput.setScriptRef(scriptRef);
-        } else if (scriptRefBytes != null)
-            transactionOutput.setScriptRef(scriptRefBytes);
+            builder.refScript(scriptRef);
+        } else if (scriptRefBytes != null) {
+            builder.scriptRefBytes(scriptRefBytes);
+        }
 
-        if (outputs == null)
-            outputs = new ArrayList<>();
-        outputs.add(transactionOutput);
+        PaymentIntent intention = builder.build();
+
+        if (intentions == null) {
+            intentions = new ArrayList<>();
+        }
+        intentions.add(intention);
 
         return (T) this;
     }
@@ -253,11 +235,82 @@ public abstract class AbstractTx<T> {
      * @return T
      */
     public T donateToTreasury(@NonNull BigInteger currentTreasuryValue, @NonNull BigInteger donationAmount) {
-        if (donationContext != null)
-            throw new TxBuildException("Can't donate to treasury multiple times in a single transaction");
-        donationContext = new DonationContext(currentTreasuryValue, donationAmount);
+        // Create and store donation intention
+        DonationIntent intention = DonationIntent.of(currentTreasuryValue, donationAmount);
+
+        if (intentions == null) {
+            intentions = new ArrayList<>();
+        }
+        intentions.add(intention);
 
         return (T) this;
+    }
+
+    // ========== Intent-Based Recording ==========
+
+    /**
+     * Process all recorded intentions using three-phase architecture.
+     * This is called automatically at the beginning of complete().
+     *
+     * Phase 1: Collect and compose all TxOutputBuilders from intentions
+     * Phase 2: Build inputs (UTXO selection) - handled in complete()
+     * Phase 3: Apply all transaction transformations - handled in complete()
+     */
+    protected TxOutputBuilder preComplete() {
+        if (intentions == null || intentions.isEmpty()) {
+            return null;
+        }
+
+        // Create IntentContext for intention processing
+        IntentContext intentContext = IntentContext.builder()
+            .fromAddress(getFromAddress())
+            .changeAddress(getChangeAddress())
+            .build();
+
+        // Phase 1: Collect and compose all TxOutputBuilders
+        List<TxIntent> allIntentions = getIntentions();
+        TxOutputBuilder composedOutputBuilder = allIntentions.stream()
+            .map(intention -> intention.outputBuilder(intentContext))
+            .filter(Objects::nonNull)
+            .reduce(TxOutputBuilder::and)
+            .orElse(null);
+
+        return composedOutputBuilder;
+    }
+
+    /**
+     * Apply all intention transformations (Phase 3).
+     * This is called after UTXO selection in complete().
+     */
+    protected TxBuilder applyIntentions() {
+        if (intentions == null || intentions.isEmpty()) {
+            return (ctx, txn) -> { /* no-op */ };
+        }
+
+        // Create IntentContext for intention processing
+        IntentContext intentContext = IntentContext.builder()
+            .fromAddress(getFromAddress())
+            .changeAddress(getChangeAddress())
+            .build();
+        
+        // This ensures all intents are valid before any transaction building begins
+        List<TxIntent> allIntentions = getIntentions();
+        for (TxIntent intention : allIntentions) {
+            intention.validate();
+        }
+
+        // Phase 3: Apply all transformations (pre-processing + transaction changes)
+        TxBuilder combinedBuilder = (ctx, txn) -> { /* no-op base */ };
+
+        for (TxIntent intention : allIntentions) {
+            combinedBuilder = combinedBuilder.andThen(intention.preApply(intentContext));
+        }
+
+        for (TxIntent intention : allIntentions) {
+            combinedBuilder = combinedBuilder.andThen(intention.apply(intentContext));     // Transformations
+        }
+
+        return combinedBuilder;
     }
 
     /**
@@ -285,10 +338,14 @@ public abstract class AbstractTx<T> {
      * @return Tx
      */
     public T attachMetadata(Metadata metadata) {
-        if (this.txMetadata == null)
-            this.txMetadata = metadata;
-        else
-            this.txMetadata = this.txMetadata.merge(metadata);
+        // Create and store metadata intention
+        MetadataIntent intention = MetadataIntent.from(metadata);
+
+        if (intentions == null) {
+            intentions = new ArrayList<>();
+        }
+        intentions.add(intention);
+
         return (T) this;
     }
 
@@ -298,81 +355,48 @@ public abstract class AbstractTx<T> {
      * @return true if there are multi-assets to be minted; false otherwise
      */
     boolean hasMultiAssetMinting() {
-        return multiAssets != null && !multiAssets.isEmpty();
+        return hasMultiAssetMinting;
     }
 
     TxBuilder complete() {
-        TxOutputBuilder txOutputBuilder = null;
+        if (this.intentions != null && !this.intentions.isEmpty()) {
+            java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
+                    .filter(i -> i instanceof TxInputIntent)
+                    .map(i -> (TxInputIntent) i)
+                    .map(TxInputIntent::utxoStrategy)
+                    .filter(Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toList());
 
-        if (depositRefundContexts != null && depositRefundContexts.size() > 0) {
-            for (DepositRefundContext depositPaymentContext: depositRefundContexts) {
-                if (txOutputBuilder == null)
-                    txOutputBuilder = DepositRefundOutputBuilder.createFromDepositRefundContext(depositPaymentContext);
-                else
-                    txOutputBuilder = txOutputBuilder.and(DepositRefundOutputBuilder.createFromDepositRefundContext(depositPaymentContext));
-            }
-        }
-
-        //Add donation dummy output to trigger input selection
-        if (donationContext != null) {
-            txOutputBuilder = txOutputBuilder == null ? buildDummyDonationTxOutBuilder()
-                    : txOutputBuilder.and(buildDummyDonationTxOutBuilder());
-        }
-
-        //Define outputs
-        if (outputs != null) {
-            for (TransactionOutput output : outputs) {
-                if (txOutputBuilder == null)
-                    txOutputBuilder = OutputBuilders.createFromOutput(output);
-                else
-                    txOutputBuilder = txOutputBuilder.and(OutputBuilders.createFromOutput(output));
-            }
-        }
-
-        //Add multi assets to tx builder context
-        if (multiAssets != null && !multiAssets.isEmpty()) {
-            if (txOutputBuilder == null)
-                txOutputBuilder = (context, txn) -> {
+            if (!strategies.isEmpty()) {
+                this.lazyUtxoResolver = (supplier) -> {
+                    java.util.List<com.bloxbean.cardano.client.api.model.Utxo> resolved = new java.util.ArrayList<>();
+                    for (var s : strategies) {
+                        resolved.addAll(s.resolve(supplier));
+                    }
+                    return resolved;
                 };
-
-            txOutputBuilder = txOutputBuilder.and((context, txn) -> {
-                if (context.getMintMultiAssets() == null || context.getMintMultiAssets().isEmpty()) {
-                    multiAssets.forEach(multiAssetTuple -> {
-                        context.addMintMultiAsset(multiAssetTuple._2);
-                    });
-                }
-            });
+            }
         }
 
+        TxOutputBuilder txOutputBuilder = preComplete();
+
+        // Phase 2: Build inputs (UTXO selection)
         TxBuilder txBuilder;
         if (txOutputBuilder == null) {
             txBuilder = (context, txn) -> {
             };
         } else {
-            //Build inputs
-            if (inputUtxos != null && !inputUtxos.isEmpty()) {
-                txBuilder = buildInputBuildersFromUtxos(txOutputBuilder);
+            if (lazyUtxoResolver != null) {
+                // Handle function-based lazy UTXO resolution for script transactions
+                ContextAwareSupplier contextSupplier = new ContextAwareSupplier(lazyUtxoResolver);
+                txBuilder = buildInputBuildersFromUtxoSupplier(txOutputBuilder, contextSupplier);
             } else {
                 txBuilder = buildInputBuilders(txOutputBuilder);
             }
         }
 
-        //Mint assets
-        if (multiAssets != null && !multiAssets.isEmpty()) {
-            for (Tuple<Script, MultiAsset> multiAssetTuple : multiAssets) {
-                txBuilder = txBuilder
-                        .andThen(MintCreators.mintCreator(multiAssetTuple._1, multiAssetTuple._2));
-            }
-        }
-
-        //Add metadata
-        if (txMetadata != null)
-            txBuilder = txBuilder.andThen(AuxDataProviders.metadataProvider(txMetadata));
-
-        //Remove donation dummy output if required
-        if (donationContext != null) {
-            txBuilder = txBuilder.andThen(buildDonatationTxBuilder());
-        }
+        // Phase 3: Apply intention transformations
+        txBuilder = txBuilder.andThen(applyIntentions());
 
         return txBuilder;
     }
@@ -392,88 +416,36 @@ public abstract class AbstractTx<T> {
         return txBuilder;
     }
 
-    /**
-     * Build dummy donation output to trigger input selection
-     * @return TxOutputBuilder
-     */
-    private TxOutputBuilder buildDummyDonationTxOutBuilder() {
-        if (donationContext == null)
-            return null;
-
-        TxOutputBuilder dummyTxOutputBuilder = (context, outputs) -> {
-            var dummyDonationOutput = new TransactionOutput(DUMMY_TREASURY_ADDRESS, Value.builder().coin(donationContext.donationAmount).build());
-            outputs.add(dummyDonationOutput);
-        };
-
-        return dummyTxOutputBuilder;
-    }
-
-    /**
-     * Build donation TxBuilder to set donation amount and current treasury value
-     * Also to remove the dummy donation output
-     * @return TxBuilder
-     */
-    private TxBuilder buildDonatationTxBuilder() {
-        if (donationContext == null)
-            return null;
-
-        return (context, txn) -> {
-            txn.getBody().getOutputs().removeIf(output -> output.getAddress().equals(DUMMY_TREASURY_ADDRESS));
-            txn.getBody().setCurrentTreasuryValue(donationContext.currentTreasuryValue);
-            txn.getBody().setDonation(donationContext.donationAmount);
-        };
-    }
-
-    private TxBuilder buildInputBuildersFromUtxos(TxOutputBuilder txOutputBuilder) {
+    private TxBuilder buildInputBuildersFromUtxoSupplier(TxOutputBuilder txOutputBuilder, Supplier<List<Utxo>> utxoSupplier) {
         String _changeAddr = getChangeAddress();
 
         TxBuilder txBuilder;
-        if (changeData != null) {
-            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr, changeData));
-        } else if (changeDatahash != null) {
-            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr, changeDatahash));
+
+        // Check if we need to inject context for ContextAwareSupplier
+        if (utxoSupplier instanceof ContextAwareSupplier) {
+            ContextAwareSupplier contextSupplier = (ContextAwareSupplier) utxoSupplier;
+
+            // Create a TxBuilder that first injects context, then builds inputs
+            txBuilder = (context, transaction) -> {
+                // Inject the context's UtxoSupplier into our lazy supplier
+                contextSupplier.setContextSupplier(context.getUtxoSupplier());
+
+                // Now build inputs using the context-aware supplier
+                TxBuilder inputBuilder = txOutputBuilder.buildInputs(
+                    InputBuilders.createFromUtxos(utxoSupplier, _changeAddr, changeData, changeDatahash)
+                );
+
+                // Execute the input builder
+                inputBuilder.apply(context, transaction);
+            };
         } else {
-            txBuilder = txOutputBuilder.buildInputs(InputBuilders.createFromUtxos(inputUtxos, _changeAddr));
+            // Regular supplier - no context injection needed
+            txBuilder = txOutputBuilder.buildInputs(
+                InputBuilders.createFromUtxos(utxoSupplier, _changeAddr, changeData, changeDatahash)
+            );
         }
 
         return txBuilder;
-    }
-
-    @SneakyThrows
-    protected void addToMultiAssetList(@NonNull Script script, List<Asset> assets) {
-        String policyId = script.getPolicyId();
-        MultiAsset multiAsset = MultiAsset.builder()
-                .policyId(policyId)
-                .assets(assets)
-                .build();
-
-        if (multiAssets == null)
-            multiAssets = new ArrayList<>();
-
-        //Check if multiasset already exists
-        //If there is another mulitasset with same policy id, add the assets to that multiasset and use MultiAsset.plus method
-        //to create a new multiasset
-        multiAssets.stream().filter(ma -> {
-            try {
-                return ma._1.getPolicyId().equals(script.getPolicyId());
-            } catch (CborSerializationException e) {
-                throw new CborRuntimeException(e);
-            }
-        }).findFirst().ifPresentOrElse(ma -> {
-            multiAssets.remove(ma);
-            multiAssets.add(new Tuple<>(script, ma._2.add(multiAsset)));
-        }, () -> {
-            multiAssets.add(new Tuple<>(script, multiAsset));
-        });
-    }
-
-    protected void addDepositRefundContext(List<DepositRefundContext> _depositRefundContexts) {
-        if (this.depositRefundContexts == null)
-            this.depositRefundContexts = new ArrayList<>();
-
-        _depositRefundContexts.forEach(depositRefundContext -> {
-            this.depositRefundContexts.add(depositRefundContext);
-        });
     }
 
     /**
@@ -519,10 +491,76 @@ public abstract class AbstractTx<T> {
      */
     protected abstract String getFeePayer();
 
-    @Getter
-    @AllArgsConstructor
-    static class DonationContext {
-        private BigInteger currentTreasuryValue;
-        private BigInteger donationAmount;
+    /**
+     * Context-aware supplier that can resolve lazy UTXO strategies when context is available
+     */
+    private static class ContextAwareSupplier implements Supplier<List<Utxo>> {
+        private final Function<UtxoSupplier, List<Utxo>> resolver;
+        private UtxoSupplier contextSupplier;
+
+        ContextAwareSupplier(Function<UtxoSupplier, List<Utxo>> resolver) {
+            this.resolver = resolver;
+        }
+
+        void setContextSupplier(UtxoSupplier supplier) {
+            this.contextSupplier = supplier;
+        }
+
+        @Override
+        public List<Utxo> get() {
+            if (contextSupplier == null) {
+                throw new TxBuildException("ContextAwareSupplier called without injected UtxoSupplier");
+            }
+            return resolver.apply(contextSupplier);
+        }
+    }
+
+    /**
+     * Add an intention to this transaction.
+     * This is used internally by the YAML deserialization process.
+     * @param intention the intention to add
+     */
+    public void addIntention(TxIntent intention) {
+        if (intentions == null) {
+            intentions = new ArrayList<>();
+        }
+        intentions.add(intention);
+    }
+
+    /**
+     * Get the list of intentions for this transaction.
+     * @return list of intentions, or empty list if none
+     */
+    public java.util.List<TxIntent> getIntentions() {
+        return intentions != null ? intentions : new ArrayList<>();
+    }
+
+    /**
+     * Get the change address for this transaction.
+     * @return change address or null if not set
+     */
+    public String getPublicChangeAddress() {
+        return getChangeAddress();
+    }
+
+    /**
+     * Get change inline datum as hex if present; null otherwise.
+     */
+    public String getChangeDatumHex() {
+        if (changeData != null) {
+            try {
+                return changeData.serializeToHex();
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get change datum hash if present; null otherwise.
+     */
+    public String getChangeDatumHash() {
+        return changeDatahash;
     }
 }

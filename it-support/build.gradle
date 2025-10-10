@@ -1,0 +1,26 @@
+dependencies {
+    // Core dependencies needed for integration testing
+    api project(':core')
+    api project(':backend')
+    api project(':backend-modules:blockfrost')
+    api project(':backend-modules:koios')
+    api project(':hd-wallet')
+    api project(':common')
+
+    // Logging
+    api(libs.slf4j.reload4j)
+
+    // JSON utilities for test output
+    api libs.jackson.databind
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Integration Test Support'
+                description = 'Cardano Client Lib - Integration Test Support Module with common utilities for integration testing'
+            }
+        }
+    }
+}

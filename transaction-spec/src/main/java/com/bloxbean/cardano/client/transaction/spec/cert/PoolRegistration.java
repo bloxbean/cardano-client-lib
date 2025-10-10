@@ -9,7 +9,12 @@ import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.spec.UnitInterval;
 import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.util.serializers.ByteArrayToHexSerializer;
+import com.bloxbean.cardano.client.util.serializers.HexToByteArrayDeserializer;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
 import java.math.BigInteger;
@@ -24,6 +29,7 @@ import static com.bloxbean.cardano.client.transaction.util.SerializationUtil.cre
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PoolRegistration implements Certificate {
     private final CertificateType type = CertificateType.POOL_REGISTRATION;
 
@@ -32,6 +38,8 @@ public class PoolRegistration implements Certificate {
      * Example:
      *  HexUtil.decodeHexString(KeyGenUtil.getKeyHash(poolVerificationKey))
      */
+    @JsonSerialize(using = ByteArrayToHexSerializer.class)
+    @JsonDeserialize(using = HexToByteArrayDeserializer.class)
     private byte[] operator;
 
     /**
@@ -40,6 +48,8 @@ public class PoolRegistration implements Certificate {
      *  String vrfVkeyCbor = "58404682ed74c2ae...";
      *  Blake2bUtil.blake2bHash256(KeyGenCborUtil.cborToBytes(vrfVkeyCbor))
      */
+    @JsonSerialize(using = ByteArrayToHexSerializer.class)
+    @JsonDeserialize(using = HexToByteArrayDeserializer.class)
     private byte[] vrfKeyHash;
 
     private BigInteger pledge;
@@ -72,6 +82,7 @@ public class PoolRegistration implements Certificate {
     private String poolMetadataHash;
 
     @Override
+    @JsonIgnore
     public Array serialize(Era era) throws CborSerializationException {
         Array array = new Array();
         array.add(new UnsignedInteger(3));

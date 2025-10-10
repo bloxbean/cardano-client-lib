@@ -11,6 +11,10 @@ import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.quicktx.filter.ast.FilterNode;
+import com.bloxbean.cardano.client.quicktx.filter.dsl.F;
+import com.bloxbean.cardano.client.quicktx.filter.dsl.Spec;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -23,6 +27,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
+import static com.bloxbean.cardano.client.quicktx.filter.dsl.Filters.and;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -212,7 +217,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> Optional.of(sumScript)): null)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -283,7 +288,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withReferenceScripts(sumScript)
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> Optional.of(sumScript)): null)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -520,6 +525,197 @@ public class ScriptTxV3IT extends TestDataBaseIT {
                 .withChangeAddress(scriptAddress, plutusData);
 
         future = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withRequiredSigners(sender2.getBaseAddress())
+                .withVerifier(txn -> {
+                    System.out.println(JsonUtil.getPrettyJson(txn));
+                    assertThat(txn.getBody().getRequiredSigners()).hasSize(1);
+                    assertThat(txn.getBody().getRequiredSigners().get(0)) //Verify sender's payment cred hash in required signer
+                            .isEqualTo(sender2.getBaseAddress().getPaymentCredentialHash().get());
+                })
+                .completeAndWaitAsync(System.out::println, Executors.newSingleThreadExecutor());
+
+        var result1 = future.get();
+        System.out.println(result1);
+        assertTrue(result1.isSuccessful());
+        System.out.println(result1.getTxStatus());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
+    @Test
+    void alwaysTrueScript_withCompleteAsync_withPredicate() throws ApiException, ExecutionException, InterruptedException {
+        PlutusV3Script plutusScript = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        long randInt = System.currentTimeMillis();
+        BigIntPlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                .payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        var future = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWaitAsync(System.out::println);
+
+        var result = future.get();
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        String datumCborHex = plutusData.serializeToHex();
+//        Optional<Utxo> optionalUtxo = ScriptUtxoFinders.findFirstByInlineDatum(utxoSupplier, scriptAddress, plutusData);
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(scriptAddress, utx -> datumCborHex.equals(utx.getInlineDatum()), plutusData)
+//                .collectFrom(optionalUtxo.get(), plutusData)
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .attachSpendingValidator(plutusScript)
+                .withChangeAddress(scriptAddress, plutusData);
+
+        future = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withRequiredSigners(sender2.getBaseAddress())
+                .withVerifier(txn -> {
+                    System.out.println(JsonUtil.getPrettyJson(txn));
+                    assertThat(txn.getBody().getRequiredSigners()).hasSize(1);
+                    assertThat(txn.getBody().getRequiredSigners().get(0)) //Verify sender's payment cred hash in required signer
+                            .isEqualTo(sender2.getBaseAddress().getPaymentCredentialHash().get());
+                })
+                .completeAndWaitAsync(System.out::println, Executors.newSingleThreadExecutor());
+
+        var result1 = future.get();
+        System.out.println(result1);
+        assertTrue(result1.isSuccessful());
+        System.out.println(result1.getTxStatus());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
+    @Test
+    void alwaysTrueScript_withCompleteAsync_withListPredicate() throws ApiException, ExecutionException, InterruptedException {
+        PlutusV3Script plutusScript = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        long randInt = System.currentTimeMillis();
+        BigIntPlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                .payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        var future = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWaitAsync(System.out::println);
+
+        var result = future.get();
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        String datumCborHex = plutusData.serializeToHex();
+
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFromList(
+                        scriptAddress,
+                        utxos -> utxos.stream().anyMatch(utx -> datumCborHex.equals(utx.getInlineDatum())),
+                        plutusData
+                )
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .attachSpendingValidator(plutusScript)
+                .withChangeAddress(scriptAddress, plutusData);
+
+        future = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender2Addr)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .withRequiredSigners(sender2.getBaseAddress())
+                .withVerifier(txn -> {
+                    System.out.println(JsonUtil.getPrettyJson(txn));
+                    assertThat(txn.getBody().getRequiredSigners()).hasSize(1);
+                    assertThat(txn.getBody().getRequiredSigners().get(0)) //Verify sender's payment cred hash in required signer
+                            .isEqualTo(sender2.getBaseAddress().getPaymentCredentialHash().get());
+                })
+                .completeAndWaitAsync(System.out::println, Executors.newSingleThreadExecutor());
+
+        var result1 = future.get();
+        System.out.println(result1);
+        assertTrue(result1.isSuccessful());
+        System.out.println(result1.getTxStatus());
+
+        checkIfUtxoAvailable(result1.getValue(), sender2Addr);
+    }
+
+    @Test
+    void alwaysTrueScript_withCompleteAsync_filterSpec() throws ApiException, ExecutionException, InterruptedException {
+        PlutusV3Script plutusScript = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        long randInt = System.currentTimeMillis();
+        BigIntPlutusData plutusData = new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                .payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData)
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        var future = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWaitAsync(System.out::println);
+
+        var result = future.get();
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        String datumCborHex = plutusData.serializeToHex();
+
+        FilterNode filter = and(
+                F.inlineDatum().eq(datumCborHex),
+                F.lovelace().gte(1_000_000)
+        );
+
+        var filterSpec = Spec.of(filter).limitAll().build();
+
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(
+                        scriptAddress,
+                        filterSpec,
+                        //utxos -> utxos.stream().anyMatch(utx -> datumCborHex.equals(utx.getInlineDatum())),
+                        plutusData
+                )
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .attachSpendingValidator(plutusScript)
+                .withChangeAddress(scriptAddress, plutusData);
+
+        System.out.println(TxPlan.toYaml(scriptTx));
+
+        var scriptTx1 = TxPlan.from(TxPlan.toYaml(scriptTx));
+        System.out.println("*******");
+        System.out.println(TxPlan.toYaml(scriptTx1.getTxs()));
+
+        future = quickTxBuilder.compose(scriptTx1)
                 .feePayer(sender2Addr)
                 .withSigner(SignerProviders.signerFrom(sender2))
                 .withRequiredSigners(sender2.getBaseAddress())

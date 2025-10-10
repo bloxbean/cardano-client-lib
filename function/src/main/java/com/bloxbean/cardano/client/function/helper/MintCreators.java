@@ -50,7 +50,20 @@ public class MintCreators {
             if (transaction.getBody().getMint() == null) {
                 transaction.getBody().setMint(List.of(multiAsset));
             } else {
-                transaction.getBody().getMint().add(multiAsset);
+                List<MultiAsset> multiAssets = transaction.getBody().getMint();
+                // Check if a MultiAsset with the same policyId already exists. If yes, merge the assets
+                MultiAsset existingMultiAsset = multiAssets.stream()
+                        .filter(ma -> ma.getPolicyId().equals(multiAsset.getPolicyId()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (existingMultiAsset != null) {
+                    multiAssets.remove(existingMultiAsset);
+                    MultiAsset mergedMultiAsset = existingMultiAsset.add(multiAsset);
+                    multiAssets.add(mergedMultiAsset);
+                } else {
+                    multiAssets.add(multiAsset);
+                }
             }
 
             if (inclScriptInAuxData) {
