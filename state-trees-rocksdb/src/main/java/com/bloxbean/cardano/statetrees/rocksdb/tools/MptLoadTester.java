@@ -7,6 +7,7 @@ import com.bloxbean.cardano.statetrees.common.hash.Blake2b256;
 import com.bloxbean.cardano.statetrees.mpt.SecureTrie;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbNodeStore;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.RocksDbStateTrees;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.StorageMode;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,7 +45,7 @@ public final class MptLoadTester {
         } else {
             if (Files.notExists(options.rocksDbPath)) Files.createDirectories(options.rocksDbPath);
             // Use unified state trees manager so we can optionally record roots + refcounts
-            try (RocksDbStateTrees stateTrees = new RocksDbStateTrees(options.rocksDbPath.toString())) {
+            try (RocksDbStateTrees stateTrees = new RocksDbStateTrees(options.rocksDbPath.toString(), options.storageMode)) {
                 runLoad(stateTrees.nodeStore(), stateTrees, hash, options);
             } catch (UnsatisfiedLinkError | RuntimeException e) {
                 System.err.println("RocksDB JNI not available or failed to open: " + e.getMessage());
@@ -276,6 +277,7 @@ public final class MptLoadTester {
         final long gcInterval; // batches between GC runs (mark-sweep)
         final long refcountEvery; // batches between refcount increments
         final boolean noWal; // disable WAL for throughput tests
+        final StorageMode storageMode; // MULTI_VERSION (default) or SINGLE_VERSION
 
         private LoadOptions(long totalRecords,
                             int batchSize,
@@ -291,7 +293,8 @@ public final class MptLoadTester {
                             int keepLatest,
                             long gcInterval,
                             long refcountEvery,
-                            boolean noWal) {
+                            boolean noWal,
+                            StorageMode storageMode) {
             this.totalRecords = totalRecords;
             this.batchSize = batchSize;
             this.valueSize = valueSize;
@@ -307,6 +310,7 @@ public final class MptLoadTester {
             this.gcInterval = gcInterval;
             this.refcountEvery = refcountEvery;
             this.noWal = noWal;
+            this.storageMode = storageMode;
         }
 
         static LoadOptions parse(String[] args) {
@@ -325,6 +329,7 @@ public final class MptLoadTester {
             long gcInterval = 0L;
             long refcountEvery = 1L;
             boolean noWal = false;
+            StorageMode storageMode = StorageMode.MULTI_VERSION; // default
 
             for (String arg : args) {
                 if (arg.startsWith("--records=")) {
@@ -359,6 +364,15 @@ public final class MptLoadTester {
                     refcountEvery = Long.parseLong(arg.substring("--refcount-every=".length()));
                 } else if (arg.equals("--no-wal")) {
                     noWal = true;
+                } else if (arg.startsWith("--storage-mode=")) {
+                    String mode = arg.substring("--storage-mode=".length());
+                    if ("MULTI_VERSION".equalsIgnoreCase(mode) || "multi".equalsIgnoreCase(mode)) {
+                        storageMode = StorageMode.MULTI_VERSION;
+                    } else if ("SINGLE_VERSION".equalsIgnoreCase(mode) || "single".equalsIgnoreCase(mode)) {
+                        storageMode = StorageMode.SINGLE_VERSION;
+                    } else {
+                        throw new IllegalArgumentException("Invalid storage mode: " + mode + ". Use MULTI_VERSION or SINGLE_VERSION");
+                    }
                 } else if (arg.equals("--help") || arg.equals("-h")) {
                     printUsageAndExit();
                 }
@@ -368,28 +382,29 @@ public final class MptLoadTester {
             if (deleteRatio < 0.0d || deleteRatio > 1.0d) throw new IllegalArgumentException("--delete-ratio must be between 0.0 and 1.0");
 
             return new LoadOptions(records, batch, valueSize, inMemory, rocksPath, progress, proofEvery, deleteRatio, secure, recordRoots,
-                    gcMode, keepLatest, gcInterval, refcountEvery, noWal);
+                    gcMode, keepLatest, gcInterval, refcountEvery, noWal, storageMode);
         }
 
         private static void printUsageAndExit() {
             System.out.println("Usage: MptLoadTester [options]\n" +
-                    "  --records=N        Total operations (default 1_000_000)\n" +
-                    "  --batch=N          Updates per batch (default 1000)\n" +
-                    "  --value-size=N     Value size in bytes (default 128)\n" +
-                    "  --memory           Use in-memory NodeStore (default RocksDB)\n" +
-                    "  --rocksdb=PATH     RocksDB directory (default ./mpt-load-db)\n" +
-                    "  --secure           Use SecureTrie (hashed keys, default)\n" +
-                    "  --plain            Use plain MerklePatriciaTrie (raw keys)\n" +
-                    "  --no-roots         Do not record roots/refcounts (RocksDB only)\n" +
-                    "  --gc=MODE          none|refcount|marksweep (default none)\n" +
-                    "  --keep-latest=N    Retention window for roots (default 1)\n" +
-                    "  --gc-interval=N    Run mark-sweep every N batches (marksweep)\n" +
-                    "  --refcount-every=N Increment refcounts every N batches (refcount)\n" +
-                    "  --progress=N       Progress interval (default 100_000 ops)\n" +
-                    "  --proof-every=N    Build value+proof every N batches\n" +
-                    "  --delete-ratio=F   Fraction of deletes per batch (0-1)\n" +
-                    "  --no-wal           Disable WAL for faster ingest (unsafe)\n" +
-                    "  --help             Show this message and exit");
+                    "  --records=N          Total operations (default 1_000_000)\n" +
+                    "  --batch=N            Updates per batch (default 1000)\n" +
+                    "  --value-size=N       Value size in bytes (default 128)\n" +
+                    "  --memory             Use in-memory NodeStore (default RocksDB)\n" +
+                    "  --rocksdb=PATH       RocksDB directory (default ./mpt-load-db)\n" +
+                    "  --storage-mode=MODE  MULTI_VERSION|SINGLE_VERSION (default MULTI_VERSION)\n" +
+                    "  --secure             Use SecureTrie (hashed keys, default)\n" +
+                    "  --plain              Use plain MerklePatriciaTrie (raw keys)\n" +
+                    "  --no-roots           Do not record roots/refcounts (RocksDB only)\n" +
+                    "  --gc=MODE            none|refcount|marksweep (default none)\n" +
+                    "  --keep-latest=N      Retention window for roots (default 1)\n" +
+                    "  --gc-interval=N      Run mark-sweep every N batches (marksweep)\n" +
+                    "  --refcount-every=N   Increment refcounts every N batches (refcount)\n" +
+                    "  --progress=N         Progress interval (default 100_000 ops)\n" +
+                    "  --proof-every=N      Build value+proof every N batches\n" +
+                    "  --delete-ratio=F     Fraction of deletes per batch (0-1)\n" +
+                    "  --no-wal             Disable WAL for faster ingest (unsafe)\n" +
+                    "  --help               Show this message and exit");
             System.exit(0);
         }
     }

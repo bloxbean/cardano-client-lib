@@ -1,5 +1,9 @@
 package com.bloxbean.cardano.statetrees.rocksdb.mpt;
 
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcOptions;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcReport;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RetentionPolicy;
+import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.OnDiskMarkSweepStrategy;
 import com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.RefcountGcStrategy;
 import com.bloxbean.cardano.statetrees.rocksdb.namespace.KeyPrefixer;
 import com.bloxbean.cardano.statetrees.rocksdb.namespace.NamespaceOptions;
@@ -55,6 +59,8 @@ import java.io.File;
  */
 public final class RocksDbStateTrees implements AutoCloseable {
 
+    private static final String MODE_METADATA_KEY_SUFFIX = "_storage_mode";
+
     private final DBOptions options;
     private final RocksDB db;
     private final ColumnFamilyHandle cfNodes;
@@ -62,9 +68,11 @@ public final class RocksDbStateTrees implements AutoCloseable {
 
     private final RocksDbNodeStore nodeStore;
     private final RocksDbRootsIndex rootsIndex;
+    private final StorageMode storageMode;
+    private final KeyPrefixer keyPrefixer;
 
     /**
-     * Creates a new unified RocksDB state trees storage with default namespace options.
+     * Creates a new unified RocksDB state trees storage with default namespace options and multi-version mode.
      *
      * <p>Initializes a complete RocksDB instance with all required column families
      * for both node storage and root indexing. Automatically handles database
@@ -74,11 +82,46 @@ public final class RocksDbStateTrees implements AutoCloseable {
      * @throws RuntimeException if RocksDB initialization fails
      */
     public RocksDbStateTrees(String dbPath) {
-        this(dbPath, NamespaceOptions.defaults());
+        this(dbPath, NamespaceOptions.defaults(), StorageMode.MULTI_VERSION);
     }
 
     /**
-     * Creates a new unified RocksDB state trees storage with custom namespace options.
+     * Creates a new unified RocksDB state trees storage with specified storage mode.
+     *
+     * <p>Uses default namespace options. This is a convenience constructor for users
+     * who want to specify the storage mode (MULTI_VERSION or SINGLE_VERSION) without
+     * configuring custom namespacing.</p>
+     *
+     * <p><b>Example - Snapshot mode:</b></p>
+     * <pre>{@code
+     * // Fast snapshot-only storage (no history)
+     * RocksDbStateTrees stateTrees = new RocksDbStateTrees(
+     *     "/data/utxo-snapshot",
+     *     StorageMode.SINGLE_VERSION
+     * );
+     * }</pre>
+     *
+     * <p><b>Example - Multi-version mode:</b></p>
+     * <pre>{@code
+     * // Historical versioning with rollback support
+     * RocksDbStateTrees stateTrees = new RocksDbStateTrees(
+     *     "/data/utxo-versioned",
+     *     StorageMode.MULTI_VERSION
+     * );
+     * }</pre>
+     *
+     * @param dbPath the file system path where the RocksDB database should be stored
+     * @param storageMode the storage mode (MULTI_VERSION or SINGLE_VERSION)
+     * @throws RuntimeException if RocksDB initialization fails
+     * @throws IllegalStateException if storage mode doesn't match existing database
+     * @see StorageMode
+     */
+    public RocksDbStateTrees(String dbPath, StorageMode storageMode) {
+        this(dbPath, NamespaceOptions.defaults(), storageMode);
+    }
+
+    /**
+     * Creates a new unified RocksDB state trees storage with custom namespace options and multi-version mode.
      *
      * <p>Enables multiple isolated trees within the same database using namespacing.</p>
      *
@@ -87,6 +130,26 @@ public final class RocksDbStateTrees implements AutoCloseable {
      * @throws RuntimeException if RocksDB initialization fails
      */
     public RocksDbStateTrees(String dbPath, NamespaceOptions namespaceOptions) {
+        this(dbPath, namespaceOptions, StorageMode.MULTI_VERSION);
+    }
+
+    /**
+     * Creates a new unified RocksDB state trees storage with custom namespace options and storage mode.
+     *
+     * <p>Enables multiple isolated trees within the same database using namespacing,
+     * with control over whether to store multiple versions or operate in snapshot mode.</p>
+     *
+     * <p>Storage mode is validated against existing database metadata. If the database
+     * already exists for this namespace, the mode must match. If this is a new namespace,
+     * the mode is persisted for future validation.</p>
+     *
+     * @param dbPath the file system path where the RocksDB database should be stored
+     * @param namespaceOptions the namespace configuration for this tree
+     * @param storageMode the storage mode (MULTI_VERSION or SINGLE_VERSION)
+     * @throws RuntimeException if RocksDB initialization fails
+     * @throws IllegalStateException if storage mode doesn't match existing database
+     */
+    public RocksDbStateTrees(String dbPath, NamespaceOptions namespaceOptions, StorageMode storageMode) {
         try {
             RocksDB.loadLibrary();
             File dbDirectory = new File(dbPath);
@@ -135,9 +198,13 @@ public final class RocksDbStateTrees implements AutoCloseable {
             this.cfNodes = cfHandles.get(nodesColumnFamilyIndex);
             this.cfRoots = cfHandles.get(rootsColumnFamilyIndex);
 
-            KeyPrefixer keyPrefixer = new KeyPrefixer(schema.keyPrefix());
+            this.keyPrefixer = new KeyPrefixer(schema.keyPrefix());
             this.nodeStore = new RocksDbNodeStore(db, cfNodes, keyPrefixer);
             this.rootsIndex = new RocksDbRootsIndex(db, cfRoots, keyPrefixer);
+
+            // Validate and persist storage mode
+            this.storageMode = storageMode;
+            validateAndPersistStorageMode(storageMode);
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to open RocksDB for state trees", e);
         }
@@ -180,12 +247,62 @@ public final class RocksDbStateTrees implements AutoCloseable {
     }
 
     /**
+     * Returns the current storage mode for this database.
+     *
+     * @return the storage mode (MULTI_VERSION or SINGLE_VERSION)
+     */
+    public StorageMode storageMode() {
+        return storageMode;
+    }
+
+    /**
+     * Validates storage mode against existing database metadata and persists it if new.
+     *
+     * <p>This method ensures that a database opened with a particular storage mode
+     * cannot be accidentally opened with a different mode, which could lead to
+     * data corruption.</p>
+     *
+     * @param requestedMode the storage mode being requested
+     * @throws IllegalStateException if mode doesn't match existing database
+     * @throws RuntimeException if RocksDB error occurs
+     */
+    private void validateAndPersistStorageMode(StorageMode requestedMode) {
+        try {
+            // Create namespace-prefixed metadata key
+            byte[] prefixedMetadataKey = keyPrefixer.prefix(MODE_METADATA_KEY_SUFFIX.getBytes());
+
+            // Read stored mode for this namespace
+            byte[] storedModeBytes = db.get(cfRoots, prefixedMetadataKey);
+
+            if (storedModeBytes != null) {
+                // Existing namespace - verify mode matches
+                String storedMode = new String(storedModeBytes);
+                if (!storedMode.equals(requestedMode.name())) {
+                    throw new IllegalStateException(
+                        "Storage mode mismatch for namespace: " +
+                        "Database was created with '" + storedMode + "' mode " +
+                        "but is being opened with '" + requestedMode.name() + "' mode. " +
+                        "Use the correct storage mode or create a new namespace."
+                    );
+                }
+            } else {
+                // New namespace - persist the mode
+                db.put(cfRoots, prefixedMetadataKey, requestedMode.name().getBytes());
+            }
+        } catch (RocksDBException e) {
+            throw new RuntimeException("Failed to validate storage mode", e);
+        }
+    }
+
+    /**
      * Atomically record a new root version and increment reference counts for all reachable nodes.
      *
      * <p>This helper wraps the typical production workflow of persisting a new root: it stores the
      * root in {@link RocksDbRootsIndex} (assigning the next version) and increments reference counts
      * for every node reachable from the provided root. Both actions occur within a single RocksDB
      * WriteBatch for atomicity.</p>
+     *
+     * <p><b>Note:</b> This method is only valid for {@link StorageMode#MULTI_VERSION} mode.</p>
      *
      * <p>Usage:</p>
      * <pre>{@code
@@ -194,9 +311,13 @@ public final class RocksDbStateTrees implements AutoCloseable {
      *
      * @param root the trie root commitment to record
      * @return the assigned version number
+     * @throws IllegalStateException if called in SINGLE_VERSION mode
      * @throws RuntimeException if a RocksDB error occurs
      */
     public long putRootWithRefcount(byte[] root) {
+        if (storageMode != StorageMode.MULTI_VERSION) {
+            throw new IllegalStateException("putRootWithRefcount() requires MULTI_VERSION mode. Use putRootSnapshot() for SINGLE_VERSION mode.");
+        }
         if (root == null || root.length == 0) throw new IllegalArgumentException("root cannot be null/empty");
         try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
             final long[] verHolder = new long[1];
@@ -212,6 +333,90 @@ public final class RocksDbStateTrees implements AutoCloseable {
         } catch (RocksDBException e) {
             throw new RuntimeException("Failed to write root + refcounts atomically", e);
         }
+    }
+
+    /**
+     * Store a new root in snapshot mode (single-version).
+     *
+     * <p>In snapshot mode, there is always exactly one root at version 0. Each call to this
+     * method overwrites the previous root, creating orphaned nodes that must be cleaned up
+     * periodically using {@link #cleanupOrphanedNodes(GcOptions)}.</p>
+     *
+     * <p><b>Note:</b> This method is only valid for {@link StorageMode#SINGLE_VERSION} mode.</p>
+     *
+     * <p>Usage:</p>
+     * <pre>{@code
+     * stateTrees.putRootSnapshot(trie.getRootHash());
+     * }</pre>
+     *
+     * @param newRoot the new trie root commitment (overwrites previous root at version 0)
+     * @throws IllegalStateException if called in MULTI_VERSION mode
+     * @throws RuntimeException if a RocksDB error occurs
+     */
+    public void putRootSnapshot(byte[] newRoot) {
+        if (storageMode != StorageMode.SINGLE_VERSION) {
+            throw new IllegalStateException("putRootSnapshot() requires SINGLE_VERSION mode. Use putRootWithRefcount() for MULTI_VERSION mode.");
+        }
+        if (newRoot == null || newRoot.length == 0) {
+            throw new IllegalArgumentException("root cannot be null/empty");
+        }
+        try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
+            rootsIndex.withBatch(wb, () -> {
+                rootsIndex.put(0L, newRoot);  // Always version 0
+                return null;
+            });
+            db.write(wo, wb);
+        } catch (RocksDBException e) {
+            throw new RuntimeException("Failed to write snapshot root", e);
+        }
+    }
+
+    /**
+     * Get the current root hash in snapshot mode.
+     *
+     * <p>Returns the root at version 0, or null if no root has been stored yet.</p>
+     *
+     * <p><b>Note:</b> This method is only valid for {@link StorageMode#SINGLE_VERSION} mode.</p>
+     *
+     * @return the current root hash, or null if none exists
+     * @throws IllegalStateException if called in MULTI_VERSION mode
+     */
+    public byte[] getCurrentRoot() {
+        if (storageMode != StorageMode.SINGLE_VERSION) {
+            throw new IllegalStateException("getCurrentRoot() requires SINGLE_VERSION mode. Use rootsIndex().get(version) for MULTI_VERSION mode.");
+        }
+        return rootsIndex.get(0L);
+    }
+
+    /**
+     * Clean up orphaned nodes in snapshot mode.
+     *
+     * <p>This method uses mark-and-sweep garbage collection to identify and remove nodes
+     * that are no longer reachable from the current root (version 0). It should be called
+     * periodically to reclaim disk space.</p>
+     *
+     * <p><b>Note:</b> This method is only valid for {@link StorageMode#SINGLE_VERSION} mode.</p>
+     *
+     * <p>Usage:</p>
+     * <pre>{@code
+     * GcOptions options = new GcOptions();
+     * options.setProgressInterval(100000);
+     * GcReport report = stateTrees.cleanupOrphanedNodes(options);
+     * System.out.println("Deleted " + report.nodesDeleted() + " orphaned nodes");
+     * }</pre>
+     *
+     * @param options garbage collection options (progress callbacks, etc.)
+     * @return a report containing the number of nodes deleted and time taken
+     * @throws IllegalStateException if called in MULTI_VERSION mode
+     * @throws Exception if GC operation fails
+     */
+    public GcReport cleanupOrphanedNodes(GcOptions options) throws Exception {
+        if (storageMode != StorageMode.SINGLE_VERSION) {
+            throw new IllegalStateException("cleanupOrphanedNodes() requires SINGLE_VERSION mode. Use appropriate GC strategy for MULTI_VERSION mode.");
+        }
+        OnDiskMarkSweepStrategy markSweep = new OnDiskMarkSweepStrategy();
+        RetentionPolicy policy = RetentionPolicy.keepLatestN(1);  // Keep only version 0
+        return markSweep.run(nodeStore, rootsIndex, policy, options);
     }
 
     /**
