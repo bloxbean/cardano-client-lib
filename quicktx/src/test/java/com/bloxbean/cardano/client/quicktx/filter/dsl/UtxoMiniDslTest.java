@@ -13,9 +13,7 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.bloxbean.cardano.client.quicktx.filter.dsl.F.*;
-import static com.bloxbean.cardano.client.quicktx.filter.dsl.Filters.*;
-import static com.bloxbean.cardano.client.quicktx.filter.dsl.Sel.*;
+import static com.bloxbean.cardano.client.quicktx.filter.dsl.UtxoFilters.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class UtxoMiniDslTest {

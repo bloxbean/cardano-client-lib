@@ -10,10 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static com.bloxbean.cardano.client.quicktx.filter.dsl.F.*;
-import static com.bloxbean.cardano.client.quicktx.filter.dsl.Filters.and;
-import static com.bloxbean.cardano.client.quicktx.filter.dsl.Filters.or;
-import static com.bloxbean.cardano.client.quicktx.filter.dsl.Sel.*;
+import static com.bloxbean.cardano.client.quicktx.filter.dsl.UtxoFilters.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**

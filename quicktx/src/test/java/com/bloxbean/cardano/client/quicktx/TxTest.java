@@ -659,17 +659,7 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     void withdraw_onlyFromRewardAddress() {
-        given(utxoSupplier.getPage(anyString(), anyInt(), any(), any())).willReturn(
-                List.of(
-                        Utxo.builder()
-                                .address(sender1)
-                                .txHash("5c6e2d88f7eeff25871e3572fdb994df65170aa406b211652537ee0c2c360a3f")
-                                .outputIndex(0)
-                                .amount(List.of(Amount.ada(100)))
-                                .build()
-                )
-        );
-
+        // No UTXO mocking needed - exception thrown during validation before UTXO selection
         var tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(5))
                 .withdraw(receiver2, adaToLovelace(6))
