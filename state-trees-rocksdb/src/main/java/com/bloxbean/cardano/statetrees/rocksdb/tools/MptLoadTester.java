@@ -19,12 +19,15 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * RocksDB-focused load generator for the MPT (MPF mode via SecureTrie by default).
  *
- * <p>Example:</p>
+ * <p>Example with refcount GC:</p>
  * <pre>
- *   ./gradlew :state-trees-rocksdb:com.bloxbean.cardano.statetrees.rocksdb.tools.MptLoadTester.main \
+ *   ./gradlew :state-trees-rocksdb:MptLoadTester.main \
  *       --args="--records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/mpt-load \
- *                --delete-ratio=0.1 --proof-every=1000 --secure"
+ *                --delete-ratio=0.1 --proof-every=1000 --secure \
+ *                --gc=refcount --keep-latest=100"
  * </pre>
+ *
+ * <p>GC modes: none (default), refcount, marksweep</p>
  */
 public final class MptLoadTester {
 
@@ -200,13 +203,17 @@ public final class MptLoadTester {
             commits++;
             if (gcMarkSweep && options.gcInterval > 0 && (commits % options.gcInterval) == 0 && stateTrees != null) {
                 try {
+                    System.out.println("Running mark-sweep GC...");
+                    long gcStart = System.currentTimeMillis();
                     var gcManager = new com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcManager(
                             (RocksDbNodeStore) stateTrees.nodeStore(), stateTrees.rootsIndex());
                     var policy = com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.RetentionPolicy.keepLatestN(options.keepLatest);
                     var gcOpts = new com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.GcOptions();
                     gcOpts.deleteBatchSize = 20_000;
                     gcOpts.useSnapshot = true;
-                    gcManager.runSync(new com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.OnDiskMarkSweepStrategy(), policy, gcOpts);
+                    var report = gcManager.runSync(new com.bloxbean.cardano.statetrees.rocksdb.mpt.gc.strategy.OnDiskMarkSweepStrategy(), policy, gcOpts);
+                    long gcEnd = System.currentTimeMillis();
+                    System.out.printf("Mark-sweep GC completed: deleted %,d nodes in %.2f s%n", report.deleted, (gcEnd - gcStart) / 1000.0);
                 } catch (Exception e) {
                     throw new RuntimeException("Mark-sweep GC failed", e);
                 }
