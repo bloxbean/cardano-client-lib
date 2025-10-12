@@ -86,10 +86,9 @@ class RdbmsJmtStorePostgresTest {
         // Prepare clean schema and bootstrap tables
         try (Connection conn = DriverManager.getConnection(baseJdbcUrl, PG_USER, PG_PASSWORD);
              Statement stmt = conn.createStatement()) {
-            // SonarQube: Schema name is a static constant from configuration, not user input - safe from SQL injection
-            stmt.execute("DROP SCHEMA IF EXISTS " + PG_SCHEMA + " CASCADE");
-            stmt.execute("CREATE SCHEMA " + PG_SCHEMA);
-            stmt.execute("SET search_path TO " + PG_SCHEMA);
+            stmt.execute("DROP SCHEMA IF EXISTS " + PG_SCHEMA + " CASCADE"); // NOSONAR - PG_SCHEMA is static constant
+            stmt.execute("CREATE SCHEMA " + PG_SCHEMA); // NOSONAR - PG_SCHEMA is static constant
+            stmt.execute("SET search_path TO " + PG_SCHEMA); // NOSONAR - PG_SCHEMA is static constant
             executeSchema(stmt);
         }
 
@@ -105,8 +104,7 @@ class RdbmsJmtStorePostgresTest {
         String baseJdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", PG_HOST, PG_PORT, PG_DATABASE);
         try (Connection conn = DriverManager.getConnection(baseJdbcUrl, PG_USER, PG_PASSWORD);
              Statement stmt = conn.createStatement()) {
-            // SonarQube: Schema name is a static constant from configuration, not user input - safe from SQL injection
-            stmt.execute("DROP SCHEMA IF EXISTS " + PG_SCHEMA + " CASCADE");
+            stmt.execute("DROP SCHEMA IF EXISTS " + PG_SCHEMA + " CASCADE"); // NOSONAR - PG_SCHEMA is static constant
         }
     }
 

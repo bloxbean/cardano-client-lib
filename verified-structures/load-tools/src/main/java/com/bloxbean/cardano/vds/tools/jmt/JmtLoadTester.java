@@ -50,6 +50,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * <p><b>Note:</b> JMT does not support delete operations (Diem-compatible design).
  * All operations are inserts or updates to existing keys.
  */
+@SuppressWarnings("java:S106") // NOSONAR - CLI tool requires console output
 public final class JmtLoadTester {
 
     private JmtLoadTester() {}
