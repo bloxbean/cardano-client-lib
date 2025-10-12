@@ -31,3 +31,12 @@ jmh-generator-annprocess = "org.openjdk.jmh:jmh-generator-annprocess:1.36"
 # Micrometer (Optional metrics support - compileOnly in metrics module)
 micrometer-core = "io.micrometer:micrometer-core:1.15.4"
 micrometer-registry-prometheus = "io.micrometer:micrometer-registry-prometheus:1.15.4"
+
+# RocksDB persistence
+rocksdbjni = "org.rocksdb:rocksdbjni:8.9.1"
+
+# RDBMS persistence
+hikaricp = "com.zaxxer:HikariCP:5.0.1"
+postgresql = "org.postgresql:postgresql:42.6.0"
+h2database = "com.h2database:h2:2.2.224"
+sqlite-jdbc = "org.xerial:sqlite-jdbc:3.45.0.0"
