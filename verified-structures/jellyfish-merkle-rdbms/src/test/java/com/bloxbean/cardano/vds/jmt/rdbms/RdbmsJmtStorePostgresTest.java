@@ -11,6 +11,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
@@ -49,7 +50,12 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li>{@code -Dpostgres.password} / {@code POSTGRES_PASSWORD}</li>
  *   <li>{@code -Dpostgres.schema} / {@code POSTGRES_SCHEMA}</li>
  * </ul>
+ *
+ * <p><b>Note:</b> These tests are only enabled when the {@code ENABLE_POSTGRES_TESTS}
+ * environment variable is set to {@code true}. This prevents CI build failures when
+ * PostgreSQL is not available.
  */
+@EnabledIfEnvironmentVariable(named = "ENABLE_POSTGRES_TESTS", matches = "true")
 class RdbmsJmtStorePostgresTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
