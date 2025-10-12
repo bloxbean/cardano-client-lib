@@ -159,4 +159,20 @@ class UtxoFilterVariableRoundTripTest {
         // 'limit: all' means no limit, so it shouldn't be serialized
         assertFalse(serialized.get("selection").has("limit"));
     }
+
+    @Test
+    void selection_limit_textual_number_roundtrip() throws IOException {
+        String yamlWithTextLimit = String.join("\n",
+                "address: addr_test1xyz",
+                "selection:",
+                "  limit: \"5\"");
+
+        UtxoFilterSpec spec = UtxoFilterYaml.parse(yamlWithTextLimit);
+        assertNotNull(spec.selection());
+        assertEquals(Integer.valueOf(5), spec.selection().getLimit());
+
+        JsonNode serialized = UtxoFilterYaml.toNode(spec);
+        assertTrue(serialized.has("selection"));
+        assertEquals(5, serialized.get("selection").get("limit").asInt());
+    }
 }

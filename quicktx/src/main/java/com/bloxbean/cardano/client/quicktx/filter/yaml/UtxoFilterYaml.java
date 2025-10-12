@@ -211,10 +211,18 @@ public final class UtxoFilterYaml {
                 if (n < 0) throw new IllegalArgumentException("selection.limit must be >= 0 or 'all'");
                 limit = n;
             } else if (limitNode.isTextual()) {
-                String s = limitNode.asText();
-                if (!"all".equalsIgnoreCase(s))
-                    throw new IllegalArgumentException("selection.limit must be integer or 'all'");
-                // leave as null to mean ALL
+                String s = limitNode.asText().trim();
+                if ("all".equalsIgnoreCase(s)) {
+                    // leave as null to mean ALL
+                } else {
+                    try {
+                        int n = Integer.parseInt(s);
+                        if (n < 0) throw new IllegalArgumentException("selection.limit must be >= 0 or 'all'");
+                        limit = n;
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("selection.limit must be integer or 'all'");
+                    }
+                }
             } else {
                 throw new IllegalArgumentException("selection.limit must be integer or 'all'");
             }
