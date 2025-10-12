@@ -42,7 +42,8 @@ public class OnDiskMarkSweepGcTest {
         stateTrees = new RocksDbStateTrees(tempDir.resolve("test-db").toString());
         hashFn = Blake2b256::digest;
         trie = new SecureTrie(stateTrees.nodeStore(), hashFn);
-        random = new Random(42); // Deterministic for testing
+        // Using fixed seed (42) intentionally for deterministic test data generation
+        random = new Random(42); // NOSONAR - deterministic testing requires fixed seed
     }
 
     @AfterEach

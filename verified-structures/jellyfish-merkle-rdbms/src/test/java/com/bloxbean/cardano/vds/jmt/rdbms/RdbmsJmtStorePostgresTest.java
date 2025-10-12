@@ -60,7 +60,8 @@ class RdbmsJmtStorePostgresTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
     private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
-    private static final long PROPERTY_SEED = 0xCAFEBABE1234L;
+    // Using fixed seed (0xCAFEBABE1234L) intentionally for reproducible test data generation
+    private static final long PROPERTY_SEED = 0xCAFEBABE1234L; // NOSONAR - deterministic testing requires fixed seed
 
     private static final String PG_HOST = System.getProperty(
         "postgres.host", System.getenv().getOrDefault("POSTGRES_HOST", "localhost"));
@@ -85,6 +86,7 @@ class RdbmsJmtStorePostgresTest {
         // Prepare clean schema and bootstrap tables
         try (Connection conn = DriverManager.getConnection(baseJdbcUrl, PG_USER, PG_PASSWORD);
              Statement stmt = conn.createStatement()) {
+            // SonarQube: Schema name is a static constant from configuration, not user input - safe from SQL injection
             stmt.execute("DROP SCHEMA IF EXISTS " + PG_SCHEMA + " CASCADE");
             stmt.execute("CREATE SCHEMA " + PG_SCHEMA);
             stmt.execute("SET search_path TO " + PG_SCHEMA);
@@ -103,6 +105,7 @@ class RdbmsJmtStorePostgresTest {
         String baseJdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", PG_HOST, PG_PORT, PG_DATABASE);
         try (Connection conn = DriverManager.getConnection(baseJdbcUrl, PG_USER, PG_PASSWORD);
              Statement stmt = conn.createStatement()) {
+            // SonarQube: Schema name is a static constant from configuration, not user input - safe from SQL injection
             stmt.execute("DROP SCHEMA IF EXISTS " + PG_SCHEMA + " CASCADE");
         }
     }

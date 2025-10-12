@@ -35,7 +35,8 @@ class RdbmsMptPropertyTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
     private static final CommitmentScheme COMMITMENTS = new MpfCommitmentScheme(HASH);
-    private static final Random RNG = new Random(0xBEEF);
+    // Using fixed seed (0xBEEF) intentionally for reproducible test data generation
+    private static final Random RNG = new Random(0xBEEF); // NOSONAR - deterministic testing requires fixed seed
 
     private DbConfig dbConfig;
     private String jdbcUrl;

@@ -41,7 +41,8 @@ class RdbmsJmtPropertyTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
     private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
-    private static final Random RNG = new Random(0xCAFE);
+    // Using fixed seed (0xCAFE) intentionally for reproducible test data generation
+    private static final Random RNG = new Random(0xCAFE); // NOSONAR - deterministic testing requires fixed seed
 
     private DbConfig dbConfig;
     private String jdbcUrl;

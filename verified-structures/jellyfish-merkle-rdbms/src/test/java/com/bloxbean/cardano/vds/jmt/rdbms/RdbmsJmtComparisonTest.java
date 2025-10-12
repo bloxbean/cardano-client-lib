@@ -35,7 +35,8 @@ class RdbmsJmtComparisonTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
     private static final CommitmentScheme COMMITMENTS = new ClassicJmtCommitmentScheme(HASH);
-    private static final Random RNG = new Random(0xCAFE); // Same seed as property test
+    // Fixed seed (0xCAFE) ensures identical test data across RDBMS and in-memory stores for comparison
+    private static final Random RNG = new Random(0xCAFE); // NOSONAR - deterministic testing requires fixed seed
 
     private DbConfig dbConfig;
 

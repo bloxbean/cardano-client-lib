@@ -4,6 +4,8 @@ import com.bloxbean.cardano.vds.rocksdb.exceptions.RocksDbBatchException;
 import com.bloxbean.cardano.vds.rocksdb.exceptions.RocksDbOperationException;
 import com.bloxbean.cardano.vds.mpt.rocksdb.keys.RocksDbKey;
 import org.rocksdb.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +50,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @since 0.8.0
  */
 public final class RocksDbBatchContext implements AutoCloseable {
+
+    private static final Logger log = LoggerFactory.getLogger(RocksDbBatchContext.class);
 
     /**
      * The RocksDB instance for database operations.
@@ -300,7 +304,7 @@ public final class RocksDbBatchContext implements AutoCloseable {
                 batch.close();
             } catch (Exception e) {
                 // Log but don't throw in close()
-                System.err.println("Warning: Error closing WriteBatch: " + e.getMessage());
+                log.warn("Error closing WriteBatch", e);
             }
 
             // Note: We don't close writeOptions here as it might be shared

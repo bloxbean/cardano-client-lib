@@ -1,5 +1,8 @@
 package com.bloxbean.cardano.vds.mpt.rocksdb.batch;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +56,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @since 0.8.0
  */
 public final class BatchAccumulator implements AutoCloseable {
+
+    private static final Logger log = LoggerFactory.getLogger(BatchAccumulator.class);
 
     private final RocksDbBatchExecutor batchExecutor;
     private final int targetOperationCount;
@@ -250,7 +255,7 @@ public final class BatchAccumulator implements AutoCloseable {
                 flush().get(timeoutDuration.toMillis() * 2, TimeUnit.MILLISECONDS);
             } catch (InterruptedException | ExecutionException | TimeoutException e) {
                 // Log warning but continue with cleanup
-                System.err.println("Warning: Failed to flush pending operations during close: " + e.getMessage());
+                log.warn("Failed to flush pending operations during close", e);
             }
 
             // Cancel timeout task
