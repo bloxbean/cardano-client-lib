@@ -41,6 +41,6 @@ include 'supplier:kupo-supplier'
 
 //State trees
 include 'state-trees'
-include 'state-trees-postgres'
+include 'state-trees-rdbms'
 include 'state-trees-rocksdb'
 include 'state-trees-metrics'

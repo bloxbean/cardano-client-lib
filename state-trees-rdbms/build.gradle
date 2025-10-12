@@ -1,0 +1,37 @@
+dependencies {
+    api project(':state-trees')
+
+    // JDBC and Database support
+    implementation 'com.zaxxer:HikariCP:5.0.1'
+
+    implementation 'org.postgresql:postgresql:42.6.0'
+
+    // H2 for testing
+    testImplementation 'com.h2database:h2:2.2.224'
+
+    // RocksDB for comparison testing
+    testImplementation project(':state-trees-rocksdb')
+
+    // SQLite for testing
+    testImplementation 'org.xerial:sqlite-jdbc:3.45.0.0'
+
+    // PostgreSQL embedded for testing (no Docker required)
+    testImplementation 'com.opentable.components:otj-pg-embedded:1.0.1'
+    testImplementation 'org.postgresql:postgresql:42.6.0'
+
+    // Integration tests
+    integrationTestImplementation 'org.postgresql:postgresql:42.6.0'
+    integrationTestImplementation(libs.slf4j.reload4j)
+    integrationTestImplementation project(':')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client State Trees RDBMS extension module'
+                description = 'Cardano Client Lib - State Trees RDBMS extension Module'
+            }
+        }
+    }
+}
