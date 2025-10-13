@@ -75,10 +75,6 @@ public final class MerklePatriciaTrieImpl {
      * <p>The mode is immutable and set at construction time. To switch modes, create a new
      * trie instance with the desired mode configuration.
      *
-     * @see com.bloxbean.cardano.statetrees.mpt.mode.MptMode
-     * @see com.bloxbean.cardano.statetrees.mpt.mode.Modes
-     * @see com.bloxbean.cardano.statetrees.mpt.commitment.MpfCommitmentScheme
-     * @see com.bloxbean.cardano.statetrees.mpt.commitment.ClassicMptCommitmentScheme
      */
     private final MptMode mode;
 
@@ -93,7 +89,7 @@ public final class MerklePatriciaTrieImpl {
      * @throws NullPointerException if store or hashFn is null
      */
     public MerklePatriciaTrieImpl(NodeStore store, HashFunction hashFn, byte[] root) {
-        this(store, hashFn, root, Modes.mpf(hashFn));
+        this(store, hashFn, root, Modes.classic(hashFn));
     }
 
     public MerklePatriciaTrieImpl(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitments) {

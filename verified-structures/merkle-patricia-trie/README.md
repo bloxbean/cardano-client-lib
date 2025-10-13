@@ -72,31 +72,34 @@ for (MerklePatriciaTrie.Entry entry : users) {
 }
 ```
 
-### Cardano-Compatible SecureTrie
+### Cardano-Compatible SecureTrie (Recommended for Smart Contracts)
 
-For Cardano smart contracts and Aiken compatibility:
+For Cardano smart contracts and Aiken compatibility, use `SecureTrie`:
 
 ```java
 import com.bloxbean.cardano.vds.mpt.SecureTrie;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 
-// SecureTrie automatically hashes keys (matches Aiken's merkle-patricia-forestry)
+// Simplest way: Blake2b-256 + MPF mode hardcoded
 NodeStore store = new RocksDbNodeStore(db);
-HashFunction blake2b = Blake2b256::digest;
+SecureTrie trie = new SecureTrie(store);
 
-SecureTrie trie = new SecureTrie(store, blake2b);
-
-// Keys are hashed with Blake2b-256 before storage
+// Keys are automatically hashed with Blake2b-256
 trie.put("account123".getBytes(), accountData);
 trie.put("account456".getBytes(), accountData2);
 
 // Get root hash for Cardano transaction
 byte[] rootHash = trie.getRootHash();
 
-// Verify in smart contract:
-// - On-chain validator uses Aiken MPF to verify inclusion
-// - Root hash commits to the entire trie state
+// Load existing trie
+SecureTrie existingTrie = new SecureTrie(store, rootHash);
 ```
+
+**Why SecureTrie prevents branch values:**
+- All keys hashed to exactly 32 bytes (64 nibbles)
+- All keys terminate at same depth (64 levels)
+- No prefix termination possible
+- All values automatically at leaves
+- ✅ Full Cardano/Aiken compatibility guaranteed!
 
 ### Loading Existing Trie
 
@@ -143,31 +146,33 @@ assert valid;
 
 ## MPT vs MPF Modes
 
-### Classic MPT (Ethereum-Inspired)
+### CLASSIC Mode (MPF + Branch Values)
 
 ```java
 import com.bloxbean.cardano.vds.mpt.mode.Modes;
 
 MerklePatriciaTrie trie = new MerklePatriciaTrie(store, hashFn, Modes.CLASSIC);
 
-// Node hashing: Binary Merkle tree based (Ethereum-inspired structure)
-// Proof format: Structured node commitments
-// Use case: Ethereum-inspired radix tree with Blake2b-256 hashing
+// Node hashing: Binary Merkle tree (16-17 leaf tree with branch values)
+// Hash function: Blake2b-256
+// Encoding: CBOR
+// Branch values: Included as 17th element in commitment
+// Use case: Off-chain indexing with full branch value integrity
 ```
 
-### MPF (Merkle Patricia Forestry - Cardano Compatible)
+### MPF Mode (Merkle Patricia Forestry - Cardano Compatible)
 
 ```java
 import com.bloxbean.cardano.vds.mpt.mode.Modes;
 
 MerklePatriciaTrie trie = new MerklePatriciaTrie(store, hashFn, Modes.MPF);
 
-// Node hashing: CBOR-based with optimized structure
-// Proof format: Compact CBOR encoding
+// Node hashing: Binary Merkle tree (fixed 16 leaf tree)
+// Hash function: Blake2b-256
+// Encoding: CBOR
+// Branch values: Excluded from commitment (by design)
 // Use case: Cardano smart contracts, Aiken compatibility
 ```
-
-**Recommendation**: Use `Modes.MPF` for new projects unless Ethereum compatibility is required.
 
 ## Prefix Scanning
 
@@ -204,28 +209,90 @@ List<MerklePatriciaTrie.Entry> first10 = trie.scanByPrefix("item:".getBytes(), 1
 - Stores child hashes
 - Optional value if key ends at this node
 
+## Architecture: MerklePatriciaTrie vs SecureTrie
+
+### MerklePatriciaTrie (Low-Level, Generic)
+- **Default Mode**: CLASSIC (supports branch values with full integrity)
+- **Keys**: Raw bytes (as provided by application)
+- **Use Cases**:
+  - Off-chain indexing and databases
+  - General-purpose authenticated data structures
+  - When you need prefix queries on original keys
+- **Branch Values**: Fully supported in CLASSIC mode
+
+```java
+// Generic MPT with CLASSIC mode (default)
+MerklePatriciaTrie trie = new MerklePatriciaTrie(store, hashFn);
+trie.put("user:alice".getBytes(), data1);  // Works with any keys
+trie.put("user:bob".getBytes(), data2);
+
+// Prefix queries work
+List<Entry> users = trie.scanByPrefix("user:".getBytes(), 100);
+```
+
+### SecureTrie (High-Level, Cardano-Specific)
+- **Mode**: MPF (enforced for Aiken compatibility)
+- **Keys**: Always hashed to 32 bytes (Blake2b-256)
+- **Use Cases**:
+  - Cardano smart contracts
+  - Aiken on-chain verification
+  - User-provided keys (DoS protection)
+- **Branch Values**: Impossible by design (all keys same length → all terminate at depth 64)
+
+```java
+// Cardano-optimized: Blake2b-256 + MPF hardcoded
+SecureTrie trie = new SecureTrie(store);
+trie.put("account123".getBytes(), data1);  // Hashed to 32 bytes
+trie.put("account456".getBytes(), data2);  // Hashed to 32 bytes
+
+// All values at leaves, no branch values possible
+// ✅ Guaranteed Aiken compatibility
+```
+
+**Recommendation**:
+- ✅ Use **SecureTrie** for Cardano/Aiken
+- ✅ Use **MerklePatriciaTrie** for off-chain/indexing
+
+---
+
 ## Commitment Schemes
 
 Two cryptographic commitment schemes are supported:
 
-### ClassicMptCommitmentScheme
+### ClassicMptCommitmentScheme - **DEFAULT for MerklePatriciaTrie**
 - Binary Merkle tree with branch value included as 17th element
-- Different root hashes vs MPF mode for same data
-- **Note**: NOT actually Ethereum-compatible (uses Blake2b-256 and CBOR, not Keccak-256 and RLP)
-- **Not recommended**: Use MPF mode instead 
+- Full cryptographic integrity for branch values
+- **Default mode** for generic `MerklePatriciaTrie`
+- Supports any application keys
 
-### MpfCommitmentScheme (Cardano/Aiken) - **DEFAULT**
-- **This is the default commitment scheme** used when no mode is explicitly specified
+**Relationship to MPF:**
+CLASSIC mode is essentially **MPF + branch value support**. Both modes use identical algorithms:
+- **Hash function**: Blake2b-256 (not Keccak-256)
+- **Encoding**: CBOR (not RLP)
+- **Tree structure**: Binary Merkle tree for 16-way branches
+
+The **only difference** is branch value handling:
+- **CLASSIC**: 16-17 leaf Merkle tree (includes branch value as 17th element)
+- **MPF**: Fixed 16 leaf Merkle tree (excludes branch value)
+
+⚠️ **Not Ethereum-compatible** despite the "Classic" name. This implementation uses Blake2b-256 and CBOR encoding, not Ethereum's Keccak-256 and RLP.
+
+### MpfCommitmentScheme (Cardano/Aiken) - **DEFAULT for SecureTrie**
 - CBOR encoding with chunked bytestrings
 - Optimized for Cardano smart contracts
 - Compatible with Aiken merkle-patricia-forestry library
-- Recommended for all new projects
+- **Does not include branch values in commitments** (by design)
+- Recommended for Cardano/Aiken use cases
 
 ```java
-import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
+// Manual mode selection (advanced usage)
+import com.bloxbean.cardano.vds.mpt.mode.Modes;
 
-CommitmentScheme mpf = new MpfCommitmentScheme(hashFn);
-MerklePatriciaTrie trie = new MerklePatriciaTrie(store, hashFn, null, mpf);
+// MPF mode for Cardano compatibility
+MerklePatriciaTrie mptTrie = new MerklePatriciaTrie(store, hashFn, Modes.mpf(hashFn));
+
+// CLASSIC mode for branch value support
+MerklePatriciaTrie classicTrie = new MerklePatriciaTrie(store, hashFn, Modes.classic(hashFn));
 ```
 
 ## Aiken Compatibility
@@ -297,9 +364,17 @@ boolean verifyProofWire(byte[] root, byte[] key, byte[] value, boolean including
 ### SecureTrie
 
 ```java
-// Constructors
+// Cardano-optimized constructors (Blake2b-256 + MPF)
+SecureTrie(NodeStore store)
+SecureTrie(NodeStore store, byte[] root)
+
+// Custom hash function constructors (uses MPF mode)
 SecureTrie(NodeStore store, HashFunction hashFn)
 SecureTrie(NodeStore store, HashFunction hashFn, byte[] root)
+
+// Advanced: custom mode
+SecureTrie(NodeStore store, HashFunction hashFn, MptMode mode)
+SecureTrie(NodeStore store, HashFunction hashFn, byte[] root, MptMode mode)
 
 // Core operations (same as MerklePatriciaTrie but keys are auto-hashed)
 void put(byte[] key, byte[] value)

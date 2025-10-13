@@ -2,6 +2,9 @@ package com.bloxbean.cardano.vds.mpt;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
+import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.mode.Modes;
+import com.bloxbean.cardano.vds.mpt.mode.MptMode;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,10 +19,32 @@ import java.util.Optional;
  * library in Aiken, which always hashes keys using Blake2b-256 before storage. All keys are
  * automatically hashed before being stored in the trie.</p>
  *
+ * <p><b>Cardano-Optimized Constructors:</b></p>
+ * <pre>{@code
+ * // Simplest for Cardano: Blake2b-256 + MPF hardcoded
+ * SecureTrie trie = new SecureTrie(store);
+ * SecureTrie trie = new SecureTrie(store, existingRoot);
+ *
+ * // With custom hash function (still uses MPF mode)
+ * SecureTrie trie = new SecureTrie(store, customHashFn);
+ * SecureTrie trie = new SecureTrie(store, customHashFn, existingRoot);
+ *
+ * // With custom mode (advanced usage)
+ * SecureTrie trie = new SecureTrie(store, hashFn, Modes.mpf(hashFn));
+ * SecureTrie trie = new SecureTrie(store, hashFn, existingRoot, Modes.mpf(hashFn));
+ * }</pre>
+ *
+ * <p><b>Why SecureTrie Prevents Branch Values:</b></p>
+ * <p>SecureTrie automatically prevents branch values by hashing all keys to 32 bytes (64 nibbles).
+ * Since all hashed keys are the same length, they all terminate at the same depth (64 levels),
+ * making it impossible for one key to be a prefix of another at termination. This guarantees
+ * all values are stored at leaves, ensuring full Cardano/Aiken compatibility.</p>
+ *
  * <p><b>When to Use SecureTrie:</b></p>
  * <ul>
  *   <li>Building Cardano smart contracts or dApps</li>
  *   <li>Need compatibility with Aiken merkle-patricia-forestry</li>
+ *   <li>Storing user-provided keys (DoS protection)</li>
  * </ul>
  *
  * <p><b>When NOT to Use SecureTrie:</b></p>
@@ -42,7 +67,7 @@ import java.util.Optional;
  * <p><b>Performance Benefits:</b></p>
  * <ul>
  *   <li><b>Consistent Depth:</b> Hash uniformity leads to more balanced tries</li>
- *   <li><b>Fixed Key Size:</b> All keys become fixed-length hash values</li>
+ *   <li><b>Fixed Key Size:</b> All keys become fixed-length hash values (32 bytes / 64 nibbles)</li>
  *   <li><b>Better Caching:</b> Predictable access patterns improve cache performance</li>
  * </ul>
  *
@@ -53,21 +78,10 @@ import java.util.Optional;
  *   <li><b>Key Recovery:</b> Original keys cannot be recovered from the trie</li>
  * </ul>
  *
- * <p><b>Cardano Compatibility Example:</b></p>
- * <pre>{@code
- * // Cardano-compatible (matches Aiken MPF behavior)
- * NodeStore store = new RocksDbNodeStore(...);
- * HashFunction blake2b = Blake2b256::digest;
- * SecureTrie trie = new SecureTrie(store, blake2b);
- *
- * // Keys are automatically hashed with Blake2b-256 before storage
- * trie.put("account123".getBytes(), accountData);
- * byte[] rootHash = trie.getRootHash(); // Use in Cardano transactions
- * }</pre>
- *
  * <p><b>Implementation Note:</b> This class wraps {@link MerklePatriciaTrie} and automatically
  * applies {@code hashFn.digest(key)} before all operations, matching the behavior of
- * Aiken's {@code blake2b_256(key)} in the including/excluding functions.</p>
+ * Aiken's {@code blake2b_256(key)} in the including/excluding functions. All constructors
+ * use MPF commitment scheme by default for Cardano/Aiken compatibility.</p>
  *
  * @see MerklePatriciaTrie
  * @see HashFunction
@@ -86,21 +100,53 @@ public final class SecureTrie {
     private final HashFunction hashFn;
 
     /**
-     * Creates a new SecureTrie with empty root.
+     * Creates a new SecureTrie optimized for Cardano with Blake2b-256 hashing and MPF mode.
+     *
+     * <p>This constructor uses Blake2b-256 for key hashing (as required by Cardano/Aiken)
+     * and MPF commitment scheme for on-chain compatibility. This is the simplest constructor
+     * for Cardano developers.</p>
+     *
+     * @param store the storage backend for persisting trie nodes
+     * @throws NullPointerException if store is null
+     */
+    public SecureTrie(NodeStore store) {
+        this.hashFn = Blake2b256::digest;
+        this.inner = new MerklePatriciaTrie(store, hashFn, null, Modes.mpf(hashFn));
+    }
+
+    /**
+     * Creates a SecureTrie optimized for Cardano with existing root, using Blake2b-256 and MPF mode.
+     *
+     * <p>This constructor uses Blake2b-256 for key hashing (as required by Cardano/Aiken)
+     * and MPF commitment scheme for on-chain compatibility.</p>
+     *
+     * @param store the storage backend for persisting trie nodes
+     * @param root  the root hash of an existing secure trie, or null for empty trie
+     * @throws NullPointerException if store is null
+     */
+    public SecureTrie(NodeStore store, byte[] root) {
+        this.hashFn = Blake2b256::digest;
+        this.inner = new MerklePatriciaTrie(store, hashFn, root, Modes.mpf(hashFn));
+    }
+
+    /**
+     * Creates a new SecureTrie with empty root and custom hash function.
+     *
+     * <p>Uses MPF commitment scheme for Cardano/Aiken compatibility.</p>
      *
      * @param store  the storage backend for persisting trie nodes
      * @param hashFn the hash function for both key hashing and node hashing
      * @throws NullPointerException if store or hashFn is null
      */
     public SecureTrie(NodeStore store, HashFunction hashFn) {
-        this.inner = new MerklePatriciaTrie(store, hashFn);
+        this.inner = new MerklePatriciaTrie(store, hashFn, null, Modes.mpf(hashFn));
         this.hashFn = hashFn;
     }
 
     /**
-     * Creates a SecureTrie with an existing root.
+     * Creates a SecureTrie with an existing root and custom hash function.
      *
-     * <p>Use this constructor to load an existing secure trie from storage.</p>
+     * <p>Uses MPF commitment scheme for Cardano/Aiken compatibility.</p>
      *
      * @param store  the storage backend for persisting trie nodes
      * @param hashFn the hash function for both key hashing and node hashing
@@ -108,7 +154,32 @@ public final class SecureTrie {
      * @throws NullPointerException if store or hashFn is null
      */
     public SecureTrie(NodeStore store, HashFunction hashFn, byte[] root) {
-        this.inner = new MerklePatriciaTrie(store, hashFn, root);
+        this.inner = new MerklePatriciaTrie(store, hashFn, root, Modes.mpf(hashFn));
+        this.hashFn = hashFn;
+    }
+
+    /**
+     * Creates a new SecureTrie with specific mode (advanced usage).
+     *
+     * @param store  the storage backend
+     * @param hashFn the hash function for both key hashing and node hashing
+     * @param mode   the MPT mode (should be MPF for Cardano compatibility)
+     */
+    public SecureTrie(NodeStore store, HashFunction hashFn, MptMode mode) {
+        this.inner = new MerklePatriciaTrie(store, hashFn, null, mode);
+        this.hashFn = hashFn;
+    }
+
+    /**
+     * Creates a SecureTrie with existing root and specific mode (advanced usage).
+     *
+     * @param store  the storage backend
+     * @param hashFn the hash function for both key hashing and node hashing
+     * @param root   the root hash of existing trie
+     * @param mode   the MPT mode (should be MPF for Cardano compatibility)
+     */
+    public SecureTrie(NodeStore store, HashFunction hashFn, byte[] root, MptMode mode) {
+        this.inner = new MerklePatriciaTrie(store, hashFn, root, mode);
         this.hashFn = hashFn;
     }
 
