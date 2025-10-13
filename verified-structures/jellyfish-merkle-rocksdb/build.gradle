@@ -1,0 +1,16 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api project(':verified-structures:jellyfish-merkle')
+    api project(':verified-structures:rocksdb-core')
+    implementation(libs.rocksdbjni)
+    implementation(libs.slf4j.api)
+
+    // Metrics - compileOnly (optional)
+    compileOnly(libs.micrometer.core)
+    testImplementation(libs.micrometer.core)
+
+    testImplementation(libs.slf4j.reload4j)
+}

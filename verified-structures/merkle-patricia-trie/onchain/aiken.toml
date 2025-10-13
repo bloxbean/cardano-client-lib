@@ -1,0 +1,23 @@
+name = "ccl/onchain"
+version = "0.0.0"
+compiler = "v1.1.3"
+plutus = "v3"
+license = "Apache-2.0"
+description = "Aiken contracts for project 'ccl/onchain'"
+
+[repository]
+user = "ccl"
+project = "onchain"
+platform = "github"
+
+[[dependencies]]
+name = "aiken-lang/stdlib"
+version = "v2.2.0"
+source = "github"
+
+[[dependencies]]
+name = "aiken-lang/merkle-patricia-forestry"
+version = "2.1.0"
+source = "github"
+
+[config]

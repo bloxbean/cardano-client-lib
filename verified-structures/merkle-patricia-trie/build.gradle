@@ -1,0 +1,18 @@
+plugins {
+    id 'java-library'
+    id 'me.champeau.jmh' version '0.7.1'
+}
+
+dependencies {
+    api project(':verified-structures:verified-structures-core')
+    api project(':crypto')
+    implementation(libs.co.nstant.in.cbor)
+
+    jmh(libs.jmh.core)
+    jmh(libs.jmh.generator.annprocess)
+}
+
+jmh {
+    includes = ['.*Benchmark.*']
+    jmhVersion = '1.36'
+}

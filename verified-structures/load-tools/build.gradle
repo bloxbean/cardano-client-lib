@@ -1,0 +1,51 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+}
+
+dependencies {
+    // All data structures
+    implementation project(':verified-structures:jellyfish-merkle')
+    implementation project(':verified-structures:merkle-patricia-trie')
+
+    // All backends
+    implementation project(':verified-structures:jellyfish-merkle-rocksdb')
+    implementation project(':verified-structures:merkle-patricia-trie-rocksdb')
+    implementation project(':verified-structures:jellyfish-merkle-rdbms')
+    implementation project(':verified-structures:merkle-patricia-trie-rdbms')
+
+    // ALL database drivers (complete set for any backend testing)
+    implementation(libs.rocksdbjni)         // RocksDB
+    implementation(libs.h2database)         // H2
+    implementation(libs.sqlite.jdbc)        // SQLite
+    implementation(libs.postgresql)         // PostgreSQL
+    implementation(libs.hikaricp)           // Connection pooling for RDBMS
+
+    // Metrics (optional but useful for load testing)
+    implementation(libs.micrometer.core)
+
+    // Logging
+    implementation(libs.slf4j.api)
+    runtimeOnly(libs.slf4j.reload4j)
+}
+
+// Configure main class (Tools entry point)
+application {
+    mainClass = 'com.bloxbean.cardano.vds.tools.Tools'
+}
+
+// Shadow JAR configuration for standalone fat JAR
+shadowJar {
+    archiveBaseName.set('cardano-client-vds-load-tools')
+    archiveClassifier.set('all')
+    archiveVersion.set(project.version)
+
+    // Merge service files (required for some dependencies like Micrometer)
+    mergeServiceFiles()
+
+    // Set Tools as the entry point
+    manifest {
+        attributes 'Main-Class': 'com.bloxbean.cardano.vds.tools.Tools'
+    }
+}
