@@ -16,14 +16,14 @@ import com.bloxbean.cardano.vds.jmt.store.JmtStore;
 import java.util.*;
 
 /**
- * Unified Jellyfish Merkle Tree implementation following Diem's architecture.
+ * Jellyfish Merkle Tree implementation inspired by Diem's JMT implementation.
  *
  * <p>This implementation uses {@link TreeCache} for batch-local state management,
  * enabling consistent behavior across both in-memory and persistent storage backends.
  * It follows the Diem pattern of delete-then-create for all node updates, ensuring
  * proper versioning and stale node tracking.</p>
  *
- * <h3>Key Differences from Reference Implementation:</h3>
+ * <h3>Key Differences from Diem Reference Implementation:</h3>
  * <ul>
  *   <li><b>Storage Abstraction</b>: Works with any {@link JmtStore} implementation</li>
  *   <li><b>TreeCache Pattern</b>: Uses three-tier lookup (staged → frozen → storage)</li>
@@ -86,7 +86,7 @@ public final class JellyfishMerkleTree {
      * Creates a new JellyfishMerkleTree with default ClassicJmtCommitmentScheme and no metrics.
      *
      * <p>This is the simplest constructor for most use cases. It uses the classic JMT commitment scheme
-     * which is compatible with Diem's reference implementation.
+     * inspired by Diem's reference implementation.
      *
      * @param store  the storage layer for nodes and values
      * @param hashFn the hash function for keys and values
@@ -111,7 +111,7 @@ public final class JellyfishMerkleTree {
     /**
      * Applies a batch of key-value updates and commits them as a new version.
      *
-     * <p><b>Diem-Compatible Architecture:</b></p>
+     * <p><b>Diem-Inspired Architecture:</b></p>
      * <p>Following Diem's design, this implementation does NOT support individual key deletion.
      * All values must be non-null. For deletion semantics in blockchain applications, use
      * the version-based rollback pattern (see ADR-0012 for reorg/rollback handling).</p>
@@ -141,7 +141,7 @@ public final class JellyfishMerkleTree {
         // 2. Track value operations for the result
         List<ValueOperation> valueOps = new ArrayList<>(updates.size());
 
-        // 3. Apply each update (Diem-compatible: no deletes, all values must be non-null)
+        // 3. Apply each update (Diem-inspired: no deletes, all values must be non-null)
         for (Map.Entry<byte[], byte[]> entry : updates.entrySet()) {
             byte[] key = Objects.requireNonNull(entry.getKey(), "key");
             byte[] value = Objects.requireNonNull(entry.getValue(), "value"); // Null not supported
@@ -484,7 +484,7 @@ public final class JellyfishMerkleTree {
      * <p>This is a convenience method that combines {@link #getProof(byte[], long)} with
      * CBOR encoding via {@link com.bloxbean.cardano.vds.jmt.proof.ClassicJmtProofCodec}.
      * The wire format is a CBOR array of encoded nodes (internal nodes + optional leaf),
-     * following the classic JMT proof format compatible with Diem/Aptos.
+     * following the classic JMT proof format inspired by Diem.
      *
      * <p><b>Wire Format Structure:</b>
      * <pre>
@@ -501,7 +501,7 @@ public final class JellyfishMerkleTree {
      *   <li>Network transmission of proofs (RPC APIs, sync protocols)</li>
      *   <li>Proof persistence and caching</li>
      *   <li>Cross-service proof verification</li>
-     *   <li>Compatibility with Diem/Aptos proof formats</li>
+     *   <li>Diem-inspired proof format structure</li>
      * </ul>
      *
      * <p><b>Example:</b>

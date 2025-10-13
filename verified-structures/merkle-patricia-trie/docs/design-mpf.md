@@ -21,11 +21,13 @@
 
 Merkle Patricia Forestry (MPF) is a Cardano-specific variant of Merkle Patricia Tries optimized for on-chain verification in Plutus/Aiken smart contracts.
 
-**Key Differences from Ethereum MPT:**
+**Key Differences from Ethereum's MPT:**
 1. **CBOR encoding** instead of RLP
 2. **Blake2b-256** hash instead of Keccak-256
 3. **Compact proofs** optimized for Plutus script size limits
 4. **Aiken-compatible** proof format for on-chain verification
+
+**Note:** MPF uses Ethereum-inspired radix tree structure but is not cryptographically compatible with Ethereum due to different hashing and encoding.
 
 **Use Cases:**
 - On-chain state verification (dApps, DeFi protocols)

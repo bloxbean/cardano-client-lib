@@ -32,14 +32,14 @@ This library provides production-ready implementations of Merkle-based authentic
 ## Key Features
 
 ### Merkle Patricia Trie (MPT)
-- Ethereum-compatible radix tree with path compression
+- Ethereum-inspired radix tree with path compression
 - Space-efficient extension nodes
 - Prefix scanning for range queries
 - Two modes: Classic MPT and MPF (Merkle Patricia Forestry)
 - SecureTrie wrapper for Cardano/Aiken compatibility
 
 ### Jellyfish Merkle Tree (JMT)
-- Diem/Aptos-compatible sparse Merkle tree
+- Diem-inspired sparse Merkle tree
 - Optimized for versioned state storage
 - Batch insertions with atomic commits
 - Cryptographic proofs of inclusion/exclusion
@@ -183,10 +183,10 @@ verified-structures-core (interfaces & utilities)
 - Off-chain indexing and databases
 - Prefix-based range queries
 - Cardano smart contracts (via SecureTrie)
-- Ethereum state trie compatibility
+- Ethereum-inspired state trie structure
 
 ### Jellyfish Merkle Tree
-- Blockchain state storage (Diem/Aptos compatible)
+- Blockchain state storage (Diem-inspired architecture)
 - Multi-version concurrency control
 - Cryptographic audit trails
 - State synchronization between nodes

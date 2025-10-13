@@ -1,10 +1,10 @@
 # Jellyfish Merkle Tree
 
-High-performance Java implementation of the Jellyfish Merkle Tree (JMT), following Diem's architecture.
+High-performance Java implementation of the Jellyfish Merkle Tree (JMT), inspired by Diem's JMT implementation.
 
 ## Overview
 
-The Jellyfish Merkle Tree is a space-efficient sparse Merkle tree optimized for versioned state storage in blockchain systems. Originally developed for Diem/Aptos, this implementation provides identical semantics with Java-native performance optimizations.
+The Jellyfish Merkle Tree is a space-efficient sparse Merkle tree optimized for versioned state storage in blockchain systems. Originally developed for Diem, this implementation uses the same algorithms and data structures with Java-native performance optimizations.
 
 ## Key Features
 
@@ -13,13 +13,13 @@ The Jellyfish Merkle Tree is a space-efficient sparse Merkle tree optimized for 
 - **Cryptographic Proofs** - Inclusion/exclusion proofs for trustless verification
 - **Sparse Design** - Efficient storage for sparse key spaces (256-bit keys)
 - **Stale Node Tracking** - Automatic garbage collection metadata
-- **Diem-Compatible** - Matches reference implementation semantics
+- **Diem-Inspired** - Follows Diem's JMT architecture and algorithms
 - **High Performance** - ~2M ops/sec on commodity hardware
 
 ## When to Use
 
 ### Use Jellyfish Merkle Tree When:
-- Building blockchain state storage (like Diem, Aptos)
+- Building blockchain state storage (like Diem)
 - Need versioned state with rollback capability
 - Batch insertions are common
 - Cryptographic audit trails required
@@ -137,7 +137,7 @@ long nodesCreated = registry.counter("jmt.commit.nodes.created").count();
 
 ## Architecture
 
-### Diem-Compatible Design
+### Diem-Inspired Design
 
 This implementation follows Diem's three-tier architecture:
 
@@ -438,5 +438,5 @@ See [docs/design-jmt.md](docs/design-jmt.md) for detailed architecture, algorith
 
 ## References
 
-- [Diem JMT Reference](https://github.com/diem/diem/tree/main/storage/jellyfish-merkle) - Original implementation
+- [Diem JMT Reference](https://github.com/diem/diem/tree/main/storage/jellyfish-merkle) - Original Diem implementation
 - [Jellyfish Merkle Tree Paper](https://developers.diem.com/papers/jellyfish-merkle-tree/2021-01-14.pdf) - Academic paper

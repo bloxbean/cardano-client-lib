@@ -4,7 +4,7 @@ Pure Java implementation of Merkle Patricia Trie (MPT) and Merkle Patricia Fores
 
 ## Overview
 
-This module provides a production-ready implementation of the Merkle Patricia Trie, a cryptographically authenticated radix tree combining Patricia trie path compression with Merkle tree authentication. Supports both classic MPT (Ethereum-compatible) and MPF (Cardano/Aiken-compatible) modes.
+This module provides a production-ready implementation of the Merkle Patricia Trie, a cryptographically authenticated radix tree combining Patricia trie path compression with Merkle tree authentication. Supports both classic MPT (Ethereum-inspired structure) and MPF (Cardano/Aiken-compatible) modes.
 
 ## Key Features
 
@@ -143,16 +143,16 @@ assert valid;
 
 ## MPT vs MPF Modes
 
-### Classic MPT (Ethereum-Compatible)
+### Classic MPT (Ethereum-Inspired)
 
 ```java
 import com.bloxbean.cardano.vds.mpt.mode.Modes;
 
 MerklePatriciaTrie trie = new MerklePatriciaTrie(store, hashFn, Modes.CLASSIC);
 
-// Node hashing: RLP-based (Ethereum compatible)
-// Proof format: List of RLP-encoded nodes
-// Use case: Ethereum compatibility, interop with geth/erigon
+// Node hashing: Binary Merkle tree based (Ethereum-inspired structure)
+// Proof format: Structured node commitments
+// Use case: Ethereum-inspired radix tree with Blake2b-256 hashing
 ```
 
 ### MPF (Merkle Patricia Forestry - Cardano Compatible)
@@ -209,9 +209,9 @@ List<MerklePatriciaTrie.Entry> first10 = trie.scanByPrefix("item:".getBytes(), 1
 Two cryptographic commitment schemes are supported:
 
 ### ClassicMptCommitmentScheme (Default)
-- Ethereum RLP-based encoding
-- Compatible with geth, erigon
-- Standard MPT proofs
+- Ethereum-inspired node structure
+- Binary Merkle tree commitments
+- Structured MPT proofs
 
 ### MpfCommitmentScheme (Cardano/Aiken)
 - CBOR encoding with chunked bytestrings

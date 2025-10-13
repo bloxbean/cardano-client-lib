@@ -304,7 +304,7 @@ java -jar verified-structures/load-tools/build/libs/load-tools-all.jar com.bloxb
 
 ## Notes
 
-- JMT does not support delete operations (Diem-compatible design)
+- JMT does not support delete operations (Diem-inspired design)
 - MPT/MPF support delete operations with optional garbage collection
 - RocksDB backends support advanced features: pruning, rollback indices, GC
 - RDBMS backends support transactional batch commits

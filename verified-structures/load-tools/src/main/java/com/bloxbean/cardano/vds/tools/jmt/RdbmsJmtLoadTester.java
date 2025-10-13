@@ -41,7 +41,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * java -cp ... RdbmsJmtLoadTester --records=100000 --batch=1000 --memory
  * </pre>
  *
- * <p><b>Note:</b> JMT does not support delete operations (Diem-compatible design).
+ * <p><b>Note:</b> JMT does not support delete operations (Diem-inspired design).
  * All operations are inserts or updates to existing keys.
  */
 @SuppressWarnings("java:S106") // NOSONAR - CLI tool requires console output
@@ -530,7 +530,7 @@ public final class RdbmsJmtLoadTester {
             System.out.println("  # In-memory baseline");
             System.out.println("  RdbmsJmtLoadTester --records=100000 --batch=1000 --memory");
             System.out.println();
-            System.out.println("Note: JMT does not support delete operations (Diem-compatible design).");
+            System.out.println("Note: JMT does not support delete operations (Diem-inspired design).");
             System.out.println("      All operations are inserts or updates to existing keys.");
             System.exit(0);
         }
