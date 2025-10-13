@@ -208,15 +208,18 @@ List<MerklePatriciaTrie.Entry> first10 = trie.scanByPrefix("item:".getBytes(), 1
 
 Two cryptographic commitment schemes are supported:
 
-### ClassicMptCommitmentScheme (Default)
-- Ethereum-inspired node structure
-- Binary Merkle tree commitments
-- Structured MPT proofs
+### ClassicMptCommitmentScheme
+- Binary Merkle tree with branch value included as 17th element
+- Different root hashes vs MPF mode for same data
+- **Note**: NOT actually Ethereum-compatible (uses Blake2b-256 and CBOR, not Keccak-256 and RLP)
+- **Not recommended**: Use MPF mode instead 
 
-### MpfCommitmentScheme (Cardano/Aiken)
+### MpfCommitmentScheme (Cardano/Aiken) - **DEFAULT**
+- **This is the default commitment scheme** used when no mode is explicitly specified
 - CBOR encoding with chunked bytestrings
 - Optimized for Cardano smart contracts
 - Compatible with Aiken merkle-patricia-forestry library
+- Recommended for all new projects
 
 ```java
 import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
