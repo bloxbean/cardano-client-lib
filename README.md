@@ -15,9 +15,26 @@ A client library for Cardano in Java. This library simplifies the interaction wi
 ### **Previous Stable / Maintenance Release**
 [0.6.7](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.6.7)
 
-### **Branches**
-- **master**: Active development branch (0.7.x and beyond)  
-- **release_0.6.x**: Maintenance branch for 0.6.x line (patch releases only)  
+## Contributing - Branch Guidelines
+
+We maintain three active branches for contributions. Please choose the appropriate branch based on the nature of your changes:
+
+### **Development Branches**
+
+| Branch | Purpose | What to Contribute |
+|--------|---------|-------------------|
+| **master** | Next major release (0.8.0) | New features, enhancements, breaking changes, and **all documentation updates** |
+| **release/0.7.x** | Current stable release line | Bug fixes and minor features (no breaking changes) |
+| **release/0.6.x** | Maintenance only | Critical bug fixes only |
+
+### **Contribution Guidelines**
+
+- **For new features or breaking changes:** Submit PRs to `master`
+- **For bug fixes (0.7.x compatible):** Submit PRs to `release/0.7.x`
+- **For critical fixes (0.6.x):** Submit PRs to `release/0.6.x`
+- **For documentation updates:** Always submit to `master` (documentation site is published from master)
+
+When in doubt about which branch to target, please open an issue for discussion or ask in our [Discord](https://discord.gg/JtQ54MSw6p).
 
 ### More details --> [Documentation](https://cardano-client.dev/)
 
