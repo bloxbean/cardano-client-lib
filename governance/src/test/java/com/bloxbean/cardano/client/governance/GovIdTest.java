@@ -85,6 +85,46 @@ class GovIdTest {
     }
 
     @Test
+    void govActionId_withLargeIndex() {
+        String txHash = "0000000000000000000000000000000000000000000000000000000000000000";
+        int index = 256;
+
+        String govActionId = GovId.govAction(txHash, index);
+        assertThat(govActionId).isNotNull();
+        assertThat(govActionId).startsWith("gov_action1");
+    }
+
+    @Test
+    void govActionId_withMaxUint16() {
+        String txHash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        int index = 65535;
+
+        String govActionId = GovId.govAction(txHash, index);
+        assertThat(govActionId).isNotNull();
+        assertThat(govActionId).startsWith("gov_action1");
+    }
+
+    @Test
+    void govActionId_withNegativeIndex_shouldThrow() {
+        String txHash = "0000000000000000000000000000000000000000000000000000000000000000";
+        int index = -1;
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            GovId.govAction(txHash, index);
+        });
+    }
+
+    @Test
+    void govActionId_withIndexTooLarge_shouldThrow() {
+        String txHash = "0000000000000000000000000000000000000000000000000000000000000000";
+        int index = 65536;
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            GovId.govAction(txHash, index);
+        });
+    }
+
+    @Test
     void drepFromDrepId() {
         String drepId = "drep1ygqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq7vlc9n";
         DRep dRep = GovId.toDrep(drepId);
