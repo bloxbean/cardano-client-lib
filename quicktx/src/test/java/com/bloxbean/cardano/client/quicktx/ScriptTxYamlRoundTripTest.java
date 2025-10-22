@@ -50,8 +50,9 @@ class ScriptTxYamlRoundTripTest {
         assertThat(yaml).contains("utxo_refs:");
         assertThat(yaml).contains("tx_hash: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         assertThat(yaml).contains("output_index: 0");
-        assertThat(yaml).contains("redeemer_hex:");
-        assertThat(yaml).contains("datum_hex:");
+        // Runtime PlutusData objects are now serialized as structured format (not hex) for readability
+        assertThat(yaml).contains("redeemer:");
+        assertThat(yaml).contains("datum:");
         assertThat(yaml).contains("intents:");
         assertThat(yaml).contains("type: payment"); // Regular intents should be in intents section
 
@@ -116,12 +117,13 @@ class ScriptTxYamlRoundTripTest {
         assertThat(restored.getIntentions().get(0)).isInstanceOf(ScriptCollectFromIntent.class);
 
         ScriptCollectFromIntent intent = (ScriptCollectFromIntent) restored.getIntentions().get(0);
-        // From YAML path, utxoRefs/redeemerHex/datumHex should be present
+        // From YAML path, utxoRefs and structured format should be present
         assertThat(intent.getUtxoRefs()).isNotNull();
         assertThat(intent.getUtxoRefs()).hasSize(1);
         assertThat(intent.getUtxoRefs().get(0).getTxHash()).isEqualTo("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
         assertThat(intent.getUtxoRefs().get(0).asIntOutputIndex()).isEqualTo(1);
-        assertThat(intent.getRedeemerHex()).isNotBlank();
-        assertThat(intent.getDatumHex()).isNotBlank();
+        // Runtime PlutusData is serialized as structured format, so structured fields should be present
+        assertThat(intent.getRedeemerStructured()).isNotNull();
+        assertThat(intent.getDatumStructured()).isNotNull();
     }
 }

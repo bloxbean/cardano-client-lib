@@ -8,8 +8,11 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.OutputBuilders;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.PlutusDataYamlUtil;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.spec.Script;
+import com.fasterxml.jackson.databind.JsonNode;
+import lombok.SneakyThrows;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
@@ -24,9 +27,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Objects;
 
 import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
@@ -46,6 +51,7 @@ import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Slf4j
 public class PaymentIntent implements TxIntent {
 
     /**
@@ -115,6 +121,13 @@ public class PaymentIntent implements TxIntent {
     private String datumHash;
 
     /**
+     * Structured datum format for YAML
+     * Supports optional @name annotations and variable resolution.
+     */
+    @JsonProperty("datum")
+    private JsonNode datumStructured;
+
+    /**
      * Get script reference bytes as hex for serialization.
      */
     @JsonProperty("script_ref_bytes")
@@ -127,15 +140,14 @@ public class PaymentIntent implements TxIntent {
 
     /**
      * Get datum hex for serialization.
+     * Returns null if we have a runtime datum object (will be serialized as structured format instead).
+     * Only serializes as hex if datumHex was explicitly provided.
      */
     @JsonProperty("datum_hex")
     public String getDatumHex() {
+        // Don't serialize both hex and structured - prefer structured for readability
         if (datum != null) {
-            try {
-                return datum.serializeToHex();
-            } catch (Exception e) {
-                // Log error and return stored hex
-            }
+            return null;
         }
         return datumHex;
     }
@@ -149,6 +161,33 @@ public class PaymentIntent implements TxIntent {
             return HexUtil.encodeHexString(datumHashBytes);
         }
         return datumHash;
+    }
+
+    /**
+     * Get structured datum format for YAML serialization.
+     * Precedence: datum_hex > datum_hash > runtime object > structured format.
+     * Note: @name annotations are NOT preserved (write-only).
+     */
+    @JsonProperty("datum")
+    public JsonNode getDatumStructured() {
+        if (datumHex != null && !datumHex.isEmpty()) {
+            return null;
+        }
+        if (datumHash != null && !datumHash.isEmpty()) {
+            return null;
+        }
+        if (datum != null) {
+            return PlutusDataYamlUtil.toYamlNode(datum);
+        }
+        return datumStructured;
+    }
+
+    /**
+     * Set structured datum format for YAML deserialization.
+     */
+    @JsonProperty("datum")
+    public void setDatumStructured(JsonNode node) {
+        this.datumStructured = node;
     }
 
     @Override
@@ -170,41 +209,56 @@ public class PaymentIntent implements TxIntent {
         if (datumHex != null) datumCount++;
         if (datumHashBytes != null) datumCount++;
         if (datumHash != null) datumCount++;
+        if (datumStructured != null) datumCount++;
 
         if (datumCount > 1) {
-            throw new IllegalStateException("Cannot have multiple datum representations");
+            // Issue warnings for precedence conflicts
+            if ((datumHex != null && !datumHex.isEmpty()) && datumStructured != null) {
+                log.warn("WARNING: Both datum_hex and datum (structured) are present. " +
+                        "Using datum_hex (takes precedence). Remove one to avoid confusion.");
+            }
+            if ((datumHash != null && !datumHash.isEmpty()) && datumStructured != null) {
+                log.warn("WARNING: Both datum_hash and datum (structured) are present. " +
+                        "Using datum_hash (takes precedence). Remove one to avoid confusion.");
+            }
+            if ((datumHex != null && datumHash != null) ||
+                (datum != null && (datumHex != null || datumHash != null || datumHashBytes != null))) {
+                throw new IllegalStateException("Cannot have multiple datum representations (choose one: datum, datum_hex, or datum_hash)");
+            }
         }
     }
 
     @Override
+    @SneakyThrows
     public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
-        if (variables == null || variables.isEmpty()) {
-            return this;
+        if (variables == null) {
+            variables = new java.util.HashMap<>();
         }
 
         String resolvedAddress = VariableResolver.resolve(address, variables);
 
-        // For now, only resolve the address field since it's the most common variable field
-        // Other fields like scriptRefBytesHex, datumHex, datumHash could also contain variables
-        // but are less common and typically contain encoded data
-        if (!java.util.Objects.equals(resolvedAddress, address)) {
+        // Process DATUM structured format if present
+        PlutusData resolvedDatum = datum;
+        if (datumStructured != null && datum == null) {
+            // Apply 3-step pipeline: Strip @name → Resolve vars → Build PlutusData
+            resolvedDatum = PlutusDataYamlUtil.fromYamlNode(datumStructured, variables);
+        }
+
+        // Check if anything changed
+        if (!Objects.equals(resolvedAddress, address)
+                || !Objects.equals(resolvedDatum, datum)) {
             return this.toBuilder()
                     .address(resolvedAddress)
+                    .datum(resolvedDatum)
                     .build();
         }
 
         return this;
     }
 
-    // Convenience methods removed; prefer builder or AbstractTx APIs.
-
-    // Self-processing methods for functional TxBuilder architecture
-
     @Override
     public TxOutputBuilder outputBuilder(IntentContext context) {
         try {
-            // Phase 1: Create transaction output (address already resolved during YAML parsing)
-
             // Validate address is not null/empty
             if (address == null || address.trim().isEmpty()) {
                 throw new TxBuildException("Payment address is required after variable resolution");
@@ -223,8 +277,6 @@ public class PaymentIntent implements TxIntent {
 
     @Override
     public TxBuilder apply(IntentContext context) {
-        // Phase 3: No additional transformations needed for basic payments
-        // Output was already handled in Phase 1 (outputBuilder)
         return (ctx, txn) -> {
             // No-op: output creation handled in outputBuilder() phase
         };
