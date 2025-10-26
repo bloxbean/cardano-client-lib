@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.address.AddressType;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
+import com.bloxbean.cardano.client.function.helper.WithdrawalUtil;
 import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
@@ -22,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -450,7 +452,16 @@ class StakeTx {
             if (txn.getBody().getWithdrawals() == null || txn.getBody().getWithdrawals().isEmpty())
                 txn.getBody().setWithdrawals(new ArrayList<>());
 
-            for (WithdrawalContext withdrawalContext : withdrawalContexts) {
+            // Sort withdrawalContexts by stake key hash to ensure correct redeemer indices
+            // Withdrawals must be ordered by their address bytes in canonical CBOR encoding
+            List<WithdrawalContext> sortedWithdrawalContexts = withdrawalContexts.stream()
+                    .sorted(Comparator.comparing(
+                            WithdrawalContext::getWithdrawal,
+                            WithdrawalUtil.getWithdrawalComparator()
+                    ))
+                    .collect(Collectors.toList());
+
+            for (WithdrawalContext withdrawalContext : sortedWithdrawalContexts) {
                 txn.getBody().getWithdrawals().add(withdrawalContext.getWithdrawal());
                 if (withdrawalContext.receiver == null)
                     withdrawalContext.receiver = changeAddress;
