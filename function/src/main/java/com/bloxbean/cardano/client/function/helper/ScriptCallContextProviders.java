@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -123,6 +124,30 @@ public class ScriptCallContextProviders {
                             index = MintUtil.getIndexByPolicyId(sortedMultiAssets, plutusScript.getPolicyId());
                         } catch (CborSerializationException e) {
                             throw new TxBuildException("Error getting policy id from the mint script " + plutusScript);
+                        }
+                    }
+                }
+
+                if (index == -1 && tag == RedeemerTag.Reward) {
+                    if (transaction.getBody().getWithdrawals() != null && !transaction.getBody().getWithdrawals().isEmpty()) {
+                        // Sort withdrawals to get correct redeemer index
+                        List<Withdrawal> sortedWithdrawals = WithdrawalUtil.getSortedWithdrawals(
+                                transaction.getBody().getWithdrawals()
+                        );
+
+                        try {
+                            // Get script hash which is the stake credential hash for script-based reward addresses
+                            String scriptHash = HexUtil.encodeHexString(plutusScript.getScriptHash());
+
+                            // Find the withdrawal index by stake key hash
+                            index = WithdrawalUtil.getIndexByStakeKeyHash(sortedWithdrawals, scriptHash);
+
+                            if (index == -1) {
+                                throw new TxBuildException("Withdrawal with script hash " + scriptHash +
+                                        " not found in transaction withdrawals");
+                            }
+                        } catch (CborSerializationException e) {
+                            throw new TxBuildException("Error getting script hash from the reward script", e);
                         }
                     }
                 }

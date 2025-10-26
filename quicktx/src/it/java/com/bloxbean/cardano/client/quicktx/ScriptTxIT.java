@@ -873,7 +873,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash ->  Optional.of(sumScript)): null)
                 .completeAndWait(System.out::println);
 
         System.out.println(result1.getResponse());
@@ -942,7 +942,7 @@ public class ScriptTxIT extends TestDataBaseIT {
                 .feePayer(sender1Addr)
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withTxEvaluator(!backendType.equals(BLOCKFROST) && aikenEvaluation?
-                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash -> sumScript): null)
+                        new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier, scriptHash ->  Optional.of(sumScript)): null)
                 .withReferenceScripts(sumScript)
                 .completeAndWait(System.out::println);
 
