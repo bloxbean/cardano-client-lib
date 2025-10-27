@@ -19,6 +19,7 @@ import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.*;
 import lombok.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -35,6 +36,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Slf4j
 public class ScriptMintingIntent implements TxIntent {
 
     @JsonProperty
@@ -155,12 +157,12 @@ public class ScriptMintingIntent implements TxIntent {
 
         // Precedence warnings: hex takes priority over structured
         if (redeemerHex != null && !redeemerHex.isEmpty() && redeemerStructured != null) {
-            System.err.println("WARNING: Both redeemer_hex and redeemer (structured) are present. " +
+            log.warn("Both redeemer_hex and redeemer (structured) are present. " +
                     "Using redeemer_hex (takes precedence). Remove one to avoid confusion.");
         }
 
         if (outputDatumHex != null && !outputDatumHex.isEmpty() && outputDatumStructured != null) {
-            System.err.println("WARNING: Both output_datum_hex and output_datum (structured) are present. " +
+            log.warn("Both output_datum_hex and output_datum (structured) are present. " +
                     "Using output_datum_hex (takes precedence). Remove one to avoid confusion.");
         }
     }

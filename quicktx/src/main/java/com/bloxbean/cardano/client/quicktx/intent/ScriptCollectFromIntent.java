@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.*;
@@ -52,6 +53,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Slf4j
 public class ScriptCollectFromIntent implements TxInputIntent {
 
     /**
@@ -263,12 +265,12 @@ public class ScriptCollectFromIntent implements TxInputIntent {
 
         // Precedence warnings: hex takes priority over structured
         if (redeemerHex != null && !redeemerHex.isEmpty() && redeemerStructured != null) {
-            System.err.println("WARNING: Both redeemer_hex and redeemer (structured) are present. " +
+            log.warn("Both redeemer_hex and redeemer (structured) are present. " +
                     "Using redeemer_hex (takes precedence). Remove one to avoid confusion.");
         }
 
         if (datumHex != null && !datumHex.isEmpty() && datumStructured != null) {
-            System.err.println("WARNING: Both datum_hex and datum (structured) are present. " +
+            log.warn("Both datum_hex and datum (structured) are present. " +
                     "Using datum_hex (takes precedence). Remove one to avoid confusion.");
         }
     }
