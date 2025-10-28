@@ -4,7 +4,7 @@ import com.bloxbean.cardano.client.crypto.CryptoException;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyGenerator;
 import com.bloxbean.cardano.client.crypto.bip32.HdKeyPair;
 import com.bloxbean.cardano.client.crypto.bip32.key.HdPublicKey;
-import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
+import com.bloxbean.cardano.client.crypto.bip32.Bip32Type;
 
 /**
  * CIP1852 helper class
@@ -12,23 +12,52 @@ import com.bloxbean.cardano.client.crypto.bip39.MnemonicCode;
 public class CIP1852 {
 
     /**
-     * Get HdKeyPair from mnemonic phrase
+     * Get HdKeyPair from mnemonic phrase using ICARUS derivation (default for Cardano)
      * @param mnemonicPhrase mnemonic phrase
      * @param derivationPath derivation path
      * @return HdKeyPair
      */
     public HdKeyPair getKeyPairFromMnemonic(String mnemonicPhrase, DerivationPath derivationPath) {
-        try {
-            byte[] entropy = MnemonicCode.INSTANCE.toEntropy(mnemonicPhrase);
+        return getKeyPairFromMnemonic(mnemonicPhrase, derivationPath, Bip32Type.ICARUS);
+    }
 
-            return getKeyPairFromEntropy(entropy, derivationPath);
+    /**
+     * Get HdKeyPair from mnemonic phrase using the specified BIP39 derivation type
+     * @param mnemonicPhrase mnemonic phrase
+     * @param derivationPath derivation path
+     * @param bip32Type the BIP39 derivation type (ICARUS, LEDGER, or TREZOR)
+     * @return HdKeyPair
+     */
+    public HdKeyPair getKeyPairFromMnemonic(String mnemonicPhrase, DerivationPath derivationPath, Bip32Type bip32Type) {
+        return getKeyPairFromMnemonic(mnemonicPhrase, "", derivationPath, bip32Type);
+    }
+
+    /**
+     * Get HdKeyPair from mnemonic phrase using the specified BIP39 derivation type with passphrase
+     * @param mnemonicPhrase mnemonic phrase
+     * @param passphrase the passphrase (empty string for no passphrase)
+     * @param derivationPath derivation path
+     * @param bip32Type the BIP39 derivation type (ICARUS, LEDGER, or TREZOR)
+     * @return HdKeyPair
+     */
+    public HdKeyPair getKeyPairFromMnemonic(String mnemonicPhrase, String passphrase, DerivationPath derivationPath, Bip32Type bip32Type) {
+        try {
+            HdKeyGenerator hdKeyGenerator = new HdKeyGenerator();
+            HdKeyPair rootKeyPair = hdKeyGenerator.getRootKeyPairFromMnemonic(mnemonicPhrase, passphrase, bip32Type);
+
+            HdKeyPair purposeKey = hdKeyGenerator.getChildKeyPair(rootKeyPair, derivationPath.getPurpose().getValue(), derivationPath.getPurpose().isHarden());
+            HdKeyPair coinTypeKey = hdKeyGenerator.getChildKeyPair(purposeKey, derivationPath.getCoinType().getValue(), derivationPath.getCoinType().isHarden());
+            HdKeyPair accountKey = hdKeyGenerator.getChildKeyPair(coinTypeKey, derivationPath.getAccount().getValue(), derivationPath.getAccount().isHarden());
+            HdKeyPair roleKey = hdKeyGenerator.getChildKeyPair(accountKey, derivationPath.getRole().getValue(), derivationPath.getRole().isHarden());
+
+            return hdKeyGenerator.getChildKeyPair(roleKey, derivationPath.getIndex().getValue(), derivationPath.getIndex().isHarden());
         } catch (Exception ex) {
             throw new CryptoException("Mnemonic to KeyPair generation failed", ex);
         }
     }
 
     /**
-     * Generates the root HdKeyPair from the given mnemonic phrase.
+     * Generates the root HdKeyPair from the given mnemonic phrase using ICARUS derivation (default for Cardano).
      *
      * @param mnemonicPhrase the mnemonic phrase used to generate the HdKeyPair
      * @return the root HdKeyPair derived from the provided mnemonic phrase
@@ -36,11 +65,34 @@ public class CIP1852 {
      *         the key pair generation fails
      */
     public HdKeyPair getRootKeyPairFromMnemonic(String mnemonicPhrase) {
+        return getRootKeyPairFromMnemonic(mnemonicPhrase, Bip32Type.ICARUS);
+    }
+
+    /**
+     * Generates the root HdKeyPair from the given mnemonic phrase using the specified BIP39 derivation type.
+     *
+     * @param mnemonicPhrase the mnemonic phrase used to generate the HdKeyPair
+     * @param bip32Type the BIP39 derivation type (ICARUS, LEDGER, or TREZOR)
+     * @return the root HdKeyPair derived from the provided mnemonic phrase
+     * @throws CryptoException if the key pair generation fails
+     */
+    public HdKeyPair getRootKeyPairFromMnemonic(String mnemonicPhrase, Bip32Type bip32Type) {
+        return getRootKeyPairFromMnemonic(mnemonicPhrase, "", bip32Type);
+    }
+
+    /**
+     * Generates the root HdKeyPair from the given mnemonic phrase using the specified BIP39 derivation type with passphrase.
+     *
+     * @param mnemonicPhrase the mnemonic phrase used to generate the HdKeyPair
+     * @param passphrase the passphrase (empty string for no passphrase)
+     * @param bip32Type the BIP39 derivation type (ICARUS, LEDGER, or TREZOR)
+     * @return the root HdKeyPair derived from the provided mnemonic phrase
+     * @throws CryptoException if the key pair generation fails
+     */
+    public HdKeyPair getRootKeyPairFromMnemonic(String mnemonicPhrase, String passphrase, Bip32Type bip32Type) {
         var hdKeyGenerator = new HdKeyGenerator();
         try {
-            byte[] entropy = MnemonicCode.INSTANCE.toEntropy(mnemonicPhrase);
-
-            return hdKeyGenerator.getRootKeyPairFromEntropy(entropy);
+            return hdKeyGenerator.getRootKeyPairFromMnemonic(mnemonicPhrase, passphrase, bip32Type);
         } catch (Exception ex) {
             throw new CryptoException("Mnemonic to KeyPair generation failed", ex);
         }
