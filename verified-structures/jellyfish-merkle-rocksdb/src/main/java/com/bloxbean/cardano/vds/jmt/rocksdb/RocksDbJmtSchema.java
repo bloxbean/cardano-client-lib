@@ -48,19 +48,6 @@ final class RocksDbJmtSchema {
         );
     }
 
-    /**
-     * Legacy method for backward compatibility.
-     *
-     * @deprecated Use {@link #columnFamilies(NamespaceOptions)} instead
-     */
-    @Deprecated
-    static ColumnFamilies columnFamilies(String namespace) {
-        if (namespace == null || namespace.isBlank()) {
-            return columnFamilies(NamespaceOptions.defaults());
-        } else {
-            return columnFamilies(NamespaceOptions.columnFamily(namespace.trim()));
-        }
-    }
 
     static final class ColumnFamilies {
         private final String nodes;

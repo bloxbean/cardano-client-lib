@@ -6,6 +6,7 @@ import com.bloxbean.cardano.vds.jmt.JmtNode;
 import com.bloxbean.cardano.vds.jmt.NodeKey;
 import com.bloxbean.cardano.vds.jmt.store.JmtStore;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
+import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.ColumnFamilyOptions;
@@ -38,13 +39,13 @@ import static com.bloxbean.cardano.vds.jmt.rocksdb.RocksDbJmtSchema.*;
 public final class RocksDbJmtStore implements JmtStore {
 
     /**
-     * Returns the column family names used by JMT when the supplied namespace/prefix is applied.
+     * Returns the column family names used by JMT when the supplied namespace options are applied.
      *
-     * @param namespace optional namespace to prefix to the internal column family names (may be {@code null})
+     * @param options namespace options (may be {@code null} for defaults)
      * @return resolved column family names
      */
-    public static ColumnFamilies columnFamilies(String namespace) {
-        RocksDbJmtSchema.ColumnFamilies names = RocksDbJmtSchema.columnFamilies(namespace);
+    public static ColumnFamilies columnFamilies(com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions options) {
+        RocksDbJmtSchema.ColumnFamilies names = RocksDbJmtSchema.columnFamilies(options);
         return new ColumnFamilies(names.nodes(), names.values(), names.roots(), names.stale());
     }
 
@@ -1095,7 +1096,11 @@ public final class RocksDbJmtStore implements JmtStore {
         DBOptions dbOptions = new DBOptions().setCreateIfMissing(true).setCreateMissingColumnFamilies(true);
         config.applyToDbOptions(dbOptions);
 
-        RocksDbJmtSchema.ColumnFamilies names = RocksDbJmtSchema.columnFamilies(options.namespace());
+        NamespaceOptions namespaceOpts =
+            (options.namespace() == null || options.namespace().isBlank())
+                ? NamespaceOptions.defaults()
+                : NamespaceOptions.columnFamily(options.namespace().trim());
+        RocksDbJmtSchema.ColumnFamilies names = RocksDbJmtSchema.columnFamilies(namespaceOpts);
 
         RocksDB db = null;
         List<ColumnFamilyHandle> handles = new ArrayList<>();
@@ -1167,7 +1172,11 @@ public final class RocksDbJmtStore implements JmtStore {
     private static Init attachInternal(RocksDB db,
                                        Options options,
                                        Map<String, ColumnFamilyHandle> existingHandles) throws RocksDBException {
-        RocksDbJmtSchema.ColumnFamilies names = RocksDbJmtSchema.columnFamilies(options.namespace());
+        NamespaceOptions namespaceOpts =
+            (options.namespace() == null || options.namespace().isBlank())
+                ? NamespaceOptions.defaults()
+                : NamespaceOptions.columnFamily(options.namespace().trim());
+        RocksDbJmtSchema.ColumnFamilies names = RocksDbJmtSchema.columnFamilies(namespaceOpts);
 
         // Apply RocksDB configuration
         RocksDbConfig config = options.rocksDbConfig();
