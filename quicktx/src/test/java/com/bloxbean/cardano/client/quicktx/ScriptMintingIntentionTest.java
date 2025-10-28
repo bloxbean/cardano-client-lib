@@ -40,8 +40,11 @@ class ScriptMintingIntentionTest {
         assertThat(yaml).contains("type: script_minting");
         assertThat(yaml).contains("version: 1.0");
         assertThat(yaml).contains("cbor_hex:");
-        assertThat(yaml).contains("redeemer_hex:");
-        assertThat(yaml).contains("output_datum_hex:");
+        // Runtime PlutusData objects are now serialized as structured format (not hex) for readability
+        assertThat(yaml).contains("redeemer:");
+        assertThat(yaml).contains("output_datum:");
+        assertThat(yaml).contains("int: 11"); // redeemer value
+        assertThat(yaml).contains("int: 42"); // output_datum value
         assertThat(yaml).contains("receiver: addr_test1_receiver_mint");
 
         // Structure sanity
