@@ -124,7 +124,7 @@ public class GovTxTest extends QuickTxBaseTest {
                 HexUtil.decodeHexString("bafef700c0039a2efb056a665b3a8bcd94f8670b88d659f7f3db68340f6f0937"));
 
         Tx drepRegTx = new Tx()
-                .registerDRep(account2, anchor)
+            .registerDRep(account2, anchor)
                 .registerDRep(account3, anchor)
                 .from(address1);
 

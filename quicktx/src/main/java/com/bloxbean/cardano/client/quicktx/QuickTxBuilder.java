@@ -25,6 +25,9 @@ import com.bloxbean.cardano.client.util.JsonUtil;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.bloxbean.cardano.hdwallet.Wallet;
 import com.bloxbean.cardano.hdwallet.util.HDWalletAddressIterator;
+import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.util.HexUtil;
+import com.bloxbean.cardano.client.quicktx.signing.SignerRegistry;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -144,14 +147,86 @@ public class QuickTxBuilder {
     }
 
     /**
+     * Create TxContext from a TxPlan with automatic property mapping.
+     * This method maps TxPlan context properties to the corresponding TxContext methods.
+     *
+     * @param plan the transaction plan with transactions and context properties
+     * @return TxContext with all properties applied
+     */
+    public TxContext compose(TxPlan plan) {
+        if (plan == null)
+            throw new TxBuildException("TxPlan cannot be null");
+
+        List<AbstractTx<?>> transactions = plan.getTxs();
+        if (transactions == null || transactions.isEmpty())
+            throw new TxBuildException("TxPlan must contain at least one transaction");
+
+        // Create TxContext with transactions
+        TxContext context = new TxContext(transactions.toArray(new AbstractTx[0]));
+
+        // Apply context properties from TxPlan
+        if (plan.getFeePayer() != null) {
+            context.feePayer(plan.getFeePayer());
+        }
+
+        if (plan.getCollateralPayer() != null) {
+            context.collateralPayer(plan.getCollateralPayer());
+        }
+
+        if (plan.getRequiredSigners() != null && !plan.getRequiredSigners().isEmpty()) {
+            // Convert hex strings back to byte arrays for TxContext
+            byte[][] signerCredentials = plan.getRequiredSigners().stream()
+                .map(HexUtil::decodeHexString)
+                .toArray(byte[][]::new);
+            context.withRequiredSigners(signerCredentials);
+        }
+
+        if (plan.getValidFromSlot() != null) {
+            context.validFrom(plan.getValidFromSlot());
+        }
+
+        if (plan.getValidToSlot() != null) {
+            context.validTo(plan.getValidToSlot());
+        }
+
+        // Map reference-based context
+        if (plan.getFeePayerRef() != null && !plan.getFeePayerRef().isEmpty()) {
+            context.feePayerRef(plan.getFeePayerRef());
+        }
+        if (plan.getCollateralPayerRef() != null && !plan.getCollateralPayerRef().isEmpty()) {
+            context.collateralPayerRef(plan.getCollateralPayerRef());
+        }
+        if (plan.getSignerRefs() != null && !plan.getSignerRefs().isEmpty()) {
+            for (com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument.SignerRef sr : plan.getSignerRefs()) {
+                if (sr.getRef() != null && sr.getScope() != null) {
+                    context.withSignerRef(sr.getRef(), sr.getScope());
+                }
+            }
+        }
+
+        return context;
+    }
+
+    /**
+     * Compose from a TxPlan and configure a SignerRegistry for ref resolution.
+     */
+    public TxContext compose(TxPlan plan, SignerRegistry registry) {
+        TxContext ctx = compose(plan);
+        if (registry != null) ctx.withSignerRegistry(registry);
+        return ctx;
+    }
+
+    /**
      * TxContext is created for group of transactions which are to be submitted as a single transaction.
      */
     public class TxContext {
         private AbstractTx[] txList;
         private String feePayer;
         private Wallet feePayerWallet;
+        private String feePayerRef;
         private String collateralPayer;
         private Wallet collateralPayerWallet;
+        private String collateralPayerRef;
         private Set<byte[]> requiredSigners;
         private Set<TransactionInput> collateralInputs;
 
@@ -178,6 +253,19 @@ public class QuickTxBuilder {
         private Era serializationEra;
         private boolean removeDuplicateScriptWitnesses = false;
         private boolean searchUtxoByAddressVkh = false;
+
+        // Optional per-context override for registry
+        private SignerRegistry contextSignerRegistry;
+
+        // Additional signer refs (ref + scope)
+        private class SignerRef {
+            final String ref;
+            final String scope;
+            SignerRef(String ref, String scope) {
+                this.ref = ref; this.scope = scope;
+            }
+        }
+        private List<SignerRef> signerRefs;
 
         TxContext(AbstractTx... txs) {
             this.txList = txs;
@@ -253,6 +341,52 @@ public class QuickTxBuilder {
         }
 
         /**
+         * Override the builder-level signer registry for this composition.
+         */
+        public TxContext withSignerRegistry(SignerRegistry registry) {
+            this.contextSignerRegistry = registry;
+            return this;
+        }
+
+        /**
+         * Set the fee payer using a reference (e.g., account://..., wallet://...).
+         */
+        public TxContext feePayerRef(String ref) {
+            if (this.feePayerWallet != null || this.feePayer != null)
+                throw new TxBuildException("The fee payer has already been set. Cannot set feePayerRef.");
+            if (ref == null || ref.isBlank())
+                throw new TxBuildException("feePayerRef cannot be null or blank");
+            this.feePayerRef = ref;
+            return this;
+        }
+
+        /**
+         * Set the collateral payer using a reference (e.g., account://..., wallet://...).
+         */
+        public TxContext collateralPayerRef(String ref) {
+            if (this.collateralPayerWallet != null || this.collateralPayer != null)
+                throw new TxBuildException("The collateral payer has already been set. Cannot set collateralPayerRef.");
+            if (ref == null || ref.isBlank())
+                throw new TxBuildException("collateralPayerRef cannot be null or blank");
+            this.collateralPayerRef = ref;
+            return this;
+        }
+
+        /**
+         * Add an additional signer reference for the given scope (payment|stake|drep|committeeCold|committeeHot|policy|custom).
+         */
+        public TxContext withSignerRef(String ref, String scope) {
+            if (ref == null || ref.isBlank())
+                throw new TxBuildException("signer ref cannot be null or blank");
+            if (scope == null || scope.isBlank())
+                throw new TxBuildException("signer scope cannot be null or blank");
+            if (this.signerRefs == null)
+                this.signerRefs = new ArrayList<>();
+            this.signerRefs.add(new SignerRef(ref, scope));
+            return this;
+        }
+
+        /**
          * Set a TxBuilder function to transform the transaction before balance calculation.
          * This is useful when additional transformation logic is required before balance calculation.
          *
@@ -316,6 +450,94 @@ public class QuickTxBuilder {
         }
 
         private Tuple<TxBuilderContext, TxBuilder> _build() {
+            // Resolve references (fromRef, payer refs, additional signer refs) before building
+            SignerRegistry effectiveRegistry = this.contextSignerRegistry;
+
+            if (effectiveRegistry != null) {
+                // Resolve tx-level fromRef for regular Txs and add payment signer
+                for (AbstractTx tx : txList) {
+                    if (tx instanceof Tx) {
+                        Tx regularTx = (Tx) tx;
+                        String fromRef = regularTx.getFromRef();
+                        if (fromRef != null && !fromRef.isBlank()) {
+                            var bindingOpt = effectiveRegistry.resolve(fromRef);
+                            if (bindingOpt.isEmpty())
+                                throw new TxBuildException("Unable to resolve fromRef: " + fromRef);
+                            var binding = bindingOpt.get();
+                            // Prefer wallet when available; else preferred address
+                            if (binding.asWallet().isPresent()) {
+                                regularTx.from(binding.asWallet().get());
+                            } else if (binding.preferredAddress().isPresent()) {
+                                regularTx.from(binding.preferredAddress().get());
+                            } else {
+                                throw new TxBuildException("Resolved fromRef has neither wallet nor preferred address: " + fromRef);
+                            }
+                        }
+                    }
+                }
+
+                // Resolve fee/collateral payer refs if provided
+                if (this.feePayerRef != null && (this.feePayer == null && this.feePayerWallet == null)) {
+                    var bindingOpt = effectiveRegistry.resolve(this.feePayerRef);
+                    if (bindingOpt.isEmpty())
+                        throw new TxBuildException("Unable to resolve feePayerRef: " + this.feePayerRef);
+                    var binding = bindingOpt.get();
+                    if (binding.asWallet().isPresent()) {
+                        this.feePayerWallet = binding.asWallet().get();
+                        this.feePayer = this.feePayerWallet.getBaseAddress(0).getAddress();
+                    } else if (binding.preferredAddress().isPresent()) {
+                        this.feePayer = binding.preferredAddress().get();
+                    } else {
+                        throw new TxBuildException("Resolved feePayerRef has neither wallet nor preferred address: " + this.feePayerRef);
+                    }
+                }
+
+                if (this.collateralPayerRef != null && (this.collateralPayer == null && this.collateralPayerWallet == null)) {
+                    var bindingOpt = effectiveRegistry.resolve(this.collateralPayerRef);
+                    if (bindingOpt.isEmpty())
+                        throw new TxBuildException("Unable to resolve collateralPayerRef: " + this.collateralPayerRef);
+                    var binding = bindingOpt.get();
+                    if (binding.asWallet().isPresent()) {
+                        this.collateralPayerWallet = binding.asWallet().get();
+                        this.collateralPayer = this.collateralPayerWallet.getBaseAddress(0).getAddress();
+                    } else if (binding.preferredAddress().isPresent()) {
+                        this.collateralPayer = binding.preferredAddress().get();
+                    } else {
+                        throw new TxBuildException("Resolved collateralPayerRef has neither wallet nor preferred address: " + this.collateralPayerRef);
+                    }
+                }
+
+                // Resolve additional signer refs
+                if (this.signerRefs != null && !this.signerRefs.isEmpty()) {
+                    for (SignerRef sr : this.signerRefs) {
+                        var bindingOpt = effectiveRegistry.resolve(sr.ref);
+                        if (bindingOpt.isEmpty())
+                            throw new TxBuildException("Unable to resolve signer ref: " + sr.ref);
+                        var binding = bindingOpt.get();
+                        try {
+                            this.withSigner(binding.signerFor(sr.scope));
+                        } catch (Exception e) {
+                            throw new TxBuildException("Failed to create signer for ref: " + sr.ref + ", scope: " + sr.scope, e);
+                        }
+                    }
+                }
+            } else {
+                // No registry configured; ensure no refs are present
+                for (AbstractTx tx : txList) {
+                    if (tx instanceof Tx) {
+                        String ref = ((Tx) tx).getFromRef();
+                        if (ref != null && !ref.isBlank())
+                            throw new TxBuildException("fromRef set but no SignerRegistry configured");
+                    }
+                }
+                if (this.feePayerRef != null)
+                    throw new TxBuildException("feePayerRef set but no SignerRegistry configured");
+                if (this.collateralPayerRef != null)
+                    throw new TxBuildException("collateralPayerRef set but no SignerRegistry configured");
+                if (this.signerRefs != null && !this.signerRefs.isEmpty())
+                    throw new TxBuildException("signer refs set but no SignerRegistry configured");
+            }
+
             TxBuilder txBuilder = (context, txn) -> {
             };
             boolean containsScriptTx = false;

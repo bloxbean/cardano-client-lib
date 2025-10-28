@@ -4,10 +4,15 @@ dependencies {
     api project(':backend')
     api project(':hd-wallet')
 
+    // YAML/JSON serialization
+    implementation libs.jackson.databind
+    implementation libs.jackson.dataformat.yaml
+
     integrationTestImplementation(libs.slf4j.reload4j)
     integrationTestImplementation(libs.aiken.java.binding)
 
     integrationTestImplementation project(':')
+    integrationTestImplementation project(':it-support')
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':backend-modules:koios')
     integrationTestImplementation project(':backend-modules:ogmios')
