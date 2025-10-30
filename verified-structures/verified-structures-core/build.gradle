@@ -1,0 +1,16 @@
+plugins {
+    id 'java-library'
+}
+
+sourceCompatibility = JavaVersion.VERSION_11
+targetCompatibility = JavaVersion.VERSION_11
+
+dependencies {
+    api project(':crypto')
+    implementation(libs.co.nstant.in.cbor)
+    implementation(libs.guava)
+}
+
+test {
+    useJUnitPlatform()
+}
