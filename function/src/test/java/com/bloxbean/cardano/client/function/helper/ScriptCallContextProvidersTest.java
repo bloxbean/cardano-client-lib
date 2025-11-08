@@ -1,16 +1,24 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.api.common.OrderEnum;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.BaseTest;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
+import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxBuilderContext;
+import com.bloxbean.cardano.client.function.TxSigner;
 import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusField;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -27,7 +35,11 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.function.helper.ScriptCallContextProviders.scriptCallContext;
+import static com.bloxbean.cardano.client.plutus.util.PlutusUtil.getPlutusScript;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -349,6 +361,131 @@ class ScriptCallContextProvidersTest extends BaseTest {
 
         //assertThat(transaction.getBody().getScriptDataHash()).isNotNull();
 
+    }
+
+    @Test
+    void testMultipleScriptWithdrawals_verifyRedeemerIndices() throws Exception {
+        Account sender = new Account();
+        String senderAddress = sender.baseAddress();
+
+        Utxo utxo = Utxo.builder()
+                .txHash("a712906ae823ecefe6cab76e5cfd427bd0b6144df10c6f89a56fbdf30fa807f4")
+                .outputIndex(0)
+                .amount(List.of(Amount.ada(3000)))
+                .build();
+
+        given(utxoSupplier.getPage(senderAddress, 100, 0, OrderEnum.asc)).willReturn(List.of(utxo));
+        given(utxoSupplier.getPage(senderAddress, 100, 1, OrderEnum.asc)).willReturn(List.of(utxo));
+        given(utxoSupplier.getPage(senderAddress, 100, 2, OrderEnum.asc)).willReturn(List.of());
+
+        // Create three PlutusV2 scripts with different redeemers (1, 2, 3)
+        String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
+        PlutusScript plutusScript1 = getPlutusScript(aikenCompiledCode1, PlutusVersion.v2);
+
+        String aikenCompiledCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+        PlutusScript plutusScript2 = getPlutusScript(aikenCompiledCode2, PlutusVersion.v2);
+
+        String aikenCompiledCode3 = "581801000032223253330043370e00290030a4c2c6eb40095cd1"; //redeemer = 3
+        PlutusScript plutusScript3 = getPlutusScript(aikenCompiledCode3, PlutusVersion.v2);
+
+        // Get reward addresses for each script
+        String rewardAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).getAddress();
+        String rewardAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).getAddress();
+        String rewardAddress3 = AddressProvider.getRewardAddress(plutusScript3, Networks.testnet()).getAddress();
+
+        System.out.println("Reward Address 1: " + rewardAddress1);
+        System.out.println("Reward Address 2: " + rewardAddress2);
+        System.out.println("Reward Address 3: " + rewardAddress3);
+
+        ExUnits exUnits = ExUnits.builder()
+                .mem(BigInteger.valueOf(989624))
+                .steps(BigInteger.valueOf(514842019)).build();
+
+        // Create a dummy output to sender (will be adjusted by balanceTx)
+        TransactionOutput dummyOutput = TransactionOutput.builder()
+                .address(senderAddress)
+                .value(Value.builder().coin(BigInteger.ZERO).build())
+                .build();
+
+        // Build transaction with withdrawals added in random order (3, 1, 2)
+        // The library should sort them and assign correct redeemer indices
+        TxBuilder txBuilder = OutputBuilders.createFromOutput(dummyOutput)
+                .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
+                .andThen((context, txn) -> {
+                    // Add withdrawals in random order: script3, script1, script2
+                    txn.getBody().getWithdrawals().add(
+                            Withdrawal.builder()
+                                    .rewardAddress(rewardAddress3)
+                                    .coin(BigInteger.ZERO)
+                                    .build()
+                    );
+                    txn.getBody().getWithdrawals().add(
+                            Withdrawal.builder()
+                                    .rewardAddress(rewardAddress1)
+                                    .coin(BigInteger.ZERO)
+                                    .build()
+                    );
+                    txn.getBody().getWithdrawals().add(
+                            Withdrawal.builder()
+                                    .rewardAddress(rewardAddress2)
+                                    .coin(BigInteger.ZERO)
+                                    .build()
+                    );
+                })
+                .andThen(scriptCallContext(plutusScript1, null, null, BigIntPlutusData.of(1), RedeemerTag.Reward, exUnits))
+                .andThen(scriptCallContext(plutusScript2, null, null, BigIntPlutusData.of(2), RedeemerTag.Reward, exUnits))
+                .andThen(scriptCallContext(plutusScript3, null, null, BigIntPlutusData.of(3), RedeemerTag.Reward, exUnits))
+                .andThen(BalanceTxBuilders.balanceTx(senderAddress, 1));
+
+        TxSigner signer = SignerProviders.signerFrom(sender);
+
+        Transaction signedTxn = TxBuilderContext.init(utxoSupplier, protocolParams)
+                .buildAndSign(txBuilder, signer);
+
+        // Verify withdrawals are sorted
+        List<Withdrawal> withdrawals = signedTxn.getBody().getWithdrawals();
+        List<Withdrawal> sortedWithdrawals = WithdrawalUtil.getSortedWithdrawals(withdrawals);
+        assertEquals(sortedWithdrawals, withdrawals, "Withdrawals should be sorted by stake key hash");
+
+        // Verify redeemer indices match sorted withdrawal order
+        List<Redeemer> redeemers = signedTxn.getWitnessSet().getRedeemers();
+        assertEquals(3, redeemers.size(), "Should have 3 redeemers");
+
+        // Get stake key hashes for verification
+        String scriptHash1 = HexUtil.encodeHexString(plutusScript1.getScriptHash());
+        String scriptHash2 = HexUtil.encodeHexString(plutusScript2.getScriptHash());
+        String scriptHash3 = HexUtil.encodeHexString(plutusScript3.getScriptHash());
+
+        // Verify each redeemer has the correct index based on sorted withdrawal order
+        int index1 = WithdrawalUtil.getIndexByStakeKeyHash(sortedWithdrawals, scriptHash1);
+        int index2 = WithdrawalUtil.getIndexByStakeKeyHash(sortedWithdrawals, scriptHash2);
+        int index3 = WithdrawalUtil.getIndexByStakeKeyHash(sortedWithdrawals, scriptHash3);
+
+        System.out.println("Script 1 hash: " + scriptHash1 + " -> sorted index: " + index1);
+        System.out.println("Script 2 hash: " + scriptHash2 + " -> sorted index: " + index2);
+        System.out.println("Script 3 hash: " + scriptHash3 + " -> sorted index: " + index3);
+
+        // Find redeemers by their data (1, 2, 3) and verify their indices
+        Redeemer redeemer1 = redeemers.stream()
+                .filter(r -> ((BigIntPlutusData) r.getData()).getValue().intValue() == 1)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Redeemer with data=1 not found"));
+        assertEquals(index1, redeemer1.getIndex().intValue(), "Redeemer 1 should have index matching sorted withdrawal position");
+        assertEquals(2, redeemer1.getIndex().intValue(), "Reddmer 1 should have index matching sorted withdrawal position 2"); //based on script hash sorting
+
+        Redeemer redeemer2 = redeemers.stream()
+                .filter(r -> ((BigIntPlutusData) r.getData()).getValue().intValue() == 2)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Redeemer with data=2 not found"));
+        assertEquals(index2, redeemer2.getIndex().intValue(), "Redeemer 2 should have index matching sorted withdrawal position");
+        assertEquals(1, redeemer2.getIndex().intValue(), "Redeemer 2 should have index matching sorted withdrawal position 0");
+
+        Redeemer redeemer3 = redeemers.stream()
+                .filter(r -> ((BigIntPlutusData) r.getData()).getValue().intValue() == 3)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Redeemer with data=3 not found"));
+        assertEquals(index3, redeemer3.getIndex().intValue(), "Redeemer 3 should have index matching sorted withdrawal position");
+        assertEquals(0, redeemer3.getIndex().intValue(), "Redeemer 3 should have index matching sorted withdrawal position 1");
     }
 
     @Constr

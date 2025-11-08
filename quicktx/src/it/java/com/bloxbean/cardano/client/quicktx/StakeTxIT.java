@@ -20,19 +20,21 @@ import com.bloxbean.cardano.client.crypto.Bech32;
 import com.bloxbean.cardano.client.crypto.Blake2bUtil;
 import com.bloxbean.cardano.client.crypto.SecretKey;
 import com.bloxbean.cardano.client.crypto.VerificationKey;
+import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
-import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
-import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
-import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
+import com.bloxbean.cardano.client.plutus.spec.*;
+import com.bloxbean.cardano.client.transaction.spec.Asset;
 import com.bloxbean.cardano.client.transaction.spec.Transaction;
 import com.bloxbean.cardano.client.transaction.spec.cert.PoolRegistration;
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 
 import java.math.BigInteger;
+import java.util.List;
 
 import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,7 +59,7 @@ public class StakeTxIT extends QuickTxBaseIT {
     static String aikenCompiledCode1 = "581801000032223253330043370e00290010a4c2c6eb40095cd1"; //redeemer = 1
     static PlutusScript plutusScript1 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompiledCode1, PlutusVersion.v2);
 
-    static String aikenCompileCode2 = "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
+    static String aikenCompileCode2 =  "581801000032223253330043370e00290020a4c2c6eb40095cd1"; //redeemer = 2
     static PlutusScript plutusScript2 = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(aikenCompileCode2, PlutusVersion.v2);
 
     static String scriptStakeAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
@@ -641,6 +643,159 @@ public class StakeTxIT extends QuickTxBaseIT {
         Result<Utxo> utxoResult = backendService.getUtxoService().getTxOutput(txHash, outputIndex);
         return utxoResult.getValue().getAmount().stream().filter(amt -> amt.getUnit().equals("lovelace"))
                 .findFirst().get().getQuantity();
+    }
+
+    @Test
+    @Order(19)
+    void withdrawal_scriptAddress_zeroBalance() throws ApiException, InterruptedException {
+        PlutusV2Script spendScript = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        String scriptRewardAddress = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
+        String spendScriptAddress = AddressProvider.getEntAddress(spendScript, Networks.testnet()).toBech32();
+        System.out.println("Script Reward Address: " + scriptRewardAddress);
+
+        try {
+            //1. Register script stake address and delegate
+            Tx stakeRegisterTx = new Tx()
+                    .registerStakeAddress(scriptRewardAddress)
+                    //.delegateTo(scriptRewardAddress,  poolId)
+                    .from(sender1Addr);
+
+            var stakeRegResult = quickTxBuilder.compose(stakeRegisterTx)
+                    .feePayer(sender1Addr)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .completeAndWait(System.out::println);
+
+            System.out.println(stakeRegResult);
+            if (!stakeRegResult.isSuccessful() &&
+                    !stakeRegResult.getResponse().contains("StakeKeyRegistered")) {
+                throw new RuntimeException("Registration failed: " + stakeRegResult.getResponse());
+            }
+        } catch (Exception e) {}
+
+        //2. Lock fund at spendScriptAddress
+        Tx locktx = new Tx()
+                .payToContract(spendScriptAddress, Amount.ada(10), BigIntPlutusData.of(2)) //Lock ada
+                .from(sender1Addr);
+        var lockTxResult = quickTxBuilder.compose(locktx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(System.out::println);
+
+        System.out.println(lockTxResult);
+        assertTrue(lockTxResult.isSuccessful());
+
+        System.out.println("Waiting before withdrawal transaction ...");
+        Thread.sleep(100);
+
+        //3. withdrawal
+        List<Utxo> lockedUxs = ScriptUtxoFinders.findAllByInlineDatum(utxoSupplier, spendScriptAddress, BigIntPlutusData.of(2));
+        System.out.println("Locked Uxs: " + lockedUxs);
+
+        ScriptTx withdrawalTx = new ScriptTx()
+                .collectFrom(lockedUxs.get(0), BigIntPlutusData.of(2))
+                .withdraw(scriptRewardAddress, adaToLovelace(0), BigIntPlutusData.of(1))
+                .mintAsset(plutusScript1, new Asset("Test", BigInteger.valueOf(1)), BigIntPlutusData.of(1), sender1Addr)
+                .payToAddress(sender1Addr, Amount.ada(10))
+                .attachSpendingValidator(spendScript)
+                .attachRewardValidator(plutusScript1);
+
+        var result = quickTxBuilder.compose(withdrawalTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .ignoreScriptCostEvaluationError(false)
+                .withTxEvaluator(new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier))
+                .withTxInspector(tx -> System.out.println(JsonUtil.getPrettyJson(tx)))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result);
+
+        assertTrue(result.isSuccessful());
+    }
+
+    @Test
+    @Order(20)
+    void multipleWithdraws() throws ApiException, InterruptedException {
+        PlutusV2Script alwaysTrue = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("49480100002221200101")
+                .build();
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        String scriptRewardAddress1 = AddressProvider.getRewardAddress(plutusScript1, Networks.testnet()).toBech32();
+        String scriptRewardAddress2 = AddressProvider.getRewardAddress(plutusScript2, Networks.testnet()).toBech32();
+        String alwaysTrueScriptAddress = AddressProvider.getRewardAddress(alwaysTrue, Networks.testnet()).toBech32();
+        String alwaysTrueSpendAddress = AddressProvider.getEntAddress(alwaysTrue, Networks.testnet()).toBech32();
+
+        System.out.println("Script Reward Address1 Hash: " + HexUtil.encodeHexString(new Address(scriptRewardAddress1).getDelegationCredentialHash().get()));
+        System.out.println("Script Reward Address2 Hash: " + HexUtil.encodeHexString(new Address(scriptRewardAddress2).getDelegationCredentialHash().get()));
+        System.out.println("alwaysTrueSciptHash: " + HexUtil.encodeHexString(new Address(alwaysTrueScriptAddress).getDelegationCredentialHash().get()));
+
+        deregisterScriptsStakeKeys();
+        try {
+            //1. Register script stake address and delegate
+            Tx stakeRegisterTx = new Tx()
+                    .registerStakeAddress(scriptRewardAddress1)
+                    .registerStakeAddress(scriptRewardAddress2)
+                    .registerStakeAddress(alwaysTrueScriptAddress)
+                    .from(sender1Addr);
+
+            var stakeRegResult = quickTxBuilder.compose(stakeRegisterTx)
+                    .feePayer(sender1Addr)
+                    .withSigner(SignerProviders.signerFrom(sender1))
+                    .completeAndWait(System.out::println);
+
+            System.out.println(stakeRegResult);
+            if (!stakeRegResult.isSuccessful() &&
+                    !stakeRegResult.getResponse().contains("StakeKeyRegistered")) {
+                throw new RuntimeException("Registration failed: " + stakeRegResult.getResponse());
+            }
+        }  catch (Exception e) {}
+
+        //2. Lock fund at spendScriptAddress
+        Tx locktx = new Tx()
+                .payToContract(alwaysTrueSpendAddress, Amount.ada(10), BigIntPlutusData.of(2)) //Lock ada
+                .from(sender1Addr);
+        var lockTxResult = quickTxBuilder.compose(locktx)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .completeAndWait(System.out::println);
+
+        System.out.println(lockTxResult);
+        assertTrue(lockTxResult.isSuccessful());
+
+        System.out.println("Waiting before withdrawal transaction ...");
+        Thread.sleep(100);
+
+        //4. withdrawal
+        List<Utxo> lockedUxs = ScriptUtxoFinders.findAllByInlineDatum(utxoSupplier, alwaysTrueSpendAddress, BigIntPlutusData.of(2));
+        System.out.println("Locked Uxs: " + lockedUxs);
+
+        ScriptTx withdrawalTx = new ScriptTx()
+                .collectFrom(lockedUxs.get(0), BigIntPlutusData.of(2))
+                .withdraw(alwaysTrueScriptAddress, adaToLovelace(0), PlutusData.unit())
+                .withdraw(scriptRewardAddress1, adaToLovelace(0), BigIntPlutusData.of(1))
+                .withdraw(scriptRewardAddress2, adaToLovelace(0), BigIntPlutusData.of(2))
+                .payToAddress(sender1Addr, Amount.ada(10))
+                .attachSpendingValidator(alwaysTrue)
+                .attachRewardValidator(plutusScript1)
+                .attachSpendingValidator(plutusScript2);
+
+        var result = quickTxBuilder.compose(withdrawalTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .ignoreScriptCostEvaluationError(false)
+                .withTxEvaluator(new AikenTransactionEvaluator(utxoSupplier, protocolParamsSupplier))
+                .withTxInspector(tx -> System.out.println(JsonUtil.getPrettyJson(tx)))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result);
+
+        assertTrue(result.isSuccessful());
     }
 
     private void registerScriptsStakeKeys() {
