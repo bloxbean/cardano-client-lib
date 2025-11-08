@@ -31,11 +31,6 @@ subprojects {
         }
     }
 
-    publishing {
-        publications {
-            maven(MavenPublication) {
-                from components.java
-            }
-        }
-    }
+    // Publishing configuration is inherited from root build.gradle
+    // No need to define it here to avoid duplicate publications
 }
