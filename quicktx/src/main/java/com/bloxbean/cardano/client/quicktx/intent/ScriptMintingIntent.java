@@ -99,7 +99,7 @@ public class ScriptMintingIntent implements TxIntent {
 
     /**
      * Get structured redeemer format for YAML serialization.
-     * Precedence: redeemer_hex > runtime object > structured format.
+     * Precedence: redeemer_hex &gt; runtime object &gt; structured format.
      * Note: @name annotations are NOT preserved (write-only).
      */
     @JsonProperty("redeemer")
@@ -123,7 +123,7 @@ public class ScriptMintingIntent implements TxIntent {
 
     /**
      * Get structured output datum format for YAML serialization.
-     * Precedence: output_datum_hex > runtime object > structured format.
+     * Precedence: output_datum_hex &gt; runtime object &gt; structured format.
      * Note: @name annotations are NOT preserved (write-only).
      */
     @JsonProperty("output_datum")

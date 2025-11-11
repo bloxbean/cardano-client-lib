@@ -165,7 +165,7 @@ public class PaymentIntent implements TxIntent {
 
     /**
      * Get structured datum format for YAML serialization.
-     * Precedence: datum_hex > datum_hash > runtime object > structured format.
+     * Precedence: datum_hex &gt; datum_hash &gt; runtime object &gt; structured format.
      * Note: @name annotations are NOT preserved (write-only).
      */
     @JsonProperty("datum")

@@ -154,7 +154,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
 
     /**
      * Get structured redeemer format for YAML serialization.
-     * Precedence: redeemer_hex > runtime object > structured format.
+     * Precedence: redeemer_hex &gt; runtime object &gt; structured format.
      * Note: @name annotations are NOT preserved (write-only).
      */
     @JsonProperty("redeemer")
@@ -178,7 +178,7 @@ public class ScriptCollectFromIntent implements TxInputIntent {
 
     /**
      * Get structured datum format for YAML serialization.
-     * Precedence: datum_hex > runtime object > structured format.
+     * Precedence: datum_hex &gt; runtime object &gt; structured format.
      * Note: @name annotations are NOT preserved (write-only).
      */
     @JsonProperty("datum")
