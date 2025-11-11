@@ -126,7 +126,7 @@ public class PlutusDataYamlUtil {
         JsonNode cleaned = stripFieldNames(node);
 
         // Step 2: Resolve variables (delegate to existing infrastructure)
-        JsonNode resolved = VariableResolver.resolveInJsonNode(cleaned, vars);
+        JsonNode resolved = VariableResolver.resolveInPlutusDataNode(cleaned, vars);
 
         // Step 3: Use PlutusDataJsonConverter which knows how to deserialize all PlutusData types
         return PlutusDataJsonConverter.toPlutusData(resolved);

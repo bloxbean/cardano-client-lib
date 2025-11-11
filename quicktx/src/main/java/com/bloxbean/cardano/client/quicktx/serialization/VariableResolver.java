@@ -70,7 +70,7 @@ public class VariableResolver {
      * @return a new JsonNode with all variables resolved
      * @throws IllegalArgumentException if a required variable is not found
      */
-    public static JsonNode resolveInJsonNode(JsonNode node, Map<String, Object> variables) {
+    public static JsonNode resolveInPlutusDataNode(JsonNode node, Map<String, Object> variables) {
         if (node == null || variables == null || variables.isEmpty()) {
             return node;
         }
@@ -82,7 +82,7 @@ public class VariableResolver {
             obj.fields().forEachRemaining(entry -> {
                 String fieldName = entry.getKey();
                 JsonNode fieldValue = entry.getValue();
-                JsonNode resolved = resolveInJsonNode(fieldValue, variables);
+                JsonNode resolved = resolveInPlutusDataNode(fieldValue, variables);
 
                 // Special handling for "int" field in PlutusData
                 // If it's a string that represents a number, convert to numeric node
@@ -104,7 +104,7 @@ public class VariableResolver {
         } else if (node.isArray()) {
             ArrayNode arr = MAPPER.createArrayNode();
             for (JsonNode item : node) {
-                arr.add(resolveInJsonNode(item, variables));
+                arr.add(resolveInPlutusDataNode(item, variables));
             }
             return arr;
         } else if (node.isTextual()) {
