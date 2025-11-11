@@ -5,6 +5,7 @@ import co.nstant.in.cbor.model.Number;
 import co.nstant.in.cbor.model.*;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
 import com.bloxbean.cardano.client.common.cbor.custom.SortedMap;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -300,6 +301,7 @@ public class Value {
      *
      * @return true if both `multiAssets` is null or empty and `coin` equals to zero, otherwise false.
      */
+    @JsonIgnore
     public boolean isZero() {
         return (multiAssets == null || multiAssets.isEmpty()) && BigInteger.ZERO.equals(coin);
     }
@@ -309,6 +311,7 @@ public class Value {
      *
      * @return true if amount for each asset is non negative
      */
+    @JsonIgnore
     public boolean isPositive() {
         boolean isCoinPositive = coin.signum() >= 0;
         boolean allAssetsPositive = multiAssets == null || multiAssets.isEmpty() ||
