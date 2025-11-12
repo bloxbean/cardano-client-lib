@@ -12,7 +12,6 @@ import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.filter.ast.FilterNode;
-import com.bloxbean.cardano.client.quicktx.filter.dsl.F;
 import com.bloxbean.cardano.client.quicktx.filter.dsl.Spec;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
@@ -27,7 +26,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
-import static com.bloxbean.cardano.client.quicktx.filter.dsl.Filters.and;
+import static com.bloxbean.cardano.client.quicktx.filter.dsl.UtxoFilters.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -692,8 +691,8 @@ public class ScriptTxV3IT extends TestDataBaseIT {
         String datumCborHex = plutusData.serializeToHex();
 
         FilterNode filter = and(
-                F.inlineDatum().eq(datumCborHex),
-                F.lovelace().gte(1_000_000)
+                inlineDatum().eq(datumCborHex),
+                lovelace().gte(1_000_000)
         );
 
         var filterSpec = Spec.of(filter).limitAll().build();

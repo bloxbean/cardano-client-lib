@@ -9,14 +9,17 @@ import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.OutputBuilders;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
+import com.bloxbean.cardano.client.quicktx.serialization.PlutusDataYamlUtil;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.bloxbean.cardano.client.transaction.spec.MultiAsset;
 import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.fasterxml.jackson.annotation.*;
 import lombok.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -33,6 +36,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Slf4j
 public class ScriptMintingIntent implements TxIntent {
 
     @JsonProperty
@@ -56,6 +60,20 @@ public class ScriptMintingIntent implements TxIntent {
     @JsonProperty("output_datum_hex")
     private String outputDatumHex;
 
+    /**
+     * Structured redeemer format for YAML
+     * Supports optional @name annotations and variable resolution.
+     */
+    @JsonProperty("redeemer")
+    private JsonNode redeemerStructured;
+
+    /**
+     * Structured output datum format for YAML
+     * Supports optional @name annotations and variable resolution.
+     */
+    @JsonProperty("output_datum")
+    private JsonNode outputDatumStructured;
+
     @Override
     public String getType() {
         return "script_minting";
@@ -63,24 +81,68 @@ public class ScriptMintingIntent implements TxIntent {
 
     @JsonProperty("redeemer_hex")
     public String getRedeemerHex() {
+        // Don't serialize both hex and structured - prefer structured for readability
         if (redeemer != null) {
-            try {
-                return redeemer.serializeToHex();
-            } catch (Exception e) {
-            }
+            return null;
         }
         return redeemerHex;
     }
 
     @JsonProperty("output_datum_hex")
     public String getOutputDatumHex() {
+        // Don't serialize both hex and structured - prefer structured for readability
         if (outputDatum != null) {
-            try {
-                return outputDatum.serializeToHex();
-            } catch (Exception e) {
-            }
+            return null;
         }
         return outputDatumHex;
+    }
+
+    /**
+     * Get structured redeemer format for YAML serialization.
+     * Precedence: redeemer_hex &gt; runtime object &gt; structured format.
+     * Note: @name annotations are NOT preserved (write-only).
+     */
+    @JsonProperty("redeemer")
+    public JsonNode getRedeemerStructured() {
+        if (redeemerHex != null && !redeemerHex.isEmpty()) {
+            return null; // hex takes precedence
+        }
+        if (redeemer != null) {
+            return PlutusDataYamlUtil.toYamlNode(redeemer);
+        }
+        return redeemerStructured;
+    }
+
+    /**
+     * Set structured redeemer format for YAML deserialization.
+     */
+    @JsonProperty("redeemer")
+    public void setRedeemerStructured(JsonNode node) {
+        this.redeemerStructured = node;
+    }
+
+    /**
+     * Get structured output datum format for YAML serialization.
+     * Precedence: output_datum_hex &gt; runtime object &gt; structured format.
+     * Note: @name annotations are NOT preserved (write-only).
+     */
+    @JsonProperty("output_datum")
+    public JsonNode getOutputDatumStructured() {
+        if (outputDatumHex != null && !outputDatumHex.isEmpty()) {
+            return null; // hex takes precedence
+        }
+        if (outputDatum != null) {
+            return PlutusDataYamlUtil.toYamlNode(outputDatum);
+        }
+        return outputDatumStructured;
+    }
+
+    /**
+     * Set structured output datum format for YAML deserialization.
+     */
+    @JsonProperty("output_datum")
+    public void setOutputDatumStructured(JsonNode node) {
+        this.outputDatumStructured = node;
     }
 
     @Override
@@ -92,12 +154,24 @@ public class ScriptMintingIntent implements TxIntent {
         if (receiver != null && receiver.isBlank()) {
             throw new IllegalStateException("Receiver must not be blank");
         }
+
+        // Precedence warnings: hex takes priority over structured
+        if (redeemerHex != null && !redeemerHex.isEmpty() && redeemerStructured != null) {
+            log.warn("Both redeemer_hex and redeemer (structured) are present. " +
+                    "Using redeemer_hex (takes precedence). Remove one to avoid confusion.");
+        }
+
+        if (outputDatumHex != null && !outputDatumHex.isEmpty() && outputDatumStructured != null) {
+            log.warn("Both output_datum_hex and output_datum (structured) are present. " +
+                    "Using output_datum_hex (takes precedence). Remove one to avoid confusion.");
+        }
     }
 
     @Override
+    @SneakyThrows
     public TxIntent resolveVariables(java.util.Map<String, Object> variables) {
-        if (variables == null || variables.isEmpty()) {
-            return this;
+        if (variables == null) {
+            variables = new java.util.HashMap<>();
         }
 
         String resolvedPolicyId = VariableResolver.resolve(policyId, variables);
@@ -105,15 +179,33 @@ public class ScriptMintingIntent implements TxIntent {
         String resolvedRedeemerHex = VariableResolver.resolve(redeemerHex, variables);
         String resolvedOutputDatumHex = VariableResolver.resolve(outputDatumHex, variables);
 
+        // Process REDEEMER structured format if present
+        PlutusData resolvedRedeemer = redeemer;
+        if (redeemerStructured != null && redeemer == null) {
+            // Apply 3-step pipeline: Strip @name → Resolve vars → Build PlutusData
+            resolvedRedeemer = PlutusDataYamlUtil.fromYamlNode(redeemerStructured, variables);
+        }
+
+        // Process OUTPUT_DATUM structured format if present
+        PlutusData resolvedOutputDatum = outputDatum;
+        if (outputDatumStructured != null && outputDatum == null) {
+            // Apply 3-step pipeline (same as redeemer)
+            resolvedOutputDatum = PlutusDataYamlUtil.fromYamlNode(outputDatumStructured, variables);
+        }
+
         if (!Objects.equals(resolvedReceiver, receiver)
                 || !Objects.equals(resolvedPolicyId, policyId)
                 || !java.util.Objects.equals(resolvedRedeemerHex, redeemerHex)
-                || !Objects.equals(resolvedOutputDatumHex, outputDatumHex)) {
+                || !Objects.equals(resolvedOutputDatumHex, outputDatumHex)
+                || !Objects.equals(resolvedRedeemer, redeemer)
+                || !Objects.equals(resolvedOutputDatum, outputDatum)) {
             return this.toBuilder()
                     .policyId(resolvedPolicyId)
                     .receiver(resolvedReceiver)
                     .redeemerHex(resolvedRedeemerHex)
                     .outputDatumHex(resolvedOutputDatumHex)
+                    .redeemer(resolvedRedeemer)
+                    .outputDatum(resolvedOutputDatum)
                     .build();
         }
 

@@ -151,7 +151,9 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .fromRef("account://sender2");
 
         TxPlan plan = TxPlan.from(List.of(tx1, tx2))
-                .feePayerRef("account://sender1");
+                .feePayerRef("account://sender1")
+                .withSigner("account://sender1")
+                .withSigner("account://sender2");
 
         TxResult result = quickTxBuilder
                 .compose(plan)
