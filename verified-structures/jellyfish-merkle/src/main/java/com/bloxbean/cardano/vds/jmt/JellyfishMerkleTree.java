@@ -23,7 +23,6 @@ import java.util.*;
  * It follows the Diem pattern of delete-then-create for all node updates, ensuring
  * proper versioning and stale node tracking.</p>
  *
- * <h3>Key Differences from Diem Reference Implementation:</h3>
  * <ul>
  *   <li><b>Storage Abstraction</b>: Works with any {@link JmtStore} implementation</li>
  *   <li><b>TreeCache Pattern</b>: Uses three-tier lookup (staged → frozen → storage)</li>
