@@ -6,6 +6,7 @@ plugins {
 dependencies {
     api project(':verified-structures:verified-structures-core')
     api project(':crypto')
+    api project(':plutus')
     implementation(libs.co.nstant.in.cbor)
 
     jmh(libs.jmh.core)
