@@ -22,7 +22,8 @@ The main interface for all backend service implementations, providing access to 
 ### Provider Implementations
 - `BFBackendService` - Blockfrost integration
 - `KoiosBackendService` - Koios REST API integration  
-- `OgmiosBackendService` - Ogmios WebSocket integration
+- `OgmiosBackendService` - Ogmios JSON-over-HTTP for protocol params and transactions
+- `KupmiosBackendService` - Ogmios (protocol params + tx) combined with Kupo (UTxOs) for full transaction building
 
 ### Service Interfaces
 - `TransactionService` - Transaction submission and querying
@@ -36,9 +37,9 @@ The main interface for all backend service implementations, providing access to 
 
 | Provider | Module | Features | Status |
 |----------|--------|----------|--------|
-| **Blockfrost** | `cardano-client-backend-blockfrost` | Complete API coverage, high reliability | ✅ Stable |
+| **Blockfrost** | `cardano-client-backend-blockfrost` | Chain data and transaction services (governance endpoints not yet available) | ✅ Stable |
 | **Koios** | `cardano-client-backend-koios` | REST API, community-driven | ✅ Stable |
-| **Ogmios** | `cardano-client-backend-ogmios` | JSON over HTTP | ✅ Stable |
+| **Ogmios** | `cardano-client-backend-ogmios` | Protocol parameters and transaction submission over HTTP (no UTxO API) | ✅ Stable |
 
 ## Usage Examples
 

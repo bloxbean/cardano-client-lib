@@ -46,7 +46,7 @@ Create QuickTxBuilder and Account instances for governance operations:
 ```java
 QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
 
-Account account = new Account(Networks.testnet(), "your mnemonic words");
+Account account = new Account(Networks.preprod(), "your mnemonic words");
 String address = account.baseAddress();
 ```
 
@@ -118,7 +118,7 @@ Result<String> result = quickTxBuilder.compose(drepRegTx)
 
 ### Governance Proposals
 
-Create various types of governance proposals using the `createProposal()` method:
+Create various types of governance proposals using the `createProposal()` method. Any account can create a proposal — a DRep key signature is **not** required.
 
 #### Info Proposal
 
@@ -224,7 +224,7 @@ Result<String> result = quickTxBuilder.compose(tx)
 Create a treasury withdrawal proposal:
 ```java
 var treasuryWithdrawalsAction = new TreasuryWithdrawalsAction();
-treasuryWithdrawalsAction.addWithdrawal(new Withdrawal("stake_test1ur6l9f5l9jw44kl2nf6nm5kca3nwqqkccwynnjm0h2cv60ccngdwa", adaToLovelace(20)));
+treasuryWithdrawalsAction.addWithdrawal(new Withdrawal("<stake_address>", adaToLovelace(20)));
 
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
 

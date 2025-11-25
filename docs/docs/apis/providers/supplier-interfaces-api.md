@@ -186,7 +186,7 @@ You can also combine a custom supplier with BackendService:
 // Use Kupo for UTXOs, BackendService for everything else
 KupoUtxoSupplier kupoUtxoSupplier = new KupoUtxoSupplier("http://localhost:1442");
 BackendService backendService = new BFBackendService(
-    Constants.BLOCKFROST_TESTNET_URL,
+    Constants.BLOCKFROST_PREPROD_URL,
     "your-project-id"
 );
 
@@ -194,4 +194,3 @@ QuickTxBuilder builder = new QuickTxBuilder(backendService, kupoUtxoSupplier);
 ```
 
 The Supplier Interfaces API provides extensible integration points for custom data providers and backend services.
-
