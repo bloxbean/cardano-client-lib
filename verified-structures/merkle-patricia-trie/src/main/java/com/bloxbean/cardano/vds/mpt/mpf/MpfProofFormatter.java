@@ -1,6 +1,15 @@
 package com.bloxbean.cardano.vds.mpt.mpf;
 
+import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.vds.core.util.Bytes;
+
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Utilities to export MPF proofs (wire CBOR) to formats consumed by the
@@ -115,11 +124,117 @@ public final class MpfProofFormatter {
         return sb.toString();
     }
 
+    /**
+     * Convert an MPF CBOR proof to PlutusData format that can be directly passed
+     * to Aiken MPF validators for on-chain verification.
+     *
+     * <p>The returned ListPlutusData represents a list of ProofStep structures matching
+     * the Aiken type definitions:</p>
+     * <pre>
+     * pub type ProofStep {
+     *   Branch { skip: Int, neighbors: ByteArray }
+     *   Fork { skip: Int, neighbor: Neighbor }
+     *   Leaf { skip: Int, key: ByteArray, value: ByteArray }
+     * }
+     *
+     * pub type Neighbor {
+     *   nibble: Int,
+     *   prefix: ByteArray,
+     *   root: ByteArray,
+     * }
+     * </pre>
+     *
+     * @param proofCbor The CBOR-encoded proof bytes
+     * @return ListPlutusData containing the proof steps as ConstrPlutusData
+     */
+    public static ListPlutusData toPlutusData(byte[] proofCbor) {
+        MpfProof proof = MpfProofDecoder.decode(proofCbor);
+        List<PlutusData> steps = new ArrayList<>();
+
+        for (MpfProof.Step step : proof.steps()) {
+            if (step instanceof MpfProof.BranchStep) {
+                MpfProof.BranchStep br = (MpfProof.BranchStep) step;
+                byte[] neighborsConcat = concatBytes(br.neighbors());
+
+                // Branch { skip: Int, neighbors: ByteArray }
+                // Alternative 0
+                ConstrPlutusData branchStep = ConstrPlutusData.builder()
+                        .alternative(0)
+                        .data(ListPlutusData.of(
+                                BigIntPlutusData.of(BigInteger.valueOf(br.skip())),
+                                BytesPlutusData.of(neighborsConcat)
+                        ))
+                        .build();
+                steps.add(branchStep);
+
+            } else if (step instanceof MpfProof.ForkStep) {
+                MpfProof.ForkStep fk = (MpfProof.ForkStep) step;
+
+                // Neighbor { nibble: Int, prefix: ByteArray, root: ByteArray }
+                // Alternative 0
+                ConstrPlutusData neighbor = ConstrPlutusData.builder()
+                        .alternative(0)
+                        .data(ListPlutusData.of(
+                                BigIntPlutusData.of(BigInteger.valueOf(fk.nibble())),
+                                BytesPlutusData.of(fk.prefix()),
+                                BytesPlutusData.of(fk.root())
+                        ))
+                        .build();
+
+                // Fork { skip: Int, neighbor: Neighbor }
+                // Alternative 1
+                ConstrPlutusData forkStep = ConstrPlutusData.builder()
+                        .alternative(1)
+                        .data(ListPlutusData.of(
+                                BigIntPlutusData.of(BigInteger.valueOf(fk.skip())),
+                                neighbor
+                        ))
+                        .build();
+                steps.add(forkStep);
+
+            } else if (step instanceof MpfProof.LeafStep) {
+                MpfProof.LeafStep lf = (MpfProof.LeafStep) step;
+
+                // Leaf { skip: Int, key: ByteArray, value: ByteArray }
+                // Alternative 2
+                ConstrPlutusData leafStep = ConstrPlutusData.builder()
+                        .alternative(2)
+                        .data(ListPlutusData.of(
+                                BigIntPlutusData.of(BigInteger.valueOf(lf.skip())),
+                                BytesPlutusData.of(lf.keyHash()),
+                                BytesPlutusData.of(lf.valueHash())
+                        ))
+                        .build();
+                steps.add(leafStep);
+
+            } else {
+                throw new IllegalArgumentException("Unknown proof step type: " + step.getClass());
+            }
+        }
+
+        return ListPlutusData.of(steps.toArray(new PlutusData[0]));
+    }
+
     private static String concatHex(byte[][] parts) {
         if (parts == null || parts.length == 0) return "";
         StringBuilder sb = new StringBuilder(parts.length * 64);
         for (byte[] p : parts) sb.append(Bytes.toHex(p));
         return sb.toString();
+    }
+
+    private static byte[] concatBytes(byte[][] parts) {
+        if (parts == null || parts.length == 0) return new byte[0];
+        int totalLength = 0;
+        for (byte[] p : parts) {
+            totalLength += p.length;
+        }
+        byte[] result = new byte[totalLength];
+        int offset = 0;
+        for (byte[] p : parts) {
+            System.arraycopy(p, 0, result, offset, p.length);
+            offset += p.length;
+        }
+        return result;
     }
 }
 
