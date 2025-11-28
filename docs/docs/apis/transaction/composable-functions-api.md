@@ -6,286 +6,117 @@ sidebar_position: 2
 
 # Composable Functions API
 
-The Composable Functions API provides a balance between simple interface and flexibility. Using out-of-box composable functions, you can achieve any complexity and at the same time, you can write your own composable functions to customize the behavior during transaction building.
+Composable Functions expose functional building blocks (`TxBuilder`, `TxOutputBuilder`, `TxInputBuilder`, `TxSigner`, etc.) that you can chain to assemble transactions of any complexity. QuickTx is built on top of these primitives.
+
+Think of each function as a tiny, single-responsibility transformer. You wire them together in order—create outputs, derive the necessary inputs, add metadata, balance/fee, then sign—to produce a complete transaction. Because each step is explicit, this style is ideal when you need fine-grained control or want to slot in custom logic alongside the built-ins.
 
 ## Key Features
 
-- **Modular Design**: Build transactions using reusable functions
-- **Customizable**: Create your own composable functions
-- **Flexible**: Handle complex transaction scenarios
-- **Composable**: Chain functions together for complex logic
+- Chainable, functional style with `andThen(...)`/`and(...)`
+- Reusable helpers for inputs, outputs, metadata, fees, balancing, signing
+- Customizable: implement your own builders and plug them into the chain
 
 ## Dependencies
 
 - **Group ID**: com.bloxbean.cardano
 - **Artifact ID**: cardano-client-core
-- **Dependencies**: core-api, backend
+- **Depends on**: core-api, backend
 
-## Usage Examples
+## Usage Example (Simple Transfer Flow)
 
-### Basic Payment Transaction
-
-The following example shows how to build a basic payment transaction using composable functions, including input selection, output creation, metadata, fee calculation, and signing.
+This mirrors the getting-started simple transfer guide.
 
 ```java
-TxBuilder txBuilder = new TxBuilder()
-        .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
-        .andThen(OutputBuilders.createFromOutput(Output.builder()
-                .address(receiverAddress)
-                .value(Value.builder()
-                        .coin(Amount.ada(1.5).getQuantity())
-                        .build())
-                .build()))
-        .andThen(AuxDataProviders.metadataProvider(metadata))
-        .andThen(FeeCalculators.feeCalculator(senderAddress, 2))
-        .andThen(ChangeOutputAdjustments.adjustChangeOutput(senderAddress))
-        .andThen(MinFeeCalculators.minFeeCalculator(2, Set.of(senderAddress)))
-        .andThen(TransactionSigners.signerFrom(account));
+// 1) Define outputs
+Output output1 = Output.builder()
+        .address(receiverAddress1)
+        .assetName(LOVELACE)
+        .qty(adaToLovelace(10))
+        .build();
+
+Output output2 = Output.builder()
+        .address(receiverAddress2)
+        .assetName(LOVELACE)
+        .qty(adaToLovelace(20))
+        .build();
+
+MessageMetadata metadata = MessageMetadata.create()
+        .add("First transfer transaction");
+
+// 2) Build a TxBuilder chain
+TxBuilder txBuilder = output1.outputBuilder()
+        .and(output2.outputBuilder())
+        .buildInputs(createFromSender(senderAddress, senderAddress))  // TxOutputBuilder -> TxBuilder
+        .andThen(metadataProvider(metadata))
+        .andThen(balanceTx(senderAddress, 1));
+
+// 3) Build and sign
+UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+ProtocolParamsSupplier paramsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+
+Transaction signedTx = TxBuilderContext
+        .init(utxoSupplier, paramsSupplier)
+        .buildAndSign(txBuilder, signerFrom(senderAccount));
 ```
 
-### Token Minting
 
-The following example shows how to build a token minting transaction using composable functions, including multi-asset creation and minting logic.
+### How the chain executes
 
-```java
-TxBuilder txBuilder = new TxBuilder()
-        .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
-        .andThen(OutputBuilders.createFromOutput(Output.builder()
-                .address(receiverAddress)
-                .value(Value.builder()
-                        .coin(Amount.ada(1.5).getQuantity())
-                        .multiAssets(MultiAsset.builder()
-                                .policyId(policyId)
-                                .assets(Assets.builder()
-                                        .asset(Asset.builder()
-                                                .name(assetName)
-                                                .value(BigInteger.valueOf(1000))
-                                                .build())
-                                        .build())
-                                .build())
-                        .build())
-                .build()))
-        .andThen(MintCreators.mintCreator(asset))
-        .andThen(FeeCalculators.feeCalculator(senderAddress, 2))
-        .andThen(ChangeOutputAdjustments.adjustChangeOutput(senderAddress))
-        .andThen(MinFeeCalculators.minFeeCalculator(2, Set.of(senderAddress)))
-        .andThen(TransactionSigners.signerFrom(account));
-```
+1) `outputBuilder().and(...)` collects intended outputs.  
+2) `buildInputs(...)` inspects those outputs (and mint info, if any) and selects the needed inputs + change.  
+3) `metadataProvider(...)` attaches aux data.  
+4) `balanceTx(...)` finalizes fees and balances change.  
+5) `buildAndSign(...)` applies the signer to the composed transaction.
 
-### Custom Composable Function
+Because each step is a function, you can swap any link in the chain with a custom implementation—for example, replacing input selection with a bespoke UTXO picker or adding an extra fee calculator.
 
-The following example shows how to create a custom composable function and integrate it into the transaction building process.
+## Core Interfaces (Essentials)
+
+- `TxBuilder` (functional interface): `(TxBuilderContext ctx, Transaction txn) -> void`, chain with `andThen(...)`.
+- `TxOutputBuilder`: `accept(TxBuilderContext ctx, List<TransactionOutput> outputs)`; combine with `and(...)`; convert to `TxBuilder` via `buildInputs(...)`.
+- `TxInputBuilder`: `apply(TxBuilderContext ctx, List<TransactionOutput> outputs) -> Result(inputs, changeOutputs)`.
+- `TxSigner`: `sign(TxBuilderContext ctx, Transaction txn) -> Transaction`; compose with `andThen(...)`.
+
+### When to reach for composable functions
+
+- You need deterministic, ordered control over how inputs/outputs are shaped and balanced.
+- You want to reuse the same chain across multiple flows (e.g., embed in a service) with occasional custom swaps.
+- You plan to extend the library with custom builders (e.g., specialized fee calculator, metadata injector, or UTXO selection policy) without changing QuickTx.
+
+## Helper Classes (selected)
+
+- `OutputBuilders`: `createFromOutput(Output output)` and more.
+- `InputBuilders`: `createFromSender(String sender, String changeAddress)`, HD wallet variants, datum/inline datum aware.
+- `AuxDataProviders`: metadata helpers (e.g., `metadataProvider`).
+- `FeeCalculators`, `MinFeeCalculators`, `ChangeOutputAdjustments`, `BalanceTxBuilders`: fee/min-ADA/change handling.
+- `TransactionSigners`: `signerFrom(Account account)` and combinators.
+
+## Context and Execution
+
+- `TxBuilderContext.init(UtxoSupplier, ProtocolParamsSupplier|ProtocolParams)`: creates the execution context.
+- `build(TxBuilder)`: returns unsigned `Transaction`.
+- `buildAndSign(TxBuilder, TxSigner)`: returns signed `Transaction`.
+- `build(Transaction txn, TxBuilder)`: transforms an existing `Transaction`.
+- Per-context options: `mergeOutputs(...)`, `withSearchUtxoByAddressVkh(...)`, `withSerializationEra(Era era)`, `setUtxoSelectionStrategy(...)`, `setUtxoSelector(...)`, `withTxnEvaluator(...)`, `withCostMdls(...)`.
+
+## Custom Composable Function
 
 ```java
 public class CustomOutputBuilder implements TxOutputBuilder {
     @Override
-    public TxBuilder apply(TxBuilderContext context, TxBuilder txBuilder) {
-        // Custom logic here
-        return txBuilder;
+    public void accept(TxBuilderContext ctx, List<TransactionOutput> outputs) {
+        // Add a custom output or mutate outputs
     }
 }
 
-// Use custom function
-TxBuilder txBuilder = new TxBuilder()
-        .andThen(new CustomOutputBuilder())
-        .andThen(TransactionSigners.signerFrom(account));
+TxBuilder txBuilder = new CustomOutputBuilder()
+        .buildInputs(createFromSender(sender, sender))
+        .andThen(balanceTx(sender, 1));
 ```
-
-### Advanced Transaction with Multiple Functions
-
-The following example shows how to build a complex transaction using multiple composable functions.
-
-```java
-TxBuilder txBuilder = new TxBuilder()
-        .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
-        .andThen(OutputBuilders.createFromOutput(Output.builder()
-                .address(receiverAddress)
-                .value(Value.builder()
-                        .coin(Amount.ada(2.0).getQuantity())
-                        .build())
-                .build()))
-        .andThen(MintCreators.mintCreator(asset))
-        .andThen(AuxDataProviders.metadataProvider(metadata))
-        .andThen(FeeCalculators.feeCalculator(senderAddress, 2))
-        .andThen(ChangeOutputAdjustments.adjustChangeOutput(senderAddress))
-        .andThen(MinFeeCalculators.minFeeCalculator(2, Set.of(senderAddress)))
-        .andThen(TransactionSigners.signerFrom(account));
-
-// Build and submit transaction
-Transaction transaction = txBuilder.build();
-```
-
-## API Reference
-
-### TxBuilder Class
-
-Main class for building transactions using composable functions.
-
-#### Constructor
-```java
-// Create new transaction builder
-public TxBuilder()
-```
-
-#### Methods
-
-##### buildInputs(TxInputBuilder inputBuilder)
-Sets the input builder function.
-
-```java
-public TxBuilder buildInputs(TxInputBuilder inputBuilder)
-```
-
-##### andThen(TxOutputBuilder outputBuilder)
-Adds an output builder function.
-
-```java
-public TxBuilder andThen(TxOutputBuilder outputBuilder)
-```
-
-##### andThen(TxAuxDataProvider auxDataProvider)
-Adds an auxiliary data provider function.
-
-```java
-public TxBuilder andThen(TxAuxDataProvider auxDataProvider)
-```
-
-##### andThen(TxFeeCalculator feeCalculator)
-Adds a fee calculator function.
-
-```java
-public TxBuilder andThen(TxFeeCalculator feeCalculator)
-```
-
-##### andThen(TxSigner signer)
-Adds a transaction signer function.
-
-```java
-public TxBuilder andThen(TxSigner signer)
-```
-
-##### build()
-Builds the final transaction.
-
-```java
-public Transaction build()
-```
-
-### InputBuilders Class
-
-Utility class for creating input builder functions.
-
-#### Methods
-
-##### createFromSender(Address sender, Address changeAddress)
-Creates an input builder that selects UTXOs from the sender.
-
-```java
-public static TxInputBuilder createFromSender(Address sender, Address changeAddress)
-```
-
-### OutputBuilders Class
-
-Utility class for creating output builder functions.
-
-#### Methods
-
-##### createFromOutput(Output output)
-Creates an output builder from a specific output.
-
-```java
-public static TxOutputBuilder createFromOutput(Output output)
-```
-
-### FeeCalculators Class
-
-Utility class for creating fee calculator functions.
-
-#### Methods
-
-##### feeCalculator(Address sender, int txSizeUnit)
-Creates a fee calculator with specified parameters.
-
-```java
-public static TxFeeCalculator feeCalculator(Address sender, int txSizeUnit)
-```
-
-### TransactionSigners Class
-
-Utility class for creating transaction signer functions.
-
-#### Methods
-
-##### signerFrom(Account account)
-Creates a signer from an account.
-
-```java
-public static TxSigner signerFrom(Account account)
-```
-
-## Composable Functions Specification Details
-
-### Function Composition
-- **Chainable**: Functions can be chained using `andThen()` method
-- **Modular**: Each function handles a specific aspect of transaction building
-- **Customizable**: Custom functions can be created and integrated
-
-### Built-in Functions
-- **InputBuilders**: Handle UTXO selection and input creation
-- **OutputBuilders**: Create transaction outputs
-- **AuxDataProviders**: Add metadata and auxiliary data
-- **FeeCalculators**: Calculate transaction fees
-- **ChangeOutputAdjustments**: Handle change output creation
-- **MinFeeCalculators**: Calculate minimum fees
-- **TransactionSigners**: Sign transactions
-
-### Custom Function Interface
-All composable functions implement specific interfaces:
-- `TxInputBuilder`
-- `TxOutputBuilder`
-- `TxAuxDataProvider`
-- `TxFeeCalculator`
-- `TxSigner`
 
 ## Best Practices
 
-1. **Chain Functions Properly**: Order functions logically (inputs → outputs → fees → signing)
-2. **Use Built-in Functions**: Leverage existing functions when possible
-3. **Create Custom Functions**: Implement custom logic for specific requirements
-4. **Handle Errors**: Always handle exceptions from function composition
-5. **Test Thoroughly**: Test complex function chains thoroughly
-
-## Integration Examples
-
-### With QuickTx
-```java
-// Convert composable function chain to QuickTx
-TxBuilder txBuilder = new TxBuilder()
-    .buildInputs(InputBuilders.createFromSender(senderAddress, senderAddress))
-    .andThen(OutputBuilders.createFromOutput(output))
-    .andThen(TransactionSigners.signerFrom(account));
-
-// Use with QuickTx
-Tx quickTx = new Tx()
-    .payToAddress(receiverAddress, Amount.ada(1.0))
-    .from(senderAddress);
-```
-
-### With Custom Functions
-```java
-// Create custom fee calculator
-public class CustomFeeCalculator implements TxFeeCalculator {
-    @Override
-    public TxBuilder apply(TxBuilderContext context, TxBuilder txBuilder) {
-        // Custom fee calculation logic
-        return txBuilder;
-    }
-}
-
-// Use in transaction building
-TxBuilder txBuilder = new TxBuilder()
-    .andThen(new CustomFeeCalculator())
-    .andThen(TransactionSigners.signerFrom(account));
-```
-
-For more information about Composable Functions, refer to the [Composable Functions documentation](https://github.com/bloxbean/cardano-client-lib).
+- Order functions logically: outputs → inputs → metadata/aux data → fee/balance → signing.
+- Reuse provided helpers where possible; extend with custom builders for special logic.
+- Keep TxBuilder chains deterministic; handle exceptions from custom functions.
+- When mixing with QuickTx, you can embed custom `TxBuilder` steps via QuickTx hooks (`preBalanceTx`, `postBalanceTx`).

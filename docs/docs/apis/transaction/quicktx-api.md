@@ -6,259 +6,194 @@ sidebar_position: 1
 
 # QuickTx API
 
-The QuickTx API is a declarative-style transaction builder that strikes a balance between simplicity and flexibility. It's built upon the Composable Functions API and offers a streamlined experience, supporting an extensive range of transactions.
+QuickTx is a declarative transaction builder layered on top of the Composable Functions API. It keeps common flows concise while still letting you plug in custom UTXO selection, evaluators, script suppliers, and verifiers.
+
+Use QuickTx when you want the happy path to be short and readable, but still need escape hatches for unusual inputs (custom UTXO selection), script fee evaluation, or reference scripts. Behind the scenes, QuickTx constructs a composable-function chain for you, applies balancing/fees, signs, and submits—while exposing hooks to override key steps.
 
 ## Key Features
 
-- **Declarative Style**: Build transactions using simple, readable methods
-- **Comprehensive Support**: Supports payment, minting, staking, and governance transactions
-- **Flexible**: Handles complex transaction scenarios
-- **Easy Integration**: Works seamlessly with backend services
+- Declarative, readable transaction description
+- Payments, NativeScript mint/burn, Plutus script spending/minting, staking, governance
+- Compose multiple `Tx`/`ScriptTx` into one transaction
+- Per-tx overrides for UTXO selection, reference scripts, serialization era, and verifiers
 
 ## Dependencies
 
 - **Group ID**: com.bloxbean.cardano
 - **Artifact ID**: cardano-client-quicktx
-- **Dependencies**: core, core-api, backend
+- **Depends on**: core, core-api, backend
+
+## Constructing the Builder
+
+```java
+// Common: derive all dependencies from the backend
+BackendService backendService = ...;
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+// Advanced: supply dependencies manually
+UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+ProtocolParamsSupplier paramsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+TransactionProcessor txProcessor = new DefaultTransactionProcessor(backendService.getTransactionService());
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, paramsSupplier, txProcessor);
+```
 
 ## Usage Examples
 
-### Simple Payment Transaction
-
-The following example shows how to create a simple ADA payment transaction using the QuickTx API.
+### Simple Payment
 
 ```java
+Account sender = ...;
+String receiver1 = "...";
+String receiver2 = "...";
+
 Tx tx = new Tx()
-        .payToAddress(receiverAddress, Amount.ada(1.5))
-        .from(senderAddress);
-
-Result`<String>` result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.signerFrom(account))
-        .completeAndWait(System.out::println);
-```
-
-### Token Minting
-
-The following example shows how to mint a new token using a Plutus script with the QuickTx API.
-
-```java
-Tx tx = new Tx()
-        .mintAsset(mintingScript, List.of(asset), PlutusData.unit(), receiverAddress)
-        .from(senderAddress);
-
-Result`<String>` result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.signerFrom(account))
-        .completeAndWait(System.out::println);
-```
-
-### Multi-Output Transaction
-
-The following example shows how to create a transaction with multiple outputs using the QuickTx API.
-
-```java
-Tx tx = new Tx()
-        .payToAddress(receiver1, Amount.ada(1.0))
+        .payToAddress(receiver1, Amount.ada(1.5))
         .payToAddress(receiver2, Amount.ada(2.0))
-        .from(senderAddress);
+        .from(sender.baseAddress());
 
-Result`<String>` result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.signerFrom(account))
-        .completeAndWait(System.out::println);
+TxResult result = quickTxBuilder.compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait(msg -> log.info(msg));
 ```
 
-### Staking Operations
-
-The following example shows how to perform staking operations including delegation and reward withdrawal using the QuickTx API.
+### Native Token Minting (NativeScript)
 
 ```java
-// Delegate to stake pool
-Tx tx = new Tx()
-        .delegateTo(account, poolId)
-        .from(senderAddress);
+NativeScript policy = ...; // NativeScript policy
+Asset asset = Asset.builder()
+        .name("MyToken")
+        .value(BigInteger.valueOf(1_000))
+        .build();
 
-// Withdraw rewards
 Tx tx = new Tx()
-        .withdrawRewards(account, Amount.ada(1.0))
-        .from(senderAddress);
+        .mintAssets(policy, asset, receiverAddress)
+        .from(sender.baseAddress());
+
+TxResult result = quickTxBuilder.compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .complete();
 ```
 
-### Complex Transaction with Metadata
-
-The following example shows how to create a complex transaction with multiple outputs and metadata.
+### Plutus Minting
 
 ```java
-// Create transaction with multiple outputs and metadata
-CBORMetadata metadata = new CBORMetadata()
-    .put(BigInteger.valueOf(674), "Transaction message");
+PlutusScript mintingScript = ...;
+Asset asset = Asset.builder()
+        .name("MyScriptToken")
+        .value(BigInteger.valueOf(100))
+        .build();
+
+ScriptTx tx = new ScriptTx()
+        .mintAsset(mintingScript, asset, PlutusData.unit(), receiverAddress)
+        .from(sender.baseAddress());
+
+TxResult result = quickTxBuilder.compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .complete();
+```
+
+### Staking
+
+```java
+String stakeAddress = "..."; // base or reward address
+String poolId = "...";
+
+Tx delegateTx = new Tx()
+        .delegateTo(stakeAddress, poolId)
+        .from(sender.baseAddress());
+
+Tx withdrawTx = new Tx()
+        .withdraw(stakeAddress, BigInteger.valueOf(1_000_000)) // in lovelace
+        .from(sender.baseAddress());
+```
+
+### Metadata
+
+```java
+Metadata metadata = MessageMetadata.create()
+        .add("Transaction message");
 
 Tx tx = new Tx()
         .payToAddress(receiver1, Amount.ada(1.0))
         .payToAddress(receiver2, Amount.ada(2.0))
         .attachMetadata(metadata)
-        .from(senderAddress);
+        .from(sender.baseAddress());
 
-Result`<String>` result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.signerFrom(account))
-        .completeAndWait(System.out::println);
+TxResult result = quickTxBuilder.compose(tx)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .completeAndWait();
 ```
 
-## API Reference
+## API Reference (Essentials)
 
-### Tx Class
+### Tx (native transactions)
 
-Main class for building transactions with the QuickTx API.
+- Payments: `payToAddress(...)`, `payToContract(...)` (datum hash/inline datum, reference scripts)
+- Native mint/burn: `mintAssets(NativeScript policy, List<Asset> assets [, String receiver])`
+- Staking: `delegateTo(String stakeAddress, String poolId)`, `withdraw(String rewardAddress, BigInteger amount [, String receiver])`
+- Metadata: `attachMetadata(Metadata metadata)`
+- Sender: `from(String address | Wallet wallet)`; change via `withChangeAddress(String)`
+- Governance and other intents: stake registration/deregistration, pool registration/update/retire, governance actions (DRep/committee registration, votes), treasury donation, and more (see `Tx` methods)
 
-#### Constructor
-```java
-// Create new transaction
-public Tx()
-```
+### ScriptTx (Plutus-aware)
 
-#### Methods
+- Script inputs: `collectFrom(...)` variants with redeemers/datums
+- Plutus minting: `mintAsset(PlutusScript script, List<Asset> assets, PlutusData redeemer [, String receiver, PlutusData outputDatum])`
+- Attach validators: `attachSpendingValidator / attachMintValidator / ...`
+- Change with inline datum: `withChangeAddress(String, PlutusData)`
 
-##### payToAddress(Address address, Amount amount)
-Adds a payment output to the transaction.
+### QuickTxBuilder.compose(...)
 
-```java
-public Tx payToAddress(Address address, Amount amount)
-```
-
-##### mintAsset(PlutusScript script, List`<Asset>` assets, PlutusData redeemer, Address to)
-Adds asset minting to the transaction.
+`compose(AbstractTx... txs)` returns a `TxContext`:
 
 ```java
-public Tx mintAsset(PlutusScript script, List`<Asset>` assets, PlutusData redeemer, Address to)
+TxContext ctx = quickTxBuilder.compose(tx1, tx2)
+        .withSigner(SignerProviders.signerFrom(sender))
+        .withUtxoSelectionStrategy(new LargestFirstUtxoSelectionStrategy(utxoSupplier))
+        .validFrom(slotFrom)
+        .validTo(slotTo);
+
+Transaction unsigned = ctx.build();
+Transaction signed   = ctx.buildAndSign();
+TxResult submitted   = ctx.complete();
+TxResult confirmed   = ctx.completeAndWait(); // returns TxStatus (SUBMITTED/CONFIRMED/TIMEOUT/FAILED)
 ```
 
-##### delegateTo(Account account, String poolId)
-Adds stake delegation to the transaction.
+You can also rebuild from a serialized plan (`TxPlan`) via `compose(TxPlan plan [, SignerRegistry registry])` to replay stored transactions with context (fee payer, validity, signers, etc.).
 
-```java
-public Tx delegateTo(Account account, String poolId)
-```
+Execution flow:
+- Build one or more `Tx`/`ScriptTx` describing intent.
+- `compose(...)` wraps them in a `TxContext`.
+- Add signers, optional strategy/evaluator/era/reference scripts.
+- Call `build`/`buildAndSign`/`complete`/`completeAndWait`.
 
-##### withdrawRewards(Account account, Amount amount)
-Adds reward withdrawal to the transaction.
+### Balancing, Fees, and Collateral
 
-```java
-public Tx withdrawRewards(Account account, Amount amount)
-```
+- Fees and change are calculated during `build/complete`
+- Script cost evaluation is performed automatically; failures can be tolerated with `ignoreScriptCostEvaluationError(true)`
+- Collateral is auto-selected for script transactions unless you set explicit inputs via `withCollateralInputs(...)`
 
-##### attachMetadata(CBORMetadata metadata)
-Attaches metadata to the transaction.
+### Customization
 
-```java
-public Tx attachMetadata(CBORMetadata metadata)
-```
+- UTXO selection: `withUtxoSelectionStrategy(...)`
+- Reference scripts for fee accuracy: `withReferenceScripts(...)`
+- Serialization era: `withSerializationEra(Era era)` (Conway by default)
+- Verifiers and inspection: `withVerifier(...)`, `withTxInspector(...)`
 
-##### from(Address address)
-Sets the sender address for the transaction.
+### Additional Context Controls
 
-```java
-public Tx from(Address address)
-```
+- Fee payer and collateral payer: `feePayer(...)`, `collateralPayer(...)` (or wallet variants)
+- Required signers: `withRequiredSigners(Address... | byte[]...)`
+- Validity window: `validFrom(slot)`, `validTo(slot)`
+- Merge outputs: `mergeOutputs(boolean)` (deduplicate outputs to same address)
+- Script cost tolerance: `ignoreScriptCostEvaluationError(boolean)`
+- Duplicate witness cleanup: `removeDuplicateScriptWitnesses(boolean)` for multi-asset/script-heavy txs
+- UTXO search mode: `withSearchUtxoByAddressVkh(boolean)` when backend supports addr_vkh lookups
+- Custom transforms: `preBalanceTx(...)`, `postBalanceTx(...)` to inject custom `TxBuilder` steps
+- Collateral override: `withCollateralInputs(TransactionInput...)`
+- Reference-based resolution (Signers Registry): `Tx.fromRef(...)`, `feePayerRef(...)`, `collateralPayerRef(...)`, `withSignerRef(...)` when using a `SignerRegistry`
 
-### QuickTxBuilder Class
+### When to choose QuickTx vs. Composable Functions
 
-Builder class for composing and executing transactions.
-
-#### Constructor
-```java
-// Create with UTXO supplier
-public QuickTxBuilder(UtxoSupplier utxoSupplier)
-```
-
-#### Methods
-
-##### compose(Tx tx)
-Composes a transaction for building.
-
-```java
-public QuickTxComposer compose(Tx tx)
-```
-
-##### utxoSelectionStrategy(UtxoSelectionStrategy strategy)
-Sets custom UTXO selection strategy.
-
-```java
-public QuickTxBuilder utxoSelectionStrategy(UtxoSelectionStrategy strategy)
-```
-
-### QuickTxComposer Class
-
-Handles transaction composition and signing.
-
-#### Methods
-
-##### withSigner(Signer signer)
-Adds a signer to the transaction.
-
-```java
-public QuickTxComposer withSigner(Signer signer)
-```
-
-##### completeAndWait(Consumer`<String>` callback)
-Completes and submits the transaction.
-
-```java
-public Result`<String>` completeAndWait(Consumer`<String>` callback)
-```
-
-## QuickTx Specification Details
-
-### Transaction Building Process
-1. **Transaction Creation**: Create Tx object with desired operations
-2. **Composition**: Use QuickTxBuilder to compose the transaction
-3. **Signing**: Add signers to the transaction
-4. **Submission**: Complete and submit to the network
-
-### Supported Operations
-- **Payment Transactions**: ADA and native token transfers
-- **Asset Minting**: Create new tokens using Plutus scripts
-- **Stake Operations**: Delegation and reward withdrawal
-- **Metadata**: Attach transaction metadata
-
-### Fee Calculation
-- **Automatic**: Fees calculated automatically during composition
-- **Configurable**: Can be customized using fee calculators
-
-## Best Practices
-
-1. **Use Appropriate Methods**: Choose the right method for your transaction type
-2. **Handle Errors**: Always handle Result objects for error checking
-3. **Optimize UTXO Selection**: Use custom strategies for complex scenarios
-4. **Validate Inputs**: Ensure addresses and amounts are valid before building
-5. **Test Transactions**: Test on testnet before mainnet deployment
-
-## Integration Examples
-
-### With CIP25 (NFT Metadata)
-```java
-// Create CIP25 NFT metadata
-CIP25NFT nftMetadata = CIP25NFT.create()
-    .name("MyNFT")
-    .image("https://example.com/image.png")
-    .description("An NFT minted with QuickTx");
-
-// Mint NFT with metadata
-Tx tx = new Tx()
-    .mintAsset(mintingScript, List.of(nftAsset), PlutusData.unit(), receiverAddress)
-    .attachMetadata(nftMetadata)
-    .from(senderAddress);
-```
-
-### With Custom UTXO Selection
-```java
-// Create custom UTXO selection strategy
-UtxoSelectionStrategy customStrategy = new CustomUtxoSelectionStrategy(utxoSupplier);
-
-// Use with QuickTx
-QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier)
-    .utxoSelectionStrategy(customStrategy);
-
-Tx tx = new Tx()
-    .payToAddress(receiverAddress, Amount.ada(10))
-    .from(senderAddress);
-```
-
-For more information about QuickTx, refer to the [QuickTx documentation](https://github.com/bloxbean/cardano-client-lib).
+- Choose QuickTx if you want minimal code for common flows and a single entrypoint for build + sign + submit + wait.
+- Choose Composable Functions directly if you need to handcraft every step, reuse builders outside QuickTx, or integrate with highly customized pipelines.
