@@ -6,7 +6,7 @@ sidebar_position: 7
 
 # CIP67 API
 
-CIP67 (Cardano Improvement Proposal 67) defines a standard for asset name labels on the Cardano blockchain. The Cardano Client Library provides utilities for creating, validating, and working with CIP67-compliant asset names.
+CIP67 (Cardano Improvement Proposal 67) defines a standard for asset name labels on the Cardano blockchain. The Cardano Client Library provides utilities for creating, validating, and working with CIP67-compliant asset names. The utilities keep the rules around padding, CRC8 checksum, and label ranges in one place so you can focus on assembling asset names without re-implementing the bit-twiddling logic.
 
 ## Key Features
 
@@ -26,6 +26,8 @@ CIP67 (Cardano Improvement Proposal 67) defines a standard for asset name labels
 
 ### Converting Labels to Asset Name Prefixes
 
+Generate the 4-byte prefix for a given label; you can append your own suffix bytes afterwards.
+
 ```java
 // Convert a decimal label to CIP67 asset name prefix
 int label = 222; // Label range: [0, 65535]
@@ -39,6 +41,8 @@ System.out.println("Label " + label + " -> Prefix: " + prefixHex);
 
 ### Extracting Labels from Asset Names
 
+Recover the numeric label from the prefix to inspect or validate existing assets.
+
 ```java
 // Extract label from CIP67 asset name prefix
 byte[] prefixBytes = HexUtil.decodeHexString("000de140");
@@ -49,6 +53,8 @@ System.out.println("Prefix 000de140 -> Label: " + extractedLabel);
 ```
 
 ### Validating CIP67 Asset Names
+
+Check both padding and checksum to confirm an asset name prefix is CIP67-compliant before using it.
 
 ```java
 // Validate asset name from bytes
@@ -67,6 +73,8 @@ System.out.println("Asset name valid (int): " + isValidInt);
 ```
 
 ### Working with Asset Names in Transactions
+
+Combine the CIP67 prefix with your human-readable suffix to form the final asset name used in minting.
 
 ```java
 // Create asset name with CIP67 label
@@ -87,6 +95,8 @@ Asset nftAsset = Asset.builder()
 ```
 
 ### Batch Processing of Asset Names
+
+Run validations over multiple asset names and extract labels where valid.
 
 ```java
 // Process multiple asset names
@@ -111,6 +121,8 @@ for (String assetNameHex : assetNameHexes) {
 ```
 
 ### Common Label Examples
+
+Predefined labels are handy for common asset categories; encode them once and reuse.
 
 ```java
 // Common CIP67 labels

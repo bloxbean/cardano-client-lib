@@ -6,294 +6,175 @@ sidebar_position: 1
 
 # CIP25 API
 
-CIP25 (Cardano Improvement Proposal 25) defines a standard for NFT metadata on the Cardano blockchain. The Cardano Client Library provides APIs to create and manage CIP25 compliant NFT metadata.
+CIP25 (Cardano Improvement Proposal 25) defines a standard for NFT metadata on the Cardano blockchain. The Cardano Client Library provides builders for the CIP25 metadata map and NFT/file helpers. You assemble NFT entries, group them under a policy with `NFTMetadata`, and serialize to CBOR for use as transaction metadata.
 
 ## Key Features
 
-- **Standard Compliance**: Full CIP25 specification support
-- **Metadata Creation**: Easy creation of NFT metadata
-- **Validation**: Built-in validation for CIP25 compliance
-- **Flexible**: Support for various NFT attributes
+- **Standard Compliance**: CIP25 metadata map (label 721)
+- **NFT Builder**: `NFT` for asset fields and attributes
+- **File Support**: `NFTFile` for rich file entries
+- **Policy Map**: `NFTMetadata` for policy → asset metadata layout
 
 ## Dependencies
 
 - **Group ID**: com.bloxbean.cardano
 - **Artifact ID**: cardano-client-cip25
-- **Dependencies**: plutus, metadata
+- **Dependencies**: metadata
 
 ## Usage Examples
 
 ### Creating NFT Metadata
 
-The following example shows how to create CIP25 compliant NFT metadata with various attributes and files.
+Create the NFT entry with images, descriptions, and files, then insert it under your policy id.
 
 ```java
-// Create CIP25 NFT metadata
-CIP25NFT cip25NFT = CIP25NFT.create()
+// Create CIP25 NFT entry
+NFT nft = NFT.create()
+        .assetName("MyAwesomeNFT")
         .name("MyAwesomeNFT")
         .image("https://example.com/image.png")
         .description("A sample CIP25 NFT")
-        .addFile(CIP25File.create()
+        .addFile(NFTFile.create()
                 .mediaType("image/png")
                 .name("image.png")
-                .src("https://example.com/image.png")
-        )
-        .addAttribute("color", "blue")
-        .addAttribute("rarity", "legendary");
+                .src("https://example.com/image.png"))
+        .property("color", "blue")
+        .property("rarity", "legendary");
 
-// Get metadata as PlutusData
-PlutusData metadata = cip25NFT.getMetadataAsPlutusData();
+// Wrap under policy id and label 721
+NFTMetadata nftMetadata = NFTMetadata.create()
+        .addNFT(policyId, nft);
+
+byte[] cborBytes = nftMetadata.serialize();
 ```
 
 ### Minting NFT with CIP25 Metadata
 
-The following example shows how to mint an NFT using a Plutus script with CIP25 metadata attached.
+Pass the CBOR metadata into your transaction so wallets and indexers can read it later.
+
+Attach the CBOR metadata when building your transaction.
 
 ```java
-// Create minting script
-PlutusV2Script mintingScript = PlutusV2Script.builder()
-        .type("PlutusScriptV2")
-        .cborHex("...")
-        .build();
-
-// Create NFT asset
-Asset nftAsset = Asset.builder()
-        .name("MyAwesomeNFT")
-        .value(BigInteger.ONE)
-        .build();
-
-// Mint NFT with metadata
 Tx tx = new Tx()
-        .mintAsset(mintingScript, List.of(nftAsset), metadata, receiverAddress)
+        .mintAssets(mintingScript, List.of(nftAsset))
+        .attachMetadata(nftMetadata)
         .from(senderAddress);
-```
-
-### Validating Metadata
-
-The following example shows how to validate NFT metadata for CIP25 compliance and retrieve any validation errors.
-
-```java
-// Validate CIP25 compliance
-boolean isValid = CIP25NFT.isValidMetadata(metadata);
-
-// Get validation errors
-List<String> errors = CIP25NFT.getValidationErrors(metadata);
 ```
 
 ### Working with Files
 
-The following example shows how to add multiple files to NFT metadata.
+Use `NFTFile` to attach one or more files (e.g., media, thumbnails) to the NFT entry.
 
 ```java
-CIP25NFT nft = CIP25NFT.create()
-    .name("Multi-file NFT")
-    .description("NFT with multiple files")
-    .addFile(CIP25File.create()
+NFTFile file = NFTFile.create()
         .mediaType("image/png")
         .name("thumbnail.png")
-        .src("https://example.com/thumbnail.png"))
-    .addFile(CIP25File.create()
-        .mediaType("video/mp4")
-        .name("animation.mp4")
-        .src("https://example.com/animation.mp4"));
+        .src("https://example.com/thumbnail.png");
+
+NFT nft = NFT.create()
+        .assetName("MultiFile")
+        .name("Multi-file NFT")
+        .description("NFT with multiple files")
+        .addFile(file);
 ```
 
-### Adding Custom Attributes
+### Custom Attributes
 
-The following example shows how to add custom attributes to NFT metadata.
+Store additional fields on the NFT or file objects via the shared `NFTProperties` helpers.
+
+`NFT` and `NFTFile` inherit from `NFTProperties`, so you can add arbitrary fields.
 
 ```java
-CIP25NFT nft = CIP25NFT.create()
-    .name("Custom Attribute NFT")
-    .description("NFT with custom attributes")
-    .addAttribute("color", "blue")
-    .addAttribute("rarity", "legendary")
-    .addAttribute("power", "100")
-    .addAttribute("category", "gaming");
+nft.property("power", "100");
+nft.property("tags", List.of("gaming", "collectible"));
 ```
 
 ## API Reference
 
-### CIP25NFT Class
+### NFTMetadata
 
-Main class for creating and managing CIP25 NFT metadata.
-
-#### Constructor
 ```java
 // Create new instance
-public static CIP25NFT create()
+public static NFTMetadata create()
+
+// Create from CBOR bytes
+public static NFTMetadata create(byte[] cborBytes)
+
+public NFTMetadata addNFT(String policyId, NFT nft)
+public NFT getNFT(String policyId, String assetName)
+public NFTMetadata removeNFT(String policyId, String assetName)
+public NFTMetadata version(int version) // default 1
+public byte[] serialize()
 ```
 
-#### Methods
-
-##### name(String name)
-Sets the name of the NFT.
+### NFT
 
 ```java
-public CIP25NFT name(String name)
+public static NFT create()
+public NFT assetName(String assetName)
+public String getAssetName()
+
+public NFT name(String name)
+public String getName()
+
+public NFT image(String imageUri) // call multiple times to add more
+public List<String> getImages()
+
+public NFT mediaType(String mediaType)
+public String getMediaType()
+
+public NFT description(String description) // supports multiple
+public List<String> getDescriptions()
+
+public NFT addFile(NFTFile nftFile)
+public List<NFTFile> getFiles()
+
+// Additional properties
+public NFT property(String name, String value)
+public NFT property(String name, Map<String, Object> values)
+public NFT property(String name, List<String> values)
 ```
 
-##### description(String description)
-Sets the description of the NFT.
+### NFTFile
 
 ```java
-public CIP25NFT description(String description)
-```
+public static NFTFile create()
+public NFTFile name(String name)
+public String getName()
 
-##### image(String image)
-Sets the image URL of the NFT.
+public NFTFile mediaType(String mediaType)
+public String getMediaType()
 
-```java
-public CIP25NFT image(String image)
-```
+public NFTFile src(String uri) // call multiple times to add more
+public List<String> getSrcs()
 
-##### addFile(CIP25File file)
-Adds a file to the NFT metadata.
-
-```java
-public CIP25NFT addFile(CIP25File file)
-```
-
-##### addAttribute(String key, String value)
-Adds a custom attribute to the NFT.
-
-```java
-public CIP25NFT addAttribute(String key, String value)
-```
-
-##### getMetadataAsPlutusData()
-Converts the metadata to PlutusData format.
-
-```java
-public PlutusData getMetadataAsPlutusData()
-```
-
-##### isValidMetadata(PlutusData metadata)
-Validates metadata for CIP25 compliance.
-
-```java
-public static boolean isValidMetadata(PlutusData metadata)
-```
-
-##### getValidationErrors(PlutusData metadata)
-Gets validation errors for metadata.
-
-```java
-public static List<String> getValidationErrors(PlutusData metadata)
-```
-
-### CIP25File Class
-
-Represents a file in CIP25 metadata.
-
-#### Constructor
-```java
-// Create new instance
-public static CIP25File create()
-```
-
-#### Methods
-```java
-// Set media type
-public CIP25File mediaType(String mediaType)
-
-// Set file name
-public CIP25File name(String name)
-
-// Set file source URL
-public CIP25File src(String src)
+// Additional properties
+public NFTFile property(String name, String value)
+public NFTFile property(String name, Map<String, Object> values)
+public NFTFile property(String name, List<String> values)
 ```
 
 ## CIP25 Specification Details
 
-### Metadata Label
-CIP25 uses metadata label **721** for NFT metadata.
-
-### Metadata Structure
-NFT metadata follows this structure:
-```json
-{
-  "721": {
-    "policy_id": {
-      "asset_name": {
-        "name": "NFT Name",
-        "image": "https://example.com/image.png",
-        "description": "NFT Description",
-        "files": [
-          {
-            "mediaType": "image/png",
-            "name": "image.png",
-            "src": "https://example.com/image.png"
-          }
-        ],
-        "attributes": [
-          {
-            "trait_type": "color",
-            "value": "blue"
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-### File Structure
-Files in CIP25 metadata support:
-- **mediaType**: MIME type of the file
-- **name**: Display name of the file
-- **src**: URL or IPFS hash of the file
-
-### Attributes
-Custom attributes support:
-- **trait_type**: The type of attribute
-- **value**: The value of the attribute
+- **Metadata Label**: 721
+- **Structure**: `{ "721": { "<policy_id>": { "<asset_name>": { ... } } } }`
+- **Files**: support `mediaType`, `name`, and one-or-many `src` values
 
 ## Best Practices
 
-1. **Use HTTPS URLs**: Always use HTTPS URLs for images and files
-2. **Optimize Images**: Use appropriate image sizes and formats
-3. **Validate Metadata**: Always validate metadata before minting
-4. **Use IPFS**: Consider using IPFS for decentralized file storage
-5. **Document Attributes**: Document custom attributes for better discoverability
+1. Use HTTPS or IPFS links for images/files.
+2. Keep metadata concise to reduce transaction size.
+3. Store multi-value fields via repeated `image`, `description`, or `src` calls.
+4. Set `assetName` on the `NFT` before adding it to `NFTMetadata`.
+5. Validate URLs and lengths in your application code (no built-in validators are present).
 
 ## Integration Examples
 
-### With CIP20 (Transaction Messages)
+Combine CIP25 metadata with other metadata using `CBORMetadata.merge(...)` if needed.
+
 ```java
-// Create CIP25 NFT metadata
-CIP25NFT nftMetadata = CIP25NFT.create()
-    .name("MyNFT")
-    .image("https://example.com/image.png")
-    .description("An NFT with transaction messages");
-
-// Create CIP20 message metadata
-MessageMetadata messageMetadata = MessageMetadata.create()
-    .add("NFT purchase")
-    .add("Collection: Art Gallery");
-
-// Combine metadata
-CBORMetadata combinedMetadata = new CBORMetadata();
-combinedMetadata.putAll(nftMetadata);
-combinedMetadata.putAll(messageMetadata);
-```
-
-### With CIP67 (Asset Name Labels)
-```java
-// Create CIP67-compliant asset name
-int label = 222; // NFT label
-byte[] labelPrefix = CIP67AssetNameUtil.labelToPrefix(label);
-String assetName = HexUtil.encodeHexString(labelPrefix) + "MyNFT";
-
-// Create CIP25 NFT with CIP67-compliant name
-CIP25NFT nft = CIP25NFT.create()
-    .name("My CIP67 NFT")
-    .image("https://example.com/image.png");
-
-Asset nftAsset = Asset.builder()
-    .name(assetName)
-    .value(BigInteger.ONE)
-    .build();
+CBORMetadata combined = (CBORMetadata) new CBORMetadata().merge(nftMetadata);
+combined.put(BigInteger.valueOf(100), "extra-field");
 ```
 
 For more information about CIP25, refer to the [official CIP25 specification](https://cips.cardano.org/cips/cip25/).

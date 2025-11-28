@@ -6,7 +6,7 @@ sidebar_position: 4
 
 # CIP20 API
 
-CIP20 (Cardano Improvement Proposal 20) defines a standard for adding messages, comments, or memos to Cardano transactions using transaction metadata. This allows you to attach informational text, invoice numbers, or similar data to transactions on the Cardano blockchain.
+CIP20 (Cardano Improvement Proposal 20) defines a standard for adding messages, comments, or memos to Cardano transactions using transaction metadata. This allows you to attach informational text, invoice numbers, or similar data to transactions on the Cardano blockchain. The library’s `MessageMetadata` wraps the CIP20 layout (label 674 with `msg` array) so you only worry about adding strings and serializing the CBOR when needed.
 
 ## Key Features
 
@@ -26,6 +26,8 @@ CIP20 (Cardano Improvement Proposal 20) defines a standard for adding messages, 
 
 ### Creating Message Metadata
 
+Build the `MessageMetadata` object and serialize to CBOR when you need raw bytes.
+
 The following example shows how to create CIP20 compliant message metadata with multiple messages.
 
 ```java
@@ -41,6 +43,8 @@ String hexMetadata = HexUtil.encodeHexString(cborBytes);
 ```
 
 ### Adding Messages to Transactions
+
+Attach the metadata directly in QuickTx so it is included in the auxiliary data of the transaction.
 
 The following example shows how to add message metadata to a transaction using QuickTx.
 
@@ -65,6 +69,8 @@ Result<String> result = quickTxBuilder.compose(tx)
 
 ### Working with Message Lists
 
+Retrieve the stored messages to display or process them after deserialization.
+
 The following example shows how to retrieve and work with messages from metadata.
 
 ```java
@@ -86,23 +92,9 @@ for (String message : messages) {
 System.out.println("Total messages: " + messages.size());
 ```
 
-### Deserializing Message Metadata
-
-The following example shows how to deserialize message metadata from CBOR bytes.
-
-```java
-// Assume you have CBOR bytes from somewhere
-byte[] cborBytes = getMetadataBytes();
-
-// Deserialize message metadata
-MessageMetadata messageMetadata = MessageMetadata.create(cborBytes);
-
-// Get messages
-List<String> messages = messageMetadata.getMessages();
-System.out.println("Deserialized messages: " + messages);
-```
-
 ### Integration with Other Metadata
+
+Merge CIP20 messages with other metadata maps if you need to send multiple labels in one transaction.
 
 The following example shows how to combine CIP20 message metadata with other transaction metadata.
 
@@ -118,9 +110,7 @@ CBORMetadata customMetadata = new CBORMetadata()
     .put(BigInteger.valueOf(101), "Another custom value");
 
 // Combine metadata (CIP20 uses label 674)
-CBORMetadata combinedMetadata = new CBORMetadata();
-combinedMetadata.putAll(customMetadata);
-combinedMetadata.putAll(messageMetadata);
+CBORMetadata combinedMetadata = (CBORMetadata) customMetadata.merge(messageMetadata);
 
 // Use in transaction
 Tx tx = new Tx()
@@ -183,9 +173,6 @@ The main class for creating and managing CIP20 message metadata.
 ```java
 // Create new instance
 public static MessageMetadata create()
-
-// Create from CBOR bytes
-public static MessageMetadata create(byte[] cborBytes)
 ```
 
 #### Methods
@@ -271,9 +258,7 @@ MessageMetadata messageMetadata = MessageMetadata.create()
     .add("Collection: Art Gallery");
 
 // Combine metadata
-CBORMetadata combinedMetadata = new CBORMetadata();
-combinedMetadata.putAll(nftMetadata);
-combinedMetadata.putAll(messageMetadata);
+CBORMetadata combinedMetadata = (CBORMetadata) nftMetadata.merge(messageMetadata);
 ```
 
 ### With Custom Metadata
@@ -287,9 +272,7 @@ MessageMetadata messageMetadata = MessageMetadata.create()
     .add("Transaction note");
 
 // Combine and use in transaction
-CBORMetadata finalMetadata = new CBORMetadata();
-finalMetadata.putAll(customMetadata);
-finalMetadata.putAll(messageMetadata);
+CBORMetadata finalMetadata = (CBORMetadata) customMetadata.merge(messageMetadata);
 ```
 
 For more information about CIP20, refer to the [official CIP20 specification](https://cips.cardano.org/cips/cip20/).

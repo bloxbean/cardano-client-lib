@@ -6,15 +6,14 @@ sidebar_position: 3
 
 # CIP8 API
 
-CIP8 (Cardano Improvement Proposal 8) defines a standard for message signing using COSE (CBOR Object Signing and Encryption) signatures. The Cardano Client Library provides APIs to create, sign, and verify messages according to the CIP8 specification.
+CIP8 (Cardano Improvement Proposal 8) defines a standard for message signing using COSE (CBOR Object Signing and Encryption) signatures. The Cardano Client Library exposes builders and models for COSE Sign1 and COSE Sign so you can create and verify signatures that follow the specification. The focus is on providing small, composable pieces: you assemble headers, build a `SigStructure`, sign with your own signing provider, and serialize/deserialise with the COSE models.
 
 ## Key Features
 
-- **COSE Signatures**: Full COSE Sign1 and COSE Sign support
-- **Message Signing**: Sign arbitrary messages with private keys
-- **Signature Verification**: Verify signatures against public keys
-- **Header Management**: Flexible protected and unprotected header handling
-- **Standard Compliance**: Full CIP8 specification support
+- **COSE Sign1 and Sign** builders
+- **Payload hashing** toggle (Blake2b-224)
+- **Header helpers** for protected and unprotected maps
+- **COSE key utilities** for crv/x headers and serialization
 
 ## Dependencies
 
@@ -26,152 +25,99 @@ CIP8 (Cardano Improvement Proposal 8) defines a standard for message signing usi
 
 ### Creating COSE Sign1 Signatures
 
-The following example shows how to create a COSE Sign1 signature for a message using the CIP8 API.
-
 ```java
-// Create headers for the signature
+// Protected headers (algorithm + optional content type or key id)
 HeaderMap protectedHeaders = new HeaderMap()
-    .algorithmId(14) // EdDSA algorithm
-    .contentType(-1000); // Cardano message content type
+        .algorithmId(14) // EdDSA
+        .contentType(-1000); // Optional content type
 
+// Unprotected headers for custom values
 HeaderMap unprotectedHeaders = new HeaderMap()
-    .addOtherHeader(-100, "Some header value");
+        .addOtherHeader(-100, "Some header value");
 
-Headers headers = new Headers(protectedHeaders, unprotectedHeaders);
+Headers headers = new Headers()
+        ._protected(new ProtectedHeaderMap(protectedHeaders))
+        .unprotected(unprotectedHeaders);
 
-// Create the message payload
-String message = "Hello World";
-byte[] payload = message.getBytes(StandardCharsets.UTF_8);
+byte[] payload = "Hello World".getBytes(StandardCharsets.UTF_8);
 
-// Create COSE Sign1 builder
-COSESign1Builder builder = new COSESign1Builder(headers, payload, false);
-builder.hashPayload(); // Hash the payload with Blake2b-224
+COSESign1Builder builder = new COSESign1Builder(headers, payload, false)
+        .hashed(true); // Blake2b-224 hashing of payload
 
-// Create signature structure for signing
 SigStructure sigStructure = builder.makeDataToSign();
+byte[] signature = signingProvider.sign(sigStructure.serializeAsBytes(), privateKeyBytes);
 
-// Sign with private key
-byte[] signature = privateKey.sign(sigStructure.toBytes());
-
-// Build the final COSE Sign1 object
 COSESign1 coseSign1 = builder.build(signature);
-
-// Serialize to bytes for transmission
-byte[] serialized = coseSign1.toBytes();
+byte[] serialized = coseSign1.serializeAsBytes();
 String hexSignature = HexUtil.encodeHexString(serialized);
 ```
 
 ### Creating COSE Sign Signatures (Multiple Signers)
 
-The following example shows how to create a COSE Sign signature with multiple signers.
-
 ```java
-// Create headers for the signature
-HeaderMap protectedHeaders = new HeaderMap()
-    .algorithmId(14) // EdDSA algorithm
-    .contentType(-1000); // Cardano message content type
+Headers headers = new Headers()
+        ._protected(new ProtectedHeaderMap(new HeaderMap().algorithmId(14)))
+        .unprotected(new HeaderMap());
 
-Headers headers = new Headers(protectedHeaders, new HeaderMap());
+byte[] payload = "Multi-signer message".getBytes(StandardCharsets.UTF_8);
 
-// Create the message payload
-String message = "Multi-signer message";
-byte[] payload = message.getBytes(StandardCharsets.UTF_8);
+COSESignBuilder builder = new COSESignBuilder(headers, payload, false)
+        .hashed(true);
 
-// Create COSE Sign builder
-COSESignBuilder builder = new COSESignBuilder(headers, payload, false);
-builder.hashPayload(); // Hash the payload with Blake2b-224
-
-// Create signature structure for signing
 SigStructure sigStructure = builder.makeDataToSign();
-
-// Sign with multiple private keys
 List<COSESignature> signatures = new ArrayList<>();
-for (PrivateKey privateKey : privateKeys) {
-    byte[] signature = privateKey.sign(sigStructure.toBytes());
-    COSESignature coseSignature = new COSESignature()
-        .signature(signature);
-    signatures.add(coseSignature);
+for (byte[] pvtKey : signerPrivateKeys) {
+    byte[] sig = signingProvider.sign(sigStructure.serializeAsBytes(), pvtKey);
+    signatures.add(new COSESignature().signature(sig));
 }
 
-// Build the final COSE Sign object
 COSESign coseSign = builder.build(signatures);
-
-// Serialize to bytes for transmission
-byte[] serialized = coseSign.toBytes();
+byte[] serialized = coseSign.serializeAsBytes();
 ```
 
 ### Signature Verification
 
-The following example shows how to verify a COSE signature.
+`COSESign1` exposes `signedData()` to reconstruct the SigStructure for verification.
 
 ```java
-// Deserialize the signature from bytes
 COSESign1 coseSign1 = COSESign1.deserialize(signatureBytes);
+SigStructure signedData = coseSign1.signedData();
 
-// Verify the signature
-boolean isValid = COSEUtil.verifyCoseSign1(coseSign1, publicKey);
+boolean isValid = signingProvider.verify(
+        coseSign1.signature(),
+        signedData.serializeAsBytes(),
+        publicKeyBytes);
 
-if (isValid) {
-    System.out.println("Signature is valid");
-    
-    // Extract the payload
-    byte[] payload = coseSign1.payload();
-    String message = new String(payload, StandardCharsets.UTF_8);
-    System.out.println("Message: " + message);
-} else {
-    System.out.println("Signature verification failed");
-}
+byte[] payload = coseSign1.payload();
 ```
 
 ### Working with Headers
 
-The following example shows how to work with protected and unprotected headers.
-
 ```java
-// Create protected headers
-HeaderMap protectedHeaders = new HeaderMap()
-    .algorithmId(14) // EdDSA algorithm
-    .contentType(-1000) // Cardano message content type
-    .keyId("key-123"); // Key identifier
+Headers headers = coseSign1.headers();
+HeaderMap protectedHeaders = headers._protected().getAsHeaderMap();
+HeaderMap unprotectedHeaders = headers.unprotected();
 
-// Create unprotected headers
-HeaderMap unprotectedHeaders = new HeaderMap()
-    .addOtherHeader(-100, "Custom header value")
-    .addOtherHeader(-101, "Another custom value");
-
-// Combine into Headers object
-Headers headers = new Headers(protectedHeaders, unprotectedHeaders);
-
-// Access header values
-Integer algorithmId = headers._protected().algorithmId();
-Integer contentType = headers._protected().contentType();
-String keyId = headers._protected().keyId();
-
-// Access unprotected header values
-Object customValue = headers.unprotected().getOtherHeader(-100);
+Object algorithmId = protectedHeaders.algorithmId();
+Object contentType = protectedHeaders.contentType();
+byte[] keyId = protectedHeaders.keyId();
+byte[] customValue = unprotectedHeaders.otherHeaderAsBytes(-100);
 ```
 
 ### Creating COSE Keys
 
-The following example shows how to create and work with COSE keys.
+`COSEKey` stores standard fields plus arbitrary other headers (e.g., crv, x).
 
 ```java
-// Create a COSE key from a public key
 COSEKey coseKey = new COSEKey()
-    .keyType(1) // Octet Key Pair
-    .algorithm(14) // EdDSA
-    .crv(-8) // Ed25519 curve
-    .x(publicKeyBytes); // Public key bytes
+        .keyType(1) // Octet Key Pair
+        .algorithmId(14) // EdDSA
+        .addOtherHeader(-1, new UnsignedInteger(6)) // crv (Ed25519)
+        .addOtherHeader(-2, new ByteString(publicKeyBytes));
 
-// Serialize the key
-byte[] keyBytes = coseKey.toBytes();
-String keyHex = HexUtil.encodeHexString(keyBytes);
-
-// Deserialize a COSE key
-COSEKey deserializedKey = COSEKey.deserialize(HexUtil.decodeHexString(keyHex));
-
-// Extract public key bytes
-byte[] extractedPublicKey = deserializedKey.x();
+byte[] keyBytes = coseKey.serializeAsBytes();
+COSEKey deserializedKey = COSEKey.deserialize(keyBytes);
+byte[] extractedPublicKey = deserializedKey.otherHeaderAsBytes(-2);
 ```
 
 ## API Reference
@@ -188,7 +134,7 @@ COSESign1Builder(Headers headers, byte[] payload, boolean isPayloadExternal)
 // Methods
 SigStructure makeDataToSign() // Create signature structure
 COSESign1 build(byte[] signature) // Build final signature
-COSESign1Builder hashPayload() // Hash payload with Blake2b-224
+COSESign1Builder hashed(boolean hashed) // Enable Blake2b-224 hashing
 ```
 
 #### COSESignBuilder
@@ -201,18 +147,19 @@ COSESignBuilder(Headers headers, byte[] payload, boolean isPayloadExternal)
 // Methods
 SigStructure makeDataToSign() // Create signature structure
 COSESign build(List<COSESignature> signatures) // Build final signature
-COSESignBuilder hashPayload() // Hash payload with Blake2b-224
+COSESignBuilder hashed(boolean hashed) // Enable Blake2b-224 hashing
 ```
 
 #### Headers
 Manages protected and unprotected headers.
 
 ```java
-// Constructor
-Headers(HeaderMap protectedHeaders, HeaderMap unprotectedHeaders)
+Headers() // use fluent setters
 
 // Methods
-HeaderMap _protected() // Get protected headers
+Headers _protected(ProtectedHeaderMap protectedHeaders)
+Headers unprotected(HeaderMap unprotectedHeaders)
+HeaderMap _protected().getAsHeaderMap() // Decode protected map
 HeaderMap unprotected() // Get unprotected headers
 Headers copy() // Create a copy
 ```
@@ -222,104 +169,67 @@ Manages individual header maps.
 
 ```java
 // Methods
-HeaderMap algorithmId(Integer algorithmId) // Set algorithm ID
-HeaderMap contentType(Integer contentType) // Set content type
-HeaderMap keyId(String keyId) // Set key ID
-HeaderMap addOtherHeader(Integer key, Object value) // Add custom header
-Integer algorithmId() // Get algorithm ID
-Integer contentType() // Get content type
-String keyId() // Get key ID
-Object getOtherHeader(Integer key) // Get custom header
+HeaderMap algorithmId(long or String algorithmId)
+HeaderMap contentType(long or String contentType)
+HeaderMap keyId(byte[] keyId)
+HeaderMap addOtherHeader(long key, Object value) // Custom header
+Object algorithmId()
+Object contentType()
+byte[] keyId()
+byte[] otherHeaderAsBytes(long key)
+long otherHeaderAsLong(long key)
+String otherHeaderAsString(long key)
 ```
 
-#### COSEUtil
-Utility class for signature verification.
+#### COSEKey
+Represents a COSE key map.
 
 ```java
-// Static methods
-boolean verifyCoseSign1(COSESign1 coseSign1, PublicKey publicKey)
-boolean verifyCoseSign(COSESign coseSign, List<PublicKey> publicKeys)
+COSEKey keyType(long or String)
+COSEKey algorithmId(long or String)
+COSEKey addOtherHeader(long key, DataItem value)
+COSEKey addOtherHeader(long key, long/String/BigInteger/byte[] value)
+byte[] serializeAsBytes()
+COSEKey deserialize(byte[] bytes)
+byte[] otherHeaderAsBytes(long key)
+long otherHeaderAsLong(long key)
+String otherHeaderAsString(long key)
 ```
 
 ## CIP8 Specification Details
 
 ### COSE Sign1 Structure
-CIP8 uses COSE Sign1 format with the following structure:
+Components describe exactly what is signed and carried in the CBOR array:
 - **Protected Headers**: Algorithm ID, content type, key ID
-- **Unprotected Headers**: Custom headers, address information
+- **Unprotected Headers**: Custom headers
 - **Payload**: Message data (optionally hashed with Blake2b-224)
 - **Signature**: EdDSA signature over the structure
 
 ### Signature Process
-1. **Header Creation**: Create protected and unprotected headers
-2. **Payload Preparation**: Optionally hash payload with Blake2b-224
-3. **Structure Building**: Create COSE Sign1 structure
-4. **Signing**: Sign using EdDSA with Ed25519 curve
-5. **Serialization**: Convert to CBOR bytes
+1. **Header Creation**: Set protected/unprotected headers with algorithm, optional content type, and custom keys.
+2. **Payload Preparation**: Optionally hash payload with Blake2b-224 (`hashed(true)`).
+3. **Structure Building**: `makeDataToSign()` yields the Sig_Structure the signer must sign.
+4. **Signing**: Sign the serialized Sig_Structure using EdDSA with your signing provider.
+5. **Serialization**: Build `COSESign1` and encode via `serializeAsBytes()`.
 
 ### Algorithm Identifiers
-The following algorithm identifiers are commonly used:
 
 - **14**: EdDSA (Edwards Curve Digital Signature Algorithm)
-- **-8**: Ed25519 curve identifier
 - **1**: Octet Key Pair key type
-- **-1000**: Cardano message content type
-
-### Hash Algorithm
-- **Blake2b-224**: Used for payload hashing (224-bit output)
-- **Purpose**: Reduce payload size for large messages
-
-## Best Practices
-
-1. **Always hash payloads** for large messages using `hashPayload()` method
-2. **Use appropriate algorithm IDs** based on your key type (EdDSA = 14 for Ed25519)
-3. **Include key identifiers** in protected headers for key management
-4. **Validate signatures** before processing signed messages
-5. **Handle serialization errors** gracefully when deserializing signatures
 
 ## Advanced CIP8 Features
 
 ### COSE Encryption
 
-CIP8 also provides COSE encryption capabilities:
+Encryption helpers are available as low-level containers:
 
-#### COSEEncrypt
-```java
-// Create COSE encryption object
-COSEEncrypt coseEncrypt = new COSEEncrypt()
-    .headers(headers)
-    .ciphertext(encryptedData)
-    .recipients(recipients);
-```
+- `COSEEncrypt` holds headers, ciphertext, and recipients.
+- `PasswordEncryption` wraps a `COSEEncrypt0` instance (tag 16).
+- `PubKeyEncryption` wraps a `COSEEncrypt` instance (tag 96).
 
-#### Password-Based Encryption
-```java
-// Create password-based encryption
-PasswordEncryption passwordEncryption = new PasswordEncryption()
-    .password("your-password")
-    .salt(saltBytes);
-```
-
-#### Public Key Encryption
-```java
-// Create public key encryption
-PubKeyEncryption pubKeyEncryption = new PubKeyEncryption()
-    .publicKey(publicKeyBytes)
-    .algorithm(algorithmId);
-```
-
-### COSE Recipients
-
-```java
-// Create COSE recipient
-COSERecipient recipient = new COSERecipient()
-    .headers(recipientHeaders)
-    .encryptedKey(encryptedKeyBytes);
-```
+You construct the underlying `COSEEncrypt`/`COSEEncrypt0` yourself and then wrap it if you need the tagged form.
 
 ## Integration with Other CIPs
-
-CIP8 is commonly used with other Cardano standards:
 
 - **CIP30**: Uses CIP8 for dApp wallet data signing
 - **CIP25**: Can include CIP8 signatures in NFT metadata

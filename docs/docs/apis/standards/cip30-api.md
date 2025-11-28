@@ -6,15 +6,14 @@ sidebar_position: 6
 
 # CIP30 API
 
-CIP30 (Cardano Improvement Proposal 30) defines a standard for dApp-wallet communication on the Cardano blockchain. The Cardano Client Library provides APIs for data signing and signature verification according to the CIP30 specification.
+CIP30 (Cardano Improvement Proposal 30) defines a standard for dApp-wallet communication on the Cardano blockchain. The Cardano Client Library provides CIP30-compatible data signing and verification built on CIP8 COSE Sign1. It bundles the signing flow—header construction, Sig_Structure generation, signing, and verification—into a small surface so you can focus on wallet UX instead of COSE internals.
 
 ## Key Features
 
-- **Data Signing**: Sign arbitrary data using CIP30's signData() method
-- **Signature Verification**: Verify CIP30 data signatures
-- **COSE Integration**: Built on CIP8 COSE signature standard
-- **Address Validation**: Validate addresses in signatures
-- **Standard Compliance**: Full CIP30 specification support
+- **Data Signing**: `CIP30DataSigner.signData(...)`
+- **Verification**: `CIP30DataSigner.verify(DataSignature)`
+- **COSE Integration**: Uses CIP8 builders internally
+- **UTXO Bridge**: `CIP30UtxoSupplier` for hex-encoded UTxOs
 
 ## Dependencies
 
@@ -26,253 +25,129 @@ CIP30 (Cardano Improvement Proposal 30) defines a standard for dApp-wallet commu
 
 ### Signing Data with CIP30
 
+Sign arbitrary payload bytes together with the user’s address (embedded in COSE headers) to prove address ownership.
+
 ```java
 // Create account for signing
 Account signerAccount = Account.createFromMnemonic(Networks.testnet(), "your mnemonic words");
 
-// Get address bytes
 byte[] addressBytes = signerAccount.baseAddress().getBytes();
+byte[] payload = "Hello from dApp!".getBytes(StandardCharsets.UTF_8);
 
-// Create payload to sign
-String message = "Hello from dApp!";
-byte[] payload = message.getBytes(StandardCharsets.UTF_8);
-
-// Sign data using CIP30DataSigner
 DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
-    addressBytes, 
-    payload, 
-    signerAccount
-);
+        addressBytes,
+        payload,
+        signerAccount);
 
-// Get signature as hex string
 String signatureHex = dataSignature.signature();
 String keyHex = dataSignature.key();
-
-System.out.println("Signature: " + signatureHex);
-System.out.println("Key: " + keyHex);
 ```
 
 ### Verifying CIP30 Signatures
 
+Verify both the signature and that the address in the protected header matches the public key used for signing.
+
 ```java
-// Create DataSignature from hex strings
 DataSignature dataSignature = new DataSignature(signatureHex, keyHex);
 
-// Verify the signature
-boolean isValid = CIP30DataSigner.INSTANCE.verifyDataSignature(
-    addressBytes,
-    payload,
-    dataSignature
-);
-
-if (isValid) {
-    System.out.println("Signature is valid");
-} else {
-    System.out.println("Signature verification failed");
-}
+boolean isValid = CIP30DataSigner.INSTANCE.verify(dataSignature);
 ```
 
 ### Working with DataSignature Objects
 
+Read back address, curve, and public key information from the COSE-encoded signature without manual parsing.
+
 ```java
-// Create DataSignature
 DataSignature dataSignature = new DataSignature(signatureHex, keyHex);
 
-// Get address from signature
 byte[] addressFromSignature = dataSignature.address();
-
-// Get curve identifier
 Integer crv = dataSignature.crv();
-
-// Get algorithm identifier
-Integer alg = dataSignature.alg();
-
-// Verify address matches
-boolean addressMatches = Arrays.equals(addressBytes, addressFromSignature);
+byte[] x = dataSignature.x();
 ```
 
 ### Signing with Hash Payload
 
+Enable hashing for large payloads so only a Blake2b-224 hash is signed instead of the full data.
+
 ```java
-// Sign with payload hashing (for large payloads)
 DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
-    addressBytes,
-    largePayload,
-    signerAccount,
-    true // hashPayload = true
+        addressBytes,
+        largePayload,
+        signerAccount,
+        true // hashPayload = true
 );
 ```
 
-### UTXO Management (CIP30 UtxoSupplier)
+### UTXO Management (CIP30UtxoSupplier)
+
+Convert wallet-provided hex-encoded CBOR UTxOs into the library’s `UtxoSupplier` for transaction building.
 
 ```java
-// Create CIP30 UTXO supplier
-CIP30UtxoSupplier utxoSupplier = new CIP30UtxoSupplier();
+// Hex-encoded CBOR UTxOs from wallet getUtxos()
+List<String> walletUtxos = fetchFromWallet();
 
-// Set UTXO data
-List<Utxo> utxos = getUtxosFromWallet();
-utxoSupplier.setUtxos(utxos);
-
-// Use in transaction building
-Tx tx = new Tx()
-    .payToAddress(receiverAddress, Amount.ada(10))
-    .from(senderAddress)
-    .withUtxoSupplier(utxoSupplier);
+CIP30UtxoSupplier utxoSupplier = new CIP30UtxoSupplier(walletUtxos);
+List<Utxo> page = utxoSupplier.getPage(address, 20, 0, OrderEnum.asc);
 ```
 
 ## API Reference
 
-### CIP30DataSigner Class
-
-Main class for CIP30 data signing and verification.
-
-#### Methods
-
-##### signData(byte[] addressBytes, byte[] payload, Account signer)
-Signs data using CIP30's signData() method.
+### CIP30DataSigner
 
 ```java
-public DataSignature signData(
-    @NonNull byte[] addressBytes, 
-    @NonNull byte[] payload, 
-    @NonNull Account signer
-) throws DataSignError
+// Sign data
+public DataSignature signData(@NonNull byte[] addressBytes, @NonNull byte[] payload, @NonNull Account signer)
+public DataSignature signData(@NonNull byte[] addressBytes, @NonNull byte[] payload, @NonNull Account signer, boolean hashPayload)
+public DataSignature signData(@NonNull byte[] addressBytes, @NonNull byte[] payload, @NonNull byte[] pvtKey, @NonNull byte[] pubKey)
+public DataSignature signData(@NonNull byte[] addressBytes, @NonNull byte[] payload, @NonNull byte[] pvtKey, @NonNull byte[] pubKey, boolean hashPayload)
+
+// Verify signature
+public boolean verify(@NonNull DataSignature dataSignature)
 ```
 
-##### signData(byte[] addressBytes, byte[] payload, Account signer, boolean hashPayload)
-Signs data with optional payload hashing.
+### DataSignature
 
 ```java
-public DataSignature signData(
-    @NonNull byte[] addressBytes,
-    @NonNull byte[] payload,
-    @NonNull Account signer,
-    boolean hashPayload
-) throws DataSignError
-```
-
-##### verifyDataSignature(byte[] addressBytes, byte[] payload, DataSignature dataSignature)
-Verifies a CIP30 data signature.
-
-```java
-public boolean verifyDataSignature(
-    byte[] addressBytes,
-    byte[] payload,
-    DataSignature dataSignature
-)
-```
-
-### DataSignature Class
-
-Represents a CIP30 data signature.
-
-#### Constructor
-```java
-// Create from signature and key hex strings
 public DataSignature(@NonNull String signature, @NonNull String key)
-```
 
-#### Methods
-```java
-// Set signature hex string
 public DataSignature signature(@NonNull String signature)
-
-// Set key hex string
 public DataSignature key(@NonNull String key)
 
-// Get address bytes from signature
-public byte[] address()
-
-// Get curve identifier
-public Integer crv()
-
-// Get algorithm identifier
-public Integer alg()
+public byte[] address() // address bytes from protected header
+public Integer crv() // curve id from COSE_Key other header
+public byte[] x() // public key bytes (x) from COSE_Key other header
 ```
 
-### CIP30UtxoSupplier Class
+### CIP30UtxoSupplier
 
-UTXO supplier implementation for CIP30 wallets.
-
-#### Methods
 ```java
-// Set UTXOs
-public void setUtxos(List<Utxo> utxos)
+// Construct from hex-encoded CBOR UTxOs
+public CIP30UtxoSupplier(List<String> hexEncodedCborUtxos)
 
-// Get UTXOs for address
-public List<Utxo> getUtxos(String address)
+public List<Utxo> getPage(String address, Integer pageSize, Integer page, OrderEnum order)
+public Optional<Utxo> getTxOutput(String txHash, int outputIndex)
+public List<Utxo> getAll(String paymentAddress)
 ```
 
-## CIP30 Specification Details
+### Constants (`CIP30Constant`)
 
-### Metadata Label
-CIP30 uses metadata label **674** for data signing metadata.
+- **ADDRESS_KEY**: "address" (stored in protected header other map)
+- **ALG_EdDSA**: -8
+- **CRV_Ed25519**: 6
+- **OKP**: 1
+- **X_KEY**: -2 (public key bytes)
+- **CRV_KEY**: -1 (curve id)
 
-### Signature Format
-CIP30 signatures follow COSE Sign1 format with:
-- **Address Header**: Address bytes in unprotected headers (-100)
-- **Content Type**: Cardano message content type (-1000)
-- **Algorithm**: EdDSA algorithm (14)
-- **Curve**: Ed25519 curve (-8)
+## CIP30 Data Signing Flow
 
-### Data Signing Process
-1. **Payload Preparation**: Convert data to bytes (UTF-8 for text)
-2. **Header Creation**: Create COSE headers with address and content type
-3. **Signature Generation**: Sign using EdDSA with Ed25519 curve
-4. **Verification**: Verify signature against public key
-
-### Constants
-The API uses the following constants defined in `CIP30Constant`:
-
-- **ADDRESS_KEY**: Header key for address (-100)
-- **CONTENT_TYPE**: Content type for Cardano messages (-1000)
-- **ALGORITHM_ID**: EdDSA algorithm identifier (14)
-- **CURVE_ID**: Ed25519 curve identifier (-8)
-
-## Best Practices
-
-1. **Validate addresses**: Always verify that signature addresses match expected addresses
-2. **Handle errors**: Use try-catch blocks for DataSignError exceptions
-3. **Hash large payloads**: Use payload hashing for large data to improve performance
-4. **Verify signatures**: Always verify signatures before processing signed data
-5. **Use proper encoding**: Ensure payload is properly encoded (UTF-8 for text)
+1. `CIP30DataSigner` builds a CIP8 COSE_Sign1 with the payload (optionally hashed) and address in headers.
+2. Signature is created with `Configuration.INSTANCE.getSigningProvider()`.
+3. `DataSignature` stores the hex-encoded COSE_Sign1 and COSE_Key.
+4. `verify` recreates the SigStructure, checks the signature, and verifies the address against the key.
 
 ## Integration with Other Standards
 
-### With CIP8 (Message Signing)
-CIP30 builds on CIP8's COSE signature standard:
-
-```java
-// CIP30 uses CIP8 COSE signatures internally
-DataSignature dataSignature = CIP30DataSigner.INSTANCE.signData(
-    addressBytes, 
-    payload, 
-    signerAccount
-);
-
-// The signature contains CIP8 COSE Sign1 data
-String signatureHex = dataSignature.signature();
-COSESign1 coseSign1 = COSESign1.deserialize(HexUtil.decodeHexString(signatureHex));
-```
-
-### With dApp Wallets
-```java
-// Typical dApp integration pattern
-public class DAppConnector {
-    private CIP30DataSigner signer = CIP30DataSigner.INSTANCE;
-    
-    public String requestSignature(String message, Account userAccount) {
-        try {
-            byte[] addressBytes = userAccount.baseAddress().getBytes();
-            byte[] payload = message.getBytes(StandardCharsets.UTF_8);
-            
-            DataSignature signature = signer.signData(addressBytes, payload, userAccount);
-            return signature.signature();
-        } catch (DataSignError e) {
-            throw new RuntimeException("Failed to sign data", e);
-        }
-    }
-}
-```
+- **CIP8**: All signing uses the CIP8 COSE builders.
+- **CIP67/68/25**: Use normal transaction-building APIs for assets/metadata; CIP30 only covers data signing.
 
 For more information about CIP30, refer to the [official CIP30 specification](https://cips.cardano.org/cips/cip30/).
