@@ -17,13 +17,13 @@ package com.bloxbean.cardano.vds.core.api;
  * <pre>{@code
  * // Polymorphic usage - can swap RocksDB for Postgres
  * StateTrees trees = new RocksDbStateTrees("/path/to/db", StorageMode.SINGLE_VERSION);
- * // Can be used with any structure implementation
- * MerklePatriciaTrie mpt = new MerklePatriciaTrie(trees.nodeStore(), Blake2b256::digest);
- * JellyfishMerkleTree jmt = new JellyfishMerkleTree(trees.nodeStore(), Blake2b256::digest);
  *
- * // Perform operations on your chosen structure
- * mpt.put(key, value);
- * byte[] root = mpt.getRootHash();
+ * // Use MpfTrie for Cardano smart contracts (recommended)
+ * MpfTrie trie = new MpfTrie(trees.nodeStore());
+ *
+ * // Perform operations
+ * trie.put(key, value);
+ * byte[] root = trie.getRootHash();
  *
  * // Store root (method depends on storage mode)
  * if (trees.storageMode() == StorageMode.MULTI_VERSION) {

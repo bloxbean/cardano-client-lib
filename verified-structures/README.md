@@ -11,7 +11,7 @@ This library provides production-ready implementations of Merkle-based authentic
 ### Core Modules
 
 - **[verified-structures-core](verified-structures-core/)** - Common APIs, utilities, and interfaces
-- **[merkle-patricia-trie](merkle-patricia-trie/)** - MPT and MPF (Merkle Patricia Forestry) implementation
+- **[merkle-patricia-forestry](merkle-patricia-forestry/)** - MPF (Merkle Patricia Forestry) implementation with Cardano/Aiken compatibility
 - **[jellyfish-merkle](jellyfish-merkle/)** - JMT (Jellyfish Merkle Tree) implementation following Diem's design
 
 ### Backend Utilities
@@ -21,9 +21,9 @@ This library provides production-ready implementations of Merkle-based authentic
 
 ### Persistence Modules
 
-**Merkle Patricia Trie Backends:**
-- **[merkle-patricia-trie-rocksdb](merkle-patricia-trie-rocksdb/)** - MPT with RocksDB persistence and garbage collection
-- **[merkle-patricia-trie-rdbms](merkle-patricia-trie-rdbms/)** - MPT with RDBMS persistence (PostgreSQL/H2/SQLite)
+**Merkle Patricia Forestry Backends:**
+- **[merkle-patricia-forestry-rocksdb](merkle-patricia-forestry-rocksdb/)** - MPF with RocksDB persistence and garbage collection
+- **[merkle-patricia-forestry-rdbms](merkle-patricia-forestry-rdbms/)** - MPF with RDBMS persistence (PostgreSQL/H2/SQLite)
 
 **Jellyfish Merkle Tree Backends:**
 - **[jellyfish-merkle-rocksdb](jellyfish-merkle-rocksdb/)** - JMT with RocksDB persistence
@@ -31,12 +31,12 @@ This library provides production-ready implementations of Merkle-based authentic
 
 ## Key Features
 
-### Merkle Patricia Trie (MPT)
-- Ethereum-inspired radix tree with path compression
+### Merkle Patricia Forestry (MPF)
+- Cardano-optimized radix tree with path compression
 - Space-efficient extension nodes
 - Prefix scanning for range queries
-- Two modes: Classic MPT and MPF (Merkle Patricia Forestry)
-- SecureTrie wrapper for Cardano/Aiken compatibility
+- Two modes: Classic (off-chain) and MPF (Cardano/Aiken compatible)
+- `MpfTrie` primary API for Cardano developers
 
 ### Jellyfish Merkle Tree (JMT)
 - Diem-inspired sparse Merkle tree
@@ -53,28 +53,27 @@ This library provides production-ready implementations of Merkle-based authentic
 
 ## Quick Start
 
-### Merkle Patricia Trie with RocksDB
+### Merkle Patricia Forestry with RocksDB
 
 ```java
 // Add dependency
-implementation 'com.bloxbean.cardano:merkle-patricia-trie-rocksdb:0.8.0'
+implementation 'com.bloxbean.cardano:merkle-patricia-forestry-rocksdb:0.8.0'
 
 // Initialize storage
-RocksDbResources resources = RocksDbResources.create(Paths.get("mpt-data"));
+RocksDbResources resources = RocksDbResources.create(Paths.get("mpf-data"));
 RocksDbNodeStore nodeStore = new RocksDbNodeStore(resources.getDb());
 
-// Create trie
-HashFunction hashFn = Blake2b256::digest;
-MerklePatriciaTrie trie = new MerklePatriciaTrie(nodeStore, hashFn);
+// Create trie (MpfTrie for Cardano compatibility)
+MpfTrie trie = new MpfTrie(nodeStore);
 
-// Store data
-trie.put("key1".getBytes(), "value1".getBytes());
-trie.put("key2".getBytes(), "value2".getBytes());
+// Store data (keys automatically hashed with Blake2b-256)
+trie.put("account123".getBytes(), accountData);
+trie.put("account456".getBytes(), accountData2);
 
-byte[] rootHash = trie.getRootHash();
+byte[] rootHash = trie.getRootHash();  // Use in Cardano transactions
 
 // Retrieve data
-byte[] value = trie.get("key1".getBytes());
+byte[] value = trie.get("account123".getBytes());
 
 // Cleanup
 resources.close();
@@ -109,20 +108,23 @@ Optional<JmtProof> proof = tree.getProof("alice".getBytes(), 1L);
 resources.close();
 ```
 
-### Cardano-Compatible SecureTrie
+### Advanced: Low-Level MerklePatriciaTrie
 
 ```java
-// For Aiken merkle-patricia-forestry compatibility
-import com.bloxbean.cardano.vds.mpt.SecureTrie;
+// For off-chain indexing with prefix queries on original keys
+import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 
 NodeStore store = new RocksDbNodeStore(resources.getDb());
-HashFunction blake2b = Blake2b256::digest;
+HashFunction hashFn = Blake2b256::digest;
 
-// Keys are automatically hashed before storage (matches Aiken behavior)
-SecureTrie trie = new SecureTrie(store, blake2b);
+// Raw MPT - keys NOT hashed (use MpfTrie for Cardano instead!)
+MerklePatriciaTrie trie = new MerklePatriciaTrie(store, hashFn);
 
-trie.put("account123".getBytes(), accountData);
-byte[] rootHash = trie.getRootHash(); // Use in Cardano transactions
+trie.put("user:alice".getBytes(), userData);
+trie.put("user:bob".getBytes(), userData2);
+
+// Prefix queries work on raw keys
+List<Entry> users = trie.scanByPrefix("user:".getBytes(), 100);
 ```
 
 ## Gradle Dependencies
@@ -132,14 +134,14 @@ dependencies {
     // Core interfaces
     implementation 'com.bloxbean.cardano:verified-structures-core:0.8.0'
 
-    // MPT with RocksDB
-    implementation 'com.bloxbean.cardano:merkle-patricia-trie-rocksdb:0.8.0'
+    // MPF with RocksDB
+    implementation 'com.bloxbean.cardano:merkle-patricia-forestry-rocksdb:0.8.0'
 
     // JMT with RocksDB
     implementation 'com.bloxbean.cardano:jellyfish-merkle-rocksdb:0.8.0'
 
-    // MPT with PostgreSQL
-    implementation 'com.bloxbean.cardano:merkle-patricia-trie-rdbms:0.8.0'
+    // MPF with PostgreSQL
+    implementation 'com.bloxbean.cardano:merkle-patricia-forestry-rdbms:0.8.0'
     implementation 'org.postgresql:postgresql:42.6.0'
 
     // JMT with PostgreSQL
@@ -153,10 +155,10 @@ dependencies {
 ```
 verified-structures-core (interfaces & utilities)
     ↓
-    ├── merkle-patricia-trie (MPT/MPF core)
+    ├── merkle-patricia-forestry (MPF core)
     │   ↓
-    │   ├── merkle-patricia-trie-rocksdb ← rocksdb-core
-    │   └── merkle-patricia-trie-rdbms ← rdbms-core
+    │   ├── merkle-patricia-forestry-rocksdb ← rocksdb-core
+    │   └── merkle-patricia-forestry-rdbms ← rdbms-core
     │
     └── jellyfish-merkle (JMT core)
         ↓
@@ -172,18 +174,18 @@ verified-structures-core (interfaces & utilities)
 
 ## Performance
 
-- **MPT**: Optimized for prefix queries and key recovery
+- **MPF**: Optimized for prefix queries and key recovery
 - **JMT**: Optimized for versioned state with ~2M ops/sec on commodity hardware
 - **RocksDB**: Best for single-node deployments with high throughput
 - **RDBMS**: Best for distributed systems requiring SQL queries
 
 ## Use Cases
 
-### Merkle Patricia Trie
+### Merkle Patricia Forestry
+- Cardano smart contracts (via MpfTrie)
 - Off-chain indexing and databases
 - Prefix-based range queries
-- Cardano smart contracts (via SecureTrie)
-- Ethereum-inspired state trie structure
+- Aiken on-chain proof verification
 
 ### Jellyfish Merkle Tree
 - Blockchain state storage (Diem-inspired architecture)
@@ -193,7 +195,7 @@ verified-structures-core (interfaces & utilities)
 
 ## Thread Safety
 
-- **MPT/JMT Core**: NOT thread-safe, requires external synchronization
+- **MPF/JMT Core**: NOT thread-safe, requires external synchronization
 - **RocksDB Stores**: Thread-safe for reads, writes need coordination
 - **RDBMS Stores**: Thread-safe via connection pooling
 

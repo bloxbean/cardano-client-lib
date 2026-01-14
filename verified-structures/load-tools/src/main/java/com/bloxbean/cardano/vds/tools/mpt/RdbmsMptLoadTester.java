@@ -4,7 +4,7 @@ import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
-import com.bloxbean.cardano.vds.mpt.SecureTrie;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 import com.bloxbean.cardano.vds.mpt.rdbms.RdbmsNodeStore;
 
@@ -17,7 +17,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * RDBMS-focused load generator for the MPT (MPF mode via SecureTrie by default).
+ * RDBMS-focused load generator for the MPT (MPF mode via MpfTrie by default).
  *
  * <p>Tests sustained write performance and proof generation under realistic workloads
  * using H2, PostgreSQL, or SQLite backends.
@@ -135,7 +135,7 @@ public final class RdbmsMptLoadTester {
         final boolean useSecure = options.secure;
 
         MerklePatriciaTrie rawTrie = useSecure ? null : new MerklePatriciaTrie(nodeStore, hash);
-        SecureTrie trie = useSecure ? new SecureTrie(nodeStore, hash) : null;
+        MpfTrie trie = useSecure ? new MpfTrie(nodeStore, hash) : null;
 
         Random random = new SecureRandom();
         long remaining = options.totalRecords;
@@ -159,7 +159,7 @@ public final class RdbmsMptLoadTester {
         if (!options.inMemory && options.jdbcUrl == null) {
             System.out.printf("Database path: %s%n", options.dbPath);
         }
-        System.out.printf("Trie mode: %s%n", useSecure ? "SecureTrie (MPF)" : "Plain MPT");
+        System.out.printf("Trie mode: %s%n", useSecure ? "MpfTrie (MPF)" : "Plain MPT");
         System.out.printf("Total operations: %,d%n", options.totalRecords);
         System.out.printf("Batch size: %,d%n", options.batchSize);
         System.out.printf("Value size: %d bytes%n", options.valueSize);
@@ -463,7 +463,7 @@ public final class RdbmsMptLoadTester {
             System.out.println("  --db-name=NAME        Database name for PostgreSQL (default: testdb)");
             System.out.println();
             System.out.println("Trie Options:");
-            System.out.println("  --secure              Use SecureTrie/MPF mode with hashed keys (default)");
+            System.out.println("  --secure              Use MpfTrie/MPF mode with hashed keys (default)");
             System.out.println("  --plain               Use plain MerklePatriciaTrie with raw keys");
             System.out.println();
             System.out.println("Testing & Monitoring Options:");

@@ -5,7 +5,7 @@ import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.core.api.StorageMode;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
-import com.bloxbean.cardano.vds.mpt.SecureTrie;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbStateTrees;
 
@@ -18,7 +18,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * RocksDB-focused load generator for the MPT (MPF mode via SecureTrie by default).
+ * RocksDB-focused load generator for the MPT (MPF mode via MpfTrie by default).
  *
  * <p>Example with refcount GC:</p>
  * <pre>
@@ -61,7 +61,7 @@ public final class MptLoadTester {
         final boolean gcMarkSweep = "marksweep".equalsIgnoreCase(options.gcMode);
 
         MerklePatriciaTrie rawTrie = new MerklePatriciaTrie(nodeStore, hash);
-        SecureTrie trie = useSecure ? new SecureTrie(nodeStore, hash) : null;
+        MpfTrie trie = useSecure ? new MpfTrie(nodeStore, hash) : null;
 
         Random random = new SecureRandom();
         long remaining = options.totalRecords;
@@ -393,7 +393,7 @@ public final class MptLoadTester {
                     "  --memory             Use in-memory NodeStore (default RocksDB)\n" +
                     "  --rocksdb=PATH       RocksDB directory (default ./mpt-load-db)\n" +
                     "  --storage-mode=MODE  MULTI_VERSION|SINGLE_VERSION (default MULTI_VERSION)\n" +
-                    "  --secure             Use SecureTrie (hashed keys, default)\n" +
+                    "  --secure             Use MpfTrie (hashed keys, default)\n" +
                     "  --plain              Use plain MerklePatriciaTrie (raw keys)\n" +
                     "  --no-roots           Do not record roots/refcounts (RocksDB only)\n" +
                     "  --gc=MODE            none|refcount|marksweep (default none)\n" +

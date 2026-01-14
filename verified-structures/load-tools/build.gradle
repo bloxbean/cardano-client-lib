@@ -7,13 +7,13 @@ plugins {
 dependencies {
     // All data structures
     implementation project(':verified-structures:jellyfish-merkle')
-    implementation project(':verified-structures:merkle-patricia-trie')
+    implementation project(':verified-structures:merkle-patricia-forestry')
 
     // All backends
     implementation project(':verified-structures:jellyfish-merkle-rocksdb')
-    implementation project(':verified-structures:merkle-patricia-trie-rocksdb')
+    implementation project(':verified-structures:merkle-patricia-forestry-rocksdb')
     implementation project(':verified-structures:jellyfish-merkle-rdbms')
-    implementation project(':verified-structures:merkle-patricia-trie-rdbms')
+    implementation project(':verified-structures:merkle-patricia-forestry-rdbms')
 
     // ALL database drivers (complete set for any backend testing)
     implementation(libs.rocksdbjni)         // RocksDB
