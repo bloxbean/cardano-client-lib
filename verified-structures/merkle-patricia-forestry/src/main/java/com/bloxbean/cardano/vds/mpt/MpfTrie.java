@@ -60,9 +60,9 @@ import java.util.Optional;
  *
  * <p><b>When NOT to Use MpfTrie:</b></p>
  * <ul>
- *   <li>Need prefix queries on original keys → use {@link MerklePatriciaTrie}</li>
- *   <li>Building off-chain indexers → use {@link MerklePatriciaTrie}</li>
- *   <li>Want to recover original keys from trie → use {@link MerklePatriciaTrie}</li>
+ *   <li>Need prefix queries on original keys → use {@link MpfTrieImpl} directly</li>
+ *   <li>Building off-chain indexers → use {@link MpfTrieImpl} directly</li>
+ *   <li>Want to recover original keys from trie → use {@link MpfTrieImpl} directly</li>
  * </ul>
  *
  * <p><b>Security Benefits:</b></p>
@@ -75,15 +75,15 @@ import java.util.Optional;
  * <p><b>Thread Safety:</b> This class is NOT thread-safe. External synchronization
  * is required for concurrent access.</p>
  *
- * @see MerklePatriciaTrie
+ * @see MpfTrieImpl
  * @see <a href="https://github.com/aiken-lang/merkle-patricia-forestry">Aiken Merkle Patricia Forestry</a>
  * @since 0.8.0
  */
 public final class MpfTrie {
     /**
-     * The underlying Merkle Patricia Trie that stores the hashed keys.
+     * The underlying trie implementation that stores the hashed keys.
      */
-    private final MerklePatriciaTrie inner;
+    private final MpfTrieImpl impl;
 
     /**
      * The hash function used to hash keys before storage.
@@ -102,7 +102,7 @@ public final class MpfTrie {
      */
     public MpfTrie(NodeStore store) {
         this.hashFn = Blake2b256::digest;
-        this.inner = new MerklePatriciaTrie(store, hashFn, null, Modes.mpf(hashFn));
+        this.impl = new MpfTrieImpl(store, hashFn, null, Modes.mpf(hashFn));
     }
 
     /**
@@ -118,7 +118,7 @@ public final class MpfTrie {
      */
     public MpfTrie(NodeStore store, byte[] root) {
         this.hashFn = Blake2b256::digest;
-        this.inner = new MerklePatriciaTrie(store, hashFn, root, Modes.mpf(hashFn));
+        this.impl = new MpfTrieImpl(store, hashFn, root, Modes.mpf(hashFn));
     }
 
     /**
@@ -131,7 +131,7 @@ public final class MpfTrie {
      * @throws NullPointerException if store or hashFn is null
      */
     public MpfTrie(NodeStore store, HashFunction hashFn) {
-        this.inner = new MerklePatriciaTrie(store, hashFn, null, Modes.mpf(hashFn));
+        this.impl = new MpfTrieImpl(store, hashFn, null, Modes.mpf(hashFn));
         this.hashFn = hashFn;
     }
 
@@ -146,7 +146,7 @@ public final class MpfTrie {
      * @throws NullPointerException if store or hashFn is null
      */
     public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root) {
-        this.inner = new MerklePatriciaTrie(store, hashFn, root, Modes.mpf(hashFn));
+        this.impl = new MpfTrieImpl(store, hashFn, root, Modes.mpf(hashFn));
         this.hashFn = hashFn;
     }
 
@@ -158,7 +158,7 @@ public final class MpfTrie {
      * @param mode   the MPT mode (should be MPF for Cardano compatibility)
      */
     public MpfTrie(NodeStore store, HashFunction hashFn, MptMode mode) {
-        this.inner = new MerklePatriciaTrie(store, hashFn, null, mode);
+        this.impl = new MpfTrieImpl(store, hashFn, null, mode);
         this.hashFn = hashFn;
     }
 
@@ -171,7 +171,7 @@ public final class MpfTrie {
      * @param mode   the MPT mode (should be MPF for Cardano compatibility)
      */
     public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root, MptMode mode) {
-        this.inner = new MerklePatriciaTrie(store, hashFn, root, mode);
+        this.impl = new MpfTrieImpl(store, hashFn, root, mode);
         this.hashFn = hashFn;
     }
 
@@ -185,7 +185,7 @@ public final class MpfTrie {
      * @param root the new root hash, or null to reset to empty trie
      */
     public void setRootHash(byte[] root) {
-        inner.setRootHash(root);
+        impl.setRootHash(root);
     }
 
     /**
@@ -197,7 +197,7 @@ public final class MpfTrie {
      * @return the root hash as a byte array, or null if the trie is empty
      */
     public byte[] getRootHash() {
-        return inner.getRootHash();
+        return impl.getRootHash();
     }
 
     /**
@@ -212,7 +212,7 @@ public final class MpfTrie {
      * @throws NullPointerException     if key is null
      */
     public void put(byte[] key, byte[] value) {
-        inner.put(hashFn.digest(key), value);
+        impl.put(hashFn.digest(key), value);
     }
 
     /**
@@ -225,7 +225,7 @@ public final class MpfTrie {
      * @throws NullPointerException if key is null
      */
     public byte[] get(byte[] key) {
-        return inner.get(hashFn.digest(key));
+        return impl.get(hashFn.digest(key));
     }
 
     /**
@@ -238,7 +238,7 @@ public final class MpfTrie {
      * @throws NullPointerException if key is null
      */
     public void delete(byte[] key) {
-        inner.delete(hashFn.digest(key));
+        impl.delete(hashFn.digest(key));
     }
 
     /**
@@ -251,15 +251,14 @@ public final class MpfTrie {
      *   <li>Cryptographic hashes don't preserve prefix relationships</li>
      * </ul>
      *
-     * <p>For prefix queries on original keys, use {@link MerklePatriciaTrie} instead.</p>
      *
      * @param prefix the prefix to hash and search for
      * @param limit  maximum number of results (0 or negative for unlimited)
      * @return a list of entries with hashed keys matching the hashed prefix
      * @throws NullPointerException if prefix is null
      */
-    public List<MerklePatriciaTrie.Entry> scanByPrefix(byte[] prefix, int limit) {
-        return inner.scanByPrefix(hashFn.digest(prefix), limit);
+    public List<Entry> scanByPrefix(byte[] prefix, int limit) {
+        return impl.scanByPrefix(hashFn.digest(prefix), limit);
     }
 
     /**
@@ -271,7 +270,7 @@ public final class MpfTrie {
      * @return the wire-format proof bytes, or empty if proof cannot be generated
      */
     public Optional<byte[]> getProofWire(byte[] key) {
-        return inner.getProofWire(hashFn.digest(key));
+        return impl.getProofWire(hashFn.digest(key));
     }
 
     /**
@@ -316,6 +315,48 @@ public final class MpfTrie {
      * @return true if the proof is valid, false otherwise
      */
     public boolean verifyProofWire(byte[] expectedRoot, byte[] key, byte[] valueOrNull, boolean including, byte[] wire) {
-        return inner.verifyProofWire(expectedRoot, key, valueOrNull, including, wire);
+        return impl.verifyProofWire(expectedRoot, key, valueOrNull, including, wire);
+    }
+
+    /**
+     * Represents a key-value pair returned by scan operations.
+     *
+     * <p>This immutable class encapsulates the results of prefix scans,
+     * providing access to both the key and its associated value.</p>
+     *
+     * @since 0.8.0
+     */
+    public static final class Entry {
+        private final byte[] key;
+        private final byte[] value;
+
+        /**
+         * Creates a new Entry with the given key and value.
+         *
+         * @param key   the key bytes
+         * @param value the value bytes
+         */
+        public Entry(byte[] key, byte[] value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        /**
+         * Returns the key of this entry.
+         *
+         * @return the key as a byte array
+         */
+        public byte[] getKey() {
+            return key;
+        }
+
+        /**
+         * Returns the value of this entry.
+         *
+         * @return the value as a byte array
+         */
+        public byte[] getValue() {
+            return value;
+        }
     }
 }

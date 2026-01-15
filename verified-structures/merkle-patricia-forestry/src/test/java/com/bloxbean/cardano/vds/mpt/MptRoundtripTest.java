@@ -2,18 +2,23 @@ package com.bloxbean.cardano.vds.mpt;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.mode.Modes;
 import com.bloxbean.cardano.vds.mpt.test.TestNodeStore;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Tests put/get roundtrip with raw (unhashed) keys.
+ * Uses MpfTrieImpl directly since MpfTrie hashes keys.
+ */
 public class MptRoundtripTest {
     private static final HashFunction HF = Blake2b256::digest;
 
     @Test
     void putGetRoundtripDifferentKeys() {
         TestNodeStore store = new TestNodeStore();
-        MerklePatriciaTrie trie = new MerklePatriciaTrie(store, HF);
+        MpfTrieImpl trie = new MpfTrieImpl(store, HF, null, Modes.mpf(HF));
 
         byte[] k1 = hex("0a0b0c");
         byte[] k2 = hex("0a0b0d");

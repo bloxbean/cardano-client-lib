@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.vds.mpt.rocksdb;
 
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.api.StorageMode;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -120,7 +120,7 @@ class StorageModeValidationTest {
         String dbPath = tempDir.resolve("test-db").toString();
         stateTrees = new RocksDbStateTrees(dbPath, NamespaceOptions.defaults(), StorageMode.MULTI_VERSION);
 
-        MerklePatriciaTrie trie = new MerklePatriciaTrie(stateTrees.nodeStore(), this::hash);
+        MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
         trie.put("key1".getBytes(), "value1".getBytes());
         byte[] root = trie.getRootHash();
 
@@ -134,7 +134,7 @@ class StorageModeValidationTest {
         String dbPath = tempDir.resolve("test-db").toString();
         stateTrees = new RocksDbStateTrees(dbPath, NamespaceOptions.defaults(), StorageMode.SINGLE_VERSION);
 
-        MerklePatriciaTrie trie = new MerklePatriciaTrie(stateTrees.nodeStore(), this::hash);
+        MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
         trie.put("key1".getBytes(), "value1".getBytes());
         byte[] root = trie.getRootHash();
 
@@ -161,7 +161,7 @@ class StorageModeValidationTest {
         String dbPath = tempDir.resolve("test-db").toString();
         stateTrees = new RocksDbStateTrees(dbPath, NamespaceOptions.defaults(), StorageMode.MULTI_VERSION);
 
-        MerklePatriciaTrie trie = new MerklePatriciaTrie(stateTrees.nodeStore(), this::hash);
+        MpfTrie trie = new MpfTrie(stateTrees.nodeStore(), this::hash);
         trie.put("key1".getBytes(), "value1".getBytes());
         byte[] root = trie.getRootHash();
 

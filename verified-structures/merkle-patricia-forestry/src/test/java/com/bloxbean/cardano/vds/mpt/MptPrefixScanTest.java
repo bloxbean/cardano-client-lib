@@ -2,6 +2,7 @@ package com.bloxbean.cardano.vds.mpt;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.mode.Modes;
 import com.bloxbean.cardano.vds.mpt.test.TestNodeStore;
 import org.junit.jupiter.api.Test;
 
@@ -9,34 +10,39 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * Tests prefix scanning with raw (unhashed) keys.
+ * Uses MpfTrieImpl directly since MpfTrie hashes keys which would
+ * break prefix scan semantics.
+ */
 public class MptPrefixScanTest {
     private static final HashFunction HF = Blake2b256::digest;
 
     @Test
     void scanPrefixCollectsMatchingKeys() {
         TestNodeStore store = new TestNodeStore();
-        MerklePatriciaTrie trie = new MerklePatriciaTrie(store, HF);
+        MpfTrieImpl trie = new MpfTrieImpl(store, HF, null, Modes.mpf(HF));
 
         put(trie, "aa00", "V0");
         put(trie, "aa01", "V1");
         put(trie, "abff", "VX");
         put(trie, "bb00", "W0");
 
-        List<MerklePatriciaTrie.Entry> aa = trie.scanByPrefix(hex("aa"), 10);
+        List<MpfTrie.Entry> aa = trie.scanByPrefix(hex("aa"), 10);
         assertEquals(2, aa.size());
         assertTrue(aa.stream().anyMatch(e -> hexStr(e.getKey()).startsWith("aa00") && s(e.getValue()).equals("V0")));
         assertTrue(aa.stream().anyMatch(e -> hexStr(e.getKey()).startsWith("aa01") && s(e.getValue()).equals("V1")));
 
-        List<MerklePatriciaTrie.Entry> ab = trie.scanByPrefix(hex("ab"), 10);
+        List<MpfTrie.Entry> ab = trie.scanByPrefix(hex("ab"), 10);
         assertEquals(1, ab.size());
         assertEquals("abff", hexStr(ab.get(0).getKey()));
         assertEquals("VX", s(ab.get(0).getValue()));
 
-        List<MerklePatriciaTrie.Entry> a = trie.scanByPrefix(hex("a"), 1);
+        List<MpfTrie.Entry> a = trie.scanByPrefix(hex("a"), 1);
         assertEquals(1, a.size()); // limited to 1
     }
 
-    private static void put(MerklePatriciaTrie t, String k, String v) {
+    private static void put(MpfTrieImpl t, String k, String v) {
         t.put(hex(k), v.getBytes());
     }
 

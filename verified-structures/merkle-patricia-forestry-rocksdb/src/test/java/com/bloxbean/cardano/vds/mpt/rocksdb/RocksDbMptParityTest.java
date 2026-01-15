@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.vds.mpt.rocksdb;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -13,7 +13,6 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class RocksDbMptParityTest {
-    private static final HashFunction HF = Blake2b256::digest;
     private Path tempDir;
 
     @AfterEach
@@ -38,8 +37,8 @@ public class RocksDbMptParityTest {
             tempDir = Files.createTempDirectory("rocks-mpt");
             RocksDbNodeStore rocks = new RocksDbNodeStore(tempDir.toString());
 
-            MerklePatriciaTrie tRocks = new MerklePatriciaTrie(rocks, HF);
-            MerklePatriciaTrie tMem = new MerklePatriciaTrie(new TestNodeStore(), HF);
+            MpfTrie tRocks = new MpfTrie(rocks);
+            MpfTrie tMem = new MpfTrie(new TestNodeStore());
 
             byte[] k1 = hex("aa00");
             byte[] k2 = hex("aa01");

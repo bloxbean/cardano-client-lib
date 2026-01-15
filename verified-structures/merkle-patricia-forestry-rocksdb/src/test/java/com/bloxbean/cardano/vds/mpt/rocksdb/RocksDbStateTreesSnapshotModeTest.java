@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.vds.mpt.rocksdb;
 
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.api.StorageMode;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.GcOptions;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.GcReport;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
@@ -25,13 +25,13 @@ class RocksDbStateTreesSnapshotModeTest {
     Path tempDir;
 
     private RocksDbStateTrees stateTrees;
-    private MerklePatriciaTrie trie;
+    private MpfTrie trie;
 
     @BeforeEach
     void setUp() {
         String dbPath = tempDir.resolve("test-snapshot-db").toString();
         stateTrees = new RocksDbStateTrees(dbPath, NamespaceOptions.defaults(), StorageMode.SINGLE_VERSION);
-        trie = new MerklePatriciaTrie(stateTrees.nodeStore(), this::hash);
+        trie = new MpfTrie(stateTrees.nodeStore());
     }
 
     @AfterEach
@@ -119,7 +119,7 @@ class RocksDbStateTreesSnapshotModeTest {
         assertArrayEquals(root2, stateTrees.getCurrentRoot());
 
         // Verify trie still works with current root
-        MerklePatriciaTrie verifyTrie = new MerklePatriciaTrie(stateTrees.nodeStore(), this::hash, root2);
+        MpfTrie verifyTrie = new MpfTrie(stateTrees.nodeStore(), root2);
         assertArrayEquals("value4".getBytes(), verifyTrie.get("key4".getBytes()));
         assertArrayEquals("value5".getBytes(), verifyTrie.get("key5".getBytes()));
     }
@@ -161,7 +161,7 @@ class RocksDbStateTreesSnapshotModeTest {
 
         // Verify final state
         byte[] currentRoot = stateTrees.getCurrentRoot();
-        MerklePatriciaTrie verifyTrie = new MerklePatriciaTrie(stateTrees.nodeStore(), this::hash, currentRoot);
+        MpfTrie verifyTrie = new MpfTrie(stateTrees.nodeStore(), currentRoot);
 
         for (int i = 0; i < 10; i++) {
             assertArrayEquals(("value" + i).getBytes(), verifyTrie.get(("key" + i).getBytes()));
@@ -185,7 +185,7 @@ class RocksDbStateTreesSnapshotModeTest {
 
         // Verify current state still accessible
         byte[] currentRoot = stateTrees.getCurrentRoot();
-        MerklePatriciaTrie verifyTrie = new MerklePatriciaTrie(stateTrees.nodeStore(), this::hash, currentRoot);
+        MpfTrie verifyTrie = new MpfTrie(stateTrees.nodeStore(), currentRoot);
 
         for (int i = 0; i < 5; i++) {
             assertArrayEquals(("value" + i).getBytes(), verifyTrie.get(("key" + i).getBytes()));
@@ -209,7 +209,7 @@ class RocksDbStateTreesSnapshotModeTest {
         assertArrayEquals(root, stateTrees.getCurrentRoot());
 
         // Verify data is accessible
-        MerklePatriciaTrie verifyTrie = new MerklePatriciaTrie(stateTrees.nodeStore(), this::hash, root);
+        MpfTrie verifyTrie = new MpfTrie(stateTrees.nodeStore(), root);
         assertArrayEquals("value1".getBytes(), verifyTrie.get("key1".getBytes()));
     }
 }

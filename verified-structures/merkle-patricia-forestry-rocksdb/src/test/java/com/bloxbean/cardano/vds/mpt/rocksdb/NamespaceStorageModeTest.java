@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.vds.mpt.rocksdb;
 
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.api.StorageMode;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.rocksdb.namespace.NamespaceOptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -34,14 +34,6 @@ class NamespaceStorageModeTest {
         openDatabases.clear();
     }
 
-    private byte[] hash(byte[] data) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(data);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     @Test
     void testDifferentNamespacesDifferentModes() {
         String dbPath = tempDir.resolve("test-db").toString();
@@ -55,7 +47,7 @@ class NamespaceStorageModeTest {
         assertEquals(StorageMode.MULTI_VERSION, db1.storageMode());
 
         // Verify multi-version operations work on db1
-        MerklePatriciaTrie trie1 = new MerklePatriciaTrie(db1.nodeStore(), this::hash);
+        MpfTrie trie1 = new MpfTrie(db1.nodeStore());
         trie1.put("key1".getBytes(), "value1".getBytes());
         byte[] root1 = trie1.getRootHash();
         assertDoesNotThrow(() -> db1.putRootWithRefcount(root1));
@@ -71,7 +63,7 @@ class NamespaceStorageModeTest {
         assertEquals(StorageMode.SINGLE_VERSION, db2.storageMode());
 
         // Verify single-version operations work on db2
-        MerklePatriciaTrie trie2 = new MerklePatriciaTrie(db2.nodeStore(), this::hash);
+        MpfTrie trie2 = new MpfTrie(db2.nodeStore());
         trie2.put("key2".getBytes(), "value2".getBytes());
         byte[] root2 = trie2.getRootHash();
         assertDoesNotThrow(() -> db2.putRootSnapshot(root2));
@@ -199,7 +191,7 @@ class NamespaceStorageModeTest {
         assertEquals(StorageMode.MULTI_VERSION, defaultDb.storageMode());
 
         // Test operations on default namespace
-        MerklePatriciaTrie defaultTrie = new MerklePatriciaTrie(defaultDb.nodeStore(), this::hash);
+        MpfTrie defaultTrie = new MpfTrie(defaultDb.nodeStore());
         defaultTrie.put("default-key".getBytes(), "default-value".getBytes());
         assertDoesNotThrow(() -> defaultDb.putRootWithRefcount(defaultTrie.getRootHash()));
         defaultDb.close();
@@ -214,7 +206,7 @@ class NamespaceStorageModeTest {
         assertEquals(StorageMode.SINGLE_VERSION, customDb.storageMode());
 
         // Test operations on custom namespace
-        MerklePatriciaTrie customTrie = new MerklePatriciaTrie(customDb.nodeStore(), this::hash);
+        MpfTrie customTrie = new MpfTrie(customDb.nodeStore());
         customTrie.put("custom-key".getBytes(), "custom-value".getBytes());
         assertDoesNotThrow(() -> customDb.putRootSnapshot(customTrie.getRootHash()));
     }
@@ -231,7 +223,7 @@ class NamespaceStorageModeTest {
         );
         assertEquals(StorageMode.SINGLE_VERSION, db1.storageMode());
 
-        MerklePatriciaTrie trie1 = new MerklePatriciaTrie(db1.nodeStore(), this::hash);
+        MpfTrie trie1 = new MpfTrie(db1.nodeStore());
         trie1.put("ns1-key".getBytes(), "ns1-value".getBytes());
         db1.putRootSnapshot(trie1.getRootHash());
         db1.close();
@@ -244,7 +236,7 @@ class NamespaceStorageModeTest {
         );
         assertEquals(StorageMode.MULTI_VERSION, db2.storageMode());
 
-        MerklePatriciaTrie trie2 = new MerklePatriciaTrie(db2.nodeStore(), this::hash);
+        MpfTrie trie2 = new MpfTrie(db2.nodeStore());
         trie2.put("ns2-key".getBytes(), "ns2-value".getBytes());
         db2.putRootWithRefcount(trie2.getRootHash());
         db2.close();
@@ -257,7 +249,7 @@ class NamespaceStorageModeTest {
         );
         assertEquals(StorageMode.SINGLE_VERSION, db3.storageMode());
 
-        MerklePatriciaTrie trie3 = new MerklePatriciaTrie(db3.nodeStore(), this::hash);
+        MpfTrie trie3 = new MpfTrie(db3.nodeStore());
         trie3.put("ns3-key".getBytes(), "ns3-value".getBytes());
         db3.putRootSnapshot(trie3.getRootHash());
         db3.close();

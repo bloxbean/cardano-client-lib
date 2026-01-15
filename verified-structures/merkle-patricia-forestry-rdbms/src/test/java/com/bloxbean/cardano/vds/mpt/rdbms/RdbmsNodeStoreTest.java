@@ -1,7 +1,7 @@
 package com.bloxbean.cardano.vds.mpt.rdbms;
 
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,7 +101,7 @@ class RdbmsNodeStoreTest {
 
     @Test
     void trieOperationsWorkWithNodeStore() {
-        MerklePatriciaTrie trie = new MerklePatriciaTrie(store, Blake2b256::digest);
+        MpfTrie trie = new MpfTrie(store);
 
         // Put some values
         trie.put(bytes("alice"), bytes("100"));
@@ -132,7 +132,7 @@ class RdbmsNodeStoreTest {
 
     @Test
     void trieWithMultipleKeysProducesConsistentRoot() {
-        MerklePatriciaTrie trie1 = new MerklePatriciaTrie(store, Blake2b256::digest);
+        MpfTrie trie1 = new MpfTrie(store);
 
         trie1.put(bytes("key1"), bytes("value1"));
         trie1.put(bytes("key2"), bytes("value2"));
@@ -142,7 +142,7 @@ class RdbmsNodeStoreTest {
 
         // Create a new trie with same data in different order
         RdbmsNodeStore store2 = new RdbmsNodeStore(dbConfig);
-        MerklePatriciaTrie trie2 = new MerklePatriciaTrie(store2, Blake2b256::digest);
+        MpfTrie trie2 = new MpfTrie(store2);
 
         trie2.put(bytes("key3"), bytes("value3"));
         trie2.put(bytes("key1"), bytes("value1"));
@@ -162,7 +162,7 @@ class RdbmsNodeStoreTest {
 
         // First session: create trie and store data
         {
-            MerklePatriciaTrie trie = new MerklePatriciaTrie(store, Blake2b256::digest);
+            MpfTrie trie = new MpfTrie(store);
             trie.put(bytes("alice"), bytes("100"));
             trie.put(bytes("bob"), bytes("200"));
             root = trie.getRootHash();
@@ -174,7 +174,7 @@ class RdbmsNodeStoreTest {
 
         // Second session: verify data persisted
         {
-            MerklePatriciaTrie trie = new MerklePatriciaTrie(store, Blake2b256::digest);
+            MpfTrie trie = new MpfTrie(store);
             trie.setRootHash(root);
 
             assertArrayEquals(bytes("100"), trie.get(bytes("alice")),
@@ -206,8 +206,8 @@ class RdbmsNodeStoreTest {
                 "Namespace 2 should have its own data");
 
             // Verify tries with different namespaces produce different roots
-            MerklePatriciaTrie trie1 = new MerklePatriciaTrie(store1, Blake2b256::digest);
-            MerklePatriciaTrie trie2 = new MerklePatriciaTrie(store2, Blake2b256::digest);
+            MpfTrie trie1 = new MpfTrie(store1);
+            MpfTrie trie2 = new MpfTrie(store2);
 
             trie1.put(bytes("alice"), bytes("100"));
             trie2.put(bytes("alice"), bytes("200"));
@@ -226,7 +226,7 @@ class RdbmsNodeStoreTest {
 
     @Test
     void emptyTrieHasNullRoot() {
-        MerklePatriciaTrie trie = new MerklePatriciaTrie(store, Blake2b256::digest);
+        MpfTrie trie = new MpfTrie(store);
 
         byte[] emptyRoot = trie.getRootHash();
         assertNull(emptyRoot, "Empty trie should have null root");

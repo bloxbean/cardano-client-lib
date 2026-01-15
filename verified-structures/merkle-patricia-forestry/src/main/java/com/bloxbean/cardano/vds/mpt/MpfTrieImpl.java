@@ -45,7 +45,7 @@ import java.util.Optional;
  * </ul>
  *
  */
-public final class MerklePatriciaTrieImpl {
+public final class MpfTrieImpl {
     private final NodeStore store;
     @SuppressWarnings("unused")
     private final HashFunction hashFn; // reserved for MpfTrie use
@@ -56,25 +56,13 @@ public final class MerklePatriciaTrieImpl {
     /**
      * The mode binding for this trie instance, which combines commitment scheme and proof codec.
      *
-     * <p><b>MPF Mode (default):</b> Cardano-compatible mode for Aiken smart contracts
+     * <p><b>MPF Mode:</b> Cardano-compatible mode for Aiken smart contracts
      * <ul>
      *   <li>Branch values NOT mixed into branch commitments (simpler hash tree)</li>
      *   <li>Optimized for MpfTrie usage (hashed keys)</li>
      *   <li>Smaller proof sizes (~32 bytes saving per affected step)</li>
      *   <li>Compatible with Aiken's merkle-patricia-forestry on-chain verifier</li>
      * </ul>
-     *
-     * <p><b>Classic Mode:</b> Legacy MPT compatibility (off-chain only)
-     * <ul>
-     *   <li>Branch values mixed into branch commitments (Ethereum-style)</li>
-     *   <li>Different root hashes vs MPF mode for same data</li>
-     *   <li>NOT compatible with Aiken on-chain validators</li>
-     *   <li>Use only for off-chain applications requiring Ethereum MPT compatibility</li>
-     * </ul>
-     *
-     * <p>The mode is immutable and set at construction time. To switch modes, create a new
-     * trie instance with the desired mode configuration.
-     *
      */
     private final MptMode mode;
 
@@ -88,15 +76,15 @@ public final class MerklePatriciaTrieImpl {
      * @param root   the initial root hash, or null for an empty trie
      * @throws NullPointerException if store or hashFn is null
      */
-    public MerklePatriciaTrieImpl(NodeStore store, HashFunction hashFn, byte[] root) {
-        this(store, hashFn, root, Modes.classic(hashFn));
+    public MpfTrieImpl(NodeStore store, HashFunction hashFn, byte[] root) {
+        this(store, hashFn, root, Modes.mpf(hashFn));
     }
 
-    public MerklePatriciaTrieImpl(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitments) {
+    public MpfTrieImpl(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitments) {
         this(store, hashFn, root, Modes.fromCommitments(commitments, false));
     }
 
-    public MerklePatriciaTrieImpl(NodeStore store, HashFunction hashFn, byte[] root, MptMode mode) {
+    public MpfTrieImpl(NodeStore store, HashFunction hashFn, byte[] root, MptMode mode) {
         this.store = Objects.requireNonNull(store, "NodeStore");
         this.hashFn = Objects.requireNonNull(hashFn, "HashFunction");
         this.mode = Objects.requireNonNull(mode, "MptMode");
@@ -166,14 +154,14 @@ public final class MerklePatriciaTrieImpl {
      * @param limit  the maximum number of results (0 or negative for unlimited)
      * @return a list of matching entries
      */
-    public List<MerklePatriciaTrie.Entry> scanByPrefix(byte[] prefix, int limit) {
+    public List<MpfTrie.Entry> scanByPrefix(byte[] prefix, int limit) {
         int[] prefixNibbles = Nibbles.toNibbles(prefix);
         // If the caller provided an odd-length hex prefix padded as 0x0? (e.g., "a" -> 0x0a),
         // drop the leading zero nibble so we match nibble-level intent.
         if (prefixNibbles.length > 0 && prefixNibbles[0] == 0) {
             prefixNibbles = slice(prefixNibbles, 1, prefixNibbles.length);
         }
-        List<MerklePatriciaTrie.Entry> results = new ArrayList<>();
+        List<MpfTrie.Entry> results = new ArrayList<>();
         Deque<Integer> currentPath = new ArrayDeque<>();
         scan(this.root, prefixNibbles, 0, limit <= 0 ? Integer.MAX_VALUE : limit, currentPath, results);
         return results;
@@ -358,285 +346,23 @@ public final class MerklePatriciaTrieImpl {
     }
 
     /**
-     * Returns a mode-bound wire proof (MPF in default mode).
+     * Returns an MPF wire proof for the given key.
      */
     public Optional<byte[]> getProofWire(byte[] key) {
         Objects.requireNonNull(key, "key");
-        if ("CLASSIC".equalsIgnoreCase(mode.name())) {
-            return Optional.of(buildClassicProofWire(key));
-        } else {
-            // Check if we should use temporary insertion strategy for MPF
-            MerklePatriciaProof proof = getProof(key);
-            byte[] wire = mode.proofCodec().toWire(proof, key, hashFn, commitments);
-            return Optional.of(wire);
-        }
-    }
-
-    private byte[] buildClassicProofWire(byte[] key) {
-        java.util.List<byte[]> nodes = new java.util.ArrayList<>();
-        if (this.root == null) {
-            // empty proof: encode empty array
-            return com.bloxbean.cardano.vds.mpt.mode.ClassicProofCodec.encodeNodeList(nodes);
-        }
-        int[] keyNibbles = Nibbles.toNibbles(key);
-        byte[] currentHash = this.root;
-        int depth = 0;
-        while (true) {
-            Node node = persistence.load(NodeHash.of(currentHash));
-            if (node == null) {
-                break;
-            }
-            nodes.add(node.encode());
-            if (node instanceof BranchNode) {
-                BranchNode branch = (BranchNode) node;
-                if (depth >= keyNibbles.length) {
-                    break; // terminal at branch
-                }
-                int childIndex = keyNibbles[depth];
-                byte[] childCommit = branch.getChild(childIndex);
-                if (childCommit == null || childCommit.length == 0) {
-                    break; // missing branch
-                }
-                currentHash = childCommit;
-                depth++;
-                continue;
-            }
-            if (node instanceof ExtensionNode) {
-                ExtensionNode extension = (ExtensionNode) node;
-                Nibbles.HP hp = Nibbles.unpackHP(extension.getHp());
-                int[] extNibbles = hp.nibbles;
-                if (depth + extNibbles.length > keyNibbles.length) {
-                    break; // mismatch (path longer than key remainder)
-                }
-                boolean match = true;
-                for (int i = 0; i < extNibbles.length; i++) {
-                    if (keyNibbles[depth + i] != extNibbles[i]) {
-                        match = false;
-                        break;
-                    }
-                }
-                if (!match) {
-                    break; // mismatch in extension path
-                }
-                depth += extNibbles.length;
-                byte[] child = extension.getChild();
-                if (child == null || child.length == 0) {
-                    break;
-                }
-                currentHash = child;
-                continue;
-            }
-            if (node instanceof LeafNode) {
-                // terminal leaf (either inclusion or conflicting)
-                break;
-            }
-            throw new IllegalStateException("Unsupported node type " + node.getClass().getSimpleName());
-        }
-        return com.bloxbean.cardano.vds.mpt.mode.ClassicProofCodec.encodeNodeList(nodes);
+        MerklePatriciaProof proof = getProof(key);
+        byte[] wire = mode.proofCodec().toWire(proof, key, hashFn, commitments);
+        return Optional.of(wire);
     }
 
     /**
-     * Verifies a mode-bound wire proof against the supplied root/key/value.
+     * Verifies an MPF wire proof against the supplied root/key/value.
      */
     public boolean verifyProofWire(byte[] expectedRoot, byte[] key, byte[] valueOrNull, boolean including, byte[] wire) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(wire, "wire");
-
-        if (!"CLASSIC".equalsIgnoreCase(mode.name())) {
-            // Delegate to MPF verifier (keeps existing behavior and golden compatibility)
-            try {
-                return com.bloxbean.cardano.vds.mpt.mpf.MpfProofVerifier
-                        .verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Proof/wire format mismatch for mode " + mode.name(), e);
-            }
-        }
-
-        // Classic node-encoding proof: CBOR array of ByteStrings, each a CBOR-encoded node along the path
-        java.util.List<byte[]> nodes = decodeClassicWire(wire);
-
-        // Empty trie handling
-        if (expectedRoot == null || expectedRoot.length == 0) {
-            return !including; // empty trie cannot include any key
-        }
-
-        if (nodes.isEmpty())
-            throw new IllegalArgumentException("Classic proof wire must contain at least one node for non-empty trie");
-
-        // Decode nodes to typed Nodes once for reuse
-        java.util.List<Node> typed = new java.util.ArrayList<>(nodes.size());
-        for (byte[] enc : nodes) typed.add(TrieEncoding.decode(enc));
-
-        // Root must match the flattened commit of the first node chain
-        FlattenResult rootFr = flattenCommit(typed, 0);
-        if (!java.util.Arrays.equals(expectedRoot, rootFr.commit)) return false;
-
-        // Strict consumption: the flattened chain for root must not exceed provided nodes
-        if (rootFr.consumed > typed.size()) return false;
-
-        // Validate traversal semantics against the key and inclusion flag/value
-        int[] keyNibbles = com.bloxbean.cardano.vds.core.nibbles.Nibbles.toNibbles(key);
-        int pos = 0;
-        int idx = 0;
-        while (idx < typed.size()) {
-            Node node = typed.get(idx);
-            if (node instanceof BranchNode) {
-                BranchNode br = (BranchNode) node;
-                byte[][] children = br.getChildren();
-                byte[] branchValue = br.getValue();
-
-                if (pos >= keyNibbles.length) {
-                    if (including) {
-                        if (branchValue == null) return false;
-                        return java.util.Arrays.equals(branchValue, valueOrNull);
-                    } else {
-                        return branchValue == null; // non-inclusion (no value at branch)
-                    }
-                }
-
-                int childIndex = keyNibbles[pos];
-                byte[] childHash = (childIndex >= 0 && childIndex < 16) ? children[childIndex] : null;
-                if (childHash == null || childHash.length == 0) {
-                    return !including; // missing branch proves non-inclusion
-                }
-
-                // Child subtree must match the flattened commit of the subsequent chain
-                if (idx + 1 >= typed.size()) return false;
-                FlattenResult fr = flattenCommit(typed, idx + 1);
-                if (!java.util.Arrays.equals(childHash, fr.commit)) return false;
-                idx = idx + fr.consumed;
-                pos++;
-                continue;
-            }
-
-            if (node instanceof ExtensionNode) {
-                ExtensionNode en = (ExtensionNode) node;
-                com.bloxbean.cardano.vds.core.nibbles.Nibbles.HP hp = com.bloxbean.cardano.vds.core.nibbles.Nibbles.unpackHP(en.getHp());
-                int[] ext = hp.nibbles;
-                if (pos + ext.length > keyNibbles.length) return !including; // mismatch ==> non-inclusion
-                for (int i = 0; i < ext.length; i++) {
-                    if (ext[i] != keyNibbles[pos + i]) return !including;
-                }
-                pos += ext.length;
-                idx += 1;
-                continue;
-            }
-
-            if (node instanceof LeafNode) {
-                LeafNode leaf = (LeafNode) node;
-                com.bloxbean.cardano.vds.core.nibbles.Nibbles.HP hp = com.bloxbean.cardano.vds.core.nibbles.Nibbles.unpackHP(leaf.getHp());
-                int[] suf = hp.nibbles;
-                if (pos + suf.length == keyNibbles.length) {
-                    boolean eq = true;
-                    for (int i = 0; i < suf.length; i++) {
-                        if (suf[i] != keyNibbles[pos + i]) {
-                            eq = false;
-                            break;
-                        }
-                    }
-                    if (eq) {
-                        if (!including) return false;
-                        return java.util.Arrays.equals(leaf.getValue(), valueOrNull);
-                    }
-                }
-                // conflicting leaf proves non-inclusion
-                return !including;
-            }
-
-            // Unknown node
-            return false;
-        }
-
-        return false; // fell through without terminal decision
-    }
-
-    private static final class FlattenResult {
-        final byte[] commit;
-        final int consumed;
-
-        FlattenResult(byte[] c, int k) {
-            commit = c;
-            consumed = k;
-        }
-    }
-
-    // Computes the flattened commitment for the subtree starting at index `start`.
-    private FlattenResult flattenCommit(java.util.List<Node> nodes, int start) {
-        if (start >= nodes.size()) return new FlattenResult(commitments.nullHash(), 0);
-        Node node = nodes.get(start);
-        if (node instanceof LeafNode) {
-            LeafNode leaf = (LeafNode) node;
-            com.bloxbean.cardano.vds.core.nibbles.Nibbles.HP hp = com.bloxbean.cardano.vds.core.nibbles.Nibbles.unpackHP(leaf.getHp());
-            com.bloxbean.cardano.vds.core.NibblePath suf = com.bloxbean.cardano.vds.core.NibblePath.of(hp.nibbles);
-            byte[] vh = hashFn.digest(leaf.getValue());
-            return new FlattenResult(commitments.commitLeaf(suf, vh), 1);
-        }
-        if (node instanceof BranchNode) {
-            BranchNode br = (BranchNode) node;
-            byte[][] children = new byte[16][];
-            byte[][] from = br.getChildren();
-            for (int i = 0; i < 16; i++)
-                children[i] = (i < from.length && from[i] != null && from[i].length > 0) ? from[i] : null;
-            byte[] value = br.getValue();
-            byte[] valueHash = value == null ? null : hashFn.digest(value);
-            return new FlattenResult(commitments.commitBranch(com.bloxbean.cardano.vds.core.NibblePath.EMPTY, children, valueHash), 1);
-        }
-        if (node instanceof ExtensionNode) {
-            // Accumulate all extension prefixes
-            int idx = start;
-            com.bloxbean.cardano.vds.core.NibblePath acc = com.bloxbean.cardano.vds.core.NibblePath.EMPTY;
-            while (idx < nodes.size() && nodes.get(idx) instanceof ExtensionNode) {
-                ExtensionNode en = (ExtensionNode) nodes.get(idx);
-                com.bloxbean.cardano.vds.core.nibbles.Nibbles.HP hp = com.bloxbean.cardano.vds.core.nibbles.Nibbles.unpackHP(en.getHp());
-                acc = acc.concat(com.bloxbean.cardano.vds.core.NibblePath.of(hp.nibbles));
-                idx++;
-            }
-            if (idx >= nodes.size())
-                return new FlattenResult(commitments.commitExtension(acc, commitments.nullHash()), idx - start);
-            Node child = nodes.get(idx);
-            if (child instanceof BranchNode) {
-                BranchNode br = (BranchNode) child;
-                byte[][] children = new byte[16][];
-                byte[][] from = br.getChildren();
-                for (int i = 0; i < 16; i++)
-                    children[i] = (i < from.length && from[i] != null && from[i].length > 0) ? from[i] : null;
-                byte[] value = br.getValue();
-                byte[] valueHash = value == null ? null : hashFn.digest(value);
-                byte[] c = commitments.commitBranch(acc, children, valueHash);
-                return new FlattenResult(c, (idx - start) + 1);
-            } else if (child instanceof LeafNode) {
-                LeafNode lf = (LeafNode) child;
-                com.bloxbean.cardano.vds.core.nibbles.Nibbles.HP lhp = com.bloxbean.cardano.vds.core.nibbles.Nibbles.unpackHP(lf.getHp());
-                com.bloxbean.cardano.vds.core.NibblePath suf = acc.concat(com.bloxbean.cardano.vds.core.NibblePath.of(lhp.nibbles));
-                byte[] c = commitments.commitLeaf(suf, hashFn.digest(lf.getValue()));
-                return new FlattenResult(c, (idx - start) + 1);
-            } else {
-                // path ends with extension only
-                byte[] c = commitments.commitExtension(acc, commitments.nullHash());
-                return new FlattenResult(c, (idx - start));
-            }
-        }
-        throw new IllegalStateException("Unsupported node type " + node.getClass().getSimpleName());
-    }
-
-    private static java.util.List<byte[]> decodeClassicWire(byte[] wire) {
-        try {
-            java.util.List<co.nstant.in.cbor.model.DataItem> items = new co.nstant.in.cbor.CborDecoder(new java.io.ByteArrayInputStream(wire)).decode();
-            if (items.isEmpty() || !(items.get(0) instanceof co.nstant.in.cbor.model.Array)) {
-                throw new IllegalArgumentException("Classic proof wire must be an array of ByteStrings");
-            }
-            co.nstant.in.cbor.model.Array arr = (co.nstant.in.cbor.model.Array) items.get(0);
-            java.util.List<byte[]> nodes = new java.util.ArrayList<>(arr.getDataItems().size());
-            for (co.nstant.in.cbor.model.DataItem di : arr.getDataItems()) {
-                if (!(di instanceof co.nstant.in.cbor.model.ByteString)) {
-                    throw new IllegalArgumentException("Classic step must be a ByteString containing node CBOR");
-                }
-                nodes.add(((co.nstant.in.cbor.model.ByteString) di).getBytes());
-            }
-            return nodes;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to decode Classic proof wire", e);
-        }
+        return com.bloxbean.cardano.vds.mpt.mpf.MpfProofVerifier
+                .verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
     }
 
     /**
@@ -684,7 +410,7 @@ public final class MerklePatriciaTrieImpl {
      * @param accumulator   the accumulated path nibbles
      * @param output        the list to add matching entries to
      */
-    private void scan(byte[] nodeHash, int[] prefixNibbles, int position, int limit, Deque<Integer> accumulator, List<MerklePatriciaTrie.Entry> output) {
+    private void scan(byte[] nodeHash, int[] prefixNibbles, int position, int limit, Deque<Integer> accumulator, List<MpfTrie.Entry> output) {
         if (nodeHash == null || output.size() >= limit) return;
         byte[] nodeData = store.get(nodeHash);
         if (nodeData == null) {
@@ -698,7 +424,7 @@ public final class MerklePatriciaTrieImpl {
             // check prefix match
             int[] current = toArray(accumulator);
             if (startsWith(current, prefixNibbles)) {
-                output.add(new MerklePatriciaTrie.Entry(toBytes(current), ln.getValue()));
+                output.add(new MpfTrie.Entry(toBytes(current), ln.getValue()));
             }
             for (int i = 0; i < nibbles.length; i++) accumulator.removeLast();
         } else if (node instanceof ExtensionNode) {
@@ -713,7 +439,7 @@ public final class MerklePatriciaTrieImpl {
             if (branchValue != null) {
                 int[] current = toArray(accumulator);
                 if (startsWith(current, prefixNibbles))
-                    output.add(new MerklePatriciaTrie.Entry(toBytes(current), branchValue));
+                    output.add(new MpfTrie.Entry(toBytes(current), branchValue));
                 if (output.size() >= limit) return;
             }
             for (int i = 0; i < 16 && output.size() < limit; i++) {

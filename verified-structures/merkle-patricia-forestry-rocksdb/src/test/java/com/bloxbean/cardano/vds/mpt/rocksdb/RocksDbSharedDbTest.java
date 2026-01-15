@@ -1,8 +1,8 @@
 package com.bloxbean.cardano.vds.mpt.rocksdb;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +19,7 @@ public class RocksDbSharedDbTest {
         try {
             Path dir = Files.createTempDirectory("rocks-st");
             try (RocksDbStateTrees st = new RocksDbStateTrees(dir.toString())) {
-                MerklePatriciaTrie trie = new MerklePatriciaTrie(st.nodeStore(), HF);
+                MpfTrie trie = new MpfTrie(st.nodeStore());
 
                 byte[] k1 = hex("aa00");
                 byte[] k2 = hex("aa01");

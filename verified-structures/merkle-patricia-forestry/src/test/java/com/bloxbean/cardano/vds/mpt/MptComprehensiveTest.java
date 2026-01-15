@@ -20,13 +20,13 @@ import static org.junit.jupiter.api.Assertions.*;
 public class MptComprehensiveTest {
     private static final HashFunction HASH_FN = Blake2b256::digest;
     private TestNodeStore store;
-    private MerklePatriciaTrie trie;
+    private MpfTrie trie;
     private SecureRandom random;
 
     @BeforeEach
     void setUp() {
         store = new TestNodeStore();
-        trie = new MerklePatriciaTrie(store, HASH_FN);
+        trie = new MpfTrie(store);
         random = new SecureRandom();
     }
 
@@ -107,36 +107,9 @@ public class MptComprehensiveTest {
         assertArrayEquals(b("final"), trie.get(key));
     }
 
-    @Test
-    void testPrefixScanning() {
-        // Set up test data with known prefixes
-        trie.put(hex("aa00"), b("aa00-value"));
-        trie.put(hex("aa01"), b("aa01-value"));
-        trie.put(hex("aa10"), b("aa10-value"));
-        trie.put(hex("bb00"), b("bb00-value"));
-        trie.put(hex("cc"), b("cc-value"));
-
-        // Test prefix scanning
-        var results = trie.scanByPrefix(hex("aa"), 10);
-        assertEquals(3, results.size());
-
-        // Verify results contain expected keys
-        Set<String> foundKeys = new HashSet<>();
-        for (var entry : results) {
-            foundKeys.add(bytesToHex(entry.getKey()));
-        }
-        assertTrue(foundKeys.contains("aa00"));
-        assertTrue(foundKeys.contains("aa01"));
-        assertTrue(foundKeys.contains("aa10"));
-
-        // Test empty prefix (should return all)
-        var allResults = trie.scanByPrefix(hex(""), 10);
-        assertEquals(5, allResults.size());
-
-        // Test limit
-        var limitedResults = trie.scanByPrefix(hex(""), 2);
-        assertEquals(2, limitedResults.size());
-    }
+    // Note: Prefix scanning test removed - MpfTrie hashes keys which destroys prefix relationships.
+    // Prefix scanning is tested separately in MptPrefixScanTest using MpfTrieImpl directly.
+    // Aiken's merkle-patricia-forestry also does not support prefix scanning.
 
     @Test
     void testDeletionAndCompression() {
@@ -272,7 +245,7 @@ public class MptComprehensiveTest {
         byte[] rootHash = trie.getRootHash();
 
         // Create new trie with same root
-        MerklePatriciaTrie trie2 = new MerklePatriciaTrie(store, HASH_FN, rootHash);
+        MpfTrie trie2 = new MpfTrie(store, rootHash);
 
         // Should be able to access same data
         assertArrayEquals(b("value1"), trie2.get(hex("aa")));

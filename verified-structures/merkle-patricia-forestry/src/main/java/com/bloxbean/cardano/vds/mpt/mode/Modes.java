@@ -1,36 +1,39 @@
 package com.bloxbean.cardano.vds.mpt.mode;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.commitment.ClassicMptCommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
 
 /**
- * Factory for standard MPT modes.
+ * Factory for MPT modes.
+ *
+ * <p>This class provides factory methods for creating MPF mode configurations
+ * compatible with Aiken's merkle-patricia-forestry library.</p>
  */
 public final class Modes {
     private Modes() {
     }
 
+    /**
+     * Creates the MPF mode for Cardano/Aiken compatibility.
+     *
+     * @param hashFn the hash function to use
+     * @return an MptMode configured for MPF
+     */
     public static MptMode mpf(HashFunction hashFn) {
         CommitmentScheme cs = new MpfCommitmentScheme(hashFn);
         return new SimpleMode("MPF", cs, new MpfProofCodec(), true);
     }
 
-    public static MptMode classic(HashFunction hashFn) {
-        CommitmentScheme cs = new ClassicMptCommitmentScheme(hashFn);
-        return new SimpleMode("CLASSIC", cs, new ClassicProofCodec(), false);
-    }
-
+    /**
+     * Creates an MptMode from a commitment scheme.
+     *
+     * @param cs the commitment scheme
+     * @param hashedKeySpace whether keys are pre-hashed
+     * @return an MptMode
+     */
     public static MptMode fromCommitments(CommitmentScheme cs, boolean hashedKeySpace) {
-        if (cs instanceof MpfCommitmentScheme) {
-            return new SimpleMode("MPF", cs, new MpfProofCodec(), hashedKeySpace);
-        }
-        if (cs instanceof ClassicMptCommitmentScheme) {
-            return new SimpleMode("CLASSIC", cs, new ClassicProofCodec(), hashedKeySpace);
-        }
-        // Default to MPF proof codec if unknown (conservative);
-        return new SimpleMode("CUSTOM", cs, new MpfProofCodec(), hashedKeySpace);
+        return new SimpleMode("MPF", cs, new MpfProofCodec(), hashedKeySpace);
     }
 
     private static final class SimpleMode implements MptMode {
@@ -67,4 +70,3 @@ public final class Modes {
         }
     }
 }
-

@@ -21,13 +21,13 @@ import static org.junit.jupiter.api.Assertions.*;
 public class MptPerformanceBaselineTest {
     private static final HashFunction HASH_FN = Blake2b256::digest;
     private TestNodeStore store;
-    private MerklePatriciaTrie trie;
+    private MpfTrie trie;
     private SecureRandom random;
 
     @BeforeEach
     void setUp() {
         store = new TestNodeStore();
-        trie = new MerklePatriciaTrie(store, HASH_FN);
+        trie = new MpfTrie(store);
         random = new SecureRandom();
         random.setSeed(42); // Fixed seed for reproducible results
     }
@@ -128,48 +128,9 @@ public class MptPerformanceBaselineTest {
         }
     }
 
-    @Test
-    void baselinePrefixScanning() {
-        // Create data with known prefixes for scanning (avoid 00 prefix due to nibble trimming)
-        Map<String, Integer> prefixCounts = new HashMap<>();
-
-        for (int i = 0; i < 100; i++) {
-            // Use prefixes a1, a2, ..., af, b1, b2, ..., bf to avoid 00 edge case
-            int prefixNum = (i % 15) + 1; // 1-15
-            char prefixChar = (char) ('a' + (i % 2)); // 'a' or 'b'
-            String keyHex = String.format("%c%x%04x", prefixChar, prefixNum, i);
-            byte[] key = hexToBytes(keyHex);
-            byte[] value = ("value-" + i).getBytes();
-
-            trie.put(key, value);
-
-            String prefix = keyHex.substring(0, 2);
-            prefixCounts.put(prefix, prefixCounts.getOrDefault(prefix, 0) + 1);
-        }
-
-        // Test scanning with different prefixes
-        long totalScanTime = 0;
-        int totalScansPerformed = 0;
-
-        for (String prefix : prefixCounts.keySet()) {
-            long startTime = System.nanoTime();
-            var results = trie.scanByPrefix(hexToBytes(prefix), 100);
-            long endTime = System.nanoTime();
-
-            totalScanTime += (endTime - startTime);
-            totalScansPerformed++;
-
-            int expectedCount = prefixCounts.get(prefix);
-            assertEquals(expectedCount, results.size(), "Prefix scan count mismatch for: " + prefix);
-        }
-
-        long avgScanTimeMs = (totalScanTime / 1_000_000) / totalScansPerformed;
-
-        System.out.println("Baseline Prefix Scanning:");
-        System.out.println("  Total scans: " + totalScansPerformed);
-        System.out.println("  Avg scan time: " + avgScanTimeMs + "ms");
-        System.out.println("  Total scan time: " + (totalScanTime / 1_000_000) + "ms");
-    }
+    // Note: Prefix scanning benchmark removed - MpfTrie hashes keys which destroys prefix relationships.
+    // Prefix scanning is tested separately in MptPrefixScanTest using MpfTrieImpl directly.
+    // Aiken's merkle-patricia-forestry also does not support prefix scanning.
 
     @Test
     void baselineMemoryUsage() {

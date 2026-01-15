@@ -2,8 +2,8 @@ package com.bloxbean.cardano.vds.tools.mpt;
 
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbStateTrees;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.*;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.strategy.*;
@@ -62,7 +62,7 @@ public class GcTool {
     static void generate(String dbPath, int numKeys, int numVersions) throws Exception {
         RocksDB.loadLibrary();
         try (RocksDbStateTrees st = new RocksDbStateTrees(dbPath)) {
-            MerklePatriciaTrie trie = new MerklePatriciaTrie(st.nodeStore(), HF);
+            MpfTrie trie = new MpfTrie(st.nodeStore(), HF);
             Random rnd = new SecureRandom();
 
             // Use nodes CF for refcounts (stored with a prefix); avoid creating a separate CF

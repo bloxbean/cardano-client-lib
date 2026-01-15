@@ -3,7 +3,6 @@ package com.bloxbean.cardano.vds.tools.mpt;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 import com.bloxbean.cardano.vds.mpt.rdbms.RdbmsNodeStore;
@@ -29,7 +28,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * # SQLite with deletes
  * java -cp ... RdbmsMptLoadTester --records=100000 --batch=1000 --db=sqlite \
- *     --path=/tmp/mpt.db --delete-ratio=0.1 --secure
+ *     --path=/tmp/mpt.db --delete-ratio=0.1
  *
  * # PostgreSQL (requires running PostgreSQL)
  * java -cp ... RdbmsMptLoadTester --records=100000 --batch=1000 \
@@ -132,10 +131,7 @@ public final class RdbmsMptLoadTester {
     }
 
     private static void runLoad(NodeStore nodeStore, HashFunction hash, LoadOptions options) {
-        final boolean useSecure = options.secure;
-
-        MerklePatriciaTrie rawTrie = useSecure ? null : new MerklePatriciaTrie(nodeStore, hash);
-        MpfTrie trie = useSecure ? new MpfTrie(nodeStore, hash) : null;
+        MpfTrie trie = new MpfTrie(nodeStore, hash);
 
         Random random = new SecureRandom();
         long remaining = options.totalRecords;
@@ -159,7 +155,7 @@ public final class RdbmsMptLoadTester {
         if (!options.inMemory && options.jdbcUrl == null) {
             System.out.printf("Database path: %s%n", options.dbPath);
         }
-        System.out.printf("Trie mode: %s%n", useSecure ? "MpfTrie (MPF)" : "Plain MPT");
+        System.out.printf("Trie mode: %s%n", "MpfTrie (MPF)");
         System.out.printf("Total operations: %,d%n", options.totalRecords);
         System.out.printf("Batch size: %,d%n", options.batchSize);
         System.out.printf("Value size: %d bytes%n", options.valueSize);
@@ -199,11 +195,7 @@ public final class RdbmsMptLoadTester {
                     for (Map.Entry<byte[], byte[]> e : updates.entrySet()) {
                         byte[] key = e.getKey();
                         byte[] val = e.getValue();
-                        if (useSecure) {
-                            if (val == null) trie.delete(key); else trie.put(key, val);
-                        } else {
-                            if (val == null) rawTrie.delete(key); else rawTrie.put(key, val);
-                        }
+                        if (val == null) trie.delete(key); else trie.put(key, val);
                     }
                     return null;
                 });
@@ -212,11 +204,7 @@ public final class RdbmsMptLoadTester {
                 for (Map.Entry<byte[], byte[]> e : updates.entrySet()) {
                     byte[] key = e.getKey();
                     byte[] val = e.getValue();
-                    if (useSecure) {
-                        if (val == null) trie.delete(key); else trie.put(key, val);
-                    } else {
-                        if (val == null) rawTrie.delete(key); else rawTrie.put(key, val);
-                    }
+                    if (val == null) trie.delete(key); else trie.put(key, val);
                 }
             }
             long commitElapsed = System.currentTimeMillis() - commitStart;
@@ -257,13 +245,8 @@ public final class RdbmsMptLoadTester {
             if (options.proofEvery > 0 && (commits % options.proofEvery) == 0 && !updates.isEmpty()) {
                 Map.Entry<byte[], byte[]> sample = updates.entrySet().iterator().next();
                 long proofStart = System.currentTimeMillis();
-                if (useSecure) {
-                    trie.get(sample.getKey());
-                    trie.getProofWire(sample.getKey());
-                } else {
-                    rawTrie.get(sample.getKey());
-                    rawTrie.getProofWire(sample.getKey());
-                }
+                trie.get(sample.getKey());
+                trie.getProofWire(sample.getKey());
                 long proofElapsed = System.currentTimeMillis() - proofStart;
                 totalProofTimeMs += proofElapsed;
                 proofChecks++;
@@ -337,7 +320,6 @@ public final class RdbmsMptLoadTester {
         final long progressPeriod;
         final long proofEvery;
         final double deleteRatio;
-        final boolean secure;
 
         private LoadOptions(long totalRecords,
                             int batchSize,
@@ -353,8 +335,7 @@ public final class RdbmsMptLoadTester {
                             String dbName,
                             long progressPeriod,
                             long proofEvery,
-                            double deleteRatio,
-                            boolean secure) {
+                            double deleteRatio) {
             this.totalRecords = totalRecords;
             this.batchSize = batchSize;
             this.valueSize = valueSize;
@@ -370,7 +351,6 @@ public final class RdbmsMptLoadTester {
             this.progressPeriod = progressPeriod;
             this.proofEvery = proofEvery;
             this.deleteRatio = deleteRatio;
-            this.secure = secure;
         }
 
         static LoadOptions parse(String[] args) {
@@ -389,7 +369,6 @@ public final class RdbmsMptLoadTester {
             long progress = 10_000L;
             long proofEvery = 0L;
             double deleteRatio = 0.0d;
-            boolean secure = true;
 
             for (String arg : args) {
                 if (arg.startsWith("--records=")) {
@@ -422,10 +401,6 @@ public final class RdbmsMptLoadTester {
                     proofEvery = Long.parseLong(arg.substring("--proof-every=".length()));
                 } else if (arg.startsWith("--delete-ratio=")) {
                     deleteRatio = Double.parseDouble(arg.substring("--delete-ratio=".length()));
-                } else if (arg.equals("--secure")) {
-                    secure = true;
-                } else if (arg.equals("--plain")) {
-                    secure = false;
                 } else if (arg.equals("--help") || arg.equals("-h")) {
                     printUsageAndExit();
                 }
@@ -437,7 +412,7 @@ public final class RdbmsMptLoadTester {
 
             return new LoadOptions(records, batch, valueSize, inMemory, dbType, dbPath, jdbcUrl,
                     dbUser, dbPassword, dbHost, dbPort, dbName,
-                    progress, proofEvery, deleteRatio, secure);
+                    progress, proofEvery, deleteRatio);
         }
 
         private static void printUsageAndExit() {
@@ -462,10 +437,6 @@ public final class RdbmsMptLoadTester {
             System.out.println("  --db-port=PORT        Database port for PostgreSQL (default: 5432)");
             System.out.println("  --db-name=NAME        Database name for PostgreSQL (default: testdb)");
             System.out.println();
-            System.out.println("Trie Options:");
-            System.out.println("  --secure              Use MpfTrie/MPF mode with hashed keys (default)");
-            System.out.println("  --plain               Use plain MerklePatriciaTrie with raw keys");
-            System.out.println();
             System.out.println("Testing & Monitoring Options:");
             System.out.println("  --progress=N          Progress reporting interval in operations (default: 10,000)");
             System.out.println("  --proof-every=N       Generate proof every N batches (default: 0 = disabled)");
@@ -477,7 +448,7 @@ public final class RdbmsMptLoadTester {
             System.out.println();
             System.out.println("  # SQLite with deletes");
             System.out.println("  RdbmsMptLoadTester --records=100000 --batch=1000 --db=sqlite --path=/tmp/mpt.db \\");
-            System.out.println("      --delete-ratio=0.1 --secure");
+            System.out.println("      --delete-ratio=0.1");
             System.out.println();
             System.out.println("  # PostgreSQL with connection parameters");
             System.out.println("  RdbmsMptLoadTester --records=100000 --batch=1000 --db=postgresql \\");

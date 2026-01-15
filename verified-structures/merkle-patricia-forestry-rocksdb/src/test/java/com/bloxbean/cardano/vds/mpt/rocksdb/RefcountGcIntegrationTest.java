@@ -1,9 +1,7 @@
 package com.bloxbean.cardano.vds.mpt.rocksdb;
 
 import com.bloxbean.cardano.client.util.HexUtil;
-import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.*;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.strategy.*;
 import org.junit.jupiter.api.Assumptions;
@@ -16,14 +14,13 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class RefcountGcIntegrationTest {
-    private static final HashFunction HF = Blake2b256::digest;
 
     @Test
     void incrementalRefcountGcKeepsStoreBounded() throws Exception {
         try {
             Path dir = Files.createTempDirectory("rocks-refcnt");
             try (RocksDbStateTrees st = new RocksDbStateTrees(dir.toString())) {
-                MerklePatriciaTrie trie = new MerklePatriciaTrie(st.nodeStore(), HF);
+                MpfTrie trie = new MpfTrie(st.nodeStore());
 
                 // Refcounts are stored alongside nodes using a prefixed key; no separate CF needed
 
@@ -74,7 +71,7 @@ public class RefcountGcIntegrationTest {
                 assertTrue(nodesAfterGc <= nodesAfterV1);
 
                 // latest reads should work
-                MerklePatriciaTrie latestTrie = new MerklePatriciaTrie(st.nodeStore(), HF, st.rootsIndex().latest());
+                MpfTrie latestTrie = new MpfTrie(st.nodeStore(), st.rootsIndex().latest());
                 assertEquals("V0b", new String(latestTrie.get(k1)));
                 assertEquals("V1", new String(latestTrie.get(k2)));
             }
