@@ -27,18 +27,20 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * <p>Example usage:</p>
  * <pre>
- * # H2 database (default)
- * java -cp ... RdbmsJmtLoadTester --records=100000 --batch=1000 --db=h2 --path=/tmp/jmt-h2
+ * # Via Gradle - H2 database
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="jmt-rdbms --records=100000 --batch=1000 --db=h2 --path=/tmp/jmt-h2"
+ *
+ * # Via fat JAR (build first: ./gradlew :verified-structures:load-tools:shadowJar)
+ * java -jar cardano-client-vds-load-tools-VERSION-all.jar \
+ *     jmt-rdbms --records=100000 --batch=1000 --db=sqlite --path=/tmp/jmt.db
  *
  * # PostgreSQL (requires running PostgreSQL)
- * java -cp ... RdbmsJmtLoadTester --records=100000 --batch=1000 \
- *     --jdbc-url="jdbc:postgresql://localhost/testdb?user=postgres&amp;password=postgres"
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="jmt-rdbms --records=100000 --batch=1000 --jdbc-url=jdbc:postgresql://localhost/testdb?user=postgres"
  *
- * # SQLite
- * java -cp ... RdbmsJmtLoadTester --records=100000 --batch=1000 --db=sqlite --path=/tmp/jmt.db
- *
- * # In-memory H2 performance baseline
- * java -cp ... RdbmsJmtLoadTester --records=100000 --batch=1000 --memory
+ * # In-memory performance baseline
+ * ./gradlew :verified-structures:load-tools:run --args="jmt-rdbms --records=100000 --batch=1000 --memory"
  * </pre>
  *
  * <p><b>Note:</b> JMT does not support delete operations (Diem-inspired design).
@@ -113,14 +115,14 @@ public final class RdbmsJmtLoadTester {
         String schemaResource;
         switch (dbType.toLowerCase()) {
             case "h2":
-                schemaResource = "/schema/jmt/h2/V1__jmt_base_schema.sql";
+                schemaResource = "/ddl/jmt/h2/schema.sql";
                 break;
             case "sqlite":
-                schemaResource = "/schema/jmt/sqlite/V1__jmt_base_schema.sql";
+                schemaResource = "/ddl/jmt/sqlite/schema.sql";
                 break;
             case "postgresql":
             case "postgres":
-                schemaResource = "/schema/jmt/postgres/V1__jmt_base_schema.sql";
+                schemaResource = "/ddl/jmt/postgres/schema.sql";
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported database type: " + dbType);

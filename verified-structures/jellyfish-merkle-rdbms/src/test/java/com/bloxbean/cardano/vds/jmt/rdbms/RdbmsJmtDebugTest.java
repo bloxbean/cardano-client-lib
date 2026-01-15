@@ -41,7 +41,7 @@ class RdbmsJmtDebugTest {
         try (Connection conn = dbConfig.dataSource().getConnection();
              Statement stmt = conn.createStatement()) {
             String schema = new String(
-                getClass().getResourceAsStream("/schema/jmt/h2/V1__jmt_base_schema.sql").readAllBytes(),
+                getClass().getResourceAsStream("/ddl/jmt/h2/schema.sql").readAllBytes(),
                 StandardCharsets.UTF_8
             );
             stmt.execute(schema);

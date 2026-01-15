@@ -2,7 +2,6 @@ package com.bloxbean.cardano.vds.mpt;
 
 import com.bloxbean.cardano.vds.mpt.internal.TestNodeStore;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -51,7 +50,7 @@ public class MptCoreBenchmark {
     private int datasetSize;
 
     private TestNodeStore store;
-    private MerklePatriciaTrie trie;
+    private MpfTrie trie;
     private List<byte[]> keys;
     private List<byte[]> values;
     private Random random;
@@ -59,7 +58,7 @@ public class MptCoreBenchmark {
     @Setup(Level.Trial)
     public void setupTrial() {
         store = new TestNodeStore();
-        trie = new MerklePatriciaTrie(store, HASH_FN);
+        trie = new MpfTrie(store);
         random = new Random(42); // Fixed seed for reproducibility
 
         // Pre-generate test data
@@ -82,7 +81,7 @@ public class MptCoreBenchmark {
     public void setupIteration() {
         // Clear trie for each iteration to ensure consistent state
         store.clear();
-        trie = new MerklePatriciaTrie(store, HASH_FN);
+        trie = new MpfTrie(store);
     }
 
     /**
@@ -146,12 +145,14 @@ public class MptCoreBenchmark {
         bh.consume(trie.getRootHash());
     }
 
+
     /**
      * Benchmarks prefix scanning operations.
      *
      * <p>Creates data with predictable prefixes and measures throughput
      * of prefix scan operations with various result set sizes.</p>
      */
+    /** This is not supported in MpfTrie currently
     @Benchmark
     public void prefixScanning(Blackhole bh) {
         // Create data with known prefixes
@@ -178,6 +179,7 @@ public class MptCoreBenchmark {
             bh.consume(results);
         }
     }
+    **/
 
     /**
      * Benchmarks mixed workload operations.
@@ -267,7 +269,7 @@ public class MptCoreBenchmark {
         byte[] rootHash = trie.getRootHash();
 
         // Reconstruct from root hash and perform some operations
-        MerklePatriciaTrie reconstructedTrie = new MerklePatriciaTrie(store, HASH_FN, rootHash);
+        MpfTrie reconstructedTrie = new MpfTrie(store, rootHash);
 
         // Verify reconstruction by reading some values
         Random verifyRandom = new Random(999);

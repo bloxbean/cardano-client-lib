@@ -72,7 +72,7 @@ class RdbmsJmtPropertyTest {
 
             // Read schema from resources
             String schema = new String(
-                getClass().getResourceAsStream("/schema/jmt/h2/V1__jmt_base_schema.sql").readAllBytes(),
+                getClass().getResourceAsStream("/ddl/jmt/h2/schema.sql").readAllBytes(),
                 StandardCharsets.UTF_8
             );
 
@@ -204,7 +204,7 @@ class RdbmsJmtPropertyTest {
         try (Connection conn = sqliteConfig.dataSource().getConnection();
              Statement stmt = conn.createStatement()) {
             String schema = new String(
-                getClass().getResourceAsStream("/schema/jmt/sqlite/V1__jmt_base_schema.sql").readAllBytes(),
+                getClass().getResourceAsStream("/ddl/jmt/sqlite/schema.sql").readAllBytes(),
                 StandardCharsets.UTF_8
             );
 

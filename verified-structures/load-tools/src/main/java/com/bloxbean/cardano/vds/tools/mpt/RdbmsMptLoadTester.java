@@ -23,19 +23,20 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * <p>Example usage:</p>
  * <pre>
- * # H2 database (default)
- * java -cp ... RdbmsMptLoadTester --records=100000 --batch=1000 --db=h2 --path=/tmp/mpt-h2
+ * # Via Gradle - H2 database
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="mpt-rdbms --records=100000 --batch=1000 --db=h2 --path=/tmp/mpt-h2"
  *
- * # SQLite with deletes
- * java -cp ... RdbmsMptLoadTester --records=100000 --batch=1000 --db=sqlite \
- *     --path=/tmp/mpt.db --delete-ratio=0.1
+ * # Via fat JAR (build first: ./gradlew :verified-structures:load-tools:shadowJar)
+ * java -jar cardano-client-vds-load-tools-VERSION-all.jar \
+ *     mpt-rdbms --records=100000 --batch=1000 --db=sqlite --path=/tmp/mpt.db --delete-ratio=0.1
  *
  * # PostgreSQL (requires running PostgreSQL)
- * java -cp ... RdbmsMptLoadTester --records=100000 --batch=1000 \
- *     --jdbc-url="jdbc:postgresql://localhost/testdb?user=postgres&amp;password=postgres"
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="mpt-rdbms --records=100000 --batch=1000 --jdbc-url=jdbc:postgresql://localhost/testdb?user=postgres"
  *
  * # In-memory performance baseline
- * java -cp ... RdbmsMptLoadTester --records=100000 --batch=1000 --memory
+ * ./gradlew :verified-structures:load-tools:run --args="mpt-rdbms --records=100000 --batch=1000 --memory"
  * </pre>
  *
  * <p><b>Note:</b> GC features (refcount, mark-sweep) are RocksDB-specific and not available in RDBMS mode.
@@ -107,14 +108,14 @@ public final class RdbmsMptLoadTester {
         String schemaResource;
         switch (dbType.toLowerCase()) {
             case "h2":
-                schemaResource = "/schema/mpt/h2/V1__mpt_base_schema.sql";
+                schemaResource = "/ddl/mpf/h2/schema.sql";
                 break;
             case "sqlite":
-                schemaResource = "/schema/mpt/sqlite/V1__mpt_base_schema.sql";
+                schemaResource = "/ddl/mpf/sqlite/schema.sql";
                 break;
             case "postgresql":
             case "postgres":
-                schemaResource = "/schema/mpt/postgres/V1__mpt_base_schema.sql";
+                schemaResource = "/ddl/mpf/postgres/schema.sql";
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported database type: " + dbType);

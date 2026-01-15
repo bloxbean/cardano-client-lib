@@ -52,7 +52,7 @@ class RdbmsNodeStoreTest {
 
             // Read schema from resources
             String schema = new String(
-                getClass().getResourceAsStream("/schema/mpt/h2/V1__mpt_base_schema.sql").readAllBytes(),
+                getClass().getResourceAsStream("/ddl/mpf/h2/schema.sql").readAllBytes(),
                 StandardCharsets.UTF_8
             );
 

@@ -31,17 +31,17 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>Example usage:</p>
  * <pre>
- * # 1-hour sustained write test with concurrent reads
- * ./gradlew :state-trees-rocksdb:run --args="com.bloxbean.cardano.vds.jmt.rocksdb.tools.JmtConcurrentLoadTester \
- *     --duration=3600 --write-threads=4 --read-threads=8 --batch=1000 --rocksdb=/tmp/jmt-concurrent"
+ * # Via Gradle - 1-hour sustained write test with concurrent reads
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="jmt-concurrent --duration=3600 --write-threads=4 --read-threads=8 --batch=1000 --rocksdb=/tmp/jmt-concurrent"
  *
- * # Write-heavy workload
- * ./gradlew :state-trees-rocksdb:run --args="com.bloxbean.cardano.vds.jmt.rocksdb.tools.JmtConcurrentLoadTester \
- *     --duration=1800 --write-threads=8 --read-threads=2 --batch=500 --rocksdb=/tmp/jmt-write-heavy"
+ * # Via fat JAR (build first: ./gradlew :verified-structures:load-tools:shadowJar)
+ * java -jar cardano-client-vds-load-tools-VERSION-all.jar \
+ *     jmt-concurrent --duration=1800 --write-threads=8 --read-threads=2 --batch=500 --rocksdb=/tmp/jmt-write-heavy
  *
  * # Read-heavy workload
- * ./gradlew :state-trees-rocksdb:run --args="com.bloxbean.cardano.vds.jmt.rocksdb.tools.JmtConcurrentLoadTester \
- *     --duration=1800 --write-threads=2 --read-threads=16 --batch=1000 --rocksdb=/tmp/jmt-read-heavy"
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="jmt-concurrent --duration=1800 --write-threads=2 --read-threads=16 --batch=1000 --rocksdb=/tmp/jmt-read-heavy"
  * </pre>
  */
 public final class JmtConcurrentLoadTester {

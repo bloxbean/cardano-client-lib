@@ -19,12 +19,16 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * RocksDB-focused load generator for the MPT (MPF mode via MpfTrie by default).
  *
- * <p>Example with refcount GC:</p>
+ * <p>Example usage:</p>
  * <pre>
- *   ./gradlew :state-trees-rocksdb:MptLoadTester.main \
- *       --args="--records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/mpt-load \
- *                --delete-ratio=0.1 --proof-every=1000 --secure \
- *                --gc=refcount --keep-latest=100"
+ * # Via Gradle
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="mpt --records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/mpt-load"
+ *
+ * # Via fat JAR (build first: ./gradlew :verified-structures:load-tools:shadowJar)
+ * java -jar cardano-client-vds-load-tools-VERSION-all.jar \
+ *     mpt --records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/mpt-load \
+ *     --delete-ratio=0.1 --proof-every=1000 --gc=refcount --keep-latest=100
  * </pre>
  *
  * <p>GC modes: none (default), refcount, marksweep</p>

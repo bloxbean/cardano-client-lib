@@ -26,25 +26,20 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * <p>Example usage:</p>
  * <pre>
- * # Basic load test - 1M operations
- * ./gradlew :verified-structures:load-tools:run --args="JmtLoadTester \
- *     --records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/jmt-load"
+ * # Via Gradle - Basic load test
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="jmt --records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/jmt-load"
  *
- * # With frequent RocksDB metrics monitoring (every 100k records)
- * ./gradlew :verified-structures:load-tools:run --args="JmtLoadTester \
- *     --records=50000000 --batch=2000 --progress=100000 --rocksdb=/tmp/jmt-load"
+ * # Via fat JAR (build first: ./gradlew :verified-structures:load-tools:shadowJar)
+ * java -jar cardano-client-vds-load-tools-VERSION-all.jar \
+ *     jmt --records=1000000 --batch=1000 --rocksdb=/tmp/jmt-load
  *
  * # With pruning enabled
- * ./gradlew :verified-structures:load-tools:run --args="JmtLoadTester \
- *     --records=1000000 --batch=1000 --prune-every=100 --keep-latest=1000 --rocksdb=/tmp/jmt-load"
- *
- * # High throughput test (disable WAL, use large batches)
- * ./gradlew :verified-structures:load-tools:run --args="JmtLoadTester \
- *     --records=10000000 --batch=5000 --no-wal --rocksdb=/tmp/jmt-load-fast"
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="jmt --records=1000000 --batch=1000 --prune-every=100 --keep-latest=1000 --rocksdb=/tmp/jmt-load"
  *
  * # In-memory performance baseline
- * ./gradlew :verified-structures:load-tools:run --args="JmtLoadTester \
- *     --records=100000 --batch=1000 --memory"
+ * ./gradlew :verified-structures:load-tools:run --args="jmt --records=100000 --batch=1000 --memory"
  * </pre>
  *
  * <p><b>Note:</b> JMT does not support delete operations (Diem-inspired design).

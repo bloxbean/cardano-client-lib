@@ -63,7 +63,7 @@ class RdbmsMptPropertyTest {
 
             // Read schema from resources
             String schema = new String(
-                getClass().getResourceAsStream("/schema/mpt/h2/V1__mpt_base_schema.sql").readAllBytes(),
+                getClass().getResourceAsStream("/ddl/mpf/h2/schema.sql").readAllBytes(),
                 StandardCharsets.UTF_8
             );
 
@@ -122,7 +122,7 @@ class RdbmsMptPropertyTest {
         try (Connection conn = sqliteConfig.dataSource().getConnection();
              Statement stmt = conn.createStatement()) {
             String schema = new String(
-                getClass().getResourceAsStream("/schema/mpt/sqlite/V1__mpt_base_schema.sql").readAllBytes(),
+                getClass().getResourceAsStream("/ddl/mpf/sqlite/schema.sql").readAllBytes(),
                 StandardCharsets.UTF_8
             );
             String[] statements = schema.split(";");

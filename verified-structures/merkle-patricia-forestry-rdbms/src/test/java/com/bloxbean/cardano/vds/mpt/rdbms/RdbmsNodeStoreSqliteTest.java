@@ -66,7 +66,7 @@ class RdbmsNodeStoreSqliteTest {
 
             // Read schema from resources
             String schema = new String(
-                getClass().getResourceAsStream("/schema/mpt/sqlite/V1__mpt_base_schema.sql").readAllBytes(),
+                getClass().getResourceAsStream("/ddl/mpf/sqlite/schema.sql").readAllBytes(),
                 StandardCharsets.UTF_8
             );
 

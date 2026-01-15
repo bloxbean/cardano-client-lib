@@ -111,7 +111,7 @@ class RdbmsJmtStorePostgresTest {
     private static void executeSchema(Statement stmt) throws Exception {
         String schemaSql = new String(
             RdbmsJmtStorePostgresTest.class.getResourceAsStream(
-                "/schema/jmt/postgres/V1__jmt_base_schema.sql"
+                "/ddl/jmt/postgres/schema.sql"
             ).readAllBytes(),
             StandardCharsets.UTF_8
         );
