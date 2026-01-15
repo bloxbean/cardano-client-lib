@@ -8,8 +8,8 @@ import com.bloxbean.cardano.vds.core.NibblePath;
 import com.bloxbean.cardano.vds.core.nibbles.Nibbles;
 import com.bloxbean.cardano.vds.core.util.Bytes;
 import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.vds.mpt.mode.Modes;
-import com.bloxbean.cardano.vds.mpt.mode.MptMode;
+import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
+import com.bloxbean.cardano.vds.mpt.mpf.MpfProofSerializer;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -50,26 +50,12 @@ public final class MpfTrieImpl {
     @SuppressWarnings("unused")
     private final HashFunction hashFn; // reserved for MpfTrie use
     private final NodePersistence persistence;
-    @SuppressWarnings("unused")
     private final CommitmentScheme commitments;
-
-    /**
-     * The mode binding for this trie instance, which combines commitment scheme and proof codec.
-     *
-     * <p><b>MPF Mode:</b> Cardano-compatible mode for Aiken smart contracts
-     * <ul>
-     *   <li>Branch values NOT mixed into branch commitments (simpler hash tree)</li>
-     *   <li>Optimized for MpfTrie usage (hashed keys)</li>
-     *   <li>Smaller proof sizes (~32 bytes saving per affected step)</li>
-     *   <li>Compatible with Aiken's merkle-patricia-forestry on-chain verifier</li>
-     * </ul>
-     */
-    private final MptMode mode;
 
     private byte[] root; // nullable => empty trie
 
     /**
-     * Creates a new Merkle Patricia Trie implementation.
+     * Creates a new Merkle Patricia Trie implementation with MPF commitment scheme.
      *
      * @param store  the node storage backend (must not be null)
      * @param hashFn the hash function for node hashing (must not be null)
@@ -77,18 +63,22 @@ public final class MpfTrieImpl {
      * @throws NullPointerException if store or hashFn is null
      */
     public MpfTrieImpl(NodeStore store, HashFunction hashFn, byte[] root) {
-        this(store, hashFn, root, Modes.mpf(hashFn));
+        this(store, hashFn, root, new MpfCommitmentScheme(hashFn));
     }
 
+    /**
+     * Creates a new Merkle Patricia Trie implementation with custom commitment scheme.
+     *
+     * @param store       the node storage backend (must not be null)
+     * @param hashFn      the hash function for node hashing (must not be null)
+     * @param root        the initial root hash, or null for an empty trie
+     * @param commitments the commitment scheme for node hashing (must not be null)
+     * @throws NullPointerException if any parameter is null
+     */
     public MpfTrieImpl(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitments) {
-        this(store, hashFn, root, Modes.fromCommitments(commitments, false));
-    }
-
-    public MpfTrieImpl(NodeStore store, HashFunction hashFn, byte[] root, MptMode mode) {
         this.store = Objects.requireNonNull(store, "NodeStore");
         this.hashFn = Objects.requireNonNull(hashFn, "HashFunction");
-        this.mode = Objects.requireNonNull(mode, "MptMode");
-        this.commitments = Objects.requireNonNull(mode.commitments(), "CommitmentScheme");
+        this.commitments = Objects.requireNonNull(commitments, "CommitmentScheme");
         this.persistence = new NodePersistence(store, commitments, hashFn);
         this.root = root == null || root.length == 0 ? null : root;
     }
@@ -351,7 +341,7 @@ public final class MpfTrieImpl {
     public Optional<byte[]> getProofWire(byte[] key) {
         Objects.requireNonNull(key, "key");
         MerklePatriciaProof proof = getProof(key);
-        byte[] wire = mode.proofCodec().toWire(proof, key, hashFn, commitments);
+        byte[] wire = MpfProofSerializer.toCbor(proof, key, hashFn, commitments);
         return Optional.of(wire);
     }
 

@@ -4,8 +4,8 @@ import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
-import com.bloxbean.cardano.vds.mpt.mode.Modes;
-import com.bloxbean.cardano.vds.mpt.mode.MptMode;
+import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
+import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.mpf.MpfProofFormatter;
 
 import java.util.List;
@@ -102,7 +102,7 @@ public final class MpfTrie {
      */
     public MpfTrie(NodeStore store) {
         this.hashFn = Blake2b256::digest;
-        this.impl = new MpfTrieImpl(store, hashFn, null, Modes.mpf(hashFn));
+        this.impl = new MpfTrieImpl(store, hashFn, null, new MpfCommitmentScheme(hashFn));
     }
 
     /**
@@ -118,7 +118,7 @@ public final class MpfTrie {
      */
     public MpfTrie(NodeStore store, byte[] root) {
         this.hashFn = Blake2b256::digest;
-        this.impl = new MpfTrieImpl(store, hashFn, root, Modes.mpf(hashFn));
+        this.impl = new MpfTrieImpl(store, hashFn, root, new MpfCommitmentScheme(hashFn));
     }
 
     /**
@@ -131,7 +131,7 @@ public final class MpfTrie {
      * @throws NullPointerException if store or hashFn is null
      */
     public MpfTrie(NodeStore store, HashFunction hashFn) {
-        this.impl = new MpfTrieImpl(store, hashFn, null, Modes.mpf(hashFn));
+        this.impl = new MpfTrieImpl(store, hashFn, null, new MpfCommitmentScheme(hashFn));
         this.hashFn = hashFn;
     }
 
@@ -146,32 +146,32 @@ public final class MpfTrie {
      * @throws NullPointerException if store or hashFn is null
      */
     public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root) {
-        this.impl = new MpfTrieImpl(store, hashFn, root, Modes.mpf(hashFn));
+        this.impl = new MpfTrieImpl(store, hashFn, root, new MpfCommitmentScheme(hashFn));
         this.hashFn = hashFn;
     }
 
     /**
-     * Creates a new MpfTrie with specific mode (advanced usage).
+     * Creates a new MpfTrie with custom commitment scheme (advanced usage).
      *
-     * @param store  the storage backend
-     * @param hashFn the hash function for both key hashing and node hashing
-     * @param mode   the MPT mode (should be MPF for Cardano compatibility)
+     * @param store       the storage backend
+     * @param hashFn      the hash function for both key hashing and node hashing
+     * @param commitments the commitment scheme (should be MpfCommitmentScheme for Cardano compatibility)
      */
-    public MpfTrie(NodeStore store, HashFunction hashFn, MptMode mode) {
-        this.impl = new MpfTrieImpl(store, hashFn, null, mode);
+    public MpfTrie(NodeStore store, HashFunction hashFn, CommitmentScheme commitments) {
+        this.impl = new MpfTrieImpl(store, hashFn, null, commitments);
         this.hashFn = hashFn;
     }
 
     /**
-     * Creates an MpfTrie with existing root and specific mode (advanced usage).
+     * Creates an MpfTrie with existing root and custom commitment scheme (advanced usage).
      *
-     * @param store  the storage backend
-     * @param hashFn the hash function for both key hashing and node hashing
-     * @param root   the root hash of existing trie
-     * @param mode   the MPT mode (should be MPF for Cardano compatibility)
+     * @param store       the storage backend
+     * @param hashFn      the hash function for both key hashing and node hashing
+     * @param root        the root hash of existing trie
+     * @param commitments the commitment scheme (should be MpfCommitmentScheme for Cardano compatibility)
      */
-    public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root, MptMode mode) {
-        this.impl = new MpfTrieImpl(store, hashFn, root, mode);
+    public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitments) {
+        this.impl = new MpfTrieImpl(store, hashFn, root, commitments);
         this.hashFn = hashFn;
     }
 

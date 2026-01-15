@@ -2,7 +2,7 @@ package com.bloxbean.cardano.vds.mpt;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
-import com.bloxbean.cardano.vds.mpt.mode.Modes;
+import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.test.TestNodeStore;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +18,7 @@ public class MptRoundtripTest {
     @Test
     void putGetRoundtripDifferentKeys() {
         TestNodeStore store = new TestNodeStore();
-        MpfTrieImpl trie = new MpfTrieImpl(store, HF, null, Modes.mpf(HF));
+        MpfTrieImpl trie = new MpfTrieImpl(store, HF, null, new MpfCommitmentScheme(HF));
 
         byte[] k1 = hex("0a0b0c");
         byte[] k2 = hex("0a0b0d");
