@@ -108,25 +108,6 @@ Optional<JmtProof> proof = tree.getProof("alice".getBytes(), 1L);
 resources.close();
 ```
 
-### Advanced: Low-Level MerklePatriciaTrie
-
-```java
-// For off-chain indexing with prefix queries on original keys
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
-
-NodeStore store = new RocksDbNodeStore(resources.getDb());
-HashFunction hashFn = Blake2b256::digest;
-
-// Raw MPT - keys NOT hashed (use MpfTrie for Cardano instead!)
-MerklePatriciaTrie trie = new MerklePatriciaTrie(store, hashFn);
-
-trie.put("user:alice".getBytes(), userData);
-trie.put("user:bob".getBytes(), userData2);
-
-// Prefix queries work on raw keys
-List<Entry> users = trie.scanByPrefix("user:".getBytes(), 100);
-```
-
 ## Gradle Dependencies
 
 ```gradle

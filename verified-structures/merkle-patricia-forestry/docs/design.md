@@ -56,7 +56,7 @@ This guarantees:
 │  ┌─────────────────────────────────────────────┐│
 │  │  put(key, value)                            ││
 │  │    → Hash key with Blake2b-256              ││
-│  │    → Insert into MerklePatriciaTrie (MPF)   ││
+│  │    → Insert into trie with MPF commitment   ││
 │  │    → Return new root hash                   ││
 │  └─────────────────────────────────────────────┘│
 │  ┌─────────────────────────────────────────────┐│

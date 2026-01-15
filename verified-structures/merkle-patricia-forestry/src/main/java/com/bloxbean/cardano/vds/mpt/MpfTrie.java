@@ -4,7 +4,6 @@ import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
-import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.proof.ProofFormatter;
 
@@ -55,21 +54,6 @@ import java.util.Optional;
  *   <li>Building Cardano smart contracts or dApps</li>
  *   <li>Need compatibility with Aiken merkle-patricia-forestry</li>
  *   <li>Generating proofs for on-chain verification</li>
- *   <li>Storing user-provided keys (DoS protection via hashing)</li>
- * </ul>
- *
- * <p><b>When NOT to Use MpfTrie:</b></p>
- * <ul>
- *   <li>Need prefix queries on original keys → use {@link MpfTrieImpl} directly</li>
- *   <li>Building off-chain indexers → use {@link MpfTrieImpl} directly</li>
- *   <li>Want to recover original keys from trie → use {@link MpfTrieImpl} directly</li>
- * </ul>
- *
- * <p><b>Security Benefits:</b></p>
- * <ul>
- *   <li><b>DoS Protection:</b> Key hashing prevents adversarial key selection attacks</li>
- *   <li><b>Uniform Distribution:</b> Hash function ensures balanced trie structure</li>
- *   <li><b>Fixed Key Size:</b> All keys become 32 bytes for consistent depth</li>
  * </ul>
  *
  * <p><b>Thread Safety:</b> This class is NOT thread-safe. External synchronization
@@ -119,60 +103,6 @@ public final class MpfTrie {
     public MpfTrie(NodeStore store, byte[] root) {
         this.hashFn = Blake2b256::digest;
         this.impl = new MpfTrieImpl(store, hashFn, root, new MpfCommitmentScheme(hashFn));
-    }
-
-    /**
-     * Creates a new MpfTrie with empty root and custom hash function.
-     *
-     * <p>Uses MPF commitment scheme for Cardano/Aiken compatibility.</p>
-     *
-     * @param store  the storage backend for persisting trie nodes
-     * @param hashFn the hash function for both key hashing and node hashing
-     * @throws NullPointerException if store or hashFn is null
-     */
-    public MpfTrie(NodeStore store, HashFunction hashFn) {
-        this.impl = new MpfTrieImpl(store, hashFn, null, new MpfCommitmentScheme(hashFn));
-        this.hashFn = hashFn;
-    }
-
-    /**
-     * Creates an MpfTrie with an existing root and custom hash function.
-     *
-     * <p>Uses MPF commitment scheme for Cardano/Aiken compatibility.</p>
-     *
-     * @param store  the storage backend for persisting trie nodes
-     * @param hashFn the hash function for both key hashing and node hashing
-     * @param root   the root hash of an existing trie, or null for empty trie
-     * @throws NullPointerException if store or hashFn is null
-     */
-    public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root) {
-        this.impl = new MpfTrieImpl(store, hashFn, root, new MpfCommitmentScheme(hashFn));
-        this.hashFn = hashFn;
-    }
-
-    /**
-     * Creates a new MpfTrie with custom commitment scheme (advanced usage).
-     *
-     * @param store       the storage backend
-     * @param hashFn      the hash function for both key hashing and node hashing
-     * @param commitments the commitment scheme (should be MpfCommitmentScheme for Cardano compatibility)
-     */
-    public MpfTrie(NodeStore store, HashFunction hashFn, CommitmentScheme commitments) {
-        this.impl = new MpfTrieImpl(store, hashFn, null, commitments);
-        this.hashFn = hashFn;
-    }
-
-    /**
-     * Creates an MpfTrie with existing root and custom commitment scheme (advanced usage).
-     *
-     * @param store       the storage backend
-     * @param hashFn      the hash function for both key hashing and node hashing
-     * @param root        the root hash of existing trie
-     * @param commitments the commitment scheme (should be MpfCommitmentScheme for Cardano compatibility)
-     */
-    public MpfTrie(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitments) {
-        this.impl = new MpfTrieImpl(store, hashFn, root, commitments);
-        this.hashFn = hashFn;
     }
 
     /**

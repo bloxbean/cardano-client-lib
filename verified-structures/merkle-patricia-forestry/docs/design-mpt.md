@@ -59,10 +59,10 @@ Root (Branch)
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│              MerklePatriciaTrie                      │
+│                MpfTrie / MpfTrieImpl                 │
 │  ┌────────────────────────────────────────────────┐ │
 │  │  put(key, value)                               │ │
-│  │    → Hash key (MpfTrie does this automatically)│ │
+│  │    → Hash key with Blake2b-256 (MpfTrie)       │ │
 │  │    → Convert to nibbles                        │ │
 │  │    → Navigate to insertion point               │ │
 │  │    → Create/update nodes (PutOperationVisitor) │ │
@@ -70,7 +70,7 @@ Root (Branch)
 │  └────────────────────────────────────────────────┘ │
 │  ┌────────────────────────────────────────────────┐ │
 │  │  get(key)                                      │ │
-│  │    → Hash key (MpfTrie does this automatically)│ │
+│  │    → Hash key with Blake2b-256 (MpfTrie)       │ │
 │  │    → Navigate trie following nibbles           │ │
 │  │    → Return value from leaf (GetOperationVisitor)│ │
 │  └────────────────────────────────────────────────┘ │
@@ -557,25 +557,10 @@ def unpack_hp(hp):
 
 **Trade-off:** Acceptable for safety and versioning benefits
 
-### 6.3 Why MpfTrie Hashes Keys
 
-**Problem:** Malicious actors can craft keys to create deep trees (DOS attack)
-
-**Solution:** `MpfTrie` automatically hashes all keys with Blake2b-256 before insertion.
-
-**Benefits:**
-- Uniform key distribution (balanced tree)
-- Predictable depth (always 64 nibbles for 32-byte hash)
-- DOS resistance
-- Guaranteed Aiken compatibility
-
-**Trade-offs:**
-- Extra hash computation (~1 µs)
-- Cannot do prefix queries on original keys
-- Lost key ordering
-
-**When to Use:**
-- **MpfTrie:** Cardano smart contracts, Aiken compatibility, untrusted input
-- **MerklePatriciaTrie:** Off-chain indexing requiring prefix queries (advanced)
+**When to Use MpfTrie:**
+- Cardano smart contracts with on-chain verification
+- Aiken validator compatibility
+- Any use case requiring cryptographic proofs
 
 ---
