@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.vds.mpt.mpf;
+package com.bloxbean.cardano.vds.mpt.proof;
 
 import co.nstant.in.cbor.CborEncoder;
 import co.nstant.in.cbor.CborException;
@@ -10,7 +10,7 @@ import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.NibblePath;
 import com.bloxbean.cardano.vds.core.util.Bytes;
-import com.bloxbean.cardano.vds.mpt.mpf.MerklePatriciaProof;
+import com.bloxbean.cardano.vds.mpt.proof.TraversalProof;
 import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
 
 import java.io.ByteArrayOutputStream;
@@ -19,24 +19,24 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Serialises {@link MerklePatriciaProof} instances into the MPF CBOR format expected by the Aiken verifier.
+ * Serialises {@link TraversalProof} instances into the MPF CBOR format expected by the Aiken verifier.
  */
-public final class MpfProofSerializer {
+public final class ProofSerializer {
 
     private static final int TAG_BRANCH = 121;
     private static final int TAG_FORK = 122;
     private static final int TAG_LEAF = 123;
 
-    private MpfProofSerializer() {
+    private ProofSerializer() {
         throw new AssertionError("Utility class");
     }
 
-    public static byte[] toCbor(MerklePatriciaProof proof, byte[] key,
+    public static byte[] toCbor(TraversalProof proof, byte[] key,
                                 HashFunction hashFn, CommitmentScheme commitments) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
             Array stepsArray = new Array();
-            for (MpfProof.Step step : toSteps(proof, key, hashFn, commitments)) {
+            for (WireProof.Step step : toSteps(proof, key, hashFn, commitments)) {
                 stepsArray.add(encodeStep(step));
             }
             new CborEncoder(baos).encode(stepsArray);
@@ -46,18 +46,18 @@ public final class MpfProofSerializer {
         return baos.toByteArray();
     }
 
-    private static List<MpfProof.Step> toSteps(MerklePatriciaProof proof,
+    private static List<WireProof.Step> toSteps(TraversalProof proof,
                                                byte[] key,
                                                HashFunction hashFn,
                                                CommitmentScheme commitments) {
-        List<MpfProof.Step> steps = new ArrayList<>();
+        List<WireProof.Step> steps = new ArrayList<>();
         int consumed = 0;
-        for (MerklePatriciaProof.Step step : proof.getSteps()) {
-            if (step instanceof MerklePatriciaProof.BranchStep) {
-                MerklePatriciaProof.BranchStep branch = (MerklePatriciaProof.BranchStep) step;
+        for (TraversalProof.Step step : proof.getSteps()) {
+            if (step instanceof TraversalProof.BranchStep) {
+                TraversalProof.BranchStep branch = (TraversalProof.BranchStep) step;
                 steps.add(encodeBranchStep(branch, hashFn, commitments));
-            } else if (step instanceof MerklePatriciaProof.ForkStep) {
-                MerklePatriciaProof.ForkStep fork = (MerklePatriciaProof.ForkStep) step;
+            } else if (step instanceof TraversalProof.ForkStep) {
+                TraversalProof.ForkStep fork = (TraversalProof.ForkStep) step;
                 steps.add(encodeForkStep(fork, commitments));
             } else {
                 throw new IllegalStateException("Unsupported proof step " + step.getClass());
@@ -67,7 +67,7 @@ public final class MpfProofSerializer {
 
         // For conflicting-leaf non-inclusion, append a terminal Leaf step so the
         // verifier can reconstruct the neighbor's leaf commitment and roll it up.
-        if (proof.getType() == MerklePatriciaProof.Type.NON_INCLUSION_DIFFERENT_LEAF) {
+        if (proof.getType() == TraversalProof.Type.NON_INCLUSION_DIFFERENT_LEAF) {
             byte[] conflictingKeyHash = proof.getConflictingKeyHash();
             byte[] valueHash = proof.getConflictingValueHash();
             if (conflictingKeyHash == null || valueHash == null) {
@@ -80,23 +80,23 @@ public final class MpfProofSerializer {
             String conflictingPathHex = Bytes.toHex(conflictingKeyHash);
             int common = commonPrefixLen(queryPathHex.substring(consumed), conflictingPathHex.substring(consumed));
 
-            steps.add(new MpfProof.LeafStep(common, conflictingKeyHash, valueHash));
+            steps.add(new WireProof.LeafStep(common, conflictingKeyHash, valueHash));
         }
         return steps;
     }
 
-    private static MpfProof.BranchStep encodeBranchStep(MerklePatriciaProof.BranchStep step,
+    private static WireProof.BranchStep encodeBranchStep(TraversalProof.BranchStep step,
                                                         HashFunction hashFn,
                                                         CommitmentScheme commitments) {
         byte[][] neighbors = computeNeighbors(step.childHashes(), step.childIndex(), hashFn, commitments.nullHash());
-        return new MpfProof.BranchStep(step.skip(), neighbors, step.childIndex(), step.branchValueHash());
+        return new WireProof.BranchStep(step.skip(), neighbors, step.childIndex(), step.branchValueHash());
     }
 
-    private static MpfProof.ForkStep encodeForkStep(MerklePatriciaProof.ForkStep step,
+    private static WireProof.ForkStep encodeForkStep(TraversalProof.ForkStep step,
                                                     CommitmentScheme commitments) {
         byte[] prefix = toNibbleBytes(step.suffix());
         byte[] root = sanitizeRoot(step.neighborRoot(), commitments);
-        return new MpfProof.ForkStep(step.skip(), step.neighborNibble(), prefix, root);
+        return new WireProof.ForkStep(step.skip(), step.neighborNibble(), prefix, root);
     }
 
     private static int commonPrefixLen(String a, String b) {
@@ -106,9 +106,9 @@ public final class MpfProofSerializer {
         return i;
     }
 
-    private static DataItem encodeStep(MpfProof.Step step) {
-        if (step instanceof MpfProof.BranchStep) {
-            MpfProof.BranchStep br = (MpfProof.BranchStep) step;
+    private static DataItem encodeStep(WireProof.Step step) {
+        if (step instanceof WireProof.BranchStep) {
+            WireProof.BranchStep br = (WireProof.BranchStep) step;
             Array branchArray = new Array();
             branchArray.add(new UnsignedInteger(br.skip()));
             branchArray.add(new ByteString(concatNeighbors(br.neighbors())));
@@ -117,8 +117,8 @@ public final class MpfProofSerializer {
             }
             branchArray.setTag(new Tag(TAG_BRANCH));
             return branchArray;
-        } else if (step instanceof MpfProof.ForkStep) {
-            MpfProof.ForkStep fork = (MpfProof.ForkStep) step;
+        } else if (step instanceof WireProof.ForkStep) {
+            WireProof.ForkStep fork = (WireProof.ForkStep) step;
             Array neighborArray = new Array();
             neighborArray.add(new UnsignedInteger(fork.nibble()));
             neighborArray.add(new ByteString(fork.prefix()));
@@ -130,8 +130,8 @@ public final class MpfProofSerializer {
             forkArray.add(neighborArray);
             forkArray.setTag(new Tag(TAG_FORK));
             return forkArray;
-        } else if (step instanceof MpfProof.LeafStep) {
-            MpfProof.LeafStep leaf = (MpfProof.LeafStep) step;
+        } else if (step instanceof WireProof.LeafStep) {
+            WireProof.LeafStep leaf = (WireProof.LeafStep) step;
             Array leafArray = new Array();
             leafArray.add(new UnsignedInteger(leaf.skip()));
             leafArray.add(new ByteString(leaf.keyHash()));

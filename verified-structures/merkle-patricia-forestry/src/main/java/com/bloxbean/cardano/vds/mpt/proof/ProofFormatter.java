@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.vds.mpt.mpf;
+package com.bloxbean.cardano.vds.mpt.proof;
 
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
@@ -19,9 +19,9 @@ import java.util.List;
  * tooling. They do not change the proof semantics — they only change
  * presentation.</p>
  */
-public final class MpfProofFormatter {
+public final class ProofFormatter {
 
-    private MpfProofFormatter() { }
+    private ProofFormatter() { }
 
     /**
      * Convert an MPF CBOR proof (as produced by getProofWire) into the JSON
@@ -35,23 +35,23 @@ public final class MpfProofFormatter {
      * </ul>
      */
     public static String toJson(byte[] proofCbor) {
-        MpfProof proof = MpfProofDecoder.decode(proofCbor);
+        WireProof proof = ProofDecoder.decode(proofCbor);
         StringBuilder sb = new StringBuilder();
         sb.append('[');
         boolean first = true;
-        for (MpfProof.Step step : proof.steps()) {
+        for (WireProof.Step step : proof.steps()) {
             if (!first) sb.append(',');
             first = false;
-            if (step instanceof MpfProof.BranchStep) {
-                MpfProof.BranchStep br = (MpfProof.BranchStep) step;
+            if (step instanceof WireProof.BranchStep) {
+                WireProof.BranchStep br = (WireProof.BranchStep) step;
                 String neighborsHex = concatHex(br.neighbors());
                 sb.append('{')
                         .append("\"type\":\"branch\",")
                         .append("\"skip\":").append(br.skip()).append(',')
                         .append("\"neighbors\":\"").append(neighborsHex).append("\"")
                         .append('}');
-            } else if (step instanceof MpfProof.ForkStep) {
-                MpfProof.ForkStep fk = (MpfProof.ForkStep) step;
+            } else if (step instanceof WireProof.ForkStep) {
+                WireProof.ForkStep fk = (WireProof.ForkStep) step;
                 sb.append('{')
                         .append("\"type\":\"fork\",")
                         .append("\"skip\":").append(fk.skip()).append(',')
@@ -61,8 +61,8 @@ public final class MpfProofFormatter {
                         .append("\"root\":\"").append(Bytes.toHex(fk.root())).append("\"")
                         .append('}')
                         .append('}');
-            } else if (step instanceof MpfProof.LeafStep) {
-                MpfProof.LeafStep lf = (MpfProof.LeafStep) step;
+            } else if (step instanceof WireProof.LeafStep) {
+                WireProof.LeafStep lf = (WireProof.LeafStep) step;
                 sb.append('{')
                         .append("\"type\":\"leaf\",")
                         .append("\"skip\":").append(lf.skip()).append(',')
@@ -84,20 +84,20 @@ public final class MpfProofFormatter {
      * the JS off‑chain library's Proof.toAiken(). Intended for debugging and fixtures.
      */
     public static String toAiken(byte[] proofCbor) {
-        MpfProof proof = MpfProofDecoder.decode(proofCbor);
+        WireProof proof = ProofDecoder.decode(proofCbor);
         StringBuilder sb = new StringBuilder();
         sb.append("[\n");
-        for (MpfProof.Step step : proof.steps()) {
-            if (step instanceof MpfProof.BranchStep) {
-                MpfProof.BranchStep br = (MpfProof.BranchStep) step;
+        for (WireProof.Step step : proof.steps()) {
+            if (step instanceof WireProof.BranchStep) {
+                WireProof.BranchStep br = (WireProof.BranchStep) step;
                 String neighborsHex = concatHex(br.neighbors());
                 sb.append("  Branch { skip: ")
                         .append(br.skip())
                         .append(", neighbors: #\"")
                         .append(neighborsHex)
                         .append("\" },\n");
-            } else if (step instanceof MpfProof.ForkStep) {
-                MpfProof.ForkStep fk = (MpfProof.ForkStep) step;
+            } else if (step instanceof WireProof.ForkStep) {
+                WireProof.ForkStep fk = (WireProof.ForkStep) step;
                 sb.append("  Fork { skip: ")
                         .append(fk.skip())
                         .append(", neighbor: Neighbor { nibble: ")
@@ -107,8 +107,8 @@ public final class MpfProofFormatter {
                         .append("\", root: #\"")
                         .append(Bytes.toHex(fk.root()))
                         .append("\" } },\n");
-            } else if (step instanceof MpfProof.LeafStep) {
-                MpfProof.LeafStep lf = (MpfProof.LeafStep) step;
+            } else if (step instanceof WireProof.LeafStep) {
+                WireProof.LeafStep lf = (WireProof.LeafStep) step;
                 sb.append("  Leaf { skip: ")
                         .append(lf.skip())
                         .append(", key: #\"")
@@ -148,12 +148,12 @@ public final class MpfProofFormatter {
      * @return ListPlutusData containing the proof steps as ConstrPlutusData
      */
     public static ListPlutusData toPlutusData(byte[] proofCbor) {
-        MpfProof proof = MpfProofDecoder.decode(proofCbor);
+        WireProof proof = ProofDecoder.decode(proofCbor);
         List<PlutusData> steps = new ArrayList<>();
 
-        for (MpfProof.Step step : proof.steps()) {
-            if (step instanceof MpfProof.BranchStep) {
-                MpfProof.BranchStep br = (MpfProof.BranchStep) step;
+        for (WireProof.Step step : proof.steps()) {
+            if (step instanceof WireProof.BranchStep) {
+                WireProof.BranchStep br = (WireProof.BranchStep) step;
                 byte[] neighborsConcat = concatBytes(br.neighbors());
 
                 // Branch { skip: Int, neighbors: ByteArray }
@@ -167,8 +167,8 @@ public final class MpfProofFormatter {
                         .build();
                 steps.add(branchStep);
 
-            } else if (step instanceof MpfProof.ForkStep) {
-                MpfProof.ForkStep fk = (MpfProof.ForkStep) step;
+            } else if (step instanceof WireProof.ForkStep) {
+                WireProof.ForkStep fk = (WireProof.ForkStep) step;
 
                 // Neighbor { nibble: Int, prefix: ByteArray, root: ByteArray }
                 // Alternative 0
@@ -192,8 +192,8 @@ public final class MpfProofFormatter {
                         .build();
                 steps.add(forkStep);
 
-            } else if (step instanceof MpfProof.LeafStep) {
-                MpfProof.LeafStep lf = (MpfProof.LeafStep) step;
+            } else if (step instanceof WireProof.LeafStep) {
+                WireProof.LeafStep lf = (WireProof.LeafStep) step;
 
                 // Leaf { skip: Int, key: ByteArray, value: ByteArray }
                 // Alternative 2

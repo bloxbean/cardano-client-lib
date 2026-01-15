@@ -1,15 +1,14 @@
 package com.bloxbean.cardano.vds.mpt;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.mpf.MerklePatriciaProof;
+import com.bloxbean.cardano.vds.mpt.proof.TraversalProof;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.core.NodeHash;
 import com.bloxbean.cardano.vds.core.NibblePath;
 import com.bloxbean.cardano.vds.core.nibbles.Nibbles;
-import com.bloxbean.cardano.vds.core.util.Bytes;
 import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
-import com.bloxbean.cardano.vds.mpt.mpf.MpfProofSerializer;
+import com.bloxbean.cardano.vds.mpt.proof.ProofSerializer;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -160,14 +159,14 @@ public final class MpfTrieImpl {
     /**
      * Builds an MPF-style inclusion or non-inclusion proof for the provided key.
      */
-    private MerklePatriciaProof getProof(byte[] key) {
+    private TraversalProof getProof(byte[] key) {
         Objects.requireNonNull(key, "key");
         if (this.root == null) {
-            return MerklePatriciaProof.nonInclusionMissingBranch(Collections.emptyList());
+            return TraversalProof.nonInclusionMissingBranch(Collections.emptyList());
         }
 
         int[] keyNibbles = Nibbles.toNibbles(key);
-        List<MerklePatriciaProof.Step> steps = new ArrayList<>();
+        List<TraversalProof.Step> steps = new ArrayList<>();
         NibblePath pendingPrefix = NibblePath.EMPTY;
         byte[] currentHash = this.root;
         int depth = 0;
@@ -176,7 +175,7 @@ public final class MpfTrieImpl {
         while (true) {
             Node node = persistence.load(NodeHash.of(currentHash));
             if (node == null) {
-                return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                return TraversalProof.nonInclusionMissingBranch(steps);
             }
 
             if (node instanceof BranchNode) {
@@ -190,13 +189,13 @@ public final class MpfTrieImpl {
                     if (commitments.encodesBranchValueInBranchCommitment()) {
                         branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
                     }
-                    steps.add(new MerklePatriciaProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
+                    steps.add(new TraversalProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
                     pendingPrefix = NibblePath.EMPTY;
 
                     if (branchValue != null) {
-                        return MerklePatriciaProof.inclusion(steps, branchValue, branchValueHash, NibblePath.EMPTY);
+                        return TraversalProof.inclusion(steps, branchValue, branchValueHash, NibblePath.EMPTY);
                     }
-                    return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                    return TraversalProof.nonInclusionMissingBranch(steps);
                 }
 
                 byte[] childCommit = branch.getChild(childIndex);
@@ -205,9 +204,9 @@ public final class MpfTrieImpl {
                     if (commitments.encodesBranchValueInBranchCommitment()) {
                         branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
                     }
-                    steps.add(new MerklePatriciaProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
+                    steps.add(new TraversalProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
                     pendingPrefix = NibblePath.EMPTY;
-                    return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                    return TraversalProof.nonInclusionMissingBranch(steps);
                 }
 
                 // Add BranchStep and continue traversal
@@ -215,7 +214,7 @@ public final class MpfTrieImpl {
                 if (commitments.encodesBranchValueInBranchCommitment()) {
                     branchValueHash = branch.getValue() == null ? null : hashFn.digest(branch.getValue());
                 }
-                steps.add(new MerklePatriciaProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
+                steps.add(new TraversalProof.BranchStep(pendingPrefix, childHashes, childIndex, branchValueHash));
                 pendingPrefix = NibblePath.EMPTY;
 
                 currentHash = childCommit;
@@ -250,13 +249,13 @@ public final class MpfTrieImpl {
                     // This should not happen with temporary insertion strategy, but handle gracefully
                     int matched = mismatchPosition < 0 ? 0 : mismatchPosition;
                     if (matched >= extNibbles.length) {
-                        return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                        return TraversalProof.nonInclusionMissingBranch(steps);
                     }
 
                     byte[] childCommit = extension.getChild();
                     if (childCommit == null || childCommit.length == 0) {
                         System.out.println("DEBUG Extension child missing during mismatch, returning nonInclusionMissingBranch");
-                        return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                        return TraversalProof.nonInclusionMissingBranch(steps);
                     }
 
                     int[] skipPrefix = matched == 0 ? new int[0] : Arrays.copyOf(extNibbles, matched);
@@ -269,21 +268,21 @@ public final class MpfTrieImpl {
                     NibblePath forkSuffix = NibblePath.of(suffixNibbles);
                     byte[] flattenedCommit = persistence.computeExtensionCommitForProof(extension);
 
-                    steps.add(new MerklePatriciaProof.ForkStep(forkSkip, neighborNibble, forkSuffix, flattenedCommit));
-                    return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                    steps.add(new TraversalProof.ForkStep(forkSkip, neighborNibble, forkSuffix, flattenedCommit));
+                    return TraversalProof.nonInclusionMissingBranch(steps);
                 }
 
                 // Path matches - continue traversal
                 if (steps.isEmpty()) {
                     pendingPrefix = concat(pendingPrefix, extNibbles);
                 } else {
-                    MerklePatriciaProof.Step lastStep = steps.remove(steps.size() - 1);
-                    if (!(lastStep instanceof MerklePatriciaProof.BranchStep)) {
+                    TraversalProof.Step lastStep = steps.remove(steps.size() - 1);
+                    if (!(lastStep instanceof TraversalProof.BranchStep)) {
                         throw new IllegalStateException("Expected BranchStep before extension but found " + lastStep.getClass().getSimpleName());
                     }
-                    MerklePatriciaProof.BranchStep last = (MerklePatriciaProof.BranchStep) lastStep;
+                    TraversalProof.BranchStep last = (TraversalProof.BranchStep) lastStep;
                     NibblePath extended = concat(last.skipPath(), extNibbles);
-                    steps.add(new MerklePatriciaProof.BranchStep(extended, last.childHashes(), last.childIndex(), last.branchValueHash()));
+                    steps.add(new TraversalProof.BranchStep(extended, last.childHashes(), last.childIndex(), last.branchValueHash()));
                 }
 
                 for (int nibble : extNibbles) {
@@ -292,7 +291,7 @@ public final class MpfTrieImpl {
                 depth += extNibbles.length;
                 byte[] childCommit = extension.getChild();
                 if (childCommit == null || childCommit.length == 0) {
-                    return MerklePatriciaProof.nonInclusionMissingBranch(steps);
+                    return TraversalProof.nonInclusionMissingBranch(steps);
                 }
                 currentHash = childCommit;
                 continue;
@@ -314,7 +313,7 @@ public final class MpfTrieImpl {
                         byte[] value = leaf.getValue();
                         byte[] valueHash = hashFn.digest(value);
                         NibblePath suffix = NibblePath.of(leafNibbles);
-                        return MerklePatriciaProof.inclusion(steps, value, valueHash, suffix);
+                        return TraversalProof.inclusion(steps, value, valueHash, suffix);
                     }
                 }
 
@@ -328,7 +327,7 @@ public final class MpfTrieImpl {
 
                 byte[] conflictingValueHash = hashFn.digest(leaf.getValue());
                 NibblePath conflictingSuffix = NibblePath.of(leafNibbles);
-                return MerklePatriciaProof.nonInclusionDifferentLeaf(steps, conflictingKeyHash, conflictingValueHash, conflictingSuffix);
+                return TraversalProof.nonInclusionDifferentLeaf(steps, conflictingKeyHash, conflictingValueHash, conflictingSuffix);
             }
 
             throw new IllegalStateException("Unsupported node type " + node.getClass().getSimpleName());
@@ -340,8 +339,8 @@ public final class MpfTrieImpl {
      */
     public Optional<byte[]> getProofWire(byte[] key) {
         Objects.requireNonNull(key, "key");
-        MerklePatriciaProof proof = getProof(key);
-        byte[] wire = MpfProofSerializer.toCbor(proof, key, hashFn, commitments);
+        TraversalProof proof = getProof(key);
+        byte[] wire = ProofSerializer.toCbor(proof, key, hashFn, commitments);
         return Optional.of(wire);
     }
 
@@ -351,7 +350,7 @@ public final class MpfTrieImpl {
     public boolean verifyProofWire(byte[] expectedRoot, byte[] key, byte[] valueOrNull, boolean including, byte[] wire) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(wire, "wire");
-        return com.bloxbean.cardano.vds.mpt.mpf.MpfProofVerifier
+        return com.bloxbean.cardano.vds.mpt.proof.ProofVerifier
                 .verify(expectedRoot, key, valueOrNull, including, wire, hashFn, commitments);
     }
 

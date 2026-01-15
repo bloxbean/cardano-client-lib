@@ -306,7 +306,7 @@ public final class MpfGoldenCbor {
         throw new IllegalArgumentException("uint too large");
     }
 
-    // Helpers mirroring production MpfProof
+    // Helpers mirroring production WireProof
     private static int[] nibblesFromHex(String hex) {
         int[] out = new int[hex.length()];
         for (int i = 0; i < hex.length(); i++) out[i] = Integer.parseInt(hex.substring(i, i + 1), 16);

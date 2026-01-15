@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.vds.mpt.mpf;
+package com.bloxbean.cardano.vds.mpt.proof;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.NibblePath;
@@ -14,11 +14,11 @@ import java.util.Objects;
 /**
  * MPF proof representation used for both inclusion and non-inclusion verification.
  */
-public final class MpfProof {
+public final class WireProof {
 
     private final List<Step> steps;
 
-    MpfProof(List<Step> steps) {
+    WireProof(List<Step> steps) {
         this.steps = Collections.unmodifiableList(new ArrayList<>(steps));
     }
 

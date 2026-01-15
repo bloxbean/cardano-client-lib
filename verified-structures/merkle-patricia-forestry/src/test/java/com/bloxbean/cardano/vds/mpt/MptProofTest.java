@@ -3,7 +3,7 @@ package com.bloxbean.cardano.vds.mpt;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
-import com.bloxbean.cardano.vds.mpt.mpf.MpfProofVerifier;
+import com.bloxbean.cardano.vds.mpt.proof.ProofVerifier;
 import com.bloxbean.cardano.vds.mpt.test.TestNodeStore;
 import org.junit.jupiter.api.Test;
 
@@ -83,13 +83,13 @@ class MptProofTest {
         byte[] value = b("X");
         trie.put(key, value);
         byte[] wire = trie.getProofWire(key).orElseThrow();
-        assertTrue(MpfProofVerifier.verify(trie.getRootHash(), key, value, true, wire, hashFn, new MpfCommitmentScheme(hashFn)));
+        assertTrue(ProofVerifier.verify(trie.getRootHash(), key, value, true, wire, hashFn, new MpfCommitmentScheme(hashFn)));
         byte[] tampered = wire.clone();
         tampered[0] ^= 0x01;
 
         assertTrue(trie.verifyProofWire(trie.getRootHash(), key, value, true, wire));
         assertThrows(IllegalArgumentException.class,
-                () -> MpfProofVerifier.verify(trie.getRootHash(), key, value, true, tampered, hashFn, new MpfCommitmentScheme(hashFn)));
+                () -> ProofVerifier.verify(trie.getRootHash(), key, value, true, tampered, hashFn, new MpfCommitmentScheme(hashFn)));
     }
 
     private static byte[] hex(String hex) {

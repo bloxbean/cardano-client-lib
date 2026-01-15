@@ -1,4 +1,4 @@
-package com.bloxbean.cardano.vds.mpt.mpf;
+package com.bloxbean.cardano.vds.mpt.proof;
 
 import co.nstant.in.cbor.model.DataItem;
 import com.bloxbean.cardano.client.common.cbor.CborSerializationUtil;
@@ -19,10 +19,10 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for MpfProofFormatter, specifically the toPlutusData() method that converts
+ * Tests for ProofFormatter, specifically the toPlutusData() method that converts
  * MPF proofs to PlutusData structures for Aiken validator consumption.
  */
-class MpfProofFormatterTest {
+class ProofFormatterTest {
 
     private final HashFunction hashFn = Blake2b256::digest;
 
@@ -35,7 +35,7 @@ class MpfProofFormatterTest {
         put(trie, "cherry", "🍒");
 
         byte[] proofCbor = trie.getProofWire(b("apple")).orElseThrow();
-        ListPlutusData result = MpfProofFormatter.toPlutusData(proofCbor);
+        ListPlutusData result = ProofFormatter.toPlutusData(proofCbor);
 
         assertNotNull(result);
         assertNotNull(result.getPlutusDataList());
@@ -58,13 +58,13 @@ class MpfProofFormatterTest {
         put(trie, "banana", "🍌");
 
         byte[] proofCbor = trie.getProofWire(b("apple")).orElseThrow();
-        MpfProof proof = MpfProofDecoder.decode(proofCbor);
-        ListPlutusData result = MpfProofFormatter.toPlutusData(proofCbor);
+        WireProof proof = ProofDecoder.decode(proofCbor);
+        ListPlutusData result = ProofFormatter.toPlutusData(proofCbor);
 
         // Find a branch step in the decoded proof
         boolean foundBranch = false;
         for (int i = 0; i < proof.steps().size(); i++) {
-            if (proof.steps().get(i) instanceof MpfProof.BranchStep) {
+            if (proof.steps().get(i) instanceof WireProof.BranchStep) {
                 foundBranch = true;
                 ConstrPlutusData branchStep = (ConstrPlutusData) result.getPlutusDataList().get(i);
 
@@ -90,13 +90,13 @@ class MpfProofFormatterTest {
         put(trie, "zebra", "🦓");
 
         byte[] proofCbor = trie.getProofWire(b("apple")).orElseThrow();
-        MpfProof proof = MpfProofDecoder.decode(proofCbor);
-        ListPlutusData result = MpfProofFormatter.toPlutusData(proofCbor);
+        WireProof proof = ProofDecoder.decode(proofCbor);
+        ListPlutusData result = ProofFormatter.toPlutusData(proofCbor);
 
         // Find a fork step in the decoded proof
         boolean foundFork = false;
         for (int i = 0; i < proof.steps().size(); i++) {
-            if (proof.steps().get(i) instanceof MpfProof.ForkStep) {
+            if (proof.steps().get(i) instanceof WireProof.ForkStep) {
                 foundFork = true;
                 ConstrPlutusData forkStep = (ConstrPlutusData) result.getPlutusDataList().get(i);
 
@@ -136,13 +136,13 @@ class MpfProofFormatterTest {
 
         // Query for a non-existent key to get a leaf step in the proof
         byte[] proofCbor = trie.getProofWire(b("apricot")).orElseThrow();
-        MpfProof proof = MpfProofDecoder.decode(proofCbor);
-        ListPlutusData result = MpfProofFormatter.toPlutusData(proofCbor);
+        WireProof proof = ProofDecoder.decode(proofCbor);
+        ListPlutusData result = ProofFormatter.toPlutusData(proofCbor);
 
         // Find a leaf step in the decoded proof
         boolean foundLeaf = false;
         for (int i = 0; i < proof.steps().size(); i++) {
-            if (proof.steps().get(i) instanceof MpfProof.LeafStep) {
+            if (proof.steps().get(i) instanceof WireProof.LeafStep) {
                 foundLeaf = true;
                 ConstrPlutusData leafStep = (ConstrPlutusData) result.getPlutusDataList().get(i);
 
@@ -173,7 +173,7 @@ class MpfProofFormatterTest {
         put(trie, "kumquat", "🤷");
 
         byte[] proofCbor = trie.getProofWire(b("mango")).orElseThrow();
-        ListPlutusData result = MpfProofFormatter.toPlutusData(proofCbor);
+        ListPlutusData result = ProofFormatter.toPlutusData(proofCbor);
 
         // Verify it can be serialized to CBOR without errors
         assertDoesNotThrow(() -> {
@@ -197,7 +197,7 @@ class MpfProofFormatterTest {
         put(trie, "orange[uid: 0]", "🍊");
 
         byte[] proofCbor = trie.getProofWire(b("mango[uid: 0]")).orElseThrow();
-        ListPlutusData result = MpfProofFormatter.toPlutusData(proofCbor);
+        ListPlutusData result = ProofFormatter.toPlutusData(proofCbor);
 
         assertNotNull(result);
         assertNotNull(result.getPlutusDataList());
@@ -231,14 +231,14 @@ class MpfProofFormatterTest {
         put(trie, "banana", "🍌");
 
         byte[] proofCbor = trie.getProofWire(b("apple")).orElseThrow();
-        MpfProof proof = MpfProofDecoder.decode(proofCbor);
-        ListPlutusData result = MpfProofFormatter.toPlutusData(proofCbor);
+        WireProof proof = ProofDecoder.decode(proofCbor);
+        ListPlutusData result = ProofFormatter.toPlutusData(proofCbor);
 
         // Verify skip values match between decoded proof and PlutusData
         assertEquals(proof.steps().size(), result.getPlutusDataList().size());
 
         for (int i = 0; i < proof.steps().size(); i++) {
-            MpfProof.Step step = proof.steps().get(i);
+            WireProof.Step step = proof.steps().get(i);
             ConstrPlutusData plutusStep = (ConstrPlutusData) result.getPlutusDataList().get(i);
             BigIntPlutusData skipData = (BigIntPlutusData) plutusStep.getData().getPlutusDataList().get(0);
 
@@ -255,7 +255,7 @@ class MpfProofFormatterTest {
 
         // Proof for the only entry should have minimal steps
         byte[] proofCbor = trie.getProofWire(b("single")).orElseThrow();
-        ListPlutusData result = MpfProofFormatter.toPlutusData(proofCbor);
+        ListPlutusData result = ProofFormatter.toPlutusData(proofCbor);
 
         assertNotNull(result);
         assertNotNull(result.getPlutusDataList());
@@ -276,7 +276,7 @@ class MpfProofFormatterTest {
 
         // Get proof using the two-step approach
         Optional<ListPlutusData> twoStepProof = trie.getProofWire(key)
-                .map(MpfProofFormatter::toPlutusData);
+                .map(ProofFormatter::toPlutusData);
 
         // Both should be present
         assertTrue(directProof.isPresent());

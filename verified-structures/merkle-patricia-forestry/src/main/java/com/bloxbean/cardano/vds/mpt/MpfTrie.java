@@ -6,7 +6,7 @@ import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
-import com.bloxbean.cardano.vds.mpt.mpf.MpfProofFormatter;
+import com.bloxbean.cardano.vds.mpt.proof.ProofFormatter;
 
 import java.util.List;
 import java.util.Optional;
@@ -297,11 +297,11 @@ public final class MpfTrie {
      * @param key the query key (will be hashed before proof generation)
      * @return PlutusData representation of the proof matching Aiken's ProofStep type,
      *         or empty if no proof can be generated
-     * @see MpfProofFormatter#toPlutusData(byte[])
+     * @see ProofFormatter#toPlutusData(byte[])
      */
     public Optional<ListPlutusData> getProofPlutusData(byte[] key) {
         return getProofWire(key)
-                .map(MpfProofFormatter::toPlutusData);
+                .map(ProofFormatter::toPlutusData);
     }
 
     /**

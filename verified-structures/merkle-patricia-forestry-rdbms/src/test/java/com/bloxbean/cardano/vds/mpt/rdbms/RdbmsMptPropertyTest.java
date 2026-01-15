@@ -6,7 +6,7 @@ import com.bloxbean.cardano.vds.core.util.Bytes;
 import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
-import com.bloxbean.cardano.vds.mpt.mpf.MpfProofVerifier;
+import com.bloxbean.cardano.vds.mpt.proof.ProofVerifier;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -227,7 +227,7 @@ class RdbmsMptPropertyTest {
             byte[] wire = trie.getProofWire(key).orElseThrow(() -> new AssertionError("no proof for key"));
 
             // Use public API to verify proof
-            boolean verified = MpfProofVerifier.verify(root, key, expected, including, wire, HASH, COMMITMENTS);
+            boolean verified = ProofVerifier.verify(root, key, expected, including, wire, HASH, COMMITMENTS);
             if (!verified) {
                 fail(buildMismatchMessage("RDBMS MPF proof verification failed", including, key, root, expected, wire));
             }
