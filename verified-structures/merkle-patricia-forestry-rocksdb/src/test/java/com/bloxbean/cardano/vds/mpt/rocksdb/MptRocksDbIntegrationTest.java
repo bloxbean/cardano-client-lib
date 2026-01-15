@@ -46,7 +46,7 @@ class MptRocksDbIntegrationTest {
 
     @Test
     void streamingPersist_reload_versions_and_gc() {
-        MpfTrie trie = new MpfTrie(stateTrees.nodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
 
         Map<String, String> v1 = new LinkedHashMap<>();
         v1.put("k1", "one");
@@ -72,13 +72,13 @@ class MptRocksDbIntegrationTest {
         stateTrees.rootsIndex().put(ver2, rootV2);
 
         // Reload at V1 and verify values
-        MpfTrie trieV1 = new MpfTrie(stateTrees.nodeStore(), hashFn, rootV1);
+        MpfTrie trieV1 = new MpfTrie(stateTrees.nodeStore(), rootV1);
         assertArrayEquals(b("one"), trieV1.get(b("k1")));
         assertArrayEquals(b("two"), trieV1.get(b("k2")));
         assertNull(trieV1.get(b("k4")));
 
         // Reload at V2 and verify values
-        MpfTrie trieV2 = new MpfTrie(stateTrees.nodeStore(), hashFn, rootV2);
+        MpfTrie trieV2 = new MpfTrie(stateTrees.nodeStore(), rootV2);
         assertArrayEquals(b("five"), trieV2.get(b("k5")));
 
         // Count nodes pre-GC
@@ -94,11 +94,11 @@ class MptRocksDbIntegrationTest {
         assertTrue(post <= pre);
 
         // Old-only keys should no longer resolve fully in V1 after GC (some nodes pruned)
-        MpfTrie afterGcV1 = new MpfTrie(stateTrees.nodeStore(), hashFn, rootV1);
+        MpfTrie afterGcV1 = new MpfTrie(stateTrees.nodeStore(), rootV1);
         byte[] maybeK1 = afterGcV1.get(b("k1"));
         if (maybeK1 != null) {
             // In case of shared nodes, k1 might still be reachable; ensure V2 still intact regardless
-            MpfTrie afterGcV2 = new MpfTrie(stateTrees.nodeStore(), hashFn, rootV2);
+            MpfTrie afterGcV2 = new MpfTrie(stateTrees.nodeStore(), rootV2);
             assertArrayEquals(b("five"), afterGcV2.get(b("k5")));
         }
     }

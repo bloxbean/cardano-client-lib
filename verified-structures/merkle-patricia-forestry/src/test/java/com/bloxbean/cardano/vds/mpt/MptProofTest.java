@@ -15,7 +15,7 @@ class MptProofTest {
 
     @Test
     void inclusionProof_leafNode() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         byte[] key = hex("aa00");
         byte[] other = hex("ab00");
         byte[] value = b("value-1");
@@ -31,7 +31,7 @@ class MptProofTest {
 
     @Test
     void inclusionProof_branchValue() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         byte[] prefix = hex("aa");
         byte[] longer = hex("aa01");
         byte[] prefixValue = b("prefix");
@@ -46,7 +46,7 @@ class MptProofTest {
 
     @Test
     void nonInclusion_missingBranch() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         byte[] k1 = hex("aa00");
         byte[] k2 = hex("aa02");
         trie.put(k1, b("one"));
@@ -59,7 +59,7 @@ class MptProofTest {
 
     @Test
     void nonInclusion_conflictingLeaf() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         byte[] stored = hex("aabbcc");
         byte[] query = hex("aabbd0");
         trie.put(stored, b("payload"));
@@ -70,7 +70,7 @@ class MptProofTest {
 
     @Test
     void nonInclusion_emptyTrie() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         byte[] query = hex("aa");
         byte[] wire = trie.getProofWire(query).orElseThrow();
         assertTrue(trie.verifyProofWire(trie.getRootHash(), query, null, false, wire));
@@ -78,7 +78,7 @@ class MptProofTest {
 
     @Test
     void tamperedProofFailsVerification() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         byte[] key = hex("aa10");
         byte[] value = b("X");
         trie.put(key, value);

@@ -7,8 +7,6 @@ import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.test.TestNodeStore;
 import org.junit.jupiter.api.Test;
@@ -23,13 +21,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * MPF proofs to PlutusData structures for Aiken validator consumption.
  */
 class ProofFormatterTest {
-
-    private final HashFunction hashFn = Blake2b256::digest;
-
     @Test
     void toPlutusData_converts_branch_step_correctly() {
         // Build a simple trie with branch steps
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "apple", "🍎");
         put(trie, "banana", "🍌");
         put(trie, "cherry", "🍒");
@@ -52,7 +47,7 @@ class ProofFormatterTest {
 
     @Test
     void toPlutusData_branch_step_has_correct_structure() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "apple", "🍎");
         put(trie, "apricot", "🤷");
         put(trie, "banana", "🍌");
@@ -84,7 +79,7 @@ class ProofFormatterTest {
 
     @Test
     void toPlutusData_fork_step_has_correct_structure() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         // Create a scenario that will produce a Fork step
         put(trie, "apple", "🍎");
         put(trie, "zebra", "🦓");
@@ -129,7 +124,7 @@ class ProofFormatterTest {
 
     @Test
     void toPlutusData_leaf_step_has_correct_structure() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         // Create a scenario that will produce a Leaf step
         put(trie, "apple", "🍎");
         put(trie, "apricot", "🤷");
@@ -168,7 +163,7 @@ class ProofFormatterTest {
 
     @Test
     void toPlutusData_serializes_to_cbor_successfully() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "mango", "🥭");
         put(trie, "kumquat", "🤷");
 
@@ -187,7 +182,7 @@ class ProofFormatterTest {
     @Test
     void toPlutusData_golden_vector_mango() {
         // Use the golden vector from MptMpfGoldenVectorsTest
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "apple[uid: 58]", "🍎");
         put(trie, "apricot[uid: 0]", "🤷");
         put(trie, "banana[uid: 218]", "🍌");
@@ -226,7 +221,7 @@ class ProofFormatterTest {
 
     @Test
     void toPlutusData_skip_values_match_decoded_proof() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "apple", "🍎");
         put(trie, "banana", "🍌");
 
@@ -250,7 +245,7 @@ class ProofFormatterTest {
     @Test
     void toPlutusData_empty_proof_returns_empty_list() {
         // Create a trie with a single entry
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "single", "value");
 
         // Proof for the only entry should have minimal steps
@@ -264,7 +259,7 @@ class ProofFormatterTest {
 
     @Test
     void secureTrie_getProofPlutusData_convenience_method() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "apple", "🍎");
         put(trie, "banana", "🍌");
         put(trie, "cherry", "🍒");
@@ -300,7 +295,7 @@ class ProofFormatterTest {
 
     @Test
     void secureTrie_getProofPlutusData_works_for_inclusion() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "existing", "value");
 
         Optional<ListPlutusData> proof = trie.getProofPlutusData(b("existing"));
@@ -312,7 +307,7 @@ class ProofFormatterTest {
 
     @Test
     void secureTrie_getProofPlutusData_works_for_exclusion() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
         put(trie, "existing", "value");
 
         // Proof for non-existent key should still be generated

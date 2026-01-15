@@ -23,7 +23,7 @@ class MptMpfGoldenVectorsTest {
 
     @Test
     void mango_and_kumquat_proof_cbor_match_mpf_repo() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
 
         // Populate the same FRUITS_LIST as in MPF off-chain tests
         put(trie, "apple[uid: 58]", "🍎");
@@ -78,7 +78,7 @@ class MptMpfGoldenVectorsTest {
 
     @Test
     void nonInclusion_proof_cbor_via_fallback_decoder() {
-        MpfTrie trie = new MpfTrie(new TestNodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(new TestNodeStore());
 
         // Populate a set of entries (reuse fruits list from earlier test)
         put(trie, "apple[uid: 58]", "🍎");

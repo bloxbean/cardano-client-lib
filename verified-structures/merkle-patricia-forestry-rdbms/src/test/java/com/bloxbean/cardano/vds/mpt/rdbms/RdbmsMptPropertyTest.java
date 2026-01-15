@@ -4,8 +4,6 @@ import com.bloxbean.cardano.vds.core.api.HashFunction;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.core.util.Bytes;
 import com.bloxbean.cardano.vds.mpt.MpfTrie;
-import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
-import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.proof.ProofVerifier;
 import com.bloxbean.cardano.vds.rdbms.common.DbConfig;
 import org.junit.jupiter.api.AfterEach;
@@ -34,7 +32,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 class RdbmsMptPropertyTest {
 
     private static final HashFunction HASH = Blake2b256::digest;
-    private static final CommitmentScheme COMMITMENTS = new MpfCommitmentScheme(HASH);
     // Using fixed seed (0xBEEF) intentionally for reproducible test data generation
     private static final Random RNG = new Random(0xBEEF); // NOSONAR - deterministic testing requires fixed seed
 
@@ -87,7 +84,7 @@ class RdbmsMptPropertyTest {
 
         // Phase 1: build multiple roots with random updates
         try (RdbmsNodeStore store = new RdbmsNodeStore(dbConfig)) {
-            MpfTrie trie = new MpfTrie(store, HASH);
+            MpfTrie trie = new MpfTrie(store);
 
             for (int v = 1; v <= versions; v++) {
                 Map<byte[], byte[]> updates = randomUpdates(keyPool, maxUpdatesPerVersion);
@@ -108,7 +105,7 @@ class RdbmsMptPropertyTest {
         // Phase 2: reopen and verify again at final root
         try (RdbmsNodeStore store = new RdbmsNodeStore(dbConfig)) {
             byte[] latestRoot = roots.get(roots.size() - 1);
-            MpfTrie trie = new MpfTrie(store, HASH, latestRoot);
+            MpfTrie trie = new MpfTrie(store, latestRoot);
             assertRandomProofs(trie, latestRoot, keyPool, queries);
         }
     }
@@ -146,7 +143,7 @@ class RdbmsMptPropertyTest {
         List<byte[]> roots = new ArrayList<>();
 
         try (RdbmsNodeStore store = new RdbmsNodeStore(sqliteConfig)) {
-            MpfTrie trie = new MpfTrie(store, HASH);
+            MpfTrie trie = new MpfTrie(store);
 
             for (int v = 1; v <= versions; v++) {
                 Map<byte[], byte[]> updates = randomUpdates(keyPool, maxUpdatesPerVersion);
@@ -227,7 +224,7 @@ class RdbmsMptPropertyTest {
             byte[] wire = trie.getProofWire(key).orElseThrow(() -> new AssertionError("no proof for key"));
 
             // Use public API to verify proof
-            boolean verified = ProofVerifier.verify(root, key, expected, including, wire, HASH, COMMITMENTS);
+            boolean verified = ProofVerifier.verify(root, key, expected, including, wire);
             if (!verified) {
                 fail(buildMismatchMessage("RDBMS MPF proof verification failed", including, key, root, expected, wire));
             }

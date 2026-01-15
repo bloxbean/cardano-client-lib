@@ -58,7 +58,7 @@ public final class MptLoadTester {
         final boolean gcRefcount = "refcount".equalsIgnoreCase(options.gcMode);
         final boolean gcMarkSweep = "marksweep".equalsIgnoreCase(options.gcMode);
 
-        MpfTrie trie = new MpfTrie(nodeStore, hash);
+        MpfTrie trie = new MpfTrie(nodeStore);
 
         Random random = new SecureRandom();
         long remaining = options.totalRecords;

@@ -40,7 +40,7 @@ public class OnDiskMarkSweepGcTest {
     public void setUp() throws Exception {
         stateTrees = new RocksDbStateTrees(tempDir.resolve("test-db").toString());
         hashFn = Blake2b256::digest;
-        trie = new MpfTrie(stateTrees.nodeStore(), hashFn);
+        trie = new MpfTrie(stateTrees.nodeStore());
         // Using fixed seed (42) intentionally for deterministic test data generation
         random = new Random(42); // NOSONAR - deterministic testing requires fixed seed
     }
@@ -87,7 +87,7 @@ public class OnDiskMarkSweepGcTest {
         assertEquals(nodesBefore, report.total, "Total should match nodes scanned");
 
         // Verify version 2 still accessible
-        MpfTrie trie2 = new MpfTrie(stateTrees.nodeStore(), hashFn, root2);
+        MpfTrie trie2 = new MpfTrie(stateTrees.nodeStore(), root2);
         assertNotNull(trie2.getRootHash(), "Version 2 should still be accessible");
     }
 
@@ -121,8 +121,8 @@ public class OnDiskMarkSweepGcTest {
         assertTrue(report.marked > 0, "Should mark retained nodes");
 
         // Verify versions 3 and 4 are still accessible
-        MpfTrie trie3 = new MpfTrie(stateTrees.nodeStore(), hashFn, roots[3]);
-        MpfTrie trie4 = new MpfTrie(stateTrees.nodeStore(), hashFn, roots[4]);
+        MpfTrie trie3 = new MpfTrie(stateTrees.nodeStore(), roots[3]);
+        MpfTrie trie4 = new MpfTrie(stateTrees.nodeStore(), roots[4]);
         assertNotNull(trie3.getRootHash());
         assertNotNull(trie4.getRootHash());
     }
@@ -273,7 +273,7 @@ public class OnDiskMarkSweepGcTest {
         for (int v = 0; v < 3; v++) {
             byte[] root = stateTrees.rootsIndex().get((long) v);
             assertNotNull(root, "Root for version " + v + " should exist");
-            MpfTrie trieV = new MpfTrie(stateTrees.nodeStore(), hashFn, root);
+            MpfTrie trieV = new MpfTrie(stateTrees.nodeStore(), root);
             assertNotNull(trieV.getRootHash(), "Version " + v + " should be accessible");
         }
     }

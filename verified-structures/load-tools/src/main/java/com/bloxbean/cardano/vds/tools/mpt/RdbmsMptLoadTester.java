@@ -131,7 +131,7 @@ public final class RdbmsMptLoadTester {
     }
 
     private static void runLoad(NodeStore nodeStore, HashFunction hash, LoadOptions options) {
-        MpfTrie trie = new MpfTrie(nodeStore, hash);
+        MpfTrie trie = new MpfTrie(nodeStore);
 
         Random random = new SecureRandom();
         long remaining = options.totalRecords;

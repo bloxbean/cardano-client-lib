@@ -161,7 +161,7 @@ class StorageModeValidationTest {
         String dbPath = tempDir.resolve("test-db").toString();
         stateTrees = new RocksDbStateTrees(dbPath, NamespaceOptions.defaults(), StorageMode.MULTI_VERSION);
 
-        MpfTrie trie = new MpfTrie(stateTrees.nodeStore(), this::hash);
+        MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
         trie.put("key1".getBytes(), "value1".getBytes());
         byte[] root = trie.getRootHash();
 

@@ -62,7 +62,7 @@ public class GcTool {
     static void generate(String dbPath, int numKeys, int numVersions) throws Exception {
         RocksDB.loadLibrary();
         try (RocksDbStateTrees st = new RocksDbStateTrees(dbPath)) {
-            MpfTrie trie = new MpfTrie(st.nodeStore(), HF);
+            MpfTrie trie = new MpfTrie(st.nodeStore());
             Random rnd = new SecureRandom();
 
             // Use nodes CF for refcounts (stored with a prefix); avoid creating a separate CF

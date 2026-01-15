@@ -51,7 +51,7 @@ class MptMpfPropertyRocksDbTest {
         try {
             // Phase 1: build multiple roots with random updates
             try (RocksDbNodeStore store = new RocksDbNodeStore(dbPath)) {
-                MpfTrie trie = new MpfTrie(store, HASH);
+                MpfTrie trie = new MpfTrie(store);
 
                 for (int v = 1; v <= versions; v++) {
                     Map<byte[], byte[]> updates = randomUpdates(keyPool, maxUpdatesPerVersion);
@@ -72,7 +72,7 @@ class MptMpfPropertyRocksDbTest {
             // Phase 2: reopen and verify again at final root
             try (RocksDbNodeStore store = new RocksDbNodeStore(dbPath)) {
                 byte[] latestRoot = roots.get(roots.size() - 1);
-                MpfTrie trie = new MpfTrie(store, HASH, latestRoot);
+                MpfTrie trie = new MpfTrie(store, latestRoot);
                 assertRandomProofs(trie, latestRoot, keyPool, queries);
             }
         } catch (UnsatisfiedLinkError e) {

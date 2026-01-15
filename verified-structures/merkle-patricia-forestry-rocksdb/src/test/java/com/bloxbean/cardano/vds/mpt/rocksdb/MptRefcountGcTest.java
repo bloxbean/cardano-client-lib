@@ -1,7 +1,5 @@
 package com.bloxbean.cardano.vds.mpt.rocksdb;
 
-import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.core.hash.Blake2b256;
 import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.GcManager;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.GcOptions;
@@ -22,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class MptRefcountGcTest {
     private Path tempDir;
     private RocksDbStateTrees st;
-    private final HashFunction hashFn = Blake2b256::digest;
 
     @BeforeEach
     void setup() throws IOException {
@@ -45,7 +42,7 @@ class MptRefcountGcTest {
 
     @Test
     void refcountGc_keepsLatest_deletesDropped() throws Exception {
-        MpfTrie trie = new MpfTrie(st.nodeStore(), hashFn);
+        MpfTrie trie = new MpfTrie(st.nodeStore());
 
         // Version 1
         try (WriteBatch wb = new WriteBatch(); WriteOptions wo = new WriteOptions()) {
@@ -88,9 +85,9 @@ class MptRefcountGcTest {
         assertTrue(after <= before);
 
         // Root V2 still functional; V1 might be partially unavailable
-        MpfTrie v2 = new MpfTrie(st.nodeStore(), hashFn, rootV2);
+        MpfTrie v2 = new MpfTrie(st.nodeStore(), rootV2);
         assertArrayEquals(b("v3"), v2.get(b("k3")));
-        MpfTrie v1 = new MpfTrie(st.nodeStore(), hashFn, rootV1);
+        MpfTrie v1 = new MpfTrie(st.nodeStore(), rootV1);
         // If shared nodes remain, k1 may still be readable; assert no crash
         v1.get(b("k1"));
     }

@@ -26,7 +26,7 @@ class RocksDbMptProofTest {
 
             // Phase 1: write state
             try (RocksDbNodeStore store = new RocksDbNodeStore(dir.toString())) {
-                com.bloxbean.cardano.vds.mpt.MpfTrie trie = new com.bloxbean.cardano.vds.mpt.MpfTrie(store, HF);
+                com.bloxbean.cardano.vds.mpt.MpfTrie trie = new com.bloxbean.cardano.vds.mpt.MpfTrie(store);
                 trie.put(key, value);
                 root = trie.getRootHash();
 
@@ -36,7 +36,7 @@ class RocksDbMptProofTest {
 
             // Phase 2: reopen and verify proof again
             try (RocksDbNodeStore store = new RocksDbNodeStore(dir.toString())) {
-                com.bloxbean.cardano.vds.mpt.MpfTrie trie = new com.bloxbean.cardano.vds.mpt.MpfTrie(store, HF, root);
+                com.bloxbean.cardano.vds.mpt.MpfTrie trie = new com.bloxbean.cardano.vds.mpt.MpfTrie(store, root);
                 byte[] wire = trie.getProofWire(key).orElseThrow();
                 assertThat(trie.verifyProofWire(root, key, value, true, wire)).isTrue();
             }
