@@ -2,8 +2,8 @@ package com.bloxbean.cardano.vds.tools.mpt;
 
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbStateTrees;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.*;
 import com.bloxbean.cardano.vds.mpt.rocksdb.gc.strategy.*;
@@ -15,12 +15,19 @@ import java.util.Random;
 /**
  * Lightweight CLI for generating data and running GC strategies against a RocksDB MPT store.
  * Not a polished CLI; intended for local experiments.
- * <p>
- * Usage examples:
- * java ... GcTool generate /tmp/mpt 10000 5
- * java ... GcTool stats /tmp/mpt
- * java ... GcTool gc-refcount /tmp/mpt keep-latest 1
- * java ... GcTool gc-marksweep /tmp/mpt keep-latest 1
+ *
+ * <p>Usage examples:</p>
+ * <pre>
+ * # Via Gradle
+ * ./gradlew :verified-structures:load-tools:run --args="gc generate /tmp/mpt 10000 5"
+ * ./gradlew :verified-structures:load-tools:run --args="gc stats /tmp/mpt"
+ * ./gradlew :verified-structures:load-tools:run --args="gc gc-refcount /tmp/mpt keep-latest 1"
+ * ./gradlew :verified-structures:load-tools:run --args="gc gc-marksweep /tmp/mpt keep-latest 1"
+ *
+ * # Via fat JAR (build first: ./gradlew :verified-structures:load-tools:shadowJar)
+ * java -jar cardano-client-vds-load-tools-VERSION-all.jar gc generate /tmp/mpt 10000 5
+ * java -jar cardano-client-vds-load-tools-VERSION-all.jar gc stats /tmp/mpt
+ * </pre>
  */
 public class GcTool {
     private static final HashFunction HF = Blake2b256::digest;
@@ -62,7 +69,7 @@ public class GcTool {
     static void generate(String dbPath, int numKeys, int numVersions) throws Exception {
         RocksDB.loadLibrary();
         try (RocksDbStateTrees st = new RocksDbStateTrees(dbPath)) {
-            MerklePatriciaTrie trie = new MerklePatriciaTrie(st.nodeStore(), HF);
+            MpfTrie trie = new MpfTrie(st.nodeStore());
             Random rnd = new SecureRandom();
 
             // Use nodes CF for refcounts (stored with a prefix); avoid creating a separate CF

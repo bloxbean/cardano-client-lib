@@ -1,11 +1,10 @@
 package com.bloxbean.cardano.vds.tools.mpt;
 
 import com.bloxbean.cardano.vds.core.api.HashFunction;
-import com.bloxbean.cardano.vds.mpt.MerklePatriciaTrie;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 import com.bloxbean.cardano.vds.core.api.StorageMode;
 import com.bloxbean.cardano.vds.core.hash.Blake2b256;
-import com.bloxbean.cardano.vds.mpt.SecureTrie;
+import com.bloxbean.cardano.vds.mpt.MpfTrie;
 import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbStateTrees;
 
@@ -18,14 +17,18 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * RocksDB-focused load generator for the MPT (MPF mode via SecureTrie by default).
+ * RocksDB-focused load generator for the MPT (MPF mode via MpfTrie by default).
  *
- * <p>Example with refcount GC:</p>
+ * <p>Example usage:</p>
  * <pre>
- *   ./gradlew :state-trees-rocksdb:MptLoadTester.main \
- *       --args="--records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/mpt-load \
- *                --delete-ratio=0.1 --proof-every=1000 --secure \
- *                --gc=refcount --keep-latest=100"
+ * # Via Gradle
+ * ./gradlew :verified-structures:load-tools:run \
+ *     --args="mpt --records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/mpt-load"
+ *
+ * # Via fat JAR (build first: ./gradlew :verified-structures:load-tools:shadowJar)
+ * java -jar cardano-client-vds-load-tools-VERSION-all.jar \
+ *     mpt --records=1000000 --batch=1000 --value-size=128 --rocksdb=/tmp/mpt-load \
+ *     --delete-ratio=0.1 --proof-every=1000 --gc=refcount --keep-latest=100
  * </pre>
  *
  * <p>GC modes: none (default), refcount, marksweep</p>
@@ -55,13 +58,11 @@ public final class MptLoadTester {
     }
 
     private static void runLoad(NodeStore nodeStore, RocksDbStateTrees stateTrees, HashFunction hash, LoadOptions options) {
-        final boolean useSecure = options.secure;
         final boolean recordRoots = options.recordRoots && stateTrees != null;
         final boolean gcRefcount = "refcount".equalsIgnoreCase(options.gcMode);
         final boolean gcMarkSweep = "marksweep".equalsIgnoreCase(options.gcMode);
 
-        MerklePatriciaTrie rawTrie = new MerklePatriciaTrie(nodeStore, hash);
-        SecureTrie trie = useSecure ? new SecureTrie(nodeStore, hash) : null;
+        MpfTrie trie = new MpfTrie(nodeStore);
 
         Random random = new SecureRandom();
         long remaining = options.totalRecords;
@@ -111,18 +112,14 @@ public final class MptLoadTester {
                         for (Map.Entry<byte[], byte[]> e : updates.entrySet()) {
                             byte[] key = e.getKey();
                             byte[] val = e.getValue();
-                            if (useSecure) {
-                                if (val == null) trie.delete(key); else trie.put(key, val);
-                            } else {
-                                if (val == null) rawTrie.delete(key); else rawTrie.put(key, val);
-                            }
+                            if (val == null) trie.delete(key); else trie.put(key, val);
                         }
                         return null;
                     });
 
                     // Record root + refcount ops if requested (using same WriteBatch)
                     if (recordRoots) {
-                        byte[] root = useSecure ? trie.getRootHash() : rawTrie.getRootHash();
+                        byte[] root = trie.getRootHash();
                         if (gcRefcount && (options.refcountEvery <= 1 || (commits % options.refcountEvery) == 0)) {
                             final long[] vHolder = new long[1];
                             stateTrees.rootsIndex().withBatch(wb, () -> {
@@ -164,11 +161,7 @@ public final class MptLoadTester {
                 for (Map.Entry<byte[], byte[]> e : updates.entrySet()) {
                     byte[] key = e.getKey();
                     byte[] val = e.getValue();
-                    if (useSecure) {
-                        if (val == null) trie.delete(key); else trie.put(key, val);
-                    } else {
-                        if (val == null) rawTrie.delete(key); else rawTrie.put(key, val);
-                    }
+                    if (val == null) trie.delete(key); else trie.put(key, val);
                 }
             }
 
@@ -223,13 +216,8 @@ public final class MptLoadTester {
             // Optional proof exercise
             if (options.proofEvery > 0 && ((options.totalRecords - remaining) % options.proofEvery) == 0) {
                 Map.Entry<byte[], byte[]> sample = updates.entrySet().iterator().next();
-                if (useSecure) {
-                    trie.get(sample.getKey());
-                    trie.getProofWire(sample.getKey());
-                } else {
-                    rawTrie.get(sample.getKey());
-                    rawTrie.getProofWire(sample.getKey());
-                }
+                trie.get(sample.getKey());
+                trie.getProofWire(sample.getKey());
                 proofChecks++;
             }
 
@@ -270,7 +258,6 @@ public final class MptLoadTester {
         final long progressPeriod;
         final long proofEvery;
         final double deleteRatio;
-        final boolean secure;
         final boolean recordRoots;
         final String gcMode; // none|refcount|marksweep
         final int keepLatest;
@@ -287,7 +274,6 @@ public final class MptLoadTester {
                             long progressPeriod,
                             long proofEvery,
                             double deleteRatio,
-                            boolean secure,
                             boolean recordRoots,
                             String gcMode,
                             int keepLatest,
@@ -303,7 +289,6 @@ public final class MptLoadTester {
             this.progressPeriod = progressPeriod;
             this.proofEvery = proofEvery;
             this.deleteRatio = deleteRatio;
-            this.secure = secure;
             this.recordRoots = recordRoots;
             this.gcMode = gcMode;
             this.keepLatest = keepLatest;
@@ -322,7 +307,6 @@ public final class MptLoadTester {
             long progress = 100_000L;
             long proofEvery = 0L;
             double deleteRatio = 0.0d;
-            boolean secure = true;
             boolean recordRoots = true;
             String gcMode = "none";
             int keepLatest = 1;
@@ -348,10 +332,6 @@ public final class MptLoadTester {
                     proofEvery = Long.parseLong(arg.substring("--proof-every=".length()));
                 } else if (arg.startsWith("--delete-ratio=")) {
                     deleteRatio = Double.parseDouble(arg.substring("--delete-ratio=".length()));
-                } else if (arg.equals("--secure")) {
-                    secure = true;
-                } else if (arg.equals("--plain")) {
-                    secure = false;
                 } else if (arg.equals("--no-roots")) {
                     recordRoots = false;
                 } else if (arg.startsWith("--gc=")) {
@@ -381,7 +361,7 @@ public final class MptLoadTester {
             if (!inMemory) Objects.requireNonNull(rocksPath, "rocksDbPath");
             if (deleteRatio < 0.0d || deleteRatio > 1.0d) throw new IllegalArgumentException("--delete-ratio must be between 0.0 and 1.0");
 
-            return new LoadOptions(records, batch, valueSize, inMemory, rocksPath, progress, proofEvery, deleteRatio, secure, recordRoots,
+            return new LoadOptions(records, batch, valueSize, inMemory, rocksPath, progress, proofEvery, deleteRatio, recordRoots,
                     gcMode, keepLatest, gcInterval, refcountEvery, noWal, storageMode);
         }
 
@@ -393,8 +373,6 @@ public final class MptLoadTester {
                     "  --memory             Use in-memory NodeStore (default RocksDB)\n" +
                     "  --rocksdb=PATH       RocksDB directory (default ./mpt-load-db)\n" +
                     "  --storage-mode=MODE  MULTI_VERSION|SINGLE_VERSION (default MULTI_VERSION)\n" +
-                    "  --secure             Use SecureTrie (hashed keys, default)\n" +
-                    "  --plain              Use plain MerklePatriciaTrie (raw keys)\n" +
                     "  --no-roots           Do not record roots/refcounts (RocksDB only)\n" +
                     "  --gc=MODE            none|refcount|marksweep (default none)\n" +
                     "  --keep-latest=N      Retention window for roots (default 1)\n" +

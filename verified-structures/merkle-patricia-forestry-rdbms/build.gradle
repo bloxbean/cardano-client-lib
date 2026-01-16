@@ -1,0 +1,16 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api project(':verified-structures:merkle-patricia-forestry')
+    api project(':verified-structures:rdbms-core')
+
+    implementation(libs.hikaricp)
+    implementation(libs.postgresql)
+    implementation(libs.slf4j.api)
+
+    testImplementation(libs.h2database)
+    testImplementation(libs.sqlite.jdbc)
+    testImplementation(libs.slf4j.reload4j)
+}
