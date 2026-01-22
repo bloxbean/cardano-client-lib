@@ -8,6 +8,7 @@ dependencies {
     api project(':crypto')
     api project(':plutus')
     implementation(libs.co.nstant.in.cbor)
+    implementation(libs.jackson.databind)
 
     jmh(libs.jmh.core)
     jmh(libs.jmh.generator.annprocess)

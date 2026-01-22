@@ -10,6 +10,8 @@ import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.commitment.MpfCommitmentScheme;
 import com.bloxbean.cardano.vds.mpt.proof.ProofSerializer;
 
+import com.bloxbean.cardano.client.util.HexUtil;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,10 +110,27 @@ public final class MpfTrieImpl {
      * @throws IllegalArgumentException if value is null
      */
     public void put(byte[] key, byte[] value) {
+        put(key, value, null);
+    }
+
+    /**
+     * Inserts or updates a key-value pair in the trie, optionally storing the original key.
+     *
+     * <p>The originalKey is stored in leaf nodes for debugging purposes but is NOT used
+     * in commitment calculations. The trie's root hash is identical whether original keys
+     * are stored or not.</p>
+     *
+     * @param key         the key to insert (this is the hashed key in MpfTrie usage)
+     * @param value       the value to associate with the key
+     * @param originalKey the original (unhashed) key for debugging, or null if not storing
+     * @throws IllegalArgumentException if value is null
+     */
+    public void put(byte[] key, byte[] value, byte[] originalKey) {
         if (value == null) throw new IllegalArgumentException("value cannot be null; use delete");
+
         int[] nibblePath = Nibbles.toNibbles(key);
-        NodeHash rootHash = putAtNew(this.root, nibblePath, 0, value);
-        this.root = rootHash != null ? rootHash.toBytes() : null;
+        NodeHash result = putAtNew(this.root, nibblePath, 0, value, originalKey);
+        this.root = result != null ? result.toBytes() : null;
     }
 
     /**
@@ -132,8 +151,8 @@ public final class MpfTrieImpl {
      */
     public void delete(byte[] key) {
         int[] nibblePath = Nibbles.toNibbles(key);
-        NodeHash rootHash = deleteAtNew(this.root, nibblePath, 0);
-        this.root = rootHash != null ? rootHash.toBytes() : null;
+        NodeHash result = deleteAtNew(this.root, nibblePath, 0);
+        this.root = result != null ? result.toBytes() : null;
     }
 
     /**
@@ -525,14 +544,29 @@ public final class MpfTrieImpl {
      * @param keyNibbles the full key as nibbles
      * @param position   the current position in the key
      * @param value      the value to insert
-     * @return the hash of the modified subtree
+     * @return the hash of the new subtree root
      */
     private NodeHash putAtNew(byte[] nodeHash, int[] keyNibbles, int position, byte[] value) {
+        return putAtNew(nodeHash, keyNibbles, position, value, null);
+    }
+
+    /**
+     * New visitor-based implementation for inserting values using immutable nodes,
+     * with optional original key storage.
+     *
+     * @param nodeHash    the hash of the current node (null for non-existent)
+     * @param keyNibbles  the full key as nibbles
+     * @param position    the current position in the key
+     * @param value       the value to insert
+     * @param originalKey the original (unhashed) key for debugging, or null
+     * @return the hash of the new subtree root
+     */
+    private NodeHash putAtNew(byte[] nodeHash, int[] keyNibbles, int position, byte[] value, byte[] originalKey) {
         if (nodeHash == null) {
             // Create new leaf node
             int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
-            LeafNode leaf = LeafNode.of(hp, value);
+            LeafNode leaf = LeafNode.of(hp, value, originalKey);
             return persistence.persist(leaf);
         }
 
@@ -541,11 +575,11 @@ public final class MpfTrieImpl {
             // Missing node - create new leaf
             int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
-            LeafNode leaf = LeafNode.of(hp, value);
+            LeafNode leaf = LeafNode.of(hp, value, originalKey);
             return persistence.persist(leaf);
         }
 
-        PutOperationVisitor putVisitor = new PutOperationVisitor(persistence, keyNibbles, position, value);
+        PutOperationVisitor putVisitor = new PutOperationVisitor(persistence, keyNibbles, position, value, originalKey);
         return node.accept(putVisitor);
     }
 
@@ -577,11 +611,11 @@ public final class MpfTrieImpl {
      * @param nodeHash   the hash of the current node (null for non-existent)
      * @param keyNibbles the full key as nibbles
      * @param position   the current position in the key
-     * @return the hash of the modified subtree (null if deleted)
+     * @return the hash of the new subtree root, or null if the node was completely removed
      */
     private NodeHash deleteAtNew(byte[] nodeHash, int[] keyNibbles, int position) {
         if (nodeHash == null) {
-            return null; // No node at this path
+            return null; // No node at this path - nothing to delete
         }
 
         Node node = persistence.load(NodeHash.of(nodeHash));
@@ -764,4 +798,110 @@ public final class MpfTrieImpl {
 
         return null;
     }
+
+    // ======================================
+    // Traversal / Debug Methods
+    // ======================================
+
+    /**
+     * Collects all key-value entries stored in the trie using the {@link EntriesCollectorVisitor}.
+     *
+     * <p>This method traverses the entire trie and returns all stored entries. The keys
+     * in the returned entries are the hashed keys (since MpfTrie hashes all keys before storage),
+     * not the original keys.</p>
+     *
+     * @return list of all entries in the trie, empty list if trie is empty
+     */
+    List<MpfTrie.Entry> getAllEntries() {
+        if (root == null) {
+            return Collections.emptyList();
+        }
+
+        Node rootNode = persistence.load(NodeHash.of(root));
+        if (rootNode == null) {
+            return Collections.emptyList();
+        }
+
+        EntriesCollectorVisitor visitor = new EntriesCollectorVisitor(persistence);
+        rootNode.accept(visitor);
+        return visitor.getEntries();
+    }
+
+    /**
+     * Returns statistics about the trie structure using the {@link StatisticsVisitor}.
+     *
+     * <p>This method is more efficient than {@link #getAllEntries()} when only
+     * counts are needed, as it does not allocate entry objects.</p>
+     *
+     * @return statistics about the trie, or empty statistics if trie is empty
+     */
+    TrieStatistics getStatistics() {
+        if (root == null) {
+            return TrieStatistics.empty();
+        }
+
+        Node rootNode = persistence.load(NodeHash.of(root));
+        if (rootNode == null) {
+            return TrieStatistics.empty();
+        }
+
+        StatisticsVisitor visitor = new StatisticsVisitor(persistence);
+        rootNode.accept(visitor);
+        return visitor.getStatistics();
+    }
+
+    /**
+     * Returns an ASCII text representation of the tree structure using the {@link TreePrinterVisitor}.
+     *
+     * <p>Useful for debugging and visualization. Shows all nodes (Branch, Extension, Leaf),
+     * their hashes, paths, and values.</p>
+     *
+     * @return formatted tree string showing the complete structure
+     */
+    String printTree() {
+        if (root == null) {
+            return "(empty trie)";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Root: 0x").append(HexUtil.encodeHexString(root)).append("\n");
+
+        Node rootNode = persistence.load(NodeHash.of(root));
+        if (rootNode == null) {
+            return sb.append("(root node not found)").toString();
+        }
+
+        TreePrinterVisitor visitor = new TreePrinterVisitor(persistence, sb, 0, "", root);
+        rootNode.accept(visitor);
+        return sb.toString();
+    }
+
+    /**
+     * Returns a structured tree representation using the {@link TreeStructureVisitor}.
+     *
+     * <p>This method builds a hierarchical {@link TreeNode} structure that can be:
+     * <ul>
+     *   <li>Serialized to JSON using {@link TreeNode#toJson(TreeNode)}</li>
+     *   <li>Traversed programmatically for custom rendering</li>
+     *   <li>Used for HTML tree visualization</li>
+     *   <li>Analyzed by data processing tools</li>
+     * </ul>
+     *
+     * @return the tree structure as a TreeNode, or null if trie is empty
+     * @since 0.8.0
+     */
+    TreeNode getTreeStructure() {
+        if (root == null) {
+            return null;
+        }
+
+        Node rootNode = persistence.load(NodeHash.of(root));
+        if (rootNode == null) {
+            return null;
+        }
+
+        TreeStructureVisitor visitor = new TreeStructureVisitor(persistence, root);
+        return rootNode.accept(visitor);
+    }
+
 }

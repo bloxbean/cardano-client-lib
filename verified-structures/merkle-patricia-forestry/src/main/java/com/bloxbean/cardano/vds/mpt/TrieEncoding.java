@@ -19,7 +19,7 @@ import java.util.List;
  * <p><b>Node Encoding Formats:</b></p>
  * <ul>
  *   <li><b>Branch Node:</b> 17-element array [child0, child1, ..., child15, value]</li>
- *   <li><b>Leaf Node:</b> 2-element array [HP-encoded key suffix (isLeaf=true), value]</li>
+ *   <li><b>Leaf Node:</b> 2 or 3-element array [HP-encoded key suffix (isLeaf=true), value, originalKey?]</li>
  *   <li><b>Extension Node:</b> 2-element array [HP-encoded path (isLeaf=false), child hash]</li>
  * </ul>
  *
@@ -27,7 +27,7 @@ import java.util.List;
  * to determine the correct node type:</p>
  * <ul>
  *   <li>17 elements → BranchNode</li>
- *   <li>2 elements + HP isLeaf=true → LeafNode</li>
+ *   <li>2 or 3 elements + HP isLeaf=true → LeafNode</li>
  *   <li>2 elements + HP isLeaf=false → ExtensionNode</li>
  * </ul>
  *
@@ -57,10 +57,10 @@ final class TrieEncoding {
      * <p>This method analyzes the CBOR structure to determine the correct node type:
      * <ul>
      *   <li>17-element arrays are decoded as {@link BranchNode}</li>
-     *   <li>2-element arrays are decoded based on HP encoding flags:
+     *   <li>2 or 3-element arrays are decoded based on HP encoding flags:
      *       <ul>
-     *         <li>HP isLeaf=true → {@link LeafNode}</li>
-     *         <li>HP isLeaf=false → {@link ExtensionNode}</li>
+     *         <li>HP isLeaf=true → {@link LeafNode} (3rd element is optional originalKey)</li>
+     *         <li>HP isLeaf=false → {@link ExtensionNode} (only 2 elements)</li>
      *       </ul>
      *   </li>
      * </ul>
@@ -92,14 +92,23 @@ final class TrieEncoding {
             // Determine node type based on array size
             if (arraySize == 17) {
                 return BranchNode.decode(cborArray);
-            } else if (arraySize == 2) {
+            } else if (arraySize == 2 || arraySize == 3) {
                 // Analyze HP encoding to distinguish leaf from extension
                 byte[] hpBytes = ((ByteString) cborArray.getDataItems().get(0)).getBytes();
                 Nibbles.HP hpInfo = Nibbles.unpackHP(hpBytes);
-                return hpInfo.isLeaf ? LeafNode.decode(cborArray) : ExtensionNode.decode(cborArray);
+                if (hpInfo.isLeaf) {
+                    return LeafNode.decode(cborArray);
+                } else {
+                    // Extension nodes cannot have originalKey (3 elements only valid for leaves)
+                    if (arraySize == 3) {
+                        throw new IllegalArgumentException(
+                                "Extension node cannot have 3 elements (originalKey only valid for leaves)");
+                    }
+                    return ExtensionNode.decode(cborArray);
+                }
             } else {
                 throw new IllegalArgumentException(
-                        "Invalid node array size: " + arraySize + ". Expected 2 (leaf/extension) or 17 (branch)");
+                        "Invalid node array size: " + arraySize + ". Expected 2-3 (leaf/extension) or 17 (branch)");
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to decode CBOR node data", e);
