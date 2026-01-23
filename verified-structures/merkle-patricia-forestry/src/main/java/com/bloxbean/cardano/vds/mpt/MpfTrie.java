@@ -475,6 +475,57 @@ public final class MpfTrie {
     }
 
     /**
+     * Returns tree structure for a subtree at the given nibble prefix.
+     *
+     * <p>This method enables incremental exploration of large tries. Users can
+     * navigate by providing nibble prefixes, loading subtrees on demand with
+     * a limited number of nodes.</p>
+     *
+     * <p>In MpfTrie, keys are hashed to 32 bytes (64 nibbles) using Blake2b-256.
+     * The first nibble of the hashed key divides entries into 16 buckets (0-f),
+     * making prefix-based exploration natural for UIs.</p>
+     *
+     * <p>When the node limit is reached, unexpanded subtrees are represented as
+     * {@link TreeNode.TruncatedTreeNode} instances, which contain the hash and
+     * metadata needed to request expansion later.</p>
+     *
+     * <p><b>Example usage:</b></p>
+     * <pre>{@code
+     * // Get root structure (limited to 100 nodes)
+     * TreeNode root = trie.getTreeStructure(new int[]{}, 100);
+     *
+     * // Explore subtree under nibble 5
+     * TreeNode subtree = trie.getTreeStructure(new int[]{5}, 100);
+     *
+     * // Explore deeper: nibbles 5, a (10), 3
+     * TreeNode deeper = trie.getTreeStructure(new int[]{5, 10, 3}, 100);
+     *
+     * // Handle truncated nodes for further expansion
+     * if (node instanceof TreeNode.TruncatedTreeNode truncated) {
+     *     // Request subtree at this path
+     *     TreeNode expanded = trie.getTreeStructure(pathToNode, 100);
+     * }
+     * }</pre>
+     *
+     * @param nibblePrefix path of nibbles (0-15) to navigate, empty array for root
+     * @param maxNodes     maximum nodes to include (must be positive)
+     * @return tree structure starting at prefix, or null if prefix not found or trie is empty
+     * @throws IllegalArgumentException if maxNodes is not positive or any nibble is out of range [0-15]
+     * @since 0.8.0
+     */
+    public TreeNode getTreeStructure(int[] nibblePrefix, int maxNodes) {
+        if (maxNodes <= 0) {
+            throw new IllegalArgumentException("maxNodes must be positive: " + maxNodes);
+        }
+        for (int nibble : nibblePrefix) {
+            if (nibble < 0 || nibble > 15) {
+                throw new IllegalArgumentException("nibble out of range [0-15]: " + nibble);
+            }
+        }
+        return impl.getTreeStructure(nibblePrefix, maxNodes);
+    }
+
+    /**
      * Returns a JSON representation of the tree structure.
      *
      * <p>This convenience method combines {@link #getTreeStructure()} with JSON

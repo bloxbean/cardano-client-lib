@@ -59,7 +59,8 @@ import java.util.Map;
 @JsonSubTypes({
         @JsonSubTypes.Type(value = TreeNode.BranchTreeNode.class, name = "branch"),
         @JsonSubTypes.Type(value = TreeNode.ExtensionTreeNode.class, name = "extension"),
-        @JsonSubTypes.Type(value = TreeNode.LeafTreeNode.class, name = "leaf")
+        @JsonSubTypes.Type(value = TreeNode.LeafTreeNode.class, name = "leaf"),
+        @JsonSubTypes.Type(value = TreeNode.TruncatedTreeNode.class, name = "truncated")
 })
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public abstract class TreeNode {
@@ -275,6 +276,87 @@ public abstract class TreeNode {
         @JsonProperty("originalKey")
         public String getOriginalKey() {
             return originalKey;
+        }
+    }
+
+    /**
+     * Represents a truncated node that wasn't fully expanded due to node count limits.
+     *
+     * <p>When using {@link MpfTrie#getTreeStructure(int[], int)} with a maxNodes limit,
+     * subtrees that exceed the limit are represented as TruncatedTreeNode instances.
+     * This allows incremental exploration of large tries by providing the hash and
+     * metadata needed to request the truncated subtree later.</p>
+     *
+     * <p><b>Example usage:</b></p>
+     * <pre>{@code
+     * // Get root with limit of 100 nodes
+     * TreeNode root = trie.getTreeStructure(new int[]{}, 100);
+     *
+     * // Check for truncated nodes
+     * if (node instanceof TreeNode.TruncatedTreeNode truncated) {
+     *     // Get the nibble path to this node and request its subtree
+     *     TreeNode subtree = trie.getTreeStructure(pathToNode, 100);
+     * }
+     * }</pre>
+     *
+     * @since 0.8.0
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static final class TruncatedTreeNode extends TreeNode {
+        private final String hash;
+        private final String nodeType;
+        private final int childCount;
+
+        /**
+         * Creates a new truncated tree node.
+         *
+         * @param hash       the hash of this node (hex string) for later expansion
+         * @param nodeType   the actual type of this node ("branch", "extension", or "leaf")
+         * @param childCount number of non-null children (for branch nodes), 1 for extension, 0 for leaf
+         */
+        public TruncatedTreeNode(String hash, String nodeType, int childCount) {
+            this.hash = hash;
+            this.nodeType = nodeType;
+            this.childCount = childCount;
+        }
+
+        @Override
+        @JsonProperty("type")
+        public String getType() {
+            return "truncated";
+        }
+
+        /**
+         * Gets the hash of this truncated node for later expansion.
+         *
+         * @return the hash as a hex string
+         */
+        @JsonProperty("hash")
+        public String getHash() {
+            return hash;
+        }
+
+        /**
+         * Gets the actual node type that was truncated.
+         *
+         * @return the node type ("branch", "extension", or "leaf")
+         */
+        @JsonProperty("nodeType")
+        public String getNodeType() {
+            return nodeType;
+        }
+
+        /**
+         * Gets the number of children this node has.
+         *
+         * <p>For branch nodes, this is the count of non-null children (0-16).
+         * For extension nodes, this is always 1. For leaf nodes, this is 0.</p>
+         *
+         * @return the child count
+         */
+        @JsonProperty("childCount")
+        public int getChildCount() {
+            return childCount;
         }
     }
 }

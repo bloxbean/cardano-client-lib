@@ -932,4 +932,79 @@ public final class MpfTrieImpl {
         return rootNode.accept(visitor);
     }
 
+    /**
+     * Returns tree structure for a subtree at the given nibble prefix.
+     *
+     * <p>This method enables incremental exploration of large tries by navigating
+     * to a specific node using a nibble prefix path and building the tree structure
+     * from that point with an optional node count limit.</p>
+     *
+     * <p>The navigation follows the trie structure:
+     * <ul>
+     *   <li>For branch nodes: the nibble selects which child to follow</li>
+     *   <li>For extension nodes: the prefix must match the extension path</li>
+     *   <li>For leaf nodes: navigation stops (no children)</li>
+     * </ul>
+     *
+     * @param nibblePrefix the path of nibbles (0-15) to navigate, empty for root
+     * @param maxNodes     maximum nodes to include (-1 for unlimited, must be positive when specified)
+     * @return tree structure starting at prefix, or null if prefix not found or trie empty
+     * @since 0.8.0
+     */
+    TreeNode getTreeStructure(int[] nibblePrefix, int maxNodes) {
+        if (root == null) {
+            return null;
+        }
+
+        // Navigate to the node at prefix
+        byte[] currentHash = root;
+        int prefixPos = 0;
+
+        while (prefixPos < nibblePrefix.length && currentHash != null) {
+            Node node = persistence.load(NodeHash.of(currentHash));
+            if (node == null) {
+                return null;
+            }
+
+            if (node instanceof BranchNode) {
+                BranchNode branch = (BranchNode) node;
+                int nibble = nibblePrefix[prefixPos];
+                byte[] childHash = branch.getChild(nibble);
+                if (childHash == null || childHash.length == 0) {
+                    return null; // Prefix path doesn't exist
+                }
+                currentHash = childHash;
+                prefixPos++;
+            } else if (node instanceof ExtensionNode) {
+                ExtensionNode ext = (ExtensionNode) node;
+                Nibbles.HP hp = Nibbles.unpackHP(ext.getHp());
+                int[] extNibbles = hp.nibbles;
+
+                // Check if extension path matches remaining prefix
+                for (int i = 0; i < extNibbles.length && prefixPos < nibblePrefix.length; i++) {
+                    if (extNibbles[i] != nibblePrefix[prefixPos]) {
+                        return null; // Path diverges
+                    }
+                    prefixPos++;
+                }
+                currentHash = ext.getChild();
+            } else {
+                // Leaf node - can't navigate further
+                break;
+            }
+        }
+
+        // Build tree from current node
+        Node targetNode = persistence.load(NodeHash.of(currentHash));
+        if (targetNode == null) {
+            return null;
+        }
+
+        TreeStructureVisitor visitor = maxNodes > 0
+                ? new TreeStructureVisitor(persistence, currentHash, maxNodes)
+                : new TreeStructureVisitor(persistence, currentHash);
+        return targetNode.accept(visitor);
+    }
+
 }
+
