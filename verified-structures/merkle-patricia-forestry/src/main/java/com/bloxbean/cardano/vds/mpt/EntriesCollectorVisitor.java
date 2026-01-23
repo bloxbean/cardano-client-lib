@@ -18,11 +18,18 @@ import java.util.List;
  * <p>The collected entries contain the hashed keys (not original keys) since MpfTrie
  * hashes all keys before storage using Blake2b-256.</p>
  *
- * <p><b>Usage:</b></p>
+ * <p><b>Usage (unlimited):</b></p>
  * <pre>{@code
  * EntriesCollectorVisitor visitor = new EntriesCollectorVisitor(persistence);
  * rootNode.accept(visitor);
  * List<MpfTrie.Entry> entries = visitor.getEntries();
+ * }</pre>
+ *
+ * <p><b>Usage (limited):</b></p>
+ * <pre>{@code
+ * EntriesCollectorVisitor visitor = new EntriesCollectorVisitor(persistence, 100);
+ * rootNode.accept(visitor);
+ * List<MpfTrie.Entry> entries = visitor.getEntries(); // at most 100 entries
  * }</pre>
  *
  * @since 0.8.0
@@ -31,16 +38,25 @@ final class EntriesCollectorVisitor implements NodeVisitor<Void> {
     private final NodePersistence persistence;
     private final Deque<Integer> pathAccumulator;
     private final List<MpfTrie.Entry> entries;
+    private final int limit;  // -1 for unlimited
 
     /**
-     * Creates a new entries collector visitor.
+     * Creates a new entries collector visitor with no limit.
      *
      * @param persistence the node persistence layer for loading child nodes
      */
     public EntriesCollectorVisitor(NodePersistence persistence) {
-        this.persistence = persistence;
-        this.pathAccumulator = new ArrayDeque<>();
-        this.entries = new ArrayList<>();
+        this(persistence, new ArrayDeque<>(), new ArrayList<>(), -1);
+    }
+
+    /**
+     * Creates a new entries collector visitor with a limit.
+     *
+     * @param persistence the node persistence layer for loading child nodes
+     * @param limit       maximum number of entries to collect (must be positive)
+     */
+    public EntriesCollectorVisitor(NodePersistence persistence, int limit) {
+        this(persistence, new ArrayDeque<>(), new ArrayList<>(), limit);
     }
 
     /**
@@ -49,17 +65,34 @@ final class EntriesCollectorVisitor implements NodeVisitor<Void> {
      * @param persistence     the node persistence layer
      * @param pathAccumulator the shared path accumulator
      * @param entries         the shared entries list
+     * @param limit           maximum number of entries to collect (-1 for unlimited)
      */
     private EntriesCollectorVisitor(NodePersistence persistence,
                                     Deque<Integer> pathAccumulator,
-                                    List<MpfTrie.Entry> entries) {
+                                    List<MpfTrie.Entry> entries,
+                                    int limit) {
         this.persistence = persistence;
         this.pathAccumulator = pathAccumulator;
         this.entries = entries;
+        this.limit = limit;
+    }
+
+    /**
+     * Checks if the collection limit has been reached.
+     *
+     * @return true if limit is set and entries.size() >= limit
+     */
+    private boolean limitReached() {
+        return limit > 0 && entries.size() >= limit;
     }
 
     @Override
     public Void visitLeaf(LeafNode leaf) {
+        // Early termination if limit reached
+        if (limitReached()) {
+            return null;
+        }
+
         // Unpack HP-encoded suffix nibbles
         Nibbles.HP hp = Nibbles.unpackHP(leaf.getHp());
         int[] leafNibbles = hp.nibbles;
@@ -89,18 +122,23 @@ final class EntriesCollectorVisitor implements NodeVisitor<Void> {
 
     @Override
     public Void visitBranch(BranchNode branch) {
+        // Early termination if limit reached
+        if (limitReached()) {
+            return null;
+        }
+
         // Note: In MpfTrie, branch nodes do not have values (all keys are hashed to 32 bytes,
         // so all values are stored exclusively in leaf nodes at depth 64).
         // However, we handle branch values for completeness in case of non-MpfTrie usage.
         byte[] branchValue = branch.getValue();
-        if (branchValue != null) {
+        if (branchValue != null && !limitReached()) {
             int[] fullPath = toArray(pathAccumulator);
             byte[] key = Nibbles.fromNibbles(fullPath);
             entries.add(new MpfTrie.Entry(key, branchValue));
         }
 
-        // Traverse all non-null children (0-15)
-        for (int i = 0; i < 16; i++) {
+        // Traverse all non-null children (0-15), stopping early if limit reached
+        for (int i = 0; i < 16 && !limitReached(); i++) {
             byte[] childHash = branch.getChild(i);
             if (childHash != null && childHash.length > 0) {
                 // Push nibble to path
@@ -110,7 +148,7 @@ final class EntriesCollectorVisitor implements NodeVisitor<Void> {
                 Node childNode = persistence.load(NodeHash.of(childHash));
                 if (childNode != null) {
                     EntriesCollectorVisitor childVisitor =
-                            new EntriesCollectorVisitor(persistence, pathAccumulator, entries);
+                            new EntriesCollectorVisitor(persistence, pathAccumulator, entries, limit);
                     childNode.accept(childVisitor);
                 }
 
@@ -124,6 +162,11 @@ final class EntriesCollectorVisitor implements NodeVisitor<Void> {
 
     @Override
     public Void visitExtension(ExtensionNode extension) {
+        // Early termination if limit reached
+        if (limitReached()) {
+            return null;
+        }
+
         // Unpack HP-encoded nibbles
         Nibbles.HP hp = Nibbles.unpackHP(extension.getHp());
         int[] extNibbles = hp.nibbles;
@@ -139,7 +182,7 @@ final class EntriesCollectorVisitor implements NodeVisitor<Void> {
             Node childNode = persistence.load(NodeHash.of(childHash));
             if (childNode != null) {
                 EntriesCollectorVisitor childVisitor =
-                        new EntriesCollectorVisitor(persistence, pathAccumulator, entries);
+                        new EntriesCollectorVisitor(persistence, pathAccumulator, entries, limit);
                 childNode.accept(childVisitor);
             }
         }

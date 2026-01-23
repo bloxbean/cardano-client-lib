@@ -152,6 +152,117 @@ class TraversalVisitorsTest {
         assertTrue(foundValue2, "Expected to find value2");
     }
 
+    // ===== getEntries(limit) tests =====
+
+    @Test
+    void getEntries_withLimit_returnsExactCount() {
+        // Insert 10 entries
+        for (int i = 0; i < 10; i++) {
+            trie.put(b("key" + i), b("value" + i));
+        }
+
+        // Request only 5 entries
+        List<MpfTrie.Entry> entries = trie.getEntries(5);
+
+        assertEquals(5, entries.size());
+    }
+
+    @Test
+    void getEntries_limitExceedsTotal_returnsAllEntries() {
+        // Insert 5 entries
+        for (int i = 0; i < 5; i++) {
+            trie.put(b("key" + i), b("value" + i));
+        }
+
+        // Request 100 entries (more than available)
+        List<MpfTrie.Entry> entries = trie.getEntries(100);
+
+        assertEquals(5, entries.size());
+    }
+
+    @Test
+    void getEntries_emptyTrie_returnsEmptyList() {
+        List<MpfTrie.Entry> entries = trie.getEntries(10);
+
+        assertNotNull(entries);
+        assertTrue(entries.isEmpty());
+    }
+
+    @Test
+    void getEntries_limitOne_returnsSingleEntry() {
+        trie.put(b("key1"), b("value1"));
+        trie.put(b("key2"), b("value2"));
+        trie.put(b("key3"), b("value3"));
+
+        List<MpfTrie.Entry> entries = trie.getEntries(1);
+
+        assertEquals(1, entries.size());
+    }
+
+    @Test
+    void getEntries_invalidLimit_throwsException() {
+        assertThrows(IllegalArgumentException.class, () -> trie.getEntries(0));
+        assertThrows(IllegalArgumentException.class, () -> trie.getEntries(-1));
+        assertThrows(IllegalArgumentException.class, () -> trie.getEntries(-100));
+    }
+
+    @Test
+    void getEntries_largeNumberWithSmallLimit_returnsLimitedEntries() {
+        // Insert 100 entries
+        int numEntries = 100;
+        for (int i = 0; i < numEntries; i++) {
+            trie.put(b("entry-" + i), b("data-" + i));
+        }
+
+        // Request various limits
+        assertEquals(10, trie.getEntries(10).size());
+        assertEquals(25, trie.getEntries(25).size());
+        assertEquals(50, trie.getEntries(50).size());
+        assertEquals(100, trie.getEntries(100).size());
+        assertEquals(100, trie.getEntries(200).size()); // exceeds total
+    }
+
+    @Test
+    void getEntries_withOriginalKeyStorage_preservesOriginalKeys() {
+        TestNodeStore storeWithKeys = new TestNodeStore();
+        MpfTrie trieWithKeys = MpfTrie.withOriginalKeyStorage(storeWithKeys);
+
+        for (int i = 0; i < 10; i++) {
+            trieWithKeys.put(b("key" + i), b("value" + i));
+        }
+
+        List<MpfTrie.Entry> entries = trieWithKeys.getEntries(5);
+
+        assertEquals(5, entries.size());
+        for (MpfTrie.Entry entry : entries) {
+            assertNotNull(entry.getOriginalKey(), "Original key should be preserved");
+        }
+    }
+
+    @Test
+    void getEntries_afterDeletion_returnsCorrectLimitedEntries() {
+        // Insert 10 entries
+        for (int i = 0; i < 10; i++) {
+            trie.put(b("key" + i), b("value" + i));
+        }
+
+        // Delete 3 entries
+        trie.delete(b("key0"));
+        trie.delete(b("key5"));
+        trie.delete(b("key9"));
+
+        // Should have 7 entries total
+        assertEquals(7, trie.getAllEntries().size());
+
+        // Request 5 entries
+        List<MpfTrie.Entry> entries = trie.getEntries(5);
+        assertEquals(5, entries.size());
+
+        // Request all remaining
+        entries = trie.getEntries(100);
+        assertEquals(7, entries.size());
+    }
+
     // ===== printTree() tests =====
 
     @Test

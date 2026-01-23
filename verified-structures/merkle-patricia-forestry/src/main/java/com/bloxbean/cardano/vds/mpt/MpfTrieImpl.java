@@ -828,6 +828,34 @@ public final class MpfTrieImpl {
     }
 
     /**
+     * Collects up to the specified number of key-value entries from the trie.
+     *
+     * <p>This method traverses the trie in depth-first order and returns at most
+     * {@code limit} entries. The keys in the returned entries are the hashed keys
+     * (since MpfTrie hashes all keys before storage), not the original keys.</p>
+     *
+     * <p>This method is useful for large tries where loading all entries would be
+     * memory-intensive.</p>
+     *
+     * @param limit maximum number of entries to return
+     * @return list of up to {@code limit} entries in the trie, empty list if trie is empty
+     */
+    List<MpfTrie.Entry> getEntries(int limit) {
+        if (root == null) {
+            return Collections.emptyList();
+        }
+
+        Node rootNode = persistence.load(NodeHash.of(root));
+        if (rootNode == null) {
+            return Collections.emptyList();
+        }
+
+        EntriesCollectorVisitor visitor = new EntriesCollectorVisitor(persistence, limit);
+        rootNode.accept(visitor);
+        return visitor.getEntries();
+    }
+
+    /**
      * Returns statistics about the trie structure using the {@link StatisticsVisitor}.
      *
      * <p>This method is more efficient than {@link #getAllEntries()} when only

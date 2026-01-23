@@ -340,6 +340,37 @@ public final class MpfTrie {
     }
 
     /**
+     * Returns up to the specified number of entries from the trie.
+     *
+     * <p>This method is useful for large tries where loading all entries would be
+     * memory-intensive. Entries are returned in depth-first traversal order.</p>
+     *
+     * <p>Note that the keys in the returned entries are the Blake2b-256 hashed keys,
+     * not the original keys (since MpfTrie hashes all keys before storage).</p>
+     *
+     * <p><b>Example usage:</b></p>
+     * <pre>{@code
+     * // Get first 100 entries for sampling
+     * List<MpfTrie.Entry> sample = trie.getEntries(100);
+     *
+     * // Process entries in batches
+     * int batchSize = 1000;
+     * List<MpfTrie.Entry> batch = trie.getEntries(batchSize);
+     * }</pre>
+     *
+     * @param limit maximum number of entries to return (must be positive)
+     * @return list of up to limit entries, empty list if trie is empty
+     * @throws IllegalArgumentException if limit is not positive
+     * @since 0.8.0
+     */
+    public List<Entry> getEntries(int limit) {
+        if (limit <= 0) {
+            throw new IllegalArgumentException("limit must be positive: " + limit);
+        }
+        return impl.getEntries(limit);
+    }
+
+    /**
      * Returns statistics about the trie structure.
      *
      * <p>This method is more efficient than {@link #getAllEntries()} when only
