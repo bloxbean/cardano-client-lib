@@ -1,0 +1,46 @@
+.features {
+  padding: 4rem 0;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.featureCard {
+  text-align: center;
+  padding: 2rem;
+}
+
+.featureImage {
+  margin-bottom: 1rem;
+}
+
+.featureImage img {
+  width: 200px;
+  height: 200px;
+  object-fit: contain;
+}
+
+.featureContent h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+}
+
+.featureContent p {
+  color: var(--gray-11);
+  margin: 0;
+}
