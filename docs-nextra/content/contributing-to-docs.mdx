@@ -1,0 +1,226 @@
+---
+title: Contributing to Docs
+description: Guide for contributing to Cardano Client Lib documentation
+---
+
+# Contributing to Documentation
+
+This guide explains how the documentation is structured and how to contribute updates.
+
+---
+
+## Technology Stack
+
+The documentation is built with:
+
+- **[Nextra 4](https://nextra.site/)** - Documentation framework built on Next.js
+- **[MDX](https://mdxjs.com/)** - Markdown with JSX support
+- **[Next.js 15](https://nextjs.org/)** - React framework
+
+---
+
+## Project Structure
+
+```text
+docs-nextra/
+├── app/                    # Next.js app directory
+│   ├── docs/              # Docs route configuration
+│   ├── globals.css        # Global styles
+│   ├── layout.jsx         # Root layout
+│   └── page.jsx           # Landing page
+├── content/               # Documentation content (MDX files)
+│   ├── _meta.js           # Root navigation config
+│   ├── index.mdx          # Introduction page
+│   ├── gettingstarted/    # Getting Started section
+│   ├── apis/              # APIs section
+│   ├── annotations/       # Annotations section
+│   ├── integrations/      # Integrations section
+│   └── guides/            # Guides section
+├── package.json
+└── next.config.mjs
+```
+
+---
+
+## Running Locally
+
+### Install Dependencies
+
+```bash
+cd docs-nextra
+npm install
+```
+
+### Start Development Server
+
+```bash
+npm run dev
+```
+
+The documentation will be available at `http://localhost:3000`.
+
+### Build for Production
+
+```bash
+npm run build
+```
+
+---
+
+## Adding and Editing Pages
+
+### Creating a New Page
+
+1. Create a new `.mdx` file in the appropriate folder under `content/`
+2. Add frontmatter at the top of the file:
+
+```mdx
+---
+title: Page Title
+description: Brief description for SEO
+---
+
+# Page Title
+
+Your content here...
+```
+
+3. Update the `_meta.js` file in the same folder to include your page in the navigation
+
+### Editing Existing Pages
+
+Simply edit the `.mdx` file directly. Changes will be reflected immediately in development mode.
+
+---
+
+## Navigation Configuration
+
+Navigation is controlled by `_meta.js` files in each folder.
+
+### Root Navigation (`content/_meta.js`)
+
+```javascript
+export default {
+  index: {
+    title: 'Introduction'
+  },
+  gettingstarted: {
+    title: 'Getting Started'
+  },
+  apis: {
+    title: 'APIs'
+  },
+  '---': {
+    type: 'separator'
+  },
+  'support-this-project': {
+    title: 'Support This Project'
+  }
+}
+```
+
+### Section Navigation
+
+Each subfolder can have its own `_meta.js` to control page order:
+
+```javascript
+// content/guides/_meta.js
+export default {
+  'nft-minting': 'NFT Minting',
+  'smart-contract-calls': 'Smart Contract Calls'
+}
+```
+
+---
+
+## MDX Features
+
+### Code Blocks
+
+Use triple backticks with language specification:
+
+````mdx
+```java
+public class Example {
+    public static void main(String[] args) {
+        System.out.println("Hello, Cardano!");
+    }
+}
+```
+````
+
+### Info Callouts
+
+Use blockquotes for info boxes:
+
+```mdx
+> **Important Note**
+>
+> This will render as a styled info box with an icon.
+```
+
+### Links
+
+```mdx
+[External Link](https://example.com)
+[Internal Link](/docs/gettingstarted/installation)
+```
+
+### Collapsible Sections
+
+```mdx
+<details>
+<summary>Click to expand</summary>
+
+Hidden content goes here...
+
+</details>
+```
+
+### Styled Cards
+
+```jsx
+<div style={{
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+  gap: '1rem'
+}}>
+
+<a href="https://example.com" style={{
+  display: 'block',
+  padding: '1.25rem',
+  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
+  border: '1px solid rgba(59, 130, 246, 0.2)',
+  borderRadius: '12px',
+  textDecoration: 'none',
+  color: 'inherit'
+}}>
+  <div style={{ fontWeight: '600' }}>Card Title</div>
+  <div style={{ fontSize: '0.85rem', opacity: '0.8' }}>Card description</div>
+</a>
+
+</div>
+```
+
+---
+
+## Best Practices
+
+1. **Keep pages focused** - Each page should cover a single topic
+2. **Use descriptive titles** - Titles should clearly indicate the content
+3. **Include code examples** - Practical examples help users understand concepts
+4. **Link related pages** - Help users discover related content
+5. **Update navigation** - Always update `_meta.js` when adding new pages
+6. **Test locally** - Preview changes before submitting a PR
+
+---
+
+## Submitting Changes
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test locally with `npm run dev`
+5. Submit a pull request to the main repository
+
+For questions or suggestions, please [open an issue](https://github.com/bloxbean/cardano-client-lib/issues).
