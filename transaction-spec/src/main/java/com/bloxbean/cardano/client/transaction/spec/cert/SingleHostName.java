@@ -11,14 +11,14 @@ import lombok.*;
 @ToString
 @Builder
 public class SingleHostName implements Relay {
-    private int port;
+    private Integer port;
     private String dnsName;
 
     public Array serialize() throws CborSerializationException {
         Array array = new Array();
         array.add(new UnsignedInteger(1));
 
-        if (port != 0)
+        if (port != null && port != 0)
             array.add(new UnsignedInteger(port));
         else
             array.add(SimpleValue.NULL);
