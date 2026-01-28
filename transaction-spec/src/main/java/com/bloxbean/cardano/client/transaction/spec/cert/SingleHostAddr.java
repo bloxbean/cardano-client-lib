@@ -5,10 +5,6 @@ import co.nstant.in.cbor.model.ByteString;
 import co.nstant.in.cbor.model.SimpleValue;
 import co.nstant.in.cbor.model.UnsignedInteger;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
-import com.bloxbean.cardano.client.util.serializers.InetAddressDeserializer;
-import com.bloxbean.cardano.client.util.serializers.InetAddressSerializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 
 import java.net.Inet4Address;
@@ -21,7 +17,7 @@ import java.net.Inet6Address;
 @ToString
 @Builder
 public class SingleHostAddr implements Relay {
-    private int port;
+    private Integer port;
 
     @JsonSerialize(using = InetAddressSerializer.class)
     @JsonDeserialize(using = InetAddressDeserializer.class)
@@ -35,7 +31,7 @@ public class SingleHostAddr implements Relay {
         Array array = new Array();
         array.add(new UnsignedInteger(0));
 
-        if (port != 0)
+        if (port != null && port != 0)
             array.add(new UnsignedInteger(port));
         else
             array.add(SimpleValue.NULL);
