@@ -2,6 +2,8 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookupFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
@@ -34,11 +36,13 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
     private ValidatorProcessor validatorProcessor;
     private FieldSpecProcessor fieldSpecProcessor;
     private final GeneratedTypesRegistry generatedTypesRegistry = new GeneratedTypesRegistry();
+    private SharedTypeLookup sharedTypeLookup;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         messager = processingEnv.getMessager();
+        sharedTypeLookup = SharedTypeLookupFactory.create(processingEnv);
     }
 
     @Override
@@ -76,8 +80,8 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 return false;
             } else {
                 generatedTypesRegistry.clear();
-                validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry);
-                fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry);
+                validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup);
+                fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup);
             }
 
 

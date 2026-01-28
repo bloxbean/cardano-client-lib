@@ -38,3 +38,5 @@ include 'integration-test'
 include 'supplier'
 include 'supplier:ogmios-supplier'
 include 'supplier:kupo-supplier'
+
+include ':plutus-aiken'

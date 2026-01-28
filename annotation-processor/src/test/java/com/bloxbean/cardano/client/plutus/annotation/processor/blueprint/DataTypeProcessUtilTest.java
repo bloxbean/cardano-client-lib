@@ -1,10 +1,12 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.TypeName;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,9 +15,9 @@ import org.junit.jupiter.api.Test;
 import java.lang.annotation.Annotation;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -25,13 +27,32 @@ class DataTypeProcessUtilTest {
 
     private FieldSpecProcessor fieldSpecProcessor;
     private DataTypeProcessUtil dataTypeProcessUtil;
+    private SharedTypeLookup sharedTypeLookup;
 
     @BeforeEach
     void setup() {
         fieldSpecProcessor = mock(FieldSpecProcessor.class);
         NameStrategy nameStrategy = new NameStrategy();
         PackageResolver packageResolver = new PackageResolver();
-        dataTypeProcessUtil = new DataTypeProcessUtil(fieldSpecProcessor, blueprint("com.test.blueprint"), nameStrategy, packageResolver);
+        sharedTypeLookup = SharedTypeLookup.disabled();
+        dataTypeProcessUtil = new DataTypeProcessUtil(fieldSpecProcessor, blueprint("com.test.blueprint"), nameStrategy, packageResolver, sharedTypeLookup);
+    }
+
+    @Test
+    void generateFieldSpecs_shouldUseSharedTypeWhenAvailable() {
+        sharedTypeLookup = (namespace, schema) -> Optional.of(ClassName.get("com.example", "Shared"));
+        NameStrategy nameStrategy = new NameStrategy();
+        PackageResolver packageResolver = new PackageResolver();
+        dataTypeProcessUtil = new DataTypeProcessUtil(fieldSpecProcessor, blueprint("com.test.blueprint"), nameStrategy, packageResolver, sharedTypeLookup);
+
+        BlueprintSchema schema = new BlueprintSchema();
+        schema.setTitle("shared_value");
+
+        List<FieldSpec> specs = dataTypeProcessUtil.generateFieldSpecs("ns", "", schema, "", "shared_value");
+
+        assertThat(specs).hasSize(1);
+        assertThat(specs.get(0).type).isEqualTo(ClassName.get("com.example", "Shared"));
+        assertThat(specs.get(0).name).isEqualTo("sharedValue");
     }
 
     @Test

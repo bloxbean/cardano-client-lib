@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classif
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassificationResult;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModel;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
@@ -39,8 +40,9 @@ public class FieldSpecProcessor {
     private final DatumModelFactory datumModelFactory;
     private final SourceWriter sourceWriter;
     private final GeneratedTypesRegistry generatedTypesRegistry;
+    private final SharedTypeLookup sharedTypeLookup;
 
-    public FieldSpecProcessor(Blueprint annotation, ProcessingEnvironment processingEnv, GeneratedTypesRegistry generatedTypesRegistry) {
+    public FieldSpecProcessor(Blueprint annotation, ProcessingEnvironment processingEnv, GeneratedTypesRegistry generatedTypesRegistry, SharedTypeLookup sharedTypeLookup) {
         this.annotation = annotation;
         this.processingEnv = processingEnv;
         this.nameStrategy = new NameStrategy();
@@ -48,7 +50,8 @@ public class FieldSpecProcessor {
         this.datumModelFactory = new DatumModelFactory(nameStrategy);
         this.sourceWriter = new SourceWriter(processingEnv);
         this.generatedTypesRegistry = generatedTypesRegistry;
-        this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver);
+        this.sharedTypeLookup = sharedTypeLookup;
+        this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver, sharedTypeLookup);
     }
 
     /**
@@ -60,6 +63,10 @@ public class FieldSpecProcessor {
      */
     public void createDatumClass(String ns, BlueprintSchema schema) {
         if (schema == null || schema.getTitle() == null || schema.getTitle().isEmpty()) {
+            return;
+        }
+
+        if (sharedTypeLookup.lookup(ns, schema).isPresent()) {
             return;
         }
 
@@ -132,6 +139,10 @@ public class FieldSpecProcessor {
      * @return ClassName of the inner class
      */
     public ClassName getInnerDatumClass(String ns, BlueprintSchema schema) {
+        var sharedType = sharedTypeLookup.lookup(ns, schema);
+        if (sharedType.isPresent())
+            return sharedType.get();
+
         String dataClassName = schema.getTitle();
 
         if (dataClassName != null)
@@ -222,7 +233,16 @@ public class FieldSpecProcessor {
      * @return Tuple of FieldSpec and ClassName of the field
      */
     public Tuple<FieldSpec, ClassName> createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String title) {
-        String classNameString = nameStrategy.toClassName(title);//JavaFileUtil.buildClassName(schema, suffix, title, prefix);
+        var sharedType = sharedTypeLookup.lookup(ns, schema);
+        if (sharedType.isPresent()) {
+            String fieldName = nameStrategy.firstLowerCase(nameStrategy.toCamelCase(title));
+            FieldSpec fieldSpec = FieldSpec.builder(sharedType.get(), fieldName)
+                    .addModifiers(Modifier.PRIVATE)
+                    .build();
+            return new Tuple<>(fieldSpec, sharedType.get());
+        }
+
+        String classNameString = nameStrategy.toClassName(title);
         TypeSpec redeemerJavaFile = createDatumTypeSpec(ns, interfaceName, schema);
 
         String className = redeemerJavaFile.name;

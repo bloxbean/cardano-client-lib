@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.datatype.*;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
@@ -14,6 +15,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import javax.lang.model.element.Modifier;
 
 /**
  * Dispatches schema field generation to datatype-specific processors while sharing
@@ -26,14 +28,17 @@ public class DataTypeProcessUtil {
     private final NameStrategy nameStrategy;
     private final Map<BlueprintDatatype, DataTypeProcessor> processors;
     private final DataTypeProcessor plutusDataTypeProcessor;
+    private final SharedTypeLookup sharedTypeLookup;
 
     public DataTypeProcessUtil(FieldSpecProcessor fieldSpecProcessor,
                                Blueprint annotation,
                                NameStrategy nameStrategy,
-                               PackageResolver packageResolver) {
+                               PackageResolver packageResolver,
+                               SharedTypeLookup sharedTypeLookup) {
         this.fieldSpecProcessor = fieldSpecProcessor;
         this.annotation = annotation;
         this.nameStrategy = nameStrategy;
+        this.sharedTypeLookup = sharedTypeLookup;
 
         SchemaTypeResolver typeResolver = new SchemaTypeResolver(fieldSpecProcessor);
         this.processors = new EnumMap<>(BlueprintDatatype.class);
@@ -79,6 +84,15 @@ public class DataTypeProcessUtil {
             resolvedAlternativeName = determineAlternativeName(schema, 0);
         }
 
+        var sharedType = sharedTypeLookup.lookup(namespace, schema);
+        if (sharedType.isPresent()) {
+            FieldSpec.Builder builder = FieldSpec.builder(sharedType.get(), resolveFieldName(schema, resolvedAlternativeName))
+                    .addModifiers(Modifier.PRIVATE);
+            if (javaDoc != null && !javaDoc.isBlank())
+                builder.addJavadoc(javaDoc);
+            return List.of(builder.build());
+        }
+
         DataTypeProcessingContext context = new DataTypeProcessingContext(namespace, javaDoc, schema, className, resolvedAlternativeName);
         if (schema.getDataType() == null) {
             return plutusDataTypeProcessor.process(context);
@@ -114,5 +128,14 @@ public class DataTypeProcessUtil {
             return schema.getDataType().name().toLowerCase(Locale.ROOT) + index;
 
         return "field" + index;
+    }
+
+    private String resolveFieldName(BlueprintSchema schema, String alternativeName) {
+        String title = schema != null ? schema.getTitle() : null;
+        if (title == null || title.isBlank())
+            title = alternativeName;
+        if (title == null || title.isBlank())
+            title = "field";
+        return nameStrategy.firstLowerCase(nameStrategy.toCamelCase(title));
     }
 }

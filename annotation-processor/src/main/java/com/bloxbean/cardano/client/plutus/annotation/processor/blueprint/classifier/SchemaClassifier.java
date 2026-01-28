@@ -59,7 +59,12 @@ public class SchemaClassifier {
     }
 
     private boolean isOptionType(BlueprintSchema schema) {
-        if (!"Option".equals(schema.getTitle()))
+        String title = schema.getTitle();
+        if (title == null)
+            return false;
+
+        boolean optionTitle = "Option".equals(title) || "Optional".equals(title);
+        if (!optionTitle)
             return false;
 
         if (schema.getAnyOf() == null || schema.getAnyOf().size() != 2)

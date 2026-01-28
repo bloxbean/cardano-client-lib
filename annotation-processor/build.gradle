@@ -1,5 +1,6 @@
 dependencies {
     api project(':plutus')
+    api project(':plutus-aiken')
     api project(':address')
     api project(':quicktx')
 

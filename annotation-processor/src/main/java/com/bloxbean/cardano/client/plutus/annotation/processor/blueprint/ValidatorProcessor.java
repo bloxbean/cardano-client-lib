@@ -8,9 +8,9 @@ import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModel;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
-import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
@@ -53,11 +53,11 @@ public class ValidatorProcessor {
     private final NameStrategy nameStrategy;
     private final String VALIDATOR_CLASS_SUFFIX = "Validator";
 
-    public ValidatorProcessor(Blueprint annotation, ExtendWith extendWith, ProcessingEnvironment processingEnv, GeneratedTypesRegistry generatedTypesRegistry) {
+    public ValidatorProcessor(Blueprint annotation, ExtendWith extendWith, ProcessingEnvironment processingEnv, GeneratedTypesRegistry generatedTypesRegistry, SharedTypeLookup sharedTypeLookup) {
         this.annotation = annotation;
         this.extendWith = extendWith;
         this.processingEnv = processingEnv;
-        this.fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry);
+        this.fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup);
         this.packageResolver = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver();
         this.sourceWriter = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter(processingEnv);
         this.errorReporter = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.ErrorReporter(processingEnv);
