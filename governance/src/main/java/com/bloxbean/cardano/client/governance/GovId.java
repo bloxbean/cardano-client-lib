@@ -92,8 +92,36 @@ public class GovId {
         }
     }
 
+    /**
+     * Generate a gov_action_id from a transaction hash and action index.
+     * <p>
+     * According to CIP-129, the gov_action_id is encoded as:
+     * transaction_id (32 bytes) + gov_action_index (variable length, minimum bytes needed)
+     * </p>
+     * <p>
+     * Examples from CIP-129 spec:
+     * - index 0 → "00" (1 byte)
+     * - index 17 → "11" (1 byte)
+     * - index 256 → "0100" (2 bytes, padded to even length)
+     * </p>
+     *
+     * @param txHash transaction hash (64 hex characters)
+     * @param index  gov action index (0-65535, uint16)
+     * @return bech32 encoded gov_action_id
+     * @throws IllegalArgumentException if index is out of range for uint16
+     */
     public static String govAction(String txHash, int index) {
+        if (index < 0 || index > 0xFFFF) {
+            throw new IllegalArgumentException(
+                "Gov action index must be in range 0-65535 (uint16), but got: " + index);
+        }
+
         String indexHex = String.format("%02x", index);
+        
+        // Ensure even-length hex string (required for HexUtil.decodeHexString)
+        if (indexHex.length() % 2 != 0) {
+            indexHex = "0" + indexHex;
+        }
 
         byte[] mergedBytes = HexUtil.decodeHexString(txHash + indexHex);
         return Bech32.encode(mergedBytes, GOV_ACTION_PREFIX);

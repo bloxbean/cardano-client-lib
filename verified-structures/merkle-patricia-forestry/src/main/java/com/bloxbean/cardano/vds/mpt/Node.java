@@ -1,0 +1,67 @@
+package com.bloxbean.cardano.vds.mpt;
+
+import com.bloxbean.cardano.vds.core.api.HashFunction;
+import com.bloxbean.cardano.vds.mpt.commitment.CommitmentScheme;
+
+/**
+ * Abstract base class for all Merkle Patricia Trie node types.
+ *
+ * <p>The MPT uses three types of nodes:</p>
+ * <ul>
+ *   <li>{@link LeafNode} - stores a key-value pair at the end of a path</li>
+ *   <li>{@link BranchNode} - provides 16-way branching for hexary trie structure</li>
+ *   <li>{@link ExtensionNode} - compresses paths by storing common prefixes</li>
+ * </ul>
+ *
+ * <p>All nodes are immutable once created and are identified by their content hash.
+ * The hash serves as both the node's identity and ensures data integrity in the
+ * distributed storage system.</p>
+ *
+ * <p>The visitor pattern is supported for type-safe operations on different node types:</p>
+ * <pre>
+ * T result = node.accept(new NodeVisitor&lt;T&gt;() {
+ *   public T visitLeaf(LeafNode leaf) { ... }
+ *   public T visitBranch(BranchNode branch) { ... }
+ *   public T visitExtension(ExtensionNode extension) { ... }
+ * });
+ * </pre>
+ *
+ */
+abstract class Node {
+
+    /**
+     * Computes the commitment (content hash) for this node using the configured
+     * MPF-compatible commitment scheme.
+     *
+     * @param hashFn      the hash function used for value hashing and neighbor mixes
+     * @param commitments the commitment scheme that maps node structure to digests
+     * @return the commitment digest representing this node
+     */
+    abstract byte[] commit(HashFunction hashFn, CommitmentScheme commitments);
+
+    /**
+     * Encodes this node to CBOR format for storage.
+     *
+     * <p>Each node type has a specific CBOR encoding format:</p>
+     * <ul>
+     *   <li>Leaf/Extension: 2-element array [HP-encoded path, value/child]</li>
+     *   <li>Branch: 17-element array [16 child hashes, optional value]</li>
+     * </ul>
+     *
+     * @return the CBOR-encoded byte representation of this node
+     */
+    abstract byte[] encode();
+
+    /**
+     * Accepts a visitor for type-safe operations on this node.
+     *
+     * <p>The visitor pattern allows performing operations on different node types
+     * without casting and provides compile-time safety. Each concrete node type
+     * implements this method to call the appropriate visitor method.</p>
+     *
+     * @param <T>     the return type of the visitor operation
+     * @param visitor the visitor to accept
+     * @return the result of the visitor operation
+     */
+    public abstract <T> T accept(NodeVisitor<T> visitor);
+}

@@ -1,0 +1,12 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    api project(':verified-structures:merkle-patricia-forestry')
+    api project(':verified-structures:rocksdb-core')
+    implementation(libs.rocksdbjni)
+    implementation(libs.slf4j.api)
+
+    testImplementation(libs.slf4j.reload4j)
+}

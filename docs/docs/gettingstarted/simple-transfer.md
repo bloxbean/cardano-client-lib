@@ -54,7 +54,7 @@ we just need sender account's mnemonic.
 
 ```java
 String senderMnemonic = "<24 words mnemonic>";
-Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
+Account senderAccount = Account.createFromMnemonic(Networks.testnet(), senderMnemonic);
 ```
 
 Similarly, we need two receiver addresses to receive some ada. Unlike other account-based blockchains, Cardano supports multiple outputs
@@ -103,7 +103,7 @@ or,
 **For Koios :**
 
 ```java
-BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
+BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREVIEW_URL);
 ```
 **Note:** You can find other Koios urls in ``com.bloxbean.cardano.client.backend.koios.Constants``
 
@@ -279,7 +279,7 @@ public class SimpleTransfer {
     public void transfer() throws Exception {
         //Sender account
         String senderMnemonic = "<24 words mnemonic>";
-        Account senderAccount = new Account(Networks.testnet(), senderMnemonic);
+        Account senderAccount = Account.createFromMnemonic(Networks.testnet(), senderMnemonic);
         String senderAddress = senderAccount.baseAddress();
 
         //Addresses to receive ada
@@ -292,7 +292,7 @@ public class SimpleTransfer {
                 new BFBackendService(Constants.BLOCKFROST_PREVIEW_URL, bf_projectId);
 
         // For Koios
-        // BackendService backendService = new KoiosBackendService(KOIOS_TESTNET_URL);
+        // BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREVIEW_URL);
 
         // Define expected Outputs
         Output output1 = Output.builder()

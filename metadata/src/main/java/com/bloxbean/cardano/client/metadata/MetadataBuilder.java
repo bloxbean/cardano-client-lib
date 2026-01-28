@@ -5,6 +5,8 @@ import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataList;
 import com.bloxbean.cardano.client.metadata.cbor.CBORMetadataMap;
 import com.bloxbean.cardano.client.metadata.helper.JsonNoSchemaToMetadataConverter;
 import com.bloxbean.cardano.client.metadata.helper.MetadataToJsonNoSchemaConverter;
+import com.bloxbean.cardano.client.metadata.helper.MetadataToYamlNoSchemaConverter;
+import com.bloxbean.cardano.client.metadata.helper.YamlNoSchemaToMetadataConverter;
 import com.bloxbean.cardano.client.util.JsonUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.*;
@@ -177,6 +179,99 @@ public class MetadataBuilder {
             return MetadataToJsonNoSchemaConverter.cborBytesToJson(serializedCbor);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid json format");
+        }
+    }
+
+    // YAML Conversion Methods
+
+    /**
+     * Converts a YAML string to a Metadata object.
+     *
+     * @param yaml the YAML string to be converted to a Metadata object
+     * @return a Metadata object generated from the provided YAML string
+     * @throws IllegalArgumentException if the YAML format is invalid
+     */
+    public static Metadata metadataFromYaml(String yaml) {
+        try {
+            return YamlNoSchemaToMetadataConverter.yamlToCborMetadata(yaml);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid yaml format for metadata", e);
+        }
+    }
+
+    /**
+     * Creates a Metadata object from a YAML string.
+     *
+     * @param label    a BigInteger representing the label associated with the metadata
+     * @param yamlBody a YAML string representing the metadata content
+     * @return a Metadata object containing the parsed data
+     * @throws IllegalArgumentException if the YAML format is invalid or not an object/array
+     */
+    public static Metadata metadataFromYamlBody(BigInteger label, String yamlBody) {
+        try {
+            return YamlNoSchemaToMetadataConverter.yamlBodyToCborMetadata(label, yamlBody);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid yaml format for metadata", e);
+        }
+    }
+
+    /**
+     * Parses a YAML string to create a MetadataMap instance.
+     *
+     * @param yamlBody the YAML string to be converted to a MetadataMap object
+     * @return a MetadataMap object generated from the provided YAML object
+     * @throws IllegalArgumentException if the YAML format is invalid
+     */
+    public static MetadataMap metadataMapFromYamlBody(String yamlBody) {
+        try {
+            return YamlNoSchemaToMetadataConverter.yamlToMetadataMap(yamlBody);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse yaml body to MetadataMap", e);
+        }
+    }
+
+    /**
+     * Converts a YAML string into a MetadataList instance.
+     *
+     * @param yamlBody the YAML string to be converted to a MetadataList object
+     * @return a MetadataList object generated from the provided YAML array
+     * @throws IllegalArgumentException if the YAML format is invalid or cannot be parsed
+     */
+    public static MetadataList metadataListFromYamlBody(String yamlBody) {
+        try {
+            return YamlNoSchemaToMetadataConverter.yamlToMetadataList(yamlBody);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not parse yaml body to MetadataList", e);
+        }
+    }
+
+    /**
+     * Converts a Metadata object to its YAML representation.
+     *
+     * @param metadata the Metadata object to be converted
+     * @return a YAML string representing the given Metadata
+     * @throws IllegalArgumentException if the serialization results in an invalid YAML format
+     */
+    public static String toYaml(Metadata metadata) {
+        try {
+            return MetadataToYamlNoSchemaConverter.cborBytesToYaml(metadata.serialize());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid yaml format", e);
+        }
+    }
+
+    /**
+     * Converts the provided CBOR byte array to a YAML string.
+     *
+     * @param serializedCbor A byte array serialized CBOR data to be converted to YAML.
+     * @return A string containing the YAML representation of the given CBOR data.
+     * @throws IllegalArgumentException if the CBOR data cannot be converted to a valid YAML format.
+     */
+    public static String toYaml(byte[] serializedCbor) {
+        try {
+            return MetadataToYamlNoSchemaConverter.cborBytesToYaml(serializedCbor);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid yaml format", e);
         }
     }
 }

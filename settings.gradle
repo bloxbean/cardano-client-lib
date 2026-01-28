@@ -33,10 +33,24 @@ include 'backend-modules:blockfrost'
 include 'backend-modules:koios'
 include 'backend-modules:ogmios'
 include 'integration-test'
+include 'it-support'
 
 //supplier modules
 include 'supplier'
 include 'supplier:ogmios-supplier'
 include 'supplier:kupo-supplier'
+
+// Verified Structures
+include 'verified-structures'
+include 'verified-structures:verified-structures-core'
+include 'verified-structures:merkle-patricia-forestry'
+include 'verified-structures:jellyfish-merkle'
+include 'verified-structures:rocksdb-core'
+include 'verified-structures:merkle-patricia-forestry-rocksdb'
+include 'verified-structures:jellyfish-merkle-rocksdb'
+include 'verified-structures:rdbms-core'
+include 'verified-structures:merkle-patricia-forestry-rdbms'
+include 'verified-structures:jellyfish-merkle-rdbms'
+include 'verified-structures:load-tools'
 
 include ':plutus-aiken'

@@ -160,4 +160,5 @@ rust/jniLibs
 # End of https://www.toptal.com/developers/gitignore/api/java,gradle,intellij
 
 /backends/cardano-graphql/build/
+.gradle-user
 .gradle-user-home

@@ -659,10 +659,15 @@ class TxTest extends QuickTxBaseTest {
 
     @Test
     void withdraw_onlyFromRewardAddress() {
-        assertThatThrownBy(() -> new Tx()
+        // No UTXO mocking needed - exception thrown during validation before UTXO selection
+        var tx = new Tx()
                 .payToAddress(receiver1, Amount.ada(5))
                 .withdraw(receiver2, adaToLovelace(6))
-                .from(sender1))
+                .from(sender1);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
+
+        assertThatThrownBy(() -> quickTxBuilder.compose(tx).build())
                 .isInstanceOf(TxBuildException.class)
                 .hasMessageContaining("Only reward address");
     }

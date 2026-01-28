@@ -1,0 +1,36 @@
+description = 'Verified Data Structures - Parent Module'
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+
+    group = 'com.bloxbean.cardano'
+    version = rootProject.version
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    dependencies {
+        testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
+        testImplementation 'org.mockito:mockito-core:5.2.0'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    test {
+        useJUnitPlatform()
+        testLogging {
+            events "passed", "skipped", "failed"
+            exceptionFormat "full"
+            showStandardStreams = false
+        }
+    }
+
+    // Publishing configuration is inherited from root build.gradle
+    // No need to define it here to avoid duplicate publications
+}
