@@ -191,7 +191,7 @@ public class PoolRegistration implements Certificate {
         List<DataItem> relayItems = ((Array) relayDI).getDataItems();
         int type = toInt(relayItems.get(0));
 
-        int port = 0;
+        Integer port = null;
         String dns = null;
 
         if (type == 0) { //Single host addr

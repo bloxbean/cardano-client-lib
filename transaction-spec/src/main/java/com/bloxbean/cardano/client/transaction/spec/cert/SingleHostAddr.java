@@ -17,7 +17,7 @@ import java.net.Inet6Address;
 @ToString
 @Builder
 public class SingleHostAddr implements Relay {
-    private int port;
+    private Integer port;
     private Inet4Address ipv4;
     private Inet6Address ipv6;
 
@@ -25,7 +25,7 @@ public class SingleHostAddr implements Relay {
         Array array = new Array();
         array.add(new UnsignedInteger(0));
 
-        if (port != 0)
+        if (port != null && port != 0)
             array.add(new UnsignedInteger(port));
         else
             array.add(SimpleValue.NULL);
