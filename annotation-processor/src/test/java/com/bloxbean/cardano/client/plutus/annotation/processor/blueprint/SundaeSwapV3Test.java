@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -13,17 +12,13 @@ import static com.google.testing.compile.Compiler.javac;
 /**
  * Tests for SundaeSwap DEX blueprint annotation processing (Plutus v3).
  *
- * NOTE: Currently disabled due to StackOverflowError in PlutusBlueprintLoader when
- * resolving circular type references. This exposes a bug in the blueprint loader's
- * circular reference handling that needs to be fixed.
- *
- * The v3 blueprint compiled with Aiken v1.1.21 still has complex circular type
- * definitions that the loader cannot handle properly.
+ * Verifies that the SundaeSwap contract blueprint compiled with Aiken v1.1.21
+ * targeting Plutus v3 compiles successfully and generates valid Java classes
+ * for all validators (pool, order, oracle) and data types.
  */
 public class SundaeSwapV3Test {
 
     @Test
-    @Disabled("StackOverflowError in PlutusBlueprintLoader due to circular type references in v3 blueprint")
     void sundaeSwapV3() {
         Compilation compilation =
                 javac()
