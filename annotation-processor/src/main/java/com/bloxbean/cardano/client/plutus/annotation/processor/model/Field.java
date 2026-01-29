@@ -10,10 +10,17 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class Field {
+
     private String name;
+
     private int index;
+
     private FieldType fieldType;
+
     private boolean hashGetter;
+
     private String getterName;
+
     private int alternative;
+
 }

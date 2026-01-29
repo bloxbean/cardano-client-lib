@@ -20,7 +20,7 @@ public class CodeGenUtil {
         for(FieldSpec field : fields) {
             String fieldName = field.name;
 
-            if(field.type == TypeName.BOOLEAN) {
+            if (field.type == TypeName.BOOLEAN) {
                 String methodName = "is" + firstUpperCase(fieldName);
                 MethodSpec isMethod = MethodSpec.methodBuilder(methodName)
                         .addModifiers(Modifier.PUBLIC)

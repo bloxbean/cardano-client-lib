@@ -6,6 +6,7 @@ import lombok.ToString;
 @ToString
 @EqualsAndHashCode
 public class JavaType {
+
     public final static JavaType INT = new JavaType("int", false);
     public final static JavaType INTEGER = new JavaType("java.lang.Integer", false);
     public final static JavaType LONG = new JavaType("long", false);
@@ -33,4 +34,5 @@ public class JavaType {
     public String getName() {
         return name;
     }
+
 }
