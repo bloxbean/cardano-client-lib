@@ -1,0 +1,60 @@
+{
+  "preamble": {
+    "title": "test-circular-anyof-reference",
+    "description": "Test blueprint with circular references in anyOf structure",
+    "version": "1.0.0",
+    "plutusVersion": "v2"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "schema": {
+          "$ref": "#/definitions/Action"
+        }
+      },
+      "compiledCode": "abc123",
+      "hash": "def456"
+    }
+  ],
+  "definitions": {
+    "Action": {
+      "title": "Action",
+      "description": "Action type with multiple variants that reference State",
+      "anyOf": [
+        {
+          "title": "Create",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/State"
+            }
+          ]
+        },
+        {
+          "title": "Update",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "$ref": "#/definitions/State"
+            }
+          ]
+        }
+      ]
+    },
+    "State": {
+      "title": "State",
+      "description": "State type that references Action (creating a cycle through anyOf)",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "lastAction",
+          "$ref": "#/definitions/Action"
+        }
+      ]
+    }
+  }
+}

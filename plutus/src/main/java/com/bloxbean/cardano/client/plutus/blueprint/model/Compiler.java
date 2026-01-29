@@ -9,11 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Preamble {
-    String title;
-    String description;
+public class Compiler {
+    String name;
     String version;
-    PlutusVersion plutusVersion;
-    Compiler compiler;
-    String license;
 }

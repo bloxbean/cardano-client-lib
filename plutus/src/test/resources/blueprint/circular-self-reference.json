@@ -1,0 +1,59 @@
+{
+  "preamble": {
+    "title": "test-circular-self-reference",
+    "description": "Test blueprint with self-referencing type (linked list pattern)",
+    "version": "1.0.0",
+    "plutusVersion": "v2"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "schema": {
+          "$ref": "#/definitions/LinkedListNode"
+        }
+      },
+      "compiledCode": "abc123",
+      "hash": "def456"
+    }
+  ],
+  "definitions": {
+    "LinkedListNode": {
+      "title": "LinkedListNode",
+      "description": "A linked list node that references itself through an Option type",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "value",
+          "dataType": "integer"
+        },
+        {
+          "title": "next",
+          "$ref": "#/definitions/Option$LinkedListNode"
+        }
+      ]
+    },
+    "Option$LinkedListNode": {
+      "title": "Option",
+      "anyOf": [
+        {
+          "title": "Some",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/LinkedListNode"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}
