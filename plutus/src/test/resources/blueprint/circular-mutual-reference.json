@@ -1,0 +1,46 @@
+{
+  "preamble": {
+    "title": "test-circular-mutual-reference",
+    "description": "Test blueprint with mutually recursive types",
+    "version": "1.0.0",
+    "plutusVersion": "v2"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "schema": {
+          "$ref": "#/definitions/TypeA"
+        }
+      },
+      "compiledCode": "abc123",
+      "hash": "def456"
+    }
+  ],
+  "definitions": {
+    "TypeA": {
+      "title": "TypeA",
+      "description": "Type A that references Type B",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "fieldB",
+          "$ref": "#/definitions/TypeB"
+        }
+      ]
+    },
+    "TypeB": {
+      "title": "TypeB",
+      "description": "Type B that references Type A (creating a cycle)",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "fieldA",
+          "$ref": "#/definitions/TypeA"
+        }
+      ]
+    }
+  }
+}
