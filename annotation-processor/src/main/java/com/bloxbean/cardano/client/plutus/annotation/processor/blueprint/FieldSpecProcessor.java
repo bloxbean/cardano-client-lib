@@ -23,6 +23,7 @@ import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isAbstractPlutusDataType;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
 
 /**
@@ -143,6 +144,11 @@ public class FieldSpecProcessor {
         if (sharedType.isPresent())
             return sharedType.get();
 
+        // Check if this is an abstract PlutusData type (e.g., "Data", "Redeemer")
+        if (isAbstractPlutusDataType(schema)) {
+            return ClassName.get("com.bloxbean.cardano.client.plutus.spec", "PlutusData");
+        }
+
         String dataClassName = schema.getTitle();
 
         if (dataClassName != null)
@@ -252,6 +258,17 @@ public class FieldSpecProcessor {
         log.debug("RedeemerJavaFile : " + redeemerJavaFile.name);
 
         if (schema.getRefSchema() != null) {
+            // Check if the referenced schema is an abstract PlutusData type
+            if (isAbstractPlutusDataType(schema.getRefSchema())) {
+                ClassName plutusDataType = ClassName.get("com.bloxbean.cardano.client.plutus.spec", "PlutusData");
+                String fieldName = title;
+                fieldName = nameStrategy.firstLowerCase(nameStrategy.toCamelCase(fieldName));
+                var fieldSpec = FieldSpec.builder(plutusDataType, fieldName)
+                        .addModifiers(Modifier.PRIVATE)
+                        .build();
+                return new Tuple<>(fieldSpec, plutusDataType);
+            }
+
             String refTitle = schema.getRefSchema().getTitle();
             className = refTitle != null ? refTitle : className;
             className = nameStrategy.toClassName(className);

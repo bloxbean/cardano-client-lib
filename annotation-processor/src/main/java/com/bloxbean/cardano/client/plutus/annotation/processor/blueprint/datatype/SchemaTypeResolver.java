@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.datatype;
 
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.FieldSpecProcessor;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.squareup.javapoet.ClassName;
@@ -24,6 +25,11 @@ public class SchemaTypeResolver {
 
     public TypeName resolveType(String namespace, BlueprintSchema schema) {
         if (schema.getDataType() == null) {
+            // Check if this is an abstract placeholder type (like "Data" or "Redeemer")
+            // These have no structure and should map to PlutusData
+            if (BlueprintUtil.isAbstractPlutusDataType(schema)) {
+                return ClassName.get("com.bloxbean.cardano.client.plutus.spec", "PlutusData");
+            }
             return fieldSpecProcessor.getInnerDatumClass(namespace, schema);
         }
 

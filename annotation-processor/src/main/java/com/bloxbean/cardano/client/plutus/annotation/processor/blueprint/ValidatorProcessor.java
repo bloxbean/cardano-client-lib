@@ -53,7 +53,11 @@ public class ValidatorProcessor {
     private final NameStrategy nameStrategy;
     private final String VALIDATOR_CLASS_SUFFIX = "Validator";
 
-    public ValidatorProcessor(Blueprint annotation, ExtendWith extendWith, ProcessingEnvironment processingEnv, GeneratedTypesRegistry generatedTypesRegistry, SharedTypeLookup sharedTypeLookup) {
+    public ValidatorProcessor(Blueprint annotation,
+                              ExtendWith extendWith,
+                              ProcessingEnvironment processingEnv,
+                              GeneratedTypesRegistry generatedTypesRegistry,
+                              SharedTypeLookup sharedTypeLookup) {
         this.annotation = annotation;
         this.extendWith = extendWith;
         this.processingEnv = processingEnv;
@@ -74,14 +78,11 @@ public class ValidatorProcessor {
      */
     public void processValidator(Validator validator, PlutusVersion plutusVersion) {
         // preparation of standard fields
-        String[] titleTokens = validator.getTitle().split("\\.");
         String validatorNamespace = packageResolver.getValidatorNamespace(validator.getTitle());
-        String validatorName = titleTokens[titleTokens.length - 1];
-
+        String validatorName = calculateValidatorName(validator.getTitle());
         String packageName = packageResolver.getValidatorPackage(annotation, validator.getTitle());
 
-        String title = validatorName;
-        title = nameStrategy.toCamelCase(title);
+        String title = nameStrategy.toCamelCase(validatorName);
 
         List<FieldSpec> metaFields = ValidatorProcessor.getFieldSpecsForValidator(validator);
 
@@ -356,6 +357,52 @@ public class ValidatorProcessor {
                 Diagnostic.Kind.ERROR,
                 String.format(msg, args),
                 e);
+    }
+
+    /**
+     * Calculates the validator name from a validator title to avoid class name collisions.
+     *
+     * <p>Blueprint validator titles follow a hierarchical naming pattern (e.g.,
+     * "module.submodule.validator_name"). When multiple validators share the same
+     * last token (like "mint", "else", "spend"), using only the last token would
+     * cause class name collisions.</p>
+     *
+     * <h3>Examples:</h3>
+     * <ul>
+     *   <li><b>Simple (2 parts):</b> "cardano_aftermarket.beacon_script" → "beacon_script"</li>
+     *   <li><b>Complex (3+ parts):</b> "config.config_mint_validator.mint" → "config_mint_validator_mint"</li>
+     *   <li><b>Avoids collision:</b> "power_users.mint.mint" → "mint_mint" (different from above)</li>
+     * </ul>
+     *
+     * <p><b>Strategy:</b></p>
+     * <ul>
+     *   <li>For titles with ≤2 parts: use the last token</li>
+     *   <li>For titles with >2 parts: join all tokens except the first (skip package name)</li>
+     * </ul>
+     *
+     * <p><b>Note:</b> Package-private for testing purposes.</p>
+     *
+     * @param validatorTitle the validator title from the blueprint (e.g., "module.validator.action")
+     * @return the calculated validator name for Java class generation
+     */
+    String calculateValidatorName(String validatorTitle) {
+        String[] titleTokens = validatorTitle.split("\\.");
+
+        if (titleTokens.length > 2) {
+            // Use more of the title path to ensure uniqueness
+            // Skip the first token (package name) and join the rest
+            StringBuilder nameBuilder = new StringBuilder();
+            for (int i = 1; i < titleTokens.length; i++) {
+                if (i > 1) {
+                    nameBuilder.append("_");
+                }
+                nameBuilder.append(titleTokens[i]);
+            }
+
+            return nameBuilder.toString();
+        }
+
+        return titleTokens[titleTokens.length - 1];
     }
 
 }
