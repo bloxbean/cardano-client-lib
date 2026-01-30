@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -19,16 +18,15 @@ import static com.google.testing.compile.Compiler.javac;
  *
  * @see SundaeSwapV3Test for Plutus v3 version that works
  */
-public class SundaeSwapTest {
+public class SundaeSwapV2Test {
 
     @Test
-    @Disabled("StackOverflowError in PlutusBlueprintLoader due to circular type references in v2 blueprint")
     void sundaeSwap() {
         Compilation compilation =
                 javac()
                         .withProcessors(new BlueprintAnnotationProcessor())
                         .compile(
-                                JavaFileObjects.forResource("blueprint/SundaeSwap.java")
+                                JavaFileObjects.forResource("blueprint/SundaeSwapV2.java")
                         );
 
         System.out.println(compilation.diagnostics());
