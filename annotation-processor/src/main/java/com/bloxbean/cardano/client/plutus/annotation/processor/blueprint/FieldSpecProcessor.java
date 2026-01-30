@@ -59,12 +59,24 @@ public class FieldSpecProcessor {
      * Creates a Datum class for a given schema
      * If the schema has anyOf &gt; 1, it creates an interface and a class for each of the anyOf
      * This is the main method called to create Datum classes from BlueprintAnnotationProcessor
-     * @param ns     namespace or package suffix
-     * @param schema Definition schema to create Datum class
+     * @param ns            namespace or package suffix
+     * @param definitionKey the definition key from the blueprint (used as fallback if title is missing)
+     * @param schema        Definition schema to create Datum class
      */
-    public void createDatumClass(String ns, BlueprintSchema schema) {
-        if (schema == null || schema.getTitle() == null || schema.getTitle().isEmpty()) {
+    public void createDatumClass(String ns, String definitionKey, BlueprintSchema schema) {
+        if (schema == null) {
             return;
+        }
+
+        // Use definition key as fallback if title is missing
+        // Some blueprints (e.g., SundaeSwap V2) have definitions without titles for primitive types
+        String title = schema.getTitle();
+        if (title == null || title.isEmpty()) {
+            if (definitionKey == null || definitionKey.isEmpty()) {
+                return;  // Can't generate class without any name
+            }
+            // Use definition key as the title
+            schema.setTitle(definitionKey);
         }
 
         if (sharedTypeLookup.lookup(ns, schema).isPresent()) {
@@ -246,6 +258,12 @@ public class FieldSpecProcessor {
                     .addModifiers(Modifier.PRIVATE)
                     .build();
             return new Tuple<>(fieldSpec, sharedType.get());
+        }
+
+        // Ensure schema has a title before creating TypeSpec
+        // Use the provided title parameter if schema's title is missing
+        if (schema.getTitle() == null || schema.getTitle().isEmpty()) {
+            schema.setTitle(title);
         }
 
         String classNameString = nameStrategy.toClassName(title);

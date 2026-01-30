@@ -114,7 +114,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 }
 
                 String ns = getNSFromReferenceKey(key);
-                fieldSpecProcessor.createDatumClass(ns, definition.getValue());
+                fieldSpecProcessor.createDatumClass(ns, key, definition.getValue());
             }
 
 
