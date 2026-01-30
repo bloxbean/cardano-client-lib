@@ -35,4 +35,5 @@ public class Cip113Test {
         });
         assertThat(compilation).succeeded();
     }
+
 }

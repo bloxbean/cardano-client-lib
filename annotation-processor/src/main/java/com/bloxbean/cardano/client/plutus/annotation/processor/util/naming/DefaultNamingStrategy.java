@@ -268,7 +268,7 @@ public class DefaultNamingStrategy implements NamingStrategy {
      * @return the unescaped string
      * @see <a href="https://tools.ietf.org/html/rfc6901">RFC 6901 - JSON Pointer</a>
      */
-    private String unescapeJsonPointer(String value) {
+    public String unescapeJsonPointer(String value) {
         if (value == null || value.isEmpty()) {
             return value;
         }

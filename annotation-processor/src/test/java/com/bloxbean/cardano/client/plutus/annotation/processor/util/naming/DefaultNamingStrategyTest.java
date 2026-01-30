@@ -79,6 +79,176 @@ class DefaultNamingStrategyTest {
     }
 
     @Nested
+    @DisplayName("JSON Pointer Unescaping (RFC 6901)")
+    class JsonPointerUnescaping {
+
+        @Test
+        @DisplayName("should unescape ~1 to forward slash")
+        void unescapesTildeOneToSlash() {
+            assertThat(strategy.unescapeJsonPointer("types~1order~1Action"))
+                    .isEqualTo("types/order/Action");
+            assertThat(strategy.unescapeJsonPointer("aiken~1crypto~1Hash"))
+                    .isEqualTo("aiken/crypto/Hash");
+            assertThat(strategy.unescapeJsonPointer("cardano~1address~1Credential"))
+                    .isEqualTo("cardano/address/Credential");
+        }
+
+        @Test
+        @DisplayName("should unescape ~0 to tilde")
+        void unescapesTildeZeroToTilde() {
+            assertThat(strategy.unescapeJsonPointer("some~0key"))
+                    .isEqualTo("some~key");
+            assertThat(strategy.unescapeJsonPointer("Type~0Name"))
+                    .isEqualTo("Type~Name");
+            assertThat(strategy.unescapeJsonPointer("~0tilde~0prefix"))
+                    .isEqualTo("~tilde~prefix");
+        }
+
+        @Test
+        @DisplayName("should handle combined escapes")
+        void handlesCombinedEscapes() {
+            // Both ~0 and ~1 in same string
+            assertThat(strategy.unescapeJsonPointer("path~1with~0tilde"))
+                    .isEqualTo("path/with~tilde");
+            assertThat(strategy.unescapeJsonPointer("~0start~1middle~0end"))
+                    .isEqualTo("~start/middle~end");
+        }
+
+        @Test
+        @DisplayName("should handle multiple consecutive escapes")
+        void handlesMultipleConsecutiveEscapes() {
+            assertThat(strategy.unescapeJsonPointer("a~1~1b"))
+                    .isEqualTo("a//b");
+            assertThat(strategy.unescapeJsonPointer("a~0~0b"))
+                    .isEqualTo("a~~b");
+            assertThat(strategy.unescapeJsonPointer("a~0~1b"))
+                    .isEqualTo("a~/b");
+        }
+
+        @Test
+        @DisplayName("should process ~1 before ~0 to avoid double-processing")
+        void processesInCorrectOrder() {
+            // This tests the critical ordering requirement documented in the method
+            // If we process ~0 first, "~01" becomes "~1" which then becomes "/"
+            // If we process ~1 first, "~01" stays "~01" and then becomes "~1"
+            assertThat(strategy.unescapeJsonPointer("~01"))
+                    .isEqualTo("~1");  // Should be ~1, not /
+            assertThat(strategy.unescapeJsonPointer("prefix~01suffix"))
+                    .isEqualTo("prefix~1suffix");
+        }
+
+        @Test
+        @DisplayName("should handle strings without escape sequences")
+        void handlesStringsWithoutEscapes() {
+            assertThat(strategy.unescapeJsonPointer("normalString"))
+                    .isEqualTo("normalString");
+            assertThat(strategy.unescapeJsonPointer("path/with/slashes"))
+                    .isEqualTo("path/with/slashes");
+            assertThat(strategy.unescapeJsonPointer("tilde~character"))
+                    .isEqualTo("tilde~character");
+        }
+
+        @Test
+        @DisplayName("should handle null and empty strings")
+        void handlesNullAndEmpty() {
+            assertThat(strategy.unescapeJsonPointer(null)).isNull();
+            assertThat(strategy.unescapeJsonPointer("")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should handle edge cases with tildes")
+        void handlesEdgeCasesWithTildes() {
+            // Tilde at start
+            assertThat(strategy.unescapeJsonPointer("~1start"))
+                    .isEqualTo("/start");
+            // Tilde at end
+            assertThat(strategy.unescapeJsonPointer("end~1"))
+                    .isEqualTo("end/");
+            // Just escapes
+            assertThat(strategy.unescapeJsonPointer("~1"))
+                    .isEqualTo("/");
+            assertThat(strategy.unescapeJsonPointer("~0"))
+                    .isEqualTo("~");
+            // Multiple escapes only
+            assertThat(strategy.unescapeJsonPointer("~1~0~1"))
+                    .isEqualTo("/~/");
+        }
+
+        @Test
+        @DisplayName("should handle invalid escape sequences gracefully")
+        void handlesInvalidEscapeSequences() {
+            // RFC 6901 only defines ~0 and ~1, but other sequences might appear
+            // They should be left as-is (not unescaped)
+            assertThat(strategy.unescapeJsonPointer("~2invalid"))
+                    .isEqualTo("~2invalid");
+            assertThat(strategy.unescapeJsonPointer("~9other"))
+                    .isEqualTo("~9other");
+            assertThat(strategy.unescapeJsonPointer("~abc"))
+                    .isEqualTo("~abc");
+        }
+
+        @Test
+        @DisplayName("should work correctly in sanitizeIdentifier")
+        void worksInSanitizeIdentifier() {
+            // Verify unescaping is applied in the full identifier sanitization flow
+            // Note: sanitizeForwardSlashes capitalizes each path segment
+            assertThat(strategy.sanitizeIdentifier("types~1order~1Action"))
+                    .isEqualTo("TypesOrderAction");  // ~1 -> /, then each segment capitalized
+            assertThat(strategy.sanitizeIdentifier("data~0field"))
+                    .isEqualTo("datafield");  // ~0 -> ~, then ~ removed (invalid char)
+        }
+
+        @Test
+        @DisplayName("should work correctly in toCamelCase")
+        void worksInToCamelCase() {
+            // Verify unescaping is applied in the camel case conversion flow
+            assertThat(strategy.toCamelCase("types~1order~1action"))
+                    .isEqualTo("typesOrderAction");
+            assertThat(strategy.toCamelCase("my~1module~1name"))
+                    .isEqualTo("myModuleName");
+        }
+
+        @Test
+        @DisplayName("real-world CIP-53 blueprint examples")
+        void realWorldBlueprintExamples() {
+            // Example from SundaeSwap V3 and other modern Aiken contracts
+            assertThat(strategy.unescapeJsonPointer("types~1automatic_payments~1AutomatedPayment"))
+                    .isEqualTo("types/automatic_payments/AutomatedPayment");
+
+            // Complex nested module paths
+            assertThat(strategy.unescapeJsonPointer("sundaeswap~1v3~1types~1order~1Action"))
+                    .isEqualTo("sundaeswap/v3/types/order/Action");
+
+            // Mixed with other characters
+            assertThat(strategy.unescapeJsonPointer("Option<types~1order~1Action>"))
+                    .isEqualTo("Option<types/order/Action>");
+        }
+
+        @Test
+        @DisplayName("RFC 6901 specification compliance")
+        void rfc6901ComplianceExamples() {
+            // Examples directly from RFC 6901 specification
+            // https://tools.ietf.org/html/rfc6901
+
+            // Section 3: "~0" represents "~"
+            assertThat(strategy.unescapeJsonPointer("~0"))
+                    .isEqualTo("~");
+
+            // Section 3: "~1" represents "/"
+            assertThat(strategy.unescapeJsonPointer("~1"))
+                    .isEqualTo("/");
+
+            // Section 3: Example with both escapes
+            assertThat(strategy.unescapeJsonPointer("a~1b~0c"))
+                    .isEqualTo("a/b~c");
+
+            // Section 3: Escape sequence at different positions
+            assertThat(strategy.unescapeJsonPointer("~1foo~0bar~1"))
+                    .isEqualTo("/foo~bar/");
+        }
+    }
+
+    @Nested
     @DisplayName("Legacy Aiken Alpha Naming (v1.0.x)")
     class LegacyAikenNaming {
 

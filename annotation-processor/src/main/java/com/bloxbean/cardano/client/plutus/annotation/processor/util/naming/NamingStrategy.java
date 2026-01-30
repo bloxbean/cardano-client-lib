@@ -68,4 +68,21 @@ public interface NamingStrategy {
      * @return a valid Java package name
      */
     String toPackageNameFormat(String packageName);
+
+    /**
+     * Unescapes JSON Pointer escape sequences according to RFC 6901.
+     *
+     * <p>JSON Pointer (RFC 6901) is used in JSON Schema $ref paths to reference definitions.
+     * Only two escape sequences are defined:
+     * <ul>
+     *   <li><b>~0</b> represents a literal tilde (~) character</li>
+     *   <li><b>~1</b> represents a literal forward slash (/) character</li>
+     * </ul>
+     *
+     * @param value the string potentially containing JSON Pointer escape sequences
+     * @return the unescaped string
+     * @see <a href="https://tools.ietf.org/html/rfc6901">RFC 6901 - JSON Pointer</a>
+     */
+    String unescapeJsonPointer(String value);
+
 }

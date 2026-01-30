@@ -105,8 +105,15 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             //Create Data classes
             for(Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();
-                String ns = getNSFromReferenceKey(key);
 
+                // Skip generic type instantiations (e.g., "Option<cardano/address/Credential>", "List<Int>")
+                // These are handled by SchemaTypeResolver using Java's built-in generics (Optional<T>, List<T>, etc.)
+                // Only process concrete type definitions
+                if (key.contains("<") || key.contains(">")) {
+                    continue;
+                }
+
+                String ns = getNSFromReferenceKey(key);
                 fieldSpecProcessor.createDatumClass(ns, definition.getValue());
             }
 

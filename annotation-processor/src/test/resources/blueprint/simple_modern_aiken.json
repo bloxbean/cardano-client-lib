@@ -1,0 +1,31 @@
+{
+  "preamble": {
+    "title": "simple-modern-aiken/test",
+    "description": "Simple test blueprint with modern Aiken naming",
+    "version": "1.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.0"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [],
+  "definitions": {
+    "types/simple/Person": {
+      "title": "Person",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "name",
+          "dataType": "bytes"
+        },
+        {
+          "title": "age",
+          "dataType": "integer"
+        }
+      ]
+    }
+  }
+}

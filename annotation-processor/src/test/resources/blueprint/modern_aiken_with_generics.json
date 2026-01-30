@@ -1,0 +1,59 @@
+{
+  "preamble": {
+    "title": "modern-aiken/generics-test",
+    "description": "Tests modern Aiken v1.1.x+ naming - demonstrates SundaeSwap V3 fix",
+    "version": "1.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [],
+  "definitions": {
+    "cardano/address/Credential": {
+      "title": "Credential",
+      "description": "Demonstrates fix: Module path with slashes becomes package cardano.address.model",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "hash",
+          "dataType": "bytes"
+        }
+      ]
+    },
+    "Option<cardano/address/Credential>": {
+      "title": "Option",
+      "description": "Demonstrates fix: This generic type definition should be SKIPPED (not generate a class)",
+      "dataType": "constructor",
+      "anyOf": [
+        {
+          "title": "Some",
+          "fields": [
+            {
+              "dataType": "bytes"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "fields": []
+        }
+      ]
+    },
+    "types~1escapes~1TestType": {
+      "title": "TestType",
+      "description": "Demonstrates fix: JSON Pointer escapes (~1 = /) work correctly",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "value",
+          "dataType": "integer"
+        }
+      ]
+    }
+  }
+}
