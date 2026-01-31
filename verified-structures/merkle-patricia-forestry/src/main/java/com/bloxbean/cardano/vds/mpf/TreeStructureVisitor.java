@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.NodeHash;
 import com.bloxbean.cardano.vds.core.nibbles.Nibbles;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -36,6 +38,7 @@ final class TreeStructureVisitor implements NodeVisitor<TreeNode> {
     private final byte[] nodeHash;
     private final int maxNodes;
     private final int[] nodeCount;
+    private final Deque<Integer> pathAccumulator;
 
     /**
      * Creates a new tree structure visitor with unlimited traversal.
@@ -44,7 +47,7 @@ final class TreeStructureVisitor implements NodeVisitor<TreeNode> {
      * @param nodeHash    the hash of the current node being visited
      */
     public TreeStructureVisitor(NodePersistence persistence, byte[] nodeHash) {
-        this(persistence, nodeHash, -1, new int[]{0});
+        this(persistence, nodeHash, -1, new int[]{0}, new ArrayDeque<>());
     }
 
     /**
@@ -55,22 +58,25 @@ final class TreeStructureVisitor implements NodeVisitor<TreeNode> {
      * @param maxNodes    maximum number of nodes to visit (-1 for unlimited)
      */
     public TreeStructureVisitor(NodePersistence persistence, byte[] nodeHash, int maxNodes) {
-        this(persistence, nodeHash, maxNodes, new int[]{0});
+        this(persistence, nodeHash, maxNodes, new int[]{0}, new ArrayDeque<>());
     }
 
     /**
      * Private constructor with shared counter for recursive calls.
      *
-     * @param persistence the node persistence layer for loading child nodes
-     * @param nodeHash    the hash of the current node being visited
-     * @param maxNodes    maximum number of nodes to visit (-1 for unlimited)
-     * @param nodeCount   shared counter array (single element) for tracking visited nodes
+     * @param persistence     the node persistence layer for loading child nodes
+     * @param nodeHash        the hash of the current node being visited
+     * @param maxNodes        maximum number of nodes to visit (-1 for unlimited)
+     * @param nodeCount       shared counter array (single element) for tracking visited nodes
+     * @param pathAccumulator shared path accumulator for tracking nibbles from root
      */
-    private TreeStructureVisitor(NodePersistence persistence, byte[] nodeHash, int maxNodes, int[] nodeCount) {
+    private TreeStructureVisitor(NodePersistence persistence, byte[] nodeHash, int maxNodes,
+                                  int[] nodeCount, Deque<Integer> pathAccumulator) {
         this.persistence = persistence;
         this.nodeHash = nodeHash;
         this.maxNodes = maxNodes;
         this.nodeCount = nodeCount;
+        this.pathAccumulator = pathAccumulator;
     }
 
     /**
@@ -94,13 +100,39 @@ final class TreeStructureVisitor implements NodeVisitor<TreeNode> {
         incrementCount();
 
         Nibbles.HP hp = Nibbles.unpackHP(leaf.getHp());
-        int[] path = hp.nibbles;
+        int[] leafNibbles = hp.nibbles;
 
-        String valueHex = HexUtil.encodeHexString(leaf.getValue());
+        // Add leaf nibbles to get full path
+        for (int nibble : leafNibbles) {
+            pathAccumulator.addLast(nibble);
+        }
+
+        // Reconstruct full path from accumulated nibbles (64 nibbles = Blake2b256(key))
+        int[] fullPathNibbles = toArray(pathAccumulator);
+
+        // Remove leaf nibbles from path (cleanup for sibling traversal)
+        for (int i = 0; i < leafNibbles.length; i++) {
+            pathAccumulator.removeLast();
+        }
+
         byte[] key = leaf.getKey();
+        String valueHex = HexUtil.encodeHexString(leaf.getValue());
         String keyHex = key != null ? HexUtil.encodeHexString(key) : null;
 
-        return new TreeNode.LeafTreeNode(path, valueHex, keyHex);
+        // Use full reconstructed path (64 nibbles = Blake2b256(key)) instead of just HP suffix
+        return new TreeNode.LeafTreeNode(fullPathNibbles, valueHex, keyHex);
+    }
+
+    /**
+     * Converts a deque of integers to an array.
+     */
+    private static int[] toArray(Deque<Integer> deque) {
+        int[] result = new int[deque.size()];
+        int index = 0;
+        for (int value : deque) {
+            result[index++] = value;
+        }
+        return result;
     }
 
     @Override
@@ -140,9 +172,13 @@ final class TreeStructureVisitor implements NodeVisitor<TreeNode> {
                 } else {
                     Node childNode = persistence.load(NodeHash.of(childHash));
                     if (childNode != null) {
-                        TreeStructureVisitor childVisitor = new TreeStructureVisitor(persistence, childHash, maxNodes, nodeCount);
+                        // Push nibble to path before visiting child
+                        pathAccumulator.addLast(i);
+                        TreeStructureVisitor childVisitor = new TreeStructureVisitor(persistence, childHash, maxNodes, nodeCount, pathAccumulator);
                         TreeNode childTreeNode = childNode.accept(childVisitor);
                         children.put(nibbleKey, childTreeNode);
+                        // Pop nibble from path after visiting child
+                        pathAccumulator.removeLast();
                     } else {
                         // Missing node - represent as null
                         children.put(nibbleKey, null);
@@ -159,12 +195,17 @@ final class TreeStructureVisitor implements NodeVisitor<TreeNode> {
         incrementCount();
 
         Nibbles.HP hp = Nibbles.unpackHP(extension.getHp());
-        int[] path = hp.nibbles;
+        int[] extNibbles = hp.nibbles;
         String hash = HexUtil.encodeHexString(nodeHash);
 
         // If limit reached, return truncated node
         if (limitReached()) {
             return new TreeNode.TruncatedTreeNode(hash, "extension", 1);
+        }
+
+        // Push all extension nibbles to path
+        for (int nibble : extNibbles) {
+            pathAccumulator.addLast(nibble);
         }
 
         // Get child
@@ -182,13 +223,18 @@ final class TreeStructureVisitor implements NodeVisitor<TreeNode> {
             } else {
                 Node childNode = persistence.load(NodeHash.of(childHash));
                 if (childNode != null) {
-                    TreeStructureVisitor childVisitor = new TreeStructureVisitor(persistence, childHash, maxNodes, nodeCount);
+                    TreeStructureVisitor childVisitor = new TreeStructureVisitor(persistence, childHash, maxNodes, nodeCount, pathAccumulator);
                     childTreeNode = childNode.accept(childVisitor);
                 }
             }
         }
 
-        return new TreeNode.ExtensionTreeNode(hash, path, childTreeNode);
+        // Pop all extension nibbles from path
+        for (int i = 0; i < extNibbles.length; i++) {
+            pathAccumulator.removeLast();
+        }
+
+        return new TreeNode.ExtensionTreeNode(hash, extNibbles, childTreeNode);
     }
 
     /**
