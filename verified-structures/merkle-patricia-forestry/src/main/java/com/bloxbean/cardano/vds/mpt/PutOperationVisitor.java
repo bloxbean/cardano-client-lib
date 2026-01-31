@@ -18,10 +18,10 @@ import com.bloxbean.cardano.vds.core.nibbles.Nibbles;
  *   <tr><td>Structure split</td><td>New hash</td><td>Node split to accommodate diverging keys</td></tr>
  * </table>
  *
- * <h3>Original Key Storage:</h3>
+ * <h3>Key Storage:</h3>
  * <p>The visitor optionally stores original (unhashed) keys for debugging purposes.
- * Original keys are NOT used in commitment calculations, ensuring the trie's root hash
- * is identical whether original keys are stored or not. This enables debugging and
+ * Keys are NOT used in commitment calculations, ensuring the trie's root hash
+ * is identical whether keys are stored or not. This enables debugging and
  * inspection of the trie without affecting cryptographic integrity.</p>
  *
  * <h3>Node Splitting:</h3>
@@ -37,10 +37,10 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
     private final int[] keyNibbles;
     private final int position;
     private final byte[] value;
-    private final byte[] originalKey;
+    private final byte[] key;
 
     /**
-     * Creates a new put operation visitor without original key storage.
+     * Creates a new put operation visitor without key storage.
      *
      * @param persistence the node persistence layer
      * @param keyNibbles  the full key as nibbles
@@ -52,20 +52,20 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
     }
 
     /**
-     * Creates a new put operation visitor with optional original key storage.
+     * Creates a new put operation visitor with optional key storage.
      *
      * @param persistence the node persistence layer
      * @param keyNibbles  the full key as nibbles
      * @param position    the current position in the key
      * @param value       the value to insert
-     * @param originalKey the original (unhashed) key for debugging, or null
+     * @param key         the original (unhashed) key for debugging, or null
      */
-    public PutOperationVisitor(NodePersistence persistence, int[] keyNibbles, int position, byte[] value, byte[] originalKey) {
+    public PutOperationVisitor(NodePersistence persistence, int[] keyNibbles, int position, byte[] value, byte[] key) {
         this.persistence = persistence;
         this.keyNibbles = keyNibbles;
         this.position = position;
         this.value = value;
-        this.originalKey = originalKey;
+        this.key = key;
     }
 
     /**
@@ -74,13 +74,13 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
      * <p><b>Two scenarios:</b></p>
      * <ol>
      *   <li><b>Exact match:</b> Key matches leaf's stored suffix exactly - update the value in place.
-     *       If an original key is provided, it will be stored/updated on the leaf.</li>
+     *       If a key is provided, it will be stored/updated on the leaf.</li>
      *   <li><b>Partial/no match:</b> Key diverges from leaf's suffix - split into branch structure
      *       using {@link NodeSplitter#splitLeafNode}.</li>
      * </ol>
      *
      * <p>When splitting, the {@link NodeSplitter} creates a branch node at the divergence point
-     * with the existing leaf and new leaf as children. The original key is passed through
+     * with the existing leaf and new leaf as children. The key is passed through
      * to be stored on the new leaf.</p>
      *
      * @param leaf the leaf node to insert into
@@ -93,16 +93,16 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
         int common = Nibbles.commonPrefixLen(remainingKey, leafNibbles);
 
         if (common == leafNibbles.length && position + common == keyNibbles.length) {
-            // Exact match - update the leaf value (and preserve/update originalKey)
+            // Exact match - update the leaf value (and preserve/update key)
             LeafNode updatedLeaf = leaf.withValue(value);
-            if (originalKey != null) {
-                updatedLeaf = updatedLeaf.withOriginalKey(originalKey);
+            if (key != null) {
+                updatedLeaf = updatedLeaf.withKey(key);
             }
             return persistence.persist(updatedLeaf);
         }
 
         // Need to split the leaf
-        return NodeSplitter.splitLeafNode(persistence, leaf, remainingKey, value, common, originalKey);
+        return NodeSplitter.splitLeafNode(persistence, leaf, remainingKey, value, common, key);
     }
 
     /**
@@ -134,7 +134,7 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
         byte[] childHash = branch.getChild(childIndex);
 
         // Recursively put in the child subtree
-        NodeHash childResult = putAt(childHash, keyNibbles, position + 1, value, originalKey);
+        NodeHash childResult = putAt(childHash, keyNibbles, position + 1, value, key);
 
         BranchNode updatedBranch = branch.withChild(childIndex, childResult.toBytes());
         return persistence.persist(updatedBranch);
@@ -166,13 +166,13 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
 
         if (common == extensionNibbles.length) {
             // Full extension path matches - continue with the child
-            NodeHash childResult = putAt(extension.getChild(), keyNibbles, position + common, value, originalKey);
+            NodeHash childResult = putAt(extension.getChild(), keyNibbles, position + common, value, key);
             ExtensionNode updatedExtension = extension.withChild(childResult.toBytes());
             return persistence.persist(updatedExtension);
         }
 
         // Need to split the extension
-        return NodeSplitter.splitExtensionNode(persistence, extension, remainingKey, value, common, originalKey);
+        return NodeSplitter.splitExtensionNode(persistence, extension, remainingKey, value, common, key);
     }
 
     /**
@@ -188,19 +188,19 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
      *       new {@link PutOperationVisitor} at the updated position.</li>
      * </ol>
      *
-     * @param nodeHash    the child's hash (may be null if slot is empty)
-     * @param keyNibbles  the full key as nibbles
-     * @param position    current position in the key (after navigating to this child)
-     * @param value       the value to insert
-     * @param originalKey the original (unhashed) key for debugging, or null
+     * @param nodeHash   the child's hash (may be null if slot is empty)
+     * @param keyNibbles the full key as nibbles
+     * @param position   current position in the key (after navigating to this child)
+     * @param value      the value to insert
+     * @param key        the original (unhashed) key for debugging, or null
      * @return hash of the new or updated subtree
      */
-    private NodeHash putAt(byte[] nodeHash, int[] keyNibbles, int position, byte[] value, byte[] originalKey) {
+    private NodeHash putAt(byte[] nodeHash, int[] keyNibbles, int position, byte[] value, byte[] key) {
         if (nodeHash == null) {
             // Create new leaf node
             int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
-            LeafNode leaf = LeafNode.of(hp, value, originalKey);
+            LeafNode leaf = LeafNode.of(hp, value, key);
             return persistence.persist(leaf);
         }
 
@@ -209,11 +209,11 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
             // Missing node - create new leaf
             int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
-            LeafNode leaf = LeafNode.of(hp, value, originalKey);
+            LeafNode leaf = LeafNode.of(hp, value, key);
             return persistence.persist(leaf);
         }
 
-        PutOperationVisitor putVisitor = new PutOperationVisitor(persistence, keyNibbles, position, value, originalKey);
+        PutOperationVisitor putVisitor = new PutOperationVisitor(persistence, keyNibbles, position, value, key);
         return node.accept(putVisitor);
     }
 

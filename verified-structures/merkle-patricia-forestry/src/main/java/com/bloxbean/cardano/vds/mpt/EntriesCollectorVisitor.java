@@ -102,15 +102,15 @@ final class EntriesCollectorVisitor implements NodeVisitor<Void> {
             pathAccumulator.addLast(nibble);
         }
 
-        // Combine path to get full (hashed) key
+        // Combine path to get full (hashed) path
         int[] fullPath = toArray(pathAccumulator);
-        byte[] hashedKey = Nibbles.fromNibbles(fullPath);
+        byte[] path = Nibbles.fromNibbles(fullPath);
 
-        // Get original key if present (may be null)
-        byte[] originalKey = leaf.getOriginalKey();
+        // Get key if present (may be null)
+        byte[] key = leaf.getKey();
 
-        // Add entry with hashed key, value, and optional original key
-        entries.add(new MpfTrie.Entry(hashedKey, leaf.getValue(), originalKey));
+        // Add entry with path, value, and optional key
+        entries.add(new MpfTrie.Entry(path, leaf.getValue(), key));
 
         // Remove leaf nibbles from path (cleanup for sibling traversal)
         for (int i = 0; i < leafNibbles.length; i++) {
@@ -133,8 +133,8 @@ final class EntriesCollectorVisitor implements NodeVisitor<Void> {
         byte[] branchValue = branch.getValue();
         if (branchValue != null && !limitReached()) {
             int[] fullPath = toArray(pathAccumulator);
-            byte[] key = Nibbles.fromNibbles(fullPath);
-            entries.add(new MpfTrie.Entry(key, branchValue));
+            byte[] path = Nibbles.fromNibbles(fullPath);
+            entries.add(new MpfTrie.Entry(path, branchValue, null));
         }
 
         // Traverse all non-null children (0-15), stopping early if limit reached

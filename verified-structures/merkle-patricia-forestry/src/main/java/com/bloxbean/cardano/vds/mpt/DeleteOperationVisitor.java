@@ -191,12 +191,12 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
             ExtensionNode merged = ExtensionNode.of(hp, childExt.getChild());
             return persistence.persist(merged);
         } else if (newChild instanceof LeafNode) {
-            // Merge extension + leaf into leaf (preserve originalKey)
+            // Merge extension + leaf into leaf (preserve key)
             LeafNode childLeaf = (LeafNode) newChild;
             int[] mergedNibs = concat(Nibbles.unpackHP(node.getHp()).nibbles,
                     Nibbles.unpackHP(childLeaf.getHp()).nibbles);
             byte[] hp = Nibbles.packHP(true, mergedNibs);
-            LeafNode merged = LeafNode.of(hp, childLeaf.getValue(), childLeaf.getOriginalKey());
+            LeafNode merged = LeafNode.of(hp, childLeaf.getValue(), childLeaf.getKey());
             return persistence.persist(merged);
         } else {
             // Update extension with new child
@@ -255,11 +255,11 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
                 ExtensionNode extension = ExtensionNode.of(hp, childExt.getChild());
                 return persistence.persist(extension);
             } else if (child instanceof LeafNode) {
-                // Branch with single leaf child becomes leaf (preserve originalKey)
+                // Branch with single leaf child becomes leaf (preserve key)
                 LeafNode childLeaf = (LeafNode) child;
                 int[] merged = concat(new int[]{firstChildIdx}, Nibbles.unpackHP(childLeaf.getHp()).nibbles);
                 byte[] hp = Nibbles.packHP(true, merged);
-                LeafNode leaf = LeafNode.of(hp, childLeaf.getValue(), childLeaf.getOriginalKey());
+                LeafNode leaf = LeafNode.of(hp, childLeaf.getValue(), childLeaf.getKey());
                 return persistence.persist(leaf);
             } else {
                 // Child is branch; create extension of single nibble

@@ -33,7 +33,7 @@ import java.util.Map;
  *         "type": "leaf",
  *         "path": [6, 12, 6, 15],
  *         "value": "776f726c64",
- *         "originalKey": "68656c6c6f"
+ *         "key": "68656c6c6f"
  *       }
  *     },
  *     ...
@@ -43,7 +43,7 @@ import java.util.Map;
  *
  * <p><b>Usage:</b></p>
  * <pre>{@code
- * MpfTrie trie = MpfTrie.withOriginalKeyStorage(store);
+ * MpfTrie trie = new MpfTrie(store);
  * trie.put("hello".getBytes(), "world".getBytes());
  *
  * // Get structured tree for custom rendering
@@ -227,19 +227,19 @@ public abstract class TreeNode {
     public static final class LeafTreeNode extends TreeNode {
         private final int[] path;
         private final String value;
-        private final String originalKey;
+        private final String key;
 
         /**
          * Creates a new leaf tree node.
          *
-         * @param path        the path nibbles as an array
-         * @param value       the value (hex string)
-         * @param originalKey the original key (hex string), or null
+         * @param path  the path nibbles as an array
+         * @param value the value (hex string)
+         * @param key   the original key (hex string), or null
          */
-        public LeafTreeNode(int[] path, String value, String originalKey) {
+        public LeafTreeNode(int[] path, String value, String key) {
             this.path = path;
             this.value = value;
-            this.originalKey = originalKey;
+            this.key = key;
         }
 
         @Override
@@ -271,11 +271,11 @@ public abstract class TreeNode {
         /**
          * Gets the original (unhashed) key if stored.
          *
-         * @return the original key as a hex string, or null
+         * @return the key as a hex string, or null
          */
-        @JsonProperty("originalKey")
-        public String getOriginalKey() {
-            return originalKey;
+        @JsonProperty("key")
+        public String getKey() {
+            return key;
         }
     }
 

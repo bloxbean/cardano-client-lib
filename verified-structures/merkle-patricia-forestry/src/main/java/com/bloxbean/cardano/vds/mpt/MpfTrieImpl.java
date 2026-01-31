@@ -116,20 +116,23 @@ public final class MpfTrieImpl {
     /**
      * Inserts or updates a key-value pair in the trie, optionally storing the original key.
      *
-     * <p>The originalKey is stored in leaf nodes for debugging purposes but is NOT used
-     * in commitment calculations. The trie's root hash is identical whether original keys
+     * <p>The key is stored in leaf nodes for debugging purposes but is NOT used
+     * in commitment calculations. The trie's root hash is identical whether keys
      * are stored or not.</p>
      *
-     * @param key         the key to insert (this is the hashed key in MpfTrie usage)
-     * @param value       the value to associate with the key
-     * @param originalKey the original (unhashed) key for debugging, or null if not storing
+     * <p>This method is package-private. External users should use the 2-arg version
+     * or go through MpfTrie which handles key hashing correctly.</p>
+     *
+     * @param path  the path to insert (this is the hashed key in MpfTrie usage)
+     * @param value the value to associate with the key
+     * @param key   the original (unhashed) key for storage, or null if not storing
      * @throws IllegalArgumentException if value is null
      */
-    public void put(byte[] key, byte[] value, byte[] originalKey) {
+    void put(byte[] path, byte[] value, byte[] key) {
         if (value == null) throw new IllegalArgumentException("value cannot be null; use delete");
 
-        int[] nibblePath = Nibbles.toNibbles(key);
-        NodeHash result = putAtNew(this.root, nibblePath, 0, value, originalKey);
+        int[] nibblePath = Nibbles.toNibbles(path);
+        NodeHash result = putAtNew(this.root, nibblePath, 0, value, key);
         this.root = result != null ? result.toBytes() : null;
     }
 
@@ -552,21 +555,21 @@ public final class MpfTrieImpl {
 
     /**
      * New visitor-based implementation for inserting values using immutable nodes,
-     * with optional original key storage.
+     * with optional key storage.
      *
-     * @param nodeHash    the hash of the current node (null for non-existent)
-     * @param keyNibbles  the full key as nibbles
-     * @param position    the current position in the key
-     * @param value       the value to insert
-     * @param originalKey the original (unhashed) key for debugging, or null
+     * @param nodeHash   the hash of the current node (null for non-existent)
+     * @param keyNibbles the full key as nibbles
+     * @param position   the current position in the key
+     * @param value      the value to insert
+     * @param key        the original (unhashed) key for storage, or null
      * @return the hash of the new subtree root
      */
-    private NodeHash putAtNew(byte[] nodeHash, int[] keyNibbles, int position, byte[] value, byte[] originalKey) {
+    private NodeHash putAtNew(byte[] nodeHash, int[] keyNibbles, int position, byte[] value, byte[] key) {
         if (nodeHash == null) {
             // Create new leaf node
             int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
-            LeafNode leaf = LeafNode.of(hp, value, originalKey);
+            LeafNode leaf = LeafNode.of(hp, value, key);
             return persistence.persist(leaf);
         }
 
@@ -575,11 +578,11 @@ public final class MpfTrieImpl {
             // Missing node - create new leaf
             int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
-            LeafNode leaf = LeafNode.of(hp, value, originalKey);
+            LeafNode leaf = LeafNode.of(hp, value, key);
             return persistence.persist(leaf);
         }
 
-        PutOperationVisitor putVisitor = new PutOperationVisitor(persistence, keyNibbles, position, value, originalKey);
+        PutOperationVisitor putVisitor = new PutOperationVisitor(persistence, keyNibbles, position, value, key);
         return node.accept(putVisitor);
     }
 

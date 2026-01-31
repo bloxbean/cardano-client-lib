@@ -19,7 +19,7 @@ import java.util.List;
  * <p><b>Node Encoding Formats:</b></p>
  * <ul>
  *   <li><b>Branch Node:</b> 17-element array [child0, child1, ..., child15, value]</li>
- *   <li><b>Leaf Node:</b> 2 or 3-element array [HP-encoded key suffix (isLeaf=true), value, originalKey?]</li>
+ *   <li><b>Leaf Node:</b> 2 or 3-element array [HP-encoded key suffix (isLeaf=true), value, key?]</li>
  *   <li><b>Extension Node:</b> 2-element array [HP-encoded path (isLeaf=false), child hash]</li>
  * </ul>
  *
@@ -59,7 +59,7 @@ final class TrieEncoding {
      *   <li>17-element arrays are decoded as {@link BranchNode}</li>
      *   <li>2 or 3-element arrays are decoded based on HP encoding flags:
      *       <ul>
-     *         <li>HP isLeaf=true → {@link LeafNode} (3rd element is optional originalKey)</li>
+     *         <li>HP isLeaf=true → {@link LeafNode} (3rd element is optional key)</li>
      *         <li>HP isLeaf=false → {@link ExtensionNode} (only 2 elements)</li>
      *       </ul>
      *   </li>
@@ -99,10 +99,10 @@ final class TrieEncoding {
                 if (hpInfo.isLeaf) {
                     return LeafNode.decode(cborArray);
                 } else {
-                    // Extension nodes cannot have originalKey (3 elements only valid for leaves)
+                    // Extension nodes cannot have key (3 elements only valid for leaves)
                     if (arraySize == 3) {
                         throw new IllegalArgumentException(
-                                "Extension node cannot have 3 elements (originalKey only valid for leaves)");
+                                "Extension node cannot have 3 elements (key only valid for leaves)");
                     }
                     return ExtensionNode.decode(cborArray);
                 }

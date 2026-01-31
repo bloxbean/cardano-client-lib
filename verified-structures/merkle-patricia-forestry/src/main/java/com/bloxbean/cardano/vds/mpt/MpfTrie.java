@@ -74,13 +74,6 @@ public final class MpfTrie {
      */
     private final HashFunction hashFn;
 
-    /**
-     * Whether to store original (unhashed) keys in leaf nodes for debugging.
-     * When true, original keys are stored but NOT used in commitment calculations,
-     * ensuring the root hash remains identical.
-     */
-    private final boolean storeOriginalKeys;
-
 
     /**
      * Creates a new MpfTrie optimized for Cardano with Blake2b-256 hashing and MPF mode.
@@ -89,11 +82,15 @@ public final class MpfTrie {
      * Uses Blake2b-256 for key hashing (as required by Cardano/Aiken) and MPF
      * commitment scheme for on-chain compatibility.</p>
      *
+     * <p>Original keys are always stored in leaf nodes for debugging and introspection
+     * via {@link #getAllEntries()}. Keys are NOT used in commitment calculations,
+     * maintaining full Aiken compatibility.</p>
+     *
      * @param store the storage backend for persisting trie nodes
      * @throws NullPointerException if store is null
      */
     public MpfTrie(NodeStore store) {
-        this(store, null, false);
+        this(store, null);
     }
 
     /**
@@ -103,66 +100,17 @@ public final class MpfTrie {
      * its root hash. This is the recommended constructor for resuming from a
      * previously committed state.</p>
      *
+     * <p>Original keys are always stored in leaf nodes for debugging and introspection
+     * via {@link #getAllEntries()}. Keys are NOT used in commitment calculations,
+     * maintaining full Aiken compatibility.</p>
+     *
      * @param store the storage backend for persisting trie nodes
      * @param root  the root hash of an existing trie, or null for empty trie
      * @throws NullPointerException if store is null
      */
     public MpfTrie(NodeStore store, byte[] root) {
-        this(store, root, false);
-    }
-
-    /**
-     * Creates an MpfTrie with optional original key storage for debugging.
-     *
-     * <p>When storeOriginalKeys is true, the original (unhashed) keys are stored
-     * alongside the values in leaf nodes. This enables debugging tools like
-     * {@link #getAllEntries()} to return human-readable keys.</p>
-     *
-     * <p><b>Important:</b> Original keys are NOT used in commitment calculations.
-     * The trie's root hash is identical whether original keys are stored or not,
-     * maintaining full Aiken compatibility.</p>
-     *
-     * @param store             the storage backend for persisting trie nodes
-     * @param root              the root hash of an existing trie, or null for empty trie
-     * @param storeOriginalKeys true to store original keys for debugging
-     * @throws NullPointerException if store is null
-     */
-    public MpfTrie(NodeStore store, byte[] root, boolean storeOriginalKeys) {
         this.hashFn = Blake2b256::digest;
         this.impl = new MpfTrieImpl(store, hashFn, root, new MpfCommitmentScheme(hashFn));
-        this.storeOriginalKeys = storeOriginalKeys;
-    }
-
-    /**
-     * Creates a new MpfTrie with original key storage enabled for debugging.
-     *
-     * <p>This factory method is a convenience for creating a debugging-enabled trie.
-     * Original keys are stored in leaf nodes for tools like {@link #getAllEntries()}.</p>
-     *
-     * <p><b>Important:</b> Original keys are NOT used in commitment calculations.
-     * The trie's root hash is identical to a trie without original key storage.</p>
-     *
-     * @param store the storage backend for persisting trie nodes
-     * @return new MpfTrie with original key storage enabled
-     * @throws NullPointerException if store is null
-     */
-    public static MpfTrie withOriginalKeyStorage(NodeStore store) {
-        return new MpfTrie(store, null, true);
-    }
-
-    /**
-     * Creates an MpfTrie from existing root with original key storage enabled for debugging.
-     *
-     * <p>This factory method loads an existing trie while enabling original key storage
-     * for subsequent put operations.</p>
-     *
-     * @param store the storage backend for persisting trie nodes
-     * @param root  the root hash of an existing trie, or null for empty trie
-     * @return new MpfTrie with original key storage enabled
-     * @throws NullPointerException if store is null
-     */
-    public static MpfTrie withOriginalKeyStorage(NodeStore store, byte[] root) {
-        return new MpfTrie(store, root, true);
     }
 
     /**
@@ -196,8 +144,8 @@ public final class MpfTrie {
      * <p>The key is automatically hashed using Blake2b-256 before storage,
      * ensuring uniform distribution and Aiken compatibility.</p>
      *
-     * <p>If this trie was created with original key storage enabled, the original
-     * key is also stored for debugging purposes (but NOT used in commitment calculations).</p>
+     * <p>The original key is stored in the leaf node for debugging and introspection
+     * via {@link #getAllEntries()}. Keys are NOT used in commitment calculations.</p>
      *
      * @param key   the original key (will be hashed before storage)
      * @param value the value to store (must not be null)
@@ -205,11 +153,7 @@ public final class MpfTrie {
      * @throws NullPointerException     if key is null
      */
     public void put(byte[] key, byte[] value) {
-        if (storeOriginalKeys) {
-            impl.put(hashFn.digest(key), value, key);
-        } else {
-            impl.put(hashFn.digest(key), value);
-        }
+        impl.put(hashFn.digest(key), value, key);
     }
 
     /**
@@ -319,8 +263,12 @@ public final class MpfTrie {
      * Returns all key-value entries stored in the trie.
      *
      * <p>This method traverses the entire trie and returns all stored entries.
-     * Note that the keys in the returned entries are the Blake2b-256 hashed keys,
-     * not the original keys (since MpfTrie hashes all keys before storage).</p>
+     * Each entry contains:
+     * <ul>
+     *   <li>{@link Entry#getPath()} - the Blake2b-256 hashed path</li>
+     *   <li>{@link Entry#getKey()} - the original unhashed key</li>
+     *   <li>{@link Entry#getValue()} - the stored value</li>
+     * </ul>
      *
      * <p><b>Example usage:</b></p>
      * <pre>{@code
@@ -330,6 +278,10 @@ public final class MpfTrie {
      *
      * List<MpfTrie.Entry> entries = trie.getAllEntries();
      * assertEquals(2, entries.size());
+     * // Access original keys
+     * for (Entry e : entries) {
+     *     System.out.println(new String(e.getKey())); // "key1" or "key2"
+     * }
      * }</pre>
      *
      * @return list of all entries in the trie, empty list if trie is empty
@@ -345,8 +297,12 @@ public final class MpfTrie {
      * <p>This method is useful for large tries where loading all entries would be
      * memory-intensive. Entries are returned in depth-first traversal order.</p>
      *
-     * <p>Note that the keys in the returned entries are the Blake2b-256 hashed keys,
-     * not the original keys (since MpfTrie hashes all keys before storage).</p>
+     * <p>Each entry contains:
+     * <ul>
+     *   <li>{@link Entry#getPath()} - the Blake2b-256 hashed path</li>
+     *   <li>{@link Entry#getKey()} - the original unhashed key</li>
+     *   <li>{@link Entry#getValue()} - the stored value</li>
+     * </ul>
      *
      * <p><b>Example usage:</b></p>
      * <pre>{@code
@@ -458,12 +414,13 @@ public final class MpfTrie {
      *
      * <p><b>Example usage:</b></p>
      * <pre>{@code
-     * MpfTrie trie = MpfTrie.withOriginalKeyStorage(store);
+     * MpfTrie trie = new MpfTrie(store);
      * trie.put("hello".getBytes(), "world".getBytes());
      *
      * TreeNode structure = trie.getTreeStructure();
      * if (structure instanceof TreeNode.LeafTreeNode leaf) {
      *     System.out.println("Value: " + leaf.getValue());
+     *     System.out.println("Key: " + leaf.getKey()); // original key
      * }
      * }</pre>
      *
@@ -537,13 +494,13 @@ public final class MpfTrie {
      *   "type" : "leaf",
      *   "path" : [6, 8, 6, 5, 6, 12, ...],
      *   "value" : "776f726c64",
-     *   "originalKey" : "68656c6c6f"
+     *   "key" : "68656c6c6f"
      * }
      * }</pre>
      *
      * <p><b>Example usage:</b></p>
      * <pre>{@code
-     * MpfTrie trie = MpfTrie.withOriginalKeyStorage(store);
+     * MpfTrie trie = new MpfTrie(store);
      * trie.put("hello".getBytes(), "world".getBytes());
      *
      * String json = trie.printTreeJson();
@@ -562,49 +519,48 @@ public final class MpfTrie {
      * Represents a key-value pair returned by scan and getAllEntries operations.
      *
      * <p>This immutable class encapsulates the results of trie operations,
-     * providing access to the hashed key, value, and optionally the original (unhashed) key
-     * when original key storage is enabled.</p>
+     * providing access to the path (hashed key), value, and the original key.</p>
      *
      * @since 0.8.0
      */
     public static final class Entry {
-        private final byte[] key;
+        private final byte[] path;
         private final byte[] value;
-        private final byte[] originalKey;
+        private final byte[] key;
 
         /**
-         * Creates a new Entry with the given key and value.
+         * Creates a new Entry with the given path and value.
          *
-         * @param key   the key bytes (this is the hashed key in MpfTrie)
+         * @param path  the path bytes (this is the hashed key in MpfTrie)
          * @param value the value bytes
          */
-        public Entry(byte[] key, byte[] value) {
-            this(key, value, null);
+        public Entry(byte[] path, byte[] value) {
+            this(path, value, null);
         }
 
         /**
-         * Creates a new Entry with the given key, value, and original key.
+         * Creates a new Entry with the given path, value, and original key.
          *
-         * @param key         the key bytes (this is the hashed key in MpfTrie)
-         * @param value       the value bytes
-         * @param originalKey the original (unhashed) key, or null if not available
+         * @param path  the path bytes (this is the hashed key in MpfTrie)
+         * @param value the value bytes
+         * @param key   the original (unhashed) key, or null if not available
          */
-        public Entry(byte[] key, byte[] value, byte[] originalKey) {
-            this.key = key;
+        public Entry(byte[] path, byte[] value, byte[] key) {
+            this.path = path;
             this.value = value;
-            this.originalKey = originalKey;
+            this.key = key;
         }
 
         /**
-         * Returns the key of this entry.
+         * Returns the path of this entry.
          *
          * <p>In MpfTrie, this is the Blake2b-256 hashed key, not the original key.
-         * Use {@link #getOriginalKey()} to get the unhashed key if available.</p>
+         * Use {@link #getKey()} to get the unhashed original key.</p>
          *
-         * @return the (hashed) key as a byte array
+         * @return the path (hashed key) as a byte array
          */
-        public byte[] getKey() {
-            return key;
+        public byte[] getPath() {
+            return path;
         }
 
         /**
@@ -617,16 +573,15 @@ public final class MpfTrie {
         }
 
         /**
-         * Returns the original (unhashed) key if available.
+         * Returns the original (unhashed) key.
          *
-         * <p>This is only populated when the trie was created with original key storage
-         * enabled using {@link MpfTrie#withOriginalKeyStorage(NodeStore)} or
-         * {@link MpfTrie#MpfTrie(NodeStore, byte[], boolean)}.</p>
+         * <p>This is the key that was originally passed to {@link #put(byte[], byte[])}.
+         * </p>
          *
          * @return the original (unhashed) key, or null if not available
          */
-        public byte[] getOriginalKey() {
-            return originalKey;
+        public byte[] getKey() {
+            return key;
         }
     }
 }

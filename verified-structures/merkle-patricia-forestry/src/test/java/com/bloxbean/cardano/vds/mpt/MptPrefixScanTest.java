@@ -30,12 +30,12 @@ public class MptPrefixScanTest {
 
         List<MpfTrie.Entry> aa = trie.scanByPrefix(hex("aa"), 10);
         assertEquals(2, aa.size());
-        assertTrue(aa.stream().anyMatch(e -> hexStr(e.getKey()).startsWith("aa00") && s(e.getValue()).equals("V0")));
-        assertTrue(aa.stream().anyMatch(e -> hexStr(e.getKey()).startsWith("aa01") && s(e.getValue()).equals("V1")));
+        assertTrue(aa.stream().anyMatch(e -> hexStr(e.getPath()).startsWith("aa00") && s(e.getValue()).equals("V0")));
+        assertTrue(aa.stream().anyMatch(e -> hexStr(e.getPath()).startsWith("aa01") && s(e.getValue()).equals("V1")));
 
         List<MpfTrie.Entry> ab = trie.scanByPrefix(hex("ab"), 10);
         assertEquals(1, ab.size());
-        assertEquals("abff", hexStr(ab.get(0).getKey()));
+        assertEquals("abff", hexStr(ab.get(0).getPath()));
         assertEquals("VX", s(ab.get(0).getValue()));
 
         List<MpfTrie.Entry> a = trie.scanByPrefix(hex("a"), 1);

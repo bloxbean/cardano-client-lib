@@ -39,14 +39,14 @@ final class NodeSplitter {
 
     /**
      * Splits a leaf node when a key conflict occurs and inserts both values,
-     * with optional original key storage for the new value.
+     * with optional key storage for the new value.
      *
      * @param persistence        the node persistence layer
      * @param existingLeaf       the existing leaf node to split
      * @param newKeyRemainder    the remaining portion of the new key (from current position)
      * @param newValue           the new value to insert
      * @param commonPrefixLength the length of the common prefix between keys
-     * @param newOriginalKey     the original (unhashed) key for the new value, or null
+     * @param newKey             the original (unhashed) key for the new value, or null
      * @return the hash of the new subtree
      */
     public static NodeHash splitLeafNode(
@@ -55,7 +55,7 @@ final class NodeSplitter {
             int[] newKeyRemainder,
             byte[] newValue,
             int commonPrefixLength,
-            byte[] newOriginalKey) {
+            byte[] newKey) {
 
         int[] leafNibbles = Nibbles.unpackHP(existingLeaf.getHp()).nibbles;
         int[] leafRemainder = slice(leafNibbles, commonPrefixLength, leafNibbles.length);
@@ -64,14 +64,14 @@ final class NodeSplitter {
         // Create the branch node that will contain both values
         BranchNode.Builder branchBuilder = BranchNode.builder();
 
-        // Handle the existing leaf's remainder (preserve its originalKey if present)
+        // Handle the existing leaf's remainder (preserve its key if present)
         if (leafRemainder.length == 0) {
             // Existing key ends at this branch
             branchBuilder.value(existingLeaf.getValue());
         } else {
-            // Create new leaf for the existing value (preserve originalKey)
+            // Create new leaf for the existing value (preserve key)
             byte[] newLeafHp = Nibbles.packHP(true, slice(leafRemainder, 1, leafRemainder.length));
-            LeafNode newLeafFromExisting = LeafNode.of(newLeafHp, existingLeaf.getValue(), existingLeaf.getOriginalKey());
+            LeafNode newLeafFromExisting = LeafNode.of(newLeafHp, existingLeaf.getValue(), existingLeaf.getKey());
             NodeHash leafHash = persistence.persist(newLeafFromExisting);
             branchBuilder.child(leafRemainder[0], leafHash.toBytes());
         }
@@ -81,9 +81,9 @@ final class NodeSplitter {
             // New key ends at this branch
             branchBuilder.value(newValue);
         } else {
-            // Create new leaf for the new value (with optional originalKey)
+            // Create new leaf for the new value (with optional key)
             byte[] newLeafHp = Nibbles.packHP(true, slice(keyRemainder, 1, keyRemainder.length));
-            LeafNode newLeaf = LeafNode.of(newLeafHp, newValue, newOriginalKey);
+            LeafNode newLeaf = LeafNode.of(newLeafHp, newValue, newKey);
             NodeHash leafHash = persistence.persist(newLeaf);
             branchBuilder.child(keyRemainder[0], leafHash.toBytes());
         }
@@ -123,14 +123,14 @@ final class NodeSplitter {
 
     /**
      * Splits an extension node when a key conflict occurs and inserts the new value,
-     * with optional original key storage for the new value.
+     * with optional key storage for the new value.
      *
      * @param persistence        the node persistence layer
      * @param existingExtension  the existing extension node to split
      * @param newKeyRemainder    the remaining portion of the new key (from current position)
      * @param newValue           the new value to insert
      * @param commonPrefixLength the length of the common prefix between paths
-     * @param newOriginalKey     the original (unhashed) key for the new value, or null
+     * @param newKey             the original (unhashed) key for the new value, or null
      * @return the hash of the new subtree
      */
     public static NodeHash splitExtensionNode(
@@ -139,7 +139,7 @@ final class NodeSplitter {
             int[] newKeyRemainder,
             byte[] newValue,
             int commonPrefixLength,
-            byte[] newOriginalKey) {
+            byte[] newKey) {
 
         int[] extensionNibbles = Nibbles.unpackHP(existingExtension.getHp()).nibbles;
         int[] extensionRemainder = slice(extensionNibbles, commonPrefixLength, extensionNibbles.length);
@@ -165,9 +165,9 @@ final class NodeSplitter {
             // New key ends at this branch
             branchBuilder.value(newValue);
         } else {
-            // Create new leaf for the new value (with optional originalKey)
+            // Create new leaf for the new value (with optional key)
             byte[] newLeafHp = Nibbles.packHP(true, slice(keyRemainder, 1, keyRemainder.length));
-            LeafNode newLeaf = LeafNode.of(newLeafHp, newValue, newOriginalKey);
+            LeafNode newLeaf = LeafNode.of(newLeafHp, newValue, newKey);
             NodeHash leafHash = persistence.persist(newLeaf);
             branchBuilder.child(keyRemainder[0], leafHash.toBytes());
         }

@@ -97,10 +97,10 @@ final class TreeStructureVisitor implements NodeVisitor<TreeNode> {
         int[] path = hp.nibbles;
 
         String valueHex = HexUtil.encodeHexString(leaf.getValue());
-        byte[] originalKey = leaf.getOriginalKey();
-        String originalKeyHex = originalKey != null ? HexUtil.encodeHexString(originalKey) : null;
+        byte[] key = leaf.getKey();
+        String keyHex = key != null ? HexUtil.encodeHexString(key) : null;
 
-        return new TreeNode.LeafTreeNode(path, valueHex, originalKeyHex);
+        return new TreeNode.LeafTreeNode(path, valueHex, keyHex);
     }
 
     @Override
