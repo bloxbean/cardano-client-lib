@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Performance baseline tests to track performance metrics before and after refactoring.
  * These tests establish timing baselines for critical operations.
  */
-public class MptPerformanceBaselineTest {
+public class MpfPerformanceBaselineTest {
     private static final HashFunction HASH_FN = Blake2b256::digest;
     private TestNodeStore store;
     private MpfTrie trie;

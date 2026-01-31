@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests put/get roundtrip using MpfTrie public API.
  * Keys are automatically hashed by MpfTrie.
  */
-public class MptRoundtripTest {
+public class MpfRoundtripTest {
 
     @Test
     void putGetRoundtripDifferentKeys() {

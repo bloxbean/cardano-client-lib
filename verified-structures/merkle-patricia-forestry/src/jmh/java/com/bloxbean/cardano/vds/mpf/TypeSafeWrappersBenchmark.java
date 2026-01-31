@@ -208,7 +208,7 @@ public class TypeSafeWrappersBenchmark {
     /**
      * Baseline: Direct storage operations.
      *
-     * <p>Measures performance of direct NodeStore operations.</p>
+     * <p>Measures performance of direct NodeStore persist/load operations.</p>
      */
     @Benchmark
     public void rawStorageOperations(Blackhole bh) throws Exception {
@@ -225,9 +225,6 @@ public class TypeSafeWrappersBenchmark {
             // Load
             byte[] retrieved = store.get(hash);
 
-            // Delete
-            store.delete(hash);
-
             bh.consume(retrieved);
         }
     }
@@ -235,7 +232,7 @@ public class TypeSafeWrappersBenchmark {
     /**
      * Type-safe: NodePersistence operations.
      *
-     * <p>Measures performance of the same operations using NodePersistence wrapper.</p>
+     * <p>Measures performance of persist/load operations using NodePersistence wrapper.</p>
      */
     @Benchmark
     public void persistenceLayerOperations(Blackhole bh) throws Exception {
@@ -248,9 +245,6 @@ public class TypeSafeWrappersBenchmark {
 
             // Load
             var retrieved = persistence.load(hash);
-
-            // Delete
-            persistence.delete(hash);
 
             bh.consume(retrieved);
         }

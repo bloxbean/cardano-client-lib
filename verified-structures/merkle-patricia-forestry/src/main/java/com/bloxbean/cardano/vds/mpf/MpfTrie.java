@@ -238,12 +238,16 @@ public final class MpfTrie {
     /**
      * Verifies a wire-format proof against an expected root.
      *
-     * @param expectedRoot the expected trie root hash
+     * <p>This method validates that the proof correctly demonstrates either the
+     * inclusion or non-inclusion of a key-value pair in the trie.</p>
+     *
+     * @param expectedRoot the expected trie root hash to verify against
      * @param key          the original key (will be hashed for verification)
      * @param valueOrNull  the expected value, or null for non-inclusion proof
-     * @param including    true for inclusion proof, false for non-inclusion proof
-     * @param wire         the wire-format proof bytes
-     * @return true if the proof is valid, false otherwise
+     * @param including    {@code true} for inclusion proof (verifies key exists with given value),
+     *                     {@code false} for non-inclusion proof (verifies key does not exist)
+     * @param wire         the wire-format proof bytes as produced by {@link #getProofWire(byte[])}
+     * @return {@code true} if the proof is valid, {@code false} otherwise
      */
     public boolean verifyProofWire(byte[] expectedRoot, byte[] key, byte[] valueOrNull, boolean including, byte[] wire) {
         return impl.verifyProofWire(expectedRoot, key, valueOrNull, including, wire);
@@ -589,7 +593,6 @@ public final class MpfTrie {
      * </ul>
      */
     private static final class Impl {
-        private final NodeStore store;
         private final HashFunction hashFn;
         private final NodePersistence persistence;
         private final CommitmentScheme commitments;
@@ -606,7 +609,7 @@ public final class MpfTrie {
          * @throws NullPointerException if any parameter is null
          */
         Impl(NodeStore store, HashFunction hashFn, byte[] root, CommitmentScheme commitments) {
-            this.store = Objects.requireNonNull(store, "NodeStore");
+            Objects.requireNonNull(store, "NodeStore");
             this.hashFn = Objects.requireNonNull(hashFn, "HashFunction");
             this.commitments = Objects.requireNonNull(commitments, "CommitmentScheme");
             this.persistence = new NodePersistence(store, commitments, hashFn);
@@ -861,7 +864,7 @@ public final class MpfTrie {
          */
         private NodeHash putAtNew(byte[] nodeHash, int[] keyNibbles, int position, byte[] value, byte[] key) {
             if (nodeHash == null) {
-                int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
+                int[] remainingNibbles = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
                 byte[] hp = Nibbles.packHP(true, remainingNibbles);
                 LeafNode leaf = LeafNode.of(hp, value, key);
                 return persistence.persist(leaf);
@@ -869,7 +872,7 @@ public final class MpfTrie {
 
             Node node = persistence.load(NodeHash.of(nodeHash));
             if (node == null) {
-                int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
+                int[] remainingNibbles = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
                 byte[] hp = Nibbles.packHP(true, remainingNibbles);
                 LeafNode leaf = LeafNode.of(hp, value, key);
                 return persistence.persist(leaf);
@@ -930,16 +933,6 @@ public final class MpfTrie {
             int[] combined = Arrays.copyOf(baseNibbles, baseNibbles.length + extras.length);
             System.arraycopy(extras, 0, combined, baseNibbles.length, extras.length);
             return NibblePath.of(combined);
-        }
-
-        /**
-         * Utility: Creates a slice of an integer array.
-         */
-        private static int[] slice(int[] array, int fromIndex, int toIndex) {
-            int length = Math.max(0, toIndex - fromIndex);
-            int[] result = new int[length];
-            for (int i = 0; i < length; i++) result[i] = array[fromIndex + i];
-            return result;
         }
 
         // ======================================

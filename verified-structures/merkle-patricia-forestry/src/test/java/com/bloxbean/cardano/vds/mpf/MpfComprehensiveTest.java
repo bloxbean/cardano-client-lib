@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Comprehensive test suite for MPT implementation to establish baseline behavior
  * before refactoring. This ensures no regressions during the refactoring process.
  */
-public class MptComprehensiveTest {
+public class MpfComprehensiveTest {
     private static final HashFunction HASH_FN = Blake2b256::digest;
     private TestNodeStore store;
     private MpfTrie trie;

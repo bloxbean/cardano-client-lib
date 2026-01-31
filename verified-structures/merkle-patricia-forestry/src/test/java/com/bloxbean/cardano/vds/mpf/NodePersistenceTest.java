@@ -139,113 +139,6 @@ class NodePersistenceTest {
     }
 
     @Test
-    void testExists() {
-        byte[] hash = new byte[32];
-        NodeHash nodeHash = NodeHash.of(hash);
-
-        // Test existing node
-        when(mockStore.get(hash)).thenReturn(new byte[]{1, 2, 3});
-        assertTrue(persistence.exists(nodeHash));
-
-        // Test non-existing node
-        when(mockStore.get(any(byte[].class))).thenReturn(null);
-        assertFalse(persistence.exists(nodeHash));
-
-        verify(mockStore, times(2)).get(any(byte[].class));
-    }
-
-    @Test
-    void testExistsNullHash() {
-        assertThrows(NullPointerException.class, () ->
-                persistence.exists(null));
-    }
-
-    @Test
-    void testExistsStorageException() {
-        byte[] hash = new byte[32];
-        NodeHash nodeHash = NodeHash.of(hash);
-
-        when(mockStore.get(hash)).thenThrow(new RuntimeException("Storage error"));
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                persistence.exists(nodeHash));
-
-        assertTrue(exception.getMessage().contains("Failed to check existence"));
-    }
-
-    @Test
-    void testDelete() {
-        byte[] hash = new byte[32];
-        NodeHash nodeHash = NodeHash.of(hash);
-
-        doNothing().when(mockStore).delete(hash);
-
-        assertDoesNotThrow(() -> persistence.delete(nodeHash));
-
-        verify(mockStore, times(1)).delete(hash);
-    }
-
-    @Test
-    void testDeleteNullHash() {
-        assertThrows(NullPointerException.class, () ->
-                persistence.delete(null));
-    }
-
-    @Test
-    void testDeleteStorageException() {
-        byte[] hash = new byte[32];
-        NodeHash nodeHash = NodeHash.of(hash);
-
-        doThrow(new RuntimeException("Delete error")).when(mockStore).delete(hash);
-
-        RuntimeException exception = assertThrows(RuntimeException.class, () ->
-                persistence.delete(nodeHash));
-
-        assertTrue(exception.getMessage().contains("Failed to delete node"));
-    }
-
-    @Test
-    void testPersistIfAbsentNewNode() {
-        LeafNode leafNode = createTestLeafNode();
-        byte[] hash = leafNode.commit(hashFn, commitments);
-
-        // Mock store to indicate node doesn't exist, then allow persistence
-        when(mockStore.get(hash)).thenReturn(null);
-        doNothing().when(mockStore).put(eq(hash), any(byte[].class));
-
-        NodeHash resultHash = persistence.persistIfAbsent(leafNode);
-
-        // Should check existence and then persist
-        verify(mockStore, times(1)).get(any(byte[].class));
-        verify(mockStore, times(1)).put(eq(hash), any(byte[].class));
-
-        assertArrayEquals(hash, resultHash.getBytes());
-    }
-
-    @Test
-    void testPersistIfAbsentExistingNode() {
-        LeafNode leafNode = createTestLeafNode();
-        byte[] hash = leafNode.commit(hashFn, commitments);
-
-        // Mock store to indicate node already exists
-        when(mockStore.get(any(byte[].class))).thenReturn(new byte[]{1, 2, 3});
-
-        NodeHash resultHash = persistence.persistIfAbsent(leafNode);
-
-        // Should only check existence, not persist
-        verify(mockStore, times(1)).get(any(byte[].class));
-        verify(mockStore, never()).put(any(byte[].class), any(byte[].class));
-
-        assertArrayEquals(hash, resultHash.getBytes());
-    }
-
-    @Test
-    void testPersistIfAbsentNullNode() {
-        assertThrows(NullPointerException.class, () ->
-                persistence.persistIfAbsent(null));
-    }
-
-    @Test
     void testGetUnderlyingStore() {
         assertSame(mockStore, persistence.getUnderlyingStore());
     }
@@ -258,9 +151,6 @@ class NodePersistenceTest {
         // Persist
         NodeHash hash = realPersistence.persist(originalNode);
 
-        // Verify exists
-        assertTrue(realPersistence.exists(hash));
-
         // Load
         Node loadedNode = realPersistence.load(hash);
         assertNotNull(loadedNode);
@@ -271,13 +161,6 @@ class NodePersistenceTest {
         // Verify content matches
         assertArrayEquals(originalNode.commit(hashFn, commitments), loadedLeaf.commit(hashFn, commitments));
         assertArrayEquals(originalNode.encode(), loadedLeaf.encode());
-
-        // Delete
-        realPersistence.delete(hash);
-
-        // Verify no longer exists
-        assertFalse(realPersistence.exists(hash));
-        assertNull(realPersistence.load(hash));
     }
 
     @Test

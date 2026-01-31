@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class MptProofTest {
+class MpfProofTest {
 
     private final HashFunction hashFn = Blake2b256::digest;
 

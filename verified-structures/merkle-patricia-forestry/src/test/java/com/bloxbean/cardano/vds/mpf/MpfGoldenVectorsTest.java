@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * tests (trie.test.js Proof.toCBOR for mango & kumquat), ensuring our MPF
  * serializer matches the Aiken/JS format exactly.
  */
-class MptMpfGoldenVectorsTest {
+class MpfGoldenVectorsTest {
 
     private final HashFunction hashFn = Blake2b256::digest;
 

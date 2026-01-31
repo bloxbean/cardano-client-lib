@@ -89,7 +89,7 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
     @Override
     public NodeHash visitLeaf(LeafNode leaf) {
         int[] leafNibbles = Nibbles.unpackHP(leaf.getHp()).nibbles;
-        int[] remainingKey = slice(keyNibbles, position, keyNibbles.length);
+        int[] remainingKey = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
         int common = Nibbles.commonPrefixLen(remainingKey, leafNibbles);
 
         if (common == leafNibbles.length && position + common == keyNibbles.length) {
@@ -161,7 +161,7 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
     @Override
     public NodeHash visitExtension(ExtensionNode extension) {
         int[] extensionNibbles = Nibbles.unpackHP(extension.getHp()).nibbles;
-        int[] remainingKey = slice(keyNibbles, position, keyNibbles.length);
+        int[] remainingKey = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
         int common = Nibbles.commonPrefixLen(remainingKey, extensionNibbles);
 
         if (common == extensionNibbles.length) {
@@ -198,7 +198,7 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
     private NodeHash putAt(byte[] nodeHash, int[] keyNibbles, int position, byte[] value, byte[] key) {
         if (nodeHash == null) {
             // Create new leaf node
-            int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
+            int[] remainingNibbles = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
             LeafNode leaf = LeafNode.of(hp, value, key);
             return persistence.persist(leaf);
@@ -207,7 +207,7 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
         Node node = persistence.load(NodeHash.of(nodeHash));
         if (node == null) {
             // Missing node - create new leaf
-            int[] remainingNibbles = slice(keyNibbles, position, keyNibbles.length);
+            int[] remainingNibbles = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
             byte[] hp = Nibbles.packHP(true, remainingNibbles);
             LeafNode leaf = LeafNode.of(hp, value, key);
             return persistence.persist(leaf);
@@ -215,15 +215,5 @@ final class PutOperationVisitor implements NodeVisitor<NodeHash> {
 
         PutOperationVisitor putVisitor = new PutOperationVisitor(persistence, keyNibbles, position, value, key);
         return node.accept(putVisitor);
-    }
-
-    // Utility method
-    private static int[] slice(int[] array, int from, int to) {
-        int len = Math.max(0, to - from);
-        int[] out = new int[len];
-        for (int i = 0; i < len; i++) {
-            out[i] = array[from + i];
-        }
-        return out;
     }
 }

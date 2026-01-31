@@ -92,11 +92,32 @@ void put(byte[] key, byte[] value)
 byte[] get(byte[] key)
 void delete(byte[] key)
 byte[] getRootHash()
+void setRootHash(byte[] root)               // Switch trie state
 
 // Proof generation
 Optional<byte[]> getProofWire(byte[] key)
 Optional<ListPlutusData> getProofPlutusData(byte[] key)
 boolean verifyProofWire(byte[] root, byte[] key, byte[] value, boolean inclusion, byte[] wire)
+
+// Introspection
+List<Entry> getAllEntries()                 // Get all key-value pairs
+List<Entry> getEntries(int limit)           // Get bounded entries
+TrieStatistics getStatistics()              // Node counts, depth info
+int computeSize()                           // Entry count
+
+// Debug/Visualization
+String printTree()                          // ASCII tree representation
+String printTreeJson()                      // JSON tree structure
+TreeNode getTreeStructure()                 // Structured tree for custom rendering
+TreeNode getTreeStructure(int[] prefix, int maxNodes)  // Truncated subtree
+```
+
+### Entry (for getAllEntries results)
+
+```java
+byte[] getPath()                            // Hashed key (Blake2b-256)
+byte[] getValue()                           // Stored value
+byte[] getKey()                             // Original (unhashed) key
 ```
 
 ## Design Documentation

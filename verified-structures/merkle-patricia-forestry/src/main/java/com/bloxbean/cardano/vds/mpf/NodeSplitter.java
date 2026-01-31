@@ -58,8 +58,8 @@ final class NodeSplitter {
             byte[] newKey) {
 
         int[] leafNibbles = Nibbles.unpackHP(existingLeaf.getHp()).nibbles;
-        int[] leafRemainder = slice(leafNibbles, commonPrefixLength, leafNibbles.length);
-        int[] keyRemainder = slice(newKeyRemainder, commonPrefixLength, newKeyRemainder.length);
+        int[] leafRemainder = NibbleArrays.slice(leafNibbles, commonPrefixLength, leafNibbles.length);
+        int[] keyRemainder = NibbleArrays.slice(newKeyRemainder, commonPrefixLength, newKeyRemainder.length);
 
         // Create the branch node that will contain both values
         BranchNode.Builder branchBuilder = BranchNode.builder();
@@ -70,7 +70,7 @@ final class NodeSplitter {
             branchBuilder.value(existingLeaf.getValue());
         } else {
             // Create new leaf for the existing value (preserve key)
-            byte[] newLeafHp = Nibbles.packHP(true, slice(leafRemainder, 1, leafRemainder.length));
+            byte[] newLeafHp = Nibbles.packHP(true, NibbleArrays.slice(leafRemainder, 1, leafRemainder.length));
             LeafNode newLeafFromExisting = LeafNode.of(newLeafHp, existingLeaf.getValue(), existingLeaf.getKey());
             NodeHash leafHash = persistence.persist(newLeafFromExisting);
             branchBuilder.child(leafRemainder[0], leafHash.toBytes());
@@ -82,7 +82,7 @@ final class NodeSplitter {
             branchBuilder.value(newValue);
         } else {
             // Create new leaf for the new value (with optional key)
-            byte[] newLeafHp = Nibbles.packHP(true, slice(keyRemainder, 1, keyRemainder.length));
+            byte[] newLeafHp = Nibbles.packHP(true, NibbleArrays.slice(keyRemainder, 1, keyRemainder.length));
             LeafNode newLeaf = LeafNode.of(newLeafHp, newValue, newKey);
             NodeHash leafHash = persistence.persist(newLeaf);
             branchBuilder.child(keyRemainder[0], leafHash.toBytes());
@@ -93,7 +93,7 @@ final class NodeSplitter {
 
         // If there's a common prefix, wrap in an extension node
         if (commonPrefixLength > 0) {
-            int[] commonPrefix = slice(newKeyRemainder, 0, commonPrefixLength);
+            int[] commonPrefix = NibbleArrays.slice(newKeyRemainder, 0, commonPrefixLength);
             byte[] extensionHp = Nibbles.packHP(false, commonPrefix);
             ExtensionNode extension = ExtensionNode.of(extensionHp, branchHash.toBytes());
             return persistence.persist(extension);
@@ -142,8 +142,8 @@ final class NodeSplitter {
             byte[] newKey) {
 
         int[] extensionNibbles = Nibbles.unpackHP(existingExtension.getHp()).nibbles;
-        int[] extensionRemainder = slice(extensionNibbles, commonPrefixLength, extensionNibbles.length);
-        int[] keyRemainder = slice(newKeyRemainder, commonPrefixLength, newKeyRemainder.length);
+        int[] extensionRemainder = NibbleArrays.slice(extensionNibbles, commonPrefixLength, extensionNibbles.length);
+        int[] keyRemainder = NibbleArrays.slice(newKeyRemainder, commonPrefixLength, newKeyRemainder.length);
 
         // Create the branch node that will split the paths
         BranchNode.Builder branchBuilder = BranchNode.builder();
@@ -154,7 +154,7 @@ final class NodeSplitter {
             branchBuilder.child(extensionRemainder[0], existingExtension.getChild());
         } else {
             // Extension remainder is multiple nibbles - create new extension
-            byte[] newExtensionHp = Nibbles.packHP(false, slice(extensionRemainder, 1, extensionRemainder.length));
+            byte[] newExtensionHp = Nibbles.packHP(false, NibbleArrays.slice(extensionRemainder, 1, extensionRemainder.length));
             ExtensionNode newExtension = ExtensionNode.of(newExtensionHp, existingExtension.getChild());
             NodeHash extHash = persistence.persist(newExtension);
             branchBuilder.child(extensionRemainder[0], extHash.toBytes());
@@ -166,7 +166,7 @@ final class NodeSplitter {
             branchBuilder.value(newValue);
         } else {
             // Create new leaf for the new value (with optional key)
-            byte[] newLeafHp = Nibbles.packHP(true, slice(keyRemainder, 1, keyRemainder.length));
+            byte[] newLeafHp = Nibbles.packHP(true, NibbleArrays.slice(keyRemainder, 1, keyRemainder.length));
             LeafNode newLeaf = LeafNode.of(newLeafHp, newValue, newKey);
             NodeHash leafHash = persistence.persist(newLeaf);
             branchBuilder.child(keyRemainder[0], leafHash.toBytes());
@@ -177,24 +177,12 @@ final class NodeSplitter {
 
         // If there's a common prefix, wrap in an extension node
         if (commonPrefixLength > 0) {
-            int[] commonPrefix = slice(newKeyRemainder, 0, commonPrefixLength);
+            int[] commonPrefix = NibbleArrays.slice(newKeyRemainder, 0, commonPrefixLength);
             byte[] extensionHp = Nibbles.packHP(false, commonPrefix);
             ExtensionNode extension = ExtensionNode.of(extensionHp, branchHash.toBytes());
             return persistence.persist(extension);
         }
 
         return branchHash;
-    }
-
-    /**
-     * Utility method to slice an array.
-     */
-    private static int[] slice(int[] array, int from, int to) {
-        int len = Math.max(0, to - from);
-        int[] out = new int[len];
-        for (int i = 0; i < len; i++) {
-            out[i] = array[from + i];
-        }
-        return out;
     }
 }

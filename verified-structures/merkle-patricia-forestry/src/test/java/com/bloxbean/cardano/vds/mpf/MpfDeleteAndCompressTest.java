@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests delete and compression using MpfTrie public API.
  * Keys are automatically hashed by MpfTrie.
  */
-public class MptDeleteAndCompressTest {
+public class MpfDeleteAndCompressTest {
 
     @Test
     void deleteCompressesToLeafOrExtension() {

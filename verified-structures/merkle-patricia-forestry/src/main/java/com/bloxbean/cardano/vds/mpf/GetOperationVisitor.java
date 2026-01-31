@@ -31,7 +31,7 @@ final class GetOperationVisitor implements NodeVisitor<byte[]> {
     @Override
     public byte[] visitLeaf(LeafNode leaf) {
         int[] leafNibbles = Nibbles.unpackHP(leaf.getHp()).nibbles;
-        int[] remainingKey = slice(keyNibbles, position, keyNibbles.length);
+        int[] remainingKey = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
 
         // Check if the remaining key matches the leaf's path exactly
         if (leafNibbles.length == remainingKey.length) {
@@ -68,7 +68,7 @@ final class GetOperationVisitor implements NodeVisitor<byte[]> {
     @Override
     public byte[] visitExtension(ExtensionNode extension) {
         int[] extensionNibbles = Nibbles.unpackHP(extension.getHp()).nibbles;
-        int[] remainingKey = slice(keyNibbles, position, keyNibbles.length);
+        int[] remainingKey = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
 
         // Check if the remaining key starts with the extension's path
         if (remainingKey.length < extensionNibbles.length) {
@@ -100,17 +100,5 @@ final class GetOperationVisitor implements NodeVisitor<byte[]> {
 
         GetOperationVisitor getVisitor = new GetOperationVisitor(persistence, keyNibbles, position);
         return node.accept(getVisitor);
-    }
-
-    /**
-     * Utility method to slice an array.
-     */
-    private static int[] slice(int[] array, int from, int to) {
-        int len = Math.max(0, to - from);
-        int[] out = new int[len];
-        for (int i = 0; i < len; i++) {
-            out[i] = array[from + i];
-        }
-        return out;
     }
 }

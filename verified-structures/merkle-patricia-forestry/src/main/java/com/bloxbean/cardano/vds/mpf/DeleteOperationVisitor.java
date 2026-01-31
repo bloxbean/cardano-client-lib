@@ -60,7 +60,7 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
     @Override
     public NodeHash visitLeaf(LeafNode node) {
         int[] nibbles = Nibbles.unpackHP(node.getHp()).nibbles;
-        int[] targetNibbles = slice(keyNibbles, position, keyNibbles.length);
+        int[] targetNibbles = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
 
         if (nibbles.length == targetNibbles.length &&
                 Nibbles.commonPrefixLen(nibbles, targetNibbles) == nibbles.length) {
@@ -149,7 +149,7 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
     @Override
     public NodeHash visitExtension(ExtensionNode node) {
         int[] enNibs = Nibbles.unpackHP(node.getHp()).nibbles;
-        int[] targetNibbles = slice(keyNibbles, position, keyNibbles.length);
+        int[] targetNibbles = NibbleArrays.slice(keyNibbles, position, keyNibbles.length);
         int common = Nibbles.commonPrefixLen(targetNibbles, enNibs);
 
         if (common < enNibs.length) {
@@ -185,7 +185,7 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
         if (newChild instanceof ExtensionNode) {
             // Merge extensions
             ExtensionNode childExt = (ExtensionNode) newChild;
-            int[] mergedNibs = concat(Nibbles.unpackHP(node.getHp()).nibbles,
+            int[] mergedNibs = NibbleArrays.concat(Nibbles.unpackHP(node.getHp()).nibbles,
                     Nibbles.unpackHP(childExt.getHp()).nibbles);
             byte[] hp = Nibbles.packHP(false, mergedNibs);
             ExtensionNode merged = ExtensionNode.of(hp, childExt.getChild());
@@ -193,7 +193,7 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
         } else if (newChild instanceof LeafNode) {
             // Merge extension + leaf into leaf (preserve key)
             LeafNode childLeaf = (LeafNode) newChild;
-            int[] mergedNibs = concat(Nibbles.unpackHP(node.getHp()).nibbles,
+            int[] mergedNibs = NibbleArrays.concat(Nibbles.unpackHP(node.getHp()).nibbles,
                     Nibbles.unpackHP(childLeaf.getHp()).nibbles);
             byte[] hp = Nibbles.packHP(true, mergedNibs);
             LeafNode merged = LeafNode.of(hp, childLeaf.getValue(), childLeaf.getKey());
@@ -250,14 +250,14 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
 
             if (child instanceof ExtensionNode) {
                 ExtensionNode childExt = (ExtensionNode) child;
-                int[] merged = concat(new int[]{firstChildIdx}, Nibbles.unpackHP(childExt.getHp()).nibbles);
+                int[] merged = NibbleArrays.concat(new int[]{firstChildIdx}, Nibbles.unpackHP(childExt.getHp()).nibbles);
                 byte[] hp = Nibbles.packHP(false, merged);
                 ExtensionNode extension = ExtensionNode.of(hp, childExt.getChild());
                 return persistence.persist(extension);
             } else if (child instanceof LeafNode) {
                 // Branch with single leaf child becomes leaf (preserve key)
                 LeafNode childLeaf = (LeafNode) child;
-                int[] merged = concat(new int[]{firstChildIdx}, Nibbles.unpackHP(childLeaf.getHp()).nibbles);
+                int[] merged = NibbleArrays.concat(new int[]{firstChildIdx}, Nibbles.unpackHP(childLeaf.getHp()).nibbles);
                 byte[] hp = Nibbles.packHP(true, merged);
                 LeafNode leaf = LeafNode.of(hp, childLeaf.getValue(), childLeaf.getKey());
                 return persistence.persist(leaf);
@@ -271,22 +271,5 @@ final class DeleteOperationVisitor implements NodeVisitor<NodeHash> {
             // Branch doesn't need compression
             return persistence.persist(branch);
         }
-    }
-
-    // Utility methods
-    private static int[] slice(int[] array, int fromIndex, int toIndex) {
-        int length = Math.max(0, toIndex - fromIndex);
-        int[] result = new int[length];
-        for (int i = 0; i < length; i++) {
-            result[i] = array[fromIndex + i];
-        }
-        return result;
-    }
-
-    private static int[] concat(int[] first, int[] second) {
-        int[] result = new int[first.length + second.length];
-        System.arraycopy(first, 0, result, 0, first.length);
-        System.arraycopy(second, 0, result, first.length, second.length);
-        return result;
     }
 }
