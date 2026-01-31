@@ -3,9 +3,9 @@ package com.bloxbean.cardano.vds.tools;
 import com.bloxbean.cardano.vds.tools.jmt.JmtConcurrentLoadTester;
 import com.bloxbean.cardano.vds.tools.jmt.JmtLoadTester;
 import com.bloxbean.cardano.vds.tools.jmt.RdbmsJmtLoadTester;
-import com.bloxbean.cardano.vds.tools.mpt.GcTool;
-import com.bloxbean.cardano.vds.tools.mpt.MptLoadTester;
-import com.bloxbean.cardano.vds.tools.mpt.RdbmsMptLoadTester;
+import com.bloxbean.cardano.vds.tools.mpf.GcTool;
+import com.bloxbean.cardano.vds.tools.mpf.MptLoadTester;
+import com.bloxbean.cardano.vds.tools.mpf.RdbmsMptLoadTester;
 
 /**
  * Main entry point for VDS Load Testing Tools.

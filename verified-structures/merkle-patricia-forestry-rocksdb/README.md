@@ -20,78 +20,106 @@ This module provides a production-ready RocksDB backend for MPF, including autom
 ### Basic Usage
 
 ```java
-import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbNodeStore;
-import com.bloxbean.cardano.vds.mpt.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import com.bloxbean.cardano.vds.rocksdb.resources.RocksDbResources;
 
 // Initialize RocksDB
 RocksDbResources resources = RocksDbResources.create(Paths.get("data/mpf"));
-RocksDbNodeStore nodeStore = new RocksDbNodeStore(resources.getDb());
+        RocksDbNodeStore nodeStore = new RocksDbNodeStore(resources.getDb());
 
-// Create trie (Blake2b-256 hashing, MPF mode - Cardano/Aiken compatible)
-MpfTrie trie = new MpfTrie(nodeStore);
+        // Create trie (Blake2b-256 hashing, MPF mode - Cardano/Aiken compatible)
+        MpfTrie trie = new MpfTrie(nodeStore);
 
 // Store data (keys are automatically hashed)
-trie.put("alice".getBytes(), "balance:100".getBytes());
-trie.put("bob".getBytes(), "balance:200".getBytes());
+trie.
 
-// Get root hash for on-chain verification
-byte[] rootHash = trie.getRootHash();
+        put("alice".getBytes(), "balance:100".
+
+        getBytes());
+        trie.
+
+        put("bob".getBytes(), "balance:200".
+
+        getBytes());
+
+        // Get root hash for on-chain verification
+        byte[] rootHash = trie.getRootHash();
 
 // Cleanup
-resources.close();
+resources.
+
+        close();
 ```
 
 ### Loading Existing Trie
 
 ```java
-import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbNodeStore;
-import com.bloxbean.cardano.vds.mpt.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import com.bloxbean.cardano.vds.rocksdb.resources.RocksDbResources;
 
 // Initialize RocksDB
 RocksDbResources resources = RocksDbResources.create(Paths.get("data/mpf"));
-RocksDbNodeStore nodeStore = new RocksDbNodeStore(resources.getDb());
+        RocksDbNodeStore nodeStore = new RocksDbNodeStore(resources.getDb());
 
-// Load existing trie with known root hash
-byte[] existingRoot = ... // previously stored root hash
-MpfTrie trie = new MpfTrie(nodeStore, existingRoot);
+        // Load existing trie with known root hash
+        byte[] existingRoot = ... // previously stored root hash
+        MpfTrie trie = new MpfTrie(nodeStore, existingRoot);
 
-// Retrieve data
-byte[] value = trie.get("key1".getBytes());
+        // Retrieve data
+        byte[] value = trie.get("key1".getBytes());
 
 // Cleanup
-resources.close();
+resources.
+
+        close();
 ```
 
 ### Multi-Version Mode with RocksDbStateTrees
 
 ```java
-import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbStateTrees;
-import com.bloxbean.cardano.vds.mpt.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbStateTrees;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import com.bloxbean.cardano.vds.core.api.StorageMode;
 
 // Enable versioning
 RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf", StorageMode.MULTI_VERSION);
 
-// Get node store and create MpfTrie
-MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
+        // Get node store and create MpfTrie
+        MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
 
 // Version 1
-trie.put("alice".getBytes(), "100".getBytes());
-stateTrees.commit("ledger");
-long v1 = stateTrees.currentVersion("ledger");
+trie.
+
+        put("alice".getBytes(), "100".
+
+        getBytes());
+        stateTrees.
+
+        commit("ledger");
+
+        long v1 = stateTrees.currentVersion("ledger");
 
 // Version 2
-trie.put("alice".getBytes(), "150".getBytes());
-stateTrees.commit("ledger");
-long v2 = stateTrees.currentVersion("ledger");
+trie.
 
-// Rollback to version 1
-byte[] rootV1 = stateTrees.getRootHash("ledger", v1);
-trie.setRootHash(rootV1);
+        put("alice".getBytes(), "150".
 
-byte[] value = trie.get("alice".getBytes());
+        getBytes());
+        stateTrees.
+
+        commit("ledger");
+
+        long v2 = stateTrees.currentVersion("ledger");
+
+        // Rollback to version 1
+        byte[] rootV1 = stateTrees.getRootHash("ledger", v1);
+trie.
+
+        setRootHash(rootV1);
+
+        byte[] value = trie.get("alice".getBytes());
 // Returns "100"
 ```
 
@@ -104,21 +132,23 @@ MPF RocksDB includes multiple GC strategies to reclaim space from stale nodes.
 Tracks references to each node; deletes when refcount reaches zero.
 
 ```java
-import com.bloxbean.cardano.vds.mpt.rocksdb.gc.*;
-import com.bloxbean.cardano.vds.mpt.rocksdb.gc.strategy.RefcountGcStrategy;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.RefcountGcStrategy;
 
 RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpt");
 
 // Create GC manager
 GcManager gcManager = new GcManager(
-    stateTrees.nodeStore(),
-    stateTrees.rootsIndex()
+        stateTrees.nodeStore(),
+        stateTrees.rootsIndex()
 );
 
 // Configure GC
 GcOptions options = new GcOptions();
-options.deleteBatchSize = 10_000;  // Delete 10K nodes per batch
-options.progress = deleted -> System.out.println("Deleted: " + deleted);
+options.deleteBatchSize =10_000;  // Delete 10K nodes per batch
+options.progress =deleted ->System.out.
+
+println("Deleted: "+deleted);
 
 // Run GC (keep latest 5 versions)
 RetentionPolicy policy = RetentionPolicy.keepLatestN(5);
@@ -126,8 +156,12 @@ GcStrategy strategy = new RefcountGcStrategy();
 
 GcReport report = gcManager.runSync(strategy, policy, options);
 
-System.out.println("Deleted nodes: " + report.deleted);
-System.out.println("Duration: " + report.durationMillis + "ms");
+System.out.
+
+println("Deleted nodes: "+report.deleted);
+System.out.
+
+println("Duration: "+report.durationMillis +"ms");
 ```
 
 ### Mark-Sweep GC
@@ -135,11 +169,11 @@ System.out.println("Duration: " + report.durationMillis + "ms");
 Marks reachable nodes from retained roots, sweeps unreachable ones.
 
 ```java
-import com.bloxbean.cardano.vds.mpt.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
 
 // Mark-sweep GC (more thorough, slower)
 GcStrategy strategy = new OnDiskMarkSweepStrategy();
-GcReport report = gcManager.runSync(strategy, policy, options);
+        GcReport report = gcManager.runSync(strategy, policy, options);
 ```
 
 ### GC Strategies Comparison
@@ -303,44 +337,77 @@ GcReport {
 ```java
 import org.rocksdb.WriteBatch;
 import org.rocksdb.WriteOptions;
-import com.bloxbean.cardano.vds.mpt.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
 
 RocksDbNodeStore nodeStore = stateTrees.nodeStore();
 MpfTrie trie = new MpfTrie(nodeStore);
 
-try (WriteBatch batch = new WriteBatch();
-     WriteOptions writeOpts = new WriteOptions()) {
+try(
+WriteBatch batch = new WriteBatch();
+WriteOptions writeOpts = new WriteOptions()){
 
-    nodeStore.withBatch(batch, () -> {
+        nodeStore.
+
+withBatch(batch, () ->{
         // All operations go into the batch
-        trie.put("key1".getBytes(), "value1".getBytes());
-        trie.put("key2".getBytes(), "value2".getBytes());
-        trie.put("key3".getBytes(), "value3".getBytes());
-        return null;
-    });
+        trie.
 
-    // Atomic commit
-    stateTrees.db().write(writeOpts, batch);
+put("key1".getBytes(), "value1".
+
+getBytes());
+        trie.
+
+put("key2".getBytes(), "value2".
+
+getBytes());
+        trie.
+
+put("key3".getBytes(), "value3".
+
+getBytes());
+        return null;
+        });
+
+        // Atomic commit
+        stateTrees.
+
+db().
+
+write(writeOpts, batch);
 }
 ```
 
 ### Session-Based Batching
 
 ```java
-import com.bloxbean.cardano.vds.mpt.rocksdb.RocksDbMptSession;
-import com.bloxbean.cardano.vds.mpt.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbMptSession;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
 
 // Session automatically batches writes
-try (RocksDbMptSession session = new RocksDbMptSession(stateTrees)) {
-    MpfTrie trie = new MpfTrie(session.nodeStore());
+try(RocksDbMptSession session = new RocksDbMptSession(stateTrees)){
+MpfTrie trie = new MpfTrie(session.nodeStore());
 
-    // Multiple operations batched
-    trie.put("alice".getBytes(), "100".getBytes());
-    trie.put("bob".getBytes(), "200".getBytes());
-    trie.put("charlie".getBytes(), "300".getBytes());
+// Multiple operations batched
+    trie.
 
-    // Atomic commit
-    session.commit("accounts");
+put("alice".getBytes(), "100".
+
+getBytes());
+        trie.
+
+put("bob".getBytes(), "200".
+
+getBytes());
+        trie.
+
+put("charlie".getBytes(), "300".
+
+getBytes());
+
+        // Atomic commit
+        session.
+
+commit("accounts");
 }
 ```
 

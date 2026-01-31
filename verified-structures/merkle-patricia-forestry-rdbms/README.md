@@ -19,32 +19,38 @@ Production-ready SQL backend for MPF, enabling distributed deployments, SQL quer
 ### PostgreSQL
 
 ```java
-import com.bloxbean.cardano.vds.mpt.rdbms.RdbmsNodeStore;
-import com.bloxbean.cardano.vds.mpt.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.rdbms.RdbmsNodeStore;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
 import com.bloxbean.cardano.vds.rdbms.common.*;
 
 // Configure PostgreSQL
 DbConfig config = DbConfig.builder()
-    .jdbcUrl("jdbc:postgresql://localhost:5432/mpf_db")
-    .username("postgres")
-    .password("password")
-    .maximumPoolSize(10)
-    .build();
+        .jdbcUrl("jdbc:postgresql://localhost:5432/mpf_db")
+        .username("postgres")
+        .password("password")
+        .maximumPoolSize(10)
+        .build();
 
-DataSource ds = SimpleDataSource.create(config);
+        DataSource ds = SimpleDataSource.create(config);
 
-// Create RDBMS node store
-RdbmsNodeStore nodeStore = new RdbmsNodeStore(ds);
+        // Create RDBMS node store
+        RdbmsNodeStore nodeStore = new RdbmsNodeStore(ds);
 
 // Initialize schema
-nodeStore.initializeSchema();
+nodeStore.
 
-// Create trie (Blake2b-256 hashing, MPF mode - Cardano/Aiken compatible)
-MpfTrie trie = new MpfTrie(nodeStore);
+        initializeSchema();
+
+        // Create trie (Blake2b-256 hashing, MPF mode - Cardano/Aiken compatible)
+        MpfTrie trie = new MpfTrie(nodeStore);
 
 // Store data (keys are automatically hashed)
-trie.put("key".getBytes(), "value".getBytes());
-byte[] rootHash = trie.getRootHash();
+trie.
+
+        put("key".getBytes(), "value".
+
+        getBytes());
+        byte[] rootHash = trie.getRootHash();
 ```
 
 ### H2 (In-Memory)

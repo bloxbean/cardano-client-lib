@@ -9,21 +9,25 @@ This library uses **Blake2b-256** and **CBOR encoding**, not Ethereum's Keccak-2
 ## Quick Start
 
 ```java
-import com.bloxbean.cardano.vds.mpt.MpfTrie;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
 
 // Create trie with RocksDB storage
 NodeStore store = new RocksDbNodeStore(db);
-MpfTrie trie = new MpfTrie(store);
+        MpfTrie trie = new MpfTrie(store);
 
 // Store data (keys automatically hashed with Blake2b-256)
-trie.put("account123".getBytes(), accountData);
-trie.put("account456".getBytes(), accountData2);
+trie.
 
-// Get root hash for Cardano transaction
-byte[] rootHash = trie.getRootHash();
+        put("account123".getBytes(),accountData);
+        trie.
 
-// Retrieve data
-byte[] value = trie.get("account123".getBytes());
+        put("account456".getBytes(),accountData2);
+
+        // Get root hash for Cardano transaction
+        byte[] rootHash = trie.getRootHash();
+
+        // Retrieve data
+        byte[] value = trie.get("account123".getBytes());
 ```
 
 ## Proof Generation
