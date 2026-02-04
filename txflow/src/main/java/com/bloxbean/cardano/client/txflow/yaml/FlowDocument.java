@@ -1,10 +1,11 @@
 package com.bloxbean.cardano.client.txflow.yaml;
 
-import com.bloxbean.cardano.client.quicktx.AbstractTx;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import com.bloxbean.cardano.client.quicktx.serialization.TransactionDocument;
 import com.bloxbean.cardano.client.quicktx.serialization.VariableResolver;
+import com.bloxbean.cardano.client.txflow.BackoffStrategy;
 import com.bloxbean.cardano.client.txflow.FlowStep;
+import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.SelectionStrategy;
 import com.bloxbean.cardano.client.txflow.StepDependency;
 import com.bloxbean.cardano.client.txflow.TxFlow;
@@ -18,6 +19,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.*;
 
 /**
@@ -126,6 +128,9 @@ public class FlowDocument {
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         private List<DependencyEntry> dependsOn;
 
+        @JsonProperty("retry")
+        private RetryEntry retry;
+
         // Inline tx/scriptTx content (reusing TransactionDocument structure)
         @JsonProperty("tx")
         private TransactionDocument.TxContent tx;
@@ -159,6 +164,32 @@ public class FlowDocument {
 
         @JsonProperty("optional")
         private Boolean optional;
+    }
+
+    /**
+     * Retry policy configuration for a step.
+     */
+    @Data
+    @NoArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class RetryEntry {
+        @JsonProperty("max_attempts")
+        private Integer maxAttempts;
+
+        @JsonProperty("backoff")
+        private String backoff;
+
+        @JsonProperty("initial_delay")
+        private String initialDelay;
+
+        @JsonProperty("max_delay")
+        private String maxDelay;
+
+        @JsonProperty("retry_on_timeout")
+        private Boolean retryOnTimeout;
+
+        @JsonProperty("retry_on_network_error")
+        private Boolean retryOnNetworkError;
     }
 
     /**
@@ -202,15 +233,33 @@ public class FlowDocument {
                 stepContent.setDependsOn(deps);
             }
 
-            // Convert transaction - either from TxPlan or AbstractTx
+            // Convert retry policy
+            if (step.hasRetryPolicy()) {
+                RetryPolicy policy = step.getRetryPolicy();
+                RetryEntry retryEntry = new RetryEntry();
+                retryEntry.setMaxAttempts(policy.getMaxAttempts());
+                retryEntry.setBackoff(policy.getBackoffStrategy().name().toLowerCase());
+                retryEntry.setInitialDelay(formatDuration(policy.getInitialDelay()));
+                retryEntry.setMaxDelay(formatDuration(policy.getMaxDelay()));
+                if (!policy.isRetryOnTimeout()) {
+                    retryEntry.setRetryOnTimeout(false);
+                }
+                if (!policy.isRetryOnNetworkError()) {
+                    retryEntry.setRetryOnNetworkError(false);
+                }
+                stepContent.setRetry(retryEntry);
+            }
+
+            // Convert transaction - only TxPlan can be serialized to YAML
+            // Steps with txContextFactory (factory functions) cannot be serialized
             if (step.hasTxPlan()) {
                 TxPlan plan = step.getTxPlan();
                 // Convert TxPlan to inline format
                 convertTxPlanToStepContent(plan, stepContent);
-            } else if (step.hasTx()) {
-                // Convert AbstractTx to TxPlan first, then to inline format
-                TxPlan plan = TxPlan.from(step.getTx());
-                convertTxPlanToStepContent(plan, stepContent);
+            } else if (step.hasTxContextFactory()) {
+                // Factory functions cannot be serialized to YAML (by design per ADR-003)
+                log.debug("Step '{}' has a txContextFactory which cannot be serialized to YAML. " +
+                        "Transaction content will be omitted.", step.getId());
             }
 
             entry.setStep(stepContent);
@@ -227,12 +276,6 @@ public class FlowDocument {
      * Convert TxPlan content to inline StepContent format.
      */
     private static void convertTxPlanToStepContent(TxPlan plan, StepContent stepContent) {
-        // Get the first transaction from the plan
-        List<AbstractTx<?>> txs = plan.getTxs();
-        if (txs == null || txs.isEmpty()) {
-            return;
-        }
-
         // Convert using TxPlan's YAML and then deserialize the transaction part
         String yaml = plan.toYaml();
         try {
@@ -296,6 +339,12 @@ public class FlowDocument {
                 }
             }
 
+            // Convert retry policy
+            if (stepContent.getRetry() != null) {
+                RetryPolicy retryPolicy = parseRetryPolicy(stepContent.getRetry());
+                stepBuilder.withRetryPolicy(retryPolicy);
+            }
+
             // Convert inline transaction to TxPlan
             TxPlan txPlan = createTxPlanFromStepContent(stepContent, variables);
             stepBuilder.withTxPlan(txPlan);
@@ -319,6 +368,101 @@ public class FlowDocument {
             log.warn("Unknown selection strategy: {}, defaulting to ALL", strategy);
             return SelectionStrategy.ALL;
         }
+    }
+
+    /**
+     * Parse a RetryEntry to a RetryPolicy.
+     */
+    private RetryPolicy parseRetryPolicy(RetryEntry entry) {
+        RetryPolicy.RetryPolicyBuilder builder = RetryPolicy.builder();
+
+        if (entry.getMaxAttempts() != null) {
+            builder.maxAttempts(entry.getMaxAttempts());
+        }
+        if (entry.getBackoff() != null) {
+            builder.backoffStrategy(parseBackoffStrategy(entry.getBackoff()));
+        }
+        if (entry.getInitialDelay() != null) {
+            builder.initialDelay(parseDuration(entry.getInitialDelay()));
+        }
+        if (entry.getMaxDelay() != null) {
+            builder.maxDelay(parseDuration(entry.getMaxDelay()));
+        }
+        if (entry.getRetryOnTimeout() != null) {
+            builder.retryOnTimeout(entry.getRetryOnTimeout());
+        }
+        if (entry.getRetryOnNetworkError() != null) {
+            builder.retryOnNetworkError(entry.getRetryOnNetworkError());
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Parse a backoff strategy string to enum.
+     */
+    private BackoffStrategy parseBackoffStrategy(String strategy) {
+        if (strategy == null || strategy.isEmpty()) {
+            return BackoffStrategy.EXPONENTIAL;
+        }
+        try {
+            return BackoffStrategy.valueOf(strategy.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("Unknown backoff strategy: {}, defaulting to EXPONENTIAL", strategy);
+            return BackoffStrategy.EXPONENTIAL;
+        }
+    }
+
+    /**
+     * Parse a duration string (e.g., "1s", "500ms", "2m") to Duration.
+     */
+    private Duration parseDuration(String durationStr) {
+        if (durationStr == null || durationStr.isEmpty()) {
+            return Duration.ofSeconds(1);
+        }
+
+        durationStr = durationStr.trim().toLowerCase();
+
+        try {
+            if (durationStr.endsWith("ms")) {
+                long ms = Long.parseLong(durationStr.substring(0, durationStr.length() - 2));
+                return Duration.ofMillis(ms);
+            } else if (durationStr.endsWith("s")) {
+                long s = Long.parseLong(durationStr.substring(0, durationStr.length() - 1));
+                return Duration.ofSeconds(s);
+            } else if (durationStr.endsWith("m")) {
+                long m = Long.parseLong(durationStr.substring(0, durationStr.length() - 1));
+                return Duration.ofMinutes(m);
+            } else {
+                // Default to seconds
+                long s = Long.parseLong(durationStr);
+                return Duration.ofSeconds(s);
+            }
+        } catch (NumberFormatException e) {
+            log.warn("Invalid duration format: {}, defaulting to 1s", durationStr);
+            return Duration.ofSeconds(1);
+        }
+    }
+
+    /**
+     * Format a Duration to a human-readable string (e.g., "1s", "500ms", "2m").
+     */
+    private static String formatDuration(Duration duration) {
+        if (duration == null) {
+            return "1s";
+        }
+
+        long millis = duration.toMillis();
+        if (millis % 1000 != 0) {
+            return millis + "ms";
+        }
+
+        long seconds = duration.getSeconds();
+        if (seconds % 60 != 0) {
+            return seconds + "s";
+        }
+
+        return duration.toMinutes() + "m";
     }
 
     /**

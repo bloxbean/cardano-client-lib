@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class FlowStepTest {
 
     @Test
-    void builder_shouldCreateStepWithTx() {
+    void builder_shouldCreateStepWithTxContextFactory() {
         // Given
         Tx tx = new Tx()
                 .from("addr1_sender")
@@ -23,13 +23,13 @@ class FlowStepTest {
         // When
         FlowStep step = FlowStep.builder("step1")
                 .withDescription("Test step")
-                .withTx(tx)
+                .withTxContext(builder -> builder.compose(tx))
                 .build();
 
         // Then
         assertThat(step.getId()).isEqualTo("step1");
         assertThat(step.getDescription()).isEqualTo("Test step");
-        assertThat(step.hasTx()).isTrue();
+        assertThat(step.hasTxContextFactory()).isTrue();
         assertThat(step.hasTxPlan()).isFalse();
         assertThat(step.hasDependencies()).isFalse();
     }
@@ -48,31 +48,30 @@ class FlowStepTest {
 
         // Then
         assertThat(step.hasTxPlan()).isTrue();
-        assertThat(step.hasTx()).isFalse();
+        assertThat(step.hasTxContextFactory()).isFalse();
     }
 
     @Test
-    void builder_shouldNotAllowBothTxAndTxPlan() {
+    void builder_shouldNotAllowBothTxContextFactoryAndTxPlan() {
         // Given
-        Tx tx = new Tx().from("addr1");
         TxPlan plan = new TxPlan().addTransaction(new Tx().from("addr2"));
 
         // When/Then
         assertThatThrownBy(() ->
                 FlowStep.builder("step1")
-                        .withTx(tx)
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .withTxPlan(plan)
                         .build()
         ).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void builder_shouldRequireEitherTxOrTxPlan() {
+    void builder_shouldRequireEitherTxContextFactoryOrTxPlan() {
         // When/Then
         assertThatThrownBy(() ->
                 FlowStep.builder("step1").build()
         ).isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("TxPlan or AbstractTx");
+                .hasMessageContaining("TxPlan or TxContext factory");
     }
 
     @Test
@@ -95,7 +94,7 @@ class FlowStepTest {
     void builder_shouldAddDependencies() {
         // When
         FlowStep step = FlowStep.builder("step2")
-                .withTx(new Tx().from("addr1"))
+                .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                 .dependsOn("step1")
                 .dependsOnIndex("step1", 0)
                 .dependsOnChange("step1")
@@ -111,7 +110,7 @@ class FlowStepTest {
     void builder_shouldAddDependencyWithStrategy() {
         // When
         FlowStep step = FlowStep.builder("step2")
-                .withTx(new Tx().from("addr1"))
+                .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                 .dependsOn("step1", SelectionStrategy.CHANGE)
                 .build();
 
@@ -131,7 +130,7 @@ class FlowStepTest {
 
         // When
         FlowStep step = FlowStep.builder("step2")
-                .withTx(new Tx().from("addr1"))
+                .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                 .dependsOn(customDep)
                 .build();
 

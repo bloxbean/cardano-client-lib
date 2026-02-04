@@ -1,13 +1,13 @@
 package com.bloxbean.cardano.client.txflow;
 
-import com.bloxbean.cardano.client.function.TxSigner;
-import com.bloxbean.cardano.client.quicktx.AbstractTx;
+import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
 import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Represents a single step in a transaction flow.
@@ -15,27 +15,56 @@ import java.util.List;
  * A FlowStep can contain either:
  * <ul>
  *     <li>A {@link TxPlan} for YAML-first workflows</li>
- *     <li>An {@link AbstractTx} (Tx or ScriptTx) for Java-first workflows</li>
+ *     <li>A factory function that creates a configured {@link QuickTxBuilder.TxContext} for Java-first workflows</li>
  * </ul>
  * <p>
+ * The factory function pattern allows full access to all TxContext configuration methods
+ * (feePayer, collateralPayer, validFrom, etc.) without FlowStep needing to duplicate them.
+ * <p>
  * Steps can declare dependencies on outputs from previous steps using {@link StepDependency}.
+ *
+ * <h3>Example Usage:</h3>
+ * <pre>{@code
+ * // Simple payment
+ * FlowStep.builder("payment")
+ *     .withTxContext(builder -> builder
+ *         .compose(new Tx()
+ *             .payToAddress(receiver, Amount.ada(10))
+ *             .from(sender))
+ *         .withSigner(SignerProviders.signerFrom(account)))
+ *     .build()
+ *
+ * // ScriptTx with full configuration
+ * FlowStep.builder("unlock")
+ *     .withTxContext(builder -> builder
+ *         .compose(new ScriptTx()
+ *             .collectFrom(scriptUtxo, redeemer)
+ *             .payToAddress(receiver, Amount.ada(5))
+ *             .attachSpendingValidator(script))
+ *         .feePayer(feeAddr)
+ *         .collateralPayer(collateralAddr)
+ *         .withSigner(signer)
+ *         .validFrom(currentSlot))
+ *     .dependsOn("lock")
+ *     .build()
+ * }</pre>
  */
 @Getter
 public class FlowStep {
     private final String id;
     private final String description;
     private final TxPlan txPlan;
-    private final AbstractTx<?> tx;
+    private final Function<QuickTxBuilder, QuickTxBuilder.TxContext> txContextFactory;
     private final List<StepDependency> dependencies;
-    private final TxSigner signer;
+    private final RetryPolicy retryPolicy;
 
     private FlowStep(Builder builder) {
         this.id = builder.id;
         this.description = builder.description;
         this.txPlan = builder.txPlan;
-        this.tx = builder.tx;
+        this.txContextFactory = builder.txContextFactory;
         this.dependencies = Collections.unmodifiableList(new ArrayList<>(builder.dependencies));
-        this.signer = builder.signer;
+        this.retryPolicy = builder.retryPolicy;
     }
 
     /**
@@ -48,12 +77,12 @@ public class FlowStep {
     }
 
     /**
-     * Check if this step has an AbstractTx.
+     * Check if this step has a TxContext factory.
      *
-     * @return true if this step uses an AbstractTx
+     * @return true if this step uses a TxContext factory
      */
-    public boolean hasTx() {
-        return tx != null;
+    public boolean hasTxContextFactory() {
+        return txContextFactory != null;
     }
 
     /**
@@ -66,12 +95,12 @@ public class FlowStep {
     }
 
     /**
-     * Check if this step has a step-level signer.
+     * Check if this step has a step-level retry policy.
      *
-     * @return true if this step has its own signer
+     * @return true if this step has its own retry policy
      */
-    public boolean hasSigner() {
-        return signer != null;
+    public boolean hasRetryPolicy() {
+        return retryPolicy != null;
     }
 
     /**
@@ -103,8 +132,9 @@ public class FlowStep {
                 "id='" + id + '\'' +
                 ", description='" + description + '\'' +
                 ", hasTxPlan=" + hasTxPlan() +
-                ", hasTx=" + hasTx() +
+                ", hasTxContextFactory=" + hasTxContextFactory() +
                 ", dependencies=" + dependencies.size() +
+                ", hasRetryPolicy=" + hasRetryPolicy() +
                 '}';
     }
 
@@ -115,15 +145,15 @@ public class FlowStep {
         private final String id;
         private String description;
         private TxPlan txPlan;
-        private AbstractTx<?> tx;
+        private Function<QuickTxBuilder, QuickTxBuilder.TxContext> txContextFactory;
         private final List<StepDependency> dependencies = new ArrayList<>();
-        private TxSigner signer;
+        private RetryPolicy retryPolicy;
 
         private Builder(String id) {
-            if (id == null || id.isEmpty()) {
-                throw new IllegalArgumentException("Step ID cannot be null or empty");
+            if (id == null || id.trim().isEmpty()) {
+                throw new IllegalArgumentException("Step ID cannot be null, empty, or whitespace");
             }
-            this.id = id;
+            this.id = id.trim();
         }
 
         /**
@@ -138,44 +168,64 @@ public class FlowStep {
         }
 
         /**
-         * Set a TxPlan for this step.
+         * Set a TxPlan for this step (YAML-first workflow).
          *
          * @param txPlan the transaction plan
          * @return this builder
          */
         public Builder withTxPlan(TxPlan txPlan) {
-            if (this.tx != null) {
-                throw new IllegalStateException("Cannot set TxPlan when AbstractTx is already set");
+            if (this.txContextFactory != null) {
+                throw new IllegalStateException("Cannot set TxPlan when TxContext factory is already set");
             }
             this.txPlan = txPlan;
             return this;
         }
 
         /**
-         * Set an AbstractTx (Tx or ScriptTx) for this step.
+         * Set a TxContext factory function for this step (Java-first workflow).
+         * <p>
+         * The factory function receives a {@link QuickTxBuilder} configured with the appropriate
+         * UTXO supplier (including pending UTXOs from previous steps) and should return a
+         * fully-configured {@link QuickTxBuilder.TxContext}.
+         * <p>
+         * This gives full access to all TxContext configuration methods like
+         * feePayer(), collateralPayer(), validFrom(), withSigner(), etc.
+         * </p>
+         * Example:
+         * <pre>{@code
+         * .withTxContext(builder -> builder
+         *     .compose(new ScriptTx()
+         *         .collectFrom(utxo, redeemer)
+         *         .payToAddress(receiver, amount)
+         *         .attachSpendingValidator(script))
+         *     .feePayer(feePayerAddr)
+         *     .collateralPayer(collateralAddr)
+         *     .withSigner(signer)
+         *     .validFrom(slot))
+         * }</pre>
          *
-         * @param tx the transaction
+         * @param txContextFactory a function that creates a configured TxContext
          * @return this builder
          */
-        public Builder withTx(AbstractTx<?> tx) {
+        public Builder withTxContext(Function<QuickTxBuilder, QuickTxBuilder.TxContext> txContextFactory) {
             if (this.txPlan != null) {
-                throw new IllegalStateException("Cannot set AbstractTx when TxPlan is already set");
+                throw new IllegalStateException("Cannot set TxContext factory when TxPlan is already set");
             }
-            this.tx = tx;
+            this.txContextFactory = txContextFactory;
             return this;
         }
 
         /**
-         * Set a step-level signer for this step.
+         * Set a step-level retry policy for this step.
          * <p>
-         * Step-level signers take precedence over the default signer set on the FlowExecutor.
-         * This is useful when different steps require different signers.
+         * Step-level retry policies take precedence over the default retry policy set on the FlowExecutor.
+         * This is useful when different steps require different retry behavior.
          *
-         * @param signer the signer for this step
+         * @param retryPolicy the retry policy for this step
          * @return this builder
          */
-        public Builder withSigner(TxSigner signer) {
-            this.signer = signer;
+        public Builder withRetryPolicy(RetryPolicy retryPolicy) {
+            this.retryPolicy = retryPolicy;
             return this;
         }
 
@@ -239,11 +289,11 @@ public class FlowStep {
          * Build the FlowStep.
          *
          * @return the built FlowStep
-         * @throws IllegalStateException if neither TxPlan nor AbstractTx is set
+         * @throws IllegalStateException if neither TxPlan nor TxContext factory is set
          */
         public FlowStep build() {
-            if (txPlan == null && tx == null) {
-                throw new IllegalStateException("FlowStep must have either a TxPlan or AbstractTx");
+            if (txPlan == null && txContextFactory == null) {
+                throw new IllegalStateException("FlowStep must have either a TxPlan or TxContext factory");
             }
             return new FlowStep(this);
         }

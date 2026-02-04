@@ -86,6 +86,30 @@ public interface FlowListener {
     }
 
     /**
+     * Called when a step is being retried after a failure.
+     * <p>
+     * Note: This is called BEFORE the retry attempt starts. The attemptNumber indicates
+     * which attempt just failed, not the upcoming retry attempt number.
+     *
+     * @param step the step being retried
+     * @param attemptNumber the attempt number that just failed (1-indexed: 1 = first attempt failed, 2 = second attempt failed, etc.)
+     * @param maxAttempts the maximum number of attempts configured
+     * @param lastError the error from the failed attempt
+     */
+    default void onStepRetry(FlowStep step, int attemptNumber, int maxAttempts, Throwable lastError) {
+    }
+
+    /**
+     * Called when all retry attempts are exhausted for a step.
+     *
+     * @param step the step that exhausted retries
+     * @param totalAttempts the total number of attempts made
+     * @param lastError the error from the final attempt
+     */
+    default void onStepRetryExhausted(FlowStep step, int totalAttempts, Throwable lastError) {
+    }
+
+    /**
      * A no-op listener that does nothing.
      */
     FlowListener NOOP = new FlowListener() {};
@@ -170,6 +194,20 @@ class CompositeFlowListener implements FlowListener {
     public void onTransactionConfirmed(FlowStep step, String transactionHash) {
         for (FlowListener listener : listeners) {
             listener.onTransactionConfirmed(step, transactionHash);
+        }
+    }
+
+    @Override
+    public void onStepRetry(FlowStep step, int attemptNumber, int maxAttempts, Throwable lastError) {
+        for (FlowListener listener : listeners) {
+            listener.onStepRetry(step, attemptNumber, maxAttempts, lastError);
+        }
+    }
+
+    @Override
+    public void onStepRetryExhausted(FlowStep step, int totalAttempts, Throwable lastError) {
+        for (FlowListener listener : listeners) {
+            listener.onStepRetryExhausted(step, totalAttempts, lastError);
         }
     }
 }

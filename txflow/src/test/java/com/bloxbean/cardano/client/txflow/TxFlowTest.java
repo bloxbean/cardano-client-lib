@@ -29,12 +29,12 @@ class TxFlowTest {
                 .addVariable("amount", 100_000_000L)
                 .addStep(FlowStep.builder("deposit")
                         .withDescription("Deposit ADA")
-                        .withTx(depositTx)
+                        .withTxContext(builder -> builder.compose(depositTx))
                         .build())
                 .addStep(FlowStep.builder("withdraw")
                         .withDescription("Withdraw ADA")
                         .dependsOn("deposit")
-                        .withTx(withdrawTx)
+                        .withTxContext(builder -> builder.compose(withdrawTx))
                         .build())
                 .build();
 
@@ -59,11 +59,11 @@ class TxFlowTest {
         // Given
         TxFlow flow = TxFlow.builder("valid-flow")
                 .addStep(FlowStep.builder("step1")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .addStep(FlowStep.builder("step2")
                         .dependsOn("step1")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .build();
 
@@ -80,10 +80,10 @@ class TxFlowTest {
         // Given
         TxFlow flow = TxFlow.builder("duplicate-flow")
                 .addStep(FlowStep.builder("step1")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .addStep(FlowStep.builder("step1") // Duplicate!
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .build();
 
@@ -101,7 +101,7 @@ class TxFlowTest {
         TxFlow flow = TxFlow.builder("missing-dep-flow")
                 .addStep(FlowStep.builder("step1")
                         .dependsOn("nonexistent")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .build();
 
@@ -119,10 +119,10 @@ class TxFlowTest {
         TxFlow flow = TxFlow.builder("forward-dep-flow")
                 .addStep(FlowStep.builder("step1")
                         .dependsOn("step2")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .addStep(FlowStep.builder("step2")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .build();
 
@@ -139,7 +139,7 @@ class TxFlowTest {
         // Given
         TxFlow flow = TxFlow.builder("get-step-flow")
                 .addStep(FlowStep.builder("step1")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .build();
 
@@ -153,10 +153,10 @@ class TxFlowTest {
         // Given
         TxFlow flow = TxFlow.builder("ids-flow")
                 .addStep(FlowStep.builder("step1")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .addStep(FlowStep.builder("step2")
-                        .withTx(new Tx().from("addr1"))
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                         .build())
                 .build();
 

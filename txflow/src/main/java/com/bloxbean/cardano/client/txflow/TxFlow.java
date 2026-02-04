@@ -23,15 +23,19 @@ import java.util.*;
  *     .withDescription("Deposit and release escrow")
  *     .addVariable("amount", 50_000_000L)
  *     .addStep(FlowStep.builder("deposit")
- *         .withTx(new Tx()
- *             .payToAddress(contractAddr, Amount.lovelace("${amount}"))
- *             .from(senderAddr))
+ *         .withTxContext(builder -> builder
+ *             .compose(new Tx()
+ *                 .payToAddress(contractAddr, Amount.lovelace("${amount}"))
+ *                 .from(senderAddr))
+ *             .withSigner(signer))
  *         .build())
  *     .addStep(FlowStep.builder("release")
  *         .dependsOn("deposit", SelectionStrategy.ALL)
- *         .withTx(new ScriptTx()
- *             .collectFrom(...)
- *             .payToAddress(receiverAddr, Amount.ada(1)))
+ *         .withTxContext(builder -> builder
+ *             .compose(new ScriptTx()
+ *                 .collectFrom(...)
+ *                 .payToAddress(receiverAddr, Amount.ada(1)))
+ *             .withSigner(signer))
  *         .build())
  *     .build();
  * }</pre>

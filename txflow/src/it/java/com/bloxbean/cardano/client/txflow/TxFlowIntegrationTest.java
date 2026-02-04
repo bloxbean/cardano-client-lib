@@ -4,12 +4,10 @@ import com.bloxbean.cardano.client.account.Account;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
-import com.bloxbean.cardano.client.common.ADAConversionUtil;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
-import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
 import com.bloxbean.cardano.client.txflow.exec.FlowListener;
@@ -18,12 +16,9 @@ import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
 import org.junit.jupiter.api.*;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -104,14 +99,16 @@ public class TxFlowIntegrationTest {
     void testSingleStepFlow() throws Exception {
         System.out.println("=== Test 1: Single Step Flow ===");
 
-        // Create a simple single-step flow
+        // Create a simple single-step flow using withTxContext
         TxFlow flow = TxFlow.builder("single-step-flow")
                 .withDescription("Single step payment test")
                 .addStep(FlowStep.builder("payment")
                         .withDescription("Send 2.5 ADA")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(2.5))
-                                .from(account0.baseAddress()))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(2.5))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .build();
 
@@ -123,10 +120,8 @@ public class TxFlowIntegrationTest {
         TxFlow.ValidationResult validation = flow.validate();
         assertTrue(validation.isValid(), "Flow validation should pass");
 
-        // Execute with default signer
-        FlowResult result = flowExecutor
-                .withDefaultSigner(SignerProviders.signerFrom(account0))
-                .executeSync(flow);
+        // Execute
+        FlowResult result = flowExecutor.executeSync(flow);
 
         // Verify results
         assertTrue(result.isSuccessful(), "Flow should complete successfully");
@@ -151,18 +146,20 @@ public class TxFlowIntegrationTest {
                 .withDescription("Two step payment chain")
                 .addStep(FlowStep.builder("step1")
                         .withDescription("Account0 -> Account1 (3 ADA)")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(3))
-                                .from(account0.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account0))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(3))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .addStep(FlowStep.builder("step2")
                         .withDescription("Account1 -> Account2 (1.5 ADA)")
                         .dependsOn("step1", SelectionStrategy.ALL)
-                        .withTx(new Tx()
-                                .payToAddress(account2.baseAddress(), Amount.ada(1.5))
-                                .from(account1.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account1))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account2.baseAddress(), Amount.ada(1.5))
+                                        .from(account1.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account1)))
                         .build())
                 .build();
 
@@ -207,7 +204,7 @@ public class TxFlowIntegrationTest {
             }
         };
 
-        // Execute with listener - no default signer needed, each step has its own
+        // Execute with listener
         FlowResult result = FlowExecutor.create(backendService)
                 .withListener(listener)
                 .executeSync(flow);
@@ -237,26 +234,29 @@ public class TxFlowIntegrationTest {
                 .withDescription("Three step circular payment chain")
                 .addStep(FlowStep.builder("transfer-to-b")
                         .withDescription("Account0 -> Account1 (5 ADA)")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(5))
-                                .from(account0.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account0))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(5))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .addStep(FlowStep.builder("transfer-to-c")
                         .withDescription("Account1 -> Account2 (2 ADA)")
                         .dependsOn("transfer-to-b")
-                        .withTx(new Tx()
-                                .payToAddress(account2.baseAddress(), Amount.ada(2))
-                                .from(account1.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account1))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account2.baseAddress(), Amount.ada(2))
+                                        .from(account1.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account1)))
                         .build())
                 .addStep(FlowStep.builder("return-to-a")
                         .withDescription("Account2 -> Account0 (1.5 ADA)")
                         .dependsOn("transfer-to-c")
-                        .withTx(new Tx()
-                                .payToAddress(account0.baseAddress(), Amount.ada(1.5))
-                                .from(account2.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account2))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account0.baseAddress(), Amount.ada(1.5))
+                                        .from(account2.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account2)))
                         .build())
                 .build();
 
@@ -269,7 +269,7 @@ public class TxFlowIntegrationTest {
         TxFlow.ValidationResult validation = flow.validate();
         assertTrue(validation.isValid(), "Flow validation should pass: " + validation.getErrors());
 
-        // Execute - no default signer needed, each step has its own
+        // Execute
         FlowResult result = FlowExecutor.create(backendService)
                 .withListener(new LoggingFlowListener())
                 .executeSync(flow);
@@ -296,16 +296,17 @@ public class TxFlowIntegrationTest {
         TxFlow flow = TxFlow.builder("async-flow")
                 .withDescription("Async execution test")
                 .addStep(FlowStep.builder("async-payment")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(1.5))
-                                .from(account0.baseAddress()))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(1.5))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .build();
 
         System.out.println("Starting async execution...");
 
         FlowHandle handle = FlowExecutor.create(backendService)
-                .withDefaultSigner(SignerProviders.signerFrom(account0))
                 .execute(flow);
 
         // Check initial status
@@ -337,9 +338,11 @@ public class TxFlowIntegrationTest {
                 .addVariable("receiver", account1.baseAddress())
                 .addVariable("amount", 2_000_000L) // 2 ADA in lovelace
                 .addStep(FlowStep.builder("variable-payment")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(2))
-                                .from(account0.baseAddress()))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(2))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .build();
 
@@ -347,7 +350,6 @@ public class TxFlowIntegrationTest {
         flow.getVariables().forEach((k, v) -> System.out.println("  " + k + ": " + v));
 
         FlowResult result = FlowExecutor.create(backendService)
-                .withDefaultSigner(SignerProviders.signerFrom(account0))
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful());
@@ -361,22 +363,27 @@ public class TxFlowIntegrationTest {
     void testFlowYamlRoundTrip() throws Exception {
         System.out.println("=== Test 6: Flow YAML Round Trip ===");
 
-        // Create a flow
+        // Create a flow using withTxContext (note: YAML round-trip will not preserve factory functions)
+        // This test focuses on flow structure preservation
         TxFlow originalFlow = TxFlow.builder("yaml-roundtrip")
                 .withDescription("YAML serialization test")
                 .addVariable("amount", 1_500_000L)
                 .addStep(FlowStep.builder("step1")
                         .withDescription("First payment")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(1.5))
-                                .from(account0.baseAddress()))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(1.5))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .addStep(FlowStep.builder("step2")
                         .withDescription("Second payment")
                         .dependsOn("step1")
-                        .withTx(new Tx()
-                                .payToAddress(account2.baseAddress(), Amount.ada(1))
-                                .from(account1.baseAddress()))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account2.baseAddress(), Amount.ada(1))
+                                        .from(account1.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account1)))
                         .build())
                 .build();
 
@@ -416,19 +423,21 @@ public class TxFlowIntegrationTest {
                 .withDescription("Test indexed UTXO selection")
                 .addStep(FlowStep.builder("multi-output")
                         .withDescription("Create multiple outputs")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(3))
-                                .payToAddress(account1.baseAddress(), Amount.ada(2))
-                                .from(account0.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account0))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(3))
+                                        .payToAddress(account1.baseAddress(), Amount.ada(2))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .addStep(FlowStep.builder("use-second")
                         .withDescription("Use second output")
                         .dependsOnIndex("multi-output", 1) // Use the 2 ADA output
-                        .withTx(new Tx()
-                                .payToAddress(account2.baseAddress(), Amount.ada(1.5))
-                                .from(account1.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account1))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account2.baseAddress(), Amount.ada(1.5))
+                                        .from(account1.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account1)))
                         .build())
                 .build();
 
@@ -436,7 +445,7 @@ public class TxFlowIntegrationTest {
         System.out.println("  Step 1: Create outputs of 3 ADA and 2 ADA");
         System.out.println("  Step 2: Use output at index 1 (2 ADA)");
 
-        // Execute - no default signer needed, each step has its own
+        // Execute
         FlowResult result = FlowExecutor.create(backendService)
                 .withListener(new LoggingFlowListener())
                 .executeSync(flow);
@@ -457,16 +466,20 @@ public class TxFlowIntegrationTest {
                 .withDescription("Test change output selection")
                 .addStep(FlowStep.builder("create-change")
                         .withDescription("Create transaction with change")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(2))
-                                .from(account0.baseAddress()))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(2))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .addStep(FlowStep.builder("use-change")
                         .withDescription("Use change output")
                         .dependsOnChange("create-change")
-                        .withTx(new Tx()
-                                .payToAddress(account2.baseAddress(), Amount.ada(1))
-                                .from(account0.baseAddress()))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account2.baseAddress(), Amount.ada(1))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .build();
 
@@ -475,7 +488,6 @@ public class TxFlowIntegrationTest {
         System.out.println("  Step 2: Use change output from step 1");
 
         FlowResult result = FlowExecutor.create(backendService)
-                .withDefaultSigner(SignerProviders.signerFrom(account0))
                 .withListener(new LoggingFlowListener())
                 .executeSync(flow);
 
@@ -497,18 +509,20 @@ public class TxFlowIntegrationTest {
                 .withDescription("Test pipelined execution for true transaction chaining")
                 .addStep(FlowStep.builder("step1")
                         .withDescription("Account0 -> Account1 (2 ADA)")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(2))
-                                .from(account0.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account0))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(2))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
                 .addStep(FlowStep.builder("step2")
                         .withDescription("Account1 -> Account2 (1 ADA) - uses step1 output")
                         .dependsOn("step1", SelectionStrategy.ALL)
-                        .withTx(new Tx()
-                                .payToAddress(account2.baseAddress(), Amount.ada(1))
-                                .from(account1.baseAddress()))
-                        .withSigner(SignerProviders.signerFrom(account1))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account2.baseAddress(), Amount.ada(1))
+                                        .from(account1.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account1)))
                         .build())
                 .build();
 
@@ -559,10 +573,11 @@ public class TxFlowIntegrationTest {
                 .withDescription("Test error propagation")
                 .addStep(FlowStep.builder("failing-step")
                         .withDescription("This step should fail due to no UTXOs")
-                        .withTx(new Tx()
-                                .payToAddress(account1.baseAddress(), Amount.ada(100))
-                                .from(emptyAccount.baseAddress()))  // No UTXOs - will fail
-                        .withSigner(SignerProviders.signerFrom(emptyAccount))
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(100))
+                                        .from(emptyAccount.baseAddress()))  // No UTXOs - will fail
+                                .withSigner(SignerProviders.signerFrom(emptyAccount)))
                         .build())
                 .build();
 
