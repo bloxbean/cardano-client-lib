@@ -11,6 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FieldType {
+
     private Type type;
     private JavaType javaType;
     private String encoding;
@@ -25,4 +26,5 @@ public class FieldType {
     public boolean isList() {
         return javaType == JavaType.LIST;
     }
+
 }
