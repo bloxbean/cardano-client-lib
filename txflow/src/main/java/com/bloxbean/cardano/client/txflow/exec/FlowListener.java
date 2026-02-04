@@ -133,7 +133,12 @@ public interface FlowListener {
 
 /**
  * Internal composite listener implementation.
+ * <p>
+ * Wraps all listener invocations in try-catch to ensure that an exception
+ * from one listener does not prevent other listeners from being notified
+ * or crash the flow execution.
  */
+@lombok.extern.slf4j.Slf4j
 class CompositeFlowListener implements FlowListener {
     private final FlowListener[] listeners;
 
@@ -144,70 +149,120 @@ class CompositeFlowListener implements FlowListener {
     @Override
     public void onFlowStarted(TxFlow flow) {
         for (FlowListener listener : listeners) {
-            listener.onFlowStarted(flow);
+            try {
+                listener.onFlowStarted(flow);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onFlowStarted: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onFlowCompleted(TxFlow flow, FlowResult result) {
         for (FlowListener listener : listeners) {
-            listener.onFlowCompleted(flow, result);
+            try {
+                listener.onFlowCompleted(flow, result);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onFlowCompleted: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onFlowFailed(TxFlow flow, FlowResult result) {
         for (FlowListener listener : listeners) {
-            listener.onFlowFailed(flow, result);
+            try {
+                listener.onFlowFailed(flow, result);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onFlowFailed: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onStepStarted(FlowStep step, int stepIndex, int totalSteps) {
         for (FlowListener listener : listeners) {
-            listener.onStepStarted(step, stepIndex, totalSteps);
+            try {
+                listener.onStepStarted(step, stepIndex, totalSteps);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onStepStarted: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onStepCompleted(FlowStep step, FlowStepResult result) {
         for (FlowListener listener : listeners) {
-            listener.onStepCompleted(step, result);
+            try {
+                listener.onStepCompleted(step, result);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onStepCompleted: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onStepFailed(FlowStep step, FlowStepResult result) {
         for (FlowListener listener : listeners) {
-            listener.onStepFailed(step, result);
+            try {
+                listener.onStepFailed(step, result);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onStepFailed: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onTransactionSubmitted(FlowStep step, String transactionHash) {
         for (FlowListener listener : listeners) {
-            listener.onTransactionSubmitted(step, transactionHash);
+            try {
+                listener.onTransactionSubmitted(step, transactionHash);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onTransactionSubmitted: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onTransactionConfirmed(FlowStep step, String transactionHash) {
         for (FlowListener listener : listeners) {
-            listener.onTransactionConfirmed(step, transactionHash);
+            try {
+                listener.onTransactionConfirmed(step, transactionHash);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onTransactionConfirmed: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onStepRetry(FlowStep step, int attemptNumber, int maxAttempts, Throwable lastError) {
         for (FlowListener listener : listeners) {
-            listener.onStepRetry(step, attemptNumber, maxAttempts, lastError);
+            try {
+                listener.onStepRetry(step, attemptNumber, maxAttempts, lastError);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onStepRetry: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 
     @Override
     public void onStepRetryExhausted(FlowStep step, int totalAttempts, Throwable lastError) {
         for (FlowListener listener : listeners) {
-            listener.onStepRetryExhausted(step, totalAttempts, lastError);
+            try {
+                listener.onStepRetryExhausted(step, totalAttempts, lastError);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onStepRetryExhausted: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
         }
     }
 }

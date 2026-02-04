@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.txflow;
 
+import com.bloxbean.cardano.client.txflow.exec.ConfirmationTimeoutException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -228,5 +229,56 @@ class RetryPolicyTest {
         // Attempt 0 or negative should return initial delay
         assertEquals(Duration.ofSeconds(1), policy.calculateDelay(0));
         assertEquals(Duration.ofSeconds(1), policy.calculateDelay(-1));
+    }
+
+    @Test
+    void testConfirmationTimeoutIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.defaults();
+
+        // ConfirmationTimeoutException should NEVER be retryable
+        ConfirmationTimeoutException exception = new ConfirmationTimeoutException("txHash123");
+        assertFalse(policy.isRetryable(exception));
+    }
+
+    @Test
+    void testConfirmationTimeoutMessageIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.defaults();
+
+        // Even generic RuntimeException with "confirmation timeout" message should not be retryable
+        RuntimeException exception = new RuntimeException("Transaction confirmation timeout: abc123");
+        assertFalse(policy.isRetryable(exception));
+    }
+
+    @Test
+    void testWrappedConfirmationTimeoutIsNotRetryable() {
+        RetryPolicy policy = RetryPolicy.defaults();
+
+        // ConfirmationTimeoutException wrapped in another exception should still not be retryable
+        ConfirmationTimeoutException confirmationTimeout = new ConfirmationTimeoutException("txHash123");
+        RuntimeException wrappedException = new RuntimeException("Wrapped exception", confirmationTimeout);
+        assertFalse(policy.isRetryable(wrappedException));
+    }
+
+    @Test
+    void testNetworkTimeoutIsStillRetryable() {
+        RetryPolicy policy = RetryPolicy.defaults();
+
+        // Network/connection timeouts should still be retryable
+        assertTrue(policy.isRetryable(new RuntimeException("Connection timeout")));
+        assertTrue(policy.isRetryable(new RuntimeException("Request timeout")));
+        assertTrue(policy.isRetryable(new RuntimeException("Socket read timeout")));
+    }
+
+    @Test
+    void testConfirmationTimeoutVsNetworkTimeout() {
+        RetryPolicy policy = RetryPolicy.defaults();
+
+        // Confirmation timeout - NOT retryable (would cause duplicate transactions)
+        assertFalse(policy.isRetryable(new ConfirmationTimeoutException("txHash")));
+        assertFalse(policy.isRetryable(new RuntimeException("Transaction confirmation timeout: xyz")));
+
+        // Network timeout - retryable (transaction was never submitted)
+        assertTrue(policy.isRetryable(new RuntimeException("Network timeout")));
+        assertTrue(policy.isRetryable(new RuntimeException("HTTP timeout connecting to server")));
     }
 }

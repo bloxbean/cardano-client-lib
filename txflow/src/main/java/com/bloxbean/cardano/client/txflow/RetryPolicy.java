@@ -147,11 +147,12 @@ public class RetryPolicy {
      *     <li>Insufficient funds</li>
      *     <li>Invalid transaction</li>
      *     <li>Already spent UTXOs</li>
+     *     <li>Confirmation timeouts (transaction may still confirm later)</li>
      * </ul>
      * <p>
      * The following errors ARE retryable (if enabled in policy):
      * <ul>
-     *     <li>Timeout errors (if retryOnTimeout is true)</li>
+     *     <li>Network timeout errors (if retryOnTimeout is true) - NOT confirmation timeouts</li>
      *     <li>Network/connection errors (if retryOnNetworkError is true)</li>
      * </ul>
      *
@@ -163,6 +164,16 @@ public class RetryPolicy {
             return false;
         }
 
+        // Check for ConfirmationTimeoutException (by class name to avoid circular dependency)
+        // Also check wrapped causes in case of chained exceptions
+        Throwable current = error;
+        while (current != null) {
+            if (current.getClass().getSimpleName().equals("ConfirmationTimeoutException")) {
+                return false;
+            }
+            current = current.getCause();
+        }
+
         String message = error.getMessage() != null ? error.getMessage().toLowerCase() : "";
 
         // Non-retryable errors - these are permanent failures
@@ -170,11 +181,12 @@ public class RetryPolicy {
             message.contains("invalid") ||
             message.contains("already spent") ||
             message.contains("utxo not found") ||
-            message.contains("bad request")) {
+            message.contains("bad request") ||
+            message.contains("confirmation timeout")) {
             return false;
         }
 
-        // Timeout errors
+        // Timeout errors (network/connection timeouts, NOT confirmation timeouts)
         if (retryOnTimeout && message.contains("timeout")) {
             return true;
         }

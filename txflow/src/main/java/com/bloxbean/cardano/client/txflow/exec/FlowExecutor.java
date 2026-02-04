@@ -309,7 +309,7 @@ public class FlowExecutor {
                 } else {
                     // Confirmation timeout
                     FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
-                            new RuntimeException("Transaction confirmation timeout: " + txHash));
+                            new ConfirmationTimeoutException(txHash));
                     listener.onStepFailed(step, failedResult);
                     resultBuilder.completedAt(Instant.now());
                     FlowResult flowFailedResult = resultBuilder.withStatus(FlowStatus.FAILED)
@@ -516,7 +516,7 @@ public class FlowExecutor {
                     listener.onStepCompleted(step, stepResults.get(i));
                 } else {
                     FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
-                            new RuntimeException("Transaction confirmation timeout: " + txHash));
+                            new ConfirmationTimeoutException(txHash));
                     listener.onStepFailed(step, failedResult);
                     handle.updateStatus(FlowStatus.FAILED);
                     resultBuilder.completedAt(Instant.now());
@@ -974,7 +974,7 @@ public class FlowExecutor {
                     listener.onStepCompleted(step, stepResults.get(i));
                 } else {
                     FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
-                            new RuntimeException("Transaction confirmation timeout: " + txHash));
+                            new ConfirmationTimeoutException(txHash));
                     listener.onStepFailed(step, failedResult);
                     resultBuilder.completedAt(Instant.now());
                     FlowResult flowFailed = resultBuilder.withStatus(FlowStatus.FAILED)
@@ -1097,7 +1097,7 @@ public class FlowExecutor {
                     listener.onStepCompleted(step, stepResults.get(i));
                 } else {
                     FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
-                            new RuntimeException("Transaction confirmation timeout: " + txHash));
+                            new ConfirmationTimeoutException(txHash));
                     listener.onStepFailed(step, failedResult);
                     handle.updateStatus(FlowStatus.FAILED);
                     resultBuilder.completedAt(Instant.now());

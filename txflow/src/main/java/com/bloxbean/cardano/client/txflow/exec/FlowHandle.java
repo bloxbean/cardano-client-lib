@@ -10,6 +10,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Handle for monitoring and controlling a running transaction flow.
@@ -27,7 +28,7 @@ public class FlowHandle {
     private final CompletableFuture<FlowResult> resultFuture;
     private volatile FlowStatus currentStatus = FlowStatus.PENDING;
     private volatile String currentStepId;
-    private volatile int completedStepCount = 0;
+    private final AtomicInteger completedStepCount = new AtomicInteger(0);
 
     /**
      * Create a new FlowHandle.
@@ -73,7 +74,7 @@ public class FlowHandle {
      * @return the completed step count
      */
     public int getCompletedStepCount() {
-        return completedStepCount;
+        return completedStepCount.get();
     }
 
     /**
@@ -182,7 +183,7 @@ public class FlowHandle {
     }
 
     void incrementCompletedSteps() {
-        this.completedStepCount++;
+        this.completedStepCount.incrementAndGet();
     }
 
     @Override
@@ -191,7 +192,7 @@ public class FlowHandle {
                 "flowId='" + flow.getId() + '\'' +
                 ", status=" + currentStatus +
                 ", currentStepId='" + currentStepId + '\'' +
-                ", progress=" + completedStepCount + "/" + getTotalStepCount() +
+                ", progress=" + completedStepCount.get() + "/" + getTotalStepCount() +
                 ", done=" + isDone() +
                 '}';
     }
