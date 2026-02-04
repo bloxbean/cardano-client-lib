@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.plutus.blueprint.model;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
@@ -46,7 +47,8 @@ public class BlueprintSchema {
     private int exclusiveMinimum;
 
     //Datatype = "list"
-    private BlueprintSchema items;
+    @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
+    private List<BlueprintSchema> items;
     private int maxItems;
     private int minItems;
     private boolean uniqueItems;
@@ -84,7 +86,7 @@ public class BlueprintSchema {
         this.exclusiveMaximum = this.exclusiveMaximum != 0 ? this.exclusiveMaximum : blueprintSchema.exclusiveMaximum;
         this.minimum = this.minimum != 0 ? this.minimum : blueprintSchema.minimum;
         this.exclusiveMinimum = this.exclusiveMinimum != 0 ? this.exclusiveMinimum : blueprintSchema.exclusiveMinimum;
-        this.items = this.items != null ? this.items : blueprintSchema.items;
+        this.items = (this.items != null && !this.items.isEmpty()) ? this.items : blueprintSchema.items;
         this.maxItems = this.maxItems != 0 ? this.maxItems : blueprintSchema.maxItems;
         this.minItems = this.minItems != 0 ? this.minItems : blueprintSchema.minItems;
         this.uniqueItems = this.uniqueItems || blueprintSchema.uniqueItems;

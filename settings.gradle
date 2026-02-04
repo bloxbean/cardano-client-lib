@@ -52,3 +52,5 @@ include 'verified-structures:rdbms-core'
 include 'verified-structures:merkle-patricia-forestry-rdbms'
 include 'verified-structures:jellyfish-merkle-rdbms'
 include 'verified-structures:load-tools'
+
+include ':plutus-aiken'

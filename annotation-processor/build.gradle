@@ -1,5 +1,6 @@
 dependencies {
     api project(':plutus')
+    api project(':plutus-aiken')
     api project(':address')
     api project(':quicktx')
 
@@ -10,6 +11,7 @@ dependencies {
     api libs.apache.common.text
 
     testImplementation libs.google.testing.compile
+    testImplementation libs.mockito.core
     testImplementation libs.lombok
 
     testAnnotationProcessor project(':annotation-processor')

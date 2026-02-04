@@ -6,9 +6,14 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
-import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModel;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
+import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
 import com.bloxbean.cardano.client.plutus.spec.PlutusScript;
@@ -30,21 +35,34 @@ import java.util.List;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
-import static com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil.toPackageNameFormat;
 
+/**
+ * Generates validator wrapper classes (metadata, script utilities, inline schema handling)
+ * for blueprint validator definitions.
+ */
 public class ValidatorProcessor {
 
     private final Blueprint annotation;
     private final ExtendWith extendWith;
     private final ProcessingEnvironment processingEnv;
     private final FieldSpecProcessor fieldSpecProcessor;
+    private final com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver packageResolver;
+    private final com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter sourceWriter;
+    private final com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.ErrorReporter errorReporter;
+    private final DatumModelFactory datumModelFactory;
+    private final NameStrategy nameStrategy;
     private final String VALIDATOR_CLASS_SUFFIX = "Validator";
 
-    public ValidatorProcessor(Blueprint annotation, ExtendWith extendWith, ProcessingEnvironment processingEnv) {
+    public ValidatorProcessor(Blueprint annotation, ExtendWith extendWith, ProcessingEnvironment processingEnv, GeneratedTypesRegistry generatedTypesRegistry, SharedTypeLookup sharedTypeLookup) {
         this.annotation = annotation;
         this.extendWith = extendWith;
         this.processingEnv = processingEnv;
-        this.fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv);
+        this.fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup);
+        this.packageResolver = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver();
+        this.sourceWriter = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter(processingEnv);
+        this.errorReporter = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.ErrorReporter(processingEnv);
+        this.nameStrategy = new NameStrategy();
+        this.datumModelFactory = new DatumModelFactory(nameStrategy);
     }
 
     /**
@@ -57,22 +75,13 @@ public class ValidatorProcessor {
     public void processValidator(Validator validator, PlutusVersion plutusVersion) {
         // preparation of standard fields
         String[] titleTokens = validator.getTitle().split("\\.");
-        String pkgSuffix = null;
-
-        if (titleTokens.length > 1) {
-            pkgSuffix = titleTokens[0];
-        }
-
+        String validatorNamespace = packageResolver.getValidatorNamespace(validator.getTitle());
         String validatorName = titleTokens[titleTokens.length - 1];
 
-        String packageName = annotation.packageName();
-        if (pkgSuffix != null)
-            packageName = packageName + "." + pkgSuffix;
-
-        packageName = toPackageNameFormat(packageName);
+        String packageName = packageResolver.getValidatorPackage(annotation, validator.getTitle());
 
         String title = validatorName;
-        title = JavaFileUtil.toCamelCase(title);
+        title = nameStrategy.toCamelCase(title);
 
         List<FieldSpec> metaFields = ValidatorProcessor.getFieldSpecsForValidator(validator);
 
@@ -112,31 +121,17 @@ public class ValidatorProcessor {
         //TODO -- Handle parameterized validators
 
         // processing of fields
-        if (validator.getRedeemer() != null && validator.getRedeemer().getSchema() != null && validator.getRedeemer().getSchema().getRef() == null) { //Looks like inline schema
-            var redeemerSchema = validator.getRedeemer().getSchema();
-            if (redeemerSchema.getTitle() == null)
-                redeemerSchema.setTitle(validator.getRedeemer().getTitle());
-
-            fieldSpecProcessor.createDatumClass(pkgSuffix, redeemerSchema);
+        if (validator.getRedeemer() != null) {
+            processInlineSchema(validatorNamespace, validator.getRedeemer().getSchema(), validator.getRedeemer().getTitle());
         }
 
-        if (validator.getDatum() != null && validator.getDatum().getSchema() != null && validator.getDatum().getSchema().getRef() == null) { //Looks like inline schema
-            var datumSchema = validator.getDatum().getSchema();
-            if (datumSchema.getTitle() == null)
-                datumSchema.setTitle(validator.getDatum().getTitle());
-
-            fieldSpecProcessor.createDatumClass(pkgSuffix, datumSchema);
+        if (validator.getDatum() != null) {
+            processInlineSchema(validatorNamespace, validator.getDatum().getSchema(), validator.getDatum().getTitle());
         }
 
-        if (validator.getParameters() != null && validator.getParameters().size() > 0) { //check for any inline schema
+        if (validator.getParameters() != null && !validator.getParameters().isEmpty()) {
             for (BlueprintDatum parameter : validator.getParameters()) {
-                if (parameter.getSchema() != null && parameter.getSchema().getRef() == null) { //Looks like inline schema
-                    var parameterSchema = parameter.getSchema();
-                    if (parameterSchema.getTitle() == null)
-                        parameterSchema.setTitle(parameter.getTitle());
-
-                    fieldSpecProcessor.createDatumClass(pkgSuffix, parameterSchema);
-                }
+                processInlineSchema(validatorNamespace, parameter.getSchema(), parameter.getTitle());
             }
         }
 
@@ -190,9 +185,29 @@ public class ValidatorProcessor {
         var build = builder.build();
 
         try {
-            JavaFileUtil.createJavaFile(packageName, build, validatorClassName, processingEnv);
+            sourceWriter.write(packageName, build, validatorClassName);
         } catch (Exception e) {
-            error(null, "Error creating validator class : %s", e.getMessage());
+            errorReporter.error(null, "Error creating validator class : %s", e.getMessage());
+        }
+    }
+
+    private void processInlineSchema(String namespace, BlueprintSchema schema, String fallbackTitle) {
+        if (schema == null || schema.getRef() != null)
+            return;
+
+        if (schema.getTitle() == null || schema.getTitle().isEmpty()) {
+            if (fallbackTitle != null && !fallbackTitle.isEmpty()) {
+                schema.setTitle(fallbackTitle);
+            } else {
+                return;
+            }
+        }
+
+        try {
+            DatumModel datumModel = datumModelFactory.create(namespace, schema);
+            fieldSpecProcessor.createDatumClass(datumModel);
+        } catch (IllegalArgumentException ex) {
+            errorReporter.warn(null, "Skipping inline schema due to missing title for %s", fallbackTitle != null ? fallbackTitle : "unknown");
         }
     }
 
