@@ -84,4 +84,5 @@ public class BasePlutusDataConverter {
             throw new IllegalArgumentException("Unsupported encoding: " + encoding);
         }
     }
+
 }

@@ -8,6 +8,7 @@ import java.util.Set;
  * Not enforced in Phase 1; provided for future use.
  */
 public class GeneratedTypesRegistry {
+
     private final Set<String> generated = new HashSet<>();
 
     public boolean isGenerated(String packageName, String className) {
@@ -25,5 +26,6 @@ public class GeneratedTypesRegistry {
     private String key(String pkg, String cls) {
         return (pkg == null ? "" : pkg) + ":" + (cls == null ? "" : cls);
     }
+
 }
 

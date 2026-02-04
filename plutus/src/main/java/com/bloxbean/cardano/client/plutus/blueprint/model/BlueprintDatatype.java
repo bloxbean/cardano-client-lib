@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.plutus.blueprint.model;
 import com.fasterxml.jackson.annotation.JsonAlias;
 
 public enum BlueprintDatatype {
+
     @JsonAlias({"integer", "#integer"})
     integer,
     @JsonAlias({"bytes", "#bytes"})
@@ -23,4 +24,5 @@ public enum BlueprintDatatype {
     public boolean isPrimitiveType() {
         return this == integer || this == bytes || this == string || this == bool;
     }
+
 }

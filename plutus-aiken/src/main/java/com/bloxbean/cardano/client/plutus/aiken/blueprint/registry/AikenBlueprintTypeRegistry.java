@@ -80,6 +80,7 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
                 constructor("VerificationKeyCredential", 0, List.of(ref("#/definitions/ByteArray"))),
                 constructor("ScriptCredential", 1, List.of(ref("#/definitions/ByteArray")))
         ));
+
         return schema;
     }
 

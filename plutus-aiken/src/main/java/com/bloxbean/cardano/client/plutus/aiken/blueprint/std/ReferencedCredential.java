@@ -51,6 +51,7 @@ public interface ReferencedCredential extends Data<ReferencedCredential> {
 
     /** Pointer form referencing a credential via slot/transaction/certificate indices. */
     final class Pointer implements ReferencedCredential {
+
         private final BigInteger slotNumber;
         private final BigInteger transactionIndex;
         private final BigInteger certificateIndex;

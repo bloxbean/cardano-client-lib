@@ -22,7 +22,7 @@
       "redeemer": {
         "title": "redeemer",
         "schema": {
-          "$ref": "#/definitions/Data"
+          "$ref": "#/definitions/validator~1AbstractRedeemer"
         }
       },
       "compiledCode": "5833010000323222253330044a22930a99802a491856616c696461746f722072657475726e65642066616c736500136565734ae701",
@@ -33,6 +33,14 @@
         "Data": {
           "title": "anyPlutusData",
           "description": "Any Plutus data."
+        },
+        "validator/AbstractRedeemer": {
+          "title": "AbstractRedeemer",
+          "description": "Namespaced abstract redeemer type (opaque PlutusData per CIP-57)"
+        },
+        "test_module/CustomData": {
+          "title": "CustomData",
+          "description": "Namespaced abstract data type for field reference test"
         },
         "Int": {
           "dataType": "integer"
@@ -48,6 +56,10 @@
                 {
                   "title": "foo",
                   "$ref": "#/definitions/Int"
+                },
+                {
+                  "title": "customData",
+                  "$ref": "#/definitions/test_module~1CustomData"
                 }
               ]
             }

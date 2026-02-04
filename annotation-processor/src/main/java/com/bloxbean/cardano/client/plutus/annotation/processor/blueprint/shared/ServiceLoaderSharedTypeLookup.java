@@ -1,12 +1,7 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared;
 
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
-import com.bloxbean.cardano.client.plutus.blueprint.registry.BlueprintTypeRegistry;
-import com.bloxbean.cardano.client.plutus.blueprint.registry.LookupContext;
-import com.bloxbean.cardano.client.plutus.blueprint.registry.RegisteredType;
-import com.bloxbean.cardano.client.plutus.blueprint.registry.SchemaSignature;
-import com.bloxbean.cardano.client.plutus.blueprint.registry.SchemaSignatureBuilder;
-import com.bloxbean.cardano.client.plutus.blueprint.registry.BlueprintTypeRegistryExtensions;
+import com.bloxbean.cardano.client.plutus.blueprint.registry.*;
 import com.squareup.javapoet.ClassName;
 
 import java.util.*;
@@ -26,19 +21,22 @@ class ServiceLoaderSharedTypeLookup implements SharedTypeLookup {
 
     @Override
     public Optional<ClassName> lookup(String namespace, BlueprintSchema schema) {
-        if (registries.isEmpty())
+        if (registries.isEmpty()) {
             return Optional.empty();
+        }
 
         BlueprintSchema resolved = schema.getRefSchema() != null ? schema.getRefSchema() : schema;
         if (resolved.getTitle() != null) {
             Optional<RegisteredType> titleOverride = BlueprintTypeRegistryExtensions.findByTitle(resolved.getTitle());
             if (titleOverride.isPresent()) {
                 RegisteredType type = titleOverride.get();
+
                 return Optional.of(ClassName.get(type.packageName(), type.simpleName()));
             }
         }
 
         SchemaSignature signature = signatureBuilder.build(resolved);
+
         return cache.computeIfAbsent(signature, sig -> resolve(sig, resolved, namespace));
     }
 
@@ -48,9 +46,12 @@ class ServiceLoaderSharedTypeLookup implements SharedTypeLookup {
             Optional<RegisteredType> registeredType = registry.lookup(signature, schema, context);
             if (registeredType.isPresent()) {
                 RegisteredType type = registeredType.get();
+
                 return Optional.of(ClassName.get(type.packageName(), type.simpleName()));
             }
         }
+
         return Optional.empty();
     }
+
 }

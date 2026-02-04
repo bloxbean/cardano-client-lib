@@ -3,15 +3,18 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.dataty
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.FieldSpecProcessor;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -38,7 +41,7 @@ class SchemaTypeResolverTest {
         TypeName typeName = resolver.resolveType("validators", listSchema);
 
         assertThat(typeName).isEqualTo(
-                ParameterizedTypeName.get(ClassName.get("java.util", "List"), TypeName.get(String.class))
+                ParameterizedTypeName.get(ClassName.get(List.class), TypeName.get(String.class))
         );
     }
 
@@ -55,7 +58,7 @@ class SchemaTypeResolverTest {
 
         assertThat(typeName).isEqualTo(
                 ParameterizedTypeName.get(
-                        ClassName.get("com.bloxbean.cardano.client.plutus.blueprint.type", "Pair"),
+                        ClassName.get(Pair.class),
                         TypeName.get(byte[].class),
                         TypeName.get(String.class)
                 )
@@ -72,7 +75,7 @@ class SchemaTypeResolverTest {
 
         assertThat(typeName).isEqualTo(
                 ParameterizedTypeName.get(
-                        ClassName.get("java.util", "Map"),
+                        ClassName.get(Map.class),
                         TypeName.get(String.class),
                         TypeName.get(java.math.BigInteger.class)
                 ));
@@ -96,7 +99,7 @@ class SchemaTypeResolverTest {
 
         assertThat(typeName).isEqualTo(
                 ParameterizedTypeName.get(
-                        ClassName.get("java.util", "Optional"),
+                        ClassName.get(Optional.class),
                         TypeName.get(java.math.BigInteger.class)
                 ));
     }
@@ -111,15 +114,28 @@ class SchemaTypeResolverTest {
 
         assertThat(typeName).isEqualTo(
                 ParameterizedTypeName.get(
-                        ClassName.get("com.bloxbean.cardano.client.plutus.blueprint.type", "Pair"),
+                        ClassName.get(Pair.class),
                         TypeName.get(String.class),
                         TypeName.get(Boolean.class)
                 ));
     }
 
     @Test
-    void resolveType_shouldDelegateToFieldSpecProcessorWhenDatatypeNull() {
+    void resolveType_shouldReturnPlutusDataWhenDatatypeNullAndNoStructure() {
+        // Per CIP-57: When dataType is missing and no structure, it's opaque PlutusData
         BlueprintSchema nestedSchema = new BlueprintSchema();
+
+        TypeName typeName = resolver.resolveType("validators", nestedSchema);
+
+        assertThat(typeName).isEqualTo(ClassName.get(PlutusData.class));
+    }
+
+    @Test
+    void resolveType_shouldDelegateToFieldSpecProcessorWhenDatatypeNullButHasStructure() {
+        // When dataType is null but there's structure (anyOf), it's not opaque - delegate to fieldSpecProcessor
+        BlueprintSchema nestedSchema = new BlueprintSchema();
+        nestedSchema.setAnyOf(java.util.List.of(new BlueprintSchema()));
+
         ClassName innerClass = ClassName.get("com.test", "Inner");
         when(fieldSpecProcessor.getInnerDatumClass(eq("validators"), eq(nestedSchema))).thenReturn(innerClass);
 
@@ -129,10 +145,9 @@ class SchemaTypeResolverTest {
     }
 
     @Test
-    void resolveListType_withNestedSchemaWithoutDatatype_shouldUseFieldSpecProcessor() {
+    void resolveListType_withNestedSchemaWithoutDatatype_shouldUsePlutusData() {
+        // Per CIP-57: When item schema has no dataType and no structure, it's opaque PlutusData
         BlueprintSchema itemSchema = new BlueprintSchema();
-        ClassName innerClass = ClassName.get("com.test", "Inner");
-        when(fieldSpecProcessor.getInnerDatumClass(anyString(), eq(itemSchema))).thenReturn(innerClass);
 
         BlueprintSchema listSchema = schema(BlueprintDatatype.list);
         listSchema.setItems(List.of(itemSchema));
@@ -140,7 +155,10 @@ class SchemaTypeResolverTest {
         TypeName typeName = resolver.resolveType("validators", listSchema);
 
         assertThat(typeName).isEqualTo(
-                ParameterizedTypeName.get(ClassName.get("java.util", "List"), innerClass)
+                ParameterizedTypeName.get(
+                        ClassName.get(List.class),
+                        ClassName.get(PlutusData.class)
+                )
         );
     }
 

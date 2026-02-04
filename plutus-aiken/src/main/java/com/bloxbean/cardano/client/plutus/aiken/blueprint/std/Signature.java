@@ -10,4 +10,5 @@ public final class Signature extends ByteArrayWrapper {
     public static Signature of(byte[] value) {
         return new Signature(value);
     }
+
 }
