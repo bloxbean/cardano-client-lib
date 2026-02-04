@@ -333,8 +333,6 @@ public class ValidatorProcessor {
         return validator.getParameters() != null && validator.getParameters().size() > 0;
     }
 
-
-
     /**
      * Calculates the validator name from a validator title to avoid class name collisions.
      *

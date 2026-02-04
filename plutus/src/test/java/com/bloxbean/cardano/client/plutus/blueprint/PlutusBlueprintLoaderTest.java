@@ -210,7 +210,7 @@ class PlutusBlueprintLoaderTest {
         @Test
         @DisplayName("should load CIP-113 token blueprint with correct structure")
         void loadCip113TokenBlueprint() {
-            InputStream in = PlutusBlueprintLoaderTest.class.getResourceAsStream("/blueprint/cip113Token.json");
+            InputStream in = PlutusBlueprintLoaderTest.class.getResourceAsStream("/blueprint/cip113Token_aiken_v1_1_17.json");
             assertNotNull(in, "CIP-113 token blueprint file should exist");
 
             PlutusContractBlueprint blueprint = PlutusBlueprintLoader.loadBlueprint(in);
