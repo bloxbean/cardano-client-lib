@@ -347,6 +347,40 @@ class PlutusBlueprintLoaderTest {
                 assertEquals("State", state.getTitle());
             }, "Should handle circular references in anyOf structures");
         }
+
+        @Test
+        @DisplayName("should handle nested list circular reference pattern")
+        void testNestedListCircularReference() {
+            // Pattern: Script -> Composite -> List<Script>
+            // Common in multisig schemes, state machines, and tree structures
+            InputStream in = PlutusBlueprintLoaderTest.class.getResourceAsStream("/blueprint/circular-nested-list.json");
+            assertNotNull(in, "Nested list circular reference test blueprint should exist");
+
+            assertDoesNotThrow(() -> {
+                PlutusContractBlueprint blueprint = PlutusBlueprintLoader.loadBlueprint(in);
+                assertNotNull(blueprint);
+
+                // Verify the circular Script type loaded successfully
+                Map<String, BlueprintSchema> definitions = blueprint.getDefinitions();
+                assertTrue(definitions.containsKey("multisig/Script"));
+
+                BlueprintSchema script = definitions.get("multisig/Script");
+                assertEquals("Script", script.getTitle());
+                assertNotNull(script.getAnyOf());
+                assertEquals(4, script.getAnyOf().size()); // Single, AllOf, AnyOf, AtLeast
+
+                // Verify AllOf constructor contains self-reference via List
+                BlueprintSchema allOfConstructor = script.getAnyOf().get(1);
+                assertEquals("AllOf", allOfConstructor.getTitle());
+                assertNotNull(allOfConstructor.getFields());
+                assertEquals(1, allOfConstructor.getFields().size());
+
+                BlueprintSchema scriptsField = allOfConstructor.getFields().get(0);
+                assertEquals("scripts", scriptsField.getTitle());
+                assertNotNull(scriptsField.getRef());
+                assertTrue(scriptsField.getRef().contains("List<multisig~1Script>"));
+            }, "Should handle nested list circular reference without StackOverflowError");
+        }
     }
 
 }

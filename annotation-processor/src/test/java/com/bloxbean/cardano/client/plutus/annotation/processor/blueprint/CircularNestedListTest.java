@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -11,30 +10,35 @@ import static com.google.testing.compile.CompilationSubject.assertThat;
 import static com.google.testing.compile.Compiler.javac;
 
 /**
- * Tests for SundaeSwap DEX blueprint annotation processing (Plutus v2).
+ * Functional test for circular nested list reference pattern (CIP-57).
  *
- * NOTE: Currently disabled. While circular reference handling is fixed
- * (see PlutusBlueprintLoaderTest.testSundaeSwapMultisigCircular), there are
- * other annotation processor issues with complex SundaeSwap types that need
- * to be addressed separately.
+ * <p>Verifies that the annotation processor can generate valid Java classes
+ * for blueprints with circular references via nested lists:</p>
+ * <pre>Script → Composite → List&lt;Script&gt;</pre>
  *
- * The blueprint loads successfully but code generation has issues with:
- * - Generic type extraction and naming
- * - Complex nested type hierarchies
- * - Module path resolution for namespaced types
+ * <p>This pattern is common in:</p>
+ * <ul>
+ *   <li>Multisig scripts (AllOf/AnyOf/AtLeast containing lists of scripts)</li>
+ *   <li>State machines (states containing lists of possible next states)</li>
+ *   <li>Tree structures (nodes containing lists of child nodes)</li>
+ * </ul>
  *
- * @see com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoaderTest#testNestedListCircularReference()
+ * <p><strong>What This Tests:</strong></p>
+ * <ul>
+ *   <li>Blueprint loader handles circular references without StackOverflowError</li>
+ *   <li>Code generation produces valid Java classes with self-referencing types</li>
+ *   <li>Generated classes compile successfully</li>
+ * </ul>
  */
-public class SundaeSwapTest {
+public class CircularNestedListTest {
 
     @Test
-    @Disabled("Annotation processor has issues with complex SundaeSwap types beyond circular references")
-    void sundaeSwap() {
+    void circularNestedList() {
         Compilation compilation =
                 javac()
                         .withProcessors(new BlueprintAnnotationProcessor())
                         .compile(
-                                JavaFileObjects.forResource("blueprint/SundaeSwapV2.java")
+                                JavaFileObjects.forResource("blueprint/CircularNestedList.java")
                         );
 
         System.out.println(compilation.diagnostics());

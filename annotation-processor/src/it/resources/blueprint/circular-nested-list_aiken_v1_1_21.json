@@ -1,0 +1,93 @@
+{
+  "preamble": {
+    "title": "test/circular-nested-list",
+    "description": "Functional test blueprint with nested list circular reference pattern",
+    "version": "1.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    }
+  },
+  "validators": [
+    {
+      "title": "test.multisig.validator",
+      "datum": {
+        "schema": {
+          "$ref": "#/definitions/multisig~1Script"
+        }
+      },
+      "compiledCode": "5901ab01000032323232323222253330083370e90010008a99980498019baa00114bd700a400064646464a66601e6601a6ea8008526163300d300a37540026eb4c03cc030dd500089919180798051baa00114a02a6601c92011856616c696461746f722072657475726e65642066616c736500133004300100116300c00333756602e00260206ea8c018c030dd51bad3013301037540046466e1d200000214c0264646601200200644a66602600229404c8c94ccc04ccdc78010028a51133004004001301a00230180013016002",
+      "hash": "9e1e8fa84f2b557ddc362329413caa3fd89a1be26bfd24be05ce0a02"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "multisig/Script": {
+      "title": "Script",
+      "description": "Circular reference via nested list: Script -> Composite -> List<Script>",
+      "anyOf": [
+        {
+          "title": "Single",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "key_hash",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "AllOf",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "scripts",
+              "$ref": "#/definitions/List<multisig~1Script>"
+            }
+          ]
+        },
+        {
+          "title": "AnyOf",
+          "dataType": "constructor",
+          "index": 2,
+          "fields": [
+            {
+              "title": "scripts",
+              "$ref": "#/definitions/List<multisig~1Script>"
+            }
+          ]
+        },
+        {
+          "title": "AtLeast",
+          "dataType": "constructor",
+          "index": 3,
+          "fields": [
+            {
+              "title": "required",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "scripts",
+              "$ref": "#/definitions/List<multisig~1Script>"
+            }
+          ]
+        }
+      ]
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "List<multisig/Script>": {
+      "title": "List",
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/multisig~1Script"
+      }
+    }
+  }
+}
