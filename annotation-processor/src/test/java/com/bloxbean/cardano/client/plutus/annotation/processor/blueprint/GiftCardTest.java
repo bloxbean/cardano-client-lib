@@ -10,7 +10,7 @@ import static com.google.testing.compile.CompilationSubject.assertThat;
 import static com.google.testing.compile.Compiler.javac;
 
 /**
- * Tests for Gift Card (CIP-53) blueprint annotation processing.
+ * Tests for Gift Card (CIP-57) blueprint annotation processing.
  *
  * Verifies that the gift card contract blueprint compiles successfully
  * and generates valid Java classes for all validators and data types.
