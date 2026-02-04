@@ -10,4 +10,5 @@ public final class Script extends ByteArrayWrapper {
     public static Script of(byte[] value) {
         return new Script(value);
     }
+
 }

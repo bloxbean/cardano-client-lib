@@ -14,6 +14,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.squareup.javapoet.*;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +23,9 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
+import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isAbstractPlutusDataType;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
 
 /**
@@ -42,7 +45,10 @@ public class FieldSpecProcessor {
     private final GeneratedTypesRegistry generatedTypesRegistry;
     private final SharedTypeLookup sharedTypeLookup;
 
-    public FieldSpecProcessor(Blueprint annotation, ProcessingEnvironment processingEnv, GeneratedTypesRegistry generatedTypesRegistry, SharedTypeLookup sharedTypeLookup) {
+    public FieldSpecProcessor(Blueprint annotation,
+                              ProcessingEnvironment processingEnv,
+                              GeneratedTypesRegistry generatedTypesRegistry,
+                              SharedTypeLookup sharedTypeLookup) {
         this.annotation = annotation;
         this.processingEnv = processingEnv;
         this.nameStrategy = new NameStrategy();
@@ -81,11 +87,11 @@ public class FieldSpecProcessor {
     }
 
     public void createDatumClass(DatumModel datumModel) {
-        if (datumModel == null)
+        if (datumModel == null) {
             return;
+        }
 
         SchemaClassificationResult classification = datumModel.getClassificationResult();
-
         if (classification.isSkippable()) {
             return;
         }
@@ -139,14 +145,21 @@ public class FieldSpecProcessor {
      * @return ClassName of the inner class
      */
     public ClassName getInnerDatumClass(String ns, BlueprintSchema schema) {
-        var sharedType = sharedTypeLookup.lookup(ns, schema);
-        if (sharedType.isPresent())
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
+        if (sharedType.isPresent()) {
             return sharedType.get();
+        }
+
+        // Check if this is an abstract PlutusData type (e.g., "Data", "Redeemer")
+        if (isAbstractPlutusDataType(schema)) {
+            return ClassName.get(PlutusData.class);
+        }
 
         String dataClassName = schema.getTitle();
 
-        if (dataClassName != null)
+        if (dataClassName != null) {
             dataClassName = nameStrategy.toClassName(dataClassName);
+        }
 
         String finalNS = BlueprintUtil.getNSFromReference(schema.getRef());
         String pkg = getPackageName(finalNS);
@@ -208,7 +221,8 @@ public class FieldSpecProcessor {
     public ClassName createDatumInterface(String ns, String dataClassName, BlueprintSchema schema) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
-        String className = nameStrategy.toClassName(dataClassName); //TODO
+        String className = nameStrategy.toClassName(dataClassName); // TODO, WHY IS THIS TODO?
+
         TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(constrAnnotationBuilder);
@@ -233,12 +247,15 @@ public class FieldSpecProcessor {
      * @return Tuple of FieldSpec and ClassName of the field
      */
     public Tuple<FieldSpec, ClassName> createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String title) {
-        var sharedType = sharedTypeLookup.lookup(ns, schema);
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
+
         if (sharedType.isPresent()) {
             String fieldName = nameStrategy.firstLowerCase(nameStrategy.toCamelCase(title));
+
             FieldSpec fieldSpec = FieldSpec.builder(sharedType.get(), fieldName)
                     .addModifiers(Modifier.PRIVATE)
                     .build();
+
             return new Tuple<>(fieldSpec, sharedType.get());
         }
 
@@ -252,6 +269,20 @@ public class FieldSpecProcessor {
         log.debug("RedeemerJavaFile : " + redeemerJavaFile.name);
 
         if (schema.getRefSchema() != null) {
+            // Check if the referenced schema is an abstract PlutusData type
+            if (isAbstractPlutusDataType(schema.getRefSchema())) {
+                ClassName plutusDataType = ClassName.get(PlutusData.class);
+
+                String fieldName = title;
+                fieldName = nameStrategy.firstLowerCase(nameStrategy.toCamelCase(fieldName));
+
+                FieldSpec fieldSpec = FieldSpec.builder(plutusDataType, fieldName)
+                        .addModifiers(Modifier.PRIVATE)
+                        .build();
+
+                return new Tuple<>(fieldSpec, plutusDataType);
+            }
+
             String refTitle = schema.getRefSchema().getTitle();
             className = refTitle != null ? refTitle : className;
             className = nameStrategy.toClassName(className);
@@ -264,7 +295,8 @@ public class FieldSpecProcessor {
 
         String fieldName = title; // + (schema.getDataType() == BlueprintDatatype.constructor ? String.valueOf(schema.getIndex()) : "") ;
         fieldName = nameStrategy.firstLowerCase(nameStrategy.toCamelCase(fieldName));
-        var fieldSpec = FieldSpec.builder(classNameType, fieldName)
+
+        FieldSpec fieldSpec = FieldSpec.builder(classNameType, fieldName)
                 .addModifiers(Modifier.PRIVATE)
                 .build();
 
@@ -275,7 +307,6 @@ public class FieldSpecProcessor {
         Tuple<String, List<BlueprintSchema>> allInnerSchemas = FieldSpecProcessor.collectAllFields(schema);
 
         List<FieldSpec> fields = null;
-
         if (schema.getDataType() != null) {
             fields = createFieldSpecForDataTypes(ns, allInnerSchemas._1, allInnerSchemas._2);
         } else {
@@ -285,7 +316,6 @@ public class FieldSpecProcessor {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).addMember("alternative", "$L", schema.getIndex()).build();
 
         String title = schema.getTitle();
-
         String className = nameStrategy.toClassName(title); //TODO
 
         String pkg = getPackageName(ns);
@@ -337,4 +367,5 @@ public class FieldSpecProcessor {
     private String getPackageName(String ns) {
         return packageResolver.getModelPackage(annotation, ns);
     }
+
 }

@@ -1,14 +1,19 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.datatype;
 
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.FieldSpecProcessor;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Resolves JavaPoet {@link TypeName} representations for nested blueprint schemas,
@@ -24,6 +29,12 @@ public class SchemaTypeResolver {
 
     public TypeName resolveType(String namespace, BlueprintSchema schema) {
         if (schema.getDataType() == null) {
+            // Check if this is an abstract placeholder type (like "Data" or "Redeemer")
+            // These have no structure and should map to PlutusData
+            if (BlueprintUtil.isAbstractPlutusDataType(schema)) {
+                return ClassName.get(PlutusData.class);
+            }
+
             return fieldSpecProcessor.getInnerDatumClass(namespace, schema);
         }
 
@@ -55,35 +66,35 @@ public class SchemaTypeResolver {
 
         if (items == null || items.isEmpty()) {
             return ParameterizedTypeName.get(
-                    ClassName.get("java.util", "List"),
+                    ClassName.get(List.class),
                     TypeName.get(Object.class)
             );
         }
 
         if (items.size() == 1) {
             return ParameterizedTypeName.get(
-                    ClassName.get("java.util", "List"),
+                    ClassName.get(List.class),
                     resolveType(namespace, items.get(0))
             );
         }
 
         if ("Tuple".equalsIgnoreCase(schema.getTitle()) && items.size() == 2) {
             return ParameterizedTypeName.get(
-                    ClassName.get("com.bloxbean.cardano.client.plutus.blueprint.type", "Pair"),
+                    ClassName.get(Pair.class),
                     resolveType(namespace, items.get(0)),
                     resolveType(namespace, items.get(1))
             );
         }
 
         return ParameterizedTypeName.get(
-                ClassName.get("java.util", "List"),
+                ClassName.get(List.class),
                 TypeName.get(Object.class)
         );
     }
 
     public ParameterizedTypeName resolveMapType(String namespace, BlueprintSchema schema) {
         return ParameterizedTypeName.get(
-                ClassName.get("java.util", "Map"),
+                ClassName.get(Map.class),
                 resolveType(namespace, schema.getKeys()),
                 resolveType(namespace, schema.getValues())
         );
@@ -102,7 +113,7 @@ public class SchemaTypeResolver {
             throw new IllegalArgumentException("Option type should have only one field in Some type");
 
         return ParameterizedTypeName.get(
-                ClassName.get("java.util", "Optional"),
+                ClassName.get(Optional.class),
                 resolveType(namespace, someSchema.getFields().get(0))
         );
     }
@@ -115,9 +126,10 @@ public class SchemaTypeResolver {
             throw new IllegalArgumentException("Pair type should have left and right fields");
 
         return ParameterizedTypeName.get(
-                ClassName.get("com.bloxbean.cardano.client.plutus.blueprint.type", "Pair"),
+                ClassName.get(Pair.class),
                 resolveType(namespace, left),
                 resolveType(namespace, right)
         );
     }
+
 }

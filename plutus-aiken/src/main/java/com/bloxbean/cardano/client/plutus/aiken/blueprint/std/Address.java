@@ -35,6 +35,7 @@ public final class Address implements Data<Address> {
                 .map(ReferencedCredential::toPlutusData)
                 .map(data -> ConstrPlutusData.of(0, data))
                 .orElseGet(() -> ConstrPlutusData.of(1));
+
         return ConstrPlutusData.of(0, payment, stake);
     }
 
@@ -43,6 +44,7 @@ public final class Address implements Data<Address> {
         if (this == o) return true;
         if (!(o instanceof Address)) return false;
         Address address = (Address) o;
+
         return paymentCredential.equals(address.paymentCredential) && stakeCredential.equals(address.stakeCredential);
     }
 
@@ -55,4 +57,5 @@ public final class Address implements Data<Address> {
     public String toString() {
         return "Address";
     }
+
 }

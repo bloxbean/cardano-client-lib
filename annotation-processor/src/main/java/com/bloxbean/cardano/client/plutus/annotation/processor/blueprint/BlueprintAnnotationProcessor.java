@@ -47,8 +47,9 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        Set<String> annotataions = new LinkedHashSet<String>();
+        Set<String> annotataions = new LinkedHashSet<>();
         annotataions.add(Blueprint.class.getCanonicalName());
+
         return annotataions;
     }
 

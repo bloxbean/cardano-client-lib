@@ -55,8 +55,7 @@ public class DataTypeProcessUtil {
         processors.put(BlueprintDatatype.map, new MapDataTypeProcessor(nameStrategy, typeResolver));
         processors.put(BlueprintDatatype.option, new OptionDataTypeProcessor(nameStrategy, typeResolver));
         processors.put(BlueprintDatatype.pair, new PairDataTypeProcessor(nameStrategy, typeResolver));
-        processors.put(BlueprintDatatype.constructor,
-                new ConstructorDataTypeProcessor(nameStrategy, typeResolver, fieldSpecProcessor, packageResolver, annotation));
+        processors.put(BlueprintDatatype.constructor, new ConstructorDataTypeProcessor(nameStrategy, typeResolver, fieldSpecProcessor, packageResolver, annotation));
     }
 
     public List<FieldSpec> generateFieldSpecs(String namespace, String javaDoc, List<BlueprintSchema> schemas) {
@@ -68,6 +67,7 @@ public class DataTypeProcessUtil {
             BlueprintSchema schema = schemas.get(index);
             specs.addAll(generateFieldSpecs(namespace, javaDoc, schema, "", determineAlternativeName(schema, index)));
         }
+
         return specs;
     }
 
@@ -138,4 +138,5 @@ public class DataTypeProcessUtil {
             title = "field";
         return nameStrategy.firstLowerCase(nameStrategy.toCamelCase(title));
     }
+
 }

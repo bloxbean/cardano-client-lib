@@ -12,5 +12,6 @@ public interface SharedTypeLookup {
     static SharedTypeLookup disabled() {
         return (namespace, schema) -> Optional.empty();
     }
+
 }
 

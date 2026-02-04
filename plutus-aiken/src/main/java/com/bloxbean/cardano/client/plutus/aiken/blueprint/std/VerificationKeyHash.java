@@ -10,4 +10,5 @@ public final class VerificationKeyHash extends Hash {
     public static VerificationKeyHash of(byte[] value) {
         return new VerificationKeyHash(value);
     }
+
 }

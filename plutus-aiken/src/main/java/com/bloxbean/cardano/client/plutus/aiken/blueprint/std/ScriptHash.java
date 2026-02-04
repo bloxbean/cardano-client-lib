@@ -10,4 +10,5 @@ public final class ScriptHash extends Hash {
     public static ScriptHash of(byte[] value) {
         return new ScriptHash(value);
     }
+
 }
