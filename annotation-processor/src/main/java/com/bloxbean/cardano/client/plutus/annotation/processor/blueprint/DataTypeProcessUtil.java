@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.datatype.*;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
@@ -25,14 +25,14 @@ public class DataTypeProcessUtil {
 
     private final FieldSpecProcessor fieldSpecProcessor;
     private final Blueprint annotation;
-    private final NameStrategy nameStrategy;
+    private final NamingStrategy nameStrategy;
     private final Map<BlueprintDatatype, DataTypeProcessor> processors;
     private final DataTypeProcessor plutusDataTypeProcessor;
     private final SharedTypeLookup sharedTypeLookup;
 
     public DataTypeProcessUtil(FieldSpecProcessor fieldSpecProcessor,
                                Blueprint annotation,
-                               NameStrategy nameStrategy,
+                               NamingStrategy nameStrategy,
                                PackageResolver packageResolver,
                                SharedTypeLookup sharedTypeLookup) {
         this.fieldSpecProcessor = fieldSpecProcessor;

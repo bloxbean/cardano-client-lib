@@ -18,20 +18,24 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.util.naming;
 public interface NamingStrategy {
 
     /**
-     * Converts a string to camel case format suitable for class names.
-     * Output must be a valid Java identifier starting with uppercase.
+     * Converts a string to UpperCamelCase/PascalCase suitable for class names.
+     * Output must be a valid Java identifier starting with uppercase letter.
+     *
+     * <p>Example: "hello_world" → "HelloWorld"
      *
      * @param value the input string (may contain special characters)
-     * @return a valid Java identifier in PascalCase format
+     * @return a valid Java identifier in UpperCamelCase/PascalCase format (first letter uppercase)
      */
     String toClassName(String value);
 
     /**
-     * Converts a string to camel case format.
-     * Output must be a valid Java identifier.
+     * Converts a string to lowerCamelCase format.
+     * Output must be a valid Java identifier starting with lowercase letter.
+     *
+     * <p>Example: "hello_world" → "helloWorld"
      *
      * @param value the input string (may contain special characters)
-     * @return a valid Java identifier in camelCase format
+     * @return a valid Java identifier in lowerCamelCase format (first letter lowercase)
      */
     String toCamelCase(String value);
 

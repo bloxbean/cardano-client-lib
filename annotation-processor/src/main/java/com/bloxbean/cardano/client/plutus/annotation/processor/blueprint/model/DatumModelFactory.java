@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model;
 
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassificationResult;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassifier;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 
 import java.util.Objects;
@@ -14,9 +14,9 @@ import java.util.Objects;
 public class DatumModelFactory {
 
     private final SchemaClassifier schemaClassifier;
-    private final NameStrategy nameStrategy;
+    private final NamingStrategy nameStrategy;
 
-    public DatumModelFactory(NameStrategy nameStrategy) {
+    public DatumModelFactory(NamingStrategy nameStrategy) {
         this.nameStrategy = Objects.requireNonNull(nameStrategy, "nameStrategy cannot be null");
         this.schemaClassifier = new SchemaClassifier(nameStrategy);
     }

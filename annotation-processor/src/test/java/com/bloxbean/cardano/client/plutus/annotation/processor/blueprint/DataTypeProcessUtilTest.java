@@ -2,7 +2,8 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
@@ -32,7 +33,7 @@ class DataTypeProcessUtilTest {
     @BeforeEach
     void setup() {
         fieldSpecProcessor = mock(FieldSpecProcessor.class);
-        NameStrategy nameStrategy = new NameStrategy();
+        NamingStrategy nameStrategy = new DefaultNamingStrategy();
         PackageResolver packageResolver = new PackageResolver();
         sharedTypeLookup = SharedTypeLookup.disabled();
         dataTypeProcessUtil = new DataTypeProcessUtil(fieldSpecProcessor, blueprint("com.test.blueprint"), nameStrategy, packageResolver, sharedTypeLookup);
@@ -41,7 +42,7 @@ class DataTypeProcessUtilTest {
     @Test
     void generateFieldSpecs_shouldUseSharedTypeWhenAvailable() {
         sharedTypeLookup = (namespace, schema) -> Optional.of(ClassName.get("com.example", "Shared"));
-        NameStrategy nameStrategy = new NameStrategy();
+        NamingStrategy nameStrategy = new DefaultNamingStrategy();
         PackageResolver packageResolver = new PackageResolver();
         dataTypeProcessUtil = new DataTypeProcessUtil(fieldSpecProcessor, blueprint("com.test.blueprint"), nameStrategy, packageResolver, sharedTypeLookup);
 
@@ -92,7 +93,7 @@ class DataTypeProcessUtilTest {
 
         assertThat(specs).hasSize(1);
         assertThat(specs.get(0).type.toString()).isEqualTo("java.util.Optional<java.math.BigInteger>");
-        assertThat(specs.get(0).name).isEqualTo("maybeamount");
+        assertThat(specs.get(0).name).isEqualTo("maybeAmount");
     }
 
     @Test

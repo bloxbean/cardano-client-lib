@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.datatype;
 
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 
 /**
  * Base implementation shared by datatype processors providing access to the naming
@@ -8,10 +8,10 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support
  */
 abstract class AbstractDataTypeProcessor implements DataTypeProcessor {
 
-    protected final NameStrategy nameStrategy;
+    protected final NamingStrategy nameStrategy;
     protected final SchemaTypeResolver typeResolver;
 
-    protected AbstractDataTypeProcessor(NameStrategy nameStrategy, SchemaTypeResolver typeResolver) {
+    protected AbstractDataTypeProcessor(NamingStrategy nameStrategy, SchemaTypeResolver typeResolver) {
         this.nameStrategy = nameStrategy;
         this.typeResolver = typeResolver;
     }

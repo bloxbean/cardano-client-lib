@@ -11,7 +11,7 @@ import java.util.List;
  * Generates field definitions for blueprint schemas of datatype {@code integer}.
  */
 public class IntegerDataTypeProcessor extends AbstractDataTypeProcessor {
-    public IntegerDataTypeProcessor(com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy nameStrategy,
+    public IntegerDataTypeProcessor(com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy nameStrategy,
                              SchemaTypeResolver typeResolver) {
         super(nameStrategy, typeResolver);
     }

@@ -3,7 +3,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.dataty
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.FieldSpecProcessor;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
@@ -26,7 +26,7 @@ public class ConstructorDataTypeProcessor extends AbstractDataTypeProcessor {
     private final FieldSpecProcessor fieldSpecProcessor;
     private final PackageResolver packageResolver;
     private final Blueprint annotation;
-    public ConstructorDataTypeProcessor(NameStrategy nameStrategy,
+    public ConstructorDataTypeProcessor(NamingStrategy nameStrategy,
                                  SchemaTypeResolver typeResolver,
                                  FieldSpecProcessor fieldSpecProcessor,
                                  PackageResolver packageResolver,

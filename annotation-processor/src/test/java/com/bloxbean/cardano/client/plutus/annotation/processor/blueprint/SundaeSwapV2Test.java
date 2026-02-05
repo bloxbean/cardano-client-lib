@@ -11,12 +11,6 @@ import static com.google.testing.compile.Compiler.javac;
 
 /**
  * Tests for SundaeSwap DEX blueprint annotation processing (Plutus v2).
- *
- * NOTE: Currently disabled due to StackOverflowError in PlutusBlueprintLoader when
- * resolving circular type references. This exposes a bug in the blueprint loader's
- * circular reference handling that needs to be fixed.
- *
- * @see SundaeSwapV3Test for Plutus v3 version that works
  */
 public class SundaeSwapV2Test {
 

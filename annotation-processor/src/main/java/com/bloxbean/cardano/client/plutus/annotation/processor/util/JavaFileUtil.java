@@ -34,25 +34,39 @@ public class JavaFileUtil {
     }
 
     /**
-     * Converts a string to camel case.
+     * Converts a string to lowerCamelCase (first letter lowercase).
      * Handles all CIP-57 blueprint naming conventions including:
      * - Legacy Aiken (v1.0.x): List$ByteArray, Tuple$Int_Int
      * - Modern Aiken (v1.1.x+): List<Int>, aiken/crypto/Hash
      * - Module paths with tildes: types~1order~1Action
      *
+     * <p>Examples:
+     * <ul>
+     *   <li>"hello_world" → "helloWorld"</li>
+     *   <li>"MyClass" → "myClass"</li>
+     *   <li>"types/order/Action" → "typesOrderAction"</li>
+     * </ul>
+     *
      * @param s the input string
-     * @return camelCase string that is a valid Java identifier
+     * @return lowerCamelCase string (first letter lowercase) that is a valid Java identifier
      */
     public static String toCamelCase(String s) {
         return namingStrategy.toCamelCase(s);
     }
 
     /**
-     * Converts a string to PascalCase for class names.
+     * Converts a string to UpperCamelCase (PascalCase) for class names (first letter uppercase).
      * Handles all CIP-57 blueprint naming conventions.
      *
+     * <p>Examples:
+     * <ul>
+     *   <li>"hello_world" → "HelloWorld"</li>
+     *   <li>"myClass" → "MyClass"</li>
+     *   <li>"types/order/Action" → "TypesOrderAction"</li>
+     * </ul>
+     *
      * @param s the input string
-     * @return PascalCase string that is a valid Java class name
+     * @return UpperCamelCase/PascalCase string (first letter uppercase) that is a valid Java class name
      */
     public static String toClassNameFormat(String s) {
         return namingStrategy.toClassName(s);

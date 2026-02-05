@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.util.naming;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.JsonPointerUtil;
+
 /**
  * Default implementation of NamingStrategy that handles all CIP-57 blueprint naming conventions.
  *
@@ -13,11 +15,19 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.util.naming;
  */
 public class DefaultNamingStrategy implements NamingStrategy {
 
+    /**
+     * Converts a string to UpperCamelCase/PascalCase (first letter uppercase).
+     * Example: "hello_world" → "HelloWorld"
+     */
     @Override
     public String toClassName(String value) {
         return firstUpperCase(toCamelCase(value));
     }
 
+    /**
+     * Converts a string to lowerCamelCase (first letter lowercase).
+     * Example: "hello_world" → "helloWorld"
+     */
     @Override
     public String toCamelCase(String value) {
         if (value == null || value.isEmpty()) {
@@ -49,7 +59,7 @@ public class DefaultNamingStrategy implements NamingStrategy {
         String result = value;
 
         // Unescape JSON Pointer sequences that may appear in blueprint $ref paths
-        result = unescapeJsonPointer(result);
+        result = JsonPointerUtil.unescape(result);
 
         // Handle angle brackets and generics: List<Int> -> ListOfInt
         result = sanitizeAngleBrackets(result);
@@ -186,7 +196,7 @@ public class DefaultNamingStrategy implements NamingStrategy {
         String result = value;
 
         // Unescape JSON Pointer sequences that may appear in blueprint $ref paths
-        result = unescapeJsonPointer(result);
+        result = JsonPointerUtil.unescape(result);
 
         // Handle angle brackets and generics: List<Int> -> ListOfInt
         result = sanitizeAngleBrackets(result);
@@ -231,55 +241,6 @@ public class DefaultNamingStrategy implements NamingStrategy {
                 .replace("$", "");
     }
 
-    /**
-     * Unescapes JSON Pointer escape sequences according to RFC 6901.
-     *
-     * <p>JSON Pointer (RFC 6901) is used in JSON Schema $ref paths to reference definitions.
-     * When definition keys contain special characters, they must be escaped in $ref paths:
-     * <ul>
-     *   <li><b>~0</b> represents a literal tilde (~) character</li>
-     *   <li><b>~1</b> represents a literal forward slash (/) character</li>
-     * </ul>
-     *
-     * <p>These are the ONLY two escape sequences defined in JSON Pointer.
-     * No other sequences like ~2, ~3, etc. exist in the specification.
-     *
-     * <p><b>Why only these two?</b>
-     * <ul>
-     *   <li>~ needs escaping because it's the escape character itself</li>
-     *   <li>/ needs escaping because it's the path separator in JSON Pointer</li>
-     * </ul>
-     *
-     * <p><b>Example from CIP-57 blueprints:</b>
-     * <pre>
-     * Blueprint definition key: "types/order/Action"
-     * JSON $ref path:          "#/definitions/types~1order~1Action"
-     * After unescaping:        "types/order/Action"
-     * </pre>
-     *
-     * <p><b>Another example with tildes:</b>
-     * <pre>
-     * Blueprint definition key: "some~key"
-     * JSON $ref path:          "#/definitions/some~0key"
-     * After unescaping:        "some~key"
-     * </pre>
-     *
-     * @param value the string potentially containing JSON Pointer escape sequences
-     * @return the unescaped string
-     * @see <a href="https://tools.ietf.org/html/rfc6901">RFC 6901 - JSON Pointer</a>
-     */
-    private String unescapeJsonPointer(String value) {
-        if (value == null || value.isEmpty()) {
-            return value;
-        }
-
-        // IMPORTANT: Order matters! Must unescape ~1 before ~0 to avoid double-processing
-        // Example: "~01" should become "/", not "~1"
-        String result = value.replace("~1", "/");
-        result = result.replace("~0", "~");
-
-        return result;
-    }
 
     /**
      * Converts angle bracket notation to descriptive format.
