@@ -77,7 +77,7 @@ public class TxFlowScriptIntegrationTest {
 
         // Initialize backend service
          backendService = new BFBackendService(YACI_BASE_URL, "dummy-project-id");
-//        backendService = new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, "preprodJ9lqAJFlWztmUtNfbwx2FOKmPmnQE5La");
+//        backendService = new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, "");
         quickTxBuilder = new QuickTxBuilder(backendService);
         utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
 
