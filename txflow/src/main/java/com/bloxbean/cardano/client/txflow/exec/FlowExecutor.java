@@ -15,6 +15,8 @@ import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.TxFlow;
+import com.bloxbean.cardano.client.txflow.exec.registry.FlowRegistry;
+import com.bloxbean.cardano.client.txflow.exec.store.*;
 import com.bloxbean.cardano.client.txflow.result.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import lombok.AllArgsConstructor;
@@ -24,8 +26,10 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -68,6 +72,8 @@ public class FlowExecutor {
     private ConfirmationConfig confirmationConfig;
     private ConfirmationTracker confirmationTracker;
     private RollbackStrategy rollbackStrategy = RollbackStrategy.FAIL_IMMEDIATELY;
+    private FlowRegistry flowRegistry;
+    private FlowStateStore flowStateStore;
 
     private FlowExecutor(BackendService backendService) {
         this.backendService = backendService;
@@ -232,6 +238,218 @@ public class FlowExecutor {
     }
 
     /**
+     * Set a flow registry for automatic flow tracking.
+     * <p>
+     * When set, flows executed via {@link #execute(TxFlow)} will be automatically
+     * registered in the registry. This enables centralized monitoring of all
+     * running flows.
+     * <p>
+     * Note: Synchronous execution via {@link #executeSync(TxFlow)} does not
+     * register flows since no FlowHandle is returned.
+     *
+     * @param registry the flow registry
+     * @return this executor
+     * @see FlowRegistry
+     */
+    public FlowExecutor withRegistry(FlowRegistry registry) {
+        this.flowRegistry = registry;
+        return this;
+    }
+
+    /**
+     * Set a state store for persisting flow execution state.
+     * <p>
+     * When set, the executor will persist flow state on key transitions:
+     * <ul>
+     *     <li>Flow started - initial state saved</li>
+     *     <li>Transaction submitted - SUBMITTED state</li>
+     *     <li>Transaction confirmed - CONFIRMED state</li>
+     *     <li>Transaction rolled back - ROLLED_BACK state</li>
+     *     <li>Flow completed - final state</li>
+     * </ul>
+     * <p>
+     * This enables recovery of pending flows after application restart
+     * using {@link #resumeTracking(FlowStateSnapshot, RecoveryCallback)}.
+     *
+     * @param stateStore the state store implementation
+     * @return this executor
+     * @see FlowStateStore
+     * @see #resumeTracking(FlowStateSnapshot, RecoveryCallback)
+     */
+    public FlowExecutor withStateStore(FlowStateStore stateStore) {
+        this.flowStateStore = stateStore;
+        return this;
+    }
+
+    /**
+     * Resume tracking of a flow from a persisted state snapshot.
+     * <p>
+     * This method is used to recover flows after application restart.
+     * It takes a snapshot loaded from the state store and resumes
+     * confirmation tracking for pending transactions.
+     * <p>
+     * Example usage:
+     * <pre>{@code
+     * // On application startup
+     * List<FlowStateSnapshot> pending = stateStore.loadPendingFlows();
+     * for (FlowStateSnapshot snapshot : pending) {
+     *     FlowHandle handle = executor.resumeTracking(snapshot, recoveryCallback);
+     *     registry.register(snapshot.getFlowId(), handle);
+     * }
+     * }</pre>
+     *
+     * @param snapshot the flow state snapshot to resume
+     * @param callback the recovery callback for deciding how to handle pending transactions
+     * @return a FlowHandle for monitoring the resumed flow
+     * @throws IllegalArgumentException if snapshot is null
+     */
+    public FlowHandle resumeTracking(FlowStateSnapshot snapshot, RecoveryCallback callback) {
+        if (snapshot == null) {
+            throw new IllegalArgumentException("Snapshot cannot be null");
+        }
+
+        RecoveryCallback effectiveCallback = callback != null ? callback : RecoveryCallback.CONTINUE_ALL;
+
+        // Notify callback that recovery is starting
+        effectiveCallback.onRecoveryStarting(snapshot);
+
+        // Create a CompletableFuture to track the recovery
+        CompletableFuture<FlowResult> future = new CompletableFuture<>();
+
+        // Create a minimal TxFlow for the handle (used for ID and tracking only)
+        TxFlow recoveryFlow = TxFlow.builder(snapshot.getFlowId())
+                .withDescription("Recovery: " + snapshot.getDescription())
+                .build();
+
+        FlowHandle handle = new FlowHandle(recoveryFlow, future);
+        handle.updateStatus(FlowStatus.IN_PROGRESS);
+
+        // Start async recovery tracking
+        Runnable recoveryTask = () -> {
+            try {
+                FlowResult result = executeRecoveryTracking(snapshot, effectiveCallback, handle);
+                future.complete(result);
+            } catch (Exception e) {
+                log.error("Recovery tracking failed for flow {}", snapshot.getFlowId(), e);
+                effectiveCallback.onRecoveryComplete(snapshot, false, e.getMessage());
+                future.completeExceptionally(e);
+            }
+        };
+
+        if (executor != null) {
+            executor.execute(recoveryTask);
+        } else {
+            ForkJoinPool.commonPool().execute(recoveryTask);
+        }
+
+        return handle;
+    }
+
+    /**
+     * Execute recovery tracking for a flow snapshot.
+     */
+    private FlowResult executeRecoveryTracking(FlowStateSnapshot snapshot,
+                                                RecoveryCallback callback,
+                                                FlowHandle handle) {
+        String flowId = snapshot.getFlowId();
+        FlowResult.Builder resultBuilder = FlowResult.builder(flowId)
+                .startedAt(snapshot.getStartedAt() != null ? snapshot.getStartedAt() : Instant.now());
+
+        List<StepStateSnapshot> pendingSteps = snapshot.getPendingSteps();
+
+        if (pendingSteps.isEmpty()) {
+            // No pending transactions, mark as complete
+            log.info("No pending transactions to track for flow {}", flowId);
+            handle.updateStatus(FlowStatus.COMPLETED);
+            resultBuilder.completedAt(Instant.now());
+            FlowResult result = resultBuilder.success();
+            callback.onRecoveryComplete(snapshot, true, null);
+
+            if (flowStateStore != null) {
+                flowStateStore.markFlowComplete(flowId, FlowStatus.COMPLETED);
+            }
+            return result;
+        }
+
+        log.info("Resuming tracking for flow {} with {} pending transactions", flowId, pendingSteps.size());
+
+        // Track each pending transaction
+        for (StepStateSnapshot stepSnapshot : pendingSteps) {
+            RecoveryCallback.RecoveryAction action = callback.onPendingTransaction(snapshot, stepSnapshot);
+
+            switch (action) {
+                case CONTINUE_TRACKING:
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(stepSnapshot.getTransactionHash(), null);
+                    if (confirmResult.isPresent()) {
+                        ConfirmationResult result = confirmResult.get();
+                        log.info("Transaction {} confirmed during recovery at block {}",
+                                stepSnapshot.getTransactionHash(), result.getBlockHeight());
+                        if (flowStateStore != null) {
+                            TransactionStateDetails details = TransactionStateDetails.confirmed(
+                                    result.getBlockHeight() != null ? result.getBlockHeight() : 0,
+                                    result.getConfirmationDepth(),
+                                    Instant.now());
+                            flowStateStore.updateTransactionState(flowId, stepSnapshot.getStepId(),
+                                    stepSnapshot.getTransactionHash(), details);
+                        }
+                        handle.incrementCompletedSteps();
+                    } else {
+                        log.warn("Transaction {} not confirmed during recovery", stepSnapshot.getTransactionHash());
+                        handle.updateStatus(FlowStatus.FAILED);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.failure(
+                                new ConfirmationTimeoutException(stepSnapshot.getTransactionHash()));
+                        callback.onRecoveryComplete(snapshot, false, "Transaction confirmation timeout");
+
+                        if (flowStateStore != null) {
+                            flowStateStore.markFlowComplete(flowId, FlowStatus.FAILED);
+                        }
+                        return failedResult;
+                    }
+                    break;
+
+                case SKIP:
+                    log.info("Skipping transaction {} during recovery", stepSnapshot.getTransactionHash());
+                    // Mark step as skipped but continue
+                    break;
+
+                case RESUBMIT:
+                    log.warn("RESUBMIT action requested but not supported in basic recovery. " +
+                            "Application should handle resubmission externally.");
+                    // For RESUBMIT, the application needs to rebuild and resubmit the transaction
+                    // This is beyond the scope of basic recovery tracking
+                    break;
+
+                case FAIL_FLOW:
+                    log.info("Failing flow {} as requested by recovery callback", flowId);
+                    handle.updateStatus(FlowStatus.FAILED);
+                    resultBuilder.completedAt(Instant.now());
+                    FlowResult failedResult = resultBuilder.failure(
+                            new FlowExecutionException("Flow failed by recovery callback"));
+                    callback.onRecoveryComplete(snapshot, false, "Flow failed by recovery callback");
+
+                    if (flowStateStore != null) {
+                        flowStateStore.markFlowComplete(flowId, FlowStatus.FAILED);
+                    }
+                    return failedResult;
+            }
+        }
+
+        // All pending transactions tracked successfully
+        handle.updateStatus(FlowStatus.COMPLETED);
+        resultBuilder.completedAt(Instant.now());
+        FlowResult result = resultBuilder.success();
+        callback.onRecoveryComplete(snapshot, true, null);
+
+        if (flowStateStore != null) {
+            flowStateStore.markFlowComplete(flowId, FlowStatus.COMPLETED);
+        }
+
+        log.info("Recovery tracking completed for flow {}", flowId);
+        return result;
+    }
+
+    /**
      * Execute a flow synchronously.
      *
      * @param flow the flow to execute
@@ -276,6 +494,7 @@ public class FlowExecutor {
 
             if (flowRestartAttempts == 0) {
                 listener.onFlowStarted(flow);
+                persistFlowStarted(flow);
             }
 
             List<FlowStep> steps = flow.getSteps();
@@ -301,6 +520,7 @@ public class FlowExecutor {
                                 .withError(stepResult.getError())
                                 .build();
                         listener.onFlowFailed(flow, failedResult);
+                        persistFlowComplete(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
                 }
@@ -308,6 +528,7 @@ public class FlowExecutor {
                 resultBuilder.completedAt(Instant.now());
                 FlowResult successResult = resultBuilder.success();
                 listener.onFlowCompleted(flow, successResult);
+                persistFlowComplete(flow, FlowStatus.COMPLETED);
                 return successResult;
 
             } catch (RollbackException e) {
@@ -478,11 +699,12 @@ public class FlowExecutor {
                     String txHash = submittedTxHashes.get(i);
                     FlowStep step = steps.get(i);
 
-                    boolean confirmed = waitForConfirmation(txHash, step);
-                    if (confirmed) {
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    if (confirmResult.isPresent()) {
                         listener.onTransactionConfirmed(step, txHash);
                         listener.onStepCompleted(step, stepResults.get(i));
-                        log.debug("Step '{}' confirmed: {}", step.getId(), txHash);
+                        log.debug("Step '{}' confirmed: {} at block {}", step.getId(), txHash,
+                                confirmResult.get().getBlockHeight());
                     } else {
                         // Confirmation timeout or rollback (FAIL_IMMEDIATELY/NOTIFY_ONLY)
                         FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
@@ -548,9 +770,9 @@ public class FlowExecutor {
      * Wait for a transaction to be confirmed on-chain.
      *
      * @param txHash the transaction hash to wait for
-     * @return true if confirmed, false if timeout
+     * @return Optional containing ConfirmationResult if confirmed, empty if timeout or failure
      */
-    private boolean waitForConfirmation(String txHash) {
+    private Optional<ConfirmationResult> waitForConfirmation(String txHash) {
         return waitForConfirmation(txHash, null);
     }
 
@@ -566,9 +788,9 @@ public class FlowExecutor {
      *
      * @param txHash the transaction hash to wait for
      * @param step the flow step (for listener callbacks, can be null)
-     * @return true if confirmed (reached target status), false if timeout or rollback
+     * @return Optional containing ConfirmationResult if confirmed, empty if timeout or rollback
      */
-    private boolean waitForConfirmation(String txHash, FlowStep step) {
+    private Optional<ConfirmationResult> waitForConfirmation(String txHash, FlowStep step) {
         // Use enhanced confirmation tracking if configured
         if (confirmationTracker != null) {
             return waitForConfirmationWithTracking(txHash, step);
@@ -582,23 +804,31 @@ public class FlowExecutor {
             try {
                 var result = backendService.getTransactionService().getTransaction(txHash);
                 if (result.isSuccessful() && result.getValue() != null) {
-                    return true;
+                    // Build a minimal ConfirmationResult for simple polling mode
+                    // Block height is available from the transaction response
+                    return Optional.of(ConfirmationResult.builder()
+                            .txHash(txHash)
+                            .status(ConfirmationStatus.CONFIRMED)
+                            .blockHeight(result.getValue().getBlockHeight())
+                            .blockHash(result.getValue().getBlock())
+                            .confirmationDepth(0)  // Not tracked in simple mode
+                            .build());
                 }
                 Thread.sleep(checkInterval.toMillis());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return false;
+                return Optional.empty();
             } catch (Exception e) {
                 log.debug("Waiting for tx confirmation: {}", txHash);
                 try {
                     Thread.sleep(checkInterval.toMillis());
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    return false;
+                    return Optional.empty();
                 }
             }
         }
-        return false;
+        return Optional.empty();
     }
 
     /**
@@ -606,15 +836,18 @@ public class FlowExecutor {
      * <p>
      * This method handles rollback strategies:
      * <ul>
-     *     <li>FAIL_IMMEDIATELY: Returns false on rollback</li>
+     *     <li>FAIL_IMMEDIATELY: Returns empty on rollback</li>
      *     <li>NOTIFY_ONLY: Continues waiting after notifying listeners</li>
      *     <li>REBUILD_FROM_FAILED: Throws RollbackException for step rebuild</li>
      *     <li>REBUILD_ENTIRE_FLOW: Throws RollbackException for flow restart</li>
      * </ul>
      *
+     * @param txHash the transaction hash to wait for
+     * @param step the flow step (for listener callbacks, can be null)
+     * @return Optional containing ConfirmationResult if confirmed, empty if timeout or rollback
      * @throws RollbackException when using REBUILD_FROM_FAILED or REBUILD_ENTIRE_FLOW strategies
      */
-    private boolean waitForConfirmationWithTracking(String txHash, FlowStep step) {
+    private Optional<ConfirmationResult> waitForConfirmationWithTracking(String txHash, FlowStep step) {
         ConfirmationStatus targetStatus = confirmationConfig.isRequireFinalization()
                 ? ConfirmationStatus.FINALIZED
                 : ConfirmationStatus.CONFIRMED;
@@ -661,7 +894,7 @@ public class FlowExecutor {
             switch (rollbackStrategy) {
                 case FAIL_IMMEDIATELY:
                     log.warn("Transaction {} rolled back, failing flow (FAIL_IMMEDIATELY strategy)", txHash);
-                    return false;
+                    return Optional.empty();
 
                 case NOTIFY_ONLY:
                     // Continue waiting (handled by tracker timeout)
@@ -673,27 +906,27 @@ public class FlowExecutor {
                     if (step != null) {
                         throw RollbackException.forStepRebuild(txHash, step, prevHeight);
                     }
-                    return false;
+                    return Optional.empty();
 
                 case REBUILD_ENTIRE_FLOW:
                     log.info("Transaction {} rolled back, will restart flow (REBUILD_ENTIRE_FLOW strategy)", txHash);
                     if (step != null) {
                         throw RollbackException.forFlowRestart(txHash, step, prevHeight);
                     }
-                    return false;
+                    return Optional.empty();
             }
         }
 
         // Check if target status was reached
         if (result.hasReached(targetStatus)) {
-            return true;
+            return Optional.of(result);
         }
 
         // Timeout or other failure
         if (result.getError() != null) {
             log.warn("Confirmation wait failed for tx {}: {}", txHash, result.getError().getMessage());
         }
-        return false;
+        return Optional.empty();
     }
 
     /**
@@ -778,6 +1011,9 @@ public class FlowExecutor {
 
     /**
      * Execute a flow asynchronously.
+     * <p>
+     * If a {@link FlowRegistry} is configured via {@link #withRegistry(FlowRegistry)},
+     * the flow will be automatically registered for tracking.
      *
      * @param flow the flow to execute
      * @return a handle for monitoring the execution
@@ -785,6 +1021,11 @@ public class FlowExecutor {
     public FlowHandle execute(TxFlow flow) {
         CompletableFuture<FlowResult> future = new CompletableFuture<>();
         FlowHandle handle = new FlowHandle(flow, future);
+
+        // Auto-register with flow registry if configured
+        if (flowRegistry != null) {
+            flowRegistry.register(flow.getId(), handle);
+        }
 
         Runnable task = () -> {
             try {
@@ -835,6 +1076,7 @@ public class FlowExecutor {
 
             if (flowRestartAttempts == 0) {
                 listener.onFlowStarted(flow);
+                persistFlowStarted(flow);
             }
 
             List<FlowStep> steps = flow.getSteps();
@@ -854,6 +1096,11 @@ public class FlowExecutor {
                     if (stepResult.isSuccessful()) {
                         handle.incrementCompletedSteps();
                         listener.onStepCompleted(step, stepResult);
+                        // Get confirmation details - tx is already confirmed from completeAndWait()
+                        Optional<ConfirmationResult> confirmResult = waitForConfirmation(stepResult.getTransactionHash(), step);
+                        Long blockHeight = confirmResult.map(ConfirmationResult::getBlockHeight).orElse(null);
+                        Integer confirmDepth = confirmResult.map(ConfirmationResult::getConfirmationDepth).orElse(null);
+                        persistTransactionConfirmed(flow, step, stepResult.getTransactionHash(), blockHeight, confirmDepth);
                     } else {
                         listener.onStepFailed(step, stepResult);
                         handle.updateStatus(FlowStatus.FAILED);
@@ -862,6 +1109,7 @@ public class FlowExecutor {
                                 .withError(stepResult.getError())
                                 .build();
                         listener.onFlowFailed(flow, failedResult);
+                        persistFlowComplete(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
                 }
@@ -870,9 +1118,14 @@ public class FlowExecutor {
                 resultBuilder.completedAt(Instant.now());
                 FlowResult successResult = resultBuilder.success();
                 listener.onFlowCompleted(flow, successResult);
+                persistFlowComplete(flow, FlowStatus.COMPLETED);
                 return successResult;
 
             } catch (RollbackException e) {
+                // Persist rollback state
+                persistTransactionRolledBack(flow, e.getStep(), e.getTxHash(),
+                        e.getPreviousBlockHeight(), e.getMessage());
+
                 if (e.isRequiresFlowRestart()) {
                     flowRestartAttempts++;
                     if (flowRestartAttempts > maxRollbackRetries) {
@@ -883,6 +1136,7 @@ public class FlowExecutor {
                         FlowResult failedResult = resultBuilder.failure(
                                 new FlowExecutionException("Flow restart limit reached after rollback", e));
                         listener.onFlowFailed(flow, failedResult);
+                        persistFlowComplete(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
 
@@ -900,6 +1154,7 @@ public class FlowExecutor {
                     resultBuilder.completedAt(Instant.now());
                     FlowResult failedResult = resultBuilder.failure(e);
                     listener.onFlowFailed(flow, failedResult);
+                    persistFlowComplete(flow, FlowStatus.FAILED);
                     return failedResult;
                 }
             } catch (Exception e) {
@@ -910,6 +1165,7 @@ public class FlowExecutor {
                         .completedAt(Instant.now());
                 FlowResult failedResult = errorBuilder.failure(e);
                 listener.onFlowFailed(flow, failedResult);
+                persistFlowComplete(flow, FlowStatus.FAILED);
                 return failedResult;
             }
         }
@@ -922,6 +1178,7 @@ public class FlowExecutor {
         FlowResult failedResult = errorBuilder.failure(
                 new FlowExecutionException("Flow execution failed: exceeded maximum restart attempts"));
         listener.onFlowFailed(flow, failedResult);
+        persistFlowComplete(flow, FlowStatus.FAILED);
         return failedResult;
     }
 
@@ -936,6 +1193,7 @@ public class FlowExecutor {
 
             if (flowRestartAttempts == 0) {
                 listener.onFlowStarted(flow);
+                persistFlowStarted(flow);
             }
 
             List<FlowStep> steps = flow.getSteps();
@@ -958,6 +1216,7 @@ public class FlowExecutor {
                     if (stepResult.isSuccessful()) {
                         submittedTxHashes.add(stepResult.getTransactionHash());
                         listener.onTransactionSubmitted(step, stepResult.getTransactionHash());
+                        persistTransactionSubmitted(flow, step, stepResult.getTransactionHash());
                     } else {
                         listener.onStepFailed(step, stepResult);
                         handle.updateStatus(FlowStatus.FAILED);
@@ -966,6 +1225,7 @@ public class FlowExecutor {
                                 .withError(stepResult.getError())
                                 .build();
                         listener.onFlowFailed(flow, failedResult);
+                        persistFlowComplete(flow, FlowStatus.FAILED);
                         return failedResult;
                     }
                 }
@@ -976,11 +1236,14 @@ public class FlowExecutor {
                     String txHash = submittedTxHashes.get(i);
                     FlowStep step = steps.get(i);
 
-                    boolean confirmed = waitForConfirmation(txHash, step);
-                    if (confirmed) {
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    if (confirmResult.isPresent()) {
+                        ConfirmationResult result = confirmResult.get();
                         handle.incrementCompletedSteps();
                         listener.onTransactionConfirmed(step, txHash);
                         listener.onStepCompleted(step, stepResults.get(i));
+                        persistTransactionConfirmed(flow, step, txHash,
+                                result.getBlockHeight(), result.getConfirmationDepth());
                     } else {
                         FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
                                 new ConfirmationTimeoutException(txHash));
@@ -991,6 +1254,7 @@ public class FlowExecutor {
                                 .withError(failedResult.getError())
                                 .build();
                         listener.onFlowFailed(flow, flowFailedResult);
+                        persistFlowComplete(flow, FlowStatus.FAILED);
                         return flowFailedResult;
                     }
                 }
@@ -999,9 +1263,14 @@ public class FlowExecutor {
                 resultBuilder.completedAt(Instant.now());
                 FlowResult successResult = resultBuilder.success();
                 listener.onFlowCompleted(flow, successResult);
+                persistFlowComplete(flow, FlowStatus.COMPLETED);
                 return successResult;
 
             } catch (RollbackException e) {
+                // Persist rollback state
+                persistTransactionRolledBack(flow, e.getStep(), e.getTxHash(),
+                        e.getPreviousBlockHeight(), e.getMessage());
+
                 flowRestartAttempts++;
                 if (flowRestartAttempts > maxRollbackRetries) {
                     log.error("Flow restart limit ({}) reached after rollback at step '{}' in PIPELINED mode",
@@ -1011,6 +1280,7 @@ public class FlowExecutor {
                     FlowResult failedResult = resultBuilder.failure(
                             new FlowExecutionException("Flow restart limit reached after rollback in PIPELINED mode", e));
                     listener.onFlowFailed(flow, failedResult);
+                    persistFlowComplete(flow, FlowStatus.FAILED);
                     return failedResult;
                 }
 
@@ -1030,6 +1300,7 @@ public class FlowExecutor {
                         .completedAt(Instant.now());
                 FlowResult failedResult = errorBuilder.failure(e);
                 listener.onFlowFailed(flow, failedResult);
+                persistFlowComplete(flow, FlowStatus.FAILED);
                 return failedResult;
             }
         }
@@ -1042,6 +1313,7 @@ public class FlowExecutor {
         FlowResult failedResult = errorBuilder.failure(
                 new FlowExecutionException("PIPELINED flow execution failed: exceeded maximum restart attempts"));
         listener.onFlowFailed(flow, failedResult);
+        persistFlowComplete(flow, FlowStatus.FAILED);
         return failedResult;
     }
 
@@ -1167,10 +1439,10 @@ public class FlowExecutor {
                 // If confirmation tracking is configured, wait for deeper confirmation
                 // This enables rollback detection in SEQUENTIAL mode
                 if (confirmationTracker != null) {
-                    boolean confirmed = waitForConfirmation(txHash, step);
-                    if (!confirmed) {
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    if (confirmResult.isEmpty()) {
                         // waitForConfirmation handles RollbackException for REBUILD strategies
-                        // For FAIL_IMMEDIATELY/NOTIFY_ONLY, it returns false
+                        // For FAIL_IMMEDIATELY/NOTIFY_ONLY, it returns empty
                         FlowStepResult failedResult = FlowStepResult.failure(stepId,
                                 new ConfirmationTimeoutException(txHash));
                         context.recordStepResult(stepId, failedResult);
@@ -1483,8 +1755,8 @@ public class FlowExecutor {
                 String txHash = precomputedTxHashes.get(i);
                 FlowStep step = steps.get(i);
 
-                boolean confirmed = waitForConfirmation(txHash, step);
-                if (confirmed) {
+                Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                if (confirmResult.isPresent()) {
                     listener.onTransactionConfirmed(step, txHash);
                     listener.onStepCompleted(step, stepResults.get(i));
                 } else {
@@ -1605,8 +1877,8 @@ public class FlowExecutor {
                 String txHash = precomputedTxHashes.get(i);
                 FlowStep step = steps.get(i);
 
-                boolean confirmed = waitForConfirmation(txHash, step);
-                if (confirmed) {
+                Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                if (confirmResult.isPresent()) {
                     handle.incrementCompletedSteps();
                     listener.onTransactionConfirmed(step, txHash);
                     listener.onStepCompleted(step, stepResults.get(i));
@@ -1715,6 +1987,118 @@ public class FlowExecutor {
 
         public static BuildResult failure(Throwable error) {
             return new BuildResult(false, null, error);
+        }
+    }
+
+    // ==================== State Persistence Helpers ====================
+
+    /**
+     * Save initial flow state when execution begins.
+     */
+    private void persistFlowStarted(TxFlow flow) {
+        if (flowStateStore == null) return;
+
+        try {
+            FlowStateSnapshot snapshot = FlowStateSnapshot.builder()
+                    .flowId(flow.getId())
+                    .status(FlowStatus.IN_PROGRESS)
+                    .startedAt(Instant.now())
+                    .description(flow.getDescription())
+                    .totalSteps(flow.getSteps().size())
+                    .completedSteps(0)
+                    .variables(new HashMap<>(flow.getVariables()))
+                    .build();
+
+            // Add step placeholders
+            for (FlowStep step : flow.getSteps()) {
+                snapshot.addStep(StepStateSnapshot.pending(step.getId()));
+            }
+
+            flowStateStore.saveFlowState(snapshot);
+            log.debug("Persisted flow started: {}", flow.getId());
+        } catch (Exception e) {
+            log.warn("Failed to persist flow started state: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Persist transaction submitted state.
+     */
+    private void persistTransactionSubmitted(TxFlow flow, FlowStep step, String txHash) {
+        if (flowStateStore == null) return;
+
+        try {
+            TransactionStateDetails details = TransactionStateDetails.submitted(Instant.now());
+            flowStateStore.updateTransactionState(flow.getId(), step.getId(), txHash, details);
+            log.debug("Persisted transaction submitted: {} -> {}", step.getId(), txHash);
+        } catch (Exception e) {
+            log.warn("Failed to persist transaction submitted state: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Persist transaction confirmed state.
+     *
+     * @param flow the flow
+     * @param step the step
+     * @param txHash the transaction hash
+     * @param blockHeight block height where the transaction was confirmed (may be null)
+     * @param confirmationDepth confirmation depth when confirmed (may be null)
+     */
+    private void persistTransactionConfirmed(TxFlow flow, FlowStep step, String txHash,
+                                             Long blockHeight, Integer confirmationDepth) {
+        if (flowStateStore == null) return;
+
+        try {
+            TransactionStateDetails details = TransactionStateDetails.builder()
+                    .state(TransactionState.CONFIRMED)
+                    .blockHeight(blockHeight)
+                    .confirmationDepth(confirmationDepth)
+                    .timestamp(Instant.now())
+                    .build();
+            flowStateStore.updateTransactionState(flow.getId(), step.getId(), txHash, details);
+            log.debug("Persisted transaction confirmed: {} -> {} (block: {}, depth: {})",
+                    step.getId(), txHash, blockHeight, confirmationDepth);
+        } catch (Exception e) {
+            log.warn("Failed to persist transaction confirmed state: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Persist transaction rolled back state.
+     *
+     * @param flow the flow
+     * @param step the step
+     * @param txHash the transaction hash
+     * @param previousBlockHeight block height before rollback (may be null)
+     * @param errorMessage description of the rollback cause
+     */
+    private void persistTransactionRolledBack(TxFlow flow, FlowStep step, String txHash,
+                                              Long previousBlockHeight, String errorMessage) {
+        if (flowStateStore == null) return;
+
+        try {
+            TransactionStateDetails details = TransactionStateDetails.rolledBack(
+                    previousBlockHeight, errorMessage, Instant.now());
+            flowStateStore.updateTransactionState(flow.getId(), step.getId(), txHash, details);
+            log.debug("Persisted transaction rolled back: {} -> {} (previous block: {})",
+                    step.getId(), txHash, previousBlockHeight);
+        } catch (Exception e) {
+            log.warn("Failed to persist transaction rolled back state: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Persist flow completion state.
+     */
+    private void persistFlowComplete(TxFlow flow, FlowStatus status) {
+        if (flowStateStore == null) return;
+
+        try {
+            flowStateStore.markFlowComplete(flow.getId(), status);
+            log.debug("Persisted flow complete: {} -> {}", flow.getId(), status);
+        } catch (Exception e) {
+            log.warn("Failed to persist flow complete state: {}", e.getMessage());
         }
     }
 }
