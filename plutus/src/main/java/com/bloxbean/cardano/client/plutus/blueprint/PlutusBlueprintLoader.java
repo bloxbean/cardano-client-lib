@@ -54,6 +54,7 @@ public class PlutusBlueprintLoader {
      */
     private static PlutusContractBlueprint resolveReferences(PlutusContractBlueprint plutusContractBlueprint) {
         Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions();
+
         List<Validator> validators = plutusContractBlueprint.getValidators();
         for (Validator validator : validators) {
             if(validator.getDatum() != null) {
@@ -120,6 +121,7 @@ public class PlutusBlueprintLoader {
             }
             blueprintSchema.setFields(extracted(definitions, blueprintSchema.getFields(), visiting));
             blueprintSchema.setAnyOf(extracted(definitions, blueprintSchema.getAnyOf(), visiting));
+
             if (blueprintSchema.getItems() != null && !blueprintSchema.getItems().isEmpty())
                 blueprintSchema.setItems(extracted(definitions, blueprintSchema.getItems(), visiting));
             if (blueprintSchema.getKeys() != null)

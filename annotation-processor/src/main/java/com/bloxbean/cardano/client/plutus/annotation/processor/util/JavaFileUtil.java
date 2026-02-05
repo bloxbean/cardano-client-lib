@@ -1,9 +1,10 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.util;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.text.CaseUtils;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
@@ -16,52 +17,55 @@ public class JavaFileUtil {
 
     public static final String CARDANO_CLIENT_LIB_GENERATED_DIR = "cardano.client.lib.generated.dir";
 
+    // Use DefaultNamingStrategy for all naming operations
+    private static final NamingStrategy namingStrategy = new DefaultNamingStrategy();
+
     /**
      * First character has to be upper case when creating a new class
      * @param s
      * @return
      */
     public static String firstUpperCase(String s) {
-        if(s == null || s.isEmpty())
-            return s;
-        return s.substring(0, 1).toUpperCase() + s.substring(1);
+        return namingStrategy.firstUpperCase(s);
     }
 
     public static String firstLowerCase(String s) {
-        if(s == null || s.isEmpty())
-            return s;
-        return s.substring(0, 1).toLowerCase() + s.substring(1);
+        return namingStrategy.firstLowerCase(s);
     }
 
     /**
-     * Converts a string to camel case
-     * @param s
-     * @return
+     * Converts a string to camel case.
+     * Handles all CIP-57 blueprint naming conventions including:
+     * - Legacy Aiken (v1.0.x): List$ByteArray, Tuple$Int_Int
+     * - Modern Aiken (v1.1.x+): List<Int>, aiken/crypto/Hash
+     * - Module paths with tildes: types~1order~1Action
+     *
+     * @param s the input string
+     * @return camelCase string that is a valid Java identifier
      */
     public static String toCamelCase(String s) {
-        if (s == null || s.isEmpty())
-            return s;
-
-        if(Character.isUpperCase(s.charAt(0))) {
-            return s;
-        }
-
-        return CaseUtils.toCamelCase(s, true, '_', ' ', '-');
+        return namingStrategy.toCamelCase(s);
     }
 
+    /**
+     * Converts a string to PascalCase for class names.
+     * Handles all CIP-57 blueprint naming conventions.
+     *
+     * @param s the input string
+     * @return PascalCase string that is a valid Java class name
+     */
     public static String toClassNameFormat(String s) {
-        if (s == null || s.isEmpty())
-            return s;
-
-        return firstUpperCase(toCamelCase(s));
+        return namingStrategy.toClassName(s);
     }
 
+    /**
+     * Converts a package name to valid Java package format.
+     *
+     * @param pkg the package name
+     * @return lowercase package name with no special characters
+     */
     public static String toPackageNameFormat(String pkg) {
-        if (pkg == null) {
-            return null;
-        }
-
-        return pkg.toLowerCase().replace("-", "").replace("_", "");
+        return namingStrategy.toPackageNameFormat(pkg);
     }
 
 

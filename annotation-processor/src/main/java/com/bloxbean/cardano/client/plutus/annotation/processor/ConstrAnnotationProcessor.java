@@ -90,11 +90,7 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
                     for (TypeMirror typeMirror : interfaces) {
                         TypeElement interfaceElement = (TypeElement) processingEnv.getTypeUtils().asElement(typeMirror);
                         if(interfaceElements.contains(interfaceElement)) {
-                            List<ClassDefinition> constructors = interfaceToConstructorsMap.get(interfaceElement);
-                            if(constructors == null) {
-                                constructors = new ArrayList<>();
-                                interfaceToConstructorsMap.put(interfaceElement, constructors);
-                            }
+                            List<ClassDefinition> constructors = interfaceToConstructorsMap.computeIfAbsent(interfaceElement, k -> new ArrayList<>());
                             constructors.add(classDefinition);
                         }
                     }
