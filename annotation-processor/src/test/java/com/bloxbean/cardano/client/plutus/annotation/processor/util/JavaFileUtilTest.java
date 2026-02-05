@@ -10,25 +10,26 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 public class JavaFileUtilTest {
 
     @Test
-    public void testClassNameFormat() {
+    public void testClassNameFormat_convertsSnakeCaseToPascalCase() {
         String s = "gift_card";
         String result = JavaFileUtil.toClassNameFormat(s);
+        // Should convert to UpperCamelCase/PascalCase (first letter uppercase)
         assertThat(result).isEqualTo("GiftCard");
     }
 
     @Test
-    public void testToCamelCase() {
+    public void testToCamelCase_convertsSnakeCaseToLowerCamelCase() {
         String s = "gift_card";
         String result = JavaFileUtil.toCamelCase(s);
-        // toCamelCase returns camelCase (first letter lowercase)
+        // Should convert to lowerCamelCase (first letter lowercase)
         assertThat(result).isEqualTo("giftCard");
     }
 
     @Test
-    public void testToCamelCase_whenAlreadyCamelCase() {
+    public void testToCamelCase_whenInputIsPascalCase() {
         String s = "GiftCard";
         String result = JavaFileUtil.toCamelCase(s);
-        // toCamelCase converts to camelCase (first letter lowercase)
+        // toCamelCase converts PascalCase to lowerCamelCase (first letter lowercase)
         assertThat(result).isEqualTo("giftCard");
     }
 
