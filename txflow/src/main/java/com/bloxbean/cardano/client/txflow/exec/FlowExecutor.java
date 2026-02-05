@@ -25,7 +25,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
@@ -63,6 +65,9 @@ public class FlowExecutor {
     private Consumer<Transaction> txInspector;
     private ChainingMode chainingMode = ChainingMode.SEQUENTIAL;
     private RetryPolicy defaultRetryPolicy;
+    private ConfirmationConfig confirmationConfig;
+    private ConfirmationTracker confirmationTracker;
+    private RollbackStrategy rollbackStrategy = RollbackStrategy.FAIL_IMMEDIATELY;
 
     private FlowExecutor(BackendService backendService) {
         this.backendService = backendService;
@@ -179,6 +184,54 @@ public class FlowExecutor {
     }
 
     /**
+     * Set the confirmation tracking configuration.
+     * <p>
+     * When set, enables advanced confirmation tracking with:
+     * <ul>
+     *     <li>Configurable confirmation depth thresholds</li>
+     *     <li>Rollback detection</li>
+     *     <li>Enhanced listener callbacks for confirmation progress</li>
+     * </ul>
+     * <p>
+     * If not set, the executor uses simple confirmation checking (transaction exists = confirmed).
+     *
+     * @param config the confirmation configuration
+     * @return this executor
+     */
+    public FlowExecutor withConfirmationConfig(ConfirmationConfig config) {
+        this.confirmationConfig = config;
+        if (config != null) {
+            this.confirmationTracker = new ConfirmationTracker(backendService, config);
+        }
+        return this;
+    }
+
+    /**
+     * Set the rollback handling strategy.
+     * <p>
+     * Determines how the executor responds when a transaction rollback is detected:
+     * <ul>
+     *     <li>{@link RollbackStrategy#FAIL_IMMEDIATELY} (default) - Fail the flow immediately</li>
+     *     <li>{@link RollbackStrategy#NOTIFY_ONLY} - Notify via listener but continue waiting</li>
+     *     <li>{@link RollbackStrategy#REBUILD_FROM_FAILED} - Automatically rebuild and resubmit the failed step</li>
+     *     <li>{@link RollbackStrategy#REBUILD_ENTIRE_FLOW} - Restart the entire flow from step 1</li>
+     * </ul>
+     * <p>
+     * For REBUILD_FROM_FAILED and REBUILD_ENTIRE_FLOW strategies, the maximum number of
+     * rebuild attempts is controlled by the {@code maxRollbackRetries} setting in {@link ConfirmationConfig}.
+     * <p>
+     * Note: This only takes effect when {@link #withConfirmationConfig(ConfirmationConfig)}
+     * has been set, as rollback detection requires confirmation tracking.
+     *
+     * @param strategy the rollback strategy
+     * @return this executor
+     */
+    public FlowExecutor withRollbackStrategy(RollbackStrategy strategy) {
+        this.rollbackStrategy = strategy != null ? strategy : RollbackStrategy.FAIL_IMMEDIATELY;
+        return this;
+    }
+
+    /**
      * Execute a flow synchronously.
      *
      * @param flow the flow to execute
@@ -204,50 +257,162 @@ public class FlowExecutor {
 
     /**
      * Execute flow in SEQUENTIAL mode - wait for each step to confirm before next.
+     * <p>
+     * This method supports rollback recovery strategies:
+     * <ul>
+     *     <li>REBUILD_FROM_FAILED: Rebuilds and resubmits only the failed step</li>
+     *     <li>REBUILD_ENTIRE_FLOW: Restarts the entire flow from step 1</li>
+     * </ul>
      */
     private FlowResult executeSequential(TxFlow flow) {
-        FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
-        FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
-                .startedAt(Instant.now());
+        int maxRollbackRetries = getMaxRollbackRetries();
+        int flowRestartAttempts = 0;
+        Map<String, Integer> stepRollbackAttempts = new ConcurrentHashMap<>();
 
-        listener.onFlowStarted(flow);
+        while (flowRestartAttempts <= maxRollbackRetries) {
+            FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
+            FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
+                    .startedAt(Instant.now());
 
-        List<FlowStep> steps = flow.getSteps();
-        int totalSteps = steps.size();
+            if (flowRestartAttempts == 0) {
+                listener.onFlowStarted(flow);
+            }
 
-        try {
-            for (int i = 0; i < totalSteps; i++) {
-                FlowStep step = steps.get(i);
-                listener.onStepStarted(step, i, totalSteps);
+            List<FlowStep> steps = flow.getSteps();
+            int totalSteps = steps.size();
 
-                FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), false);
-                resultBuilder.addStepResult(stepResult);
+            try {
+                for (int i = 0; i < totalSteps; i++) {
+                    FlowStep step = steps.get(i);
+                    listener.onStepStarted(step, i, totalSteps);
 
-                if (stepResult.isSuccessful()) {
-                    listener.onStepCompleted(step, stepResult);
+                    FlowStepResult stepResult = executeStepWithRollbackHandling(
+                            step, context, flow.getVariables(), false,
+                            stepRollbackAttempts, maxRollbackRetries);
+                    resultBuilder.addStepResult(stepResult);
+
+                    if (stepResult.isSuccessful()) {
+                        listener.onStepCompleted(step, stepResult);
+                    } else {
+                        listener.onStepFailed(step, stepResult);
+                        // Stop on first failure
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(stepResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, failedResult);
+                        return failedResult;
+                    }
+                }
+
+                resultBuilder.completedAt(Instant.now());
+                FlowResult successResult = resultBuilder.success();
+                listener.onFlowCompleted(flow, successResult);
+                return successResult;
+
+            } catch (RollbackException e) {
+                if (e.isRequiresFlowRestart()) {
+                    flowRestartAttempts++;
+                    if (flowRestartAttempts > maxRollbackRetries) {
+                        log.error("Flow restart limit ({}) reached after rollback at step '{}'",
+                                maxRollbackRetries, e.getStep().getId());
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.failure(
+                                new FlowExecutionException("Flow restart limit reached after rollback", e));
+                        listener.onFlowFailed(flow, failedResult);
+                        return failedResult;
+                    }
+
+                    log.info("Restarting flow (attempt {}/{}) due to rollback at step '{}'",
+                            flowRestartAttempts, maxRollbackRetries, e.getStep().getId());
+                    listener.onFlowRestarting(flow, flowRestartAttempts, maxRollbackRetries,
+                            "Rollback detected at step '" + e.getStep().getId() + "'");
+                    waitForBackendReadyAfterRollback(); // Wait for backend to sync after rollback
+                    stepRollbackAttempts.clear(); // Reset step-level counters on flow restart
+                    continue; // Restart the flow
                 } else {
-                    listener.onStepFailed(step, stepResult);
-                    // Stop on first failure
+                    // REBUILD_FROM_FAILED is handled within executeStepWithRollbackHandling
+                    // If we get here, it means rebuild also failed
+                    log.error("Step rebuild failed for step '{}'", e.getStep().getId());
                     resultBuilder.completedAt(Instant.now());
-                    FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
-                            .withError(stepResult.getError())
-                            .build();
+                    FlowResult failedResult = resultBuilder.failure(e);
                     listener.onFlowFailed(flow, failedResult);
                     return failedResult;
                 }
+            } catch (Exception e) {
+                log.error("Flow execution failed", e);
+                FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                        .startedAt(Instant.now())
+                        .completedAt(Instant.now());
+                FlowResult failedResult = errorBuilder.failure(e);
+                listener.onFlowFailed(flow, failedResult);
+                return failedResult;
             }
+        }
 
-            resultBuilder.completedAt(Instant.now());
-            FlowResult successResult = resultBuilder.success();
-            listener.onFlowCompleted(flow, successResult);
-            return successResult;
+        // Should not reach here
+        FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                .startedAt(Instant.now())
+                .completedAt(Instant.now());
+        FlowResult failedResult = errorBuilder.failure(
+                new FlowExecutionException("Flow execution failed: exceeded maximum restart attempts"));
+        listener.onFlowFailed(flow, failedResult);
+        return failedResult;
+    }
 
-        } catch (Exception e) {
-            log.error("Flow execution failed", e);
-            resultBuilder.completedAt(Instant.now());
-            FlowResult failedResult = resultBuilder.failure(e);
-            listener.onFlowFailed(flow, failedResult);
-            return failedResult;
+    /**
+     * Get the maximum rollback retries from configuration.
+     */
+    private int getMaxRollbackRetries() {
+        return confirmationConfig != null ? confirmationConfig.getMaxRollbackRetries() : 3;
+    }
+
+    /**
+     * Execute a step with rollback handling.
+     * <p>
+     * This method wraps executeStepWithRetry and handles RollbackException for
+     * REBUILD_FROM_FAILED strategy by rebuilding and resubmitting the step.
+     *
+     * @throws RollbackException when using REBUILD_ENTIRE_FLOW strategy or when
+     *         rebuild attempts are exhausted for REBUILD_FROM_FAILED
+     */
+    private FlowStepResult executeStepWithRollbackHandling(FlowStep step, FlowExecutionContext context,
+                                                            java.util.Map<String, Object> variables,
+                                                            boolean pipelined,
+                                                            Map<String, Integer> stepRollbackAttempts,
+                                                            int maxRollbackRetries) {
+        while (true) {
+            try {
+                return executeStepWithRetry(step, context, variables, pipelined);
+            } catch (RollbackException e) {
+                if (e.isRequiresFlowRestart()) {
+                    // REBUILD_ENTIRE_FLOW: propagate exception to flow level
+                    throw e;
+                }
+
+                // REBUILD_FROM_FAILED: try to rebuild this step
+                int currentAttempts = stepRollbackAttempts.getOrDefault(step.getId(), 0) + 1;
+                stepRollbackAttempts.put(step.getId(), currentAttempts);
+
+                if (currentAttempts > maxRollbackRetries) {
+                    log.error("Step '{}' rebuild limit ({}) reached", step.getId(), maxRollbackRetries);
+                    throw new RollbackException(
+                            "Step rebuild limit reached for step '" + step.getId() + "'",
+                            e.getTxHash(), step, e.getPreviousBlockHeight(), false);
+                }
+
+                log.info("Rebuilding step '{}' (attempt {}/{}) after rollback",
+                        step.getId(), currentAttempts, maxRollbackRetries);
+                listener.onStepRebuilding(step, currentAttempts, maxRollbackRetries,
+                        "Transaction " + e.getTxHash() + " rolled back");
+
+                waitForBackendReadyAfterRollback(); // Wait for backend to sync after rollback
+
+                // Clear the step result so it can be rebuilt
+                context.clearStepResult(step.getId());
+
+                // Continue loop to retry the step
+            }
         }
     }
 
@@ -255,83 +420,128 @@ public class FlowExecutor {
      * Execute flow in PIPELINED mode - submit all transactions, then wait for confirmations.
      * <p>
      * This enables true transaction chaining where multiple transactions can land in the same block.
+     * <p>
+     * For rollback handling in PIPELINED mode:
+     * <ul>
+     *     <li>REBUILD_FROM_FAILED and REBUILD_ENTIRE_FLOW both trigger a full flow restart,
+     *         as all transactions are interdependent in pipelined execution</li>
+     * </ul>
      */
     private FlowResult executePipelined(TxFlow flow) {
-        FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
-        FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
-                .startedAt(Instant.now());
+        int maxRollbackRetries = getMaxRollbackRetries();
+        int flowRestartAttempts = 0;
 
-        listener.onFlowStarted(flow);
+        while (flowRestartAttempts <= maxRollbackRetries) {
+            FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
+            FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
+                    .startedAt(Instant.now());
 
-        List<FlowStep> steps = flow.getSteps();
-        int totalSteps = steps.size();
-        List<String> submittedTxHashes = new ArrayList<>();
-        List<FlowStepResult> stepResults = new ArrayList<>();
+            if (flowRestartAttempts == 0) {
+                listener.onFlowStarted(flow);
+            }
 
-        try {
-            // Phase 1: Build and submit all transactions without waiting
-            log.info("PIPELINED mode: Submitting {} transactions", totalSteps);
-            for (int i = 0; i < totalSteps; i++) {
-                FlowStep step = steps.get(i);
-                listener.onStepStarted(step, i, totalSteps);
+            List<FlowStep> steps = flow.getSteps();
+            int totalSteps = steps.size();
+            List<String> submittedTxHashes = new ArrayList<>();
+            List<FlowStepResult> stepResults = new ArrayList<>();
 
-                FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true);
-                stepResults.add(stepResult);
-                resultBuilder.addStepResult(stepResult);
+            try {
+                // Phase 1: Build and submit all transactions without waiting
+                log.info("PIPELINED mode: Submitting {} transactions", totalSteps);
+                for (int i = 0; i < totalSteps; i++) {
+                    FlowStep step = steps.get(i);
+                    listener.onStepStarted(step, i, totalSteps);
 
-                if (stepResult.isSuccessful()) {
-                    submittedTxHashes.add(stepResult.getTransactionHash());
-                    listener.onTransactionSubmitted(step, stepResult.getTransactionHash());
-                    log.debug("Step '{}' submitted: {}", step.getId(), stepResult.getTransactionHash());
-                } else {
-                    // If submission fails, stop and report failure
-                    listener.onStepFailed(step, stepResult);
+                    FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true);
+                    stepResults.add(stepResult);
+                    resultBuilder.addStepResult(stepResult);
+
+                    if (stepResult.isSuccessful()) {
+                        submittedTxHashes.add(stepResult.getTransactionHash());
+                        listener.onTransactionSubmitted(step, stepResult.getTransactionHash());
+                        log.debug("Step '{}' submitted: {}", step.getId(), stepResult.getTransactionHash());
+                    } else {
+                        // If submission fails, stop and report failure
+                        listener.onStepFailed(step, stepResult);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(stepResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, failedResult);
+                        return failedResult;
+                    }
+                }
+
+                // Phase 2: Wait for all transactions to be confirmed
+                log.info("PIPELINED mode: Waiting for {} transactions to confirm", submittedTxHashes.size());
+                for (int i = 0; i < submittedTxHashes.size(); i++) {
+                    String txHash = submittedTxHashes.get(i);
+                    FlowStep step = steps.get(i);
+
+                    boolean confirmed = waitForConfirmation(txHash, step);
+                    if (confirmed) {
+                        listener.onTransactionConfirmed(step, txHash);
+                        listener.onStepCompleted(step, stepResults.get(i));
+                        log.debug("Step '{}' confirmed: {}", step.getId(), txHash);
+                    } else {
+                        // Confirmation timeout or rollback (FAIL_IMMEDIATELY/NOTIFY_ONLY)
+                        FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
+                                new ConfirmationTimeoutException(txHash));
+                        listener.onStepFailed(step, failedResult);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult flowFailedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(failedResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, flowFailedResult);
+                        return flowFailedResult;
+                    }
+                }
+
+                resultBuilder.completedAt(Instant.now());
+                FlowResult successResult = resultBuilder.success();
+                listener.onFlowCompleted(flow, successResult);
+                return successResult;
+
+            } catch (RollbackException e) {
+                // In PIPELINED mode, any rollback requires restarting the entire flow
+                // because all transactions are submitted before any confirmations
+                flowRestartAttempts++;
+                if (flowRestartAttempts > maxRollbackRetries) {
+                    log.error("Flow restart limit ({}) reached after rollback at step '{}' in PIPELINED mode",
+                            maxRollbackRetries, e.getStep().getId());
                     resultBuilder.completedAt(Instant.now());
-                    FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
-                            .withError(stepResult.getError())
-                            .build();
+                    FlowResult failedResult = resultBuilder.failure(
+                            new FlowExecutionException("Flow restart limit reached after rollback in PIPELINED mode", e));
                     listener.onFlowFailed(flow, failedResult);
                     return failedResult;
                 }
+
+                log.info("Restarting PIPELINED flow (attempt {}/{}) due to rollback at step '{}'",
+                        flowRestartAttempts, maxRollbackRetries, e.getStep().getId());
+                listener.onFlowRestarting(flow, flowRestartAttempts, maxRollbackRetries,
+                        "Rollback detected at step '" + e.getStep().getId() + "' in PIPELINED mode");
+                waitForBackendReadyAfterRollback(); // Wait for backend to sync after rollback
+                continue; // Restart the flow
+
+            } catch (Exception e) {
+                log.error("Flow execution failed", e);
+                FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                        .startedAt(Instant.now())
+                        .completedAt(Instant.now());
+                FlowResult failedResult = errorBuilder.failure(e);
+                listener.onFlowFailed(flow, failedResult);
+                return failedResult;
             }
-
-            // Phase 2: Wait for all transactions to be confirmed
-            log.info("PIPELINED mode: Waiting for {} transactions to confirm", submittedTxHashes.size());
-            for (int i = 0; i < submittedTxHashes.size(); i++) {
-                String txHash = submittedTxHashes.get(i);
-                FlowStep step = steps.get(i);
-
-                boolean confirmed = waitForConfirmation(txHash);
-                if (confirmed) {
-                    listener.onTransactionConfirmed(step, txHash);
-                    listener.onStepCompleted(step, stepResults.get(i));
-                    log.debug("Step '{}' confirmed: {}", step.getId(), txHash);
-                } else {
-                    // Confirmation timeout
-                    FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
-                            new ConfirmationTimeoutException(txHash));
-                    listener.onStepFailed(step, failedResult);
-                    resultBuilder.completedAt(Instant.now());
-                    FlowResult flowFailedResult = resultBuilder.withStatus(FlowStatus.FAILED)
-                            .withError(failedResult.getError())
-                            .build();
-                    listener.onFlowFailed(flow, flowFailedResult);
-                    return flowFailedResult;
-                }
-            }
-
-            resultBuilder.completedAt(Instant.now());
-            FlowResult successResult = resultBuilder.success();
-            listener.onFlowCompleted(flow, successResult);
-            return successResult;
-
-        } catch (Exception e) {
-            log.error("Flow execution failed", e);
-            resultBuilder.completedAt(Instant.now());
-            FlowResult failedResult = resultBuilder.failure(e);
-            listener.onFlowFailed(flow, failedResult);
-            return failedResult;
         }
+
+        // Should not reach here
+        FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                .startedAt(Instant.now())
+                .completedAt(Instant.now());
+        FlowResult failedResult = errorBuilder.failure(
+                new FlowExecutionException("PIPELINED flow execution failed: exceeded maximum restart attempts"));
+        listener.onFlowFailed(flow, failedResult);
+        return failedResult;
     }
 
     /**
@@ -341,6 +551,30 @@ public class FlowExecutor {
      * @return true if confirmed, false if timeout
      */
     private boolean waitForConfirmation(String txHash) {
+        return waitForConfirmation(txHash, null);
+    }
+
+    /**
+     * Wait for a transaction to be confirmed on-chain with enhanced tracking.
+     * <p>
+     * If confirmation tracking is configured, this method:
+     * <ul>
+     *     <li>Tracks confirmation depth and status progression</li>
+     *     <li>Detects rollbacks and handles them according to the rollback strategy</li>
+     *     <li>Fires listener callbacks for confirmation progress</li>
+     * </ul>
+     *
+     * @param txHash the transaction hash to wait for
+     * @param step the flow step (for listener callbacks, can be null)
+     * @return true if confirmed (reached target status), false if timeout or rollback
+     */
+    private boolean waitForConfirmation(String txHash, FlowStep step) {
+        // Use enhanced confirmation tracking if configured
+        if (confirmationTracker != null) {
+            return waitForConfirmationWithTracking(txHash, step);
+        }
+
+        // Fall back to simple confirmation checking
         long startTime = System.currentTimeMillis();
         long timeoutMs = confirmationTimeout.toMillis();
 
@@ -365,6 +599,181 @@ public class FlowExecutor {
             }
         }
         return false;
+    }
+
+    /**
+     * Wait for confirmation using the enhanced ConfirmationTracker.
+     * <p>
+     * This method handles rollback strategies:
+     * <ul>
+     *     <li>FAIL_IMMEDIATELY: Returns false on rollback</li>
+     *     <li>NOTIFY_ONLY: Continues waiting after notifying listeners</li>
+     *     <li>REBUILD_FROM_FAILED: Throws RollbackException for step rebuild</li>
+     *     <li>REBUILD_ENTIRE_FLOW: Throws RollbackException for flow restart</li>
+     * </ul>
+     *
+     * @throws RollbackException when using REBUILD_FROM_FAILED or REBUILD_ENTIRE_FLOW strategies
+     */
+    private boolean waitForConfirmationWithTracking(String txHash, FlowStep step) {
+        ConfirmationStatus targetStatus = confirmationConfig.isRequireFinalization()
+                ? ConfirmationStatus.FINALIZED
+                : ConfirmationStatus.CONFIRMED;
+
+        // Track the last known status for detecting transitions
+        final ConfirmationStatus[] lastStatus = {null};
+        final Long[] firstBlockHeight = {null};
+
+        ConfirmationResult result = confirmationTracker.waitForConfirmation(txHash, targetStatus,
+                (hash, confirmResult) -> {
+                    if (step == null) return;
+
+                    ConfirmationStatus currentStatus = confirmResult.getStatus();
+                    int depth = confirmResult.getConfirmationDepth();
+
+                    // Fire callbacks on status transitions
+                    if (lastStatus[0] != currentStatus) {
+                        // Transition: SUBMITTED -> IN_BLOCK
+                        if (currentStatus == ConfirmationStatus.IN_BLOCK && lastStatus[0] == ConfirmationStatus.SUBMITTED) {
+                            firstBlockHeight[0] = confirmResult.getBlockHeight();
+                            if (confirmResult.getBlockHeight() != null) {
+                                listener.onTransactionInBlock(step, txHash, confirmResult.getBlockHeight());
+                            }
+                        }
+                        // Transition: -> FINALIZED
+                        if (currentStatus == ConfirmationStatus.FINALIZED) {
+                            listener.onTransactionFinalized(step, txHash);
+                        }
+                        lastStatus[0] = currentStatus;
+                    }
+
+                    // Always fire depth changed callback when depth changes
+                    listener.onConfirmationDepthChanged(step, txHash, depth, currentStatus);
+                });
+
+        // Handle rollback
+        if (result.isRolledBack()) {
+            long prevHeight = firstBlockHeight[0] != null ? firstBlockHeight[0] : 0;
+
+            if (step != null) {
+                listener.onTransactionRolledBack(step, txHash, prevHeight);
+            }
+
+            switch (rollbackStrategy) {
+                case FAIL_IMMEDIATELY:
+                    log.warn("Transaction {} rolled back, failing flow (FAIL_IMMEDIATELY strategy)", txHash);
+                    return false;
+
+                case NOTIFY_ONLY:
+                    // Continue waiting (handled by tracker timeout)
+                    log.warn("Transaction {} rolled back, notified listeners (NOTIFY_ONLY strategy)", txHash);
+                    break;
+
+                case REBUILD_FROM_FAILED:
+                    log.info("Transaction {} rolled back, will rebuild step (REBUILD_FROM_FAILED strategy)", txHash);
+                    if (step != null) {
+                        throw RollbackException.forStepRebuild(txHash, step, prevHeight);
+                    }
+                    return false;
+
+                case REBUILD_ENTIRE_FLOW:
+                    log.info("Transaction {} rolled back, will restart flow (REBUILD_ENTIRE_FLOW strategy)", txHash);
+                    if (step != null) {
+                        throw RollbackException.forFlowRestart(txHash, step, prevHeight);
+                    }
+                    return false;
+            }
+        }
+
+        // Check if target status was reached
+        if (result.hasReached(targetStatus)) {
+            return true;
+        }
+
+        // Timeout or other failure
+        if (result.getError() != null) {
+            log.warn("Confirmation wait failed for tx {}: {}", txHash, result.getError().getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Wait for the backend to be ready after a rollback.
+     * Retries querying the backend until it responds successfully.
+     * This handles both test scenarios (node restart) and production scenarios (network issues).
+     *
+     * @param maxAttempts maximum number of retry attempts
+     * @param retryDelayMs delay between retries in milliseconds
+     */
+    private void waitForBackendReady(int maxAttempts, long retryDelayMs) {
+        log.debug("Waiting for backend to be ready (max {} attempts)...", maxAttempts);
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                // Try to query the backend - if successful, it's ready
+                var result = backendService.getBlockService().getLatestBlock();
+                if (result.isSuccessful() && result.getValue() != null) {
+                    log.debug("Backend is ready (attempt {}, block height: {})",
+                            attempt, result.getValue().getHeight());
+                    return;
+                }
+            } catch (Exception e) {
+                log.debug("Backend not ready yet (attempt {}): {}", attempt, e.getMessage());
+            }
+
+            if (attempt < maxAttempts) {
+                try {
+                    Thread.sleep(retryDelayMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+
+        log.warn("Backend may not be fully ready after {} attempts", maxAttempts);
+    }
+
+    /**
+     * Wait for backend to be ready after a rollback.
+     * <p>
+     * This method always clears the confirmation tracker state to avoid stale tracking data.
+     * <p>
+     * Additional wait behavior is controlled by the {@link ConfirmationConfig}:
+     * <ul>
+     *     <li>If {@code waitForBackendAfterRollback} is false (production default):
+     *         Only clears tracker, no wait.</li>
+     *     <li>If {@code waitForBackendAfterRollback} is true (devnet/test):
+     *         Waits for backend ready and optional UTXO sync delay.</li>
+     * </ul>
+     */
+    private void waitForBackendReadyAfterRollback() {
+        // Always clear confirmation tracker state to avoid stale tracking data
+        if (confirmationTracker != null) {
+            log.debug("Clearing confirmation tracker state after rollback");
+            confirmationTracker.clearTracking();
+        }
+
+        // Skip wait logic if not configured (production default)
+        if (confirmationConfig == null || !confirmationConfig.isWaitForBackendAfterRollback()) {
+            log.debug("Skipping backend wait (not configured for post-rollback wait)");
+            return;
+        }
+
+        // Wait for backend ready (for test scenarios like Yaci DevKit)
+        long retryDelayMs = confirmationConfig.getCheckInterval().toMillis();
+        int maxAttempts = confirmationConfig.getPostRollbackWaitAttempts();
+        waitForBackendReady(maxAttempts, retryDelayMs);
+
+        // Optional additional delay for UTXO indexer sync
+        Duration utxoSyncDelay = confirmationConfig.getPostRollbackUtxoSyncDelay();
+        if (utxoSyncDelay != null && !utxoSyncDelay.isZero()) {
+            try {
+                log.debug("Waiting {}ms for UTXO indexer to sync", utxoSyncDelay.toMillis());
+                Thread.sleep(utxoSyncDelay.toMillis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     /**
@@ -415,133 +824,225 @@ public class FlowExecutor {
     }
 
     private FlowResult executeWithHandleSequential(TxFlow flow, FlowHandle handle) {
-        FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
-        FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
-                .startedAt(Instant.now());
+        int maxRollbackRetries = getMaxRollbackRetries();
+        int flowRestartAttempts = 0;
+        Map<String, Integer> stepRollbackAttempts = new ConcurrentHashMap<>();
 
-        listener.onFlowStarted(flow);
+        while (flowRestartAttempts <= maxRollbackRetries) {
+            FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
+            FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
+                    .startedAt(Instant.now());
 
-        List<FlowStep> steps = flow.getSteps();
-        int totalSteps = steps.size();
+            if (flowRestartAttempts == 0) {
+                listener.onFlowStarted(flow);
+            }
 
-        try {
-            for (int i = 0; i < totalSteps; i++) {
-                FlowStep step = steps.get(i);
-                handle.updateCurrentStep(step.getId());
-                listener.onStepStarted(step, i, totalSteps);
+            List<FlowStep> steps = flow.getSteps();
+            int totalSteps = steps.size();
 
-                FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), false);
-                resultBuilder.addStepResult(stepResult);
+            try {
+                for (int i = 0; i < totalSteps; i++) {
+                    FlowStep step = steps.get(i);
+                    handle.updateCurrentStep(step.getId());
+                    listener.onStepStarted(step, i, totalSteps);
 
-                if (stepResult.isSuccessful()) {
-                    handle.incrementCompletedSteps();
-                    listener.onStepCompleted(step, stepResult);
+                    FlowStepResult stepResult = executeStepWithRollbackHandling(
+                            step, context, flow.getVariables(), false,
+                            stepRollbackAttempts, maxRollbackRetries);
+                    resultBuilder.addStepResult(stepResult);
+
+                    if (stepResult.isSuccessful()) {
+                        handle.incrementCompletedSteps();
+                        listener.onStepCompleted(step, stepResult);
+                    } else {
+                        listener.onStepFailed(step, stepResult);
+                        handle.updateStatus(FlowStatus.FAILED);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(stepResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, failedResult);
+                        return failedResult;
+                    }
+                }
+
+                handle.updateStatus(FlowStatus.COMPLETED);
+                resultBuilder.completedAt(Instant.now());
+                FlowResult successResult = resultBuilder.success();
+                listener.onFlowCompleted(flow, successResult);
+                return successResult;
+
+            } catch (RollbackException e) {
+                if (e.isRequiresFlowRestart()) {
+                    flowRestartAttempts++;
+                    if (flowRestartAttempts > maxRollbackRetries) {
+                        log.error("Flow restart limit ({}) reached after rollback at step '{}'",
+                                maxRollbackRetries, e.getStep().getId());
+                        handle.updateStatus(FlowStatus.FAILED);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.failure(
+                                new FlowExecutionException("Flow restart limit reached after rollback", e));
+                        listener.onFlowFailed(flow, failedResult);
+                        return failedResult;
+                    }
+
+                    log.info("Restarting flow (attempt {}/{}) due to rollback at step '{}'",
+                            flowRestartAttempts, maxRollbackRetries, e.getStep().getId());
+                    listener.onFlowRestarting(flow, flowRestartAttempts, maxRollbackRetries,
+                            "Rollback detected at step '" + e.getStep().getId() + "'");
+                    waitForBackendReadyAfterRollback(); // Wait for backend to sync after rollback
+                    stepRollbackAttempts.clear();
+                    handle.resetCompletedSteps();
+                    continue;
                 } else {
-                    listener.onStepFailed(step, stepResult);
+                    log.error("Step rebuild failed for step '{}'", e.getStep().getId());
                     handle.updateStatus(FlowStatus.FAILED);
                     resultBuilder.completedAt(Instant.now());
-                    FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
-                            .withError(stepResult.getError())
-                            .build();
+                    FlowResult failedResult = resultBuilder.failure(e);
                     listener.onFlowFailed(flow, failedResult);
                     return failedResult;
                 }
+            } catch (Exception e) {
+                log.error("Flow execution failed", e);
+                handle.updateStatus(FlowStatus.FAILED);
+                FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                        .startedAt(Instant.now())
+                        .completedAt(Instant.now());
+                FlowResult failedResult = errorBuilder.failure(e);
+                listener.onFlowFailed(flow, failedResult);
+                return failedResult;
             }
-
-            handle.updateStatus(FlowStatus.COMPLETED);
-            resultBuilder.completedAt(Instant.now());
-            FlowResult successResult = resultBuilder.success();
-            listener.onFlowCompleted(flow, successResult);
-            return successResult;
-
-        } catch (Exception e) {
-            log.error("Flow execution failed", e);
-            handle.updateStatus(FlowStatus.FAILED);
-            resultBuilder.completedAt(Instant.now());
-            FlowResult failedResult = resultBuilder.failure(e);
-            listener.onFlowFailed(flow, failedResult);
-            return failedResult;
         }
+
+        // Should not reach here
+        handle.updateStatus(FlowStatus.FAILED);
+        FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                .startedAt(Instant.now())
+                .completedAt(Instant.now());
+        FlowResult failedResult = errorBuilder.failure(
+                new FlowExecutionException("Flow execution failed: exceeded maximum restart attempts"));
+        listener.onFlowFailed(flow, failedResult);
+        return failedResult;
     }
 
     private FlowResult executeWithHandlePipelined(TxFlow flow, FlowHandle handle) {
-        FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
-        FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
-                .startedAt(Instant.now());
+        int maxRollbackRetries = getMaxRollbackRetries();
+        int flowRestartAttempts = 0;
 
-        listener.onFlowStarted(flow);
+        while (flowRestartAttempts <= maxRollbackRetries) {
+            FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
+            FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
+                    .startedAt(Instant.now());
 
-        List<FlowStep> steps = flow.getSteps();
-        int totalSteps = steps.size();
-        List<String> submittedTxHashes = new ArrayList<>();
-        List<FlowStepResult> stepResults = new ArrayList<>();
+            if (flowRestartAttempts == 0) {
+                listener.onFlowStarted(flow);
+            }
 
-        try {
-            // Phase 1: Build and submit all transactions
-            log.info("PIPELINED mode: Submitting {} transactions", totalSteps);
-            for (int i = 0; i < totalSteps; i++) {
-                FlowStep step = steps.get(i);
-                handle.updateCurrentStep(step.getId());
-                listener.onStepStarted(step, i, totalSteps);
+            List<FlowStep> steps = flow.getSteps();
+            int totalSteps = steps.size();
+            List<String> submittedTxHashes = new ArrayList<>();
+            List<FlowStepResult> stepResults = new ArrayList<>();
 
-                FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true);
-                stepResults.add(stepResult);
-                resultBuilder.addStepResult(stepResult);
+            try {
+                // Phase 1: Build and submit all transactions
+                log.info("PIPELINED mode: Submitting {} transactions", totalSteps);
+                for (int i = 0; i < totalSteps; i++) {
+                    FlowStep step = steps.get(i);
+                    handle.updateCurrentStep(step.getId());
+                    listener.onStepStarted(step, i, totalSteps);
 
-                if (stepResult.isSuccessful()) {
-                    submittedTxHashes.add(stepResult.getTransactionHash());
-                    listener.onTransactionSubmitted(step, stepResult.getTransactionHash());
-                } else {
-                    listener.onStepFailed(step, stepResult);
+                    FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true);
+                    stepResults.add(stepResult);
+                    resultBuilder.addStepResult(stepResult);
+
+                    if (stepResult.isSuccessful()) {
+                        submittedTxHashes.add(stepResult.getTransactionHash());
+                        listener.onTransactionSubmitted(step, stepResult.getTransactionHash());
+                    } else {
+                        listener.onStepFailed(step, stepResult);
+                        handle.updateStatus(FlowStatus.FAILED);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(stepResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, failedResult);
+                        return failedResult;
+                    }
+                }
+
+                // Phase 2: Wait for all confirmations
+                log.info("PIPELINED mode: Waiting for {} transactions to confirm", submittedTxHashes.size());
+                for (int i = 0; i < submittedTxHashes.size(); i++) {
+                    String txHash = submittedTxHashes.get(i);
+                    FlowStep step = steps.get(i);
+
+                    boolean confirmed = waitForConfirmation(txHash, step);
+                    if (confirmed) {
+                        handle.incrementCompletedSteps();
+                        listener.onTransactionConfirmed(step, txHash);
+                        listener.onStepCompleted(step, stepResults.get(i));
+                    } else {
+                        FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
+                                new ConfirmationTimeoutException(txHash));
+                        listener.onStepFailed(step, failedResult);
+                        handle.updateStatus(FlowStatus.FAILED);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult flowFailedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(failedResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, flowFailedResult);
+                        return flowFailedResult;
+                    }
+                }
+
+                handle.updateStatus(FlowStatus.COMPLETED);
+                resultBuilder.completedAt(Instant.now());
+                FlowResult successResult = resultBuilder.success();
+                listener.onFlowCompleted(flow, successResult);
+                return successResult;
+
+            } catch (RollbackException e) {
+                flowRestartAttempts++;
+                if (flowRestartAttempts > maxRollbackRetries) {
+                    log.error("Flow restart limit ({}) reached after rollback at step '{}' in PIPELINED mode",
+                            maxRollbackRetries, e.getStep().getId());
                     handle.updateStatus(FlowStatus.FAILED);
                     resultBuilder.completedAt(Instant.now());
-                    FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
-                            .withError(stepResult.getError())
-                            .build();
+                    FlowResult failedResult = resultBuilder.failure(
+                            new FlowExecutionException("Flow restart limit reached after rollback in PIPELINED mode", e));
                     listener.onFlowFailed(flow, failedResult);
                     return failedResult;
                 }
+
+                log.info("Restarting PIPELINED flow (attempt {}/{}) due to rollback at step '{}'",
+                        flowRestartAttempts, maxRollbackRetries, e.getStep().getId());
+                listener.onFlowRestarting(flow, flowRestartAttempts, maxRollbackRetries,
+                        "Rollback detected at step '" + e.getStep().getId() + "' in PIPELINED mode");
+                waitForBackendReadyAfterRollback(); // Wait for backend to sync after rollback
+                handle.resetCompletedSteps();
+                continue;
+
+            } catch (Exception e) {
+                log.error("Flow execution failed", e);
+                handle.updateStatus(FlowStatus.FAILED);
+                FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                        .startedAt(Instant.now())
+                        .completedAt(Instant.now());
+                FlowResult failedResult = errorBuilder.failure(e);
+                listener.onFlowFailed(flow, failedResult);
+                return failedResult;
             }
-
-            // Phase 2: Wait for all confirmations
-            log.info("PIPELINED mode: Waiting for {} transactions to confirm", submittedTxHashes.size());
-            for (int i = 0; i < submittedTxHashes.size(); i++) {
-                String txHash = submittedTxHashes.get(i);
-                FlowStep step = steps.get(i);
-
-                boolean confirmed = waitForConfirmation(txHash);
-                if (confirmed) {
-                    handle.incrementCompletedSteps();
-                    listener.onTransactionConfirmed(step, txHash);
-                    listener.onStepCompleted(step, stepResults.get(i));
-                } else {
-                    FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
-                            new ConfirmationTimeoutException(txHash));
-                    listener.onStepFailed(step, failedResult);
-                    handle.updateStatus(FlowStatus.FAILED);
-                    resultBuilder.completedAt(Instant.now());
-                    FlowResult flowFailedResult = resultBuilder.withStatus(FlowStatus.FAILED)
-                            .withError(failedResult.getError())
-                            .build();
-                    listener.onFlowFailed(flow, flowFailedResult);
-                    return flowFailedResult;
-                }
-            }
-
-            handle.updateStatus(FlowStatus.COMPLETED);
-            resultBuilder.completedAt(Instant.now());
-            FlowResult successResult = resultBuilder.success();
-            listener.onFlowCompleted(flow, successResult);
-            return successResult;
-
-        } catch (Exception e) {
-            log.error("Flow execution failed", e);
-            handle.updateStatus(FlowStatus.FAILED);
-            resultBuilder.completedAt(Instant.now());
-            FlowResult failedResult = resultBuilder.failure(e);
-            listener.onFlowFailed(flow, failedResult);
-            return failedResult;
         }
+
+        // Should not reach here
+        handle.updateStatus(FlowStatus.FAILED);
+        FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                .startedAt(Instant.now())
+                .completedAt(Instant.now());
+        FlowResult failedResult = errorBuilder.failure(
+                new FlowExecutionException("PIPELINED flow execution failed: exceeded maximum restart attempts"));
+        listener.onFlowFailed(flow, failedResult);
+        return failedResult;
     }
 
     /**
@@ -662,6 +1163,20 @@ public class FlowExecutor {
                 // Capture outputs and spent inputs
                 List<Utxo> outputUtxos = captureOutputUtxos(builtTx[0], txHash);
                 List<TransactionInput> spentInputs = captureSpentInputs(builtTx[0]);
+
+                // If confirmation tracking is configured, wait for deeper confirmation
+                // This enables rollback detection in SEQUENTIAL mode
+                if (confirmationTracker != null) {
+                    boolean confirmed = waitForConfirmation(txHash, step);
+                    if (!confirmed) {
+                        // waitForConfirmation handles RollbackException for REBUILD strategies
+                        // For FAIL_IMMEDIATELY/NOTIFY_ONLY, it returns false
+                        FlowStepResult failedResult = FlowStepResult.failure(stepId,
+                                new ConfirmationTimeoutException(txHash));
+                        context.recordStepResult(stepId, failedResult);
+                        return failedResult;
+                    }
+                }
 
                 listener.onTransactionConfirmed(step, txHash);
 
@@ -968,7 +1483,7 @@ public class FlowExecutor {
                 String txHash = precomputedTxHashes.get(i);
                 FlowStep step = steps.get(i);
 
-                boolean confirmed = waitForConfirmation(txHash);
+                boolean confirmed = waitForConfirmation(txHash, step);
                 if (confirmed) {
                     listener.onTransactionConfirmed(step, txHash);
                     listener.onStepCompleted(step, stepResults.get(i));
@@ -1090,7 +1605,7 @@ public class FlowExecutor {
                 String txHash = precomputedTxHashes.get(i);
                 FlowStep step = steps.get(i);
 
-                boolean confirmed = waitForConfirmation(txHash);
+                boolean confirmed = waitForConfirmation(txHash, step);
                 if (confirmed) {
                     handle.incrementCompletedSteps();
                     listener.onTransactionConfirmed(step, txHash);

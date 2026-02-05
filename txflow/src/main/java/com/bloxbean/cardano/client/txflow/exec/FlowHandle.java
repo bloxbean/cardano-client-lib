@@ -186,6 +186,10 @@ public class FlowHandle {
         this.completedStepCount.incrementAndGet();
     }
 
+    void resetCompletedSteps() {
+        this.completedStepCount.set(0);
+    }
+
     @Override
     public String toString() {
         return "FlowHandle{" +

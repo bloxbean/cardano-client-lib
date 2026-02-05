@@ -86,6 +86,58 @@ public interface FlowListener {
     }
 
     /**
+     * Called when a transaction is first included in a block.
+     * <p>
+     * This indicates the transaction has been included but may not have reached
+     * the minimum confirmation depth yet.
+     *
+     * @param step the step
+     * @param transactionHash the transaction hash
+     * @param blockHeight the block height where the transaction was included
+     */
+    default void onTransactionInBlock(FlowStep step, String transactionHash, long blockHeight) {
+    }
+
+    /**
+     * Called when the confirmation depth changes during monitoring.
+     * <p>
+     * This callback is invoked periodically as new blocks are added to the chain.
+     * Useful for displaying progress to users or logging.
+     *
+     * @param step the step
+     * @param transactionHash the transaction hash
+     * @param depth the current confirmation depth
+     * @param status the current confirmation status
+     */
+    default void onConfirmationDepthChanged(FlowStep step, String transactionHash, int depth, ConfirmationStatus status) {
+    }
+
+    /**
+     * Called when a transaction reaches finality.
+     * <p>
+     * Finality means the transaction has reached the safe confirmation depth
+     * (default: 2160 blocks) and is considered immutable under normal conditions.
+     *
+     * @param step the step
+     * @param transactionHash the finalized transaction hash
+     */
+    default void onTransactionFinalized(FlowStep step, String transactionHash) {
+    }
+
+    /**
+     * Called when a transaction rollback is detected.
+     * <p>
+     * This indicates that a transaction which was previously included in the chain
+     * has been removed due to a chain reorganization.
+     *
+     * @param step the step whose transaction was rolled back
+     * @param transactionHash the rolled back transaction hash
+     * @param previousBlockHeight the block height where the transaction was previously included
+     */
+    default void onTransactionRolledBack(FlowStep step, String transactionHash, long previousBlockHeight) {
+    }
+
+    /**
      * Called when a step is being retried after a failure.
      * <p>
      * Note: This is called BEFORE the retry attempt starts. The attemptNumber indicates
@@ -107,6 +159,36 @@ public interface FlowListener {
      * @param lastError the error from the final attempt
      */
     default void onStepRetryExhausted(FlowStep step, int totalAttempts, Throwable lastError) {
+    }
+
+    /**
+     * Called when a step is being rebuilt after a rollback.
+     * <p>
+     * This callback is invoked when using {@link RollbackStrategy#REBUILD_FROM_FAILED}
+     * and a rollback is detected for a step. The step will be rebuilt with fresh
+     * UTXOs from the current chain state.
+     *
+     * @param step the step being rebuilt
+     * @param attemptNumber the current rebuild attempt number (1-indexed)
+     * @param maxAttempts the maximum number of rebuild attempts allowed
+     * @param reason the reason for rebuilding (e.g., "rollback detected")
+     */
+    default void onStepRebuilding(FlowStep step, int attemptNumber, int maxAttempts, String reason) {
+    }
+
+    /**
+     * Called when the entire flow is being restarted due to a rollback.
+     * <p>
+     * This callback is invoked when using {@link RollbackStrategy#REBUILD_ENTIRE_FLOW}
+     * and a rollback is detected. All step results will be cleared and the flow
+     * will be re-executed from the beginning.
+     *
+     * @param flow the flow being restarted
+     * @param attemptNumber the current restart attempt number (1-indexed)
+     * @param maxAttempts the maximum number of restart attempts allowed
+     * @param reason the reason for restarting (e.g., "rollback detected at step X")
+     */
+    default void onFlowRestarting(TxFlow flow, int attemptNumber, int maxAttempts, String reason) {
     }
 
     /**
@@ -243,6 +325,54 @@ class CompositeFlowListener implements FlowListener {
     }
 
     @Override
+    public void onTransactionInBlock(FlowStep step, String transactionHash, long blockHeight) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onTransactionInBlock(step, transactionHash, blockHeight);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onTransactionInBlock: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onConfirmationDepthChanged(FlowStep step, String transactionHash, int depth, ConfirmationStatus status) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onConfirmationDepthChanged(step, transactionHash, depth, status);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onConfirmationDepthChanged: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onTransactionFinalized(FlowStep step, String transactionHash) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onTransactionFinalized(step, transactionHash);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onTransactionFinalized: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onTransactionRolledBack(FlowStep step, String transactionHash, long previousBlockHeight) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onTransactionRolledBack(step, transactionHash, previousBlockHeight);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onTransactionRolledBack: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
     public void onStepRetry(FlowStep step, int attemptNumber, int maxAttempts, Throwable lastError) {
         for (FlowListener listener : listeners) {
             try {
@@ -261,6 +391,30 @@ class CompositeFlowListener implements FlowListener {
                 listener.onStepRetryExhausted(step, totalAttempts, lastError);
             } catch (Exception e) {
                 log.warn("Listener {} threw exception in onStepRetryExhausted: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onStepRebuilding(FlowStep step, int attemptNumber, int maxAttempts, String reason) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onStepRebuilding(step, attemptNumber, maxAttempts, reason);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onStepRebuilding: {}",
+                        listener.getClass().getSimpleName(), e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
+    public void onFlowRestarting(TxFlow flow, int attemptNumber, int maxAttempts, String reason) {
+        for (FlowListener listener : listeners) {
+            try {
+                listener.onFlowRestarting(flow, attemptNumber, maxAttempts, reason);
+            } catch (Exception e) {
+                log.warn("Listener {} threw exception in onFlowRestarting: {}",
                         listener.getClass().getSimpleName(), e.getMessage(), e);
             }
         }

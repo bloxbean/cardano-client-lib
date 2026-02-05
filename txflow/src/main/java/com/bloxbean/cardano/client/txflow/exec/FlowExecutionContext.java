@@ -200,4 +200,35 @@ public class FlowExecutionContext {
                 .filter(FlowStepResult::isSuccessful)
                 .map(FlowStepResult::getTransactionHash);
     }
+
+    /**
+     * Clear a specific step's result.
+     * <p>
+     * This is used during rollback recovery when a step needs to be rebuilt.
+     * Clearing the result allows the step to be re-executed with fresh UTXOs.
+     *
+     * @param stepId the step ID to clear
+     */
+    public void clearStepResult(String stepId) {
+        stepResults.remove(stepId);
+    }
+
+    /**
+     * Clear all step results.
+     * <p>
+     * This is used during rollback recovery when the entire flow needs to be
+     * restarted. All previous step results are cleared to allow fresh execution.
+     */
+    public void clearAllStepResults() {
+        stepResults.clear();
+    }
+
+    /**
+     * Get the number of completed step results.
+     *
+     * @return the count of recorded step results
+     */
+    public int getCompletedStepCount() {
+        return stepResults.size();
+    }
 }

@@ -236,7 +236,7 @@ public class TxFlowIntegrationTest {
                         .withDescription("Account0 -> Account1 (5 ADA)")
                         .withTxContext(builder -> builder
                                 .compose(new Tx()
-                                        .payToAddress(account1.baseAddress(), Amount.ada(5))
+                                        .payToAddress(account1.baseAddress(), Amount.ada(15))
                                         .from(account0.baseAddress()))
                                 .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
@@ -245,7 +245,7 @@ public class TxFlowIntegrationTest {
                         .dependsOn("transfer-to-b")
                         .withTxContext(builder -> builder
                                 .compose(new Tx()
-                                        .payToAddress(account2.baseAddress(), Amount.ada(2))
+                                        .payToAddress(account2.baseAddress(), Amount.ada(13.5))
                                         .from(account1.baseAddress()))
                                 .withSigner(SignerProviders.signerFrom(account1)))
                         .build())
@@ -254,7 +254,7 @@ public class TxFlowIntegrationTest {
                         .dependsOn("transfer-to-c")
                         .withTxContext(builder -> builder
                                 .compose(new Tx()
-                                        .payToAddress(account0.baseAddress(), Amount.ada(1.5))
+                                        .payToAddress(account0.baseAddress(), Amount.ada(12))
                                         .from(account2.baseAddress()))
                                 .withSigner(SignerProviders.signerFrom(account2)))
                         .build())
@@ -272,6 +272,7 @@ public class TxFlowIntegrationTest {
         // Execute
         FlowResult result = FlowExecutor.create(backendService)
                 .withListener(new LoggingFlowListener())
+                .withChainingMode(ChainingMode.BATCH)
                 .executeSync(flow);
 
         // Verify
