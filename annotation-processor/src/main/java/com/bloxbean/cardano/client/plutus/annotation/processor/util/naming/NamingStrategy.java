@@ -9,7 +9,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.util.naming;
  *
  * Common patterns found in blueprints:
  * - Dollar signs and underscores: List$ByteArray, Tuple$Int_Int
- * - Angle brackets (generics): List<Int>, Option<Data>
+ * - Angle brackets (generics): {@code List<Int>}, {@code Option<Data>}
  * - Forward slashes (module paths): aiken/crypto/Hash, cardano/address/Credential
  * - Tildes (escaped slashes): types~1order~1Action
  *

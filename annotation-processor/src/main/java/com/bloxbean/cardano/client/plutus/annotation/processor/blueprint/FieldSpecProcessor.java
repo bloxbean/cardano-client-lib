@@ -217,6 +217,7 @@ public class FieldSpecProcessor {
      *
      * @param ns            namespace or package suffix
      * @param dataClassName name of the interface
+     * @param schema        the blueprint schema to create an interface for
      * @return ClassName of the interface
      */
     public ClassName createDatumInterface(String ns, String dataClassName, BlueprintSchema schema) {

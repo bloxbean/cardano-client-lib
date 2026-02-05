@@ -7,9 +7,9 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.util.JsonPointerU
  *
  * This implementation is designed to work with ANY blueprint naming style, including:
  * - Legacy style with $ and _: List$ByteArray, Tuple$Int_Int
- * - Modern style with angle brackets: List<Int>, Option<Data>
+ * - Modern style with angle brackets: {@code List<Int>}, {@code Option<Data>}
  * - Module paths with slashes: aiken/crypto/Hash, cardano/address/Credential
- * - Mixed styles: List<aiken/crypto/Hash>, Option<types~1order~1Action>
+ * - Mixed styles: {@code List<aiken/crypto/Hash>}, {@code Option<types~1order~1Action>}
  *
  * All inputs are sanitized to produce valid Java identifiers that JavaPoet will accept.
  */

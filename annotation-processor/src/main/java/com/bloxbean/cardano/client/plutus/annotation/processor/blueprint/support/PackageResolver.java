@@ -13,6 +13,10 @@ public class PackageResolver {
     /**
      * Model package used for generated Datum/Schema types.
      * Format: {@code annotation.packageName + ["." + ns] + ".model"}
+     *
+     * @param annotation the blueprint annotation containing base package name
+     * @param ns the namespace to append (can be null or empty)
+     * @return the resolved package name for model classes
      */
     public String getModelPackage(Blueprint annotation, String ns) {
         String pkg = (ns != null && !ns.isEmpty())
@@ -26,6 +30,10 @@ public class PackageResolver {
      * Validator package derived from validator title.
      * Current behavior: takes only the first token before a dot as suffix
      * (e.g., {@code "basic.always_true"} becomes package suffix {@code "basic"}).
+     *
+     * @param annotation the blueprint annotation containing base package name
+     * @param validatorTitle the validator title from the blueprint
+     * @return the resolved package name for the validator class
      */
     public String getValidatorPackage(Blueprint annotation, String validatorTitle) {
         String pkgSuffix = null;
@@ -45,6 +53,9 @@ public class PackageResolver {
 
     /**
      * Namespace portion used for inline schemas derived from the validator title.
+     *
+     * @param validatorTitle the validator title from the blueprint
+     * @return the namespace extracted from the validator title, or null if not applicable
      */
     public String getValidatorNamespace(String validatorTitle) {
         if (validatorTitle == null || validatorTitle.isEmpty())

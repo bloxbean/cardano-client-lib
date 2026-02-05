@@ -22,13 +22,18 @@ public class JavaFileUtil {
 
     /**
      * First character has to be upper case when creating a new class
-     * @param s
-     * @return
+     * @param s the input string
+     * @return the string with first character uppercase
      */
     public static String firstUpperCase(String s) {
         return namingStrategy.firstUpperCase(s);
     }
 
+    /**
+     * Converts first character to lowercase
+     * @param s the input string
+     * @return the string with first character lowercase
+     */
     public static String firstLowerCase(String s) {
         return namingStrategy.firstLowerCase(s);
     }
@@ -37,7 +42,7 @@ public class JavaFileUtil {
      * Converts a string to lowerCamelCase (first letter lowercase).
      * Handles all CIP-57 blueprint naming conventions including:
      * - Legacy Aiken (v1.0.x): List$ByteArray, Tuple$Int_Int
-     * - Modern Aiken (v1.1.x+): List<Int>, aiken/crypto/Hash
+     * - Modern Aiken (v1.1.x+): {@code List<Int>}, aiken/crypto/Hash
      * - Module paths with tildes: types~1order~1Action
      *
      * <p>Examples:
@@ -86,10 +91,10 @@ public class JavaFileUtil {
     /**
      * Creates a Java file from a TypeSpec with a given classname and package
      *
-     * @param packageName
-     * @param build
-     * @param className
-     * @param processingEnv
+     * @param packageName the package name for the generated class
+     * @param build the TypeSpec containing the class definition
+     * @param className the simple name of the class to generate
+     * @param processingEnv the annotation processing environment
      */
     public static void createJavaFile(String packageName, TypeSpec build, String className, ProcessingEnvironment processingEnv) {
         String generatedDir = processingEnv.getOptions().get(CARDANO_CLIENT_LIB_GENERATED_DIR);
