@@ -1,8 +1,7 @@
 package com.bloxbean.cardano.client.txflow.exec;
 
-import com.bloxbean.cardano.client.backend.api.BackendService;
-import com.bloxbean.cardano.client.backend.model.Block;
-import com.bloxbean.cardano.client.backend.model.TransactionContent;
+import com.bloxbean.cardano.client.api.ChainDataSupplier;
+import com.bloxbean.cardano.client.api.model.TransactionInfo;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -27,7 +26,7 @@ import java.util.function.BiConsumer;
  *
  * <h3>Usage</h3>
  * <pre>{@code
- * ConfirmationTracker tracker = new ConfirmationTracker(backendService, ConfirmationConfig.defaults());
+ * ConfirmationTracker tracker = new ConfirmationTracker(chainDataSupplier, ConfirmationConfig.defaults());
  *
  * // Single status check
  * ConfirmationResult result = tracker.checkStatus(txHash);
@@ -40,7 +39,7 @@ import java.util.function.BiConsumer;
 @Slf4j
 public class ConfirmationTracker {
 
-    private final BackendService backendService;
+    private final ChainDataSupplier chainDataSupplier;
     private final ConfirmationConfig config;
 
     /**
@@ -52,11 +51,11 @@ public class ConfirmationTracker {
     /**
      * Create a new ConfirmationTracker.
      *
-     * @param backendService the backend service for chain queries
+     * @param chainDataSupplier the chain data supplier for chain queries
      * @param config the confirmation configuration
      */
-    public ConfirmationTracker(BackendService backendService, ConfirmationConfig config) {
-        this.backendService = backendService;
+    public ConfirmationTracker(ChainDataSupplier chainDataSupplier, ConfirmationConfig config) {
+        this.chainDataSupplier = chainDataSupplier;
         this.config = config != null ? config : ConfirmationConfig.defaults();
     }
 
@@ -78,25 +77,25 @@ public class ConfirmationTracker {
     public ConfirmationResult checkStatus(String txHash) {
         try {
             // Get current chain tip
-            var blockResult = backendService.getBlockService().getLatestBlock();
-            if (!blockResult.isSuccessful() || blockResult.getValue() == null) {
-                log.warn("Failed to get latest block for confirmation check");
+            long tipHeight;
+            try {
+                tipHeight = chainDataSupplier.getChainTipHeight();
+            } catch (Exception e) {
+                log.warn("Failed to get latest block for confirmation check: {}", e.getMessage());
                 return ConfirmationResult.builder()
                         .txHash(txHash)
                         .status(ConfirmationStatus.SUBMITTED)
                         .confirmationDepth(-1)
-                        .error(new RuntimeException("Failed to get latest block"))
+                        .error(new RuntimeException("Failed to get latest block", e))
                         .build();
             }
-            Block currentTip = blockResult.getValue();
-            long tipHeight = currentTip.getHeight();
 
             // Get transaction details
-            var txResult = backendService.getTransactionService().getTransaction(txHash);
+            var txInfo = chainDataSupplier.getTransactionInfo(txHash);
 
             TrackedTransaction previousState = trackedTransactions.get(txHash);
 
-            if (!txResult.isSuccessful() || txResult.getValue() == null) {
+            if (txInfo.isEmpty()) {
                 // Transaction not found in chain
                 if (previousState != null && previousState.getBlockHeight() != null) {
                     // Previously tracked in a block but now missing - ROLLBACK detected
@@ -109,9 +108,9 @@ public class ConfirmationTracker {
                 return ConfirmationResult.submitted(txHash, tipHeight);
             }
 
-            TransactionContent tx = txResult.getValue();
+            TransactionInfo tx = txInfo.get();
             Long txBlockHeight = tx.getBlockHeight();
-            String txBlockHash = tx.getBlock();
+            String txBlockHash = tx.getBlockHash();
 
             if (txBlockHeight == null) {
                 // Transaction found but block height not available (unusual)

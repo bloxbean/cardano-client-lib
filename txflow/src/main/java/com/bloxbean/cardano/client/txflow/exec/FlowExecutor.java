@@ -1,9 +1,16 @@
 package com.bloxbean.cardano.client.txflow.exec;
 
+import com.bloxbean.cardano.client.api.ChainDataSupplier;
+import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
 import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.TransactionInfo;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultChainDataSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultTransactionProcessor;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.TxResult;
@@ -59,8 +66,10 @@ import java.util.function.Consumer;
  */
 @Slf4j
 public class FlowExecutor {
-    private final BackendService backendService;
     private final UtxoSupplier baseUtxoSupplier;
+    private final ProtocolParamsSupplier protocolParamsSupplier;
+    private final TransactionProcessor transactionProcessor;
+    private final ChainDataSupplier chainDataSupplier;
     private SignerRegistry signerRegistry;
     private FlowListener listener = FlowListener.NOOP;
     private Duration confirmationTimeout = Duration.ofSeconds(60);
@@ -75,9 +84,38 @@ public class FlowExecutor {
     private FlowRegistry flowRegistry;
     private FlowStateStore flowStateStore;
 
+    /**
+     * Create a FlowExecutor with the given supplier interfaces.
+     * <p>
+     * This is the primary constructor that accepts supplier interfaces for loose coupling.
+     *
+     * @param utxoSupplier the UTXO supplier for querying UTXOs
+     * @param protocolParamsSupplier the protocol params supplier for protocol parameters
+     * @param transactionProcessor the transaction processor for submitting transactions
+     * @param chainDataSupplier the chain data supplier for chain queries
+     */
+    private FlowExecutor(UtxoSupplier utxoSupplier,
+                         ProtocolParamsSupplier protocolParamsSupplier,
+                         TransactionProcessor transactionProcessor,
+                         ChainDataSupplier chainDataSupplier) {
+        this.baseUtxoSupplier = utxoSupplier;
+        this.protocolParamsSupplier = protocolParamsSupplier;
+        this.transactionProcessor = transactionProcessor;
+        this.chainDataSupplier = chainDataSupplier;
+    }
+
+    /**
+     * Create a FlowExecutor from a BackendService.
+     * <p>
+     * This is a convenience constructor that wraps the BackendService with default supplier implementations.
+     *
+     * @param backendService the backend service
+     */
     private FlowExecutor(BackendService backendService) {
-        this.backendService = backendService;
-        this.baseUtxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        this(new DefaultUtxoSupplier(backendService.getUtxoService()),
+             new DefaultProtocolParamsSupplier(backendService.getEpochService()),
+             new DefaultTransactionProcessor(backendService.getTransactionService()),
+             new DefaultChainDataSupplier(backendService));
     }
 
     /**
@@ -88,6 +126,25 @@ public class FlowExecutor {
      */
     public static FlowExecutor create(BackendService backendService) {
         return new FlowExecutor(backendService);
+    }
+
+    /**
+     * Create a new FlowExecutor with the given supplier interfaces.
+     * <p>
+     * This factory method enables loose coupling with custom implementations,
+     * allowing integration with any data provider without implementing full BackendService.
+     *
+     * @param utxoSupplier the UTXO supplier for querying UTXOs
+     * @param protocolParamsSupplier the protocol params supplier for protocol parameters
+     * @param transactionProcessor the transaction processor for submitting transactions
+     * @param chainDataSupplier the chain data supplier for chain queries
+     * @return a new FlowExecutor
+     */
+    public static FlowExecutor create(UtxoSupplier utxoSupplier,
+                                      ProtocolParamsSupplier protocolParamsSupplier,
+                                      TransactionProcessor transactionProcessor,
+                                      ChainDataSupplier chainDataSupplier) {
+        return new FlowExecutor(utxoSupplier, protocolParamsSupplier, transactionProcessor, chainDataSupplier);
     }
 
     /**
@@ -207,7 +264,7 @@ public class FlowExecutor {
     public FlowExecutor withConfirmationConfig(ConfirmationConfig config) {
         this.confirmationConfig = config;
         if (config != null) {
-            this.confirmationTracker = new ConfirmationTracker(backendService, config);
+            this.confirmationTracker = new ConfirmationTracker(chainDataSupplier, config);
         }
         return this;
     }
@@ -802,15 +859,15 @@ public class FlowExecutor {
 
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             try {
-                var result = backendService.getTransactionService().getTransaction(txHash);
-                if (result.isSuccessful() && result.getValue() != null) {
+                Optional<TransactionInfo> txInfo = chainDataSupplier.getTransactionInfo(txHash);
+                if (txInfo.isPresent()) {
                     // Build a minimal ConfirmationResult for simple polling mode
                     // Block height is available from the transaction response
                     return Optional.of(ConfirmationResult.builder()
                             .txHash(txHash)
                             .status(ConfirmationStatus.CONFIRMED)
-                            .blockHeight(result.getValue().getBlockHeight())
-                            .blockHash(result.getValue().getBlock())
+                            .blockHeight(txInfo.get().getBlockHeight())
+                            .blockHash(txInfo.get().getBlockHash())
                             .confirmationDepth(0)  // Not tracked in simple mode
                             .build());
                 }
@@ -943,12 +1000,9 @@ public class FlowExecutor {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 // Try to query the backend - if successful, it's ready
-                var result = backendService.getBlockService().getLatestBlock();
-                if (result.isSuccessful() && result.getValue() != null) {
-                    log.debug("Backend is ready (attempt {}, block height: {})",
-                            attempt, result.getValue().getHeight());
-                    return;
-                }
+                long tipHeight = chainDataSupplier.getChainTipHeight();
+                log.debug("Backend is ready (attempt {}, block height: {})", attempt, tipHeight);
+                return;
             } catch (Exception e) {
                 log.debug("Backend not ready yet (attempt {}): {}", attempt, e.getMessage());
             }
@@ -1390,7 +1444,7 @@ public class FlowExecutor {
             UtxoSupplier utxoSupplier = createUtxoSupplier(step, context);
 
             // Create QuickTxBuilder with the appropriate UTXO supplier
-            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
 
             // Get TxContext from step (either from TxPlan or TxContext factory)
             QuickTxBuilder.TxContext txContext;
@@ -1486,7 +1540,7 @@ public class FlowExecutor {
             UtxoSupplier utxoSupplier = createUtxoSupplier(step, context);
 
             // Create QuickTxBuilder with the appropriate UTXO supplier
-            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
 
             // Get TxContext from step (either from TxPlan or TxContext factory)
             QuickTxBuilder.TxContext txContext;
@@ -1923,7 +1977,7 @@ public class FlowExecutor {
 
         try {
             UtxoSupplier utxoSupplier = createUtxoSupplier(step, context);
-            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService, utxoSupplier);
+            QuickTxBuilder quickTxBuilder = new QuickTxBuilder(utxoSupplier, protocolParamsSupplier, transactionProcessor);
 
             QuickTxBuilder.TxContext txContext;
             if (step.hasTxPlan()) {
@@ -1964,7 +2018,7 @@ public class FlowExecutor {
     private TxResult submitTransaction(Transaction transaction) {
         try {
             byte[] serializedTx = transaction.serialize();
-            var result = backendService.getTransactionService().submitTransaction(serializedTx);
+            var result = transactionProcessor.submitTransaction(serializedTx);
             return TxResult.fromResult(result);
         } catch (Exception e) {
             throw new FlowExecutionException("Transaction submission failed", e);
