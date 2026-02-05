@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.vds.mpf.test;
 
+import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.vds.core.api.NodeStore;
 
 import java.util.Map;
@@ -27,11 +28,6 @@ public class TestNodeStore implements NodeStore {
     }
 
     private String toHex(byte[] bytes) {
-        if (bytes == null) return null;
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02x", b));
-        }
-        return sb.toString();
+        return HexUtil.encodeHexString(bytes);
     }
 }
