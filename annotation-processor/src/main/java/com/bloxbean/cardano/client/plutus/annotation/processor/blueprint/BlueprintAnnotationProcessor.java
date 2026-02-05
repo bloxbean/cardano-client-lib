@@ -21,7 +21,7 @@ import javax.tools.StandardLocation;
 import java.io.File;
 import java.util.*;
 
-import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.getNSFromReferenceKey;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.getNamespaceFromReferenceKey;
 
 /**
  * Annotation processor that consumes {@link com.bloxbean.cardano.client.plutus.annotation.Blueprint}
@@ -106,7 +106,14 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             //Create Data classes
             for(Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();
-                String ns = getNSFromReferenceKey(key);
+
+                // Skip generic type instantiations (e.g., "Option<Int>", "List<T>")
+                // These are type aliases handled by Java generics, not new type definitions
+                if (key.contains("<") || key.contains(">")) {
+                    continue;
+                }
+
+                String ns = getNamespaceFromReferenceKey(key);
 
                 fieldSpecProcessor.createDatumClass(ns, definition.getValue());
             }
