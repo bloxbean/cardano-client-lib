@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.backend.api.BackendService;
 import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
 import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
 import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
+import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
@@ -55,9 +56,8 @@ import static org.junit.jupiter.api.Assertions.*;
 public class TxFlowScriptIntegrationTest {
 
     private static final String YACI_BASE_URL = "http://localhost:8080/api/v1/";
-     private static final String DEFAULT_MNEMONIC = "test test test test test test test test test test test test test test test test test test test test test test test sauce";
+    private static final String DEFAULT_MNEMONIC = "test test test test test test test test test test test test test test test test test test test test test test test sauce";
 
-//    private static final String DEFAULT_MNEMONIC = "wrong rocket grow cram october dish elevator endorse tunnel any select health sport thing ticket paper hobby bulb club rare shoot order aerobic roof";
     private BackendService backendService;
     private QuickTxBuilder quickTxBuilder;
     private DefaultUtxoSupplier utxoSupplier;
@@ -1001,6 +1001,7 @@ public class TxFlowScriptIntegrationTest {
                         .withTxContext(builder -> builder
                                 .compose(new Tx()
                                         .payToContract(scriptAddress, Amount.lovelace(lockAmount), datum)
+                                        .attachMetadata(MessageMetadata.create().add("step1 :-> lock funds"))
                                         .from(account0.baseAddress()))
                                 .withSigner(SignerProviders.signerFrom(account0)))
                         .build())
@@ -1013,6 +1014,7 @@ public class TxFlowScriptIntegrationTest {
                                                 utxo -> datum.serializeToHex().equals(utxo.getInlineDatum()),
                                                 PlutusData.unit())
                                         .payToAddress(account1.baseAddress(), Amount.lovelace(unlockAmount))
+                                        .attachMetadata(MessageMetadata.create().add("step2 :-> unlock funds"))
                                         .attachSpendingValidator(alwaysTrueScript)
                                         .withChangeAddress(account0.baseAddress()))
                                 .feePayer(account0.baseAddress())

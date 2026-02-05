@@ -16,6 +16,7 @@ dependencies {
 
     // Integration test dependencies
     integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation project(':cip:cip20')
     integrationTestImplementation(libs.aiken.java.binding)
 }
 
