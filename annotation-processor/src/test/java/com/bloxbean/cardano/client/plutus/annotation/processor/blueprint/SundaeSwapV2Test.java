@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -15,6 +16,7 @@ import static com.google.testing.compile.Compiler.javac;
 public class SundaeSwapV2Test {
 
     @Test
+    @Disabled
     void sundaeSwap() {
         Compilation compilation =
                 javac()

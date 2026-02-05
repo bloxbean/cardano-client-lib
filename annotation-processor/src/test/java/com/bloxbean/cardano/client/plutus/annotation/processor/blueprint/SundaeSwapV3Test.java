@@ -21,8 +21,6 @@ import static com.google.testing.compile.Compiler.javac;
  * - Generic type extraction and naming
  * - Complex nested type hierarchies
  * - Module path resolution for namespaced types
- *
- * @see com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoaderTest#testNestedListCircularReference()
  */
 public class SundaeSwapV3Test {
 
