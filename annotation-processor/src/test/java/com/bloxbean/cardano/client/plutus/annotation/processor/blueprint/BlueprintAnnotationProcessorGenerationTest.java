@@ -23,7 +23,7 @@ class BlueprintAnnotationProcessorGenerationTest {
                         "import com.bloxbean.cardano.client.plutus.annotation.Blueprint;\n" +
                         "import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;\n" +
                         "import com.bloxbean.cardano.client.quicktx.blueprint.extender.LockUnlockValidatorExtender;\n" +
-                        "@Blueprint(fileInResources = \"blueprint/multiple_validators.json\", packageName = \"com.test.multiple\")\n" +
+                        "@Blueprint(fileInResources = \"blueprint/multiple_validators_aiken_v1_0_29_alpha_16fb02e.json\", packageName = \"com.test.multiple\")\n" +
                         "@ExtendWith(LockUnlockValidatorExtender.class)\n" +
                         "public interface MultipleValidatorsBlueprint { }\n");
 

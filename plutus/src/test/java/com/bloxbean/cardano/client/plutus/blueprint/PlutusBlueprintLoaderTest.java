@@ -153,7 +153,7 @@ class PlutusBlueprintLoaderTest {
         @Test
         @DisplayName("should load aftermarket blueprint with correct structure")
         void loadAftermarketBlueprint() {
-            InputStream in = PlutusBlueprintLoaderTest.class.getResourceAsStream("/blueprint/aftermarket.json");
+            InputStream in = PlutusBlueprintLoaderTest.class.getResourceAsStream("/blueprint/aftermarket_aiken_v1_0_26_alpha_075668b.json");
             assertNotNull(in, "Aftermarket blueprint file should exist");
 
             PlutusContractBlueprint blueprint = PlutusBlueprintLoader.loadBlueprint(in);

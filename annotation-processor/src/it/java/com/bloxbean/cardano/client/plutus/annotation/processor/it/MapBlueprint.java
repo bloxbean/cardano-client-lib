@@ -2,6 +2,6 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.it;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 
-@Blueprint(fileInResources = "blueprint/MapBlueprint.json", packageName = "com.bloxbean.cardano.client.plutus.annotation.blueprint.map")
+@Blueprint(fileInResources = "blueprint/MapBlueprint_aiken_v1_0_21_alpha_4b04517.json", packageName = "com.bloxbean.cardano.client.plutus.annotation.blueprint.map")
 public interface MapBlueprint {
 }

@@ -14,7 +14,11 @@
     "title": "aiken-lang/hello_world",
     "description": "Aiken contracts for project 'aiken-lang/hello_world'",
     "version": "1.0.0",
-    "plutusVersion": "v2"
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.21-alpha+4b04517"
+    }
   },
 
   "validators": [
