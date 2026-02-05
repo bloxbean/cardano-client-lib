@@ -1,0 +1,101 @@
+---
+title: Introduction
+---
+
+# Cardano Client Lib
+
+A client library for Cardano in Java. This library simplifies the interaction with Cardano blockchain from a Java application.
+
+> **Latest Stable Version**: [0.7.0](https://github.com/bloxbean/cardano-client-lib/releases/tag/v0.7.0)
+
+## Overview
+
+Cardano Client Lib provides a comprehensive set of tools for building Cardano applications in Java:
+
+- **Transaction Building** - Build and submit transactions with simple declarative APIs
+- **Token Minting** - Mint native tokens and NFTs with built-in policy script support
+- **Smart Contracts** - Interact with Plutus smart contracts
+- **Address Generation** - Generate addresses from mnemonics
+- **Multiple Backends** - Connect via Blockfrost, Koios, or Ogmios
+
+## Quick Links
+
+- [Getting Started](/docs/gettingstarted/concepts) - Learn the basic concepts
+- [QuickTx API](/docs/gettingstarted/simple-transfer) - Build transactions with declarative API
+- [API Reference](/docs/apis/account-api) - Detailed API documentation
+- [Examples](https://github.com/bloxbean/cardano-client-examples/tree/main/src/test/java/com/bloxbean/cardano/client/example) - Code examples repository
+
+## Recent Posts
+
+- [Introducing QuickTx API to build transactions](https://satran004.medium.com/introducing-new-quicktx-api-in-cardano-client-lib-0-5-0-beta1-5beb491282ce)
+- [Composable functions to build transactions](https://medium.com/coinmonks/cardano-client-lib-new-composable-functions-to-build-transaction-in-java-part-i-be3a8b4da835)
+- [Demo: Test Aiken Smart Contract Using Java Offchain Code with Yaci DevKit](https://youtu.be/PTnSc85t0Nk?si=44uK6KFrTIH3m06A)
+
+## Features
+
+### Address Generation
+
+- Address Generation (Base Address, Enterprise Address)
+- Generate Address from Mnemonic phase
+
+### Transaction Serialization & Signing
+
+- API to build Payment transaction (ADA & Native Tokens)
+- CBOR serialization of transaction
+- Transaction signing
+
+### QuickTx API
+
+- Build and submit transaction with simple declarative style API
+- Supports:
+  - Payment transaction
+  - Token Minting and token transfer
+  - Plutus smart contract call
+  - Token minting with Plutus contract
+  - Staking operations
+  - Governance transactions (Preview)
+
+### Composable Functions
+
+- Composable functions to build transaction
+- Supports:
+  - Payment transaction
+  - Token Minting and token transfer
+  - Plutus smart contract call
+  - Token minting with Plutus contract
+
+### High Level API (Deprecated)
+
+- To build and submit:
+  - Payment transaction
+  - Token Minting and token transfer transaction
+
+### CIP Implementations
+
+- [CIP20 - Transaction Message/Comment metadata](https://cips.cardano.org/cips/cip20/)
+- [CIP25 - NFT Metadata Standard](https://cips.cardano.org/cips/cip25/)
+- [CIP8 - Message Signing](https://cips.cardano.org/cips/cip8/)
+- [CIP30 - dApp signData & verify](https://cips.cardano.org/cips/cip30/)
+- [CIP27 - CNFT Community Royalties Standard](https://cips.cardano.org/cips/cip27/)
+- [CIP68 - Datum Metadata Standard](https://cips.cardano.org/cips/cip68/)
+
+### Backend Integration
+
+The library provides integration with Cardano node through different backend services:
+
+| Provider | Module | Status |
+|----------|--------|--------|
+| [Blockfrost](https://blockfrost.io) | cardano-client-backend-blockfrost | Stable |
+| [Koios](https://www.koios.rest/) | cardano-client-backend-koios | Stable |
+| [Ogmios](https://ogmios.dev/) | cardano-client-backend-ogmios | Stable |
+
+### Available Backend APIs
+
+- TransactionService (Submit transaction, Get transaction, Evaluate ExUnits for Script Txn)
+- AddressService (Get address details)
+- UtxoService (Get utxos for an address)
+- AssetService
+- BlockService
+- NetworkInfoService
+- EpochService
+- MetadataService
