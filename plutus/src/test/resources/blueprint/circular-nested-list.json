@@ -1,0 +1,93 @@
+{
+  "preamble": {
+    "title": "test/circular-nested-list",
+    "description": "Test blueprint with nested list circular reference pattern",
+    "version": "1.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    }
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "schema": {
+          "$ref": "#/definitions/multisig~1Script"
+        }
+      },
+      "compiledCode": "abc123",
+      "hash": "def456"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "multisig/Script": {
+      "title": "Script",
+      "description": "Circular reference via nested list: Script -> Composite -> List<Script>",
+      "anyOf": [
+        {
+          "title": "Single",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "key_hash",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        },
+        {
+          "title": "AllOf",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "scripts",
+              "$ref": "#/definitions/List<multisig~1Script>"
+            }
+          ]
+        },
+        {
+          "title": "AnyOf",
+          "dataType": "constructor",
+          "index": 2,
+          "fields": [
+            {
+              "title": "scripts",
+              "$ref": "#/definitions/List<multisig~1Script>"
+            }
+          ]
+        },
+        {
+          "title": "AtLeast",
+          "dataType": "constructor",
+          "index": 3,
+          "fields": [
+            {
+              "title": "required",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "scripts",
+              "$ref": "#/definitions/List<multisig~1Script>"
+            }
+          ]
+        }
+      ]
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "List<multisig/Script>": {
+      "title": "List",
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/multisig~1Script"
+      }
+    }
+  }
+}

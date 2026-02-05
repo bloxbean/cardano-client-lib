@@ -328,35 +328,9 @@ public class ValidatorProcessor {
         return null;
     }
 
-    private TypeMirror getExtendWithValue(ExtendWith extendWith) {
-        try {
-            // This will throw MirroredTypeException
-            extendWith.value();
-        } catch (MirroredTypeException e) {
-            return e.getTypeMirror();
-        }
-        return null;
-    }
 
     private static boolean isParameterizedValidator(Validator validator) {
         return validator.getParameters() != null && validator.getParameters().size() > 0;
-    }
-
-    private TypeMirror getTypeMirror(String type) {
-        try {
-            // This will throw MirroredTypeException
-            type.getClass();
-        } catch (MirroredTypeException e) {
-            return e.getTypeMirror();
-        }
-        return null;
-    }
-
-    private void error(Element e, String msg, Object... args) {
-        processingEnv.getMessager().printMessage(
-                Diagnostic.Kind.ERROR,
-                String.format(msg, args),
-                e);
     }
 
     /**
@@ -379,8 +353,6 @@ public class ValidatorProcessor {
      *   <li>For titles with ≤2 parts: use the last token</li>
      *   <li>For titles with >2 parts: join all tokens except the first (skip package name)</li>
      * </ul>
-     *
-     * <p><b>Note:</b> Package-private for testing purposes.</p>
      *
      * @param validatorTitle the validator title from the blueprint (e.g., "module.validator.action")
      * @return the calculated validator name for Java class generation
