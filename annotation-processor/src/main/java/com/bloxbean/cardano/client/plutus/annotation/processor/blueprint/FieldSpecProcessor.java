@@ -162,7 +162,7 @@ public class FieldSpecProcessor {
             dataClassName = nameStrategy.toClassName(dataClassName);
         }
 
-        String finalNS = BlueprintUtil.getNSFromReference(schema.getRef());
+        String finalNS = BlueprintUtil.getNamespaceFromReference(schema.getRef());
         String pkg = getPackageName(finalNS);
 
         //For anyOf > 1, create an interface, if size == 1, create a class
@@ -290,7 +290,7 @@ public class FieldSpecProcessor {
             className = nameStrategy.toClassName(className);
         }
 
-        String finalNS = BlueprintUtil.getNSFromReference(schema.getRef());;
+        String finalNS = BlueprintUtil.getNamespaceFromReference(schema.getRef());;
         String pkg = getPackageName(finalNS);
 
         ClassName classNameType = ClassName.get(pkg, className);

@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util;
 
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -9,13 +10,13 @@ import java.util.Collections;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for {@link BlueprintUtil#isAbstractPlutusDataType(BlueprintSchema)}
+ * Unit tests for {@link BlueprintUtil}
  *
- * <p>Tests verify compliance with CIP-57 specification:</p>
- * <blockquote>
- * "The dataType keyword is optional. When missing, the instance is implicitly typed
- * as an opaque Plutus Data."
- * </blockquote>
+ * <p>Tests verify:</p>
+ * <ul>
+ *   <li>Compliance with CIP-57 specification for opaque PlutusData detection</li>
+ *   <li>Correct namespace extraction from reference keys including generic types</li>
+ * </ul>
  */
 public class BlueprintUtilTest {
 
@@ -278,5 +279,225 @@ public class BlueprintUtilTest {
         schema.setAnyOf(Collections.singletonList(new BlueprintSchema()));
 
         assertThat(BlueprintUtil.isAbstractPlutusDataType(schema)).isFalse();
+    }
+
+    // ========== Namespace Extraction Tests ==========
+
+    /**
+     * Tests for getNamespaceFromReferenceKey() with non-generic types (regression tests)
+     */
+    @Nested
+    class GetNamespaceFromReferenceKeyNonGenericTests {
+
+        @Test
+        void shouldReturnEmptyString_whenKeyIsNull() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey(null)).isEmpty();
+        }
+
+        @Test
+        void shouldReturnEmptyString_whenKeyIsEmpty() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("")).isEmpty();
+        }
+
+        @Test
+        void shouldReturnEmptyString_whenSingleLevelType() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Int")).isEmpty();
+        }
+
+        @Test
+        void shouldExtractNamespace_whenStandardPath() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("types/order/Action"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenTwoLevelPath() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("cardano/transaction"))
+                    .isEqualTo("cardano");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenThreeLevelPath() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("cardano/address/Credential"))
+                    .isEqualTo("cardano.address");
+        }
+
+        @Test
+        void shouldReturnLowercaseNamespace() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Types/Order/Action"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldHandleJsonPointerEscapes() {
+            // JSON Pointer escapes: ~1 = /
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("types~1order~1Action"))
+                    .isEqualTo("types.order");
+        }
+    }
+
+    /**
+     * Tests for getNamespaceFromReferenceKey() with generic types (angle bracket syntax)
+     */
+    @Nested
+    class GetNamespaceFromReferenceKeyGenericAngleBracketTests {
+
+        @Test
+        void shouldExtractNamespace_whenSimpleGeneric() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<types/order/Action>"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldReturnEmptyString_whenGenericPrimitive() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<Int>")).isEmpty();
+        }
+
+        @Test
+        void shouldReturnEmptyString_whenListOfPrimitives() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<Int>")).isEmpty();
+        }
+
+        @Test
+        void shouldExtractNamespace_whenNestedGeneric() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<Option<types/order/Action>>"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenTripleNestedGeneric() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<List<Option<types/order/Action>>>"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenGenericWithEscapes() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<types~1order~1Action>"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenNestedGenericWithEscapes() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<Option<types~1order~1Action>>"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenCardanoBuiltin() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<cardano/address/Credential>"))
+                    .isEqualTo("cardano.address");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenListOfCardanoType() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<cardano/transaction/OutputReference>"))
+                    .isEqualTo("cardano.transaction");
+        }
+
+        @Test
+        void shouldExtractFirstType_whenTupleGeneric() {
+            // Tuple<<types/order/Action,Int>> should extract types.order
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Tuple<<types/order/Action,Int>>"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractFirstType_whenPairGeneric() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Pair<types/order/Action,types/order/Status>"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldReturnEmptyString_whenTupleOfPrimitives() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Tuple<Int,ByteArray>")).isEmpty();
+        }
+
+        @Test
+        void shouldExtractNamespace_whenComplexNestedStructure() {
+            // List<Option<Pair<types/order/Action,Int>>>
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<Option<Pair<types/order/Action,Int>>>"))
+                    .isEqualTo("types.order");
+        }
+    }
+
+    /**
+     * Tests for getNamespaceFromReferenceKey() with generic types (dollar sign syntax)
+     */
+    @Nested
+    class GetNamespaceFromReferenceKeyGenericDollarSignTests {
+
+        @Test
+        void shouldReturnEmptyString_whenDollarSignPrimitive() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$Int")).isEmpty();
+        }
+
+        @Test
+        void shouldExtractNamespace_whenDollarSignWithPath() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$types/order/Action"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenDollarSignWithEscapes() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$types~1order~1Action"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenDollarSignCardanoType() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$cardano/address/Credential"))
+                    .isEqualTo("cardano.address");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenNestedDollarSign() {
+            // Option$List$types/order/Action
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$List$types/order/Action"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldReturnEmptyString_whenListDollarPrimitive() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List$ByteArray")).isEmpty();
+        }
+    }
+
+    /**
+     * Tests for edge cases in generic type handling
+     */
+    @Nested
+    class GetNamespaceFromReferenceKeyEdgeCasesTests {
+
+        @Test
+        void shouldHandleMalformedGeneric_missingClosingBracket() {
+            // Malformed input - should not crash
+            String result = BlueprintUtil.getNamespaceFromReferenceKey("Option<types/order/Action");
+            // Best effort: should not throw exception
+            assertThat(result).isNotNull();
+        }
+
+        @Test
+        void shouldHandleMalformedGeneric_missingOpeningBracket() {
+            String result = BlueprintUtil.getNamespaceFromReferenceKey("Option types/order/Action>");
+            assertThat(result).isNotNull();
+        }
+
+        @Test
+        void shouldHandleEmptyGeneric() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<>")).isEmpty();
+        }
+
+        @Test
+        void shouldHandleWhitespaceInGeneric() {
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option< types/order/Action >"))
+                    .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldHandleMixedDollarAndBrackets() {
+            // Option$List<types/order/Action>
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$List<types/order/Action>"))
+                    .isEqualTo("types.order");
+        }
     }
 }

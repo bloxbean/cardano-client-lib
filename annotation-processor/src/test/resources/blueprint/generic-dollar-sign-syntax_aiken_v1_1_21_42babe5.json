@@ -1,0 +1,166 @@
+{
+  "preamble": {
+    "title": "test/generic-dollar-sign-syntax",
+    "description": "Test blueprint for alternative generic syntax: Dollar sign notation used by legacy Aiken versions. Some Aiken versions use '$' instead of '<>' for generic type parameters. Both syntaxes must be handled identically.",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/types~1storage~1StorageData"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "Option$Int": {
+      "title": "Option",
+      "description": "Dollar sign syntax for generic instantiation. Equivalent to: Option<Int>. Behavior: Should be SKIPPED (no '<' but contains '$').",
+      "anyOf": [
+        {
+          "title": "Some",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "List$ByteArray": {
+      "title": "List",
+      "description": "Dollar sign syntax for List generic. Equivalent to: List<ByteArray>. Behavior: Should be SKIPPED.",
+      "dataType": "list",
+      "items": [
+        {
+          "$ref": "#/definitions/ByteArray"
+        }
+      ]
+    },
+    "Option$types/storage/Item": {
+      "title": "Option",
+      "description": "Dollar sign syntax with module path. Equivalent to: Option<types/storage/Item>. Behavior: Should be SKIPPED (generic instantiation). Namespace extraction if called: types/storage/Item to namespace: types.storage",
+      "anyOf": [
+        {
+          "title": "Some",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/types~1storage~1Item"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "Option$List$types/storage/Item": {
+      "title": "Option",
+      "description": "NESTED dollar sign syntax. Equivalent to: Option<List<types/storage/Item>>. Behavior: Should be SKIPPED. Extraction: Recursively extracts types/storage/Item to namespace: types.storage",
+      "anyOf": [
+        {
+          "title": "Some",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "$ref": "#/definitions/List$types~1storage~1Item"
+            }
+          ]
+        },
+        {
+          "title": "None",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "List$types/storage/Item": {
+      "title": "List",
+      "description": "Dollar sign List with module path. Behavior: Should be SKIPPED.",
+      "dataType": "list",
+      "items": [
+        {
+          "$ref": "#/definitions/types~1storage~1Item"
+        }
+      ]
+    },
+    "types/storage/Item": {
+      "title": "Item",
+      "description": "CONCRETE TYPE: Storage item. Expected namespace: types.storage. Expected class: com.test.types.storage.Item",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "id",
+          "$ref": "#/definitions/Int"
+        },
+        {
+          "title": "data",
+          "$ref": "#/definitions/ByteArray"
+        }
+      ]
+    },
+    "types/storage/StorageData": {
+      "title": "StorageData",
+      "description": "CONCRETE TYPE: Container using dollar sign generic fields. Storage data with fields using dollar sign generic syntax.",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "items",
+          "$ref": "#/definitions/List$types~1storage~1Item"
+        },
+        {
+          "title": "active_item",
+          "$ref": "#/definitions/Option$types~1storage~1Item"
+        },
+        {
+          "title": "count",
+          "$ref": "#/definitions/Option$Int"
+        }
+      ]
+    },
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Any Plutus data."
+    }
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "preamble": {
+    "title": "test/generic-nested-types",
+    "description": "Test blueprint for Issue 2: Nested generic namespace extraction must extract innermost type.",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/types~1order~1OrderData"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "List<Option<types/order/Action>>": {
+      "title": "List",
+      "description": "Nested generic - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "Option<types/order/Action>": {
+      "title": "Option",
+      "description": "Generic instantiation - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "Option<List<Option<types/order/Action>>>": {
+      "title": "Option",
+      "description": "TRIPLE nested generic - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "Tuple<<types/order/Action,types/order/Status>>": {
+      "title": "Tuple",
+      "description": "Tuple with TWO type parameters - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "types/order/Action": {
+      "title": "Action",
+      "description": "CONCRETE TYPE: Should generate com.test.genericnested.types.order.Action class",
+      "anyOf": [
+        {
+          "title": "Create",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Update",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "types/order/Status": {
+      "title": "Status",
+      "description": "CONCRETE TYPE: Should generate com.test.genericnested.types.order.Status class",
+      "anyOf": [
+        {
+          "title": "Pending",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Completed",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "types/order/OrderData": {
+      "title": "OrderData",
+      "description": "CONCRETE TYPE: Complex type",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "id",
+          "$ref": "#/definitions/Int"
+        }
+      ]
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Any Plutus data."
+    }
+  }
+}
