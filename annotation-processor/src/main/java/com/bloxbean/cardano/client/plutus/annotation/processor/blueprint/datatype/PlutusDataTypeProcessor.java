@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.datatype;
 
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.FieldSpec;
@@ -12,7 +12,7 @@ import java.util.List;
  * Generates field definitions for schemas without an explicit datatype (raw {@link PlutusData}).
  */
 public class PlutusDataTypeProcessor extends AbstractDataTypeProcessor {
-    public PlutusDataTypeProcessor(NameStrategy nameStrategy, SchemaTypeResolver typeResolver) {
+    public PlutusDataTypeProcessor(NamingStrategy nameStrategy, SchemaTypeResolver typeResolver) {
         super(nameStrategy, typeResolver);
     }
 

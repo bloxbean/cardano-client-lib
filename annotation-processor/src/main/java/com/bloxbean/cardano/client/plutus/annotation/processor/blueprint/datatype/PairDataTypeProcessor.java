@@ -11,7 +11,7 @@ import java.util.List;
  * Generates field definitions for blueprint schemas of datatype {@code pair}.
  */
 public class PairDataTypeProcessor extends AbstractDataTypeProcessor {
-    public PairDataTypeProcessor(com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy nameStrategy,
+    public PairDataTypeProcessor(com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy nameStrategy,
                           SchemaTypeResolver typeResolver) {
         super(nameStrategy, typeResolver);
     }

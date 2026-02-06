@@ -1,6 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier;
 
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 
@@ -15,9 +15,9 @@ import java.util.Objects;
  */
 public class SchemaClassifier {
 
-    private final NameStrategy nameStrategy;
+    private final NamingStrategy nameStrategy;
 
-    public SchemaClassifier(NameStrategy nameStrategy) {
+    public SchemaClassifier(NamingStrategy nameStrategy) {
         this.nameStrategy = Objects.requireNonNull(nameStrategy, "nameStrategy cannot be null");
     }
 

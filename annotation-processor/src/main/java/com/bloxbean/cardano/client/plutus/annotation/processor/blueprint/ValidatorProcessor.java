@@ -10,7 +10,8 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.D
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
@@ -50,7 +51,7 @@ public class ValidatorProcessor {
     private final com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter sourceWriter;
     private final com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.ErrorReporter errorReporter;
     private final DatumModelFactory datumModelFactory;
-    private final NameStrategy nameStrategy;
+    private final NamingStrategy nameStrategy;
     private final String VALIDATOR_CLASS_SUFFIX = "Validator";
 
     public ValidatorProcessor(Blueprint annotation,
@@ -65,7 +66,7 @@ public class ValidatorProcessor {
         this.packageResolver = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver();
         this.sourceWriter = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter(processingEnv);
         this.errorReporter = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.ErrorReporter(processingEnv);
-        this.nameStrategy = new NameStrategy();
+        this.nameStrategy = new DefaultNamingStrategy();
         this.datumModelFactory = new DatumModelFactory(nameStrategy);
     }
 
@@ -82,7 +83,7 @@ public class ValidatorProcessor {
         String validatorName = calculateValidatorName(validator.getTitle());
         String packageName = packageResolver.getValidatorPackage(annotation, validator.getTitle());
 
-        String title = nameStrategy.toCamelCase(validatorName);
+        String title = nameStrategy.toClassName(validatorName);
 
         List<FieldSpec> metaFields = ValidatorProcessor.getFieldSpecsForValidator(validator);
 

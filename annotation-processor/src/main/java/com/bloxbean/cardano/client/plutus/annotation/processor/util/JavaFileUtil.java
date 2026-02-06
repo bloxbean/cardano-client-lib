@@ -1,9 +1,10 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.util;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.text.CaseUtils;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
@@ -16,62 +17,84 @@ public class JavaFileUtil {
 
     public static final String CARDANO_CLIENT_LIB_GENERATED_DIR = "cardano.client.lib.generated.dir";
 
+    // Use DefaultNamingStrategy for all naming operations
+    private static final NamingStrategy namingStrategy = new DefaultNamingStrategy();
+
     /**
      * First character has to be upper case when creating a new class
-     * @param s
-     * @return
+     * @param s the input string
+     * @return the string with first character uppercase
      */
     public static String firstUpperCase(String s) {
-        if(s == null || s.isEmpty())
-            return s;
-        return s.substring(0, 1).toUpperCase() + s.substring(1);
-    }
-
-    public static String firstLowerCase(String s) {
-        if(s == null || s.isEmpty())
-            return s;
-        return s.substring(0, 1).toLowerCase() + s.substring(1);
+        return namingStrategy.firstUpperCase(s);
     }
 
     /**
-     * Converts a string to camel case
-     * @param s
-     * @return
+     * Converts first character to lowercase
+     * @param s the input string
+     * @return the string with first character lowercase
+     */
+    public static String firstLowerCase(String s) {
+        return namingStrategy.firstLowerCase(s);
+    }
+
+    /**
+     * Converts a string to lowerCamelCase (first letter lowercase).
+     * Handles all CIP-57 blueprint naming conventions including:
+     * - Legacy Aiken (v1.0.x): List$ByteArray, Tuple$Int_Int
+     * - Modern Aiken (v1.1.x+): {@code List<Int>}, aiken/crypto/Hash
+     * - Module paths with tildes: types~1order~1Action
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>"hello_world" → "helloWorld"</li>
+     *   <li>"MyClass" → "myClass"</li>
+     *   <li>"types/order/Action" → "typesOrderAction"</li>
+     * </ul>
+     *
+     * @param s the input string
+     * @return lowerCamelCase string (first letter lowercase) that is a valid Java identifier
      */
     public static String toCamelCase(String s) {
-        if (s == null || s.isEmpty())
-            return s;
-
-        if(Character.isUpperCase(s.charAt(0))) {
-            return s;
-        }
-
-        return CaseUtils.toCamelCase(s, true, '_', ' ', '-');
+        return namingStrategy.toCamelCase(s);
     }
 
+    /**
+     * Converts a string to UpperCamelCase (PascalCase) for class names (first letter uppercase).
+     * Handles all CIP-57 blueprint naming conventions.
+     *
+     * <p>Examples:
+     * <ul>
+     *   <li>"hello_world" → "HelloWorld"</li>
+     *   <li>"myClass" → "MyClass"</li>
+     *   <li>"types/order/Action" → "TypesOrderAction"</li>
+     * </ul>
+     *
+     * @param s the input string
+     * @return UpperCamelCase/PascalCase string (first letter uppercase) that is a valid Java class name
+     */
     public static String toClassNameFormat(String s) {
-        if (s == null || s.isEmpty())
-            return s;
-
-        return firstUpperCase(toCamelCase(s));
+        return namingStrategy.toClassName(s);
     }
 
+    /**
+     * Converts a package name to valid Java package format.
+     *
+     * @param pkg the package name
+     * @return lowercase package name with no special characters
+     */
     public static String toPackageNameFormat(String pkg) {
-        if (pkg == null) {
-            return null;
-        }
-
-        return pkg.toLowerCase().replace("-", "").replace("_", "");
+        return namingStrategy.toPackageNameFormat(pkg);
     }
 
 
     /**
      * Creates a Java file from a TypeSpec with a given classname and package
      *
-     * @param packageName
-     * @param build
-     * @param className
-     * @param processingEnv
+     * @param packageName the package name for the generated class
+     * @param build the TypeSpec containing the class definition
+     * @param className the simple name of the class to generate
+     * @param processingEnv the annotation processing environment
      */
     public static void createJavaFile(String packageName, TypeSpec build, String className, ProcessingEnvironment processingEnv) {
         String generatedDir = processingEnv.getOptions().get(CARDANO_CLIENT_LIB_GENERATED_DIR);

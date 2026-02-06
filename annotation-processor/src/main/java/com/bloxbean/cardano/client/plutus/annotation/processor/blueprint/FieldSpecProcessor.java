@@ -8,7 +8,8 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.D
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.NameStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
@@ -38,7 +39,7 @@ public class FieldSpecProcessor {
     private final ProcessingEnvironment processingEnv;
     private final Blueprint annotation;
     private final DataTypeProcessUtil dataTypeProcessUtil;
-    private final NameStrategy nameStrategy;
+    private final NamingStrategy nameStrategy;
     private final PackageResolver packageResolver;
     private final DatumModelFactory datumModelFactory;
     private final SourceWriter sourceWriter;
@@ -51,7 +52,7 @@ public class FieldSpecProcessor {
                               SharedTypeLookup sharedTypeLookup) {
         this.annotation = annotation;
         this.processingEnv = processingEnv;
-        this.nameStrategy = new NameStrategy();
+        this.nameStrategy = new DefaultNamingStrategy();
         this.packageResolver = new PackageResolver();
         this.datumModelFactory = new DatumModelFactory(nameStrategy);
         this.sourceWriter = new SourceWriter(processingEnv);
@@ -216,6 +217,7 @@ public class FieldSpecProcessor {
      *
      * @param ns            namespace or package suffix
      * @param dataClassName name of the interface
+     * @param schema        the blueprint schema to create an interface for
      * @return ClassName of the interface
      */
     public ClassName createDatumInterface(String ns, String dataClassName, BlueprintSchema schema) {

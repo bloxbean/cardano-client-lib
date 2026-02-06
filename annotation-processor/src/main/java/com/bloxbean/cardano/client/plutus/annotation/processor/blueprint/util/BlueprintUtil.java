@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.JsonPointerUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 
 public class BlueprintUtil {
@@ -32,7 +33,7 @@ public class BlueprintUtil {
         if (ref == null)
             return "";
         ref = ref.replace("#/definitions/", "");
-        ref = ref.replace("~1", "/");
+        ref = JsonPointerUtil.unescape(ref);
 
         return getNSFromReferenceKey(ref);
     }
@@ -41,7 +42,7 @@ public class BlueprintUtil {
         if (ref == null)
             return "";
         ref = ref.replace("#/definitions/", "");
-        ref = ref.replace("~1", "/");
+        ref = JsonPointerUtil.unescape(ref);
         return ref;
     }
 

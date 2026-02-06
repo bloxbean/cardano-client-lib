@@ -17,7 +17,7 @@ import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
  *
  * @see <a href="https://cips.cardano.org/cip/CIP-57">CIP-57 Plutus Contract Blueprints</a>
  */
-@Blueprint(fileInResources = "blueprint/circular-nested-list_aiken_v1_1_21.json",
+@Blueprint(fileInResources = "blueprint/circular-nested-list_aiken_v1_1_21_42babe5.json",
            packageName = "com.bloxbean.cardano.client.plutus.annotation.blueprint.circular")
 public interface CircularNestedList {
 }
