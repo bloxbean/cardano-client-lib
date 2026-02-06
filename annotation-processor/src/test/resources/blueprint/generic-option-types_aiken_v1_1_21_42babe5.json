@@ -37,7 +37,7 @@
       "index": 0,
       "fields": []
     },
-    "Option<types~1order~1Action>": {
+    "Option<types/order/Action>": {
       "title": "Option",
       "description": "Generic instantiation - should be SKIPPED",
       "dataType": "constructor",
@@ -51,9 +51,9 @@
       "index": 0,
       "fields": []
     },
-    "types~1order~1Action": {
+    "types/order/Action": {
       "title": "Action",
-      "description": "CONCRETE TYPE: Should generate com.types.order.Action class",
+      "description": "CONCRETE TYPE: Should generate com.test.genericoption.types.order.Action class",
       "anyOf": [
         {
           "title": "Create",
@@ -75,9 +75,9 @@
         }
       ]
     },
-    "types~1order~1Status": {
+    "types/order/Status": {
       "title": "Status",
-      "description": "CONCRETE TYPE: Should generate com.types.order.Status class",
+      "description": "CONCRETE TYPE: Should generate com.test.genericoption.types.order.Status class",
       "anyOf": [
         {
           "title": "Pending",

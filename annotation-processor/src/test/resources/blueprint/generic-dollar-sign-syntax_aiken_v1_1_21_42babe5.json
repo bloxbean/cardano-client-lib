@@ -62,9 +62,9 @@
         }
       ]
     },
-    "Option$types~1storage~1Item": {
+    "Option$types/storage/Item": {
       "title": "Option",
-      "description": "Dollar sign syntax with module path. Equivalent to: Option<types/storage/Item>. Behavior: Should be SKIPPED (generic instantiation). Namespace extraction if called: types~1storage~1Item to namespace: types.storage",
+      "description": "Dollar sign syntax with module path. Equivalent to: Option<types/storage/Item>. Behavior: Should be SKIPPED (generic instantiation). Namespace extraction if called: types/storage/Item to namespace: types.storage",
       "anyOf": [
         {
           "title": "Some",
@@ -84,9 +84,9 @@
         }
       ]
     },
-    "Option$List$types~1storage~1Item": {
+    "Option$List$types/storage/Item": {
       "title": "Option",
-      "description": "NESTED dollar sign syntax. Equivalent to: Option<List<types/storage/Item>>. Behavior: Should be SKIPPED. Extraction: Recursively extracts types~1storage~1Item to namespace: types.storage",
+      "description": "NESTED dollar sign syntax. Equivalent to: Option<List<types/storage/Item>>. Behavior: Should be SKIPPED. Extraction: Recursively extracts types/storage/Item to namespace: types.storage",
       "anyOf": [
         {
           "title": "Some",
@@ -106,7 +106,7 @@
         }
       ]
     },
-    "List$types~1storage~1Item": {
+    "List$types/storage/Item": {
       "title": "List",
       "description": "Dollar sign List with module path. Behavior: Should be SKIPPED.",
       "dataType": "list",
@@ -116,9 +116,9 @@
         }
       ]
     },
-    "types~1storage~1Item": {
+    "types/storage/Item": {
       "title": "Item",
-      "description": "CONCRETE TYPE: Storage item. Expected namespace: types.storage. Expected class: com.types.storage.Item",
+      "description": "CONCRETE TYPE: Storage item. Expected namespace: types.storage. Expected class: com.test.types.storage.Item",
       "dataType": "constructor",
       "index": 0,
       "fields": [
@@ -132,7 +132,7 @@
         }
       ]
     },
-    "types~1storage~1StorageData": {
+    "types/storage/StorageData": {
       "title": "StorageData",
       "description": "CONCRETE TYPE: Container using dollar sign generic fields. Storage data with fields using dollar sign generic syntax.",
       "dataType": "constructor",

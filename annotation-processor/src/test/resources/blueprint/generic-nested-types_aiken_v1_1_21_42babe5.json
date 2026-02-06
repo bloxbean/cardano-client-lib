@@ -30,37 +30,37 @@
     }
   ],
   "definitions": {
-    "List<Option<types~1order~1Action>>": {
+    "List<Option<types/order/Action>>": {
       "title": "List",
       "description": "Nested generic - should be SKIPPED",
       "dataType": "constructor",
       "index": 0,
       "fields": []
     },
-    "Option<types~1order~1Action>": {
+    "Option<types/order/Action>": {
       "title": "Option",
       "description": "Generic instantiation - should be SKIPPED",
       "dataType": "constructor",
       "index": 0,
       "fields": []
     },
-    "Option<List<Option<types~1order~1Action>>>": {
+    "Option<List<Option<types/order/Action>>>": {
       "title": "Option",
       "description": "TRIPLE nested generic - should be SKIPPED",
       "dataType": "constructor",
       "index": 0,
       "fields": []
     },
-    "Tuple<<types~1order~1Action,types~1order~1Status>>": {
+    "Tuple<<types/order/Action,types/order/Status>>": {
       "title": "Tuple",
       "description": "Tuple with TWO type parameters - should be SKIPPED",
       "dataType": "constructor",
       "index": 0,
       "fields": []
     },
-    "types~1order~1Action": {
+    "types/order/Action": {
       "title": "Action",
-      "description": "CONCRETE TYPE: Should generate com.types.order.Action class",
+      "description": "CONCRETE TYPE: Should generate com.test.genericnested.types.order.Action class",
       "anyOf": [
         {
           "title": "Create",
@@ -76,9 +76,9 @@
         }
       ]
     },
-    "types~1order~1Status": {
+    "types/order/Status": {
       "title": "Status",
-      "description": "CONCRETE TYPE: Should generate com.types.order.Status class",
+      "description": "CONCRETE TYPE: Should generate com.test.genericnested.types.order.Status class",
       "anyOf": [
         {
           "title": "Pending",
@@ -94,7 +94,7 @@
         }
       ]
     },
-    "types~1order~1OrderData": {
+    "types/order/OrderData": {
       "title": "OrderData",
       "description": "CONCRETE TYPE: Complex type",
       "dataType": "constructor",

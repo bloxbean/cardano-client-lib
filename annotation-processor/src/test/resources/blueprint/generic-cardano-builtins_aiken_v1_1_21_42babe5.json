@@ -30,104 +30,65 @@
     }
   ],
   "definitions": {
-    "Option<cardano~1address~1Credential>": {
+    "Option<cardano/address/Credential>": {
       "title": "Option",
       "description": "Generic instantiation - should be SKIPPED",
       "dataType": "constructor",
       "index": 0,
       "fields": []
     },
-    "List<cardano~1transaction~1OutputReference>": {
+    "List<cardano/transaction/OutputReference>": {
       "title": "List",
       "description": "Generic instantiation - should be SKIPPED",
       "dataType": "constructor",
       "index": 0,
       "fields": []
     },
-    "Option<cardano~1transaction~1ValidityRange>": {
+    "Option<cardano/transaction/ValidityRange>": {
       "title": "Option",
       "description": "Generic instantiation - should be SKIPPED",
       "dataType": "constructor",
       "index": 0,
       "fields": []
     },
-    "cardano~1address~1Credential": {
+    "cardano/address/Credential": {
       "title": "Credential",
-      "description": "CONCRETE TYPE: Should generate com.cardano.address.Credential",
+      "description": "CONCRETE TYPE: Should generate com.test.genericcardano.cardano.address.Credential",
       "anyOf": [
         {
           "title": "VerificationKey",
           "dataType": "constructor",
           "index": 0,
-          "fields": [
-            {
-              "title": "hash",
-              "$ref": "#/definitions/ByteArray"
-            }
-          ]
+          "fields": []
         },
         {
           "title": "Script",
           "dataType": "constructor",
           "index": 1,
-          "fields": [
-            {
-              "title": "hash",
-              "$ref": "#/definitions/ByteArray"
-            }
-          ]
+          "fields": []
         }
       ]
     },
-    "cardano~1transaction~1OutputReference": {
+    "cardano/transaction/OutputReference": {
       "title": "OutputReference",
-      "description": "CONCRETE TYPE: Should generate com.cardano.transaction.OutputReference",
+      "description": "CONCRETE TYPE: Should generate com.test.genericcardano.cardano.transaction.OutputReference",
       "dataType": "constructor",
       "index": 0,
-      "fields": [
-        {
-          "title": "transaction_id",
-          "$ref": "#/definitions/ByteArray"
-        },
-        {
-          "title": "output_index",
-          "$ref": "#/definitions/Int"
-        }
-      ]
+      "fields": []
     },
-    "cardano~1transaction~1ValidityRange": {
+    "cardano/transaction/ValidityRange": {
       "title": "ValidityRange",
-      "description": "CONCRETE TYPE",
+      "description": "CONCRETE TYPE: Should generate com.test.genericcardano.cardano.transaction.ValidityRange",
       "dataType": "constructor",
       "index": 0,
-      "fields": [
-        {
-          "title": "lower_bound",
-          "$ref": "#/definitions/Int"
-        },
-        {
-          "title": "upper_bound",
-          "$ref": "#/definitions/Int"
-        }
-      ]
+      "fields": []
     },
-    "types~1payment~1PaymentInfo": {
+    "types/payment/PaymentInfo": {
       "title": "PaymentInfo",
       "description": "CONCRETE TYPE: Custom type",
       "dataType": "constructor",
       "index": 0,
-      "fields": [
-        {
-          "title": "amount",
-          "$ref": "#/definitions/Int"
-        }
-      ]
-    },
-    "ByteArray": {
-      "dataType": "bytes"
-    },
-    "Int": {
-      "dataType": "integer"
+      "fields": []
     },
     "Data": {
       "title": "Data",

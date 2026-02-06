@@ -104,12 +104,30 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions() != null? plutusContractBlueprint.getDefinitions()
                     : Collections.EMPTY_MAP;
             //Create Data classes
-            for(Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
+            for (Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();
 
-                // Skip generic type instantiations (e.g., "Option<Int>", "List<T>")
-                // These are type aliases handled by Java generics, not new type definitions
-                if (key.contains("<") || key.contains(">")) {
+                // Skip generic type instantiations to prevent invalid class generation
+                //
+                // Aiken compiler generates blueprint definitions for generic type instantiations
+                // in two different syntaxes depending on version:
+                //   - Aiken v1.0.x (old):  "List$Int", "Option$ByteArray"
+                //   - Aiken v1.1.x (new):  "List<Int>", "Option<types/order/Action>"
+                //
+                // These are NOT new type definitions - they're instantiations of built-in
+                // generic containers (List, Option, Tuple, etc.) with specific type parameters.
+                // Attempting to generate Java classes for these would cause:
+                //   1. Invalid Java identifiers (class names can't contain < > $)
+                //   2. NullPointerException in TypeSpec.classBuilder() when name parsing fails
+                //   3. Naming conflicts (multiple "Option" classes for different type params)
+                //   4. Code duplication (redundant with Java's Optional<T>, List<T>)
+                //
+                // Real-world examples from SundaeSwap blueprints:
+                //   - Old syntax: "List$Tuple$Int_Option$types/order/SignedStrategyExecution_Int"
+                //   - New syntax: "List<Tuple<<Int,Option<types/order/SignedStrategyExecution>,Int>>>"
+                //
+                // Skip condition checks for BOTH syntaxes to support all Aiken versions.
+                if (key.contains("<") || key.contains(">") || key.contains("$")) {
                     continue;
                 }
 
@@ -118,12 +136,12 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 fieldSpecProcessor.createDatumClass(ns, definition.getValue());
             }
 
-
             for (Validator validator : plutusContractBlueprint.getValidators()) {
                 validatorProcessor.processValidator(validator, plutusContractBlueprint.getPreamble().getPlutusVersion());
             }
 
         }
+
         return true;
     }
 
