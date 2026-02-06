@@ -1,0 +1,107 @@
+{
+  "preamble": {
+    "title": "test/generic-option-types",
+    "description": "Test blueprint for Issue 1: Generic type instantiations should be skipped during class generation.",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/types~1order~1Action"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "Option<Int>": {
+      "title": "Option",
+      "description": "Generic instantiation - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "Option<types/order/Action>": {
+      "title": "Option",
+      "description": "Generic instantiation - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "List<ByteArray>": {
+      "title": "List",
+      "description": "Generic instantiation - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "types/order/Action": {
+      "title": "Action",
+      "description": "CONCRETE TYPE: Should generate com.test.genericoption.types.order.Action class",
+      "anyOf": [
+        {
+          "title": "Create",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Update",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        },
+        {
+          "title": "Delete",
+          "dataType": "constructor",
+          "index": 2,
+          "fields": []
+        }
+      ]
+    },
+    "types/order/Status": {
+      "title": "Status",
+      "description": "CONCRETE TYPE: Should generate com.test.genericoption.types.order.Status class",
+      "anyOf": [
+        {
+          "title": "Pending",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Completed",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Any Plutus data."
+    }
+  }
+}

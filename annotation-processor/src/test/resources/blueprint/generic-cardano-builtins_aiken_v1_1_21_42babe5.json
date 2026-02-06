@@ -1,0 +1,98 @@
+{
+  "preamble": {
+    "title": "test/generic-cardano-builtins",
+    "description": "Test blueprint for real-world case: Generic Cardano builtin types from production blueprints.",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/types~1payment~1PaymentInfo"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "Option<cardano/address/Credential>": {
+      "title": "Option",
+      "description": "Generic instantiation - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "List<cardano/transaction/OutputReference>": {
+      "title": "List",
+      "description": "Generic instantiation - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "Option<cardano/transaction/ValidityRange>": {
+      "title": "Option",
+      "description": "Generic instantiation - should be SKIPPED",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "cardano/address/Credential": {
+      "title": "Credential",
+      "description": "CONCRETE TYPE: Should generate com.test.genericcardano.cardano.address.Credential",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    },
+    "cardano/transaction/OutputReference": {
+      "title": "OutputReference",
+      "description": "CONCRETE TYPE: Should generate com.test.genericcardano.cardano.transaction.OutputReference",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "cardano/transaction/ValidityRange": {
+      "title": "ValidityRange",
+      "description": "CONCRETE TYPE: Should generate com.test.genericcardano.cardano.transaction.ValidityRange",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "types/payment/PaymentInfo": {
+      "title": "PaymentInfo",
+      "description": "CONCRETE TYPE: Custom type",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": []
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Any Plutus data."
+    }
+  }
+}
