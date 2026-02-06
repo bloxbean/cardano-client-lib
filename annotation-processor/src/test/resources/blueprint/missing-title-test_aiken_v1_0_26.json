@@ -1,0 +1,64 @@
+{
+  "preamble": {
+    "title": "test/missing-title",
+    "description": "Test blueprint for schemas without title fields (CIP-57 compliance test)",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.26-alpha"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/types~1custom~1Action"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/types~1custom~1Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "types/custom/Data": {
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "content",
+          "$ref": "#/definitions/ByteArray"
+        }
+      ]
+    },
+    "types/custom/Action": {
+      "title": "Action",
+      "anyOf": [
+        {
+          "title": "Create",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Delete",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}

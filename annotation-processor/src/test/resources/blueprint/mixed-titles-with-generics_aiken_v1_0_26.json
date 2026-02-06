@@ -1,0 +1,71 @@
+{
+  "preamble": {
+    "title": "test/mixed-titles-with-generics",
+    "description": "CIP-57 test: blueprint with mix of titled/untitled definitions and generic type instantiations",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.26-alpha"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/types~1order~1OrderDatum"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "List$ByteArray": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/ByteArray"
+      }
+    },
+    "List$Int": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/Int"
+      }
+    },
+    "types/order/OrderDatum": {
+      "title": "OrderDatum",
+      "dataType": "constructor",
+      "index": 0,
+      "fields": [
+        {
+          "title": "owner",
+          "$ref": "#/definitions/ByteArray"
+        },
+        {
+          "title": "amount",
+          "$ref": "#/definitions/Int"
+        }
+      ]
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Opaque Plutus data"
+    }
+  }
+}

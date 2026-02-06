@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookupFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
+import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
 import com.bloxbean.cardano.client.plutus.blueprint.model.*;
@@ -132,8 +133,12 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 }
 
                 String ns = getNamespaceFromReferenceKey(key);
-
-                fieldSpecProcessor.createDatumClass(ns, definition.getValue());
+                try {
+                    fieldSpecProcessor.createDatumClass(ns, key, definition.getValue());
+                } catch (BlueprintGenerationException e) {
+                    error(typeElement, "Blueprint generation failed for definition '%s': %s", key, e.getMessage());
+                    return false;
+                }
             }
 
             for (Validator validator : plutusContractBlueprint.getValidators()) {
@@ -162,37 +167,58 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
 
     private File getFileFromAnnotation(Blueprint annotation) {
         File blueprintFile = null;
-        if(!annotation.file().isEmpty())
+
+        if (!annotation.file().isEmpty()) {
             blueprintFile = new File(annotation.file());
-        if(!annotation.fileInResources().isEmpty())
-            blueprintFile = getFileFromResources(annotation.fileInResources());
-        if(blueprintFile == null || !blueprintFile.exists()) {
-            log.error("Blueprint file %s not found", annotation.file());
-            if (blueprintFile != null)
+        }
+
+        if (!annotation.fileInResources().isEmpty()) {
+            try {
+                blueprintFile = getFileFromResources(annotation.fileInResources());
+            } catch (BlueprintGenerationException e) {
+                log.error("Blueprint file not found: {}", e.getMessage());
+                return null;
+            }
+        }
+
+        if (blueprintFile == null || !blueprintFile.exists()) {
+            log.error("Blueprint file '{}' not found", annotation.file());
+            if (blueprintFile != null) {
                 JavaFileUtil.warn(processingEnv, null, "Trying to find blueprint file at " + blueprintFile.getAbsolutePath());
+            }
             return null;
         }
+
         return blueprintFile;
     }
 
     public File getFileFromResources(String s) {
+        // Try CLASS_PATH first
         try {
             FileObject resource = processingEnv.getFiler().getResource(StandardLocation.CLASS_PATH, "", s);
             File f = new File(resource.toUri());
-            if (f.exists())
+            if (f.exists()) {
                 return f;
+            }
         } catch (Exception e) {
-
+            // Resource not in CLASS_PATH, will try CLASS_OUTPUT next
         }
 
-        //Not found in classpath. Try in class_output
+        // Try CLASS_OUTPUT as fallback
         try {
             FileObject resource = processingEnv.getFiler().getResource(StandardLocation.CLASS_OUTPUT, "", s);
-            return new File(resource.toUri());
+            File f = new File(resource.toUri());
+            if (f.exists()) {
+                return f;
+            }
         } catch (Exception e) {
-            e.printStackTrace();
-            return null;
+            // Resource not in CLASS_OUTPUT either
         }
+
+        // Resource not found in either location
+        throw new BlueprintGenerationException(
+            String.format("Blueprint file '%s' not found in CLASS_PATH or CLASS_OUTPUT", s)
+        );
     }
 
     private void error(Element e, String msg, Object... args) {
@@ -201,4 +227,5 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 String.format(msg, args),
                 e);
     }
+
 }

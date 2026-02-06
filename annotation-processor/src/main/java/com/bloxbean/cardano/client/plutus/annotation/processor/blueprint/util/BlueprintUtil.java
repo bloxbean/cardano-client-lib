@@ -254,6 +254,40 @@ public class BlueprintUtil {
     }
 
     /**
+     * Extracts the class name (last segment) from a blueprint definition reference key.
+     *
+     * <p>This method extracts the final segment after the last slash in a definition key,
+     * which represents the type name to be used for Java class generation.</p>
+     *
+     * <p><b>Examples:</b></p>
+     * <ul>
+     *   <li>{@code "types/custom/Data"} → {@code "Data"}</li>
+     *   <li>{@code "cardano/transaction/OutputReference"} → {@code "OutputReference"}</li>
+     *   <li>{@code "types~1order~1Action"} → {@code "Action"} (after unescaping)</li>
+     *   <li>{@code "Int"} → {@code "Int"} (no namespace)</li>
+     * </ul>
+     *
+     * @param key the blueprint definition reference key (may be null)
+     * @return the class name (last segment), or empty string if key is null/empty
+     */
+    public static String getClassNameFromReferenceKey(String key) {
+        if (key == null || key.isEmpty()) {
+            return "";
+        }
+
+        // Unescape JSON Pointer sequences (types~1order~1Action → types/order/Action)
+        String unescapedKey = JsonPointerUtil.unescape(key);
+
+        // Split by forward slash and take the last segment
+        String[] segments = unescapedKey.split("/");
+        if (segments.length == 0) {
+            return "";
+        }
+
+        return segments[segments.length - 1];
+    }
+
+    /**
      * Checks if a schema represents an opaque Plutus Data type according to CIP-57.
      *
      * <p>From CIP-57 specification:</p>
