@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal;
 
+import com.bloxbean.cardano.vds.mpf.internal.NodeRefParser;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbNodeStore;
 import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbRootsIndex;
 import org.rocksdb.*;
