@@ -1,0 +1,47 @@
+{
+  "preamble": {
+    "title": "test/primitive-no-title",
+    "description": "Test blueprint for primitive types without titles",
+    "version": "0.0.0",
+    "plutusVersion": "v2",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.0.26-alpha"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "test.validator",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/Data"
+        }
+      },
+      "compiledCode": "5820010000",
+      "hash": "6fb13cf9efdbe986e784d1983b21d3fb90231c1745925f536a820fb4"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "Bool": {
+      "dataType": "boolean"
+    },
+    "Data": {
+      "title": "Data",
+      "description": "Opaque Plutus data"
+    }
+  }
+}

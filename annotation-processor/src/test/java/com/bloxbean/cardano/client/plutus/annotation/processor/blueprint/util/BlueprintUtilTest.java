@@ -500,4 +500,81 @@ public class BlueprintUtilTest {
                     .isEqualTo("types.order");
         }
     }
+
+    /**
+     * Tests for getClassNameFromReferenceKey() - extracts class name (last segment) from definition keys.
+     *
+     * <p>This method is used as a fallback when blueprint schemas lack titles (CIP-57 compliance).
+     * Real-world example: SundaeSwap V2 blueprint has definitions without titles for primitive types.</p>
+     */
+    @Nested
+    class GetClassNameFromReferenceKeyTests {
+
+        @Test
+        void shouldReturnEmpty_whenKeyIsNull() {
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey(null)).isEmpty();
+        }
+
+        @Test
+        void shouldReturnEmpty_whenKeyIsEmpty() {
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("")).isEmpty();
+        }
+
+        @Test
+        void shouldReturnKey_whenNoSlashes() {
+            // Primitive type with no namespace
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("Int"))
+                    .isEqualTo("Int");
+        }
+
+        @Test
+        void shouldExtractLastSegment_whenSimplePath() {
+            // types/custom/Data → Data
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("types/custom/Data"))
+                    .isEqualTo("Data");
+        }
+
+        @Test
+        void shouldExtractLastSegment_whenMultiLevelPath() {
+            // cardano/transaction/OutputReference → OutputReference
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("cardano/transaction/OutputReference"))
+                    .isEqualTo("OutputReference");
+        }
+
+        @Test
+        void shouldExtractLastSegment_whenTwoSegments() {
+            // types/order/Action → Action
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("types/order/Action"))
+                    .isEqualTo("Action");
+        }
+
+        @Test
+        void shouldUnescapeJsonPointer_beforeExtraction() {
+            // types~1custom~1Data → types/custom/Data → Data
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("types~1custom~1Data"))
+                    .isEqualTo("Data");
+        }
+
+        @Test
+        void shouldUnescapeJsonPointer_twoSegments() {
+            // types~1order~1Action → types/order/Action → Action
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("types~1order~1Action"))
+                    .isEqualTo("Action");
+        }
+
+        @Test
+        void shouldHandleSingleSlash() {
+            // cardano/transaction → transaction
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("cardano/transaction"))
+                    .isEqualTo("transaction");
+        }
+
+        @Test
+        void shouldHandleTrailingSlash() {
+            // Technically invalid, but should handle gracefully
+            // Java's split() excludes trailing empty strings, so "types/custom/Data/" → ["types", "custom", "Data"]
+            assertThat(BlueprintUtil.getClassNameFromReferenceKey("types/custom/Data/"))
+                    .isEqualTo("Data");
+        }
+    }
 }

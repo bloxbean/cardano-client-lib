@@ -10,6 +10,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.D
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
+import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
@@ -208,8 +209,10 @@ public class ValidatorProcessor {
         try {
             DatumModel datumModel = datumModelFactory.create(namespace, schema);
             fieldSpecProcessor.createDatumClass(datumModel);
-        } catch (IllegalArgumentException ex) {
-            errorReporter.warn(null, "Skipping inline schema due to missing title for %s", fallbackTitle != null ? fallbackTitle : "unknown");
+        } catch (BlueprintGenerationException ex) {
+            errorReporter.warn(null, "Skipping inline schema for %s: %s",
+                    fallbackTitle != null ? fallbackTitle : "unknown",
+                    ex.getMessage());
         }
     }
 

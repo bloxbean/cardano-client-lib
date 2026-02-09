@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model;
 
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassificationResult;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassifier;
+import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 
@@ -26,7 +27,8 @@ public class DatumModelFactory {
 
         String title = schema.getTitle();
         if (title == null || title.isEmpty())
-            throw new IllegalArgumentException("Schema title cannot be null or empty");
+            throw new BlueprintGenerationException(
+                    "Schema title cannot be null or empty. Per CIP-57, schemas must have a title for class generation.");
 
         String className = nameStrategy.toClassName(title);
         SchemaClassificationResult classificationResult = schemaClassifier.classify(schema);

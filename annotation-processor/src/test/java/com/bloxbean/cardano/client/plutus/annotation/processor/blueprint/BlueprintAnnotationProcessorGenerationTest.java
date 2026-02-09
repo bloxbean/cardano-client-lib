@@ -83,17 +83,10 @@ class BlueprintAnnotationProcessorGenerationTest {
         void shouldSuccessfullyProcessBlueprintWith_simpleGenericInstantiations() {
             // Blueprint contains: "Option<Int>", "Option<types/order/Action>", "List<ByteArray>"
             // These should be skipped (not cause compilation errors)
-            JavaFileObject source = JavaFileObjects.forSourceString(
-                    "com.test.GenericOptionTypes",
-                    "package com.test;\n" +
-                            "import com.bloxbean.cardano.client.plutus.annotation.Blueprint;\n" +
-                            "@Blueprint(fileInResources = \"blueprint/generic-option-types_aiken_v1_1_21_42babe5.json\", packageName = \"com.test.genericoption\")\n" +
-                            "public interface GenericOptionTypes { }\n");
-
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(source);
+                    .compile(JavaFileObjects.forResource("blueprint/GenericOptionTypes.java"));
 
             // CRITICAL: Compilation must succeed (before fix, it would fail with invalid class name errors)
             assertThat(compilation).succeeded();
@@ -117,17 +110,10 @@ class BlueprintAnnotationProcessorGenerationTest {
         void shouldSuccessfullyProcessBlueprintWith_nestedGenericInstantiations() {
             // Blueprint contains: "List<Option<types/order/Action>>", "Tuple<<types/order/Action,types/order/Status>>"
             // These should be skipped
-            JavaFileObject source = JavaFileObjects.forSourceString(
-                    "com.test.GenericNestedTypes",
-                    "package com.test;\n" +
-                            "import com.bloxbean.cardano.client.plutus.annotation.Blueprint;\n" +
-                            "@Blueprint(fileInResources = \"blueprint/generic-nested-types_aiken_v1_1_21_42babe5.json\", packageName = \"com.test.genericnested\")\n" +
-                            "public interface GenericNestedTypes { }\n");
-
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(source);
+                    .compile(JavaFileObjects.forResource("blueprint/GenericNestedTypes.java"));
 
             // CRITICAL: Nested generics must not break compilation
             assertThat(compilation).succeeded();
@@ -151,17 +137,10 @@ class BlueprintAnnotationProcessorGenerationTest {
         void shouldSuccessfullyProcessBlueprintWith_cardanoBuiltinGenerics() {
             // Blueprint contains: "Option<cardano/address/Credential>", "List<cardano/transaction/OutputReference>"
             // Real-world pattern from SundaeSwap V3 - must compile successfully
-            JavaFileObject source = JavaFileObjects.forSourceString(
-                    "com.test.GenericCardanoBuiltins",
-                    "package com.test;\n" +
-                            "import com.bloxbean.cardano.client.plutus.annotation.Blueprint;\n" +
-                            "@Blueprint(fileInResources = \"blueprint/generic-cardano-builtins_aiken_v1_1_21_42babe5.json\", packageName = \"com.test.genericcardano\")\n" +
-                            "public interface GenericCardanoBuiltins { }\n");
-
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(source);
+                    .compile(JavaFileObjects.forResource("blueprint/GenericCardanoBuiltins.java"));
 
             // CRITICAL: Real-world pattern must compile (this was failing before the fix)
             assertThat(compilation).succeeded();
@@ -191,17 +170,10 @@ class BlueprintAnnotationProcessorGenerationTest {
             //
             // Before fix: NullPointerException in FieldSpecProcessor.createDatumTypeSpec()
             // After fix: These should be skipped just like angle bracket generics
-            JavaFileObject source = JavaFileObjects.forSourceString(
-                    "com.test.GenericDollarSignSyntax",
-                    "package com.test;\n" +
-                            "import com.bloxbean.cardano.client.plutus.annotation.Blueprint;\n" +
-                            "@Blueprint(fileInResources = \"blueprint/generic-dollar-sign-syntax_aiken_v1_1_21_42babe5.json\", packageName = \"com.test.genericdollar\")\n" +
-                            "public interface GenericDollarSignSyntax { }\n");
-
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(source);
+                    .compile(JavaFileObjects.forResource("blueprint/GenericDollarSignSyntax.java"));
 
             // CRITICAL: Must compile successfully (was throwing NPE before adding $ check)
             assertThat(compilation).succeeded();

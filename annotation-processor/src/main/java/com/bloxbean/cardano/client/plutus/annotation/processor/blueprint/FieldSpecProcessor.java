@@ -8,11 +8,12 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.D
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
+import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
@@ -62,16 +63,68 @@ public class FieldSpecProcessor {
     }
 
     /**
+     * Resolves the title for a schema, using the definition key as fallback if title is missing.
+     *
+     * <p><b>CIP-57 Compliance:</b> Per CIP-57 spec, the "title" field is OPTIONAL for
+     * datum/redeemer/parameter schemas. When missing, we derive a valid Java class name
+     * from the definition key to avoid NullPointerException in JavaPoet's TypeSpec.classBuilder().</p>
+     *
+     * <p><b>Examples:</b></p>
+     * <ul>
+     *   <li>Schema has title "Action" → returns "Action"</li>
+     *   <li>Schema has no title, key="types/custom/Data" → returns "Data"</li>
+     *   <li>Schema has no title, key="Int" → returns "Int"</li>
+     *   <li>Schema has no title, key=null → returns null</li>
+     * </ul>
+     *
+     * @param definitionKey the blueprint definition key (e.g., "types/custom/Data")
+     * @param schema the blueprint schema that may or may not have a title
+     * @return the resolved title (from schema or extracted from key), or null if cannot be determined
+     */
+    protected String resolveTitleFromDefinitionKey(String definitionKey, BlueprintSchema schema) {
+        if (schema == null) {
+            return null;
+        }
+
+        // If schema already has a title, use it
+        String title = schema.getTitle();
+        if (title != null && !title.isEmpty()) {
+            return title;
+        }
+
+        // No title in schema - extract class name from definition key as fallback
+        // Example: "types/custom/Data" → "Data"
+        if (definitionKey == null || definitionKey.isEmpty()) {
+            return null;  // Can't derive title without definition key
+        }
+
+        return BlueprintUtil.getClassNameFromReferenceKey(definitionKey);
+    }
+
+    /**
      * Creates a Datum class for a given schema
      * If the schema has anyOf &gt; 1, it creates an interface and a class for each of the anyOf
      * This is the main method called to create Datum classes from BlueprintAnnotationProcessor
-     * @param ns     namespace or package suffix
-     * @param schema Definition schema to create Datum class
+     * @param ns            namespace or package suffix
+     * @param definitionKey the definition key from the blueprint (used as fallback if title is missing)
+     * @param schema        Definition schema to create Datum class
+     * @throws BlueprintGenerationException if title cannot be resolved or datum model creation fails
      */
-    public void createDatumClass(String ns, BlueprintSchema schema) {
-        if (schema == null || schema.getTitle() == null || schema.getTitle().isEmpty()) {
+    public void createDatumClass(String ns, String definitionKey, BlueprintSchema schema) {
+        if (schema == null) {
             return;
         }
+
+        // Resolve title (use schema's title or extract from definition key)
+        String title = resolveTitleFromDefinitionKey(definitionKey, schema);
+        if (title == null || title.isEmpty()) {
+            throw BlueprintGenerationException.forDefinition(definitionKey,
+                    "Unable to resolve title from schema or definition key. " +
+                    "Per CIP-57, either the schema must have a 'title' field or the definition key must be parseable.");
+        }
+
+        // Set the resolved title on the schema for downstream processing
+        schema.setTitle(title);
 
         if (sharedTypeLookup.lookup(ns, schema).isPresent()) {
             return;
@@ -80,8 +133,12 @@ public class FieldSpecProcessor {
         DatumModel datumModel;
         try {
             datumModel = datumModelFactory.create(ns, schema);
-        } catch (IllegalArgumentException ex) {
-            return;
+        } catch (BlueprintGenerationException ex) {
+            // Re-throw with definition key context if not already present
+            if (ex.hasDefinitionContext()) {
+                throw ex;
+            }
+            throw BlueprintGenerationException.forDefinition(definitionKey, ex.getMessage());
         }
 
         createDatumClass(datumModel);

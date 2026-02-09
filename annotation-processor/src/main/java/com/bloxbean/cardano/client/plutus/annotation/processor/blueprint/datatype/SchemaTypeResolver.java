@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.dataty
 
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.FieldSpecProcessor;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
+import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
@@ -102,15 +103,21 @@ public class SchemaTypeResolver {
 
     public ParameterizedTypeName resolveOptionType(String namespace, BlueprintSchema schema) {
         if (schema.getAnyOf() == null || schema.getAnyOf().size() != 2)
-            throw new IllegalArgumentException("Option type should have 2 anyOfs");
+            throw new BlueprintGenerationException(
+                    "Invalid Option type schema: must have exactly 2 anyOf alternatives (None and Some). " +
+                    "Found: " + (schema.getAnyOf() == null ? "null" : schema.getAnyOf().size()));
 
         BlueprintSchema someSchema = schema.getAnyOf().stream()
                 .filter(s -> "Some".equals(s.getTitle()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Option type should have a Some type"));
+                .orElseThrow(() -> new BlueprintGenerationException(
+                        "Invalid Option type schema: missing 'Some' alternative. " +
+                        "Option types must have both 'None' and 'Some' alternatives."));
 
         if (someSchema.getFields() == null || someSchema.getFields().size() != 1)
-            throw new IllegalArgumentException("Option type should have only one field in Some type");
+            throw new BlueprintGenerationException(
+                    "Invalid Option type schema: 'Some' alternative must have exactly 1 field. " +
+                    "Found: " + (someSchema.getFields() == null ? "null" : someSchema.getFields().size()));
 
         return ParameterizedTypeName.get(
                 ClassName.get(Optional.class),
@@ -123,7 +130,10 @@ public class SchemaTypeResolver {
         BlueprintSchema right = schema.getRight();
 
         if (left == null || right == null)
-            throw new IllegalArgumentException("Pair type should have left and right fields");
+            throw new BlueprintGenerationException(
+                    "Invalid Pair type schema: must have both 'left' and 'right' fields. " +
+                    "Found - left: " + (left != null ? "present" : "null") +
+                    ", right: " + (right != null ? "present" : "null"));
 
         return ParameterizedTypeName.get(
                 ClassName.get(Pair.class),
