@@ -109,7 +109,7 @@ public class StepStateSnapshot {
     }
 
     /**
-     * Check if this step needs tracking (submitted but not finalized).
+     * Check if this step needs tracking (submitted but not confirmed).
      *
      * @return true if the step should be monitored for confirmation
      */

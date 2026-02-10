@@ -13,10 +13,8 @@ class ConfirmationConfigTest {
         ConfirmationConfig config = ConfirmationConfig.defaults();
 
         assertEquals(10, config.getMinConfirmations());
-        assertEquals(2160, config.getSafeConfirmations());
         assertEquals(Duration.ofSeconds(5), config.getCheckInterval());
         assertEquals(Duration.ofMinutes(30), config.getTimeout());
-        assertFalse(config.isRequireFinalization());
         assertEquals(3, config.getMaxRollbackRetries());
         // Post-rollback wait defaults (production: disabled)
         assertFalse(config.isWaitForBackendAfterRollback());
@@ -29,10 +27,8 @@ class ConfirmationConfigTest {
         ConfirmationConfig config = ConfirmationConfig.devnet();
 
         assertEquals(3, config.getMinConfirmations());
-        assertEquals(100, config.getSafeConfirmations());
         assertEquals(Duration.ofSeconds(1), config.getCheckInterval());
         assertEquals(Duration.ofMinutes(5), config.getTimeout());
-        assertFalse(config.isRequireFinalization());
         // Post-rollback wait enabled for devnet
         assertTrue(config.isWaitForBackendAfterRollback());
         assertEquals(30, config.getPostRollbackWaitAttempts());
@@ -44,7 +40,6 @@ class ConfirmationConfigTest {
         ConfirmationConfig config = ConfirmationConfig.testnet();
 
         assertEquals(6, config.getMinConfirmations());
-        assertEquals(100, config.getSafeConfirmations());
         assertEquals(Duration.ofSeconds(3), config.getCheckInterval());
         assertEquals(Duration.ofMinutes(10), config.getTimeout());
     }
@@ -54,7 +49,6 @@ class ConfirmationConfigTest {
         ConfirmationConfig config = ConfirmationConfig.quick();
 
         assertEquals(1, config.getMinConfirmations());
-        assertEquals(10, config.getSafeConfirmations());
         assertEquals(Duration.ofSeconds(1), config.getCheckInterval());
         assertEquals(Duration.ofMinutes(2), config.getTimeout());
         // Post-rollback wait enabled for quick/test
@@ -67,17 +61,13 @@ class ConfirmationConfigTest {
     void testCustomConfiguration() {
         ConfirmationConfig config = ConfirmationConfig.builder()
                 .minConfirmations(20)
-                .safeConfirmations(500)
                 .checkInterval(Duration.ofSeconds(10))
                 .timeout(Duration.ofHours(1))
-                .requireFinalization(true)
                 .build();
 
         assertEquals(20, config.getMinConfirmations());
-        assertEquals(500, config.getSafeConfirmations());
         assertEquals(Duration.ofSeconds(10), config.getCheckInterval());
         assertEquals(Duration.ofHours(1), config.getTimeout());
-        assertTrue(config.isRequireFinalization());
     }
 
     @Test
@@ -90,7 +80,6 @@ class ConfirmationConfigTest {
         assertEquals(15, config.getMinConfirmations());
 
         // Default values should remain
-        assertEquals(2160, config.getSafeConfirmations());
         assertEquals(Duration.ofSeconds(5), config.getCheckInterval());
     }
 
@@ -112,12 +101,10 @@ class ConfirmationConfigTest {
         ConfirmationConfig config = ConfirmationConfig.builder()
                 .minConfirmations(20)
                 .maxRollbackRetries(10)
-                .requireFinalization(true)
                 .build();
 
         assertEquals(20, config.getMinConfirmations());
         assertEquals(10, config.getMaxRollbackRetries());
-        assertTrue(config.isRequireFinalization());
     }
 
     @Test

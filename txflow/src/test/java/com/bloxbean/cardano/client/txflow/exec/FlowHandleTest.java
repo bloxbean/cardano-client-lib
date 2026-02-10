@@ -171,6 +171,29 @@ class FlowHandleTest {
     }
 
     @Test
+    void testCancellation() {
+        TxFlow flow = TxFlow.builder("test-flow")
+                .addStep(FlowStep.builder("step1")
+                        .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
+                        .build())
+                .build();
+
+        CompletableFuture<FlowResult> future = new CompletableFuture<>();
+        FlowHandle handle = new FlowHandle(flow, future);
+
+        // Initially not cancelled
+        assertFalse(handle.isCancelled());
+        assertEquals(FlowStatus.PENDING, handle.getStatus());
+
+        // Cancel
+        boolean result = handle.cancel();
+
+        assertTrue(handle.isCancelled());
+        assertEquals(FlowStatus.CANCELLED, handle.getStatus());
+        assertTrue(future.isCancelled(), "Underlying future should be cancelled");
+    }
+
+    @Test
     void testConcurrentStatusAndIncrement() throws InterruptedException {
         TxFlow flow = TxFlow.builder("test-flow")
                 .addStep(FlowStep.builder("step1")

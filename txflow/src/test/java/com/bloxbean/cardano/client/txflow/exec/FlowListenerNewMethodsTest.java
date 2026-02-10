@@ -69,26 +69,6 @@ class FlowListenerNewMethodsTest {
     }
 
     @Test
-    void testOnTransactionFinalized() {
-        AtomicInteger callCount = new AtomicInteger(0);
-        String[] capturedHash = {null};
-
-        FlowListener listener = new FlowListener() {
-            @Override
-            public void onTransactionFinalized(FlowStep step, String transactionHash) {
-                callCount.incrementAndGet();
-                capturedHash[0] = transactionHash;
-            }
-        };
-
-        FlowStep step = createTestStep();
-        listener.onTransactionFinalized(step, "txHash123");
-
-        assertEquals(1, callCount.get());
-        assertEquals("txHash123", capturedHash[0]);
-    }
-
-    @Test
     void testOnTransactionRolledBack() {
         AtomicInteger callCount = new AtomicInteger(0);
         long[] capturedHeight = {0};
@@ -164,32 +144,6 @@ class FlowListenerNewMethodsTest {
     }
 
     @Test
-    void testCompositeListener_OnTransactionFinalized() {
-        AtomicInteger callCount = new AtomicInteger(0);
-        FlowStep step = createTestStep();
-
-        FlowListener throwingListener = new FlowListener() {
-            @Override
-            public void onTransactionFinalized(FlowStep s, String txHash) {
-                callCount.incrementAndGet();
-                throw new RuntimeException("Test exception");
-            }
-        };
-
-        FlowListener normalListener = new FlowListener() {
-            @Override
-            public void onTransactionFinalized(FlowStep s, String txHash) {
-                callCount.incrementAndGet();
-            }
-        };
-
-        FlowListener composite = FlowListener.composite(throwingListener, normalListener);
-
-        assertDoesNotThrow(() -> composite.onTransactionFinalized(step, "txHash123"));
-        assertEquals(2, callCount.get(), "Both listeners should be called");
-    }
-
-    @Test
     void testCompositeListener_OnTransactionRolledBack() {
         AtomicInteger callCount = new AtomicInteger(0);
         FlowStep step = createTestStep();
@@ -224,7 +178,6 @@ class FlowListenerNewMethodsTest {
 
         assertDoesNotThrow(() -> noopListener.onTransactionInBlock(step, "tx", 100L));
         assertDoesNotThrow(() -> noopListener.onConfirmationDepthChanged(step, "tx", 10, ConfirmationStatus.IN_BLOCK));
-        assertDoesNotThrow(() -> noopListener.onTransactionFinalized(step, "tx"));
         assertDoesNotThrow(() -> noopListener.onTransactionRolledBack(step, "tx", 100L));
         assertDoesNotThrow(() -> noopListener.onStepRebuilding(step, 1, 3, "rollback"));
         assertDoesNotThrow(() -> noopListener.onFlowRestarting(flow, 1, 3, "rollback"));

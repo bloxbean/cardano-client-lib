@@ -39,7 +39,6 @@ class ConfirmationResultTest {
         assertTrue(result.hasReached(ConfirmationStatus.SUBMITTED));
         assertFalse(result.hasReached(ConfirmationStatus.IN_BLOCK));
         assertFalse(result.hasReached(ConfirmationStatus.CONFIRMED));
-        assertFalse(result.hasReached(ConfirmationStatus.FINALIZED));
     }
 
     @Test
@@ -53,7 +52,6 @@ class ConfirmationResultTest {
         assertTrue(result.hasReached(ConfirmationStatus.SUBMITTED));
         assertTrue(result.hasReached(ConfirmationStatus.IN_BLOCK));
         assertFalse(result.hasReached(ConfirmationStatus.CONFIRMED));
-        assertFalse(result.hasReached(ConfirmationStatus.FINALIZED));
     }
 
     @Test
@@ -67,21 +65,6 @@ class ConfirmationResultTest {
         assertTrue(result.hasReached(ConfirmationStatus.SUBMITTED));
         assertTrue(result.hasReached(ConfirmationStatus.IN_BLOCK));
         assertTrue(result.hasReached(ConfirmationStatus.CONFIRMED));
-        assertFalse(result.hasReached(ConfirmationStatus.FINALIZED));
-    }
-
-    @Test
-    void testHasReached_FinalizedStatus() {
-        ConfirmationResult result = ConfirmationResult.builder()
-                .txHash("tx")
-                .status(ConfirmationStatus.FINALIZED)
-                .confirmationDepth(2200)
-                .build();
-
-        assertTrue(result.hasReached(ConfirmationStatus.SUBMITTED));
-        assertTrue(result.hasReached(ConfirmationStatus.IN_BLOCK));
-        assertTrue(result.hasReached(ConfirmationStatus.CONFIRMED));
-        assertTrue(result.hasReached(ConfirmationStatus.FINALIZED));
     }
 
     @Test
@@ -92,18 +75,10 @@ class ConfirmationResultTest {
         assertFalse(result.hasReached(ConfirmationStatus.SUBMITTED));
         assertFalse(result.hasReached(ConfirmationStatus.IN_BLOCK));
         assertFalse(result.hasReached(ConfirmationStatus.CONFIRMED));
-        assertFalse(result.hasReached(ConfirmationStatus.FINALIZED));
     }
 
     @Test
     void testIsTerminal() {
-        ConfirmationResult finalized = ConfirmationResult.builder()
-                .txHash("tx")
-                .status(ConfirmationStatus.FINALIZED)
-                .confirmationDepth(3000)
-                .build();
-        assertTrue(finalized.isTerminal());
-
         ConfirmationResult rolledBack = ConfirmationResult.rolledBack("tx", 100L, 105L, null);
         assertTrue(rolledBack.isTerminal());
 

@@ -113,18 +113,6 @@ public interface FlowListener {
     }
 
     /**
-     * Called when a transaction reaches finality.
-     * <p>
-     * Finality means the transaction has reached the safe confirmation depth
-     * (default: 2160 blocks) and is considered immutable under normal conditions.
-     *
-     * @param step the step
-     * @param transactionHash the finalized transaction hash
-     */
-    default void onTransactionFinalized(FlowStep step, String transactionHash) {
-    }
-
-    /**
      * Called when a transaction rollback is detected.
      * <p>
      * This indicates that a transaction which was previously included in the chain
@@ -343,18 +331,6 @@ class CompositeFlowListener implements FlowListener {
                 listener.onConfirmationDepthChanged(step, transactionHash, depth, status);
             } catch (Exception e) {
                 log.warn("Listener {} threw exception in onConfirmationDepthChanged: {}",
-                        listener.getClass().getSimpleName(), e.getMessage(), e);
-            }
-        }
-    }
-
-    @Override
-    public void onTransactionFinalized(FlowStep step, String transactionHash) {
-        for (FlowListener listener : listeners) {
-            try {
-                listener.onTransactionFinalized(step, transactionHash);
-            } catch (Exception e) {
-                log.warn("Listener {} threw exception in onTransactionFinalized: {}",
                         listener.getClass().getSimpleName(), e.getMessage(), e);
             }
         }

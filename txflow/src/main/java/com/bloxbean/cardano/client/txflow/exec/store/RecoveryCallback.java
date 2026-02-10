@@ -36,7 +36,12 @@ public interface RecoveryCallback {
          * Resubmit the transaction.
          * Use when the transaction was lost from mempool.
          * Note: This requires the application to have stored the original transaction.
+         *
+         * @deprecated Not implemented in the current recovery mechanism. The executor logs
+         *             a warning and does not actually resubmit. Will be removed in a future version.
+         *             Use {@link #CONTINUE_TRACKING} instead and handle resubmission externally.
          */
+        @Deprecated
         RESUBMIT,
 
         /**

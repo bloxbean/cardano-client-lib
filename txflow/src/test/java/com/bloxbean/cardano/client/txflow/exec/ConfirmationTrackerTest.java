@@ -65,14 +65,14 @@ class ConfirmationTrackerTest {
 
     @Test
     void testCheckStatus_Confirmed() throws Exception {
-        // Setup: Transaction with depth >= minConfirmations but < safeConfirmations
+        // Setup: Transaction with depth >= minConfirmations
         tracker = new ConfirmationTracker(chainDataSupplier, ConfirmationConfig.defaults());
 
         when(chainDataSupplier.getChainTipHeight()).thenReturn(1000L);
         when(chainDataSupplier.getTransactionInfo("txHash123"))
                 .thenReturn(Optional.of(TransactionInfo.builder()
                         .txHash("txHash123")
-                        .blockHeight(980L)  // 20 confirmations (>= 10, < 2160)
+                        .blockHeight(980L)  // 20 confirmations (>= 10)
                         .blockHash("blockHash123")
                         .build()));
 
@@ -83,21 +83,21 @@ class ConfirmationTrackerTest {
     }
 
     @Test
-    void testCheckStatus_Finalized() throws Exception {
-        // Setup: Transaction with depth >= safeConfirmations
+    void testCheckStatus_HighDepthStillConfirmed() throws Exception {
+        // Setup: Transaction with very high depth should still be CONFIRMED
         tracker = new ConfirmationTracker(chainDataSupplier, ConfirmationConfig.defaults());
 
         when(chainDataSupplier.getChainTipHeight()).thenReturn(5000L);
         when(chainDataSupplier.getTransactionInfo("txHash123"))
                 .thenReturn(Optional.of(TransactionInfo.builder()
                         .txHash("txHash123")
-                        .blockHeight(2500L)  // 2500 confirmations (>= 2160)
+                        .blockHeight(2500L)  // 2500 confirmations
                         .blockHash("blockHash123")
                         .build()));
 
         ConfirmationResult result = tracker.checkStatus("txHash123");
 
-        assertEquals(ConfirmationStatus.FINALIZED, result.getStatus());
+        assertEquals(ConfirmationStatus.CONFIRMED, result.getStatus());
         assertEquals(2500, result.getConfirmationDepth());
     }
 
@@ -133,7 +133,6 @@ class ConfirmationTrackerTest {
         // Setup with custom config where minConfirmations = 3
         ConfirmationConfig customConfig = ConfirmationConfig.builder()
                 .minConfirmations(3)
-                .safeConfirmations(50)
                 .build();
         tracker = new ConfirmationTracker(chainDataSupplier, customConfig);
 
@@ -207,7 +206,6 @@ class ConfirmationTrackerTest {
 
         // Should use default config
         assertEquals(10, tracker.getConfig().getMinConfirmations());
-        assertEquals(2160, tracker.getConfig().getSafeConfirmations());
     }
 
     @Test

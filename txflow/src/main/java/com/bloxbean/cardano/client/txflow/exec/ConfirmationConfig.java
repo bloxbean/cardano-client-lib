@@ -12,7 +12,6 @@ import java.time.Duration;
  * confirmation status, including:
  * <ul>
  *     <li>Minimum confirmations for practical safety</li>
- *     <li>Safe confirmations for actual finality</li>
  *     <li>Polling intervals and timeouts</li>
  * </ul>
  *
@@ -21,7 +20,6 @@ import java.time.Duration;
  *   <caption>Default configuration values for public Cardano networks</caption>
  *   <tr><th>Parameter</th><th>Value</th><th>Reasoning</th></tr>
  *   <tr><td>minConfirmations</td><td>10 blocks</td><td>~200 seconds, practical safety threshold</td></tr>
- *   <tr><td>safeConfirmations</td><td>2160 blocks</td><td>~12 hours, actual finality on Cardano</td></tr>
  *   <tr><td>checkInterval</td><td>5 seconds</td><td>Balance between responsiveness and API load</td></tr>
  *   <tr><td>timeout</td><td>30 minutes</td><td>Maximum time to wait for confirmation</td></tr>
  * </table>
@@ -55,15 +53,6 @@ public class ConfirmationConfig {
     private final int minConfirmations = 10;
 
     /**
-     * Number of confirmations to consider a transaction finalized (actual finality).
-     * <p>
-     * Once this depth is reached, the transaction status transitions to FINALIZED.
-     * Default: 2160 blocks (~12 hours on mainnet).
-     */
-    @Builder.Default
-    private final int safeConfirmations = 2160;
-
-    /**
      * Interval between confirmation status checks.
      * <p>
      * Default: 5 seconds.
@@ -78,17 +67,6 @@ public class ConfirmationConfig {
      */
     @Builder.Default
     private final Duration timeout = Duration.ofMinutes(30);
-
-    /**
-     * If true, wait for FINALIZED status instead of CONFIRMED.
-     * <p>
-     * Use this for high-value transactions where actual finality is required.
-     * Note: This may take ~12 hours on mainnet.
-     * <p>
-     * Default: false (wait for CONFIRMED only).
-     */
-    @Builder.Default
-    private final boolean requireFinalization = false;
 
     /**
      * Maximum number of rebuild attempts when using REBUILD_FROM_FAILED or REBUILD_ENTIRE_FLOW strategies.
@@ -160,7 +138,6 @@ public class ConfirmationConfig {
     public static ConfirmationConfig devnet() {
         return builder()
                 .minConfirmations(3)
-                .safeConfirmations(100)
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofMinutes(5))
                 .waitForBackendAfterRollback(true)
@@ -180,7 +157,6 @@ public class ConfirmationConfig {
     public static ConfirmationConfig testnet() {
         return builder()
                 .minConfirmations(6)
-                .safeConfirmations(100)
                 .checkInterval(Duration.ofSeconds(3))
                 .timeout(Duration.ofMinutes(10))
                 .build();
@@ -198,7 +174,6 @@ public class ConfirmationConfig {
     public static ConfirmationConfig quick() {
         return builder()
                 .minConfirmations(1)
-                .safeConfirmations(10)
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofMinutes(2))
                 .waitForBackendAfterRollback(true)

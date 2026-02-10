@@ -201,6 +201,11 @@ public class RetryPolicy {
             return true;
         }
 
+        // Non-recoverable JVM errors should never be retried
+        if (error instanceof Error) {
+            return false;
+        }
+
         // Default: retry on unknown errors (transient issues)
         return true;
     }

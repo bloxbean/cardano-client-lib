@@ -59,7 +59,6 @@ public interface FlowStateStore {
      *     <li>When transaction is seen in block (IN_BLOCK)</li>
      *     <li>When transaction reaches confirmation depth (CONFIRMED)</li>
      *     <li>When transaction is rolled back (ROLLED_BACK)</li>
-     *     <li>When transaction is finalized (FINALIZED)</li>
      * </ul>
      * <p>
      * The details object contains additional tracking information such as

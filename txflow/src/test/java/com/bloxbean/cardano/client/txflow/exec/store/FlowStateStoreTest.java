@@ -33,7 +33,6 @@ class FlowStateStoreTest {
         assertTrue(TransactionState.IN_BLOCK.isInProgress());
         assertFalse(TransactionState.CONFIRMED.isInProgress());
         assertFalse(TransactionState.ROLLED_BACK.isInProgress());
-        assertFalse(TransactionState.FINALIZED.isInProgress());
     }
 
     @Test
@@ -43,7 +42,6 @@ class FlowStateStoreTest {
         assertFalse(TransactionState.IN_BLOCK.isSuccessful());
         assertTrue(TransactionState.CONFIRMED.isSuccessful());
         assertFalse(TransactionState.ROLLED_BACK.isSuccessful());
-        assertTrue(TransactionState.FINALIZED.isSuccessful());
     }
 
     @Test
@@ -53,7 +51,6 @@ class FlowStateStoreTest {
         assertFalse(TransactionState.IN_BLOCK.isFailed());
         assertFalse(TransactionState.CONFIRMED.isFailed());
         assertTrue(TransactionState.ROLLED_BACK.isFailed());
-        assertFalse(TransactionState.FINALIZED.isFailed());
     }
 
     // ==================== StepStateSnapshot Tests ====================
@@ -145,13 +142,6 @@ class FlowStateStoreTest {
                 .build();
         assertFalse(confirmed.needsTracking());
 
-        // Finalized - doesn't need tracking
-        StepStateSnapshot finalized = StepStateSnapshot.builder()
-                .stepId("step-1")
-                .transactionHash("tx-123")
-                .state(TransactionState.FINALIZED)
-                .build();
-        assertFalse(finalized.needsTracking());
     }
 
     // ==================== FlowStateSnapshot Tests ====================
@@ -508,18 +498,6 @@ class FlowStateStoreTest {
         assertEquals(12340L, details.getBlockHeight());
         assertEquals("Chain fork detected", details.getErrorMessage());
         assertEquals(now, details.getTimestamp());
-        assertNull(details.getConfirmationDepth());
-    }
-
-    @Test
-    void testTransactionStateDetailsFinalized() {
-        Instant now = Instant.now();
-        TransactionStateDetails details = TransactionStateDetails.finalized(12350L, now);
-
-        assertEquals(TransactionState.FINALIZED, details.getState());
-        assertEquals(12350L, details.getBlockHeight());
-        assertEquals(now, details.getTimestamp());
-        assertNull(details.getErrorMessage());
         assertNull(details.getConfirmationDepth());
     }
 

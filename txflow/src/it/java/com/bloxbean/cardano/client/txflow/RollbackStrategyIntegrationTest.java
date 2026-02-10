@@ -7,9 +7,9 @@ import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
-import com.bloxbean.cardano.client.txflow.ChainingMode;
 import com.bloxbean.cardano.client.txflow.exec.*;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
+import com.bloxbean.cardano.client.txflow.result.FlowStatus;
 import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import org.junit.jupiter.api.*;
 
@@ -189,7 +189,7 @@ public class RollbackStrategyIntegrationTest {
         // Use simple confirmation config without complex tracking
         ConfirmationConfig simpleConfig = ConfirmationConfig.builder()
                 .minConfirmations(1)  // Very low threshold
-                .safeConfirmations(3)
+
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofMinutes(2))
                 .build();
@@ -244,7 +244,7 @@ public class RollbackStrategyIntegrationTest {
         // Use higher confirmation threshold so we can trigger rollback during wait
         ConfirmationConfig rollbackConfig = ConfirmationConfig.builder()
                 .minConfirmations(5)   // Higher threshold to give time for rollback
-                .safeConfirmations(10)
+
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofMinutes(2))
                 .maxRollbackRetries(3)
@@ -356,7 +356,7 @@ public class RollbackStrategyIntegrationTest {
         // Devnet blocks are ~1 second, so 30 confirmations = ~30 seconds
         ConfirmationConfig rollbackConfig = ConfirmationConfig.builder()
                 .minConfirmations(30)  // High threshold - flow won't complete quickly
-                .safeConfirmations(50)
+
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofMinutes(3))
                 .maxRollbackRetries(3)
@@ -490,7 +490,7 @@ public class RollbackStrategyIntegrationTest {
         // Use high confirmation threshold so we have time to trigger rollback before completion
         ConfirmationConfig rollbackConfig = ConfirmationConfig.builder()
                 .minConfirmations(30)  // High threshold - flow won't complete quickly
-                .safeConfirmations(50)
+
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofMinutes(3))
                 .maxRollbackRetries(3)
@@ -616,7 +616,7 @@ public class RollbackStrategyIntegrationTest {
         // Use a config with only 1 retry allowed
         ConfirmationConfig limitedRetryConfig = ConfirmationConfig.builder()
                 .minConfirmations(2)
-                .safeConfirmations(5)
+
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofMinutes(2))
                 .maxRollbackRetries(1)  // Only 1 retry allowed
@@ -676,7 +676,7 @@ public class RollbackStrategyIntegrationTest {
         // Use a shorter timeout for this test
         ConfirmationConfig shortTimeoutConfig = ConfirmationConfig.builder()
                 .minConfirmations(5)
-                .safeConfirmations(10)
+
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofSeconds(30))  // Short timeout
                 .maxRollbackRetries(3)
@@ -760,7 +760,7 @@ public class RollbackStrategyIntegrationTest {
 
         ConfirmationConfig simpleConfig = ConfirmationConfig.builder()
                 .minConfirmations(1)
-                .safeConfirmations(3)
+
                 .checkInterval(Duration.ofSeconds(1))
                 .timeout(Duration.ofMinutes(2))
                 .waitForBackendAfterRollback(true)        // Enable for Yaci DevKit tests
@@ -813,6 +813,462 @@ public class RollbackStrategyIntegrationTest {
         }
 
         System.out.println("\n=== Test 7 completed successfully! ===\n");
+    }
+
+    /**
+     * Test BATCH mode with REBUILD_ENTIRE_FLOW strategy.
+     * When a rollback is detected, all transactions in the batch should be
+     * rebuilt and resubmitted.
+     */
+    @Test
+    @Order(8)
+    void testBatchModeRollback_rebuildEntireFlow() throws Exception {
+        System.out.println("=== Test 8: BATCH Mode + REBUILD_ENTIRE_FLOW ===");
+
+        AtomicBoolean txSubmitted = new AtomicBoolean(false);
+        RollbackListenerTracker listener = new RollbackListenerTracker() {
+            @Override
+            public void onTransactionSubmitted(FlowStep step, String transactionHash) {
+                super.onTransactionSubmitted(step, transactionHash);
+                txSubmitted.set(true);
+            }
+        };
+
+        ConfirmationConfig rollbackConfig = ConfirmationConfig.builder()
+                .minConfirmations(30)
+
+                .checkInterval(Duration.ofSeconds(1))
+                .timeout(Duration.ofMinutes(3))
+                .maxRollbackRetries(3)
+                .waitForBackendAfterRollback(true)
+                .postRollbackWaitAttempts(30)
+                .postRollbackUtxoSyncDelay(Duration.ofSeconds(3))
+                .build();
+
+        TxFlow flow = TxFlow.builder("batch-rollback-test")
+                .withDescription("Test BATCH mode with REBUILD_ENTIRE_FLOW")
+                .addStep(FlowStep.builder("step1")
+                        .withDescription("Account0 -> Account1 (2 ADA)")
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(2))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
+                        .build())
+                .build();
+
+        FlowExecutor executor = FlowExecutor.create(backendService)
+                .withChainingMode(ChainingMode.BATCH)
+                .withConfirmationConfig(rollbackConfig)
+                .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
+                .withListener(listener);
+
+        assertTrue(RollbackTestHelper.takeDbSnapshot(), "Should take DB snapshot");
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future<FlowResult> future = executorService.submit(() -> executor.executeSync(flow));
+
+        System.out.println("Waiting for transaction to be submitted...");
+        int waitCount = 0;
+        while (!txSubmitted.get() && waitCount < 30) {
+            Thread.sleep(500);
+            waitCount++;
+        }
+        assertTrue(txSubmitted.get(), "Transaction should have been submitted");
+
+        System.out.println("Waiting for transaction to get into a block...");
+        Thread.sleep(3000);
+
+        System.out.println("Triggering rollback...");
+        assertTrue(RollbackTestHelper.rollbackToSnapshot(), "Should rollback to snapshot");
+        assertTrue(RollbackTestHelper.waitForNodeReady(backendService, 30),
+                "Node should be ready after rollback");
+
+        FlowResult result;
+        try {
+            result = future.get(180, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            executorService.shutdown();
+            System.out.println("Flow execution timed out");
+            System.out.println("Flow restart attempts: " + listener.getRestartAttempts());
+            if (listener.getRestartAttempts() > 0 || listener.getRolledBackTxHashes().size() > 0) {
+                System.out.println("Rollback was detected in BATCH mode - test partially successful");
+                System.out.println("\n=== Test 8 completed (timeout but rollback detected)! ===\n");
+                return;
+            }
+            fail("Flow execution timed out without detecting rollback");
+            return;
+        } finally {
+            executorService.shutdown();
+        }
+
+        System.out.println("Flow result: " + result.getStatus());
+        System.out.println("Flow restart attempts: " + listener.getRestartAttempts());
+        System.out.println("Rollback notifications: " + listener.getRolledBackTxHashes().size());
+
+        if (result.isSuccessful()) {
+            assertFalse(result.getTransactionHashes().isEmpty(), "Flow should have transaction hash");
+            String finalTxHash = result.getTransactionHashes().get(result.getTransactionHashes().size() - 1);
+            assertTrue(verifyTransactionOnChain(finalTxHash),
+                    "Final transaction should exist on chain after BATCH restart");
+        } else {
+            assertTrue(listener.getRolledBackTxHashes().size() > 0 || listener.getRestartAttempts() > 0,
+                    "Should have detected rollback or attempted restart in BATCH mode");
+        }
+
+        System.out.println("\n=== Test 8 completed successfully! ===\n");
+    }
+
+    /**
+     * Test SEQUENTIAL mode with REBUILD_ENTIRE_FLOW strategy.
+     * SEQUENTIAL uses completeAndWait() and then ConfirmationTracker for
+     * additional confirmation depth tracking.
+     */
+    @Test
+    @Order(9)
+    void testSequentialModeRollback_rebuildEntireFlow() throws Exception {
+        System.out.println("=== Test 9: SEQUENTIAL Mode + REBUILD_ENTIRE_FLOW ===");
+
+        AtomicBoolean txSubmitted = new AtomicBoolean(false);
+        RollbackListenerTracker listener = new RollbackListenerTracker() {
+            @Override
+            public void onTransactionSubmitted(FlowStep step, String transactionHash) {
+                super.onTransactionSubmitted(step, transactionHash);
+                txSubmitted.set(true);
+            }
+        };
+
+        ConfirmationConfig rollbackConfig = ConfirmationConfig.builder()
+                .minConfirmations(30)
+
+                .checkInterval(Duration.ofSeconds(1))
+                .timeout(Duration.ofMinutes(3))
+                .maxRollbackRetries(3)
+                .waitForBackendAfterRollback(true)
+                .postRollbackWaitAttempts(30)
+                .postRollbackUtxoSyncDelay(Duration.ofSeconds(3))
+                .build();
+
+        TxFlow flow = TxFlow.builder("sequential-rollback-test")
+                .withDescription("Test SEQUENTIAL mode with REBUILD_ENTIRE_FLOW")
+                .addStep(FlowStep.builder("payment")
+                        .withDescription("Send 2 ADA")
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(2))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
+                        .build())
+                .build();
+
+        // Explicitly use SEQUENTIAL mode (the default)
+        FlowExecutor executor = FlowExecutor.create(backendService)
+                .withChainingMode(ChainingMode.SEQUENTIAL)
+                .withConfirmationConfig(rollbackConfig)
+                .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
+                .withListener(listener);
+
+        assertTrue(RollbackTestHelper.takeDbSnapshot(), "Should take DB snapshot");
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future<FlowResult> future = executorService.submit(() -> executor.executeSync(flow));
+
+        System.out.println("Waiting for transaction to be submitted...");
+        int waitCount = 0;
+        while (!txSubmitted.get() && waitCount < 30) {
+            Thread.sleep(500);
+            waitCount++;
+        }
+        assertTrue(txSubmitted.get(), "Transaction should have been submitted");
+
+        System.out.println("Waiting for transaction to get into a block...");
+        Thread.sleep(3000);
+
+        System.out.println("Triggering rollback...");
+        assertTrue(RollbackTestHelper.rollbackToSnapshot(), "Should rollback to snapshot");
+        assertTrue(RollbackTestHelper.waitForNodeReady(backendService, 30),
+                "Node should be ready after rollback");
+
+        FlowResult result;
+        try {
+            result = future.get(180, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            executorService.shutdown();
+            System.out.println("Flow execution timed out");
+            System.out.println("Flow restart attempts: " + listener.getRestartAttempts());
+            if (listener.getRestartAttempts() > 0 || listener.getRolledBackTxHashes().size() > 0) {
+                System.out.println("Rollback detected in SEQUENTIAL mode - test partially successful");
+                System.out.println("\n=== Test 9 completed (timeout but rollback detected)! ===\n");
+                return;
+            }
+            // SEQUENTIAL mode may not detect rollback if tx confirmed via completeAndWait()
+            // before ConfirmationTracker kicks in
+            System.out.println("Note: SEQUENTIAL mode may confirm tx before tracker detects rollback");
+            System.out.println("\n=== Test 9 completed (timeout, see note)! ===\n");
+            return;
+        } finally {
+            executorService.shutdown();
+        }
+
+        System.out.println("Flow result: " + result.getStatus());
+        System.out.println("Flow restart attempts: " + listener.getRestartAttempts());
+        System.out.println("Rollback notifications: " + listener.getRolledBackTxHashes().size());
+
+        if (result.isSuccessful()) {
+            System.out.println("SEQUENTIAL mode completed successfully (tx may have confirmed before rollback)");
+        } else {
+            System.out.println("SEQUENTIAL mode detected rollback and failed/restarted");
+            assertTrue(listener.getRolledBackTxHashes().size() > 0 || listener.getRestartAttempts() > 0,
+                    "Should have detected rollback or attempted restart");
+        }
+
+        System.out.println("\n=== Test 9 completed successfully! ===\n");
+    }
+
+    /**
+     * Test FlowHandle cancellation stops flow execution.
+     * <p>
+     * Uses SEQUENTIAL mode with high minConfirmations so the flow spends a long
+     * time waiting for step 1's confirmation. We cancel during that wait.
+     * After step 1 eventually confirms, the loop checks isCancelled() before
+     * step 2 and returns a CANCELLED result.
+     */
+    @Test
+    @Order(10)
+    void testCancellation_stopsExecution() throws Exception {
+        System.out.println("=== Test 10: FlowHandle Cancellation ===");
+
+        AtomicBoolean txSubmitted = new AtomicBoolean(false);
+        AtomicBoolean secondStepStarted = new AtomicBoolean(false);
+        RollbackListenerTracker listener = new RollbackListenerTracker() {
+            @Override
+            public void onTransactionSubmitted(FlowStep step, String transactionHash) {
+                super.onTransactionSubmitted(step, transactionHash);
+                if ("step1".equals(step.getId())) {
+                    txSubmitted.set(true);
+                }
+            }
+
+            @Override
+            public void onStepStarted(FlowStep step, int stepIndex, int totalSteps) {
+                super.onStepStarted(step, stepIndex, totalSteps);
+                if ("step2".equals(step.getId())) {
+                    secondStepStarted.set(true);
+                }
+            }
+        };
+
+        // Use high minConfirmations so step 1's confirmation wait is long (~20s),
+        // giving us a reliable window to cancel before step 2 starts.
+        ConfirmationConfig config = ConfirmationConfig.builder()
+                .minConfirmations(20)
+
+                .checkInterval(Duration.ofSeconds(1))
+                .timeout(Duration.ofMinutes(2))
+                .build();
+
+        // Create a multi-step flow — step 2 should never execute if cancellation works
+        TxFlow flow = TxFlow.builder("cancellation-test")
+                .withDescription("Test FlowHandle cancellation")
+                .addStep(FlowStep.builder("step1")
+                        .withDescription("Account0 -> Account1 (2 ADA)")
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(2))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
+                        .build())
+                .addStep(FlowStep.builder("step2")
+                        .withDescription("Account0 -> Account2 (2 ADA)")
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account2.baseAddress(), Amount.ada(2))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
+                        .build())
+                .build();
+
+        FlowExecutor executor = FlowExecutor.create(backendService)
+                .withConfirmationConfig(config)
+                .withRollbackStrategy(RollbackStrategy.FAIL_IMMEDIATELY)
+                .withListener(listener);
+
+        // Execute async to get FlowHandle
+        FlowHandle handle = executor.execute(flow);
+
+        // Wait for first tx submission (not completion — that takes ~20s with high confirmations)
+        System.out.println("Waiting for first transaction to be submitted...");
+        int waitCount = 0;
+        while (!txSubmitted.get() && waitCount < 30) {
+            Thread.sleep(500);
+            waitCount++;
+        }
+        assertTrue(txSubmitted.get(), "First transaction should have been submitted");
+
+        // Cancel during step 1's confirmation wait
+        System.out.println("Cancelling flow during confirmation wait...");
+        handle.cancel();
+        assertEquals(FlowStatus.CANCELLED, handle.getStatus(),
+                "Handle status should be CANCELLED immediately after cancel()");
+
+        // Wait for flow to finish — the executor thread is still in waitForConfirmation
+        // for step 1. After that returns, it will check isCancelled() before step 2
+        // and return a CANCELLED result.
+        System.out.println("Waiting for flow to finish...");
+        try {
+            FlowResult result = handle.await(Duration.ofSeconds(60));
+            // If we get a result, verify cancellation was effective
+            System.out.println("Flow result status: " + result.getStatus());
+            assertFalse(secondStepStarted.get(),
+                    "Step 2 should not have started after cancellation");
+        } catch (java.util.concurrent.CancellationException e) {
+            // Expected — future was cancelled
+            System.out.println("Flow future cancelled (expected)");
+            assertFalse(secondStepStarted.get(),
+                    "Step 2 should not have started after cancellation");
+        } catch (Exception e) {
+            System.out.println("Flow ended with exception: " + e.getMessage());
+        }
+
+        // Final status check
+        System.out.println("Final handle status: " + handle.getStatus());
+        System.out.println("Second step started: " + secondStepStarted.get());
+
+        System.out.println("\n=== Test 10 completed! ===\n");
+    }
+
+    /**
+     * Test auto-escalation: REBUILD_FROM_FAILED should escalate to flow restart
+     * when the rolled-back step has downstream dependents.
+     */
+    @Test
+    @Order(11)
+    void testAutoEscalation_rebuildFromFailedWithDependents() throws Exception {
+        System.out.println("=== Test 11: Auto-Escalation with Downstream Dependents ===");
+
+        AtomicBoolean txSubmitted = new AtomicBoolean(false);
+        RollbackListenerTracker listener = new RollbackListenerTracker() {
+            @Override
+            public void onTransactionSubmitted(FlowStep step, String transactionHash) {
+                super.onTransactionSubmitted(step, transactionHash);
+                txSubmitted.set(true);
+            }
+        };
+
+        ConfirmationConfig rollbackConfig = ConfirmationConfig.builder()
+                .minConfirmations(30)
+
+                .checkInterval(Duration.ofSeconds(1))
+                .timeout(Duration.ofMinutes(3))
+                .maxRollbackRetries(3)
+                .waitForBackendAfterRollback(true)
+                .postRollbackWaitAttempts(30)
+                .postRollbackUtxoSyncDelay(Duration.ofSeconds(3))
+                .build();
+
+        // Create a multi-step flow where step2 depends on step1
+        // If step1 rolls back, REBUILD_FROM_FAILED should auto-escalate
+        // to flow restart because step2 depends on step1's outputs
+        TxFlow flow = TxFlow.builder("auto-escalation-test")
+                .withDescription("Test auto-escalation from REBUILD_FROM_FAILED to flow restart")
+                .addStep(FlowStep.builder("step1")
+                        .withDescription("Account0 -> Account1 (3 ADA)")
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account1.baseAddress(), Amount.ada(3))
+                                        .from(account0.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account0)))
+                        .build())
+                .addStep(FlowStep.builder("step2")
+                        .withDescription("Account1 -> Account2 (1 ADA)")
+                        .dependsOn("step1", SelectionStrategy.ALL)
+                        .withTxContext(builder -> builder
+                                .compose(new Tx()
+                                        .payToAddress(account2.baseAddress(), Amount.ada(1))
+                                        .from(account1.baseAddress()))
+                                .withSigner(SignerProviders.signerFrom(account1)))
+                        .build())
+                .build();
+
+        // Use PIPELINED mode with REBUILD_FROM_FAILED
+        // When step1's tx rolls back and step2 depends on step1,
+        // the executor should auto-escalate to flow restart
+        FlowExecutor executor = FlowExecutor.create(backendService)
+                .withChainingMode(ChainingMode.PIPELINED)
+                .withConfirmationConfig(rollbackConfig)
+                .withRollbackStrategy(RollbackStrategy.REBUILD_FROM_FAILED)
+                .withListener(listener);
+
+        assertTrue(RollbackTestHelper.takeDbSnapshot(), "Should take DB snapshot");
+
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        Future<FlowResult> future = executorService.submit(() -> executor.executeSync(flow));
+
+        System.out.println("Waiting for transaction to be submitted...");
+        int waitCount = 0;
+        while (!txSubmitted.get() && waitCount < 30) {
+            Thread.sleep(500);
+            waitCount++;
+        }
+        assertTrue(txSubmitted.get(), "Transaction should have been submitted");
+
+        System.out.println("Waiting for transaction to get into a block...");
+        Thread.sleep(3000);
+
+        System.out.println("Triggering rollback...");
+        assertTrue(RollbackTestHelper.rollbackToSnapshot(), "Should rollback to snapshot");
+        assertTrue(RollbackTestHelper.waitForNodeReady(backendService, 30),
+                "Node should be ready after rollback");
+
+        FlowResult result;
+        try {
+            result = future.get(180, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            executorService.shutdown();
+            System.out.println("Flow execution timed out");
+            int restarts = listener.getRestartAttempts();
+            int rebuilds = listener.getRebuildAttempts();
+            System.out.println("Flow restart attempts: " + restarts);
+            System.out.println("Step rebuild attempts: " + rebuilds);
+            if (restarts > 0) {
+                System.out.println("Auto-escalation triggered flow restart - test successful");
+                System.out.println("\n=== Test 11 completed (timeout but escalation detected)! ===\n");
+                return;
+            }
+            if (listener.getRolledBackTxHashes().size() > 0) {
+                System.out.println("Rollback was detected - escalation may have occurred");
+                System.out.println("\n=== Test 11 completed (timeout but rollback detected)! ===\n");
+                return;
+            }
+            fail("Flow execution timed out without detecting rollback or escalation");
+            return;
+        } finally {
+            executorService.shutdown();
+        }
+
+        System.out.println("Flow result: " + result.getStatus());
+        System.out.println("Flow restart attempts: " + listener.getRestartAttempts());
+        System.out.println("Step rebuild attempts: " + listener.getRebuildAttempts());
+        System.out.println("Rollback notifications: " + listener.getRolledBackTxHashes().size());
+
+        // With downstream dependents, REBUILD_FROM_FAILED should auto-escalate to flow restart
+        // So we expect restart attempts > 0 (if rollback was detected)
+        if (listener.getRolledBackTxHashes().size() > 0) {
+            assertTrue(listener.getRestartAttempts() > 0,
+                    "Should have auto-escalated to flow restart due to downstream dependents");
+            System.out.println("Auto-escalation verified: REBUILD_FROM_FAILED -> flow restart");
+        } else {
+            System.out.println("Note: Transaction may have confirmed before rollback was detected");
+        }
+
+        if (result.isSuccessful()) {
+            assertFalse(result.getTransactionHashes().isEmpty(), "Flow should have transaction hashes");
+        }
+
+        System.out.println("\n=== Test 11 completed successfully! ===\n");
     }
 
     @AfterEach

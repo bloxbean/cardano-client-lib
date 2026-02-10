@@ -84,12 +84,12 @@ public class ConfirmationResult {
     }
 
     /**
-     * Check if the transaction is in a terminal state (FINALIZED or ROLLED_BACK).
+     * Check if the transaction is in a terminal state (ROLLED_BACK).
      *
      * @return true if no further status changes are expected
      */
     public boolean isTerminal() {
-        return status == ConfirmationStatus.FINALIZED || status == ConfirmationStatus.ROLLED_BACK;
+        return status == ConfirmationStatus.ROLLED_BACK;
     }
 
     /**

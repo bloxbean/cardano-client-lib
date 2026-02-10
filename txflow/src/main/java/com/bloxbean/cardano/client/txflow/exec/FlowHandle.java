@@ -28,6 +28,7 @@ public class FlowHandle {
     private final CompletableFuture<FlowResult> resultFuture;
     private volatile FlowStatus currentStatus = FlowStatus.PENDING;
     private volatile String currentStepId;
+    private volatile boolean cancelled = false;
     private final AtomicInteger completedStepCount = new AtomicInteger(0);
 
     /**
@@ -114,7 +115,11 @@ public class FlowHandle {
         try {
             return resultFuture.get();
         } catch (ExecutionException e) {
-            throw new RuntimeException("Flow execution failed", e.getCause());
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new RuntimeException("Flow execution failed", cause);
         }
     }
 
@@ -130,24 +135,41 @@ public class FlowHandle {
         try {
             return resultFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
-            throw new RuntimeException("Flow execution failed", e.getCause());
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new RuntimeException("Flow execution failed", cause);
         }
     }
 
     /**
      * Get the result if completed, without blocking.
+     * <p>
+     * Returns {@code Optional.empty()} if the flow is still running or was cancelled.
+     * Throws the flow's exception if it completed exceptionally.
      *
      * @return the result if available
+     * @throws RuntimeException if the flow completed with an exception
      */
     public Optional<FlowResult> getResult() {
-        if (resultFuture.isDone()) {
-            try {
-                return Optional.of(resultFuture.get());
-            } catch (Exception e) {
-                return Optional.empty();
-            }
+        if (!resultFuture.isDone()) {
+            return Optional.empty();
         }
-        return Optional.empty();
+        try {
+            return Optional.of(resultFuture.get());
+        } catch (java.util.concurrent.CancellationException e) {
+            return Optional.empty();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new RuntimeException("Flow execution failed", cause);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        }
     }
 
     /**
@@ -168,6 +190,7 @@ public class FlowHandle {
      * @return true if cancellation was successful
      */
     public boolean cancel() {
+        cancelled = true;
         currentStatus = FlowStatus.CANCELLED;
         return resultFuture.cancel(true);
     }
@@ -188,6 +211,15 @@ public class FlowHandle {
 
     void resetCompletedSteps() {
         this.completedStepCount.set(0);
+    }
+
+    /**
+     * Check if cancellation has been requested.
+     *
+     * @return true if cancel() has been called
+     */
+    boolean isCancelled() {
+        return cancelled;
     }
 
     @Override

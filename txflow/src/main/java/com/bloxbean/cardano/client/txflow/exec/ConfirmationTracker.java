@@ -138,10 +138,8 @@ public class ConfirmationTracker {
                 depth = 0;
             } else if (depth < config.getMinConfirmations()) {
                 status = ConfirmationStatus.IN_BLOCK;
-            } else if (depth < config.getSafeConfirmations()) {
-                status = ConfirmationStatus.CONFIRMED;
             } else {
-                status = ConfirmationStatus.FINALIZED;
+                status = ConfirmationStatus.CONFIRMED;
             }
 
             // Update tracking state
@@ -253,7 +251,7 @@ public class ConfirmationTracker {
      * Remove a transaction from tracking.
      * <p>
      * Call this when a transaction is no longer needed for rollback detection,
-     * such as after it has been finalized or the flow has completed.
+     * such as after it has been confirmed or the flow has completed.
      *
      * @param txHash the transaction hash to stop tracking
      */

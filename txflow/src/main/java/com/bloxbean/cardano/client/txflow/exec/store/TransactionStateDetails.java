@@ -111,18 +111,4 @@ public class TransactionStateDetails {
                 .build();
     }
 
-    /**
-     * Create details for a finalized transaction.
-     *
-     * @param blockHeight block height where the transaction was finalized
-     * @param timestamp when finalization was confirmed
-     * @return TransactionStateDetails for FINALIZED state
-     */
-    public static TransactionStateDetails finalized(long blockHeight, Instant timestamp) {
-        return TransactionStateDetails.builder()
-                .state(TransactionState.FINALIZED)
-                .blockHeight(blockHeight)
-                .timestamp(timestamp)
-                .build();
-    }
 }

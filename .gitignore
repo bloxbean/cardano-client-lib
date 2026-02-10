@@ -162,3 +162,4 @@ rust/jniLibs
 /backends/cardano-graphql/build/
 .gradle-user
 .gradle-user-home
+/watcher-ref/

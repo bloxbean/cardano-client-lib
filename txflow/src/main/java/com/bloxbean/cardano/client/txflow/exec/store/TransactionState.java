@@ -5,7 +5,7 @@ package com.bloxbean.cardano.client.txflow.exec.store;
  * <p>
  * States progress in order:
  * <pre>
- * PENDING -&gt; SUBMITTED -&gt; IN_BLOCK -&gt; CONFIRMED -&gt; FINALIZED
+ * PENDING -&gt; SUBMITTED -&gt; IN_BLOCK -&gt; CONFIRMED
  *                            |
  *                            v
  *                       ROLLED_BACK
@@ -36,12 +36,7 @@ public enum TransactionState {
     /**
      * Transaction was rolled back after being in a block (chain reorganization).
      */
-    ROLLED_BACK,
-
-    /**
-     * Transaction has reached finalization depth and is considered permanent.
-     */
-    FINALIZED;
+    ROLLED_BACK;
 
     /**
      * Check if this state indicates the transaction is still in progress.
@@ -55,10 +50,10 @@ public enum TransactionState {
     /**
      * Check if this state indicates the transaction completed successfully.
      *
-     * @return true if the transaction is confirmed or finalized
+     * @return true if the transaction is confirmed
      */
     public boolean isSuccessful() {
-        return this == CONFIRMED || this == FINALIZED;
+        return this == CONFIRMED;
     }
 
     /**
