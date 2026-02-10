@@ -338,127 +338,207 @@ public class BlueprintUtilTest {
 
     /**
      * Tests for getNamespaceFromReferenceKey() with generic types (angle bracket syntax)
+     *
+     * <p><b>IMPORTANT:</b> Per CIP-57, definition keys are the technical identifiers.
+     * Namespace extraction uses the BASE TYPE, not the type parameter:</p>
+     * <ul>
+     *   <li>"Option&lt;cardano/address/StakeCredential&gt;" → base "Option" has NO module path → empty namespace</li>
+     *   <li>"aiken/interval/IntervalBound&lt;Int&gt;" → base "aiken/interval/IntervalBound" HAS module path → "aiken.interval"</li>
+     * </ul>
      */
     @Nested
     class GetNamespaceFromReferenceKeyGenericAngleBracketTests {
 
+        // Base types WITHOUT module paths (generic instantiations like Option, List, etc.)
+        // These should return empty namespace regardless of type parameter
+
         @Test
-        void shouldExtractNamespace_whenSimpleGeneric() {
+        void shouldReturnEmptyString_whenBaseTypeIsOption() {
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<types/order/Action>"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
         void shouldReturnEmptyString_whenGenericPrimitive() {
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<Int>")).isEmpty();
         }
 
         @Test
         void shouldReturnEmptyString_whenListOfPrimitives() {
+            // Base type "List" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<Int>")).isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenNestedGeneric() {
+        void shouldReturnEmptyString_whenNestedGenericWithoutBasePath() {
+            // Base type "List" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<Option<types/order/Action>>"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenTripleNestedGeneric() {
+        void shouldReturnEmptyString_whenTripleNestedGeneric() {
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<List<Option<types/order/Action>>>"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenGenericWithEscapes() {
+        void shouldReturnEmptyString_whenBaseOptionWithEscapedTypeParam() {
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<types~1order~1Action>"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenNestedGenericWithEscapes() {
+        void shouldReturnEmptyString_whenBaseListWithEscapedTypeParam() {
+            // Base type "List" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<Option<types~1order~1Action>>"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenCardanoBuiltin() {
+        void shouldReturnEmptyString_whenBaseOptionWithCardanoTypeParam() {
+            // Base type "Option" has no module path → empty namespace (type param doesn't matter)
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option<cardano/address/Credential>"))
-                    .isEqualTo("cardano.address");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenListOfCardanoType() {
+        void shouldReturnEmptyString_whenBaseListWithCardanoTypeParam() {
+            // Base type "List" has no module path → empty namespace (type param doesn't matter)
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<cardano/transaction/OutputReference>"))
-                    .isEqualTo("cardano.transaction");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractFirstType_whenTupleGeneric() {
-            // Tuple<<types/order/Action,Int>> should extract types.order
+        void shouldReturnEmptyString_whenBaseTupleWithTypeParam() {
+            // Base type "Tuple" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Tuple<<types/order/Action,Int>>"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractFirstType_whenPairGeneric() {
+        void shouldReturnEmptyString_whenBasePairWithTypeParam() {
+            // Base type "Pair" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Pair<types/order/Action,types/order/Status>"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
         void shouldReturnEmptyString_whenTupleOfPrimitives() {
+            // Base type "Tuple" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Tuple<Int,ByteArray>")).isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenComplexNestedStructure() {
-            // List<Option<Pair<types/order/Action,Int>>>
+        void shouldReturnEmptyString_whenComplexNestedStructure() {
+            // Base type "List" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List<Option<Pair<types/order/Action,Int>>>"))
+                    .isEmpty();
+        }
+
+        // Base types WITH module paths (e.g., aiken/interval/IntervalBound)
+        // These should extract namespace from the base type
+
+        @Test
+        void shouldExtractNamespace_whenBaseTypeHasModulePath() {
+            // Base type "aiken/interval/IntervalBound" HAS module path → "aiken.interval"
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("aiken/interval/IntervalBound<Int>"))
+                    .isEqualTo("aiken.interval");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenBaseTypeHasModulePathWithCardanoTypeParam() {
+            // Base type "cardano/wrapper/Container" HAS module path → "cardano.wrapper"
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("cardano/wrapper/Container<cardano/address/Credential>"))
+                    .isEqualTo("cardano.wrapper");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenBaseTypeHasThreeLevelPath() {
+            // Base type "types/order/Container" HAS module path → "types.order"
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("types/order/Container<types/order/Action>"))
                     .isEqualTo("types.order");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenBaseTypeWithEscapes() {
+            // Base type "aiken~1interval~1IntervalBound" unescapes to "aiken/interval/IntervalBound" → "aiken.interval"
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("aiken~1interval~1IntervalBound<Int>"))
+                    .isEqualTo("aiken.interval");
         }
     }
 
     /**
      * Tests for getNamespaceFromReferenceKey() with generic types (dollar sign syntax)
+     *
+     * <p>Dollar sign syntax used by older Aiken compiler versions (v1.0.26).</p>
+     * <p>Same rules as angle bracket syntax: namespace extracted from BASE TYPE, not type parameter.</p>
      */
     @Nested
     class GetNamespaceFromReferenceKeyGenericDollarSignTests {
 
+        // Base types WITHOUT module paths (generic instantiations)
+        // These should return empty namespace regardless of type parameter
+
         @Test
         void shouldReturnEmptyString_whenDollarSignPrimitive() {
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$Int")).isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenDollarSignWithPath() {
+        void shouldReturnEmptyString_whenDollarSignWithPath() {
+            // Base type "Option" has no module path → empty namespace (type param doesn't matter)
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$types/order/Action"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenDollarSignWithEscapes() {
+        void shouldReturnEmptyString_whenDollarSignWithEscapes() {
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$types~1order~1Action"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenDollarSignCardanoType() {
+        void shouldReturnEmptyString_whenDollarSignCardanoType() {
+            // Base type "Option" has no module path → empty namespace (type param doesn't matter)
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$cardano/address/Credential"))
-                    .isEqualTo("cardano.address");
+                    .isEmpty();
         }
 
         @Test
-        void shouldExtractNamespace_whenNestedDollarSign() {
-            // Option$List$types/order/Action
+        void shouldReturnEmptyString_whenNestedDollarSign() {
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$List$types/order/Action"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
         void shouldReturnEmptyString_whenListDollarPrimitive() {
+            // Base type "List" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("List$ByteArray")).isEmpty();
+        }
+
+        // Base types WITH module paths
+        // These should extract namespace from the base type
+
+        @Test
+        void shouldExtractNamespace_whenBaseTypeHasModulePathWithDollarSign() {
+            // Base type "aiken/interval/IntervalBound" HAS module path → "aiken.interval"
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("aiken/interval/IntervalBound$Int"))
+                    .isEqualTo("aiken.interval");
+        }
+
+        @Test
+        void shouldExtractNamespace_whenBaseTypeWithDollarAndEscapes() {
+            // Base type "aiken~1interval~1IntervalBound" unescapes to "aiken/interval/IntervalBound" → "aiken.interval"
+            assertThat(BlueprintUtil.getNamespaceFromReferenceKey("aiken~1interval~1IntervalBound$Int"))
+                    .isEqualTo("aiken.interval");
         }
     }
 
@@ -489,15 +569,16 @@ public class BlueprintUtilTest {
 
         @Test
         void shouldHandleWhitespaceInGeneric() {
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option< types/order/Action >"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
 
         @Test
         void shouldHandleMixedDollarAndBrackets() {
-            // Option$List<types/order/Action>
+            // Base type "Option" has no module path → empty namespace
             assertThat(BlueprintUtil.getNamespaceFromReferenceKey("Option$List<types/order/Action>"))
-                    .isEqualTo("types.order");
+                    .isEmpty();
         }
     }
 

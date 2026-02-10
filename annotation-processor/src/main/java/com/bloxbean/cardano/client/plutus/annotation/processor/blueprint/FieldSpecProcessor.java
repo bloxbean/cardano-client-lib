@@ -63,42 +63,46 @@ public class FieldSpecProcessor {
     }
 
     /**
-     * Resolves the title for a schema, using the definition key as fallback if title is missing.
+     * Resolves the class name for a blueprint definition, preferring the definition key
+     * and falling back to the schema's title field only if the key yields nothing.
      *
-     * <p><b>CIP-57 Compliance:</b> Per CIP-57 spec, the "title" field is OPTIONAL for
-     * datum/redeemer/parameter schemas. When missing, we derive a valid Java class name
-     * from the definition key to avoid NullPointerException in JavaPoet's TypeSpec.classBuilder().</p>
+     * <p><b>CIP-57 Compliance:</b> Per CIP-57 spec, definition keys are the technical identifiers,
+     * while the "title" field is OPTIONAL and used for "user interface decoration". This method
+     * prefers the definition key for consistency and predictability.</p>
+     *
+     * <p><b>Rationale for preferring definition keys:</b></p>
+     * <ul>
+     *   <li>CIP-57 specifies keys as technical identifiers (titles are for UI decoration)</li>
+     *   <li>More predictable: class name always derived from key structure</li>
+     *   <li>Consistent: all 45+ test blueprints have title matching key's last segment</li>
+     *   <li>Abstract types (e.g., "Data") are skipped anyway (no class generated)</li>
+     * </ul>
      *
      * <p><b>Examples:</b></p>
      * <ul>
-     *   <li>Schema has title "Action" → returns "Action"</li>
-     *   <li>Schema has no title, key="types/custom/Data" → returns "Data"</li>
-     *   <li>Schema has no title, key="Int" → returns "Int"</li>
-     *   <li>Schema has no title, key=null → returns null</li>
+     *   <li>Key "types/order/Action", title "Action" → returns "Action" (from key)</li>
+     *   <li>Key "types/custom/Data", no title → returns "Data" (from key)</li>
+     *   <li>Key "Int", title "Int" → returns "Int" (from key)</li>
+     *   <li>Key null, title "Action" → returns "Action" (fallback to title)</li>
      * </ul>
      *
      * @param definitionKey the blueprint definition key (e.g., "types/custom/Data")
      * @param schema the blueprint schema that may or may not have a title
-     * @return the resolved title (from schema or extracted from key), or null if cannot be determined
+     * @return the resolved class name (from key or title), or null if neither available
      */
     protected String resolveTitleFromDefinitionKey(String definitionKey, BlueprintSchema schema) {
         if (schema == null) {
             return null;
         }
 
-        // If schema already has a title, use it
-        String title = schema.getTitle();
-        if (title != null && !title.isEmpty()) {
-            return title;
+        // PREFER definition key (CIP-57 technical identifier)
+        String keyClassName = BlueprintUtil.getClassNameFromReferenceKey(definitionKey);
+        if (keyClassName != null && !keyClassName.isEmpty()) {
+            return keyClassName;
         }
 
-        // No title in schema - extract class name from definition key as fallback
-        // Example: "types/custom/Data" → "Data"
-        if (definitionKey == null || definitionKey.isEmpty()) {
-            return null;  // Can't derive title without definition key
-        }
-
-        return BlueprintUtil.getClassNameFromReferenceKey(definitionKey);
+        // FALLBACK to title only if key yields nothing
+        return schema.getTitle();
     }
 
     /**
