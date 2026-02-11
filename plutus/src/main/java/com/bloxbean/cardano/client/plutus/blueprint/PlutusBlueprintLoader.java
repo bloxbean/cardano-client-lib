@@ -55,6 +55,23 @@ public class PlutusBlueprintLoader {
     private static PlutusContractBlueprint resolveReferences(PlutusContractBlueprint plutusContractBlueprint) {
         Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions();
 
+        // First, resolve all definitions themselves to set dataType for Option types
+        if (definitions != null) {
+            for (Map.Entry<String, BlueprintSchema> entry : definitions.entrySet()) {
+                String defKey = entry.getKey();
+                BlueprintSchema defSchema = entry.getValue();
+
+                // Set dataType=option for Option definitions (both Option$ and Option< syntax)
+                if (defSchema.getDataType() == null && (defKey.startsWith("Option$") || defKey.startsWith("Option<"))) {
+                    defSchema.setDataType(BlueprintDatatype.option);
+                }
+
+                // Resolve references within the definition
+                definitions.put(defKey, resolveDatum(definitions, defSchema));
+            }
+        }
+
+        // Then resolve validator schemas
         List<Validator> validators = plutusContractBlueprint.getValidators();
         for (Validator validator : validators) {
             if(validator.getDatum() != null) {
@@ -116,7 +133,8 @@ public class PlutusBlueprintLoader {
 
                 blueprintSchema.copyFrom(refDatumSchema);
 
-                if (blueprintSchema.getDataType() == null && ref.startsWith("Option$"))
+                if (blueprintSchema.getDataType() == null
+                        && (ref.startsWith("Option$") || ref.startsWith("Option<")))
                     blueprintSchema.setDataType(BlueprintDatatype.option);
             }
             blueprintSchema.setFields(extracted(definitions, blueprintSchema.getFields(), visiting));
