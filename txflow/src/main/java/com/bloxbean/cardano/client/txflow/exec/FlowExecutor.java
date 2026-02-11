@@ -452,6 +452,122 @@ public class FlowExecutor implements AutoCloseable {
     }
 
     /**
+     * Resume a previously failed flow synchronously from the point of failure.
+     * <p>
+     * This method inspects the previous result to identify which steps completed
+     * successfully, verifies those transactions are still on-chain, and re-executes
+     * from the first unverified or failed step.
+     * <p>
+     * <b>How it works:</b>
+     * <ul>
+     *     <li>Validates flow ID matches between the flow and previous result</li>
+     *     <li>Verifies each previously-successful step's tx is still confirmed on-chain</li>
+     *     <li>Pre-populates execution context with verified step results</li>
+     *     <li>Executes remaining steps normally using existing dependency resolution</li>
+     * </ul>
+     * <p>
+     * <b>UTXO correctness:</b> Steps without dependencies on skipped steps fetch fresh UTXOs
+     * from the blockchain (where skipped steps' consumed UTXOs are already absent). Steps
+     * with dependencies resolve from context, which contains real on-chain UTXOs.
+     *
+     * @param flow the flow to resume (step IDs must match for skipping)
+     * @param previousResult the result from a previous failed execution
+     * @return the flow result
+     * @throws IllegalArgumentException if previousResult is null, flow IDs mismatch, or previous result was successful
+     * @throws FlowExecutionException if flow validation fails
+     */
+    public FlowResult resumeSync(TxFlow flow, FlowResult previousResult) {
+        validateConfiguration();
+
+        TxFlow.ValidationResult validation = flow.validate();
+        if (!validation.isValid()) {
+            throw new FlowExecutionException("Flow validation failed: " + validation.getErrors());
+        }
+
+        validateResumeArgs(flow, previousResult);
+
+        Map<Integer, FlowStepResult> confirmedSteps = verifyPreviousSteps(flow, previousResult);
+
+        switch (chainingMode) {
+            case PIPELINED:
+                return doExecutePipelinedWithResume(flow, syncHooks(flow), confirmedSteps);
+            case BATCH:
+                return doExecuteBatchWithResume(flow, syncHooks(flow), confirmedSteps);
+            case SEQUENTIAL:
+            default:
+                return doExecuteSequentialWithResume(flow, syncHooks(flow), confirmedSteps);
+        }
+    }
+
+    /**
+     * Resume a previously failed flow asynchronously from the point of failure.
+     * <p>
+     * Verification of previous steps is performed eagerly (before launching async)
+     * for fail-fast behavior. The actual re-execution runs on the configured executor.
+     *
+     * @param flow the flow to resume
+     * @param previousResult the result from a previous failed execution
+     * @return a handle for monitoring the resumed execution
+     * @throws IllegalArgumentException if previousResult is null, flow IDs mismatch, or previous result was successful
+     * @throws FlowExecutionException if flow validation fails
+     * @throws IllegalStateException if the flow is already executing
+     */
+    public FlowHandle resume(TxFlow flow, FlowResult previousResult) {
+        validateConfiguration();
+
+        TxFlow.ValidationResult validation = flow.validate();
+        if (!validation.isValid()) {
+            throw new FlowExecutionException("Flow validation failed: " + validation.getErrors());
+        }
+
+        validateResumeArgs(flow, previousResult);
+
+        // Verify previous steps BEFORE launching async (fail-fast)
+        Map<Integer, FlowStepResult> confirmedSteps = verifyPreviousSteps(flow, previousResult);
+
+        if (!activeFlowIds.add(flow.getId())) {
+            throw new IllegalStateException("Flow '" + flow.getId() + "' is already executing");
+        }
+
+        CompletableFuture<FlowResult> future = new CompletableFuture<>();
+        FlowHandle handle = new FlowHandle(flow, future);
+
+        if (flowRegistry != null) {
+            flowRegistry.register(flow.getId(), handle);
+        }
+
+        Runnable task = () -> {
+            try {
+                handle.updateStatus(FlowStatus.IN_PROGRESS);
+                FlowResult result;
+                switch (chainingMode) {
+                    case PIPELINED:
+                        result = doExecutePipelinedWithResume(flow, handleHooks(flow, handle), confirmedSteps);
+                        break;
+                    case BATCH:
+                        result = doExecuteBatchWithResume(flow, handleHooks(flow, handle), confirmedSteps);
+                        break;
+                    case SEQUENTIAL:
+                    default:
+                        result = doExecuteSequentialWithResume(flow, handleHooks(flow, handle), confirmedSteps);
+                        break;
+                }
+                future.complete(result);
+            } catch (Exception e) {
+                handle.updateStatus(FlowStatus.FAILED);
+                future.completeExceptionally(e);
+            } finally {
+                activeFlowIds.remove(flow.getId());
+            }
+        };
+
+        Executor effectiveExecutor = executor != null ? executor : DEFAULT_EXECUTOR;
+        effectiveExecutor.execute(task);
+
+        return handle;
+    }
+
+    /**
      * Execute a flow synchronously.
      *
      * @param flow the flow to execute
@@ -2087,6 +2203,618 @@ public class FlowExecutor implements AutoCloseable {
         } catch (Exception e) {
             log.warn("Failed to persist flow complete state: {}", e.getMessage());
         }
+    }
+
+    // ==================== Resume/Retry Helpers ====================
+
+    /**
+     * Validate arguments for resume methods.
+     */
+    private void validateResumeArgs(TxFlow flow, FlowResult previousResult) {
+        if (previousResult == null) {
+            throw new IllegalArgumentException("previousResult cannot be null");
+        }
+        if (!flow.getId().equals(previousResult.getFlowId())) {
+            throw new IllegalArgumentException("Flow ID mismatch: flow='" + flow.getId()
+                    + "', previousResult='" + previousResult.getFlowId() + "'");
+        }
+        if (previousResult.isSuccessful()) {
+            throw new IllegalArgumentException("Previous execution was successful, nothing to resume");
+        }
+    }
+
+    /**
+     * Verify which steps from a previous execution are still confirmed on-chain.
+     * <p>
+     * Returns a contiguous prefix of verified steps. On the first unverified or
+     * failed step, verification stops — no gaps are allowed to prevent dependency issues.
+     *
+     * @param flow the flow definition
+     * @param previousResult the previous execution result
+     * @return map of step index to verified step result (contiguous prefix only)
+     */
+    private Map<Integer, FlowStepResult> verifyPreviousSteps(TxFlow flow, FlowResult previousResult) {
+        Map<Integer, FlowStepResult> confirmedSteps = new HashMap<>();
+        List<FlowStep> steps = flow.getSteps();
+
+        for (int i = 0; i < steps.size(); i++) {
+            FlowStep step = steps.get(i);
+            Optional<FlowStepResult> prevStepResult = previousResult.getStepResult(step.getId());
+
+            if (prevStepResult.isPresent() && prevStepResult.get().isSuccessful()) {
+                String txHash = prevStepResult.get().getTransactionHash();
+                try {
+                    Optional<TransactionInfo> txInfo = chainDataSupplier.getTransactionInfo(txHash);
+                    if (txInfo.isPresent() && txInfo.get().getBlockHeight() != null) {
+                        confirmedSteps.put(i, prevStepResult.get());
+                        log.info("Resume: step '{}' tx {} confirmed at block {}, will skip",
+                                step.getId(), txHash, txInfo.get().getBlockHeight());
+                    } else {
+                        log.info("Resume: step '{}' tx {} no longer on-chain, will re-execute",
+                                step.getId(), txHash);
+                        break;
+                    }
+                } catch (Exception e) {
+                    log.info("Resume: could not verify step '{}' tx {}, will re-execute",
+                            step.getId(), txHash);
+                    break;
+                }
+            } else {
+                break; // Stop at first non-successful step
+            }
+        }
+        return confirmedSteps;
+    }
+
+    /**
+     * Execute SEQUENTIAL mode with resume support — skips verified steps from a previous run.
+     */
+    private FlowResult doExecuteSequentialWithResume(TxFlow flow, ExecutionHooks hooks,
+                                                      Map<Integer, FlowStepResult> confirmedSteps) {
+        int maxRollbackRetries = getMaxRollbackRetries();
+        int flowRestartAttempts = 0;
+        Map<String, Integer> stepRollbackAttempts = new ConcurrentHashMap<>();
+        List<String> flowTxHashes = new ArrayList<>();
+
+        while (flowRestartAttempts <= maxRollbackRetries) {
+            FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
+            FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
+                    .startedAt(Instant.now());
+
+            // Determine which steps to skip
+            Set<Integer> skippedStepIndices = new HashSet<>();
+            if (!confirmedSteps.isEmpty()) {
+                skippedStepIndices = verifyAndPrepareSkippedSteps(
+                        confirmedSteps, flow.getSteps(), context, resultBuilder);
+            }
+
+            if (flowRestartAttempts == 0) {
+                log.info("Resuming flow '{}': skipping {} confirmed steps, executing from step {}",
+                        flow.getId(), skippedStepIndices.size(),
+                        skippedStepIndices.size() < flow.getSteps().size()
+                                ? flow.getSteps().get(skippedStepIndices.size()).getId() : "none");
+            }
+
+            flowTxHashes.clear();
+            // Add tx hashes from skipped steps
+            for (int idx : skippedStepIndices) {
+                flowTxHashes.add(confirmedSteps.get(idx).getTransactionHash());
+            }
+            List<FlowStep> steps = flow.getSteps();
+            int totalSteps = steps.size();
+
+            try {
+                for (int i = 0; i < totalSteps; i++) {
+                    if (hooks.isCancelled()) {
+                        FlowResult cancelledResult = resultBuilder.withStatus(FlowStatus.CANCELLED)
+                                .completedAt(Instant.now()).build();
+                        listener.onFlowFailed(flow, cancelledResult);
+                        return cancelledResult;
+                    }
+
+                    FlowStep step = steps.get(i);
+
+                    if (skippedStepIndices.contains(i)) {
+                        FlowStepResult prevResult = confirmedSteps.get(i);
+                        resultBuilder.addStepResult(prevResult);
+                        hooks.onStepCompleted(step, prevResult);
+                        listener.onStepCompleted(step, prevResult);
+                        log.info("Step '{}' skipped (still confirmed): {}", step.getId(), prevResult.getTransactionHash());
+                        continue;
+                    }
+
+                    hooks.onStepStarting(step);
+                    listener.onStepStarted(step, i, totalSteps);
+
+                    FlowStepResult stepResult = executeStepWithRollbackHandling(
+                            step, context, flow.getVariables(), false,
+                            stepRollbackAttempts, maxRollbackRetries, steps);
+                    resultBuilder.addStepResult(stepResult);
+
+                    if (stepResult.isSuccessful()) {
+                        String txHash = stepResult.getTransactionHash();
+                        flowTxHashes.add(txHash);
+                        hooks.onTransactionSubmitted(flow, step, txHash);
+                        hooks.onStepCompleted(step, stepResult);
+                        listener.onStepCompleted(step, stepResult);
+
+                        Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                        hooks.onTransactionConfirmed(flow, step, txHash, confirmResult.orElse(null));
+                    } else {
+                        listener.onStepFailed(step, stepResult);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(stepResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, failedResult);
+                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                        return failedResult;
+                    }
+                }
+
+                if (confirmationTracker != null) {
+                    for (String hash : flowTxHashes) {
+                        confirmationTracker.stopTracking(hash);
+                    }
+                }
+
+                resultBuilder.completedAt(Instant.now());
+                FlowResult successResult = resultBuilder.success();
+                listener.onFlowCompleted(flow, successResult);
+                hooks.onFlowCompleted(flow);
+                return successResult;
+
+            } catch (RollbackException e) {
+                hooks.onRollbackDetected(flow, e.getStep(), e.getTxHash(),
+                        e.getPreviousBlockHeight(), e.getMessage());
+
+                if (e.isRequiresFlowRestart()) {
+                    flowRestartAttempts++;
+                    if (flowRestartAttempts > maxRollbackRetries) {
+                        log.error("Flow restart limit ({}) reached after rollback at step '{}'",
+                                maxRollbackRetries, e.getStep().getId());
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.failure(
+                                new FlowExecutionException("Flow restart limit reached after rollback", e));
+                        listener.onFlowFailed(flow, failedResult);
+                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                        return failedResult;
+                    }
+
+                    log.info("Restarting resumed flow (attempt {}/{}) due to rollback at step '{}'",
+                            flowRestartAttempts, maxRollbackRetries, e.getStep().getId());
+                    listener.onFlowRestarting(flow, flowRestartAttempts, maxRollbackRetries,
+                            "Rollback detected at step '" + e.getStep().getId() + "'");
+                    waitForBackendReadyAfterRollback(flowTxHashes);
+                    // On restart, clear confirmed steps — verifyAndPrepareSkippedSteps will re-check
+                    confirmedSteps = new HashMap<>(confirmedSteps);
+                    stepRollbackAttempts.clear();
+                    hooks.onFlowRestarting();
+                    continue;
+                } else {
+                    log.error("Step rebuild failed for step '{}'", e.getStep().getId());
+                    resultBuilder.completedAt(Instant.now());
+                    FlowResult failedResult = resultBuilder.failure(e);
+                    listener.onFlowFailed(flow, failedResult);
+                    hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                    return failedResult;
+                }
+            } catch (Exception e) {
+                log.error("Flow execution failed", e);
+                FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                        .startedAt(Instant.now())
+                        .completedAt(Instant.now());
+                FlowResult failedResult = errorBuilder.failure(e);
+                listener.onFlowFailed(flow, failedResult);
+                hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                return failedResult;
+            }
+        }
+
+        FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                .startedAt(Instant.now())
+                .completedAt(Instant.now());
+        FlowResult failedResult = errorBuilder.failure(
+                new FlowExecutionException("Resumed flow execution failed: exceeded maximum restart attempts"));
+        listener.onFlowFailed(flow, failedResult);
+        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+        return failedResult;
+    }
+
+    /**
+     * Execute PIPELINED mode with resume support — seeds confirmed steps from a previous run.
+     */
+    private FlowResult doExecutePipelinedWithResume(TxFlow flow, ExecutionHooks hooks,
+                                                     Map<Integer, FlowStepResult> confirmedSteps) {
+        // The existing doExecutePipelined already supports previousConfirmedSteps via its
+        // rollback retry loop. We just need to seed it by injecting our verified steps
+        // into the first iteration. We achieve this by temporarily modifying the internal
+        // flow — but since doExecutePipelined manages previousConfirmedSteps as a local var,
+        // we create a thin wrapper that delegates.
+        //
+        // Actually, doExecutePipelined initializes previousConfirmedSteps as empty HashMap
+        // and only populates it on rollback. To seed it for resume, we need a variant.
+        // The simplest approach: duplicate the initial setup and call into the existing method
+        // with pre-seeded state. But to avoid duplication, we use a different approach:
+        // we call the existing doExecutePipelined logic but with confirmedSteps pre-seeded.
+        //
+        // Since doExecutePipelined has its own retry loop with previousConfirmedSteps,
+        // the cleanest way is to refactor slightly. For now, we use the same pattern
+        // as doExecuteSequentialWithResume — it's a full method but shares all helpers.
+
+        // For PIPELINED resume, we reuse the exact same logic as doExecutePipelined
+        // but start with previousConfirmedSteps pre-seeded.
+        int maxRollbackRetries = getMaxRollbackRetries();
+        int flowRestartAttempts = 0;
+        Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>(confirmedSteps);
+        List<String> flowTxHashes = new ArrayList<>();
+
+        while (flowRestartAttempts <= maxRollbackRetries) {
+            FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
+            FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
+                    .startedAt(Instant.now());
+
+            if (flowRestartAttempts == 0) {
+                log.info("Resuming flow '{}' in PIPELINED mode: {} confirmed steps to skip",
+                        flow.getId(), previousConfirmedSteps.size());
+            }
+
+            flowTxHashes.clear();
+            List<FlowStep> steps = flow.getSteps();
+            int totalSteps = steps.size();
+            List<String> submittedTxHashes = new ArrayList<>();
+            List<FlowStepResult> stepResults = new ArrayList<>();
+
+            Set<Integer> skippedStepIndices = new HashSet<>();
+            if (!previousConfirmedSteps.isEmpty()) {
+                skippedStepIndices = verifyAndPrepareSkippedSteps(
+                        previousConfirmedSteps, steps, context, resultBuilder);
+            }
+
+            try {
+                log.info("PIPELINED resume: Submitting {} transactions (skipping {} confirmed)",
+                        totalSteps, skippedStepIndices.size());
+                for (int i = 0; i < totalSteps; i++) {
+                    if (hooks.isCancelled()) {
+                        FlowResult cancelledResult = resultBuilder.withStatus(FlowStatus.CANCELLED)
+                                .completedAt(Instant.now()).build();
+                        listener.onFlowFailed(flow, cancelledResult);
+                        return cancelledResult;
+                    }
+
+                    FlowStep step = steps.get(i);
+                    hooks.onStepStarting(step);
+                    listener.onStepStarted(step, i, totalSteps);
+
+                    if (skippedStepIndices.contains(i)) {
+                        FlowStepResult prevResult = previousConfirmedSteps.get(i);
+                        stepResults.add(prevResult);
+                        submittedTxHashes.add(prevResult.getTransactionHash());
+                        flowTxHashes.add(prevResult.getTransactionHash());
+                        resultBuilder.addStepResult(prevResult);
+                        log.info("Step '{}' skipped (still confirmed): {}", step.getId(), prevResult.getTransactionHash());
+                        continue;
+                    }
+
+                    FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true);
+                    stepResults.add(stepResult);
+                    resultBuilder.addStepResult(stepResult);
+
+                    if (stepResult.isSuccessful()) {
+                        submittedTxHashes.add(stepResult.getTransactionHash());
+                        flowTxHashes.add(stepResult.getTransactionHash());
+                        listener.onTransactionSubmitted(step, stepResult.getTransactionHash());
+                        hooks.onTransactionSubmitted(flow, step, stepResult.getTransactionHash());
+                    } else {
+                        listener.onStepFailed(step, stepResult);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult failedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(stepResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, failedResult);
+                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                        return failedResult;
+                    }
+                }
+
+                log.info("PIPELINED resume: Waiting for {} transactions to confirm", submittedTxHashes.size());
+                for (int i = 0; i < submittedTxHashes.size(); i++) {
+                    String txHash = submittedTxHashes.get(i);
+                    FlowStep step = steps.get(i);
+
+                    if (skippedStepIndices.contains(i)) {
+                        hooks.onStepCompleted(step, stepResults.get(i));
+                        listener.onTransactionConfirmed(step, txHash);
+                        listener.onStepCompleted(step, stepResults.get(i));
+                        continue;
+                    }
+
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    if (confirmResult.isPresent()) {
+                        ConfirmationResult result = confirmResult.get();
+                        hooks.onStepCompleted(step, stepResults.get(i));
+                        listener.onTransactionConfirmed(step, txHash);
+                        listener.onStepCompleted(step, stepResults.get(i));
+                        hooks.onTransactionConfirmed(flow, step, txHash, result);
+                    } else {
+                        FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
+                                new ConfirmationTimeoutException(txHash));
+                        listener.onStepFailed(step, failedResult);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult flowFailedResult = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(failedResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, flowFailedResult);
+                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                        return flowFailedResult;
+                    }
+                }
+
+                if (confirmationTracker != null) {
+                    for (String hash : flowTxHashes) {
+                        confirmationTracker.stopTracking(hash);
+                    }
+                }
+
+                resultBuilder.completedAt(Instant.now());
+                FlowResult successResult = resultBuilder.success();
+                listener.onFlowCompleted(flow, successResult);
+                hooks.onFlowCompleted(flow);
+                return successResult;
+
+            } catch (RollbackException e) {
+                hooks.onRollbackDetected(flow, e.getStep(), e.getTxHash(),
+                        e.getPreviousBlockHeight(), e.getMessage());
+
+                flowRestartAttempts++;
+                if (flowRestartAttempts > maxRollbackRetries) {
+                    resultBuilder.completedAt(Instant.now());
+                    FlowResult failedResult = resultBuilder.failure(
+                            new FlowExecutionException("Flow restart limit reached after rollback in PIPELINED resume", e));
+                    listener.onFlowFailed(flow, failedResult);
+                    hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                    return failedResult;
+                }
+
+                previousConfirmedSteps = findStillConfirmedSteps(steps, submittedTxHashes, stepResults);
+                waitForBackendReadyAfterRollback(flowTxHashes);
+                hooks.onFlowRestarting();
+                continue;
+
+            } catch (Exception e) {
+                log.error("Flow execution failed", e);
+                FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                        .startedAt(Instant.now())
+                        .completedAt(Instant.now());
+                FlowResult failedResult = errorBuilder.failure(e);
+                listener.onFlowFailed(flow, failedResult);
+                hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                return failedResult;
+            }
+        }
+
+        FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                .startedAt(Instant.now())
+                .completedAt(Instant.now());
+        FlowResult failedResult = errorBuilder.failure(
+                new FlowExecutionException("PIPELINED resume failed: exceeded maximum restart attempts"));
+        listener.onFlowFailed(flow, failedResult);
+        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+        return failedResult;
+    }
+
+    /**
+     * Execute BATCH mode with resume support — seeds confirmed steps from a previous run.
+     */
+    private FlowResult doExecuteBatchWithResume(TxFlow flow, ExecutionHooks hooks,
+                                                 Map<Integer, FlowStepResult> confirmedSteps) {
+        int maxRollbackRetries = getMaxRollbackRetries();
+        int flowRestartAttempts = 0;
+        Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>(confirmedSteps);
+        List<String> flowTxHashes = new ArrayList<>();
+
+        while (flowRestartAttempts <= maxRollbackRetries) {
+            FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
+            FlowResult.Builder resultBuilder = FlowResult.builder(flow.getId())
+                    .startedAt(Instant.now());
+
+            if (flowRestartAttempts == 0) {
+                log.info("Resuming flow '{}' in BATCH mode: {} confirmed steps to skip",
+                        flow.getId(), previousConfirmedSteps.size());
+            }
+
+            flowTxHashes.clear();
+            List<FlowStep> steps = flow.getSteps();
+            int totalSteps = steps.size();
+
+            Set<Integer> skippedStepIndices = new HashSet<>();
+            if (!previousConfirmedSteps.isEmpty()) {
+                skippedStepIndices = verifyAndPrepareSkippedSteps(
+                        previousConfirmedSteps, steps, context, resultBuilder);
+            }
+
+            List<Transaction> builtTransactions = new ArrayList<>();
+            List<String> precomputedTxHashes = new ArrayList<>();
+            List<FlowStepResult> stepResults = new ArrayList<>();
+
+            try {
+                // PHASE 1: BUILD
+                log.info("BATCH resume: Building {} transactions (skipping {} confirmed)",
+                        totalSteps, skippedStepIndices.size());
+                for (int i = 0; i < totalSteps; i++) {
+                    if (hooks.isCancelled()) {
+                        FlowResult cancelledResult = resultBuilder.withStatus(FlowStatus.CANCELLED)
+                                .completedAt(Instant.now()).build();
+                        listener.onFlowFailed(flow, cancelledResult);
+                        return cancelledResult;
+                    }
+
+                    FlowStep step = steps.get(i);
+                    hooks.onStepStarting(step);
+                    listener.onStepStarted(step, i, totalSteps);
+
+                    if (skippedStepIndices.contains(i)) {
+                        FlowStepResult prevResult = previousConfirmedSteps.get(i);
+                        builtTransactions.add(null);
+                        precomputedTxHashes.add(prevResult.getTransactionHash());
+                        stepResults.add(prevResult);
+                        resultBuilder.addStepResult(prevResult);
+                        flowTxHashes.add(prevResult.getTransactionHash());
+                        log.info("Step '{}' skipped (still confirmed): {}", step.getId(), prevResult.getTransactionHash());
+                        continue;
+                    }
+
+                    BuildResult buildResult = buildStepOnly(step, context, flow.getVariables());
+
+                    if (buildResult.isSuccessful()) {
+                        Transaction tx = buildResult.getTransaction();
+                        String txHash = TransactionUtil.getTxHash(tx);
+
+                        builtTransactions.add(tx);
+                        precomputedTxHashes.add(txHash);
+
+                        List<Utxo> outputUtxos = captureOutputUtxos(tx, txHash);
+                        List<TransactionInput> spentInputs = captureSpentInputs(tx);
+
+                        FlowStepResult stepResult = FlowStepResult.success(step.getId(), txHash, outputUtxos, spentInputs);
+                        stepResults.add(stepResult);
+                        resultBuilder.addStepResult(stepResult);
+                        context.recordStepResult(step.getId(), stepResult);
+                    } else {
+                        FlowStepResult failedResult = FlowStepResult.failure(step.getId(), buildResult.getError());
+                        listener.onStepFailed(step, failedResult);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult flowFailed = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(failedResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, flowFailed);
+                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                        return flowFailed;
+                    }
+                }
+
+                // PHASE 2: SUBMIT
+                log.info("BATCH resume: Submitting {} transactions (skipping {} confirmed)",
+                        builtTransactions.size(), skippedStepIndices.size());
+                for (int i = 0; i < builtTransactions.size(); i++) {
+                    if (skippedStepIndices.contains(i)) {
+                        continue;
+                    }
+
+                    Transaction tx = builtTransactions.get(i);
+                    FlowStep step = steps.get(i);
+                    String expectedHash = precomputedTxHashes.get(i);
+
+                    TxResult result = submitTransaction(tx);
+
+                    if (result.isSuccessful()) {
+                        String actualHash = result.getValue();
+                        if (!actualHash.equals(expectedHash)) {
+                            throw new FlowExecutionException(
+                                    "BATCH mode hash mismatch for step '" + step.getId() +
+                                    "': expected " + expectedHash + ", actual " + actualHash);
+                        }
+                        flowTxHashes.add(actualHash);
+                        listener.onTransactionSubmitted(step, actualHash);
+                        hooks.onTransactionSubmitted(flow, step, actualHash);
+                    } else {
+                        FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
+                                new RuntimeException("Transaction submission failed: " + result.getResponse()));
+                        listener.onStepFailed(step, failedResult);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult flowFailed = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(failedResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, flowFailed);
+                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                        return flowFailed;
+                    }
+                }
+
+                // PHASE 3: CONFIRM
+                log.info("BATCH resume: Waiting for {} confirmations (skipping {} confirmed)",
+                        precomputedTxHashes.size(), skippedStepIndices.size());
+                for (int i = 0; i < precomputedTxHashes.size(); i++) {
+                    String txHash = precomputedTxHashes.get(i);
+                    FlowStep step = steps.get(i);
+
+                    if (skippedStepIndices.contains(i)) {
+                        hooks.onStepCompleted(step, stepResults.get(i));
+                        listener.onTransactionConfirmed(step, txHash);
+                        listener.onStepCompleted(step, stepResults.get(i));
+                        continue;
+                    }
+
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    if (confirmResult.isPresent()) {
+                        ConfirmationResult cr = confirmResult.get();
+                        hooks.onStepCompleted(step, stepResults.get(i));
+                        listener.onTransactionConfirmed(step, txHash);
+                        listener.onStepCompleted(step, stepResults.get(i));
+                        hooks.onTransactionConfirmed(flow, step, txHash, cr);
+                    } else {
+                        FlowStepResult failedResult = FlowStepResult.failure(step.getId(),
+                                new ConfirmationTimeoutException(txHash));
+                        listener.onStepFailed(step, failedResult);
+                        resultBuilder.completedAt(Instant.now());
+                        FlowResult flowFailed = resultBuilder.withStatus(FlowStatus.FAILED)
+                                .withError(failedResult.getError())
+                                .build();
+                        listener.onFlowFailed(flow, flowFailed);
+                        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                        return flowFailed;
+                    }
+                }
+
+                if (confirmationTracker != null) {
+                    for (String hash : flowTxHashes) {
+                        confirmationTracker.stopTracking(hash);
+                    }
+                }
+
+                resultBuilder.completedAt(Instant.now());
+                FlowResult successResult = resultBuilder.success();
+                listener.onFlowCompleted(flow, successResult);
+                hooks.onFlowCompleted(flow);
+                return successResult;
+
+            } catch (RollbackException e) {
+                hooks.onRollbackDetected(flow, e.getStep(), e.getTxHash(),
+                        e.getPreviousBlockHeight(), e.getMessage());
+
+                flowRestartAttempts++;
+                if (flowRestartAttempts > maxRollbackRetries) {
+                    resultBuilder.completedAt(Instant.now());
+                    FlowResult failedResult = resultBuilder.failure(
+                            new FlowExecutionException("Flow restart limit reached after rollback in BATCH resume", e));
+                    listener.onFlowFailed(flow, failedResult);
+                    hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                    return failedResult;
+                }
+
+                previousConfirmedSteps = findStillConfirmedSteps(steps, precomputedTxHashes, stepResults);
+                waitForBackendReadyAfterRollback(flowTxHashes);
+                hooks.onFlowRestarting();
+                continue;
+
+            } catch (Exception e) {
+                log.error("Flow execution failed", e);
+                resultBuilder.completedAt(Instant.now());
+                FlowResult failedResult = resultBuilder.failure(e);
+                listener.onFlowFailed(flow, failedResult);
+                hooks.onFlowFailed(flow, FlowStatus.FAILED);
+                return failedResult;
+            }
+        }
+
+        FlowResult.Builder errorBuilder = FlowResult.builder(flow.getId())
+                .startedAt(Instant.now())
+                .completedAt(Instant.now());
+        FlowResult failedResult = errorBuilder.failure(
+                new FlowExecutionException("BATCH resume failed: exceeded maximum restart attempts"));
+        listener.onFlowFailed(flow, failedResult);
+        hooks.onFlowFailed(flow, FlowStatus.FAILED);
+        return failedResult;
     }
 
     /**
