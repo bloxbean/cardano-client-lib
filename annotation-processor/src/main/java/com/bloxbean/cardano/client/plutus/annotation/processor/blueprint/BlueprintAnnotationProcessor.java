@@ -23,6 +23,8 @@ import java.io.File;
 import java.util.*;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.getNamespaceFromReferenceKey;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isBuiltInGenericContainer;
+import static java.util.Collections.EMPTY_MAP;
 
 /**
  * Annotation processor that consumes {@link com.bloxbean.cardano.client.plutus.annotation.Blueprint}
@@ -103,38 +105,21 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
 
 
             Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions() != null? plutusContractBlueprint.getDefinitions()
-                    : Collections.EMPTY_MAP;
+                    : EMPTY_MAP;
+
             //Create Data classes
             for (Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();
 
-                // Skip generic type instantiations to prevent invalid class generation
-                //
-                // Aiken compiler generates blueprint definitions for generic type instantiations
-                // in two different syntaxes depending on version:
-                //   - Aiken v1.0.x (old):  "List$Int", "Option$ByteArray"
-                //   - Aiken v1.1.x (new):  "List<Int>", "Option<types/order/Action>"
-                //
-                // These are NOT new type definitions - they're instantiations of built-in
-                // generic containers (List, Option, Tuple, etc.) with specific type parameters.
-                // Attempting to generate Java classes for these would cause:
-                //   1. Invalid Java identifiers (class names can't contain < > $)
-                //   2. NullPointerException in TypeSpec.classBuilder() when name parsing fails
-                //   3. Naming conflicts (multiple "Option" classes for different type params)
-                //   4. Code duplication (redundant with Java's Optional<T>, List<T>)
-                //
-                // Real-world examples from SundaeSwap blueprints:
-                //   - Old syntax: "List$Tuple$Int_Option$types/order/SignedStrategyExecution_Int"
-                //   - New syntax: "List<Tuple<<Int,Option<types/order/SignedStrategyExecution>,Int>>>"
-                //
-                // Skip condition checks for BOTH syntaxes to support all Aiken versions.
-                if (key.contains("<") || key.contains(">") || key.contains("$")) {
-                    continue;
-                }
+                // Skip built-in containers (List, Option, etc.); extract base type for domain-specific generics.
+                // Handles both Aiken v1.0.x ($) and v1.1.x (<>) syntax.
+                String processKey = resolveDefinitionKeyForClassGeneration(key);
+                if (processKey == null) continue;
 
-                String ns = getNamespaceFromReferenceKey(key);
+                String ns = getNamespaceFromReferenceKey(processKey);
+
                 try {
-                    fieldSpecProcessor.createDatumClass(ns, key, definition.getValue());
+                    fieldSpecProcessor.createDatumClass(ns, processKey, definition.getValue());
                 } catch (BlueprintGenerationException e) {
                     error(typeElement, "Blueprint generation failed for definition '%s': %s", key, e.getMessage());
                     return false;
@@ -148,6 +133,106 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         }
 
         return true;
+    }
+
+    /**
+     * Resolves a blueprint definition key to determine if and how a Java class should be generated.
+     *
+     * <p><b>Purpose:</b> CIP-57 blueprints contain definitions for both built-in container types
+     * (which map to Java's standard library) and domain-specific types (which need generated classes).
+     * This method distinguishes between them and extracts the appropriate class name for generation.</p>
+     *
+     * <p><b>Aiken Compiler Generic Type Syntax:</b></p>
+     * <ul>
+     *   <li><b>Aiken v1.0.x (dollar syntax):</b> {@code "Interval$Int"}, {@code "List$ByteArray"}, {@code "Option$Credential"}</li>
+     *   <li><b>Aiken v1.1.x (angle bracket syntax):</b> {@code "Interval<Int>"}, {@code "List<types/order/Action>"}, {@code "Option<StakeCredential>"}</li>
+     * </ul>
+     *
+     * <p><b>Processing Strategy:</b></p>
+     * <table border="1">
+     *   <tr><th>Input Definition Key</th><th>Type Category</th><th>Return Value</th><th>Reason</th></tr>
+     *   <tr><td>List$Int</td><td>Built-in container</td><td>null (skip)</td><td>Maps to java.util.List</td></tr>
+     *   <tr><td>Option&lt;Credential&gt;</td><td>Built-in container</td><td>null (skip)</td><td>Handled by OptionDataTypeProcessor → Optional</td></tr>
+     *   <tr><td>Tuple$Int_String</td><td>Built-in container</td><td>null (skip)</td><td>Maps to Tuple or PlutusData</td></tr>
+     *   <tr><td>Data</td><td>Built-in abstract type</td><td>null (skip)</td><td>Maps to PlutusData (opaque)</td></tr>
+     *   <tr><td>Interval$Int</td><td>Domain-specific</td><td>"Interval"</td><td>Generate typed Interval class</td></tr>
+     *   <tr><td>aiken/interval/IntervalBound&lt;Int&gt;</td><td>Domain-specific</td><td>"aiken/interval/IntervalBound"</td><td>Generate typed IntervalBound class</td></tr>
+     *   <tr><td>cardano/transaction/ValidityRange</td><td>Non-generic</td><td>"cardano/transaction/ValidityRange"</td><td>Generate ValidityRange class</td></tr>
+     * </table>
+     *
+     * <p><b>Built-in Containers (skipped):</b> List, Option, Optional, Tuple, Pair, Map, Dict, Data, Redeemer</p>
+     *
+     * <p><b>Domain-Specific Types (generated):</b> Interval, IntervalBound, IntervalBoundType, ValidityRange, custom user types</p>
+     *
+     * <p><b>Examples:</b></p>
+     * <pre>
+     * // Built-in containers → null (skip generation)
+     * resolveDefinitionKeyForClassGeneration("List$Int")              → null
+     * resolveDefinitionKeyForClassGeneration("Option&lt;Credential&gt;")    → null
+     * resolveDefinitionKeyForClassGeneration("Tuple$Int_String")      → null
+     * resolveDefinitionKeyForClassGeneration("Data")                  → null
+     *
+     * // Domain-specific generics → base type (generate typed class)
+     * resolveDefinitionKeyForClassGeneration("Interval$Int")          → "Interval"
+     * resolveDefinitionKeyForClassGeneration("IntervalBound&lt;Int&gt;")    → "IntervalBound"
+     * resolveDefinitionKeyForClassGeneration("aiken/interval/Interval$Int") → "aiken/interval/Interval"
+     *
+     * // Non-generic types → as-is (generate class)
+     * resolveDefinitionKeyForClassGeneration("ValidityRange")         → "ValidityRange"
+     * resolveDefinitionKeyForClassGeneration("types/order/Action")    → "types/order/Action"
+     * </pre>
+     *
+     * <p><b>Why This Matters:</b></p>
+     * <ul>
+     *   <li><b>Type Safety:</b> Domain-specific types generate typed classes (e.g., {@code Interval} instead of {@code PlutusData})</li>
+     *   <li><b>No Redundancy:</b> Built-in containers don't generate conflicting classes</li>
+     *   <li><b>Aiken Version Support:</b> Handles both v1.0.x ({@code $}) and v1.1.x ({@code <>}) syntax uniformly</li>
+     *   <li><b>Real-world Impact:</b> SundaeSwap V2 "Interval$Int" generates typed {@code Interval} class for type-safe field access</li>
+     * </ul>
+     *
+     * @param definitionKey the blueprint definition key (e.g., "Interval$Int", "Option&lt;Credential&gt;", "types/order/Action")
+     * <p>Package-private for testing.</p>
+     *
+     * @return the resolved key for class generation, or {@code null} if this definition should be skipped
+     * @see #isBuiltInGenericContainer(String) for built-in container detection logic
+     */
+    String resolveDefinitionKeyForClassGeneration(String definitionKey) {
+        String processKey = definitionKey;
+
+        // Check if this is a generic type instantiation (contains $ or < or >)
+        boolean isGenericInstantiation = definitionKey.contains("<")
+            || definitionKey.contains(">")
+            || definitionKey.contains("$");
+
+        if (isGenericInstantiation) {
+            // Extract base type name before $ or < (e.g., "Interval$Int" → "Interval")
+            String baseTypeName = definitionKey;
+
+            int dollarIndex = baseTypeName.indexOf('$');
+            if (dollarIndex > 0) {
+                baseTypeName = baseTypeName.substring(0, dollarIndex);
+            }
+
+            int angleIndex = baseTypeName.indexOf('<');
+            if (angleIndex > 0) {
+                baseTypeName = baseTypeName.substring(0, angleIndex);
+            }
+
+            // Extract simple name (last segment after /) for container detection
+            String simpleName = baseTypeName.contains("/")
+                ? baseTypeName.substring(baseTypeName.lastIndexOf('/') + 1)
+                : baseTypeName;
+
+            // Skip built-in containers; they map to Java types or are handled by specialized processors
+            if (isBuiltInGenericContainer(simpleName)) {
+                return null;
+            }
+
+            // Domain-specific types: use base type (e.g., "Interval$Int" → "Interval" class)
+            processKey = baseTypeName;
+        }
+
+        return processKey;
     }
 
     private List<TypeElement> getTypeElementsWithAnnotations(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
@@ -193,7 +278,6 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
     }
 
     public File getFileFromResources(String s) {
-        // Try CLASS_PATH first
         try {
             FileObject resource = processingEnv.getFiler().getResource(StandardLocation.CLASS_PATH, "", s);
             File f = new File(resource.toUri());
@@ -201,10 +285,9 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 return f;
             }
         } catch (Exception e) {
-            // Resource not in CLASS_PATH, will try CLASS_OUTPUT next
+            // not in CLASS_PATH, try CLASS_OUTPUT
         }
 
-        // Try CLASS_OUTPUT as fallback
         try {
             FileObject resource = processingEnv.getFiler().getResource(StandardLocation.CLASS_OUTPUT, "", s);
             File f = new File(resource.toUri());
@@ -212,10 +295,9 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 return f;
             }
         } catch (Exception e) {
-            // Resource not in CLASS_OUTPUT either
+            // not in CLASS_OUTPUT either
         }
 
-        // Resource not found in either location
         throw new BlueprintGenerationException(
             String.format("Blueprint file '%s' not found in CLASS_PATH or CLASS_OUTPUT", s)
         );

@@ -335,6 +335,32 @@ public class BlueprintUtil {
     }
 
     /**
+     * Checks if a type name represents a built-in generic container that should be skipped
+     * during class generation.
+     *
+     * <p>These types either map directly to Java standard-library types (e.g., {@code List} →
+     * {@code java.util.List}) or are handled by specialised processors, so no generated class
+     * is needed for them.</p>
+     *
+     * <p><b>Recognised container names:</b> List, Option, Optional, Tuple, Pair, Map, Dict,
+     * Data, Redeemer</p>
+     *
+     * @param simpleName the simple type name to check (e.g., "List", "Option", "Data")
+     * @return {@code true} if the name belongs to a built-in container that should be skipped
+     */
+    public static boolean isBuiltInGenericContainer(String simpleName) {
+        return "List".equals(simpleName)
+            || "Option".equals(simpleName)
+            || "Optional".equals(simpleName)
+            || "Tuple".equals(simpleName)
+            || "Pair".equals(simpleName)
+            || "Map".equals(simpleName)
+            || "Dict".equals(simpleName)
+            || "Data".equals(simpleName)
+            || "Redeemer".equals(simpleName);
+    }
+
+    /**
      * Checks if a schema represents an opaque Plutus Data type according to CIP-57.
      *
      * <p>From CIP-57 specification:</p>
