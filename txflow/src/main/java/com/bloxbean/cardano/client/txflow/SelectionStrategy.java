@@ -18,14 +18,7 @@ public enum SelectionStrategy {
     INDEX,
 
     /**
-     * Select outputs matching a filter expression.
-     * Uses {@link com.bloxbean.cardano.client.quicktx.filter.UtxoFilterSpec} for filtering.
+     * Select outputs matching a filter predicate.
      */
-    FILTER,
-
-    /**
-     * Select only change outputs from the previous step.
-     * Change outputs are typically the last output(s) going back to the sender.
-     */
-    CHANGE
+    FILTER
 }

@@ -264,17 +264,6 @@ public class FlowStep {
         }
 
         /**
-         * Add a dependency on the change output from a previous step.
-         *
-         * @param stepId the ID of the step to depend on
-         * @return this builder
-         */
-        public Builder dependsOnChange(String stepId) {
-            this.dependencies.add(StepDependency.change(stepId));
-            return this;
-        }
-
-        /**
          * Add a custom StepDependency.
          *
          * @param dependency the step dependency

@@ -112,17 +112,6 @@ public class FlowStepResult {
         return new FlowStepResult(stepId, error);
     }
 
-    /**
-     * Create a cancelled step result.
-     *
-     * @param stepId the step ID
-     * @return cancelled step result
-     */
-    public static FlowStepResult cancelled(String stepId) {
-        FlowStepResult result = new FlowStepResult(stepId, FlowStatus.CANCELLED, null, null, null);
-        return result;
-    }
-
     @Override
     public String toString() {
         return "FlowStepResult{" +

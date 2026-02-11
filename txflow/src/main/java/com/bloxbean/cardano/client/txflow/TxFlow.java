@@ -42,18 +42,14 @@ import java.util.*;
  */
 @Getter
 public class TxFlow {
-    private static final String DEFAULT_VERSION = "1.0";
-
     private final String id;
     private final String description;
-    private final String version;
     private final Map<String, Object> variables;
     private final List<FlowStep> steps;
 
     private TxFlow(Builder builder) {
         this.id = builder.id;
         this.description = builder.description;
-        this.version = builder.version;
         this.variables = Collections.unmodifiableMap(new HashMap<>(builder.variables));
         this.steps = Collections.unmodifiableList(new ArrayList<>(builder.steps));
     }
@@ -98,7 +94,6 @@ public class TxFlow {
      */
     public ValidationResult validate() {
         List<String> errors = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
 
         // Check for duplicate step IDs
         Set<String> seenIds = new HashSet<>();
@@ -140,7 +135,7 @@ public class TxFlow {
             }
         }
 
-        return new ValidationResult(errors.isEmpty(), errors, warnings);
+        return new ValidationResult(errors.isEmpty(), errors);
     }
 
     /**
@@ -231,7 +226,6 @@ public class TxFlow {
         return "TxFlow{" +
                 "id='" + id + '\'' +
                 ", description='" + description + '\'' +
-                ", version='" + version + '\'' +
                 ", steps=" + steps.size() +
                 ", variables=" + variables.size() +
                 '}';
@@ -244,22 +238,18 @@ public class TxFlow {
     public static class ValidationResult {
         private final boolean valid;
         private final List<String> errors;
-        private final List<String> warnings;
 
-        public ValidationResult(boolean valid, List<String> errors, List<String> warnings) {
+        public ValidationResult(boolean valid, List<String> errors) {
             this.valid = valid;
             this.errors = Collections.unmodifiableList(new ArrayList<>(errors));
-            this.warnings = Collections.unmodifiableList(new ArrayList<>(warnings));
         }
 
         @Override
         public String toString() {
             if (valid) {
-                return "ValidationResult{valid=true" +
-                        (warnings.isEmpty() ? "" : ", warnings=" + warnings) + "}";
+                return "ValidationResult{valid=true}";
             }
-            return "ValidationResult{valid=false, errors=" + errors +
-                    (warnings.isEmpty() ? "" : ", warnings=" + warnings) + "}";
+            return "ValidationResult{valid=false, errors=" + errors + "}";
         }
     }
 
@@ -269,7 +259,6 @@ public class TxFlow {
     public static class Builder {
         private final String id;
         private String description;
-        private String version = DEFAULT_VERSION;
         private final Map<String, Object> variables = new HashMap<>();
         private final List<FlowStep> steps = new ArrayList<>();
 
@@ -288,17 +277,6 @@ public class TxFlow {
          */
         public Builder withDescription(String description) {
             this.description = description;
-            return this;
-        }
-
-        /**
-         * Set the schema version.
-         *
-         * @param version the version string
-         * @return this builder
-         */
-        public Builder withVersion(String version) {
-            this.version = version;
             return this;
         }
 

@@ -97,13 +97,12 @@ class FlowStepTest {
                 .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
                 .dependsOn("step1")
                 .dependsOnIndex("step1", 0)
-                .dependsOnChange("step1")
                 .build();
 
         // Then
         assertThat(step.hasDependencies()).isTrue();
-        assertThat(step.getDependencies()).hasSize(3);
-        assertThat(step.getDependencyStepIds()).containsExactly("step1", "step1", "step1");
+        assertThat(step.getDependencies()).hasSize(2);
+        assertThat(step.getDependencyStepIds()).containsExactly("step1", "step1");
     }
 
     @Test
@@ -111,12 +110,12 @@ class FlowStepTest {
         // When
         FlowStep step = FlowStep.builder("step2")
                 .withTxContext(builder -> builder.compose(new Tx().from("addr1")))
-                .dependsOn("step1", SelectionStrategy.CHANGE)
+                .dependsOn("step1", SelectionStrategy.FILTER)
                 .build();
 
         // Then
         assertThat(step.getDependencies()).hasSize(1);
-        assertThat(step.getDependencies().get(0).getStrategy()).isEqualTo(SelectionStrategy.CHANGE);
+        assertThat(step.getDependencies().get(0).getStrategy()).isEqualTo(SelectionStrategy.FILTER);
     }
 
     @Test

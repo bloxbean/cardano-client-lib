@@ -134,8 +134,8 @@ class FlowExecutionContextClearMethodsTest {
     }
 
     @Test
-    void testSharedDataNotAffectedByClear() {
-        context.setSharedData("sharedKey", "sharedValue");
+    void testVariablesNotAffectedByClearAll() {
+        context.setVariable("var1", "val1");
 
         FlowStepResult result = FlowStepResult.success("step1", "txhash", Collections.emptyList(), Collections.emptyList());
         context.recordStepResult("step1", result);
@@ -143,7 +143,7 @@ class FlowExecutionContextClearMethodsTest {
         // Clear all step results
         context.clearAllStepResults();
 
-        // Shared data should still be intact
-        assertEquals("sharedValue", context.getSharedData("sharedKey", String.class).orElse(null));
+        // Variables should still be intact
+        assertEquals("val1", context.getVariable("var1"));
     }
 }

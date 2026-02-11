@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
+import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
 import com.bloxbean.cardano.client.txflow.exec.FlowListener;
@@ -74,7 +75,7 @@ public class TxFlowIntegrationTest {
         // Create FlowExecutor
         flowExecutor = FlowExecutor.create(backendService)
                 .withSignerRegistry(signerRegistry)
-                .withConfirmationTimeout(Duration.ofSeconds(60));
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(60)).build());
 
         // Verify accounts have funds
         try {
@@ -475,7 +476,7 @@ public class TxFlowIntegrationTest {
                         .build())
                 .addStep(FlowStep.builder("use-change")
                         .withDescription("Use change output")
-                        .dependsOnChange("create-change")
+                        .dependsOn("create-change")
                         .withTxContext(builder -> builder
                                 .compose(new Tx()
                                         .payToAddress(account2.baseAddress(), Amount.ada(1))

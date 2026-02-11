@@ -200,7 +200,6 @@ public class FlowDocument {
      */
     public static FlowDocument fromFlow(TxFlow flow) {
         FlowDocument doc = new FlowDocument();
-        doc.setVersion(flow.getVersion());
 
         FlowContent content = new FlowContent();
         content.setId(flow.getId());
@@ -307,8 +306,7 @@ public class FlowDocument {
         }
 
         TxFlow.Builder builder = TxFlow.builder(flow.getId())
-                .withDescription(flow.getDescription())
-                .withVersion(version);
+                .withDescription(flow.getDescription());
 
         if (flow.getVariables() != null) {
             builder.withVariables(flow.getVariables());

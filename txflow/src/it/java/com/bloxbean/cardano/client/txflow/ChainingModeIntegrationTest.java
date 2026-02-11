@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.signing.DefaultSignerRegistry;
+import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
 import com.bloxbean.cardano.client.txflow.exec.FlowListener;
@@ -139,7 +140,7 @@ public class ChainingModeIntegrationTest {
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.PIPELINED)
                 .withListener(new LoggingFlowListener())
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful(), "PIPELINED flow should complete successfully: " +
@@ -195,7 +196,7 @@ public class ChainingModeIntegrationTest {
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.PIPELINED)
                 .withListener(new LoggingFlowListener())
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful(), "PIPELINED 3-step flow should complete: " +
@@ -234,7 +235,7 @@ public class ChainingModeIntegrationTest {
 
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.PIPELINED)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful(), "PIPELINED flow with variables should succeed");
@@ -272,7 +273,7 @@ public class ChainingModeIntegrationTest {
 
         FlowHandle handle = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.PIPELINED)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .execute(flow);
 
         // Check initial state
@@ -329,7 +330,7 @@ public class ChainingModeIntegrationTest {
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.BATCH)
                 .withListener(new LoggingFlowListener())
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful(), "BATCH flow should complete successfully: " +
@@ -385,7 +386,7 @@ public class ChainingModeIntegrationTest {
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.BATCH)
                 .withListener(new LoggingFlowListener())
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful(), "BATCH 3-step flow should complete: " +
@@ -424,7 +425,7 @@ public class ChainingModeIntegrationTest {
 
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.BATCH)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful(), "BATCH flow with variables should succeed");
@@ -462,7 +463,7 @@ public class ChainingModeIntegrationTest {
 
         FlowHandle handle = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.BATCH)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .execute(flow);
 
         // Check initial state
@@ -511,7 +512,7 @@ public class ChainingModeIntegrationTest {
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.BATCH)
                 .withListener(new LoggingFlowListener())
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         // Verify flow failed gracefully
@@ -548,21 +549,21 @@ public class ChainingModeIntegrationTest {
         System.out.println("Executing in SEQUENTIAL mode...");
         FlowResult sequentialResult = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.SEQUENTIAL)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flowSupplier.get());
 
         // Execute in PIPELINED mode
         System.out.println("Executing in PIPELINED mode...");
         FlowResult pipelinedResult = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.PIPELINED)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flowSupplier.get());
 
         // Execute in BATCH mode
         System.out.println("Executing in BATCH mode...");
         FlowResult batchResult = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.BATCH)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flowSupplier.get());
 
         // All modes should succeed
@@ -649,7 +650,7 @@ public class ChainingModeIntegrationTest {
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.PIPELINED)
                 .withListener(trackingListener)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful());
@@ -732,7 +733,7 @@ public class ChainingModeIntegrationTest {
         FlowResult result = FlowExecutor.create(backendService)
                 .withChainingMode(ChainingMode.BATCH)
                 .withListener(trackingListener)
-                .withConfirmationTimeout(Duration.ofSeconds(120))
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build())
                 .executeSync(flow);
 
         assertTrue(result.isSuccessful());

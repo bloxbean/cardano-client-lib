@@ -32,9 +32,6 @@ import java.util.stream.Collectors;
  *
  * // Load pending flows on restart
  * List<FlowStateSnapshot> pending = stateStore.loadPendingFlows();
- * for (FlowStateSnapshot snapshot : pending) {
- *     executor.resumeTracking(snapshot, recoveryCallback);
- * }
  * }</pre>
  */
 @Data

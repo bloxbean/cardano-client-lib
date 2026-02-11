@@ -92,10 +92,11 @@ public class FlowExecutor implements AutoCloseable {
     private final ProtocolParamsSupplier protocolParamsSupplier;
     private final TransactionProcessor transactionProcessor;
     private final ChainDataSupplier chainDataSupplier;
+    private static final Duration DEFAULT_CONFIRMATION_TIMEOUT = Duration.ofSeconds(60);
+    private static final Duration DEFAULT_CHECK_INTERVAL = Duration.ofSeconds(2);
+
     private SignerRegistry signerRegistry;
     private FlowListener listener = FlowListener.NOOP;
-    private Duration confirmationTimeout = Duration.ofSeconds(60);
-    private Duration checkInterval = Duration.ofSeconds(2);
     private Executor executor;
     private Consumer<Transaction> txInspector;
     private ChainingMode chainingMode = ChainingMode.SEQUENTIAL;
@@ -199,28 +200,6 @@ public class FlowExecutor implements AutoCloseable {
         } else {
             this.listener = new CompositeFlowListener(new FlowListener[]{listener});
         }
-        return this;
-    }
-
-    /**
-     * Set the confirmation timeout for each step.
-     *
-     * @param timeout the timeout
-     * @return this executor
-     */
-    public FlowExecutor withConfirmationTimeout(Duration timeout) {
-        this.confirmationTimeout = timeout;
-        return this;
-    }
-
-    /**
-     * Set the interval for checking transaction confirmation.
-     *
-     * @param interval the check interval
-     * @return this executor
-     */
-    public FlowExecutor withCheckInterval(Duration interval) {
-        this.checkInterval = interval;
         return this;
     }
 
@@ -365,183 +344,14 @@ public class FlowExecutor implements AutoCloseable {
      *     <li>Transaction rolled back - ROLLED_BACK state</li>
      *     <li>Flow completed - final state</li>
      * </ul>
-     * <p>
-     * This enables recovery of pending flows after application restart
-     * using {@link #resumeTracking(FlowStateSnapshot, RecoveryCallback)}.
      *
      * @param stateStore the state store implementation
      * @return this executor
      * @see FlowStateStore
-     * @see #resumeTracking(FlowStateSnapshot, RecoveryCallback)
      */
     public FlowExecutor withStateStore(FlowStateStore stateStore) {
         this.flowStateStore = stateStore;
         return this;
-    }
-
-    /**
-     * Resume tracking of a flow from a persisted state snapshot.
-     * <p>
-     * This method is used to recover flows after application restart.
-     * It takes a snapshot loaded from the state store and resumes
-     * confirmation tracking for pending transactions.
-     * <p>
-     * Example usage:
-     * <pre>{@code
-     * // On application startup
-     * List<FlowStateSnapshot> pending = stateStore.loadPendingFlows();
-     * for (FlowStateSnapshot snapshot : pending) {
-     *     FlowHandle handle = executor.resumeTracking(snapshot, recoveryCallback);
-     *     registry.register(snapshot.getFlowId(), handle);
-     * }
-     * }</pre>
-     *
-     * @param snapshot the flow state snapshot to resume
-     * @param callback the recovery callback for deciding how to handle pending transactions
-     * @return a FlowHandle for monitoring the resumed flow
-     * @throws IllegalArgumentException if snapshot is null
-     */
-    public FlowHandle resumeTracking(FlowStateSnapshot snapshot, RecoveryCallback callback) {
-        if (snapshot == null) {
-            throw new IllegalArgumentException("Snapshot cannot be null");
-        }
-
-        RecoveryCallback effectiveCallback = callback != null ? callback : RecoveryCallback.CONTINUE_ALL;
-
-        // Notify callback that recovery is starting
-        effectiveCallback.onRecoveryStarting(snapshot);
-
-        // Create a CompletableFuture to track the recovery
-        CompletableFuture<FlowResult> future = new CompletableFuture<>();
-
-        // Create a minimal TxFlow for the handle (used for ID and tracking only)
-        TxFlow recoveryFlow = TxFlow.builder(snapshot.getFlowId())
-                .withDescription("Recovery: " + snapshot.getDescription())
-                .build();
-
-        FlowHandle handle = new FlowHandle(recoveryFlow, future);
-        handle.updateStatus(FlowStatus.IN_PROGRESS);
-
-        // Start async recovery tracking
-        Runnable recoveryTask = () -> {
-            try {
-                FlowResult result = executeRecoveryTracking(snapshot, effectiveCallback, handle);
-                future.complete(result);
-            } catch (Exception e) {
-                log.error("Recovery tracking failed for flow {}", snapshot.getFlowId(), e);
-                effectiveCallback.onRecoveryComplete(snapshot, false, e.getMessage());
-                future.completeExceptionally(e);
-            }
-        };
-
-        Executor effectiveExecutor = executor != null ? executor : DEFAULT_EXECUTOR;
-        effectiveExecutor.execute(recoveryTask);
-
-        return handle;
-    }
-
-    /**
-     * Execute recovery tracking for a flow snapshot.
-     */
-    private FlowResult executeRecoveryTracking(FlowStateSnapshot snapshot,
-                                                RecoveryCallback callback,
-                                                FlowHandle handle) {
-        String flowId = snapshot.getFlowId();
-        FlowResult.Builder resultBuilder = FlowResult.builder(flowId)
-                .startedAt(snapshot.getStartedAt() != null ? snapshot.getStartedAt() : Instant.now());
-
-        List<StepStateSnapshot> pendingSteps = snapshot.getPendingSteps();
-
-        if (pendingSteps.isEmpty()) {
-            // No pending transactions, mark as complete
-            log.info("No pending transactions to track for flow {}", flowId);
-            handle.updateStatus(FlowStatus.COMPLETED);
-            resultBuilder.completedAt(Instant.now());
-            FlowResult result = resultBuilder.success();
-            callback.onRecoveryComplete(snapshot, true, null);
-
-            if (flowStateStore != null) {
-                flowStateStore.markFlowComplete(flowId, FlowStatus.COMPLETED);
-            }
-            return result;
-        }
-
-        log.info("Resuming tracking for flow {} with {} pending transactions", flowId, pendingSteps.size());
-
-        // Track each pending transaction
-        for (StepStateSnapshot stepSnapshot : pendingSteps) {
-            RecoveryCallback.RecoveryAction action = callback.onPendingTransaction(snapshot, stepSnapshot);
-
-            switch (action) {
-                case CONTINUE_TRACKING:
-                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(stepSnapshot.getTransactionHash(), null);
-                    if (confirmResult.isPresent()) {
-                        ConfirmationResult result = confirmResult.get();
-                        log.info("Transaction {} confirmed during recovery at block {}",
-                                stepSnapshot.getTransactionHash(), result.getBlockHeight());
-                        if (flowStateStore != null) {
-                            TransactionStateDetails details = TransactionStateDetails.confirmed(
-                                    result.getBlockHeight() != null ? result.getBlockHeight() : 0,
-                                    result.getConfirmationDepth(),
-                                    Instant.now());
-                            flowStateStore.updateTransactionState(flowId, stepSnapshot.getStepId(),
-                                    stepSnapshot.getTransactionHash(), details);
-                        }
-                        handle.incrementCompletedSteps();
-                    } else {
-                        log.warn("Transaction {} not confirmed during recovery", stepSnapshot.getTransactionHash());
-                        handle.updateStatus(FlowStatus.FAILED);
-                        resultBuilder.completedAt(Instant.now());
-                        FlowResult failedResult = resultBuilder.failure(
-                                new ConfirmationTimeoutException(stepSnapshot.getTransactionHash()));
-                        callback.onRecoveryComplete(snapshot, false, "Transaction confirmation timeout");
-
-                        if (flowStateStore != null) {
-                            flowStateStore.markFlowComplete(flowId, FlowStatus.FAILED);
-                        }
-                        return failedResult;
-                    }
-                    break;
-
-                case SKIP:
-                    log.info("Skipping transaction {} during recovery", stepSnapshot.getTransactionHash());
-                    // Mark step as skipped but continue
-                    break;
-
-                case RESUBMIT:
-                    log.warn("RESUBMIT action requested but not supported in basic recovery. " +
-                            "Application should handle resubmission externally.");
-                    // For RESUBMIT, the application needs to rebuild and resubmit the transaction
-                    // This is beyond the scope of basic recovery tracking
-                    break;
-
-                case FAIL_FLOW:
-                    log.info("Failing flow {} as requested by recovery callback", flowId);
-                    handle.updateStatus(FlowStatus.FAILED);
-                    resultBuilder.completedAt(Instant.now());
-                    FlowResult failedResult = resultBuilder.failure(
-                            new FlowExecutionException("Flow failed by recovery callback"));
-                    callback.onRecoveryComplete(snapshot, false, "Flow failed by recovery callback");
-
-                    if (flowStateStore != null) {
-                        flowStateStore.markFlowComplete(flowId, FlowStatus.FAILED);
-                    }
-                    return failedResult;
-            }
-        }
-
-        // All pending transactions tracked successfully
-        handle.updateStatus(FlowStatus.COMPLETED);
-        resultBuilder.completedAt(Instant.now());
-        FlowResult result = resultBuilder.success();
-        callback.onRecoveryComplete(snapshot, true, null);
-
-        if (flowStateStore != null) {
-            flowStateStore.markFlowComplete(flowId, FlowStatus.COMPLETED);
-        }
-
-        log.info("Recovery tracking completed for flow {}", flowId);
-        return result;
     }
 
     // ==================== Execution Hooks ====================
@@ -818,6 +628,20 @@ public class FlowExecutor implements AutoCloseable {
      */
     private int getMaxRollbackRetries() {
         return confirmationConfig != null ? confirmationConfig.getMaxRollbackRetries() : 3;
+    }
+
+    /**
+     * Get the confirmation timeout from configuration or use default.
+     */
+    private Duration getConfirmationTimeout() {
+        return confirmationConfig != null ? confirmationConfig.getTimeout() : DEFAULT_CONFIRMATION_TIMEOUT;
+    }
+
+    /**
+     * Get the check interval from configuration or use default.
+     */
+    private Duration getCheckInterval() {
+        return confirmationConfig != null ? confirmationConfig.getCheckInterval() : DEFAULT_CHECK_INTERVAL;
     }
 
     /**
@@ -1178,7 +1002,8 @@ public class FlowExecutor implements AutoCloseable {
 
         // Fall back to simple confirmation checking
         long startTime = System.currentTimeMillis();
-        long timeoutMs = confirmationTimeout.toMillis();
+        long timeoutMs = getConfirmationTimeout().toMillis();
+        long intervalMs = getCheckInterval().toMillis();
 
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             if (Thread.currentThread().isInterrupted()) {
@@ -1197,14 +1022,14 @@ public class FlowExecutor implements AutoCloseable {
                             .confirmationDepth(0)  // Not tracked in simple mode
                             .build());
                 }
-                Thread.sleep(checkInterval.toMillis());
+                Thread.sleep(intervalMs);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return Optional.empty();
             } catch (Exception e) {
                 log.debug("Waiting for tx confirmation: {}", txHash);
                 try {
-                    Thread.sleep(checkInterval.toMillis());
+                    Thread.sleep(intervalMs);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     return Optional.empty();
@@ -1585,7 +1410,7 @@ public class FlowExecutor implements AutoCloseable {
             });
 
             // Execute and wait for confirmation
-            TxResult result = txContext.completeAndWait(confirmationTimeout, checkInterval,
+            TxResult result = txContext.completeAndWait(getConfirmationTimeout(), getCheckInterval(),
                     msg -> log.debug("[{}] {}", stepId, msg));
 
             if (result.isSuccessful()) {

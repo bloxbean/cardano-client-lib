@@ -21,7 +21,6 @@ public class StepDependency {
     private final String stepId;
     private final SelectionStrategy strategy;
     private final Integer utxoIndex;
-    private final String filterExpression;
     private final Predicate<Utxo> filterPredicate;
     private final boolean optional;
 
@@ -29,7 +28,6 @@ public class StepDependency {
         this.stepId = builder.stepId;
         this.strategy = builder.strategy;
         this.utxoIndex = builder.utxoIndex;
-        this.filterExpression = builder.filterExpression;
         this.filterPredicate = builder.filterPredicate;
         this.optional = builder.optional;
     }
@@ -80,13 +78,6 @@ public class StepDependency {
             case FILTER:
                 return applyFilter(availableUtxos);
 
-            case CHANGE:
-                // Change output is typically the last output
-                if (availableUtxos.isEmpty()) {
-                    return Collections.emptyList();
-                }
-                return Collections.singletonList(availableUtxos.get(availableUtxos.size() - 1));
-
             default:
                 return new ArrayList<>(availableUtxos);
         }
@@ -133,27 +124,6 @@ public class StepDependency {
     }
 
     /**
-     * Create a dependency that uses the change output (last output).
-     *
-     * @param stepId the ID of the step to depend on
-     * @return a new StepDependency
-     */
-    public static StepDependency change(String stepId) {
-        return builder(stepId).withStrategy(SelectionStrategy.CHANGE).build();
-    }
-
-    /**
-     * Create a dependency with a filter expression.
-     *
-     * @param stepId the ID of the step to depend on
-     * @param filterExpression the filter expression (e.g., "lovelace &gt;= 1000000")
-     * @return a new StepDependency
-     */
-    public static StepDependency filter(String stepId, String filterExpression) {
-        return builder(stepId).withStrategy(SelectionStrategy.FILTER).withFilterExpression(filterExpression).build();
-    }
-
-    /**
      * Create a dependency with a predicate filter.
      *
      * @param stepId the ID of the step to depend on
@@ -191,7 +161,6 @@ public class StepDependency {
         private final String stepId;
         private SelectionStrategy strategy = SelectionStrategy.ALL;
         private Integer utxoIndex;
-        private String filterExpression;
         private Predicate<Utxo> filterPredicate;
         private boolean optional = false;
 
@@ -209,11 +178,6 @@ public class StepDependency {
 
         public Builder withUtxoIndex(int index) {
             this.utxoIndex = index;
-            return this;
-        }
-
-        public Builder withFilterExpression(String filterExpression) {
-            this.filterExpression = filterExpression;
             return this;
         }
 

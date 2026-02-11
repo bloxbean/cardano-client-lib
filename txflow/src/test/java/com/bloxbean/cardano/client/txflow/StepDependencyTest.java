@@ -73,19 +73,6 @@ class StepDependencyTest {
     }
 
     @Test
-    void change_shouldSelectLastUtxo() {
-        // Given
-        StepDependency dep = StepDependency.change("step1");
-
-        // When
-        List<Utxo> selected = dep.resolveUtxos(context);
-
-        // Then
-        assertThat(selected).hasSize(1);
-        assertThat(selected.get(0).getOutputIndex()).isEqualTo(2); // Last output
-    }
-
-    @Test
     void filter_withPredicate_shouldFilterUtxos() {
         // Given
         StepDependency dep = StepDependency.filter("step1",

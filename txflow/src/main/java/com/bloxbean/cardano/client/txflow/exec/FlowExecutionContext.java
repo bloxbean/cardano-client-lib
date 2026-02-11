@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * The FlowExecutionContext provides a way for steps in a transaction flow to:
  * <ul>
  *     <li>Access outputs from previous steps</li>
- *     <li>Share data between steps</li>
  *     <li>Track the overall execution progress</li>
  * </ul>
  * <p>
@@ -23,7 +22,6 @@ public class FlowExecutionContext {
     private final String flowId;
     private final Map<String, Object> variables;
     private final Map<String, FlowStepResult> stepResults = new ConcurrentHashMap<>();
-    private final Map<String, Object> sharedData = new ConcurrentHashMap<>();
 
     /**
      * Create a new FlowExecutionContext for the given flow.
@@ -155,29 +153,6 @@ public class FlowExecutionContext {
         return Optional.ofNullable(stepResults.get(stepId))
                 .map(FlowStepResult::isSuccessful)
                 .orElse(false);
-    }
-
-    /**
-     * Store shared data that can be accessed by any step.
-     *
-     * @param key the data key
-     * @param value the data value
-     */
-    public void setSharedData(String key, Object value) {
-        sharedData.put(key, value);
-    }
-
-    /**
-     * Get shared data by key and type.
-     *
-     * @param key the data key
-     * @param type the expected type
-     * @param <T> the type parameter
-     * @return the data value if found and of correct type, empty otherwise
-     */
-    public <T> Optional<T> getSharedData(String key, Class<T> type) {
-        Object value = sharedData.get(key);
-        return type.isInstance(value) ? Optional.of(type.cast(value)) : Optional.empty();
     }
 
     /**

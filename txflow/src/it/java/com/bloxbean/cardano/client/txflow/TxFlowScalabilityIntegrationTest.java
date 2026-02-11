@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.helper.SignerProviders;
 import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
 import com.bloxbean.cardano.client.quicktx.Tx;
+import com.bloxbean.cardano.client.txflow.exec.ConfirmationConfig;
 import com.bloxbean.cardano.client.txflow.exec.FlowExecutor;
 import com.bloxbean.cardano.client.txflow.exec.FlowHandle;
 import com.bloxbean.cardano.client.txflow.exec.registry.FlowLifecycleListener;
@@ -221,7 +222,7 @@ public class TxFlowScalabilityIntegrationTest {
         FlowExecutor executor = FlowExecutor.create(backendService)
                 .withRegistry(flowRegistry)
                 .withChainingMode(ChainingMode.BATCH)
-                .withConfirmationTimeout(Duration.ofSeconds(120));
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(120)).build());
 
         System.out.println("Creating " + NUM_PARALLEL_FLOWS + " circular transfer flows...");
         System.out.println("Each flow: Account[i] -> Account[i+100] -> Account[i] (circular)");
@@ -483,7 +484,7 @@ public class TxFlowScalabilityIntegrationTest {
         FlowExecutor executor = FlowExecutor.create(backendService)
                 .withRegistry(registry)
                 .withChainingMode(ChainingMode.BATCH)
-                .withConfirmationTimeout(Duration.ofSeconds(180));
+                .withConfirmationConfig(ConfirmationConfig.builder().timeout(Duration.ofSeconds(180)).build());
 
         long startTime = System.currentTimeMillis();
 
