@@ -14,11 +14,44 @@ public class PackageResolver {
      * Model package used for generated Datum/Schema types.
      * Format: {@code annotation.packageName + ["." + ns] + ".model"}
      *
+     * <p><b>Namespace Handling:</b></p>
+     * <ul>
+     *   <li>Types WITH module paths: {@code annotation.packageName + "." + namespace + ".model"}</li>
+     *   <li>Types WITHOUT module paths: {@code annotation.packageName + ".model"} (no namespace component)</li>
+     * </ul>
+     *
+     * <p><b>Examples:</b></p>
+     * <ul>
+     *   <li>{@code "types/order/OrderDatum"} → namespace "types.order" → {@code com.example.blueprint.types.order.model}</li>
+     *   <li>{@code "Bool"} (root-level ADT) → namespace "" → {@code com.example.blueprint.model}</li>
+     * </ul>
+     *
+     * <p><b>Note:</b> Most types without module paths are filtered before reaching this method:</p>
+     * <ul>
+     *   <li>Generic instantiations: {@code "Option<T>"}, {@code "List<T>"} - skipped (contain &lt; &gt; $)</li>
+     *   <li>Primitives: {@code "Int"}, {@code "ByteArray"} - classified as ALIAS and skipped</li>
+     *   <li>Abstract types: {@code "Data"} - classified as ALIAS and skipped</li>
+     * </ul>
+     * Only legitimate root-level custom types (like {@code "Bool"}) reach here with empty namespace.
+     *
      * @param annotation the blueprint annotation containing base package name
      * @param ns the namespace to append (can be null or empty)
      * @return the resolved package name for model classes
      */
     public String getModelPackage(Blueprint annotation, String ns) {
+        // For types WITH module paths: annotation.packageName() + "." + namespace + ".model"
+        // For types WITHOUT module paths (empty namespace): annotation.packageName() + ".model"
+        //
+        // Examples:
+        //   "types/order/OrderDatum" → namespace "types.order" → com.example.blueprint.types.order.model
+        //   "Bool" (root-level ADT) → namespace "" → com.example.blueprint.model
+        //
+        // Note: Most types without paths are filtered BEFORE reaching this method:
+        //   1. Generic instantiations (Option<T>, List<T>) → skipped (contain < > $)
+        //   2. Primitives (Int, ByteArray) → classified as ALIAS and skipped
+        //   3. Abstract types (Data) → classified as ALIAS and skipped
+        //
+        // Only legitimate root-level custom types (like Bool) reach here with empty namespace.
         String pkg = (ns != null && !ns.isEmpty())
                 ? annotation.packageName() + "." + ns + ".model"
                 : annotation.packageName() + ".model";

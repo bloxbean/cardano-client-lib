@@ -76,13 +76,14 @@ class FieldSpecProcessorTest {
         }
 
         @Test
-        void shouldReturnSchemaTitle_whenTitleIsPresent() {
+        void shouldPreferDefinitionKey_evenWhenTitleIsPresent() {
             BlueprintSchema schema = new BlueprintSchema();
             schema.setTitle("Action");
 
+            // NEW BEHAVIOR: Definition key is preferred over title
             String result = fieldSpecProcessor.resolveTitleFromDefinitionKey("types/custom/SomethingElse", schema);
 
-            assertThat(result).isEqualTo("Action");
+            assertThat(result).isEqualTo("SomethingElse");  // From key, not title
         }
 
         @Test
@@ -126,13 +127,14 @@ class FieldSpecProcessorTest {
         }
 
         @Test
-        void shouldReturnNull_whenSchemaHasEmptyTitle_andDefinitionKeyIsNull() {
+        void shouldReturnEmptyString_whenSchemaHasEmptyTitle_andDefinitionKeyIsNull() {
             BlueprintSchema schema = new BlueprintSchema();
             schema.setTitle("");  // Empty title
 
+            // NEW BEHAVIOR: Definition key is preferred but null/empty, so falls back to title ("")
             String result = fieldSpecProcessor.resolveTitleFromDefinitionKey(null, schema);
 
-            assertThat(result).isNull();
+            assertThat(result).isEmpty();  // Returns empty string, not null
         }
 
         @Test
@@ -146,25 +148,25 @@ class FieldSpecProcessorTest {
         }
 
         @Test
-        void shouldPreferSchemaTitle_overDefinitionKey() {
+        void shouldPreferDefinitionKey_overSchemaTitle() {
             BlueprintSchema schema = new BlueprintSchema();
             schema.setTitle("CustomName");
 
-            // Even though definition key would extract "Data", schema title takes precedence
+            // NEW BEHAVIOR: Definition key takes precedence over schema title
             String result = fieldSpecProcessor.resolveTitleFromDefinitionKey("types/custom/Data", schema);
 
-            assertThat(result).isEqualTo("CustomName");
+            assertThat(result).isEqualTo("Data");  // From key, not title
         }
 
         @Test
-        void shouldHandleWhitespaceTitle_asEmpty() {
+        void shouldPreferDefinitionKey_evenWithWhitespaceTitle() {
             BlueprintSchema schema = new BlueprintSchema();
-            schema.setTitle("   ");  // Whitespace - should be treated as present
+            schema.setTitle("   ");  // Whitespace title
 
             String result = fieldSpecProcessor.resolveTitleFromDefinitionKey("types/custom/Data", schema);
 
-            // Note: Current implementation treats whitespace as valid title
-            assertThat(result).isEqualTo("   ");
+            // NEW BEHAVIOR: Definition key is preferred over whitespace title
+            assertThat(result).isEqualTo("Data");  // From key, not whitespace title
         }
 
         @Test

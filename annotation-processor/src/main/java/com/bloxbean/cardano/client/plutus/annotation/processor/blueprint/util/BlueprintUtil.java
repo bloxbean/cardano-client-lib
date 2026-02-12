@@ -25,56 +25,103 @@ public class BlueprintUtil {
      *   <li>{@code "Int"} → {@code ""} (no namespace)</li>
      * </ul>
      *
-     * <p><b>Examples for generic types (extracts namespace from innermost concrete type):</b></p>
+     * <p><b>IMPORTANT - Correct Logic (Fixed):</b></p>
+     * <p>Per CIP-57, definition keys are the technical identifiers, not the "title" field.
+     * The namespace is extracted from the <b>BASE TYPE</b> in the key, not from type parameters.</p>
+     *
+     * <p><b>Examples for types WITH module paths:</b></p>
      * <ul>
-     *   <li>{@code "Option<types/order/Action>"} → {@code "types.order"}</li>
-     *   <li>{@code "List<Option<types/order/Action>>"} → {@code "types.order"}</li>
-     *   <li>{@code "Option<cardano/address/Credential>"} → {@code "cardano.address"}</li>
-     *   <li>{@code "Option<Int>"} → {@code ""} (primitive, no namespace)</li>
-     *   <li>{@code "Option$types~1order~1Action"} → {@code "types.order"} (dollar sign syntax)</li>
+     *   <li>{@code "types/order/OrderDatum"} → {@code "types.order"} ✅</li>
+     *   <li>{@code "cardano/address/Address"} → {@code "cardano.address"} ✅</li>
+     *   <li>{@code "aiken/interval/IntervalBound<Int>"} → {@code "aiken.interval"} ✅ (base type has path)</li>
      * </ul>
      *
-     * <p><b>Generic Type Handling:</b></p>
-     * <p>When the key contains generic syntax ({@code <} or {@code $}), the method extracts
-     * the innermost concrete type before namespace extraction. This prevents splitting at
-     * {@code /} characters that appear inside generic brackets, which would produce invalid
-     * package names like {@code "list<option<types.order"}.</p>
+     * <p><b>Examples for types WITHOUT module paths:</b></p>
+     * <ul>
+     *   <li>{@code "Option<cardano/address/StakeCredential>"} → {@code ""} (base "Option" has NO path)</li>
+     *   <li>{@code "List<Int>"} → {@code ""} (base "List" has NO path)</li>
+     *   <li>{@code "Data"} → {@code ""} (primitive, NO path)</li>
+     *   <li>{@code "Bool"} → {@code ""} (root-level ADT, NO path)</li>
+     *   <li>{@code "Option$types~1order~1Action"} → {@code ""} (base "Option" has NO path)</li>
+     * </ul>
      *
      * @param key the blueprint definition reference key (may be null)
      * @return the namespace in dot-separated lowercase format, or empty string if no namespace exists
      */
     public static String getNamespaceFromReferenceKey(String key) {
-        if (key == null)
+        if (key == null || key.isEmpty())
             return "";
 
-        // NEW: For generic types, extract innermost type first
-        String typeToProcess = key;
-        if (key.contains("<") || key.contains("$")) {
-            typeToProcess = extractInnermostType(key);
-            if (typeToProcess.isEmpty()) {
-                return ""; // All primitives, no namespace
-            }
-        }
+        // FIXED: Extract BASE type (strip generics), not type parameter!
+        // "Option<cardano/address/StakeCredential>" → "Option" (not "cardano/address/StakeCredential")
+        // "aiken/interval/IntervalBound<Int>" → "aiken/interval/IntervalBound"
+        // "types/order/OrderDatum" → "types/order/OrderDatum"
+        String baseType = extractBaseType(key);
 
         // Unescape JSON Pointer sequences (types~1order~1Action → types/order/Action)
-        typeToProcess = JsonPointerUtil.unescape(typeToProcess);
+        baseType = JsonPointerUtil.unescape(baseType);
 
-        String[] titleTokens = typeToProcess.split("\\/");
+        // Check if BASE type has module path (contains "/")
+        if (!baseType.contains("/")) {
+            return ""; // No module path → empty namespace
+        }
 
+        // Extract namespace from BASE type
+        String[] segments = baseType.split("/");
+        if (segments.length <= 1) {
+            return ""; // No namespace components
+        }
+
+        // Join all segments except the last (the class name)
         StringBuilder ns = new StringBuilder();
-        if (titleTokens.length > 1) {
-            //Iterate titleTokens and create ns and remove last dot
-            for (int i = 0; i < titleTokens.length - 1; i++) {
-                ns.append(titleTokens[i]).append(".");
-            }
-            ns = new StringBuilder(ns.substring(0, ns.length() - 1));
+        for (int i = 0; i < segments.length - 1; i++) {
+            if (i > 0) ns.append(".");
+            ns.append(segments[i]);
         }
 
-        if (ns.length() > 0) {
-            ns = new StringBuilder(ns.toString().toLowerCase());
+        return ns.toString().toLowerCase();
+    }
+
+    /**
+     * Extracts the base type from a definition key, stripping generic type parameters.
+     *
+     * <p>Examples:</p>
+     * <ul>
+     *   <li>{@code "Option<cardano/address/StakeCredential>"} → {@code "Option"}</li>
+     *   <li>{@code "List$Int"} → {@code "List"}</li>
+     *   <li>{@code "aiken/interval/IntervalBound<Int>"} → {@code "aiken/interval/IntervalBound"}</li>
+     *   <li>{@code "types/order/OrderDatum"} → {@code "types/order/OrderDatum"}</li>
+     * </ul>
+     *
+     * @param key the definition key
+     * @return the base type without generic parameters
+     */
+    private static String extractBaseType(String key) {
+        if (key == null || key.isEmpty()) {
+            return "";
         }
 
-        return ns.toString();
+        // Find first generic delimiter
+        int genericStart = key.indexOf('<');
+        int dollarStart = key.indexOf('$');
+
+        // Determine which delimiter comes first (if any)
+        int delimiterPos = -1;
+        if (genericStart != -1 && dollarStart != -1) {
+            delimiterPos = Math.min(genericStart, dollarStart);
+        } else if (genericStart != -1) {
+            delimiterPos = genericStart;
+        } else if (dollarStart != -1) {
+            delimiterPos = dollarStart;
+        }
+
+        // If no generics, return the whole key
+        if (delimiterPos == -1) {
+            return key;
+        }
+
+        // Return everything before the generic delimiter
+        return key.substring(0, delimiterPos);
     }
 
     /**
