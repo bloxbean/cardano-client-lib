@@ -106,6 +106,128 @@ public class FieldSpecProcessor {
     }
 
     /**
+     * Extracts base type from a definition key by stripping generic parameters.
+     * Handles both $ syntax (older Aiken) and &lt;&gt; syntax (newer Aiken).
+     *
+     * <p><b>Examples:</b></p>
+     * <ul>
+     *   <li>"Interval$Int" → "Interval"</li>
+     *   <li>"Option&lt;T&gt;" → "Option"</li>
+     *   <li>"List&lt;Option&lt;Int&gt;&gt;" → "List"</li>
+     *   <li>"cardano/transaction/ValidityRange" → "cardano/transaction/ValidityRange" (unchanged)</li>
+     * </ul>
+     *
+     * @param key the definition key that may contain generic parameters
+     * @return the base type without generic parameters
+     */
+    private String extractBaseType(String key) {
+        if (key == null || key.isEmpty()) {
+            return key;
+        }
+
+        // Strip generic parameters: "Interval$Int" → "Interval"
+        int dollarIndex = key.indexOf('$');
+        if (dollarIndex > 0) {
+            key = key.substring(0, dollarIndex);
+        }
+
+        // Strip angle bracket generics: "Option<T>" → "Option"
+        int angleIndex = key.indexOf('<');
+        if (angleIndex > 0) {
+            key = key.substring(0, angleIndex);
+        }
+
+        return key;
+    }
+
+    /**
+     * Resolves class name from a $ref value, preferring the definition key
+     * and falling back to the referenced schema's title.
+     *
+     * <p><b>CIP-57 Compliance:</b> This method implements the CIP-57 principle that definition keys are
+     * the technical identifiers (source of truth), while titles are optional UI decoration.
+     * For generic instantiations like "Interval$Int" or "Option&lt;T&gt;", it extracts the base type.</p>
+     *
+     * <p><b>Rationale:</b> When a field references another definition via $ref, we must use the
+     * definition key from that $ref to determine the class name, NOT the variant's title.
+     * This ensures consistency with the recent refactoring (commit cf953ed1) that established
+     * "definition keys as source of truth per CIP-57 specification".</p>
+     *
+     * <p><b>Generic Type Handling:</b> For generic instantiations, this method extracts the base type
+     * and checks if it's a built-in container or domain-specific type:</p>
+     * <ul>
+     *   <li><b>Built-in containers</b> (List, Option, Tuple, etc.): Returns null to signal PlutusData fallback</li>
+     *   <li><b>Domain-specific types</b> (Interval, IntervalBound, etc.): Returns base type for typed class</li>
+     * </ul>
+     *
+     * <p><b>Examples:</b></p>
+     * <ul>
+     *   <li>$ref "#/definitions/cardano~1transaction~1ValidityRange" → extracts "ValidityRange"</li>
+     *   <li>$ref "#/definitions/aiken~1interval~1Interval$Int" → extracts "Interval" (domain-specific, typed class)</li>
+     *   <li>$ref "#/definitions/Option&lt;Credential&gt;" → returns null (built-in container, PlutusData)</li>
+     *   <li>$ref "#/definitions/List&lt;Int&gt;" → returns null (built-in container, PlutusData)</li>
+     *   <li>$ref null, schema title "Action" → returns "Action" (fallback)</li>
+     * </ul>
+     *
+     * @param ref the $ref value (e.g., "#/definitions/aiken~1interval~1Interval$Int")
+     * @param refSchema the resolved schema from the reference (may have title)
+     * @return the resolved class name (base type for domain-specific generics), or null to signal PlutusData fallback
+     */
+    protected String resolveClassNameFromRef(String ref, BlueprintSchema refSchema) {
+        if (ref == null || ref.isEmpty()) {
+            return refSchema != null ? refSchema.getTitle() : null;
+        }
+
+        // Extract definition key from $ref (normalizes JSON pointer syntax)
+        String defKey = BlueprintUtil.normalizedReference(ref);
+
+        // For generic instantiations, extract base type
+        String baseType = extractBaseType(defKey);
+
+        // Get the simple name (last segment after /) for built-in container check
+        String simpleName = baseType.contains("/")
+            ? baseType.substring(baseType.lastIndexOf('/') + 1)
+            : baseType;
+
+        // If this is a built-in generic container (List, Option, etc.) that was skipped
+        // during class generation, return null to signal PlutusData fallback
+        if (isBuiltInGenericContainer(simpleName)) {
+            return null;  // Signal to use PlutusData
+        }
+
+        // For domain-specific types (Interval, IntervalBound, etc.),
+        // use the base type to get class name
+        // PREFER: Class name from definition key (base type for generics)
+        String keyClassName = BlueprintUtil.getClassNameFromReferenceKey(baseType);
+        if (keyClassName != null && !keyClassName.isEmpty()) {
+            return keyClassName;
+        }
+
+        // FALLBACK: Title from referenced schema (for backward compatibility)
+        return refSchema != null ? refSchema.getTitle() : null;
+    }
+
+    /**
+     * Checks if a type name represents a built-in generic container that should be skipped.
+     * These types have Java equivalents or are handled specially (Optional, List, Map, etc.).
+     *
+     * @param simpleName the simple type name (e.g., "List", "Option", "Data")
+     * @return true if this is a built-in container that should be skipped
+     */
+    private boolean isBuiltInGenericContainer(String simpleName) {
+        // Built-in generic containers that map to Java types or are handled specially
+        return "List".equals(simpleName)
+            || "Option".equals(simpleName)
+            || "Optional".equals(simpleName)
+            || "Tuple".equals(simpleName)
+            || "Pair".equals(simpleName)
+            || "Map".equals(simpleName)
+            || "Dict".equals(simpleName)
+            || "Data".equals(simpleName)
+            || "Redeemer".equals(simpleName);
+    }
+
+    /**
      * Creates a Datum class for a given schema
      * If the schema has anyOf &gt; 1, it creates an interface and a class for each of the anyOf
      * This is the main method called to create Datum classes from BlueprintAnnotationProcessor
@@ -223,7 +345,11 @@ public class FieldSpecProcessor {
             dataClassName = nameStrategy.toClassName(dataClassName);
         }
 
-        String finalNS = BlueprintUtil.getNamespaceFromReference(schema.getRef());
+        // When processing a definition, schema.getRef() is null, so use the namespace parameter
+        // When processing a field reference, schema.getRef() is set, extract namespace from it
+        String finalNS = (schema.getRef() != null)
+            ? BlueprintUtil.getNamespaceFromReference(schema.getRef())
+            : ns;
         String pkg = getPackageName(finalNS);
 
         //For anyOf > 1, create an interface, if size == 1, create a class
@@ -236,8 +362,20 @@ public class FieldSpecProcessor {
         }
 
         if (schema.getAnyOf() != null && schema.getAnyOf().size() == 1) {
-            var anyOfSchema = schema.getAnyOf().get(0);
-            dataClassName = anyOfSchema.getTitle();
+            // When processing a definition (not a field reference), schema.getRef() is null
+            // In this case, use the schema's title which was resolved from the definition key
+            // When processing a field reference, schema.getRef() is set
+            // In this case, use the definition key from the $ref (CIP-57 source of truth)
+            if (schema.getRef() != null) {
+                dataClassName = resolveClassNameFromRef(schema.getRef(), schema);
+            }
+
+            // Fallback: use parent schema's title (already resolved from definition key in createDatumClass)
+            // NOT the variant's title, which may differ from the definition name
+            if (dataClassName == null || dataClassName.isEmpty()) {
+                dataClassName = schema.getTitle();
+            }
+
             if (dataClassName != null) {
                 dataClassName = nameStrategy.toClassName(dataClassName);
 
@@ -257,6 +395,7 @@ public class FieldSpecProcessor {
      */
     public static Tuple<String, List<BlueprintSchema>> collectAllFields(BlueprintSchema schema) {
         List<BlueprintSchema> toFields = new ArrayList<>();
+
         String javaDoc = "";
         if (schema.getAllOf() != null) {
             toFields.addAll(schema.getAllOf());
@@ -270,6 +409,7 @@ public class FieldSpecProcessor {
         } else {
             toFields.add(schema);
         }
+
         return new Tuple<>(javaDoc, toFields);
     }
 
@@ -284,7 +424,7 @@ public class FieldSpecProcessor {
     public ClassName createDatumInterface(String ns, String dataClassName, BlueprintSchema schema) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
-        String className = nameStrategy.toClassName(dataClassName); // TODO, WHY IS THIS TODO?
+        String className = nameStrategy.toClassName(dataClassName);
 
         TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
                 .addModifiers(Modifier.PUBLIC)
@@ -323,7 +463,8 @@ public class FieldSpecProcessor {
         }
 
         String classNameString = nameStrategy.toClassName(title);
-        TypeSpec redeemerJavaFile = createDatumTypeSpec(ns, interfaceName, schema);
+        // Pass the outer class name (definition title) for single anyOf cases
+        TypeSpec redeemerJavaFile = createDatumTypeSpec(ns, interfaceName, schema, title);
 
         String className = redeemerJavaFile.name;
 
@@ -346,8 +487,30 @@ public class FieldSpecProcessor {
                 return new Tuple<>(fieldSpec, plutusDataType);
             }
 
-            String refTitle = schema.getRefSchema().getTitle();
-            className = refTitle != null ? refTitle : className;
+            // Resolve from definition key instead of ref schema title
+            // For domain-specific generic instantiations (e.g., "Interval$Int"), this extracts the base type ("Interval")
+            // and uses the typed class that was generated for it
+            // For built-in containers (e.g., "Option<T>", "List<T>"), this returns null to signal PlutusData fallback
+            String refClassName = resolveClassNameFromRef(schema.getRef(), schema.getRefSchema());
+
+            // If refClassName is null, it means the $ref points to a built-in container
+            // that was skipped during class generation OR a truly unresolvable type
+            // This is a safety net - most Option<T> types should now be handled by
+            // PlutusBlueprintLoader setting dataType=option and routing through OptionDataTypeProcessor
+            if (refClassName == null) {
+                ClassName plutusDataType = ClassName.get(PlutusData.class);
+
+                String fieldName = title;
+                fieldName = nameStrategy.firstLowerCase(nameStrategy.toCamelCase(fieldName));
+
+                FieldSpec fieldSpec = FieldSpec.builder(plutusDataType, fieldName)
+                        .addModifiers(Modifier.PRIVATE)
+                        .build();
+
+                return new Tuple<>(fieldSpec, plutusDataType);
+            }
+
+            className = refClassName;
             className = nameStrategy.toClassName(className);
         }
 
@@ -366,7 +529,7 @@ public class FieldSpecProcessor {
         return new Tuple<>(fieldSpec, classNameType);
     }
 
-    private TypeSpec createDatumTypeSpec(String ns, String interfaceName, BlueprintSchema schema) {
+    private TypeSpec createDatumTypeSpec(String ns, String interfaceName, BlueprintSchema schema, String outerClassName) {
         Tuple<String, List<BlueprintSchema>> allInnerSchemas = FieldSpecProcessor.collectAllFields(schema);
 
         List<FieldSpec> fields = null;
@@ -378,8 +541,10 @@ public class FieldSpecProcessor {
 
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).addMember("alternative", "$L", schema.getIndex()).build();
 
-        String title = schema.getTitle();
-        String className = nameStrategy.toClassName(title); //TODO
+        // For single anyOf (interfaceName == null), use outerClassName (definition title)
+        // For multiple anyOf (interface), use schema title (variant title)
+        String title = (interfaceName == null && outerClassName != null) ? outerClassName : schema.getTitle();
+        String className = nameStrategy.toClassName(title);
 
         String pkg = getPackageName(ns);
 
