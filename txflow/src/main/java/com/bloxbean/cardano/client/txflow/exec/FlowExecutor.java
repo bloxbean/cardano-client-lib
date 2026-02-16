@@ -563,13 +563,14 @@ public class FlowExecutor implements AutoCloseable {
                         result = doExecuteSequentialWithResume(flow, handleHooks(flow, handle), confirmedSteps);
                         break;
                 }
-                future.complete(result);
-            } catch (Exception e) {
-                handle.updateStatus(FlowStatus.FAILED);
-                future.completeExceptionally(e);
-            } finally {
                 activeFlowIds.remove(flow.getId());
                 activeHandles.remove(handle);
+                future.complete(result);
+            } catch (Exception e) {
+                activeFlowIds.remove(flow.getId());
+                activeHandles.remove(handle);
+                handle.updateStatus(FlowStatus.FAILED);
+                future.completeExceptionally(e);
             }
         };
 
@@ -1408,13 +1409,16 @@ public class FlowExecutor implements AutoCloseable {
             try {
                 handle.updateStatus(FlowStatus.IN_PROGRESS);
                 FlowResult result = executeWithHandle(flow, handle);
-                future.complete(result);
-            } catch (Exception e) {
-                handle.updateStatus(FlowStatus.FAILED);
-                future.completeExceptionally(e);
-            } finally {
+                // Clean up BEFORE completing the future so callers unblocked by
+                // await() can immediately re-execute the same flow ID.
                 activeFlowIds.remove(flow.getId());
                 activeHandles.remove(handle);
+                future.complete(result);
+            } catch (Exception e) {
+                activeFlowIds.remove(flow.getId());
+                activeHandles.remove(handle);
+                handle.updateStatus(FlowStatus.FAILED);
+                future.completeExceptionally(e);
             }
         };
 
