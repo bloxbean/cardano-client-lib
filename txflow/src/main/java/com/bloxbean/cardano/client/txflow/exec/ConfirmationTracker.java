@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 /**
  * Tracks transaction confirmation status and detects rollbacks.
@@ -195,6 +196,22 @@ public class ConfirmationTracker {
      */
     public ConfirmationResult waitForConfirmation(String txHash, ConfirmationStatus targetStatus,
                                                    BiConsumer<String, ConfirmationResult> onProgress) {
+        return waitForConfirmation(txHash, targetStatus, onProgress, () -> false);
+    }
+
+    /**
+     * Wait for a transaction to reach the target confirmation status with progress callback
+     * and cancellation support.
+     *
+     * @param txHash the transaction hash to monitor
+     * @param targetStatus the status to wait for
+     * @param onProgress optional callback invoked on each status check (txHash, result)
+     * @param isCancelledCheck supplier that returns true when the flow has been cancelled
+     * @return the final confirmation result
+     */
+    public ConfirmationResult waitForConfirmation(String txHash, ConfirmationStatus targetStatus,
+                                                   BiConsumer<String, ConfirmationResult> onProgress,
+                                                   BooleanSupplier isCancelledCheck) {
         long startTime = System.currentTimeMillis();
         long timeoutMs = config.getTimeout().toMillis();
         long checkIntervalMs = config.getCheckInterval().toMillis();
@@ -203,6 +220,17 @@ public class ConfirmationTracker {
         int lastDepth = -2; // Initialize to invalid value to ensure first callback fires
 
         while (System.currentTimeMillis() - startTime < timeoutMs) {
+            // Check for cancellation
+            if (isCancelledCheck.getAsBoolean()) {
+                log.info("Cancellation detected while waiting for confirmation of tx {}", txHash);
+                return ConfirmationResult.builder()
+                        .txHash(txHash)
+                        .status(lastResult != null ? lastResult.getStatus() : ConfirmationStatus.SUBMITTED)
+                        .confirmationDepth(lastResult != null ? lastResult.getConfirmationDepth() : -1)
+                        .error(new RuntimeException("Flow cancelled"))
+                        .build();
+            }
+
             lastResult = checkStatus(txHash);
 
             // Notify progress if callback provided and depth changed

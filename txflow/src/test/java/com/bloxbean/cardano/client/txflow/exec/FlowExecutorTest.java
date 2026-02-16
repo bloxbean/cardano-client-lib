@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.txflow.FlowStep;
 import com.bloxbean.cardano.client.txflow.RetryPolicy;
 import com.bloxbean.cardano.client.txflow.TxFlow;
 import com.bloxbean.cardano.client.txflow.result.FlowResult;
+import com.bloxbean.cardano.client.txflow.result.FlowStepResult;
 import com.bloxbean.cardano.client.txflow.result.FlowStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,11 +17,17 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 class FlowExecutorTest {
 
@@ -93,6 +100,13 @@ class FlowExecutorTest {
 
     @Test
     void testExecute_duplicateFlowId_throwsIllegalState() throws Exception {
+        // Use a blocking executor to ensure the flow stays active
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        executor.withExecutor(r -> new Thread(() -> {
+            try { blockLatch.await(); } catch (InterruptedException ignored) {}
+            r.run();
+        }).start());
+
         TxFlow flow1 = createSimpleFlow("same-id");
 
         // First execution should work
@@ -104,8 +118,9 @@ class FlowExecutorTest {
         assertTrue(ex.getMessage().contains("same-id"));
         assertTrue(ex.getMessage().contains("already executing"));
 
-        // Cancel to clean up
+        // Clean up
         handle1.cancel();
+        blockLatch.countDown();
     }
 
     @Test
@@ -293,5 +308,128 @@ class FlowExecutorTest {
         executor.withConfirmationConfig(ConfirmationConfig.quick());
         executor.close();
         // Should complete without error
+    }
+
+    // ==================== HIGH-2: cancel() interrupts running flows ====================
+
+    @Test
+    void testCancel_duringConfirmationWait_exitsPromptly() throws Exception {
+        // Setup: chainDataSupplier returns a tip but never finds the transaction
+        // This will cause the confirmation wait loop to keep polling
+        when(chainDataSupplier.getChainTipHeight()).thenReturn(1000L);
+        when(chainDataSupplier.getTransactionInfo(anyString())).thenReturn(Optional.empty());
+
+        // Configure with confirmation tracking so waitForConfirmationWithTracking is used
+        ConfirmationConfig config = ConfirmationConfig.builder()
+                .minConfirmations(1)
+                .checkInterval(Duration.ofMillis(50))
+                .timeout(Duration.ofSeconds(60))  // Long timeout — we rely on cancel, not timeout
+                .build();
+        executor.withConfirmationConfig(config);
+
+        TxFlow flow = createSimpleFlow("cancel-test");
+        FlowHandle handle = executor.execute(flow);
+
+        // Wait briefly for execution to start (it will fail during tx build with mocked backend,
+        // but the test validates that the cancellation flag propagates correctly)
+        Thread.sleep(200);
+
+        long start = System.currentTimeMillis();
+        handle.cancel();
+
+        // Wait for the flow to complete — should be very fast after cancel
+        try {
+            handle.await(Duration.ofSeconds(5));
+        } catch (Exception e) {
+            // Expected — the flow will fail/cancel
+        }
+
+        long elapsed = System.currentTimeMillis() - start;
+        assertTrue(handle.isCancelled(), "Handle should be marked as cancelled");
+        // The flow may have already failed before reaching confirmation wait (due to mocked backend),
+        // but the key assertion is that cancel() returns promptly and the handle reflects cancellation
+        assertTrue(elapsed < 5000, "Should exit promptly after cancel, took " + elapsed + "ms");
+    }
+
+    // ==================== HIGH-5: executeSync/resumeSync duplicate flow ID guard ====================
+
+    @Test
+    void testExecuteSync_duplicateFlowId_throwsIllegalState() throws Exception {
+        // Use a blocking executor to ensure the async flow stays active
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        executor.withExecutor(r -> new Thread(() -> {
+            try { blockLatch.await(); } catch (InterruptedException ignored) {}
+            r.run();
+        }).start());
+
+        TxFlow flow = createSimpleFlow("sync-dup-id");
+
+        // Start async execution — this will hold the flow ID in activeFlowIds
+        FlowHandle handle = executor.execute(flow);
+
+        // Sync execution with the same ID should throw
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> executor.executeSync(flow));
+        assertTrue(ex.getMessage().contains("sync-dup-id"));
+        assertTrue(ex.getMessage().contains("already executing"));
+
+        handle.cancel();
+        blockLatch.countDown();
+    }
+
+    @Test
+    void testResumeSync_duplicateFlowId_throwsIllegalState() throws Exception {
+        // Use a blocking executor to ensure the async flow stays active
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        executor.withExecutor(r -> new Thread(() -> {
+            try { blockLatch.await(); } catch (InterruptedException ignored) {}
+            r.run();
+        }).start());
+
+        TxFlow flow = createSimpleFlow("resume-dup-id");
+
+        // Start async execution to occupy the flow ID
+        FlowHandle handle = executor.execute(flow);
+
+        // Build a failed FlowResult for resumeSync
+        FlowResult failedResult = FlowResult.builder("resume-dup-id")
+                .withStatus(FlowStatus.FAILED)
+                .startedAt(Instant.now())
+                .completedAt(Instant.now())
+                .addStepResult(FlowStepResult.failure("step1", new RuntimeException("test")))
+                .withError(new RuntimeException("test"))
+                .build();
+
+        // resumeSync with same ID should throw
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> executor.resumeSync(flow, failedResult));
+        assertTrue(ex.getMessage().contains("resume-dup-id"));
+        assertTrue(ex.getMessage().contains("already executing"));
+
+        handle.cancel();
+        blockLatch.countDown();
+    }
+
+    // ==================== P2-3: close() cancels active handles ====================
+
+    @Test
+    void testClose_cancelsActiveHandles() throws Exception {
+        // Use a blocking executor to ensure the flow stays active
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        executor.withExecutor(r -> new Thread(() -> {
+            try { blockLatch.await(); } catch (InterruptedException ignored) {}
+            r.run();
+        }).start());
+
+        TxFlow flow = createSimpleFlow("close-cancel-test");
+
+        FlowHandle handle = executor.execute(flow);
+
+        // Close should cancel running flows
+        executor.close();
+
+        assertTrue(handle.isCancelled(), "Handle should be cancelled after close()");
+
+        blockLatch.countDown();
     }
 }

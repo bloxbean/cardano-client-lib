@@ -43,6 +43,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /**
@@ -107,6 +108,7 @@ public class FlowExecutor implements AutoCloseable {
     private FlowRegistry flowRegistry;
     private FlowStateStore flowStateStore;
     private final Set<String> activeFlowIds = ConcurrentHashMap.newKeySet();
+    private final Set<FlowHandle> activeHandles = ConcurrentHashMap.newKeySet();
 
     /**
      * Create a FlowExecutor with the given supplier interfaces.
@@ -488,14 +490,22 @@ public class FlowExecutor implements AutoCloseable {
 
         Map<Integer, FlowStepResult> confirmedSteps = verifyPreviousSteps(flow, previousResult);
 
-        switch (chainingMode) {
-            case PIPELINED:
-                return doExecutePipelinedWithResume(flow, syncHooks(flow), confirmedSteps);
-            case BATCH:
-                return doExecuteBatchWithResume(flow, syncHooks(flow), confirmedSteps);
-            case SEQUENTIAL:
-            default:
-                return doExecuteSequentialWithResume(flow, syncHooks(flow), confirmedSteps);
+        if (!activeFlowIds.add(flow.getId())) {
+            throw new IllegalStateException("Flow '" + flow.getId() + "' is already executing");
+        }
+
+        try {
+            switch (chainingMode) {
+                case PIPELINED:
+                    return doExecutePipelinedWithResume(flow, syncHooks(flow), confirmedSteps);
+                case BATCH:
+                    return doExecuteBatchWithResume(flow, syncHooks(flow), confirmedSteps);
+                case SEQUENTIAL:
+                default:
+                    return doExecuteSequentialWithResume(flow, syncHooks(flow), confirmedSteps);
+            }
+        } finally {
+            activeFlowIds.remove(flow.getId());
         }
     }
 
@@ -531,6 +541,7 @@ public class FlowExecutor implements AutoCloseable {
 
         CompletableFuture<FlowResult> future = new CompletableFuture<>();
         FlowHandle handle = new FlowHandle(flow, future);
+        activeHandles.add(handle);
 
         if (flowRegistry != null) {
             flowRegistry.register(flow.getId(), handle);
@@ -558,6 +569,7 @@ public class FlowExecutor implements AutoCloseable {
                 future.completeExceptionally(e);
             } finally {
                 activeFlowIds.remove(flow.getId());
+                activeHandles.remove(handle);
             }
         };
 
@@ -582,14 +594,22 @@ public class FlowExecutor implements AutoCloseable {
             throw new FlowExecutionException("Flow validation failed: " + validation.getErrors());
         }
 
-        switch (chainingMode) {
-            case PIPELINED:
-                return executePipelined(flow);
-            case BATCH:
-                return executeBatch(flow);
-            case SEQUENTIAL:
-            default:
-                return executeSequential(flow);
+        if (!activeFlowIds.add(flow.getId())) {
+            throw new IllegalStateException("Flow '" + flow.getId() + "' is already executing");
+        }
+
+        try {
+            switch (chainingMode) {
+                case PIPELINED:
+                    return executePipelined(flow);
+                case BATCH:
+                    return executeBatch(flow);
+                case SEQUENTIAL:
+                default:
+                    return executeSequential(flow);
+            }
+        } finally {
+            activeFlowIds.remove(flow.getId());
         }
     }
 
@@ -614,6 +634,7 @@ public class FlowExecutor implements AutoCloseable {
         int flowRestartAttempts = 0;
         Map<String, Integer> stepRollbackAttempts = new ConcurrentHashMap<>();
         List<String> flowTxHashes = new ArrayList<>();
+        BooleanSupplier cancelCheck = hooks::isCancelled;
 
         while (flowRestartAttempts <= maxRollbackRetries) {
             FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
@@ -645,7 +666,7 @@ public class FlowExecutor implements AutoCloseable {
 
                     FlowStepResult stepResult = executeStepWithRollbackHandling(
                             step, context, flow.getVariables(), false,
-                            stepRollbackAttempts, maxRollbackRetries, steps);
+                            stepRollbackAttempts, maxRollbackRetries, steps, cancelCheck);
                     resultBuilder.addStepResult(stepResult);
 
                     if (stepResult.isSuccessful()) {
@@ -656,7 +677,7 @@ public class FlowExecutor implements AutoCloseable {
                         listener.onStepCompleted(step, stepResult);
 
                         // Get confirmation details - tx is already confirmed from completeAndWait()
-                        Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                        Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step, cancelCheck);
                         hooks.onTransactionConfirmed(flow, step, txHash, confirmResult.orElse(null));
                     } else {
                         listener.onStepFailed(step, stepResult);
@@ -704,7 +725,7 @@ public class FlowExecutor implements AutoCloseable {
                             flowRestartAttempts, maxRollbackRetries, e.getStep().getId());
                     listener.onFlowRestarting(flow, flowRestartAttempts, maxRollbackRetries,
                             "Rollback detected at step '" + e.getStep().getId() + "'");
-                    waitForBackendReadyAfterRollback(flowTxHashes);
+                    waitForBackendReadyAfterRollback(flowTxHashes, cancelCheck);
                     stepRollbackAttempts.clear();
                     hooks.onFlowRestarting();
                     continue;
@@ -778,10 +799,15 @@ public class FlowExecutor implements AutoCloseable {
                                                             boolean pipelined,
                                                             Map<String, Integer> stepRollbackAttempts,
                                                             int maxRollbackRetries,
-                                                            List<FlowStep> allSteps) {
+                                                            List<FlowStep> allSteps,
+                                                            BooleanSupplier cancelCheck) {
         while (true) {
+            if (cancelCheck.getAsBoolean()) {
+                return FlowStepResult.failure(step.getId(), new RuntimeException("Flow cancelled"));
+            }
+
             try {
-                return executeStepWithRetry(step, context, variables, pipelined);
+                return executeStepWithRetry(step, context, variables, pipelined, cancelCheck);
             } catch (RollbackException e) {
                 if (e.isRequiresFlowRestart()) {
                     // REBUILD_ENTIRE_FLOW: propagate exception to flow level
@@ -810,7 +836,7 @@ public class FlowExecutor implements AutoCloseable {
                 listener.onStepRebuilding(step, currentAttempts, maxRollbackRetries,
                         "Transaction " + e.getTxHash() + " rolled back");
 
-                waitForBackendReadyAfterRollback(List.of(e.getTxHash())); // Wait for backend to sync after rollback
+                waitForBackendReadyAfterRollback(List.of(e.getTxHash()), cancelCheck); // Wait for backend to sync after rollback
 
                 // Clear the step result so it can be rebuilt
                 context.clearStepResult(step.getId());
@@ -857,6 +883,7 @@ public class FlowExecutor implements AutoCloseable {
         int flowRestartAttempts = 0;
         Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>();
         List<String> flowTxHashes = new ArrayList<>();
+        BooleanSupplier cancelCheck = hooks::isCancelled;
 
         while (flowRestartAttempts <= maxRollbackRetries) {
             FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
@@ -909,7 +936,7 @@ public class FlowExecutor implements AutoCloseable {
                         continue;
                     }
 
-                    FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true);
+                    FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true, cancelCheck);
                     stepResults.add(stepResult);
                     resultBuilder.addStepResult(stepResult);
 
@@ -945,7 +972,7 @@ public class FlowExecutor implements AutoCloseable {
                         continue;
                     }
 
-                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step, cancelCheck);
                     if (confirmResult.isPresent()) {
                         ConfirmationResult result = confirmResult.get();
                         hooks.onStepCompleted(step, stepResults.get(i));
@@ -1005,7 +1032,7 @@ public class FlowExecutor implements AutoCloseable {
                 // Find steps that are still confirmed before clearing tracker
                 previousConfirmedSteps = findStillConfirmedSteps(steps, submittedTxHashes, stepResults);
 
-                waitForBackendReadyAfterRollback(flowTxHashes);
+                waitForBackendReadyAfterRollback(flowTxHashes, cancelCheck);
                 hooks.onFlowRestarting();
                 continue;
 
@@ -1093,7 +1120,7 @@ public class FlowExecutor implements AutoCloseable {
      * @return Optional containing ConfirmationResult if confirmed, empty if timeout or failure
      */
     private Optional<ConfirmationResult> waitForConfirmation(String txHash) {
-        return waitForConfirmation(txHash, null);
+        return waitForConfirmation(txHash, null, () -> false);
     }
 
     /**
@@ -1110,10 +1137,11 @@ public class FlowExecutor implements AutoCloseable {
      * @param step the flow step (for listener callbacks, can be null)
      * @return Optional containing ConfirmationResult if confirmed, empty if timeout or rollback
      */
-    private Optional<ConfirmationResult> waitForConfirmation(String txHash, FlowStep step) {
+    private Optional<ConfirmationResult> waitForConfirmation(String txHash, FlowStep step,
+                                                               BooleanSupplier cancelCheck) {
         // Use enhanced confirmation tracking if configured
         if (confirmationTracker != null) {
-            return waitForConfirmationWithTracking(txHash, step);
+            return waitForConfirmationWithTracking(txHash, step, cancelCheck);
         }
 
         // Fall back to simple confirmation checking
@@ -1122,7 +1150,7 @@ public class FlowExecutor implements AutoCloseable {
         long intervalMs = getCheckInterval().toMillis();
 
         while (System.currentTimeMillis() - startTime < timeoutMs) {
-            if (Thread.currentThread().isInterrupted()) {
+            if (cancelCheck.getAsBoolean() || Thread.currentThread().isInterrupted()) {
                 return Optional.empty();
             }
             try {
@@ -1171,7 +1199,8 @@ public class FlowExecutor implements AutoCloseable {
      * @return Optional containing ConfirmationResult if confirmed, empty if timeout or rollback
      * @throws RollbackException when using REBUILD_FROM_FAILED or REBUILD_ENTIRE_FLOW strategies
      */
-    private Optional<ConfirmationResult> waitForConfirmationWithTracking(String txHash, FlowStep step) {
+    private Optional<ConfirmationResult> waitForConfirmationWithTracking(String txHash, FlowStep step,
+                                                                          BooleanSupplier cancelCheck) {
         ConfirmationStatus targetStatus = ConfirmationStatus.CONFIRMED;
 
         // Track the last known status for detecting transitions
@@ -1180,7 +1209,7 @@ public class FlowExecutor implements AutoCloseable {
         int notifyOnlyRepolls = 0;
 
         while (true) {
-            if (Thread.currentThread().isInterrupted()) {
+            if (cancelCheck.getAsBoolean() || Thread.currentThread().isInterrupted()) {
                 return Optional.empty();
             }
             ConfirmationResult result = confirmationTracker.waitForConfirmation(txHash, targetStatus,
@@ -1204,7 +1233,8 @@ public class FlowExecutor implements AutoCloseable {
 
                         // Always fire depth changed callback when depth changes
                         listener.onConfirmationDepthChanged(step, txHash, depth, currentStatus);
-                    });
+                    },
+                    cancelCheck);
 
             // Handle rollback
             if (result.isRolledBack()) {
@@ -1271,10 +1301,13 @@ public class FlowExecutor implements AutoCloseable {
      * @param maxAttempts maximum number of retry attempts
      * @param retryDelayMs delay between retries in milliseconds
      */
-    private void waitForBackendReady(int maxAttempts, long retryDelayMs) {
+    private void waitForBackendReady(int maxAttempts, long retryDelayMs, BooleanSupplier cancelCheck) {
         log.debug("Waiting for backend to be ready (max {} attempts)...", maxAttempts);
 
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            if (cancelCheck.getAsBoolean()) {
+                return;
+            }
             try {
                 // Try to query the backend - if successful, it's ready
                 long tipHeight = chainDataSupplier.getChainTipHeight();
@@ -1311,7 +1344,7 @@ public class FlowExecutor implements AutoCloseable {
      *         Waits for backend ready and optional UTXO sync delay.</li>
      * </ul>
      */
-    private void waitForBackendReadyAfterRollback(List<String> flowTxHashes) {
+    private void waitForBackendReadyAfterRollback(List<String> flowTxHashes, BooleanSupplier cancelCheck) {
         // Clear only this flow's tracked transactions (scoped, not global)
         if (confirmationTracker != null) {
             log.debug("Clearing confirmation tracker state for {} flow transactions after rollback", flowTxHashes.size());
@@ -1329,9 +1362,12 @@ public class FlowExecutor implements AutoCloseable {
         // Wait for backend ready (for test scenarios like Yaci DevKit)
         long retryDelayMs = confirmationConfig.getCheckInterval().toMillis();
         int maxAttempts = confirmationConfig.getPostRollbackWaitAttempts();
-        waitForBackendReady(maxAttempts, retryDelayMs);
+        waitForBackendReady(maxAttempts, retryDelayMs, cancelCheck);
 
         // Optional additional delay for UTXO indexer sync
+        if (cancelCheck.getAsBoolean()) {
+            return;
+        }
         Duration utxoSyncDelay = confirmationConfig.getPostRollbackUtxoSyncDelay();
         if (utxoSyncDelay != null && !utxoSyncDelay.isZero()) {
             try {
@@ -1361,6 +1397,7 @@ public class FlowExecutor implements AutoCloseable {
 
         CompletableFuture<FlowResult> future = new CompletableFuture<>();
         FlowHandle handle = new FlowHandle(flow, future);
+        activeHandles.add(handle);
 
         // Auto-register with flow registry if configured
         if (flowRegistry != null) {
@@ -1377,6 +1414,7 @@ public class FlowExecutor implements AutoCloseable {
                 future.completeExceptionally(e);
             } finally {
                 activeFlowIds.remove(flow.getId());
+                activeHandles.remove(handle);
             }
         };
 
@@ -1432,7 +1470,8 @@ public class FlowExecutor implements AutoCloseable {
      * @return the step result
      */
     private FlowStepResult executeStepWithRetry(FlowStep step, FlowExecutionContext context,
-                                                 java.util.Map<String, Object> variables, boolean pipelined) {
+                                                 java.util.Map<String, Object> variables, boolean pipelined,
+                                                 BooleanSupplier cancelCheck) {
         // Determine retry policy (step-level overrides default)
         RetryPolicy policy = step.hasRetryPolicy() ? step.getRetryPolicy() : defaultRetryPolicy;
         int maxAttempts = (policy != null) ? policy.getMaxAttempts() : 1;
@@ -1443,7 +1482,7 @@ public class FlowExecutor implements AutoCloseable {
             try {
                 FlowStepResult result = pipelined
                         ? executeStepPipelined(step, context, variables)
-                        : executeStepSequential(step, context, variables);
+                        : executeStepSequential(step, context, variables, cancelCheck);
 
                 if (result.isSuccessful()) {
                     return result;  // Success!
@@ -1464,6 +1503,11 @@ public class FlowExecutor implements AutoCloseable {
                         step.getId(), attempt + 1, maxAttempts,
                         lastError != null ? lastError.getMessage() : "unknown error");
 
+                // Check for cancellation before retry wait
+                if (cancelCheck.getAsBoolean()) {
+                    return FlowStepResult.failure(step.getId(), new RuntimeException("Flow cancelled"));
+                }
+
                 // Wait before retry
                 Duration delay = policy.calculateDelay(attempt);
                 Thread.sleep(delay.toMillis());
@@ -1482,7 +1526,8 @@ public class FlowExecutor implements AutoCloseable {
      * Execute a single step in SEQUENTIAL mode (waits for confirmation).
      */
     private FlowStepResult executeStepSequential(FlowStep step, FlowExecutionContext context,
-                                                  java.util.Map<String, Object> variables) {
+                                                  java.util.Map<String, Object> variables,
+                                                  BooleanSupplier cancelCheck) {
         String stepId = step.getId();
         log.debug("Executing step '{}'", stepId);
 
@@ -1540,7 +1585,7 @@ public class FlowExecutor implements AutoCloseable {
                 // If confirmation tracking is configured, wait for deeper confirmation
                 // This enables rollback detection in SEQUENTIAL mode
                 if (confirmationTracker != null) {
-                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step, cancelCheck);
                     if (confirmResult.isEmpty()) {
                         // waitForConfirmation handles RollbackException for REBUILD strategies
                         // For FAIL_IMMEDIATELY/NOTIFY_ONLY, it returns empty
@@ -1656,11 +1701,14 @@ public class FlowExecutor implements AutoCloseable {
      * Create appropriate UTXO supplier based on step dependencies.
      */
     private UtxoSupplier createUtxoSupplier(FlowStep step, FlowExecutionContext context) {
-        if (!step.hasDependencies()) {
+        if (!step.hasDependencies() && context.getCompletedStepCount() == 0) {
+            // First step with no deps — no filtering needed
             return baseUtxoSupplier;
         }
 
-        // Create FlowUtxoSupplier with dependencies
+        // Always use FlowUtxoSupplier to filter out spent UTXOs from previous steps,
+        // even when no explicit dependencies are declared.
+        // Prevents double-spend when steps use the same address in PIPELINED/BATCH.
         return new FlowUtxoSupplier(baseUtxoSupplier, context, step.getDependencies());
     }
 
@@ -1788,6 +1836,7 @@ public class FlowExecutor implements AutoCloseable {
         int flowRestartAttempts = 0;
         Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>();
         List<String> flowTxHashes = new ArrayList<>();
+        BooleanSupplier cancelCheck = hooks::isCancelled;
 
         while (flowRestartAttempts <= maxRollbackRetries) {
             FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
@@ -1932,7 +1981,7 @@ public class FlowExecutor implements AutoCloseable {
                         continue;
                     }
 
-                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step, cancelCheck);
                     if (confirmResult.isPresent()) {
                         ConfirmationResult cr = confirmResult.get();
                         hooks.onStepCompleted(step, stepResults.get(i));
@@ -1990,7 +2039,7 @@ public class FlowExecutor implements AutoCloseable {
                 // Find steps that are still confirmed before clearing tracker
                 previousConfirmedSteps = findStillConfirmedSteps(steps, precomputedTxHashes, stepResults);
 
-                waitForBackendReadyAfterRollback(flowTxHashes);
+                waitForBackendReadyAfterRollback(flowTxHashes, cancelCheck);
                 hooks.onFlowRestarting();
                 continue;
 
@@ -2275,6 +2324,7 @@ public class FlowExecutor implements AutoCloseable {
         int flowRestartAttempts = 0;
         Map<String, Integer> stepRollbackAttempts = new ConcurrentHashMap<>();
         List<String> flowTxHashes = new ArrayList<>();
+        BooleanSupplier cancelCheck = hooks::isCancelled;
 
         while (flowRestartAttempts <= maxRollbackRetries) {
             FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
@@ -2328,7 +2378,7 @@ public class FlowExecutor implements AutoCloseable {
 
                     FlowStepResult stepResult = executeStepWithRollbackHandling(
                             step, context, flow.getVariables(), false,
-                            stepRollbackAttempts, maxRollbackRetries, steps);
+                            stepRollbackAttempts, maxRollbackRetries, steps, cancelCheck);
                     resultBuilder.addStepResult(stepResult);
 
                     if (stepResult.isSuccessful()) {
@@ -2338,7 +2388,7 @@ public class FlowExecutor implements AutoCloseable {
                         hooks.onStepCompleted(step, stepResult);
                         listener.onStepCompleted(step, stepResult);
 
-                        Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                        Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step, cancelCheck);
                         hooks.onTransactionConfirmed(flow, step, txHash, confirmResult.orElse(null));
                     } else {
                         listener.onStepFailed(step, stepResult);
@@ -2385,7 +2435,7 @@ public class FlowExecutor implements AutoCloseable {
                             flowRestartAttempts, maxRollbackRetries, e.getStep().getId());
                     listener.onFlowRestarting(flow, flowRestartAttempts, maxRollbackRetries,
                             "Rollback detected at step '" + e.getStep().getId() + "'");
-                    waitForBackendReadyAfterRollback(flowTxHashes);
+                    waitForBackendReadyAfterRollback(flowTxHashes, cancelCheck);
                     // On restart, clear confirmed steps — verifyAndPrepareSkippedSteps will re-check
                     confirmedSteps = new HashMap<>(confirmedSteps);
                     stepRollbackAttempts.clear();
@@ -2448,6 +2498,7 @@ public class FlowExecutor implements AutoCloseable {
         int flowRestartAttempts = 0;
         Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>(confirmedSteps);
         List<String> flowTxHashes = new ArrayList<>();
+        BooleanSupplier cancelCheck = hooks::isCancelled;
 
         while (flowRestartAttempts <= maxRollbackRetries) {
             FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
@@ -2496,7 +2547,7 @@ public class FlowExecutor implements AutoCloseable {
                         continue;
                     }
 
-                    FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true);
+                    FlowStepResult stepResult = executeStepWithRetry(step, context, flow.getVariables(), true, cancelCheck);
                     stepResults.add(stepResult);
                     resultBuilder.addStepResult(stepResult);
 
@@ -2529,7 +2580,7 @@ public class FlowExecutor implements AutoCloseable {
                         continue;
                     }
 
-                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step, cancelCheck);
                     if (confirmResult.isPresent()) {
                         ConfirmationResult result = confirmResult.get();
                         hooks.onStepCompleted(step, stepResults.get(i));
@@ -2577,7 +2628,7 @@ public class FlowExecutor implements AutoCloseable {
                 }
 
                 previousConfirmedSteps = findStillConfirmedSteps(steps, submittedTxHashes, stepResults);
-                waitForBackendReadyAfterRollback(flowTxHashes);
+                waitForBackendReadyAfterRollback(flowTxHashes, cancelCheck);
                 hooks.onFlowRestarting();
                 continue;
 
@@ -2612,6 +2663,7 @@ public class FlowExecutor implements AutoCloseable {
         int flowRestartAttempts = 0;
         Map<Integer, FlowStepResult> previousConfirmedSteps = new HashMap<>(confirmedSteps);
         List<String> flowTxHashes = new ArrayList<>();
+        BooleanSupplier cancelCheck = hooks::isCancelled;
 
         while (flowRestartAttempts <= maxRollbackRetries) {
             FlowExecutionContext context = new FlowExecutionContext(flow.getId(), flow.getVariables());
@@ -2745,7 +2797,7 @@ public class FlowExecutor implements AutoCloseable {
                         continue;
                     }
 
-                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step);
+                    Optional<ConfirmationResult> confirmResult = waitForConfirmation(txHash, step, cancelCheck);
                     if (confirmResult.isPresent()) {
                         ConfirmationResult cr = confirmResult.get();
                         hooks.onStepCompleted(step, stepResults.get(i));
@@ -2793,7 +2845,7 @@ public class FlowExecutor implements AutoCloseable {
                 }
 
                 previousConfirmedSteps = findStillConfirmedSteps(steps, precomputedTxHashes, stepResults);
-                waitForBackendReadyAfterRollback(flowTxHashes);
+                waitForBackendReadyAfterRollback(flowTxHashes, cancelCheck);
                 hooks.onFlowRestarting();
                 continue;
 
@@ -2820,11 +2872,14 @@ public class FlowExecutor implements AutoCloseable {
     /**
      * Close this executor and release associated resources.
      * <p>
-     * Clears active flow tracking and confirmation tracker state.
-     * Does not cancel running flows — use {@link FlowHandle#cancel()} for individual flows.
+     * Cancels all running flows, clears active flow tracking and confirmation tracker state.
      */
     @Override
     public void close() {
+        for (FlowHandle handle : activeHandles) {
+            handle.cancel();
+        }
+        activeHandles.clear();
         activeFlowIds.clear();
         if (confirmationTracker != null) {
             confirmationTracker.clearTracking();

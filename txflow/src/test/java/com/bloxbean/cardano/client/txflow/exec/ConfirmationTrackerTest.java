@@ -9,7 +9,9 @@ import org.mockito.MockitoAnnotations;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -256,5 +258,67 @@ class ConfirmationTrackerTest {
 
         assertEquals(ConfirmationStatus.CONFIRMED, result.getStatus());
         assertTrue(callbackCount.get() >= 1, "Callback should be invoked at least once");
+    }
+
+    @Test
+    void testWaitForConfirmation_CancelledImmediately() throws Exception {
+        // Setup: Transaction never reaches CONFIRMED (always returns SUBMITTED)
+        ConfirmationConfig quickConfig = ConfirmationConfig.builder()
+                .minConfirmations(3)
+                .checkInterval(Duration.ofMillis(50))
+                .timeout(Duration.ofSeconds(30))
+                .build();
+        tracker = new ConfirmationTracker(chainDataSupplier, quickConfig);
+
+        when(chainDataSupplier.getChainTipHeight()).thenReturn(1000L);
+        when(chainDataSupplier.getTransactionInfo("txHash123")).thenReturn(Optional.empty());
+
+        // Immediately cancelled
+        ConfirmationResult result = tracker.waitForConfirmation(
+                "txHash123", ConfirmationStatus.CONFIRMED, null, () -> true);
+
+        // Should return promptly with error
+        assertNotNull(result);
+        assertNotNull(result.getError());
+        assertTrue(result.getError().getMessage().contains("Flow cancelled"));
+    }
+
+    @Test
+    void testWaitForConfirmation_CancelledAfterDelay() throws Exception {
+        // Setup: Transaction never reaches CONFIRMED
+        ConfirmationConfig quickConfig = ConfirmationConfig.builder()
+                .minConfirmations(3)
+                .checkInterval(Duration.ofMillis(50))
+                .timeout(Duration.ofSeconds(30))
+                .build();
+        tracker = new ConfirmationTracker(chainDataSupplier, quickConfig);
+
+        when(chainDataSupplier.getChainTipHeight()).thenReturn(1000L);
+        when(chainDataSupplier.getTransactionInfo("txHash123")).thenReturn(Optional.empty());
+
+        AtomicBoolean cancelled = new AtomicBoolean(false);
+        AtomicReference<ConfirmationResult> resultRef = new AtomicReference<>();
+
+        Thread t = new Thread(() -> {
+            resultRef.set(tracker.waitForConfirmation(
+                    "txHash123", ConfirmationStatus.CONFIRMED, null, cancelled::get));
+        });
+
+        long start = System.currentTimeMillis();
+        t.start();
+
+        // Cancel after 200ms
+        Thread.sleep(200);
+        cancelled.set(true);
+        t.join(5000);
+        long elapsed = System.currentTimeMillis() - start;
+
+        assertFalse(t.isAlive(), "Thread should have finished");
+        assertTrue(elapsed < 2000, "Should exit within ~2 seconds, took " + elapsed + "ms");
+
+        ConfirmationResult result = resultRef.get();
+        assertNotNull(result);
+        assertNotNull(result.getError());
+        assertTrue(result.getError().getMessage().contains("Flow cancelled"));
     }
 }

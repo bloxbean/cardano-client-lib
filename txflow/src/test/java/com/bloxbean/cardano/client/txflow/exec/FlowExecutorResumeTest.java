@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -379,6 +380,13 @@ class FlowExecutorResumeTest {
 
     @Test
     void resume_duplicateFlowId_throwsIllegalState() throws Exception {
+        // Use a blocking executor to ensure the first resume stays active
+        CountDownLatch blockLatch = new CountDownLatch(1);
+        executor.withExecutor(r -> new Thread(() -> {
+            try { blockLatch.await(); } catch (InterruptedException ignored) {}
+            r.run();
+        }).start());
+
         when(chainDataSupplier.getTransactionInfo("tx1")).thenReturn(
                 Optional.of(TransactionInfo.builder().txHash("tx1").blockHeight(100L).build()));
 
@@ -397,6 +405,7 @@ class FlowExecutorResumeTest {
         assertTrue(ex.getMessage().contains("already executing"));
 
         handle1.cancel();
+        blockLatch.countDown();
     }
 
     // ==================== Mode-specific resume tests ====================
