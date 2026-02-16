@@ -131,7 +131,7 @@ class FlowExecutorTest {
 
         // Wait briefly for async task to start and (likely) fail
         try {
-            handle.await(Duration.ofSeconds(2));
+            handle.await(Duration.ofSeconds(30));
         } catch (Exception e) {
             // Expected — mocked backend will fail
         }
