@@ -403,35 +403,6 @@ class FlowStateStoreTest {
         assertFalse(stateStore.deleteFlow("flow-1")); // Already deleted
     }
 
-    // ==================== RecoveryCallback Tests ====================
-
-    @Test
-    void testRecoveryCallbackContinueAll() {
-        FlowStateSnapshot flow = FlowStateSnapshot.builder().flowId("flow-1").build();
-        StepStateSnapshot step = StepStateSnapshot.submitted("step-1", "tx-123");
-
-        assertEquals(RecoveryCallback.RecoveryAction.CONTINUE_TRACKING,
-                RecoveryCallback.CONTINUE_ALL.onPendingTransaction(flow, step));
-    }
-
-    @Test
-    void testRecoveryCallbackSkipAll() {
-        FlowStateSnapshot flow = FlowStateSnapshot.builder().flowId("flow-1").build();
-        StepStateSnapshot step = StepStateSnapshot.submitted("step-1", "tx-123");
-
-        assertEquals(RecoveryCallback.RecoveryAction.SKIP,
-                RecoveryCallback.SKIP_ALL.onPendingTransaction(flow, step));
-    }
-
-    @Test
-    void testRecoveryCallbackFailAll() {
-        FlowStateSnapshot flow = FlowStateSnapshot.builder().flowId("flow-1").build();
-        StepStateSnapshot step = StepStateSnapshot.submitted("step-1", "tx-123");
-
-        assertEquals(RecoveryCallback.RecoveryAction.FAIL_FLOW,
-                RecoveryCallback.FAIL_ALL.onPendingTransaction(flow, step));
-    }
-
     // ==================== NOOP FlowStateStore Tests ====================
 
     @Test

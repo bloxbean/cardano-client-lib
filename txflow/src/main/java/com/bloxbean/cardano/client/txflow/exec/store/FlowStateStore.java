@@ -23,7 +23,6 @@ import java.util.Optional;
  *
  * @see FlowStateSnapshot
  * @see StepStateSnapshot
- * @see RecoveryCallback
  */
 public interface FlowStateStore {
 

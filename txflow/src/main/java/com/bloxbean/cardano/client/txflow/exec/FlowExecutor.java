@@ -96,17 +96,17 @@ public class FlowExecutor implements AutoCloseable {
     private static final Duration DEFAULT_CONFIRMATION_TIMEOUT = Duration.ofSeconds(60);
     private static final Duration DEFAULT_CHECK_INTERVAL = Duration.ofSeconds(2);
 
-    private SignerRegistry signerRegistry;
-    private FlowListener listener = FlowListener.NOOP;
-    private Executor executor;
-    private Consumer<Transaction> txInspector;
-    private ChainingMode chainingMode = ChainingMode.SEQUENTIAL;
-    private RetryPolicy defaultRetryPolicy;
-    private ConfirmationConfig confirmationConfig;
-    private ConfirmationTracker confirmationTracker;
-    private RollbackStrategy rollbackStrategy = RollbackStrategy.FAIL_IMMEDIATELY;
-    private FlowRegistry flowRegistry;
-    private FlowStateStore flowStateStore;
+    private volatile SignerRegistry signerRegistry;
+    private volatile FlowListener listener = FlowListener.NOOP;
+    private volatile Executor executor;
+    private volatile Consumer<Transaction> txInspector;
+    private volatile ChainingMode chainingMode = ChainingMode.SEQUENTIAL;
+    private volatile RetryPolicy defaultRetryPolicy;
+    private volatile ConfirmationConfig confirmationConfig;
+    private volatile ConfirmationTracker confirmationTracker;
+    private volatile RollbackStrategy rollbackStrategy = RollbackStrategy.FAIL_IMMEDIATELY;
+    private volatile FlowRegistry flowRegistry;
+    private volatile FlowStateStore flowStateStore;
     private final Set<String> activeFlowIds = ConcurrentHashMap.newKeySet();
     private final Set<FlowHandle> activeHandles = ConcurrentHashMap.newKeySet();
 
