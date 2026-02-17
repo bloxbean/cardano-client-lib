@@ -388,6 +388,30 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
     }
 
     /**
+     * Register stake address
+     * @param address address to register. Address should have delegation credential. So it should be a base address or stake address.
+     * @return Tx
+     */
+    public ScriptTx registerStakeAddress(@NonNull String address) {
+        stakeTx.registerStakeAddress(new Address(address));
+        return this;
+    }
+
+    public ScriptTx registerStakeAddress(@NonNull Wallet wallet) {
+        stakeTx.registerStakeAddress(new Address(wallet.getStakeAddress()));
+        return this;
+    }
+
+    /**
+     * Register stake address
+     * @param address address to register. Address should have delegation credential. So it should be a base address or stake address.
+     * @return Tx
+     */
+    public ScriptTx registerStakeAddress(@NonNull Address address) {
+        stakeTx.registerStakeAddress(address);
+        return this;
+    }
+    /**
      * De-register stake address. The key deposit will be refunded to the change address or fee payer if change address is not specified.
      *
      * @param address  address to de-register. Address should have delegation credential. So it should be a base address or stake address.
