@@ -16,7 +16,9 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.TreeSet;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
 
@@ -90,7 +92,8 @@ public class MetadataConverterGenerator {
         String javaType = field.getJavaTypeName();
         MetadataFieldType as = field.getAs();
 
-        if (javaType.startsWith("java.util.List<")) {
+        if (javaType.startsWith("java.util.List<") || javaType.startsWith("java.util.Set<")
+                || javaType.startsWith("java.util.SortedSet<")) {
             emitToMapPutList(builder, field, getExpr);
             return;
         }
@@ -246,7 +249,18 @@ public class MetadataConverterGenerator {
         MetadataFieldType as = field.getAs();
 
         if (javaType.startsWith("java.util.List<")) {
-            emitFromMapGetList(builder, field);
+            emitFromMapGetCollection(builder, field,
+                    ClassName.get("java.util", "List"), ClassName.get("java.util", "ArrayList"));
+            return;
+        }
+        if (javaType.startsWith("java.util.Set<")) {
+            emitFromMapGetCollection(builder, field,
+                    ClassName.get("java.util", "Set"), ClassName.get("java.util", "LinkedHashSet"));
+            return;
+        }
+        if (javaType.startsWith("java.util.SortedSet<")) {
+            emitFromMapGetCollection(builder, field,
+                    ClassName.get("java.util", "SortedSet"), ClassName.get("java.util", "TreeSet"));
             return;
         }
 
@@ -427,7 +441,7 @@ public class MetadataConverterGenerator {
     }
 
     // -------------------------------------------------------------------------
-    // List<T> serialization
+    // List<T> / Set<T> / SortedSet<T> serialization
     // -------------------------------------------------------------------------
 
     /** Emits the toMetadataMap body for a {@code List<T>} field. */
@@ -493,19 +507,20 @@ public class MetadataConverterGenerator {
     }
 
     // -------------------------------------------------------------------------
-    // List<T> deserialization
+    // List<T> / Set<T> / SortedSet<T> deserialization
     // -------------------------------------------------------------------------
 
-    /** Emits the fromMetadataMap body for a {@code List<T>} field. */
-    private void emitFromMapGetList(MethodSpec.Builder builder, MetadataFieldInfo field) {
+    /** Emits the fromMetadataMap body for a {@code List<T>} or {@code Set<T>} field. */
+    private void emitFromMapGetCollection(MethodSpec.Builder builder, MetadataFieldInfo field,
+                                          ClassName interfaceClass, ClassName implClass) {
         String elementType = field.getElementTypeName();
         TypeName elemTypeName = elementTypeName(elementType);
-        ParameterizedTypeName listType =
-                ParameterizedTypeName.get(ClassName.get("java.util", "List"), elemTypeName);
+        ParameterizedTypeName collectionType =
+                ParameterizedTypeName.get(interfaceClass, elemTypeName);
 
         builder.beginControlFlow("if (v instanceof $T)", MetadataList.class);
         builder.addStatement("$T _rawList = ($T) v", MetadataList.class, MetadataList.class);
-        builder.addStatement("$T _result = new $T<>()", listType, ClassName.get("java.util", "ArrayList"));
+        builder.addStatement("$T _result = new $T<>()", collectionType, implClass);
         builder.beginControlFlow("for (int _i = 0; _i < _rawList.size(); _i++)");
         builder.addStatement("$T _el = _rawList.getValueAt(_i)", Object.class);
         emitListElementRead(builder, elementType);

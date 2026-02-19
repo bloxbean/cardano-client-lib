@@ -119,13 +119,15 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
                 as = mf.as();
             }
 
-            // Extract element type for List<T> fields; warn if as= is used on List
+            // Extract element type for List<T> / Set<T> / SortedSet<T> fields; warn if as= is used
             String elementTypeName = null;
-            if (typeName.startsWith("java.util.List<") && typeName.endsWith(">")) {
-                elementTypeName = typeName.substring("java.util.List<".length(), typeName.length() - 1);
+            if ((typeName.startsWith("java.util.List<") || typeName.startsWith("java.util.Set<")
+                    || typeName.startsWith("java.util.SortedSet<"))
+                    && typeName.endsWith(">")) {
+                elementTypeName = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
                 if (as != MetadataFieldType.DEFAULT) {
                     messager.printMessage(Diagnostic.Kind.WARNING,
-                            "Field '" + fieldName + "': @MetadataField(as=...) is not supported on List fields; using DEFAULT.", ve);
+                            "Field '" + fieldName + "': @MetadataField(as=...) is not supported on collection fields; using DEFAULT.", ve);
                     as = MetadataFieldType.DEFAULT;
                 }
             }
@@ -181,9 +183,15 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
 
     private boolean isSupportedType(String typeName) {
         if (isSupportedScalarType(typeName)) return true;
-        if (typeName.startsWith("java.util.List<") && typeName.endsWith(">")) {
-            String elementType = typeName.substring("java.util.List<".length(), typeName.length() - 1);
+        if ((typeName.startsWith("java.util.List<") || typeName.startsWith("java.util.Set<"))
+                && typeName.endsWith(">")) {
+            String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
             return isSupportedScalarType(elementType);
+        }
+        if (typeName.startsWith("java.util.SortedSet<") && typeName.endsWith(">")) {
+            String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
+            // byte[] is not Comparable — TreeSet would throw ClassCastException at runtime
+            return isSupportedScalarType(elementType) && !"byte[]".equals(elementType);
         }
         return false;
     }
