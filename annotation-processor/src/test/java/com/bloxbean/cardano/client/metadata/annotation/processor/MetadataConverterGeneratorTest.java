@@ -96,6 +96,13 @@ public class MetadataConverterGeneratorTest {
         return f;
     }
 
+    /** List field with explicit getter/setter. */
+    private MetadataFieldInfo listField(String name, String elementType) {
+        MetadataFieldInfo f = field(name, "java.util.List<" + elementType + ">");
+        f.setElementTypeName(elementType);
+        return f;
+    }
+
     // =========================================================================
     // Class structure
     // =========================================================================
@@ -966,6 +973,274 @@ public class MetadataConverterGeneratorTest {
         void fromMetadataMap_doesNotEmitByteArrayInstanceofCheck() {
             String src = generate(List.of(fieldAs("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
             assertFalse(src.contains("instanceof byte[]"));
+        }
+    }
+
+    // =========================================================================
+    // List<T> fields
+    // =========================================================================
+
+    @Nested
+    class ListFields {
+
+        @Nested
+        class StringElements {
+
+            @Test
+            void toMetadataMap_createsMetadataList() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("MetadataList _list = MetadataBuilder.createList()"));
+            }
+
+            @Test
+            void toMetadataMap_iteratesOverGetterResult() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("for (String _el : order.getTags())"));
+            }
+
+            @Test
+            void toMetadataMap_skipsNullElements() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (_el != null)"));
+            }
+
+            @Test
+            void toMetadataMap_shortString_addsDirectly() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("_list.add(_el)"));
+            }
+
+            @Test
+            void toMetadataMap_longString_createsSubList() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("MetadataList _elChunks = MetadataBuilder.createList()"));
+                assertTrue(src.contains("splitStringEveryNCharacters(_el, 64)"));
+                assertTrue(src.contains("_elChunks.add(_part)"));
+                assertTrue(src.contains("_list.add(_elChunks)"));
+            }
+
+            @Test
+            void toMetadataMap_checksByteLengthAgainst64() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("_el.getBytes("));
+                assertTrue(src.contains("> 64"));
+            }
+
+            @Test
+            void toMetadataMap_putsListUnderKey() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("map.put(\"tags\", _list)"));
+            }
+
+            @Test
+            void toMetadataMap_fieldHasNullGuard() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (order.getTags() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_checksInstanceOfMetadataList() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (v instanceof MetadataList)"));
+            }
+
+            @Test
+            void fromMetadataMap_createsArrayList() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("_result = new ArrayList<>()"));
+            }
+
+            @Test
+            void fromMetadataMap_plainStringBranch() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (_el instanceof String)"));
+                assertTrue(src.contains("_result.add((String) _el)"));
+            }
+
+            @Test
+            void fromMetadataMap_chunkedStringBranch() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("else if (_el instanceof MetadataList)"));
+                assertTrue(src.contains("StringBuilder _sb = new StringBuilder()"));
+                assertTrue(src.contains("_elList.getValueAt(_j)"));
+                assertTrue(src.contains("_sb.append((String) _chunk)"));
+                assertTrue(src.contains("_result.add(_sb.toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_callsSetter() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("obj.setTags(_result)"));
+            }
+        }
+
+        @Nested
+        class BigIntegerElements {
+
+            @Test
+            void toMetadataMap_addsElementDirectly() {
+                String src = generate(List.of(listField("amounts", "java.math.BigInteger")));
+                assertTrue(src.contains("for (BigInteger _el : order.getAmounts())"));
+                assertTrue(src.contains("_list.add(_el)"));
+            }
+
+            @Test
+            void fromMetadataMap_castsBigInteger() {
+                String src = generate(List.of(listField("amounts", "java.math.BigInteger")));
+                assertTrue(src.contains("if (_el instanceof BigInteger)"));
+                assertTrue(src.contains("_result.add((BigInteger) _el)"));
+            }
+        }
+
+        @Nested
+        class IntegerElements {
+
+            @Test
+            void toMetadataMap_wrapsInBigIntegerValueOf() {
+                String src = generate(List.of(listField("ids", "java.lang.Integer")));
+                assertTrue(src.contains("for (Integer _el : order.getIds())"));
+                assertTrue(src.contains("_list.add(BigInteger.valueOf((long) _el))"));
+            }
+
+            @Test
+            void fromMetadataMap_extractsIntValue() {
+                String src = generate(List.of(listField("ids", "java.lang.Integer")));
+                assertTrue(src.contains("if (_el instanceof BigInteger)"));
+                assertTrue(src.contains("_result.add(((BigInteger) _el).intValue())"));
+            }
+        }
+
+        @Nested
+        class LongElements {
+
+            @Test
+            void toMetadataMap_wrapsInBigIntegerValueOf() {
+                String src = generate(List.of(listField("timestamps", "java.lang.Long")));
+                assertTrue(src.contains("for (Long _el : order.getTimestamps())"));
+                assertTrue(src.contains("_list.add(BigInteger.valueOf(_el))"));
+            }
+
+            @Test
+            void fromMetadataMap_extractsLongValue() {
+                String src = generate(List.of(listField("timestamps", "java.lang.Long")));
+                assertTrue(src.contains("_result.add(((BigInteger) _el).longValue())"));
+            }
+        }
+
+        @Nested
+        class BooleanElements {
+
+            @Test
+            void toMetadataMap_encodesAsBigIntegerOnOrZero() {
+                String src = generate(List.of(listField("flags", "java.lang.Boolean")));
+                assertTrue(src.contains("for (Boolean _el : order.getFlags())"));
+                assertTrue(src.contains("_list.add(_el ? BigInteger.ONE : BigInteger.ZERO)"));
+            }
+
+            @Test
+            void fromMetadataMap_decodesBigIntegerOne() {
+                String src = generate(List.of(listField("flags", "java.lang.Boolean")));
+                assertTrue(src.contains("if (_el instanceof BigInteger)"));
+                assertTrue(src.contains("_result.add(BigInteger.ONE.equals(_el))"));
+            }
+        }
+
+        @Nested
+        class DoubleElements {
+
+            @Test
+            void toMetadataMap_encodesAsStringValueOf() {
+                String src = generate(List.of(listField("rates", "java.lang.Double")));
+                assertTrue(src.contains("for (Double _el : order.getRates())"));
+                assertTrue(src.contains("_list.add(String.valueOf(_el))"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesDouble() {
+                String src = generate(List.of(listField("rates", "java.lang.Double")));
+                assertTrue(src.contains("if (_el instanceof String)"));
+                assertTrue(src.contains("_result.add(Double.parseDouble((String) _el))"));
+            }
+        }
+
+        @Nested
+        class FloatElements {
+
+            @Test
+            void toMetadataMap_encodesAsStringValueOf() {
+                String src = generate(List.of(listField("weights", "java.lang.Float")));
+                assertTrue(src.contains("_list.add(String.valueOf(_el))"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesFloat() {
+                String src = generate(List.of(listField("weights", "java.lang.Float")));
+                assertTrue(src.contains("_result.add(Float.parseFloat((String) _el))"));
+            }
+        }
+
+        @Nested
+        class BigDecimalElements {
+
+            @Test
+            void toMetadataMap_encodesViaToPlainString() {
+                String src = generate(List.of(listField("prices", "java.math.BigDecimal")));
+                assertTrue(src.contains("for (BigDecimal _el : order.getPrices())"));
+                assertTrue(src.contains("_list.add(_el.toPlainString())"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesViaBigDecimalConstructor() {
+                String src = generate(List.of(listField("prices", "java.math.BigDecimal")));
+                assertTrue(src.contains("if (_el instanceof String)"));
+                assertTrue(src.contains("_result.add(new BigDecimal((String) _el))"));
+            }
+        }
+
+        @Nested
+        class ByteArrayElements {
+
+            @Test
+            void toMetadataMap_addsElementDirectly() {
+                String src = generate(List.of(listField("payloads", "byte[]")));
+                assertTrue(src.contains("for (byte[] _el : order.getPayloads())"));
+                assertTrue(src.contains("_list.add(_el)"));
+            }
+
+            @Test
+            void fromMetadataMap_castsByteArray() {
+                String src = generate(List.of(listField("payloads", "byte[]")));
+                assertTrue(src.contains("if (_el instanceof byte[])"));
+                assertTrue(src.contains("_result.add((byte[]) _el)"));
+            }
+        }
+
+        @Nested
+        class NullGuard {
+
+            @Test
+            void listField_alwaysHasNullGuardForList() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (order.getTags() != null)"));
+            }
+
+            @Test
+            void listField_nullElementsWithinListAreSkipped() {
+                String src = generate(List.of(listField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (_el != null)"));
+            }
+
+            @Test
+            void multipleListFields_noVariableNameCollision() {
+                String src = generate(List.of(
+                        listField("tags", "java.lang.String"),
+                        listField("ids", "java.lang.Integer")
+                ));
+                assertTrue(src.contains("map.put(\"tags\", _list)"));
+                assertTrue(src.contains("map.put(\"ids\", _list)"));
+                assertTrue(src.contains("obj.setTags(_result)"));
+                assertTrue(src.contains("obj.setIds(_result)"));
+            }
         }
     }
 }

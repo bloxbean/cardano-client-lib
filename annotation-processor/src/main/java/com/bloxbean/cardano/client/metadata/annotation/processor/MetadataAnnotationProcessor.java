@@ -119,6 +119,17 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
                 as = mf.as();
             }
 
+            // Extract element type for List<T> fields; warn if as= is used on List
+            String elementTypeName = null;
+            if (typeName.startsWith("java.util.List<") && typeName.endsWith(">")) {
+                elementTypeName = typeName.substring("java.util.List<".length(), typeName.length() - 1);
+                if (as != MetadataFieldType.DEFAULT) {
+                    messager.printMessage(Diagnostic.Kind.WARNING,
+                            "Field '" + fieldName + "': @MetadataField(as=...) is not supported on List fields; using DEFAULT.", ve);
+                    as = MetadataFieldType.DEFAULT;
+                }
+            }
+
             if (!isValidAs(typeName, as, ve)) {
                 continue;
             }
@@ -156,6 +167,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             info.setAs(as);
             info.setGetterName(getterName);
             info.setSetterName(setterName);
+            info.setElementTypeName(elementTypeName);
 
             fields.add(info);
         }
@@ -168,6 +180,15 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
     }
 
     private boolean isSupportedType(String typeName) {
+        if (isSupportedScalarType(typeName)) return true;
+        if (typeName.startsWith("java.util.List<") && typeName.endsWith(">")) {
+            String elementType = typeName.substring("java.util.List<".length(), typeName.length() - 1);
+            return isSupportedScalarType(elementType);
+        }
+        return false;
+    }
+
+    private boolean isSupportedScalarType(String typeName) {
         switch (typeName) {
             case "java.lang.String":
             case "java.math.BigInteger":

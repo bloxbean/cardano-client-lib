@@ -6,12 +6,15 @@ import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
+import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
@@ -86,6 +89,11 @@ public class MetadataConverterGenerator {
         String key = field.getMetadataKey();
         String javaType = field.getJavaTypeName();
         MetadataFieldType as = field.getAs();
+
+        if (javaType.startsWith("java.util.List<")) {
+            emitToMapPutList(builder, field, getExpr);
+            return;
+        }
 
         switch (as) {
             case STRING_HEX:
@@ -236,6 +244,11 @@ public class MetadataConverterGenerator {
     private void emitFromMapGet(MethodSpec.Builder builder, MetadataFieldInfo field) {
         String javaType = field.getJavaTypeName();
         MetadataFieldType as = field.getAs();
+
+        if (javaType.startsWith("java.util.List<")) {
+            emitFromMapGetList(builder, field);
+            return;
+        }
 
         switch (as) {
             case STRING_HEX:
@@ -414,6 +427,172 @@ public class MetadataConverterGenerator {
     }
 
     // -------------------------------------------------------------------------
+    // List<T> serialization
+    // -------------------------------------------------------------------------
+
+    /** Emits the toMetadataMap body for a {@code List<T>} field. */
+    private void emitToMapPutList(MethodSpec.Builder builder, MetadataFieldInfo field, String getExpr) {
+        String key = field.getMetadataKey();
+        String elementType = field.getElementTypeName();
+        TypeName elemTypeName = elementTypeName(elementType);
+
+        builder.addStatement("$T _list = $T.createList()", MetadataList.class, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T _el : $L)", elemTypeName, getExpr);
+        builder.beginControlFlow("if (_el != null)");
+        emitListElementAdd(builder, elementType);
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // for loop
+        builder.addStatement("map.put($S, _list)", key);
+    }
+
+    /** Emits the add statement for a single element into {@code _list}. */
+    private void emitListElementAdd(MethodSpec.Builder builder, String elementType) {
+        switch (elementType) {
+            case "java.lang.String":
+                builder.beginControlFlow("if (_el.getBytes($T.UTF_8).length > 64)", StandardCharsets.class);
+                builder.addStatement("$T _elChunks = $T.createList()", MetadataList.class, MetadataBuilder.class);
+                builder.beginControlFlow("for ($T _part : $T.splitStringEveryNCharacters(_el, 64))",
+                        String.class, STRING_UTILS);
+                builder.addStatement("_elChunks.add(_part)");
+                builder.endControlFlow();
+                builder.addStatement("_list.add(_elChunks)");
+                builder.nextControlFlow("else");
+                builder.addStatement("_list.add(_el)");
+                builder.endControlFlow();
+                break;
+            case "java.math.BigInteger":
+                builder.addStatement("_list.add(_el)");
+                break;
+            case "java.math.BigDecimal":
+                builder.addStatement("_list.add(_el.toPlainString())");
+                break;
+            case "java.lang.Long":
+                builder.addStatement("_list.add($T.valueOf(_el))", BigInteger.class);
+                break;
+            case "java.lang.Integer":
+                builder.addStatement("_list.add($T.valueOf((long) _el))", BigInteger.class);
+                break;
+            case "java.lang.Short":
+            case "java.lang.Byte":
+                builder.addStatement("_list.add($T.valueOf((long) _el))", BigInteger.class);
+                break;
+            case "java.lang.Boolean":
+                builder.addStatement("_list.add(_el ? $T.ONE : $T.ZERO)", BigInteger.class, BigInteger.class);
+                break;
+            case "java.lang.Double":
+            case "java.lang.Float":
+            case "java.lang.Character":
+                builder.addStatement("_list.add($T.valueOf(_el))", String.class);
+                break;
+            case "byte[]":
+                builder.addStatement("_list.add(_el)");
+                break;
+            default:
+                break;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // List<T> deserialization
+    // -------------------------------------------------------------------------
+
+    /** Emits the fromMetadataMap body for a {@code List<T>} field. */
+    private void emitFromMapGetList(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        String elementType = field.getElementTypeName();
+        TypeName elemTypeName = elementTypeName(elementType);
+        ParameterizedTypeName listType =
+                ParameterizedTypeName.get(ClassName.get("java.util", "List"), elemTypeName);
+
+        builder.beginControlFlow("if (v instanceof $T)", MetadataList.class);
+        builder.addStatement("$T _rawList = ($T) v", MetadataList.class, MetadataList.class);
+        builder.addStatement("$T _result = new $T<>()", listType, ClassName.get("java.util", "ArrayList"));
+        builder.beginControlFlow("for (int _i = 0; _i < _rawList.size(); _i++)");
+        builder.addStatement("$T _el = _rawList.getValueAt(_i)", Object.class);
+        emitListElementRead(builder, elementType);
+        builder.endControlFlow(); // for loop
+        addSetterStatementRaw(builder, field, "_result");
+        builder.endControlFlow(); // instanceof MetadataList
+    }
+
+    /** Emits the code that reads a single raw element {@code _el} and adds it to {@code _result}. */
+    private void emitListElementRead(MethodSpec.Builder builder, String elementType) {
+        switch (elementType) {
+            case "java.lang.String":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add(($T) _el)", String.class);
+                builder.nextControlFlow("else if (_el instanceof $T)", MetadataList.class);
+                builder.addStatement("$T _sb = new $T()", StringBuilder.class, StringBuilder.class);
+                builder.addStatement("$T _elList = ($T) _el", MetadataList.class, MetadataList.class);
+                builder.beginControlFlow("for (int _j = 0; _j < _elList.size(); _j++)");
+                builder.addStatement("$T _chunk = _elList.getValueAt(_j)", Object.class);
+                builder.beginControlFlow("if (_chunk instanceof $T)", String.class);
+                builder.addStatement("_sb.append(($T) _chunk)", String.class);
+                builder.endControlFlow();
+                builder.endControlFlow();
+                builder.addStatement("_result.add(_sb.toString())");
+                builder.endControlFlow();
+                break;
+            case "java.math.BigInteger":
+                builder.beginControlFlow("if (_el instanceof $T)", BigInteger.class);
+                builder.addStatement("_result.add(($T) _el)", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.math.BigDecimal":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add(new $T(($T) _el))", BigDecimal.class, String.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Long":
+                builder.beginControlFlow("if (_el instanceof $T)", BigInteger.class);
+                builder.addStatement("_result.add((($T) _el).longValue())", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Integer":
+                builder.beginControlFlow("if (_el instanceof $T)", BigInteger.class);
+                builder.addStatement("_result.add((($T) _el).intValue())", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Short":
+                builder.beginControlFlow("if (_el instanceof $T)", BigInteger.class);
+                builder.addStatement("_result.add((($T) _el).shortValue())", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Byte":
+                builder.beginControlFlow("if (_el instanceof $T)", BigInteger.class);
+                builder.addStatement("_result.add((($T) _el).byteValue())", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Boolean":
+                builder.beginControlFlow("if (_el instanceof $T)", BigInteger.class);
+                builder.addStatement("_result.add($T.ONE.equals(_el))", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Double":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add($T.parseDouble(($T) _el))", Double.class, String.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Float":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add($T.parseFloat(($T) _el))", Float.class, String.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Character":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add((($T) _el).charAt(0))", String.class);
+                builder.endControlFlow();
+                break;
+            case "byte[]":
+                builder.beginControlFlow("if (_el instanceof byte[])");
+                builder.addStatement("_result.add((byte[]) _el)");
+                builder.endControlFlow();
+                break;
+            default:
+                break;
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
@@ -468,5 +647,24 @@ public class MetadataConverterGenerator {
     private String firstLowerCase(String s) {
         if (s == null || s.isEmpty()) return s;
         return Character.toLowerCase(s.charAt(0)) + s.substring(1);
+    }
+
+    /** Maps a fully-qualified element type name to its JavaPoet {@link TypeName}. */
+    private TypeName elementTypeName(String elementType) {
+        switch (elementType) {
+            case "java.lang.String":    return TypeName.get(String.class);
+            case "java.math.BigInteger": return TypeName.get(BigInteger.class);
+            case "java.math.BigDecimal": return TypeName.get(BigDecimal.class);
+            case "java.lang.Long":      return TypeName.get(Long.class);
+            case "java.lang.Integer":   return TypeName.get(Integer.class);
+            case "java.lang.Short":     return TypeName.get(Short.class);
+            case "java.lang.Byte":      return TypeName.get(Byte.class);
+            case "java.lang.Boolean":   return TypeName.get(Boolean.class);
+            case "java.lang.Double":    return TypeName.get(Double.class);
+            case "java.lang.Float":     return TypeName.get(Float.class);
+            case "java.lang.Character": return TypeName.get(Character.class);
+            case "byte[]":              return TypeName.get(byte[].class);
+            default: throw new IllegalArgumentException("Unsupported List element type: " + elementType);
+        }
     }
 }

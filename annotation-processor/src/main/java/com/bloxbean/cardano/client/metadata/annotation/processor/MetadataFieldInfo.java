@@ -38,4 +38,10 @@ public class MetadataFieldInfo {
      * Setter method name (e.g. "setName"), or null if the field is assigned directly.
      */
     private String setterName;
+
+    /**
+     * For {@code List<T>} fields: the fully-qualified element type (e.g. {@code "java.lang.String"}).
+     * {@code null} for scalar fields.
+     */
+    private String elementTypeName;
 }
