@@ -55,6 +55,21 @@ public class PlutusBlueprintLoader {
     private static PlutusContractBlueprint resolveReferences(PlutusContractBlueprint plutusContractBlueprint) {
         Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions();
 
+        // Resolve definitions first to set dataType for Option types (both Option$ and Option< syntax)
+        if (definitions != null) {
+            for (Map.Entry<String, BlueprintSchema> entry : definitions.entrySet()) {
+                String defKey = entry.getKey();
+                BlueprintSchema defSchema = entry.getValue();
+
+                if (defSchema.getDataType() == null && (defKey.startsWith("Option$") || defKey.startsWith("Option<"))) {
+                    defSchema.setDataType(BlueprintDatatype.option);
+                }
+
+                definitions.put(defKey, resolveDatum(definitions, defSchema));
+            }
+        }
+
+        // Resolve validator schemas
         List<Validator> validators = plutusContractBlueprint.getValidators();
         for (Validator validator : validators) {
             if(validator.getDatum() != null) {
@@ -100,12 +115,10 @@ public class PlutusBlueprintLoader {
             return null;
         }
 
-        // Check for circular reference - if we're already visiting this schema, return it immediately
+        // Circular reference guard
         if (visiting.containsKey(schema)) {
             return schema;
         }
-
-        // Mark this schema as being visited
         visiting.put(schema, Boolean.TRUE);
 
         try {
@@ -116,7 +129,8 @@ public class PlutusBlueprintLoader {
 
                 blueprintSchema.copyFrom(refDatumSchema);
 
-                if (blueprintSchema.getDataType() == null && ref.startsWith("Option$"))
+                if (blueprintSchema.getDataType() == null
+                        && (ref.startsWith("Option$") || ref.startsWith("Option<")))
                     blueprintSchema.setDataType(BlueprintDatatype.option);
             }
             blueprintSchema.setFields(extracted(definitions, blueprintSchema.getFields(), visiting));
@@ -136,7 +150,6 @@ public class PlutusBlueprintLoader {
                 blueprintSchema.setRight(extracted(definitions, List.of(blueprintSchema.getRight()), visiting).get(0));
             return blueprintSchema;
         } finally {
-            // Remove from visiting set after processing
             visiting.remove(schema);
         }
     }

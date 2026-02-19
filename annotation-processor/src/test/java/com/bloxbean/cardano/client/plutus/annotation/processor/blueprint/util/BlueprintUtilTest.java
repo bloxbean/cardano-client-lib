@@ -583,7 +583,87 @@ public class BlueprintUtilTest {
     }
 
     /**
-     * Tests for getClassNameFromReferenceKey() - extracts class name (last segment) from definition keys.
+     * Tests for {@link BlueprintUtil#isBuiltInGenericContainer(String)}.
+     *
+     * <p>Distinguishes built-in containers (List, Option, etc.) from domain-specific types
+     * (Interval, ValidityRange, etc.) to decide whether a generated Java class is needed.</p>
+     */
+    @Nested
+    class IsBuiltInGenericContainerTests {
+
+        @Test
+        void shouldReturnTrue_forList() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("List")).isTrue();
+        }
+
+        @Test
+        void shouldReturnTrue_forOption() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Option")).isTrue();
+        }
+
+        @Test
+        void shouldReturnTrue_forOptional() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Optional")).isTrue();
+        }
+
+        @Test
+        void shouldReturnTrue_forTuple() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Tuple")).isTrue();
+        }
+
+        @Test
+        void shouldReturnTrue_forPair() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Pair")).isTrue();
+        }
+
+        @Test
+        void shouldReturnTrue_forMap() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Map")).isTrue();
+        }
+
+        @Test
+        void shouldReturnTrue_forDict() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Dict")).isTrue();
+        }
+
+        @Test
+        void shouldReturnTrue_forData() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Data")).isTrue();
+        }
+
+        @Test
+        void shouldReturnTrue_forRedeemer() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Redeemer")).isTrue();
+        }
+
+        @Test
+        void shouldReturnFalse_forDomainSpecificTypes() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Interval")).isFalse();
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("IntervalBound")).isFalse();
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("ValidityRange")).isFalse();
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("Action")).isFalse();
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("MyCustomType")).isFalse();
+        }
+
+        @Test
+        void shouldBeCaseSensitive() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("list")).isFalse();
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("option")).isFalse();
+        }
+
+        @Test
+        void shouldReturnFalse_forNull() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer(null)).isFalse();
+        }
+
+        @Test
+        void shouldReturnFalse_forEmptyString() {
+            assertThat(BlueprintUtil.isBuiltInGenericContainer("")).isFalse();
+        }
+    }
+
+    /**
+     * Tests for {@link BlueprintUtil#getClassNameFromReferenceKey(String)} - extracts class name (last segment) from definition keys.
      *
      * <p>This method is used as a fallback when blueprint schemas lack titles (CIP-57 compliance).
      * Real-world example: SundaeSwap V2 blueprint has definitions without titles for primitive types.</p>

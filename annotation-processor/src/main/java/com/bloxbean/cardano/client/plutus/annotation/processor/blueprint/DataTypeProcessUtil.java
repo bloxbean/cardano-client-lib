@@ -136,6 +136,7 @@ public class DataTypeProcessUtil {
             title = alternativeName;
         if (title == null || title.isBlank())
             title = "field";
+
         return nameStrategy.firstLowerCase(nameStrategy.toCamelCase(title));
     }
 
