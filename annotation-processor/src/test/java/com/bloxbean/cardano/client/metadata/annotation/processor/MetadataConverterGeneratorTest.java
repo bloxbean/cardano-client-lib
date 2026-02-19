@@ -748,6 +748,54 @@ public class MetadataConverterGeneratorTest {
     }
 
     // =========================================================================
+    // BigDecimal  (→ Cardano text via toPlainString)
+    // =========================================================================
+
+    @Nested
+    class BigDecimalFields {
+
+        @Test
+        void toMetadataMap_serialisedViaToPlainString() {
+            String src = generate(List.of(field("price", "java.math.BigDecimal")));
+            assertTrue(src.contains("order.getPrice().toPlainString()"));
+        }
+
+        @Test
+        void toMetadataMap_doesNotUseStringValueOf() {
+            String src = generate(List.of(field("price", "java.math.BigDecimal")));
+            // String.valueOf can produce scientific notation — must not be used
+            assertFalse(src.contains("String.valueOf(order.getPrice())"));
+        }
+
+        @Test
+        void toMetadataMap_doesNotEmitBigIntegerValueOf() {
+            String src = generate(List.of(field("price", "java.math.BigDecimal")));
+            assertFalse(src.contains("BigInteger.valueOf"));
+        }
+
+        @Test
+        void toMetadataMap_hasNullGuard() {
+            String src = generate(List.of(field("price", "java.math.BigDecimal")));
+            assertTrue(src.contains("if (order.getPrice() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_parsedViaNewBigDecimal() {
+            String src = generate(List.of(field("price", "java.math.BigDecimal")));
+            assertTrue(src.contains("if (v instanceof String)"));
+            assertTrue(src.contains("new BigDecimal((String) v)"));
+        }
+
+        @Test
+        void asString_toMetadataMap_sameAsDefault() {
+            String srcDefault = generate(List.of(field("price", "java.math.BigDecimal")));
+            String srcAsString = generate(List.of(fieldAs("price", "java.math.BigDecimal", MetadataFieldType.STRING)));
+            // as=STRING on BigDecimal is a no-op — output identical to DEFAULT
+            assertEquals(srcDefault, srcAsString);
+        }
+    }
+
+    // =========================================================================
     // as = STRING  (force numeric/BigInteger/String → String on chain)
     // =========================================================================
 

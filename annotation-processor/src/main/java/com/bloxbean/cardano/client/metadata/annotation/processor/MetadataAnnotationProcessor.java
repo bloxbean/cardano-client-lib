@@ -171,6 +171,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
         switch (typeName) {
             case "java.lang.String":
             case "java.math.BigInteger":
+            case "java.math.BigDecimal":
             case "java.lang.Long":
             case "long":
             case "java.lang.Integer":

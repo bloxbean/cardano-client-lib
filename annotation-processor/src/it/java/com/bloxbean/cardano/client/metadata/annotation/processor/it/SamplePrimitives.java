@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
 
+import java.math.BigDecimal;
+
 /**
  * Integration test POJO covering all newly supported primitive/boxed types.
  * The annotation processor generates {@code SamplePrimitivesMetadataConverter} from this class.
@@ -16,6 +18,7 @@ import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
  *   <li>double / Double → String via String.valueOf (DEFAULT)</li>
  *   <li>float  / Float  → String via String.valueOf (DEFAULT)</li>
  *   <li>char / Character → String via String.valueOf (DEFAULT)</li>
+ *   <li>BigDecimal → String via toPlainString() (DEFAULT)</li>
  * </ul>
  */
 @MetadataType
@@ -54,6 +57,10 @@ public class SamplePrimitives {
     // --- char ---
     private char charPrimitive;
     private Character charBoxed;
+
+    // --- BigDecimal ---
+    private BigDecimal decimalValue;
+    private BigDecimal decimalNull;
 
     // -------------------------------------------------------------------------
     // Getters / setters
@@ -104,4 +111,10 @@ public class SamplePrimitives {
 
     public Character getCharBoxed() { return charBoxed; }
     public void setCharBoxed(Character charBoxed) { this.charBoxed = charBoxed; }
+
+    public BigDecimal getDecimalValue() { return decimalValue; }
+    public void setDecimalValue(BigDecimal decimalValue) { this.decimalValue = decimalValue; }
+
+    public BigDecimal getDecimalNull() { return decimalNull; }
+    public void setDecimalNull(BigDecimal decimalNull) { this.decimalNull = decimalNull; }
 }

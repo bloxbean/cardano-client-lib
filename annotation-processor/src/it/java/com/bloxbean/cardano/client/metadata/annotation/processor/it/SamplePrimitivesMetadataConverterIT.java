@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -440,6 +441,64 @@ class SamplePrimitivesMetadataConverterIT {
             SamplePrimitives restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
 
             assertEquals(Character.valueOf('x'), restored.getCharBoxed());
+        }
+    }
+
+    // =========================================================================
+    // BigDecimal
+    // =========================================================================
+
+    @Nested
+    class BigDecimalFields {
+
+        @Test
+        void value_serialisedAsPlainString() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setDecimalValue(new BigDecimal("3.14"));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+
+            assertEquals("3.14", map.get("decimalValue"));
+        }
+
+        @Test
+        void largeValue_noScientificNotation() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setDecimalValue(new BigDecimal("1E+10"));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+
+            assertEquals("10000000000", map.get("decimalValue"));
+        }
+
+        @Test
+        void nullValue_notPresentInMap() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setDecimalNull(null);
+
+            MetadataMap map = converter.toMetadataMap(obj);
+
+            assertNull(map.get("decimalNull"));
+        }
+
+        @Test
+        void roundTrip() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setDecimalValue(new BigDecimal("123456.789"));
+
+            SamplePrimitives restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(new BigDecimal("123456.789"), restored.getDecimalValue());
+        }
+
+        @Test
+        void negativeValue_roundTrip() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setDecimalValue(new BigDecimal("-0.001"));
+
+            SamplePrimitives restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(new BigDecimal("-0.001"), restored.getDecimalValue());
         }
     }
 }

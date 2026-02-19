@@ -9,6 +9,7 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -114,6 +115,10 @@ public class MetadataConverterGenerator {
             case "java.math.BigInteger":
                 builder.addStatement("map.put($S, $L.toString())", key, getExpr);
                 break;
+            case "java.math.BigDecimal":
+                // DEFAULT for BigDecimal is already text — route through default
+                emitToMapPutDefault(builder, key, javaType, getExpr);
+                break;
             case "java.lang.Long":
             case "long":
             case "java.lang.Integer":
@@ -152,6 +157,9 @@ public class MetadataConverterGenerator {
                 break;
             case "java.math.BigInteger":
                 builder.addStatement("map.put($S, $L)", key, getExpr);
+                break;
+            case "java.math.BigDecimal":
+                builder.addStatement("map.put($S, $L.toPlainString())", key, getExpr);
                 break;
             case "java.lang.Long":
             case "long":
@@ -262,6 +270,10 @@ public class MetadataConverterGenerator {
                 addSetterStatement(builder, field, "new $T((String) v)", BigInteger.class);
                 builder.endControlFlow();
                 break;
+            case "java.math.BigDecimal":
+                // DEFAULT for BigDecimal is already text — route through default
+                emitFromMapGetDefault(builder, field, javaType);
+                break;
             case "java.lang.Long":
             case "long":
                 builder.beginControlFlow("if (v instanceof $T)", String.class);
@@ -316,6 +328,11 @@ public class MetadataConverterGenerator {
             case "java.math.BigInteger":
                 builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
                 addSetterStatement(builder, field, "($T) v", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.math.BigDecimal":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "new $T((String) v)", BigDecimal.class);
                 builder.endControlFlow();
                 break;
             case "java.lang.Long":
