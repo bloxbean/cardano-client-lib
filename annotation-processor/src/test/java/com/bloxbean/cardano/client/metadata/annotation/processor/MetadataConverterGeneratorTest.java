@@ -74,6 +74,28 @@ public class MetadataConverterGeneratorTest {
         return f;
     }
 
+    /**
+     * Boolean field using {@code isX()} getter naming (mirrors how the annotation processor
+     * resolves boolean getters in real POJOs).
+     */
+    private MetadataFieldInfo boolField(String name, String javaType) {
+        String cap = name.substring(0, 1).toUpperCase() + name.substring(1);
+        MetadataFieldInfo f = new MetadataFieldInfo();
+        f.setJavaFieldName(name);
+        f.setMetadataKey(name);
+        f.setJavaTypeName(javaType);
+        f.setGetterName("is" + cap);
+        f.setSetterName("set" + cap);
+        return f;
+    }
+
+    /** Boolean field with output type override, using {@code isX()} getter. */
+    private MetadataFieldInfo boolFieldAs(String name, String javaType, MetadataFieldType as) {
+        MetadataFieldInfo f = boolField(name, javaType);
+        f.setAs(as);
+        return f;
+    }
+
     // =========================================================================
     // Class structure
     // =========================================================================
@@ -481,6 +503,247 @@ public class MetadataConverterGeneratorTest {
             assertTrue(src.contains("map.get(\"note\")"));
             assertTrue(src.contains("obj.setName(_sb.toString())"));
             assertTrue(src.contains("obj.setNote(_sb.toString())"));
+        }
+    }
+
+    // =========================================================================
+    // short / Short
+    // =========================================================================
+
+    @Nested
+    class ShortFieldsDefault {
+
+        @Test
+        void toMetadataMap_primitive_emitsBigIntegerValueOf() {
+            String src = generate(List.of(field("count", "short")));
+            assertTrue(src.contains("BigInteger.valueOf((long) order.getCount())"));
+        }
+
+        @Test
+        void toMetadataMap_primitive_noNullGuard() {
+            String src = generate(List.of(field("count", "short")));
+            assertFalse(src.contains("if (order.getCount() != null)"));
+        }
+
+        @Test
+        void toMetadataMap_boxed_hasNullGuard() {
+            String src = generate(List.of(field("count", "java.lang.Short")));
+            assertTrue(src.contains("if (order.getCount() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_primitive_extractsShortValue() {
+            String src = generate(List.of(field("count", "short")));
+            assertTrue(src.contains("if (v instanceof BigInteger)"));
+            assertTrue(src.contains("((BigInteger) v).shortValue()"));
+        }
+
+        @Test
+        void asString_toMetadataMap_emitsStringValueOf() {
+            String src = generate(List.of(fieldAs("count", "short", MetadataFieldType.STRING)));
+            assertTrue(src.contains("map.put(\"count\", String.valueOf(order.getCount()))"));
+        }
+
+        @Test
+        void asString_fromMetadataMap_parsesShort() {
+            String src = generate(List.of(fieldAs("count", "short", MetadataFieldType.STRING)));
+            assertTrue(src.contains("Short.parseShort((String) v)"));
+        }
+    }
+
+    // =========================================================================
+    // byte / Byte
+    // =========================================================================
+
+    @Nested
+    class ByteFieldsDefault {
+
+        @Test
+        void toMetadataMap_primitive_emitsBigIntegerValueOf() {
+            String src = generate(List.of(field("b", "byte")));
+            assertTrue(src.contains("BigInteger.valueOf((long) order.getB())"));
+        }
+
+        @Test
+        void toMetadataMap_primitive_noNullGuard() {
+            String src = generate(List.of(field("b", "byte")));
+            assertFalse(src.contains("if (order.getB() != null)"));
+        }
+
+        @Test
+        void toMetadataMap_boxed_hasNullGuard() {
+            String src = generate(List.of(field("b", "java.lang.Byte")));
+            assertTrue(src.contains("if (order.getB() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_primitive_extractsByteValue() {
+            String src = generate(List.of(field("b", "byte")));
+            assertTrue(src.contains("((BigInteger) v).byteValue()"));
+        }
+
+        @Test
+        void asString_toMetadataMap_emitsStringValueOf() {
+            String src = generate(List.of(fieldAs("b", "byte", MetadataFieldType.STRING)));
+            assertTrue(src.contains("map.put(\"b\", String.valueOf(order.getB()))"));
+        }
+
+        @Test
+        void asString_fromMetadataMap_parsesByte() {
+            String src = generate(List.of(fieldAs("b", "byte", MetadataFieldType.STRING)));
+            assertTrue(src.contains("Byte.parseByte((String) v)"));
+        }
+    }
+
+    // =========================================================================
+    // boolean / Boolean
+    // =========================================================================
+
+    @Nested
+    class BooleanFields {
+
+        @Test
+        void toMetadataMap_primitive_emitsTernaryBigInteger() {
+            String src = generate(List.of(boolField("active", "boolean")));
+            assertTrue(src.contains("order.isActive() ? BigInteger.ONE : BigInteger.ZERO"));
+        }
+
+        @Test
+        void toMetadataMap_primitive_noNullGuard() {
+            String src = generate(List.of(boolField("active", "boolean")));
+            assertFalse(src.contains("if (order.isActive() != null)"));
+        }
+
+        @Test
+        void toMetadataMap_boxed_hasNullGuard() {
+            String src = generate(List.of(boolField("active", "java.lang.Boolean")));
+            assertTrue(src.contains("if (order.isActive() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_default_checksBigIntegerOne() {
+            String src = generate(List.of(boolField("active", "boolean")));
+            assertTrue(src.contains("BigInteger.ONE.equals(v)"));
+        }
+
+        @Test
+        void asString_toMetadataMap_emitsStringValueOf() {
+            String src = generate(List.of(boolFieldAs("active", "boolean", MetadataFieldType.STRING)));
+            assertTrue(src.contains("map.put(\"active\", String.valueOf(order.isActive()))"));
+        }
+
+        @Test
+        void asString_fromMetadataMap_parsesBoolean() {
+            String src = generate(List.of(boolFieldAs("active", "boolean", MetadataFieldType.STRING)));
+            assertTrue(src.contains("Boolean.parseBoolean((String) v)"));
+        }
+
+        @Test
+        void asString_doesNotEmitBigIntegerCheck() {
+            String src = generate(List.of(boolFieldAs("active", "boolean", MetadataFieldType.STRING)));
+            assertFalse(src.contains("BigInteger.ONE.equals"));
+        }
+    }
+
+    // =========================================================================
+    // double / Double
+    // =========================================================================
+
+    @Nested
+    class DoubleFields {
+
+        @Test
+        void toMetadataMap_primitive_emitsStringValueOf() {
+            String src = generate(List.of(field("price", "double")));
+            assertTrue(src.contains("map.put(\"price\", String.valueOf(order.getPrice()))"));
+        }
+
+        @Test
+        void toMetadataMap_primitive_noNullGuard() {
+            String src = generate(List.of(field("price", "double")));
+            assertFalse(src.contains("if (order.getPrice() != null)"));
+        }
+
+        @Test
+        void toMetadataMap_boxed_hasNullGuard() {
+            String src = generate(List.of(field("price", "java.lang.Double")));
+            assertTrue(src.contains("if (order.getPrice() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_parsesDoubleFromString() {
+            String src = generate(List.of(field("price", "double")));
+            assertTrue(src.contains("Double.parseDouble((String) v)"));
+        }
+
+        @Test
+        void toMetadataMap_doesNotEmitBigIntegerValueOf() {
+            String src = generate(List.of(field("price", "double")));
+            assertFalse(src.contains("BigInteger.valueOf"));
+        }
+    }
+
+    // =========================================================================
+    // float / Float
+    // =========================================================================
+
+    @Nested
+    class FloatFields {
+
+        @Test
+        void toMetadataMap_primitive_emitsStringValueOf() {
+            String src = generate(List.of(field("weight", "float")));
+            assertTrue(src.contains("map.put(\"weight\", String.valueOf(order.getWeight()))"));
+        }
+
+        @Test
+        void toMetadataMap_primitive_noNullGuard() {
+            String src = generate(List.of(field("weight", "float")));
+            assertFalse(src.contains("if (order.getWeight() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_parsesFloatFromString() {
+            String src = generate(List.of(field("weight", "float")));
+            assertTrue(src.contains("Float.parseFloat((String) v)"));
+        }
+    }
+
+    // =========================================================================
+    // char / Character
+    // =========================================================================
+
+    @Nested
+    class CharFields {
+
+        @Test
+        void toMetadataMap_primitive_emitsStringValueOf() {
+            String src = generate(List.of(field("code", "char")));
+            assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
+        }
+
+        @Test
+        void toMetadataMap_primitive_noNullGuard() {
+            String src = generate(List.of(field("code", "char")));
+            assertFalse(src.contains("if (order.getCode() != null)"));
+        }
+
+        @Test
+        void toMetadataMap_boxed_hasNullGuard() {
+            String src = generate(List.of(field("code", "java.lang.Character")));
+            assertTrue(src.contains("if (order.getCode() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_extractsCharAtZero() {
+            String src = generate(List.of(field("code", "char")));
+            assertTrue(src.contains("((String) v).charAt(0)"));
+        }
+
+        @Test
+        void fromMetadataMap_doesNotEmitBigIntegerCheck() {
+            String src = generate(List.of(field("code", "char")));
+            assertFalse(src.contains("instanceof BigInteger"));
         }
     }
 

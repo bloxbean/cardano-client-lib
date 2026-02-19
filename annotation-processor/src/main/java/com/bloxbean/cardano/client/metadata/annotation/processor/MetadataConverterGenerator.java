@@ -118,7 +118,22 @@ public class MetadataConverterGenerator {
             case "long":
             case "java.lang.Integer":
             case "int":
+            case "java.lang.Short":
+            case "short":
+            case "java.lang.Byte":
+            case "byte":
+            case "java.lang.Boolean":
+            case "boolean":
                 builder.addStatement("map.put($S, $T.valueOf($L))", key, String.class, getExpr);
+                break;
+            case "java.lang.Double":
+            case "double":
+            case "java.lang.Float":
+            case "float":
+            case "java.lang.Character":
+            case "char":
+                // DEFAULT for these types is already String — no-op
+                emitToMapPutDefault(builder, key, javaType, getExpr);
                 break;
             default:
                 break;
@@ -145,6 +160,25 @@ public class MetadataConverterGenerator {
             case "java.lang.Integer":
             case "int":
                 builder.addStatement("map.put($S, $T.valueOf((long) $L))", key, BigInteger.class, getExpr);
+                break;
+            case "java.lang.Short":
+            case "short":
+            case "java.lang.Byte":
+            case "byte":
+                builder.addStatement("map.put($S, $T.valueOf((long) $L))", key, BigInteger.class, getExpr);
+                break;
+            case "java.lang.Boolean":
+            case "boolean":
+                builder.addStatement("map.put($S, $L ? $T.ONE : $T.ZERO)", key, getExpr,
+                        BigInteger.class, BigInteger.class);
+                break;
+            case "java.lang.Double":
+            case "double":
+            case "java.lang.Float":
+            case "float":
+            case "java.lang.Character":
+            case "char":
+                builder.addStatement("map.put($S, $T.valueOf($L))", key, String.class, getExpr);
                 break;
             default:
                 break;
@@ -240,6 +274,33 @@ public class MetadataConverterGenerator {
                 addSetterStatement(builder, field, "$T.parseInt((String) v)", Integer.class);
                 builder.endControlFlow();
                 break;
+            case "java.lang.Short":
+            case "short":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.parseShort((String) v)", Short.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Byte":
+            case "byte":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.parseByte((String) v)", Byte.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Boolean":
+            case "boolean":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.parseBoolean((String) v)", Boolean.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Double":
+            case "double":
+            case "java.lang.Float":
+            case "float":
+            case "java.lang.Character":
+            case "char":
+                // DEFAULT for these types is already String — route through default deserialization
+                emitFromMapGetDefault(builder, field, javaType);
+                break;
             default:
                 break;
         }
@@ -267,6 +328,42 @@ public class MetadataConverterGenerator {
             case "int":
                 builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
                 addSetterStatement(builder, field, "(($T) v).intValue()", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Short":
+            case "short":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addSetterStatement(builder, field, "(($T) v).shortValue()", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Byte":
+            case "byte":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addSetterStatement(builder, field, "(($T) v).byteValue()", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Boolean":
+            case "boolean":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addSetterStatement(builder, field, "$T.ONE.equals(v)", BigInteger.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Double":
+            case "double":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.parseDouble((String) v)", Double.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Float":
+            case "float":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.parseFloat((String) v)", Float.class);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Character":
+            case "char":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatementRaw(builder, field, "((String) v).charAt(0)");
                 builder.endControlFlow();
                 break;
             case "byte[]":
@@ -336,7 +433,19 @@ public class MetadataConverterGenerator {
     }
 
     private boolean needsNullCheck(String typeName) {
-        return !typeName.equals("int") && !typeName.equals("long");
+        switch (typeName) {
+            case "int":
+            case "long":
+            case "short":
+            case "byte":
+            case "boolean":
+            case "double":
+            case "float":
+            case "char":
+                return false;
+            default:
+                return true;
+        }
     }
 
     private String firstLowerCase(String s) {

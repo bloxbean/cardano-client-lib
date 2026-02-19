@@ -175,6 +175,18 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             case "long":
             case "java.lang.Integer":
             case "int":
+            case "java.lang.Short":
+            case "short":
+            case "java.lang.Byte":
+            case "byte":
+            case "java.lang.Boolean":
+            case "boolean":
+            case "java.lang.Double":
+            case "double":
+            case "java.lang.Float":
+            case "float":
+            case "java.lang.Character":
+            case "char":
             case "byte[]":
                 return true;
             default:
@@ -185,14 +197,21 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
     private ExecutableElement findGetter(TypeElement typeElement, VariableElement variableElement) {
         String fieldName = variableElement.getSimpleName().toString();
         String getterMethodName = "get" + capitalize(fieldName);
+        String isGetterMethodName = "is" + capitalize(fieldName);
+        String fieldTypeName = variableElement.asType().toString();
+        boolean isBooleanType = fieldTypeName.equals("boolean") || fieldTypeName.equals("java.lang.Boolean");
 
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
             if (!(enclosedElement instanceof ExecutableElement)) continue;
             ExecutableElement executableElement = (ExecutableElement) enclosedElement;
-            if (executableElement.getSimpleName().toString().equals(getterMethodName) &&
+            String methodName = executableElement.getSimpleName().toString();
+            boolean nameMatches = methodName.equals(getterMethodName)
+                    || (isBooleanType && methodName.equals(isGetterMethodName));
+
+            if (nameMatches &&
                     executableElement.getModifiers().contains(Modifier.PUBLIC) &&
                     executableElement.getParameters().isEmpty() &&
-                    executableElement.getReturnType().toString().equals(variableElement.asType().toString())) {
+                    executableElement.getReturnType().toString().equals(fieldTypeName)) {
 
                 return executableElement;
             }
