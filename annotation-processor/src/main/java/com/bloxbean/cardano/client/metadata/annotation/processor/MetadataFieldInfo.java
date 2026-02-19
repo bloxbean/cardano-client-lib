@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor;
 
+import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import lombok.Data;
 
 /**
@@ -21,6 +22,12 @@ public class MetadataFieldInfo {
      * "java.lang.Long", "long", "java.lang.Integer", "int", "byte[]"
      */
     private String javaTypeName;
+
+    /**
+     * How this field should be stored in / read from Cardano metadata.
+     * Defaults to {@link MetadataFieldType#DEFAULT}.
+     */
+    private MetadataFieldType as = MetadataFieldType.DEFAULT;
 
     /**
      * Getter method name (e.g. "getName"), or null if the field is accessed directly.

@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor;
 
 import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataIgnore;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
@@ -107,11 +108,19 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
                 continue;
             }
 
-            // Determine metadata key
+            // Determine metadata key and output type
             String metadataKey = fieldName;
+            MetadataFieldType as = MetadataFieldType.DEFAULT;
             MetadataField mf = ve.getAnnotation(MetadataField.class);
-            if (mf != null && !mf.key().isEmpty()) {
-                metadataKey = mf.key();
+            if (mf != null) {
+                if (!mf.key().isEmpty()) {
+                    metadataKey = mf.key();
+                }
+                as = mf.as();
+            }
+
+            if (!isValidAs(typeName, as, ve)) {
+                continue;
             }
 
             // Detect getter
@@ -144,6 +153,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             info.setJavaFieldName(fieldName);
             info.setMetadataKey(metadataKey);
             info.setJavaTypeName(typeName);
+            info.setAs(as);
             info.setGetterName(getterName);
             info.setSetterName(setterName);
 
@@ -210,6 +220,30 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
         }
 
         return null;
+    }
+
+    private boolean isValidAs(String typeName, MetadataFieldType as, VariableElement ve) {
+        switch (as) {
+            case DEFAULT:
+                return true;
+            case STRING:
+                if (typeName.equals("byte[]")) {
+                    error(ve, "@MetadataField(as=STRING) is ambiguous for byte[] — " +
+                            "use STRING_HEX or STRING_BASE64 to specify the encoding.");
+                    return false;
+                }
+                return true;
+            case STRING_HEX:
+            case STRING_BASE64:
+                if (!typeName.equals("byte[]")) {
+                    error(ve, "@MetadataField(as=" + as + ") is only valid for byte[] fields, " +
+                            "but field has type '" + typeName + "'.");
+                    return false;
+                }
+                return true;
+            default:
+                return true;
+        }
     }
 
     private String capitalize(String s) {
