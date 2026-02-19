@@ -7,11 +7,12 @@
 1. [Overview](#overview)
 2. [Reference Counting GC](#reference-counting-gc)
 3. [Mark-and-Sweep GC](#mark-and-sweep-gc)
-4. [Retention Policies](#retention-policies)
-5. [Performance Analysis](#performance-analysis)
-6. [Design Trade-offs](#design-trade-offs)
-7. [GcTool CLI](#gctool-cli)
-8. [References](#references)
+4. [RDBMS Mark-and-Sweep GC](#rdbms-mark-and-sweep-gc)
+5. [Retention Policies](#retention-policies)
+6. [Performance Analysis](#performance-analysis)
+7. [Design Trade-offs](#design-trade-offs)
+8. [GcTool CLI](#gctool-cli)
+9. [References](#references)
 
 ---
 
@@ -330,7 +331,96 @@ if (!marked.mightContain(nodeHash)) {
 
 ---
 
-## 4. Retention Policies
+## 4. RDBMS Mark-and-Sweep GC
+
+**Module:** `merkle-patricia-forestry-rdbms`
+
+### 4.1 Overview
+
+The RDBMS backend uses a mark-and-sweep GC strategy implemented in `RdbmsMarkSweepGc`. Unlike the RocksDB backend which stores marks in a temporary on-disk column family, the RDBMS implementation holds all reachable node hashes **in JVM heap memory** during the mark phase.
+
+**Access:** Users interact with RDBMS GC only through `RdbmsStateTrees.cleanupOrphanedNodes()`. The `RdbmsMarkSweepGc` class is package-private.
+
+### 4.2 Algorithm
+
+**Mark Phase:**
+- BFS traversal from retained root hashes
+- Uses `NodeRefParser.childRefs()` to extract child hashes from CBOR-encoded nodes
+- Collects all reachable hashes in a `Set<ByteBuffer>` (in-memory)
+- Each node is fetched individually via `nodeStore.get(hash)`
+
+**Sweep Phase:**
+- Scans the entire `mpt_nodes` table for the namespace
+- Collects orphan hashes (not in the reachable set) into a `List<byte[]>`
+- Deletes orphans in JDBC batches (configurable batch size)
+- Commits after each batch for progress visibility
+
+### 4.3 Configuration
+
+```java
+RdbmsGcOptions options = new RdbmsGcOptions();
+options.dryRun = true;              // Report orphans without deleting
+options.deleteBatchSize = 10_000;   // Delete batch size (default 10K)
+options.progress = deleted -> log.info("Deleted: {}", deleted);
+```
+
+### 4.4 Memory Cost Analysis
+
+The mark phase holds all reachable node hashes in a `Set<ByteBuffer>`, backed by `HashMap`. Per-entry cost on a 64-bit JVM with compressed oops:
+
+| Component | Size |
+|-----------|------|
+| `byte[32]` (the hash) | 16 (header) + 32 (data) = **48 bytes** |
+| `ByteBuffer` wrapping it | **~48 bytes** |
+| `HashMap.Node` (backing HashSet) | **~32 bytes** |
+| HashMap backing array slot (amortized at 0.75 load) | **~5 bytes** |
+| **Total per reachable node** | **~133 bytes** |
+
+The sweep phase also collects orphan hashes in a `List<byte[]>` at ~52 bytes per orphan.
+
+### 4.5 Scale Projections
+
+| Reachable Nodes | Mark Set (heap) | 20% orphans (toDelete) | Peak Combined |
+|----------------|----------------|----------------------|---------------|
+| 100K | ~13 MB | ~1 MB | ~14 MB |
+| 1M | ~127 MB | ~10 MB | ~137 MB |
+| 5M | ~635 MB | ~50 MB | ~685 MB |
+| 10M | ~1.27 GB | ~100 MB | ~1.37 GB |
+| 50M | ~6.3 GB | ~500 MB | ~6.8 GB |
+
+### 4.6 Known Limitations
+
+1. **Memory**: The in-memory `Set<ByteBuffer>` approach works well for up to ~1M reachable nodes (~127 MB heap). Beyond 5M nodes, the mark set alone can exceed typical service heap budgets.
+
+2. **GC pressure**: Millions of short-lived `ByteBuffer` + `byte[]` pairs create significant JVM garbage collector work (2 objects × N million).
+
+3. **Mark-phase I/O**: Each node in the BFS issues an individual `nodeStore.get(hash)` → individual SQL `SELECT`. For 10M reachable nodes, that's 10M SQL round-trips, making latency the primary bottleneck at scale.
+
+4. **Single-version only**: `cleanupOrphanedNodes()` is only supported in `SINGLE_VERSION` mode. MULTI_VERSION mode stores roots with auto-versioned numbers but does not support automated GC.
+
+### 4.7 Comparison: RocksDB vs RDBMS GC
+
+| Aspect | RocksDB (`OnDiskMarkSweepStrategy`) | RDBMS (`RdbmsMarkSweepGc`) |
+|--------|-------------------------------------|----------------------------|
+| Mark storage | Temp column family (on disk) | `Set<ByteBuffer>` (in JVM heap) |
+| App memory | O(1) (RocksDB manages cache) | O(R) where R = reachable nodes |
+| Sweep | RocksDB iterator (streaming) | SQL `SELECT` + batch `DELETE` |
+| Cleanup | `dropColumnFamily()` (instant) | N/A (no temp structures) |
+| Scale limit | Disk space | JVM heap (~1M nodes practical) |
+
+### 4.8 Future Improvements
+
+The following strategies may be explored to support larger datasets:
+
+- **Temp-table approach**: Store marks in a database temporary table instead of JVM heap. The RDBMS equivalent of RocksDB's temporary column family. Trades application memory for database I/O.
+- **Bloom filter**: Use a probabilistic data structure for the reachable set (~1.2 MB for 1M nodes at 1% false positive rate vs 127 MB for HashSet). Requires a second pass to handle false positives.
+- **Batch-prefetch mark phase**: Process the BFS queue in chunks (e.g., 500 hashes per round-trip) to reduce SQL round-trips during the mark phase.
+
+These alternatives involve their own trade-offs (additional database I/O for temp tables, false positive handling for bloom filters) and will be evaluated based on real-world usage patterns.
+
+---
+
+## 5. Retention Policies
 
 ### 4.1 Time-Based Retention
 
@@ -438,9 +528,9 @@ public void enforceSizeLimit(long maxSizeBytes) {
 
 ---
 
-## 5. Performance Analysis
+## 6. Performance Analysis
 
-### 5.1 Benchmark Results
+### 6.1 Benchmark Results
 
 **Setup:** 1M keys, 100 updates/sec, 10 GB data
 
@@ -450,7 +540,7 @@ public void enforceSizeLimit(long maxSizeBytes) {
 | Mark-Sweep | 0% (idle) + 100% (GC) | 100% | Every 1-7 days |
 | Retention (30 days) | 0% | 90-95% | Daily |
 
-### 5.2 Space Overhead
+### 6.2 Space Overhead
 
 | Strategy | Per-Node Overhead | Total (1M nodes) |
 |----------|------------------|------------------|
@@ -458,7 +548,7 @@ public void enforceSizeLimit(long maxSizeBytes) {
 | Mark-Sweep | 0 bytes | 0 MB |
 | Retention | 0 bytes | 0 MB |
 
-### 5.3 GC Latency
+### 6.3 GC Latency
 
 **Refcount (Incremental):**
 - Per-operation: +50-100 µs (refcount update)
@@ -476,9 +566,9 @@ public void enforceSizeLimit(long maxSizeBytes) {
 
 ---
 
-## 6. Design Trade-offs
+## 7. Design Trade-offs
 
-### 6.1 When to Use Refcount GC
+### 7.1 When to Use Refcount GC
 
 **Advantages:**
 - Incremental (no GC pauses)
@@ -495,7 +585,7 @@ public void enforceSizeLimit(long maxSizeBytes) {
 - Multi-version databases
 - Frequent updates
 
-### 6.2 When to Use Mark-and-Sweep GC
+### 7.2 When to Use Mark-and-Sweep GC
 
 **Advantages:**
 - No overhead during normal operations
@@ -512,7 +602,7 @@ public void enforceSizeLimit(long maxSizeBytes) {
 - Batch processing systems
 - Maintenance-window deployments
 
-### 6.3 When to Use Retention Policies
+### 7.3 When to Use Retention Policies
 
 **Advantages:**
 - Predictable storage usage
@@ -531,9 +621,9 @@ public void enforceSizeLimit(long maxSizeBytes) {
 
 ---
 
-## 7. GcTool CLI
+## 8. GcTool CLI
 
-### 7.1 Command-Line Interface
+### 8.1 Command-Line Interface
 
 **Run Refcount GC:**
 ```bash

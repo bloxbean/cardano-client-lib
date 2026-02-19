@@ -1,4 +1,4 @@
-# Jellyfish Merkle Tree
+# Jellyfish Merkle Tree (Experimental)
 
 High-performance Java implementation of the Jellyfish Merkle Tree (JMT), inspired by Diem's JMT implementation.
 
