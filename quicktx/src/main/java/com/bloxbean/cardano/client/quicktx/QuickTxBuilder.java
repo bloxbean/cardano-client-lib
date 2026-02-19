@@ -123,6 +123,26 @@ public class QuickTxBuilder {
     }
 
     /**
+     * Get the UtxoSupplier used by this builder.
+     * Useful for creating TransactionEvaluators with the same supplier.
+     *
+     * @return the UtxoSupplier
+     */
+    public UtxoSupplier getUtxoSupplier() {
+        return utxoSupplier;
+    }
+
+    /**
+     * Get the ProtocolParamsSupplier used by this builder.
+     * Useful for creating TransactionEvaluators with the same supplier.
+     *
+     * @return the ProtocolParamsSupplier
+     */
+    public ProtocolParamsSupplier getProtocolParamsSupplier() {
+        return protocolParamsSupplier;
+    }
+
+    /**
      * Create a QuickTxBuilder instance with specified BackendService and UtxoSupplier.
      *
      * @param backendService backend service to get protocol params and submit transactions
