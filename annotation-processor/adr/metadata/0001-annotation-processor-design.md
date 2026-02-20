@@ -101,4 +101,11 @@ intent clear: `@MetadataField` is for configuration, `@MetadataIgnore` is for ex
 - ADR metadata/0002: Java-to-Cardano Metadata Type Mapping
 - ADR metadata/0003: 64-Byte String Chunking Ownership
 - ADR metadata/0004: @MetadataField(enc=…) Encoding Override Mechanism
+- ADR metadata/0005: List\<T\> Field Support
+- ADR metadata/0006: Set\<T\> Field Support
+- ADR metadata/0007: SortedSet\<T\> Field Support
+- ADR metadata/0008: Optional\<T\> Field Support
+- ADR metadata/0009: String-Coercible Scalar Types (URI, URL, UUID, Currency, Locale)
+- ADR metadata/0010: Enum Type Support
+- ADR metadata/0011: java.time Type Support (Instant, LocalDate, LocalDateTime)
 - Existing `ConstrAnnotationProcessor` (blueprint processor, same module)
