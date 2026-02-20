@@ -239,6 +239,8 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             case "java.util.Currency":
             case "java.util.Locale":
             case "java.time.Instant":
+            case "java.time.LocalDate":
+            case "java.time.LocalDateTime":
                 return true;
             default:
                 return false;

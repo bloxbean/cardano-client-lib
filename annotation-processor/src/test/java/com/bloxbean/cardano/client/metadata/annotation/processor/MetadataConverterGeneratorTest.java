@@ -2177,4 +2177,141 @@ public class MetadataConverterGeneratorTest {
             }
         }
     }
+
+    // =========================================================================
+    // LocalDate fields
+    // =========================================================================
+
+    @Nested
+    class LocalDateFields {
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesEpochDay() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getDate().toEpochDay())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("if (order.getDate() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigIntegerGuard() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("if (v instanceof BigInteger)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaOfEpochDay() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("LocalDate.ofEpochDay(((BigInteger) v).longValue())"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("obj.setDate(LocalDate.ofEpochDay(((BigInteger) v).longValue()))"));
+            }
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"date\", order.getDate().toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfStringGuard() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaLocalDateParse() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertTrue(src.contains("LocalDate.parse((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertTrue(src.contains("obj.setDate(LocalDate.parse((String) v))"));
+            }
+
+            @Test
+            void toMetadataMap_noChunkingApplied() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertFalse(src.contains("splitStringEveryNCharacters"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // LocalDateTime fields
+    // =========================================================================
+
+    @Nested
+    class LocalDateTimeFields {
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("map.put(\"ts\", order.getTs().toString())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("if (order.getTs() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfStringGuard() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaLocalDateTimeParse() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("LocalDateTime.parse((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("obj.setTs(LocalDateTime.parse((String) v))"));
+            }
+
+            @Test
+            void toMetadataMap_noChunkingApplied() {
+                // ISO-8601 datetime strings are always < 64 bytes
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertFalse(src.contains("splitStringEveryNCharacters"));
+            }
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_stringIsNoopSameAsDefault() {
+                // enc=STRING on LocalDateTime is identical to DEFAULT — both store ISO-8601
+                String srcDefault = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                String srcString  = generate(List.of(fieldEnc("ts", "java.time.LocalDateTime", MetadataFieldType.STRING)));
+                assertEquals(srcDefault, srcString);
+            }
+        }
+    }
 }
