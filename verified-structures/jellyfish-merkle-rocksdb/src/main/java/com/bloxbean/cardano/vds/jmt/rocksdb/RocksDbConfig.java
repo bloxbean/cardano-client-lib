@@ -11,7 +11,7 @@ import java.util.function.Consumer;
  * full customization for advanced use cases. The configuration affects both DBOptions and
  * ColumnFamilyOptions used by {@link RocksDbJmtStore}.
  *
- * <h3>Usage Examples:</h3>
+ * <h2>Usage Examples:</h2>
  * <pre>
  * // Use preset profile for high-throughput write workload
  * RocksDbConfig config = RocksDbConfig.highThroughput();

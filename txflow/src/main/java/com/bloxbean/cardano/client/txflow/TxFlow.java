@@ -17,7 +17,7 @@ import java.util.*;
  *     <li>YAML serialization/deserialization</li>
  * </ul>
  *
- * <h3>Example Usage:</h3>
+ * <h2>Example Usage:</h2>
  * <pre>{@code
  * TxFlow flow = TxFlow.builder("escrow-flow")
  *     .withDescription("Deposit and release escrow")

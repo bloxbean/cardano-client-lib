@@ -16,7 +16,7 @@ import java.util.*;
  *   <li>Efficient batch commits to underlying storage</li>
  * </ul>
  *
- * <h3>Three-Tier Lookup Strategy</h3>
+ * <h2>Three-Tier Lookup Strategy</h2>
  * When looking up a node, TreeCache checks:
  * <ol>
  *   <li><b>Staged nodes</b> ({@code nodeCache}): Current transaction's modifications - highest priority</li>
@@ -24,7 +24,7 @@ import java.util.*;
  *   <li><b>Storage</b> ({@code store}): Persistent committed state - fallback only</li>
  * </ol>
  *
- * <h3>Batch Lifecycle</h3>
+ * <h2>Batch Lifecycle</h2>
  * <pre>{@code
  * // 1. Create cache for a new batch
  * TreeCache cache = new TreeCache(store, baseVersion);

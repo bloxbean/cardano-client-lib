@@ -7,7 +7,7 @@ package com.bloxbean.cardano.client.txflow.exec;
  * (due to a chain reorganization), this strategy determines how the flow
  * executor should respond.
  *
- * <h3>Strategy Comparison</h3>
+ * <h2>Strategy Comparison</h2>
  * <table border="1">
  *   <caption>Rollback handling strategies comparison</caption>
  *   <tr><th>Strategy</th><th>Behavior</th><th>Use Case</th></tr>
@@ -33,7 +33,7 @@ package com.bloxbean.cardano.client.txflow.exec;
  *   </tr>
  * </table>
  *
- * <h3>Usage</h3>
+ * <h2>Usage</h2>
  * <pre>{@code
  * FlowExecutor.create(backendService)
  *     .withRollbackStrategy(RollbackStrategy.FAIL_IMMEDIATELY)

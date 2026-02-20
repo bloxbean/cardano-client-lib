@@ -23,7 +23,7 @@ import java.util.function.Function;
  * <p>
  * Steps can declare dependencies on outputs from previous steps using {@link StepDependency}.
  *
- * <h3>Example Usage:</h3>
+ * <h2>Example Usage:</h2>
  * <pre>{@code
  * // Simple payment
  * FlowStep.builder("payment")
