@@ -2314,4 +2314,80 @@ public class MetadataConverterGeneratorTest {
             }
         }
     }
+
+    // =========================================================================
+    // java.util.Date fields
+    // =========================================================================
+
+    @Nested
+    class DateFields {
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesEpochMillis() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getUpdatedAt().getTime())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("if (order.getUpdatedAt() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigIntegerGuard() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("if (v instanceof BigInteger)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaNewDate() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("new Date(((BigInteger) v).longValue())"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("obj.setUpdatedAt(new Date(((BigInteger) v).longValue()))"));
+            }
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601ViaInstant() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("order.getUpdatedAt().toInstant().toString()"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (order.getUpdatedAt() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfStringGuard() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaDateFrom() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Date.from(Instant.parse((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("obj.setUpdatedAt(Date.from(Instant.parse((String) v)))"));
+            }
+        }
+    }
 }

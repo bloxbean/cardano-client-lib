@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Currency;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -185,6 +186,10 @@ public class MetadataConverterGenerator {
                 // DEFAULT for LocalDateTime is already ISO-8601 text — no-op
                 emitToMapPutDefault(builder, key, javaType, getExpr);
                 break;
+            case "java.util.Date":
+                // STRING enc: ISO-8601 via Date.toInstant().toString()
+                builder.addStatement("map.put($S, $L.toInstant().toString())", key, getExpr);
+                break;
             default:
                 break;
         }
@@ -254,6 +259,10 @@ public class MetadataConverterGenerator {
                 break;
             case "java.time.LocalDateTime":
                 builder.addStatement("map.put($S, $L.toString())", key, getExpr);
+                break;
+            case "java.util.Date":
+                builder.addStatement("map.put($S, $T.valueOf($L.getTime()))",
+                        key, BigInteger.class, getExpr);
                 break;
             default:
                 break;
@@ -427,6 +436,18 @@ public class MetadataConverterGenerator {
                 // DEFAULT for LocalDateTime is already text — route through default deserialization
                 emitFromMapGetDefault(builder, field, javaType);
                 break;
+            case "java.util.Date":
+                // STRING enc: parse ISO-8601 via Instant.parse, then Date.from
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                if (field.getSetterName() != null) {
+                    builder.addStatement("obj.$L($T.from($T.parse((String) v)))",
+                            field.getSetterName(), Date.class, Instant.class);
+                } else {
+                    builder.addStatement("obj.$L = $T.from($T.parse((String) v))",
+                            field.getJavaFieldName(), Date.class, Instant.class);
+                }
+                builder.endControlFlow();
+                break;
             default:
                 break;
         }
@@ -550,6 +571,17 @@ public class MetadataConverterGenerator {
             case "java.time.LocalDateTime":
                 builder.beginControlFlow("if (v instanceof $T)", String.class);
                 addSetterStatement(builder, field, "$T.parse((String) v)", LocalDateTime.class);
+                builder.endControlFlow();
+                break;
+            case "java.util.Date":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                if (field.getSetterName() != null) {
+                    builder.addStatement("obj.$L(new $T((($T) v).longValue()))",
+                            field.getSetterName(), Date.class, BigInteger.class);
+                } else {
+                    builder.addStatement("obj.$L = new $T((($T) v).longValue())",
+                            field.getJavaFieldName(), Date.class, BigInteger.class);
+                }
                 builder.endControlFlow();
                 break;
             default:
@@ -677,6 +709,9 @@ public class MetadataConverterGenerator {
                 break;
             case "java.time.LocalDateTime":
                 builder.addStatement("_list.add(_el.toString())");
+                break;
+            case "java.util.Date":
+                builder.addStatement("_list.add($T.valueOf(_el.getTime()))", BigInteger.class);
                 break;
             default:
                 break;
@@ -908,6 +943,19 @@ public class MetadataConverterGenerator {
                 addOptionalEmptySetter(builder, field);
                 builder.endControlFlow();
                 break;
+            case "java.util.Date":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                if (field.getSetterName() != null) {
+                    builder.addStatement("obj.$L($T.of(new $T((($T) v).longValue())))",
+                            field.getSetterName(), Optional.class, Date.class, BigInteger.class);
+                } else {
+                    builder.addStatement("obj.$L = $T.of(new $T((($T) v).longValue()))",
+                            field.getJavaFieldName(), Optional.class, Date.class, BigInteger.class);
+                }
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
             default:
                 break;
         }
@@ -1088,6 +1136,12 @@ public class MetadataConverterGenerator {
                 builder.addStatement("_result.add($T.parse(($T) _el))", LocalDateTime.class, String.class);
                 builder.endControlFlow();
                 break;
+            case "java.util.Date":
+                builder.beginControlFlow("if (_el instanceof $T)", BigInteger.class);
+                builder.addStatement("_result.add(new $T((($T) _el).longValue()))",
+                        Date.class, BigInteger.class);
+                builder.endControlFlow();
+                break;
             default:
                 break;
         }
@@ -1173,6 +1227,7 @@ public class MetadataConverterGenerator {
             case "java.time.Instant":       return TypeName.get(Instant.class);
             case "java.time.LocalDate":     return TypeName.get(LocalDate.class);
             case "java.time.LocalDateTime": return TypeName.get(LocalDateTime.class);
+            case "java.util.Date":          return TypeName.get(Date.class);
             default: throw new IllegalArgumentException("Unsupported List element type: " + elementType);
         }
     }
