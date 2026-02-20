@@ -238,6 +238,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             case "java.util.UUID":
             case "java.util.Currency":
             case "java.util.Locale":
+            case "java.time.Instant":
                 return true;
             default:
                 return false;

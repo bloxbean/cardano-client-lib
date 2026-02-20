@@ -17,6 +17,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Currency;
@@ -173,6 +174,10 @@ public class MetadataConverterGenerator {
                 // DEFAULT for these types is already String — no-op
                 emitToMapPutDefault(builder, key, javaType, getExpr);
                 break;
+            case "java.time.Instant":
+                // STRING enc: ISO-8601 text — Instant.toString() always produces a short string (≤ 64 bytes)
+                builder.addStatement("map.put($S, $L.toString())", key, getExpr);
+                break;
             default:
                 break;
         }
@@ -231,6 +236,10 @@ public class MetadataConverterGenerator {
                 break;
             case "java.util.Locale":
                 builder.addStatement("map.put($S, $L.toLanguageTag())", key, getExpr);
+                break;
+            case "java.time.Instant":
+                builder.addStatement("map.put($S, $T.valueOf($L.getEpochSecond()))",
+                        key, BigInteger.class, getExpr);
                 break;
             default:
                 break;
@@ -388,6 +397,12 @@ public class MetadataConverterGenerator {
                 // DEFAULT for these types is already String — route through default deserialization
                 emitFromMapGetDefault(builder, field, javaType);
                 break;
+            case "java.time.Instant":
+                // STRING enc: parse ISO-8601 text back to Instant
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.parse((String) v)", Instant.class);
+                builder.endControlFlow();
+                break;
             default:
                 break;
         }
@@ -484,6 +499,17 @@ public class MetadataConverterGenerator {
             case "java.util.Locale":
                 builder.beginControlFlow("if (v instanceof $T)", String.class);
                 addSetterStatement(builder, field, "$T.forLanguageTag((String) v)", Locale.class);
+                builder.endControlFlow();
+                break;
+            case "java.time.Instant":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                if (field.getSetterName() != null) {
+                    builder.addStatement("obj.$L($T.ofEpochSecond((($T) v).longValue()))",
+                            field.getSetterName(), Instant.class, BigInteger.class);
+                } else {
+                    builder.addStatement("obj.$L = $T.ofEpochSecond((($T) v).longValue())",
+                            field.getJavaFieldName(), Instant.class, BigInteger.class);
+                }
                 builder.endControlFlow();
                 break;
             default:
@@ -602,6 +628,9 @@ public class MetadataConverterGenerator {
                 break;
             case "java.util.Locale":
                 builder.addStatement("_list.add(_el.toLanguageTag())");
+                break;
+            case "java.time.Instant":
+                builder.addStatement("_list.add($T.valueOf(_el.getEpochSecond()))", BigInteger.class);
                 break;
             default:
                 break;
@@ -800,6 +829,19 @@ public class MetadataConverterGenerator {
                 addOptionalEmptySetter(builder, field);
                 builder.endControlFlow();
                 break;
+            case "java.time.Instant":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                if (field.getSetterName() != null) {
+                    builder.addStatement("obj.$L($T.of($T.ofEpochSecond((($T) v).longValue())))",
+                            field.getSetterName(), Optional.class, Instant.class, BigInteger.class);
+                } else {
+                    builder.addStatement("obj.$L = $T.of($T.ofEpochSecond((($T) v).longValue()))",
+                            field.getJavaFieldName(), Optional.class, Instant.class, BigInteger.class);
+                }
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
             default:
                 break;
         }
@@ -963,6 +1005,12 @@ public class MetadataConverterGenerator {
                 builder.addStatement("_result.add($T.forLanguageTag(($T) _el))", Locale.class, String.class);
                 builder.endControlFlow();
                 break;
+            case "java.time.Instant":
+                builder.beginControlFlow("if (_el instanceof $T)", BigInteger.class);
+                builder.addStatement("_result.add($T.ofEpochSecond((($T) _el).longValue()))",
+                        Instant.class, BigInteger.class);
+                builder.endControlFlow();
+                break;
             default:
                 break;
         }
@@ -1045,6 +1093,7 @@ public class MetadataConverterGenerator {
             case "java.util.UUID":      return TypeName.get(UUID.class);
             case "java.util.Currency":  return TypeName.get(Currency.class);
             case "java.util.Locale":    return TypeName.get(Locale.class);
+            case "java.time.Instant":   return TypeName.get(Instant.class);
             default: throw new IllegalArgumentException("Unsupported List element type: " + elementType);
         }
     }

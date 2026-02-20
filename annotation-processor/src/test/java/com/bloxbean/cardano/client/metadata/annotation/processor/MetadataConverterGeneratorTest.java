@@ -2090,4 +2090,91 @@ public class MetadataConverterGeneratorTest {
             assertTrue(src.contains("map.put(\"lang\", order.getLocale().toLanguageTag())"));
         }
     }
+
+    // =========================================================================
+    // Instant fields
+    // =========================================================================
+
+    @Nested
+    class InstantFields {
+
+        // --- DEFAULT (epoch seconds) ---
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesEpochSeconds() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getCreatedAt().getEpochSecond())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("if (order.getCreatedAt() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigIntegerGuard() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("if (v instanceof BigInteger)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaOfEpochSecond() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("Instant.ofEpochSecond(((BigInteger) v).longValue())"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("obj.setCreatedAt(Instant.ofEpochSecond(((BigInteger) v).longValue()))"));
+            }
+        }
+
+        // --- STRING (ISO-8601) ---
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"createdAt\", order.getCreatedAt().toString())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (order.getCreatedAt() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfStringGuard() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaInstantParse() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Instant.parse((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("obj.setCreatedAt(Instant.parse((String) v))"));
+            }
+
+            @Test
+            void toMetadataMap_noChunkingApplied() {
+                // ISO-8601 instant strings are always < 64 bytes — no splitStringEveryNCharacters
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertFalse(src.contains("splitStringEveryNCharacters"));
+            }
+        }
+    }
 }
