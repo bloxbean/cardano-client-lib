@@ -14,6 +14,7 @@ package com.bloxbean.cardano.client.metadata.annotation;
  *
  * <p>Valid combinations:
  * <table border="1">
+ *   <caption>Valid field type combinations</caption>
  *   <tr><th>Java type</th><th>DEFAULT</th><th>STRING</th><th>STRING_HEX</th><th>STRING_BASE64</th></tr>
  *   <tr><td>String</td>      <td>✅</td><td>✅ (no-op)</td><td>❌</td><td>❌</td></tr>
  *   <tr><td>int / Integer</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
