@@ -110,30 +110,30 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
 
             // Determine metadata key and output type
             String metadataKey = fieldName;
-            MetadataFieldType as = MetadataFieldType.DEFAULT;
+            MetadataFieldType enc = MetadataFieldType.DEFAULT;
             MetadataField mf = ve.getAnnotation(MetadataField.class);
             if (mf != null) {
                 if (!mf.key().isEmpty()) {
                     metadataKey = mf.key();
                 }
-                as = mf.as();
+                enc = mf.enc();
             }
 
-            // Extract element type for List<T> / Set<T> / SortedSet<T> / Optional<T> fields; warn if as= is used
+            // Extract element type for List<T> / Set<T> / SortedSet<T> / Optional<T> fields; warn if enc= is used
             String elementTypeName = null;
             if ((typeName.startsWith("java.util.List<") || typeName.startsWith("java.util.Set<")
                     || typeName.startsWith("java.util.SortedSet<")
                     || typeName.startsWith("java.util.Optional<"))
                     && typeName.endsWith(">")) {
                 elementTypeName = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
-                if (as != MetadataFieldType.DEFAULT) {
+                if (enc != MetadataFieldType.DEFAULT) {
                     messager.printMessage(Diagnostic.Kind.WARNING,
-                            "Field '" + fieldName + "': @MetadataField(as=...) is not supported on collection fields; using DEFAULT.", ve);
-                    as = MetadataFieldType.DEFAULT;
+                            "Field '" + fieldName + "': @MetadataField(enc=...) is not supported on collection fields; using DEFAULT.", ve);
+                    enc = MetadataFieldType.DEFAULT;
                 }
             }
 
-            if (!isValidAs(typeName, as, ve)) {
+            if (!isValidEnc(typeName, enc, ve)) {
                 continue;
             }
 
@@ -167,7 +167,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             info.setJavaFieldName(fieldName);
             info.setMetadataKey(metadataKey);
             info.setJavaTypeName(typeName);
-            info.setAs(as);
+            info.setEnc(enc);
             info.setGetterName(getterName);
             info.setSetterName(setterName);
             info.setElementTypeName(elementTypeName);
@@ -198,6 +198,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
             return isSupportedScalarType(elementType);
         }
+
         return false;
     }
 
@@ -276,13 +277,13 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
         return null;
     }
 
-    private boolean isValidAs(String typeName, MetadataFieldType as, VariableElement ve) {
-        switch (as) {
+    private boolean isValidEnc(String typeName, MetadataFieldType enc, VariableElement ve) {
+        switch (enc) {
             case DEFAULT:
                 return true;
             case STRING:
                 if (typeName.equals("byte[]")) {
-                    error(ve, "@MetadataField(as=STRING) is ambiguous for byte[] — " +
+                    error(ve, "@MetadataField(enc=STRING) is ambiguous for byte[] — " +
                             "use STRING_HEX or STRING_BASE64 to specify the encoding.");
                     return false;
                 }
@@ -290,7 +291,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             case STRING_HEX:
             case STRING_BASE64:
                 if (!typeName.equals("byte[]")) {
-                    error(ve, "@MetadataField(as=" + as + ") is only valid for byte[] fields, " +
+                    error(ve, "@MetadataField(enc=" + enc + ") is only valid for byte[] fields, " +
                             "but field has type '" + typeName + "'.");
                     return false;
                 }

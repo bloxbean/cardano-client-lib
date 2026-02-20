@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 /**
  * Customizes how a field is serialized to/from Cardano metadata.
  * When {@code key} is specified, it overrides the field name used as the metadata map key.
- * When {@code as} is specified, it overrides the Cardano metadata type used for storage.
+ * When {@code enc} is specified, it overrides the Cardano metadata type used for storage.
  */
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.SOURCE)
@@ -25,6 +25,6 @@ public @interface MetadataField {
      * Defaults to {@link MetadataFieldType#DEFAULT} which applies the natural mapping
      * for the Java type. See {@link MetadataFieldType} for valid combinations.
      */
-    MetadataFieldType as() default MetadataFieldType.DEFAULT;
+    MetadataFieldType enc() default MetadataFieldType.DEFAULT;
 
 }

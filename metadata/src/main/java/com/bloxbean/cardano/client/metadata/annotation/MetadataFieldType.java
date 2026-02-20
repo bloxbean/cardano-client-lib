@@ -5,10 +5,10 @@ package com.bloxbean.cardano.client.metadata.annotation;
  *
  * <p>Used as the {@code as} attribute of {@link MetadataField}:
  * <pre>
- *   {@literal @}MetadataField(as = MetadataFieldType.STRING)
+ *   {@literal @}MetadataField(enc = MetadataFieldType.STRING)
  *   private int statusCode;
  *
- *   {@literal @}MetadataField(key = "payload", as = MetadataFieldType.STRING_HEX)
+ *   {@literal @}MetadataField(key = "payload", enc = MetadataFieldType.STRING_HEX)
  *   private byte[] data;
  * </pre>
  *

@@ -130,6 +130,6 @@ Every string, regardless of length, is stored as a one-element list.
 
 - ADR metadata/0001: Annotation Processor Core Design
 - ADR metadata/0002: Java-to-Cardano Metadata Type Mapping
-- ADR metadata/0004: @MetadataField(as=…) Type Override Mechanism
+- ADR metadata/0004: @MetadataField(enc=…) Type Override Mechanism
 - CIP-10: Transaction Metadata (64-byte text limit)
 - `StringUtils.splitStringEveryNCharacters` — utility used in generated code

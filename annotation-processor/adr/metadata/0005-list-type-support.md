@@ -46,7 +46,7 @@ not supported. Only boxed types appear as valid element types.
 
 | Feature | Decision |
 |---|---|
-| `as=` override on List fields | **Ignored with WARNING**; DEFAULT always used |
+| `enc=` override on List fields | **Ignored with WARNING**; DEFAULT always used |
 | `List<List<T>>` (nested lists) | **Not supported**; field is skipped with WARNING |
 | `Set<T>`, `Collection<T>` | **Not supported**; only `java.util.List` recognised |
 | `Map<K,V>` as element type | **Not supported** |
@@ -82,9 +82,9 @@ All local variables emitted for list processing (`_list`, `_rawList`, `_result`,
 block scoping means multiple `List<T>` fields in the same class produce no name collisions
 in the generated source.
 
-### The `as=` restriction
+### The `enc=` restriction
 
-The `as=` attribute on `@MetadataField` specifies the on-chain representation of a scalar
+The `enc=` attribute on `@MetadataField` specifies the on-chain representation of a scalar
 value. For lists it is unclear which semantic should apply: element-level encoding,
 container-level encoding, or something else. Rather than guessing and producing silent
 surprises, the processor emits a **WARNING** and falls back to DEFAULT. Future ADRs may
@@ -168,7 +168,7 @@ Recognising any `java.util.Collection<T>` subtype would cover `Set`, `LinkedList
   type name, so `Set<String>` getters would need separate handling.
 - No concrete use case for the added complexity at MVP stage.
 
-### 2. Element-level `as=` override (deferred)
+### 2. Element-level `enc=` override (deferred)
 
 A `listElementAs = MetadataFieldType.STRING_HEX` attribute to encode each `byte[]`
 element as a hex string.
@@ -214,7 +214,7 @@ JavaPoet parameterised type handling.
 ### Negative / Limitations
 - **Homogeneous lists only**: all elements must share the same declared type. Heterogeneous
   `List<Object>` fields are not supported and will be skipped with a WARNING.
-- **No element-level `as=` override**: hex/Base64 encoding cannot be applied to individual
+- **No element-level `enc=` override**: hex/Base64 encoding cannot be applied to individual
   list elements. A `List<byte[]>` always stores raw bytes.
 - **`null` elements silently dropped**: a `null` inside the list is skipped during
   serialization and cannot be represented on-chain. Callers that need to preserve index
@@ -239,7 +239,7 @@ without additional changes to the List handling code.
 - ADR metadata/0001: Annotation Processor Core Design
 - ADR metadata/0002: Java-to-Cardano Metadata Type Mapping
 - ADR metadata/0003: 64-Byte String Chunking Ownership
-- ADR metadata/0004: @MetadataField(as=…) Type Override Mechanism
+- ADR metadata/0004: @MetadataField(enc=…) Type Override Mechanism
 - `MetadataConverterGenerator.emitToMapPutList()` / `emitFromMapGetList()`
 - `MetadataConverterGeneratorTest$ListFields` — unit tests
 - `SampleList` / `SampleListMetadataConverterIT` — integration test POJO and tests

@@ -83,7 +83,7 @@ if (v instanceof BigInteger) {
 }
 ```
 
-### `as=` restriction
+### `enc=` restriction
 
 Same as collection fields — WARNING emitted, forced to DEFAULT (MVP scope).
 
@@ -101,10 +101,10 @@ Leaving the field at its default Java value (`null`) when the key is missing wou
 the caller cannot distinguish "key was absent" from "field was never set". Always calling
 `Optional.empty()` preserves the explicit-absence semantics of `Optional`.
 
-### 2. Support `as=` overrides for Optional fields (deferred)
+### 2. Support `enc=` overrides for Optional fields (deferred)
 
 String encoding overrides (`STRING_HEX`, `STRING_BASE64`) are only meaningful for `byte[]`
-and are already unsupported on collection fields. Extending `as=` to Optional would add
+and are already unsupported on collection fields. Extending `enc=` to Optional would add
 complexity with no clear use case at this stage.
 
 ### 3. Omit key on `Optional.empty()` vs. writing a sentinel (not chosen)
@@ -126,7 +126,7 @@ the key is the correct on-chain representation for an absent optional.
   the Java schema cannot tell whether an absent key means "null scalar" or "empty optional".
 - **`null` Optional reference is silently treated as absent**: this follows the same
   convention as null plain scalars and collection fields.
-- **`as=` not supported**: forced to DEFAULT with a WARNING.
+- **`enc=` not supported**: forced to DEFAULT with a WARNING.
 
 ## Consequences
 

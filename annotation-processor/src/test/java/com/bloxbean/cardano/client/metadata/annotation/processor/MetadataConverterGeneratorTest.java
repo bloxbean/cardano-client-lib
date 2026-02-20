@@ -68,9 +68,9 @@ public class MetadataConverterGeneratorTest {
     }
 
     /** Field with explicit getter/setter, custom metadata key, and output type override. */
-    private MetadataFieldInfo fieldAs(String name, String javaType, MetadataFieldType as) {
+    private MetadataFieldInfo fieldEnc(String name, String javaType, MetadataFieldType enc) {
         MetadataFieldInfo f = field(name, javaType);
-        f.setAs(as);
+        f.setEnc(enc);
         return f;
     }
 
@@ -90,9 +90,9 @@ public class MetadataConverterGeneratorTest {
     }
 
     /** Boolean field with output type override, using {@code isX()} getter. */
-    private MetadataFieldInfo boolFieldAs(String name, String javaType, MetadataFieldType as) {
+    private MetadataFieldInfo boolFieldEnc(String name, String javaType, MetadataFieldType enc) {
         MetadataFieldInfo f = boolField(name, javaType);
-        f.setAs(as);
+        f.setEnc(enc);
         return f;
     }
 
@@ -568,13 +568,13 @@ public class MetadataConverterGeneratorTest {
 
         @Test
         void asString_toMetadataMap_emitsStringValueOf() {
-            String src = generate(List.of(fieldAs("count", "short", MetadataFieldType.STRING)));
+            String src = generate(List.of(fieldEnc("count", "short", MetadataFieldType.STRING)));
             assertTrue(src.contains("map.put(\"count\", String.valueOf(order.getCount()))"));
         }
 
         @Test
         void asString_fromMetadataMap_parsesShort() {
-            String src = generate(List.of(fieldAs("count", "short", MetadataFieldType.STRING)));
+            String src = generate(List.of(fieldEnc("count", "short", MetadataFieldType.STRING)));
             assertTrue(src.contains("Short.parseShort((String) v)"));
         }
     }
@@ -612,13 +612,13 @@ public class MetadataConverterGeneratorTest {
 
         @Test
         void asString_toMetadataMap_emitsStringValueOf() {
-            String src = generate(List.of(fieldAs("b", "byte", MetadataFieldType.STRING)));
+            String src = generate(List.of(fieldEnc("b", "byte", MetadataFieldType.STRING)));
             assertTrue(src.contains("map.put(\"b\", String.valueOf(order.getB()))"));
         }
 
         @Test
         void asString_fromMetadataMap_parsesByte() {
-            String src = generate(List.of(fieldAs("b", "byte", MetadataFieldType.STRING)));
+            String src = generate(List.of(fieldEnc("b", "byte", MetadataFieldType.STRING)));
             assertTrue(src.contains("Byte.parseByte((String) v)"));
         }
     }
@@ -656,19 +656,19 @@ public class MetadataConverterGeneratorTest {
 
         @Test
         void asString_toMetadataMap_emitsStringValueOf() {
-            String src = generate(List.of(boolFieldAs("active", "boolean", MetadataFieldType.STRING)));
+            String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
             assertTrue(src.contains("map.put(\"active\", String.valueOf(order.isActive()))"));
         }
 
         @Test
         void asString_fromMetadataMap_parsesBoolean() {
-            String src = generate(List.of(boolFieldAs("active", "boolean", MetadataFieldType.STRING)));
+            String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
             assertTrue(src.contains("Boolean.parseBoolean((String) v)"));
         }
 
         @Test
         void asString_doesNotEmitBigIntegerCheck() {
-            String src = generate(List.of(boolFieldAs("active", "boolean", MetadataFieldType.STRING)));
+            String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
             assertFalse(src.contains("BigInteger.ONE.equals"));
         }
     }
@@ -817,7 +817,7 @@ public class MetadataConverterGeneratorTest {
         @Test
         void asString_toMetadataMap_sameAsDefault() {
             String srcDefault = generate(List.of(field("price", "java.math.BigDecimal")));
-            String srcAsString = generate(List.of(fieldAs("price", "java.math.BigDecimal", MetadataFieldType.STRING)));
+            String srcAsString = generate(List.of(fieldEnc("price", "java.math.BigDecimal", MetadataFieldType.STRING)));
             // as=STRING on BigDecimal is a no-op — output identical to DEFAULT
             assertEquals(srcDefault, srcAsString);
         }
@@ -835,44 +835,44 @@ public class MetadataConverterGeneratorTest {
 
             @Test
             void intField_serializedAsStringValueOf() {
-                String src = generate(List.of(fieldAs("code", "int", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
                 assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
             }
 
             @Test
             void integerBoxedField_serializedAsStringValueOf() {
-                String src = generate(List.of(fieldAs("code", "java.lang.Integer", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("code", "java.lang.Integer", MetadataFieldType.STRING)));
                 assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
             }
 
             @Test
             void longField_serializedAsStringValueOf() {
-                String src = generate(List.of(fieldAs("ts", "long", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("ts", "long", MetadataFieldType.STRING)));
                 assertTrue(src.contains("map.put(\"ts\", String.valueOf(order.getTs()))"));
             }
 
             @Test
             void longBoxedField_serializedAsStringValueOf() {
-                String src = generate(List.of(fieldAs("ts", "java.lang.Long", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("ts", "java.lang.Long", MetadataFieldType.STRING)));
                 assertTrue(src.contains("map.put(\"ts\", String.valueOf(order.getTs()))"));
             }
 
             @Test
             void bigIntegerField_serializedViaToString() {
-                String src = generate(List.of(fieldAs("amount", "java.math.BigInteger", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("amount", "java.math.BigInteger", MetadataFieldType.STRING)));
                 assertTrue(src.contains("map.put(\"amount\", order.getAmount().toString())"));
             }
 
             @Test
             void stringField_asString_stillUses64ByteSplitLogic() {
-                String src = generate(List.of(fieldAs("note", "java.lang.String", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("note", "java.lang.String", MetadataFieldType.STRING)));
                 assertTrue(src.contains("splitStringEveryNCharacters"));
                 assertTrue(src.contains("UTF_8"));
             }
 
             @Test
             void intField_asString_doesNotEmitBigIntegerValueOf() {
-                String src = generate(List.of(fieldAs("code", "int", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
                 assertFalse(src.contains("BigInteger.valueOf"));
             }
         }
@@ -882,38 +882,38 @@ public class MetadataConverterGeneratorTest {
 
             @Test
             void intField_parsedViaIntegerParseInt() {
-                String src = generate(List.of(fieldAs("code", "int", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
                 assertTrue(src.contains("if (v instanceof String)"));
                 assertTrue(src.contains("Integer.parseInt((String) v)"));
             }
 
             @Test
             void integerBoxedField_parsedViaIntegerParseInt() {
-                String src = generate(List.of(fieldAs("code", "java.lang.Integer", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("code", "java.lang.Integer", MetadataFieldType.STRING)));
                 assertTrue(src.contains("Integer.parseInt((String) v)"));
             }
 
             @Test
             void longField_parsedViaLongParseLong() {
-                String src = generate(List.of(fieldAs("ts", "long", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("ts", "long", MetadataFieldType.STRING)));
                 assertTrue(src.contains("Long.parseLong((String) v)"));
             }
 
             @Test
             void longBoxedField_parsedViaLongParseLong() {
-                String src = generate(List.of(fieldAs("ts", "java.lang.Long", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("ts", "java.lang.Long", MetadataFieldType.STRING)));
                 assertTrue(src.contains("Long.parseLong((String) v)"));
             }
 
             @Test
             void bigIntegerField_parsedViaNewBigInteger() {
-                String src = generate(List.of(fieldAs("amount", "java.math.BigInteger", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("amount", "java.math.BigInteger", MetadataFieldType.STRING)));
                 assertTrue(src.contains("new BigInteger((String) v)"));
             }
 
             @Test
             void intField_asString_doesNotEmitBigIntegerInstanceofCheck() {
-                String src = generate(List.of(fieldAs("code", "int", MetadataFieldType.STRING)));
+                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
                 assertFalse(src.contains("instanceof BigInteger"));
             }
         }
@@ -928,32 +928,32 @@ public class MetadataConverterGeneratorTest {
 
         @Test
         void toMetadataMap_byteArray_encodedWithHexUtil() {
-            String src = generate(List.of(fieldAs("data", "byte[]", MetadataFieldType.STRING_HEX)));
+            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
             assertTrue(src.contains("HexUtil.encodeHexString(order.getData())"));
         }
 
         @Test
         void toMetadataMap_byteArray_storedUnderCorrectKey() {
-            String src = generate(List.of(fieldAs("data", "byte[]", MetadataFieldType.STRING_HEX)));
+            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
             assertTrue(src.contains("map.put(\"data\","));
         }
 
         @Test
         void toMetadataMap_byteArray_hasNullGuard() {
-            String src = generate(List.of(fieldAs("data", "byte[]", MetadataFieldType.STRING_HEX)));
+            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
             assertTrue(src.contains("if (order.getData() != null)"));
         }
 
         @Test
         void fromMetadataMap_hexString_decodedWithHexUtil() {
-            String src = generate(List.of(fieldAs("data", "byte[]", MetadataFieldType.STRING_HEX)));
+            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
             assertTrue(src.contains("if (v instanceof String)"));
             assertTrue(src.contains("HexUtil.decodeHexString((String) v)"));
         }
 
         @Test
         void fromMetadataMap_doesNotEmitByteArrayInstanceofCheck() {
-            String src = generate(List.of(fieldAs("data", "byte[]", MetadataFieldType.STRING_HEX)));
+            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
             assertFalse(src.contains("instanceof byte[]"));
         }
     }
@@ -967,32 +967,32 @@ public class MetadataConverterGeneratorTest {
 
         @Test
         void toMetadataMap_byteArray_encodedWithBase64() {
-            String src = generate(List.of(fieldAs("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
             assertTrue(src.contains("Base64.getEncoder().encodeToString(order.getSig())"));
         }
 
         @Test
         void toMetadataMap_byteArray_storedUnderCorrectKey() {
-            String src = generate(List.of(fieldAs("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
             assertTrue(src.contains("map.put(\"sig\","));
         }
 
         @Test
         void toMetadataMap_byteArray_hasNullGuard() {
-            String src = generate(List.of(fieldAs("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
             assertTrue(src.contains("if (order.getSig() != null)"));
         }
 
         @Test
         void fromMetadataMap_base64String_decodedWithBase64() {
-            String src = generate(List.of(fieldAs("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
             assertTrue(src.contains("if (v instanceof String)"));
             assertTrue(src.contains("Base64.getDecoder().decode((String) v)"));
         }
 
         @Test
         void fromMetadataMap_doesNotEmitByteArrayInstanceofCheck() {
-            String src = generate(List.of(fieldAs("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
             assertFalse(src.contains("instanceof byte[]"));
         }
     }

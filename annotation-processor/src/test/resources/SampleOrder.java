@@ -24,15 +24,15 @@ public class SampleOrder {
     private String description;
 
     /** Integer stored as String in metadata */
-    @MetadataField(as = MetadataFieldType.STRING)
+    @MetadataField(enc = MetadataFieldType.STRING)
     private Integer statusCode;
 
     /** byte[] stored as hex String in metadata */
-    @MetadataField(key = "payload", as = MetadataFieldType.STRING_HEX)
+    @MetadataField(key = "payload", enc = MetadataFieldType.STRING_HEX)
     private byte[] payloadBytes;
 
     /** byte[] stored as Base64 String in metadata */
-    @MetadataField(key = "signature", as = MetadataFieldType.STRING_BASE64)
+    @MetadataField(key = "signature", enc = MetadataFieldType.STRING_BASE64)
     private byte[] signatureBytes;
 
     public String getRecipient() { return recipient; }

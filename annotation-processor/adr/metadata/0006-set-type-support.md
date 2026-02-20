@@ -68,7 +68,7 @@ on read.
 
 | Feature | Decision |
 |---|---|
-| `as=` override on Set fields | **Ignored with WARNING** (same as List) |
+| `enc=` override on Set fields | **Ignored with WARNING** (same as List) |
 | `Set<Set<T>>` (nested sets) | **Not supported**; field skipped with WARNING |
 | `SortedSet<T>`, `NavigableSet<T>` | **Not supported**; only `java.util.Set` recognised |
 | `null` elements within a set | **Silently skipped** (Java `Set` cannot contain null in `LinkedHashSet` without caution; the null check in the generated loop prevents issues) |

@@ -1,4 +1,4 @@
-# ADR metadata/0004: @MetadataField(as=…) Type Override Mechanism
+# ADR metadata/0004: @MetadataField(enc=…) Type Override Mechanism
 
 - **Status**: Accepted
 - **Date**: 2026-02-19
@@ -21,14 +21,14 @@ The mechanism must be type-safe, compile-time validated, and minimise API surfac
 
 ## Decision
 
-Add a `MetadataFieldType as()` attribute to `@MetadataField` backed by an enum with
-four values. The generator inspects `as` alongside the Java type and emits different
+Add a `MetadataFieldType enc()` attribute to `@MetadataField` backed by an enum with
+four values. The generator inspects `enc` alongside the Java type and emits different
 serialization/deserialization code accordingly.
 
 ```java
 public @interface MetadataField {
     String key() default "";
-    MetadataFieldType as() default MetadataFieldType.DEFAULT;
+    MetadataFieldType enc() default MetadataFieldType.DEFAULT;
 }
 ```
 
@@ -95,16 +95,16 @@ public class Transfer {
     @MetadataField(key = "ref")
     private int referenceId;                           // DEFAULT — integer
 
-    @MetadataField(as = MetadataFieldType.STRING)
+    @MetadataField(enc = MetadataFieldType.STRING)
     private int statusCode;                            // → text "200"
 
-    @MetadataField(key = "payload", as = MetadataFieldType.STRING_HEX)
+    @MetadataField(key = "payload", enc = MetadataFieldType.STRING_HEX)
     private byte[] payloadBytes;                       // → hex text
 
-    @MetadataField(key = "sig", as = MetadataFieldType.STRING_BASE64)
+    @MetadataField(key = "sig", enc = MetadataFieldType.STRING_BASE64)
     private byte[] signatureBytes;                     // → Base64 text
 
-    @MetadataField(key = "active", as = MetadataFieldType.STRING)
+    @MetadataField(key = "active", enc = MetadataFieldType.STRING)
     private boolean enabled;                           // → "true"/"false"
 }
 ```
@@ -157,11 +157,11 @@ encoding unambiguous both in code and in the stored metadata.
 - Invalid combinations (`STRING` on `byte[]`, `STRING_HEX` on `int`) produce compile errors,
   not silent data corruption.
 - Single annotation covers key renaming and encoding override.
-- Bidirectional: the same `as` value governs both serialization and deserialization, ensuring
+- Bidirectional: the same `enc` value governs both serialization and deserialization, ensuring
   round-trip correctness.
 
 ### Neutral
-- `as=STRING` on types whose DEFAULT is already text (double, float, char, BigDecimal) is
+- `enc=STRING` on types whose DEFAULT is already text (double, float, char, BigDecimal) is
   accepted but is a no-op. The processor does not warn about this; the generated code is
   identical to DEFAULT.
 

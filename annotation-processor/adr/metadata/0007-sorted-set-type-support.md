@@ -59,7 +59,7 @@ ordering of strings, integers, and BigDecimal values is well-defined and expecte
 - The existing `Set<byte[]>` support is unaffected (`LinkedHashSet` does not require
   `Comparable`).
 
-### `as=` restriction
+### `enc=` restriction
 
 Same as `List<T>` and `Set<T>` — WARNING emitted, forced to DEFAULT.
 

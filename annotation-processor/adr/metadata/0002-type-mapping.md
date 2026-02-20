@@ -23,7 +23,7 @@ by the processor must be mapped to one of these five Cardano types, with a clear
 ## Decision
 
 The following canonical mapping is used for `DEFAULT` serialization (see ADR 0004 for
-`@MetadataField(as=…)` overrides):
+`@MetadataField(enc=…)` overrides):
 
 ### Supported type mapping
 
@@ -66,7 +66,7 @@ Mapping `byte` to a one-element Cardano **bytes** value was considered but rejec
 
 Integer is more compact (one byte in CBOR vs four/five bytes for the string), more
 interoperable (widely used in Cardano community schemas), and avoids text-parsing ambiguity.
-The string representation ("true"/"false") is available via `@MetadataField(as=STRING)`.
+The string representation ("true"/"false") is available via `@MetadataField(enc=STRING)`.
 
 ### 3. `BigDecimal` uses `toPlainString()`, not `toString()`
 
@@ -111,5 +111,5 @@ whether it originated from a `byte`, `short`, `int`, or `long`. The Java class i
 
 - ADR metadata/0001: Annotation Processor Core Design
 - ADR metadata/0003: 64-Byte String Chunking Ownership
-- ADR metadata/0004: @MetadataField(as=…) Type Override Mechanism
+- ADR metadata/0004: @MetadataField(enc=…) Type Override Mechanism
 - CIP-10: Transaction Metadata

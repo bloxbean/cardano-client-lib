@@ -27,7 +27,7 @@ public class MetadataFieldInfo {
      * How this field should be stored in / read from Cardano metadata.
      * Defaults to {@link MetadataFieldType#DEFAULT}.
      */
-    private MetadataFieldType as = MetadataFieldType.DEFAULT;
+    private MetadataFieldType enc = MetadataFieldType.DEFAULT;
 
     /**
      * Getter method name (e.g. "getName"), or null if the field is accessed directly.

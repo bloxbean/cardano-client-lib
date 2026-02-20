@@ -91,7 +91,7 @@ public class MetadataConverterGenerator {
     private void emitToMapPut(MethodSpec.Builder builder, MetadataFieldInfo field, String getExpr) {
         String key = field.getMetadataKey();
         String javaType = field.getJavaTypeName();
-        MetadataFieldType as = field.getAs();
+        MetadataFieldType enc = field.getEnc();
 
         if (javaType.startsWith("java.util.List<") || javaType.startsWith("java.util.Set<")
                 || javaType.startsWith("java.util.SortedSet<")) {
@@ -104,7 +104,7 @@ public class MetadataConverterGenerator {
             return;
         }
 
-        switch (as) {
+        switch (enc) {
             case STRING_HEX:
                 builder.addStatement("map.put($S, $T.encodeHexString($L))", key, HEX_UTIL, getExpr);
                 break;
@@ -121,7 +121,7 @@ public class MetadataConverterGenerator {
         }
     }
 
-    /** Emit serialization for {@code as = STRING}: numerics become String.valueOf, String stays String. */
+    /** Emit serialization for {@code enc = STRING}: numerics become String.valueOf, String stays String. */
     private void emitToMapPutAsString(MethodSpec.Builder builder, String key,
                                       String javaType, String getExpr) {
         switch (javaType) {
@@ -162,7 +162,7 @@ public class MetadataConverterGenerator {
         }
     }
 
-    /** Emit serialization for {@code as = DEFAULT}: natural Cardano type mapping. */
+    /** Emit serialization for {@code enc = DEFAULT}: natural Cardano type mapping. */
     private void emitToMapPutDefault(MethodSpec.Builder builder, String key,
                                      String javaType, String getExpr) {
         switch (javaType) {
@@ -252,7 +252,7 @@ public class MetadataConverterGenerator {
 
     private void emitFromMapGet(MethodSpec.Builder builder, MetadataFieldInfo field) {
         String javaType = field.getJavaTypeName();
-        MetadataFieldType as = field.getAs();
+        MetadataFieldType enc = field.getEnc();
 
         if (javaType.startsWith("java.util.List<")) {
             emitFromMapGetCollection(builder, field,
@@ -275,7 +275,7 @@ public class MetadataConverterGenerator {
             return;
         }
 
-        switch (as) {
+        switch (enc) {
             case STRING_HEX:
                 builder.beginControlFlow("if (v instanceof $T)", String.class);
                 addSetterStatement(builder, field, "$T.decodeHexString((String) v)", HEX_UTIL);
@@ -295,7 +295,7 @@ public class MetadataConverterGenerator {
         }
     }
 
-    /** Emit deserialization for {@code as = STRING}: value on chain is a String, parse back to Java type. */
+    /** Emit deserialization for {@code enc = STRING}: value on chain is a String, parse back to Java type. */
     private void emitFromMapGetAsString(MethodSpec.Builder builder, MetadataFieldInfo field,
                                         String javaType) {
         switch (javaType) {
@@ -356,7 +356,7 @@ public class MetadataConverterGenerator {
         }
     }
 
-    /** Emit deserialization for {@code as = DEFAULT}: natural Cardano type mapping. */
+    /** Emit deserialization for {@code enc = DEFAULT}: natural Cardano type mapping. */
     private void emitFromMapGetDefault(MethodSpec.Builder builder, MetadataFieldInfo field,
                                        String javaType) {
         switch (javaType) {
