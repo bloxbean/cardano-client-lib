@@ -196,8 +196,12 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
         }
         if (typeName.startsWith("java.util.SortedSet<") && typeName.endsWith(">")) {
             String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
-            // byte[] is not Comparable — TreeSet would throw ClassCastException at runtime
-            return isSupportedScalarType(elementType) && !"byte[]".equals(elementType);
+            // These types do not implement Comparable — TreeSet would throw ClassCastException at runtime
+            return isSupportedScalarType(elementType)
+                    && !"byte[]".equals(elementType)
+                    && !"java.net.URL".equals(elementType)
+                    && !"java.util.Currency".equals(elementType)
+                    && !"java.util.Locale".equals(elementType);
         }
         if (typeName.startsWith("java.util.Optional<") && typeName.endsWith(">")) {
             String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
@@ -230,7 +234,10 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             case "char":
             case "byte[]":
             case "java.net.URI":
+            case "java.net.URL":
             case "java.util.UUID":
+            case "java.util.Currency":
+            case "java.util.Locale":
                 return true;
             default:
                 return false;

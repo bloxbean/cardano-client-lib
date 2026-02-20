@@ -1951,4 +1951,143 @@ public class MetadataConverterGeneratorTest {
             assertTrue(src.contains("obj.status = Status.valueOf((String) v)"));
         }
     }
+
+    // =========================================================================
+    // URL fields
+    // =========================================================================
+
+    @Nested
+    class UrlFields {
+
+        @Test
+        void toMetadataMap_storedViaToString() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("map.put(\"website\", order.getWebsite().toString())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("if (order.getWebsite() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_newUrlCalled() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("new URL((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_malformedUrlExceptionCaught() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("catch (MalformedURLException _e)"));
+            assertTrue(src.contains("throw new IllegalArgumentException(\"Malformed URL: \" + v, _e)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("obj.setWebsite(new URL((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("website", "url", "java.net.URL")));
+            assertTrue(src.contains("map.put(\"url\", order.getWebsite().toString())"));
+        }
+    }
+
+    // =========================================================================
+    // Currency fields
+    // =========================================================================
+
+    @Nested
+    class CurrencyFields {
+
+        @Test
+        void toMetadataMap_storedViaCurrencyCode() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("map.put(\"currency\", order.getCurrency().getCurrencyCode())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("if (order.getCurrency() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_currencyGetInstance() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("Currency.getInstance((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("obj.setCurrency(Currency.getInstance((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("currency", "ccy", "java.util.Currency")));
+            assertTrue(src.contains("map.put(\"ccy\", order.getCurrency().getCurrencyCode())"));
+        }
+    }
+
+    // =========================================================================
+    // Locale fields
+    // =========================================================================
+
+    @Nested
+    class LocaleFields {
+
+        @Test
+        void toMetadataMap_storedViaLanguageTag() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("map.put(\"locale\", order.getLocale().toLanguageTag())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("if (order.getLocale() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_forLanguageTag() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("Locale.forLanguageTag((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("obj.setLocale(Locale.forLanguageTag((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("locale", "lang", "java.util.Locale")));
+            assertTrue(src.contains("map.put(\"lang\", order.getLocale().toLanguageTag())"));
+        }
+    }
 }

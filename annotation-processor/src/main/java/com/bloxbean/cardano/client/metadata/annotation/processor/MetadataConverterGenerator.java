@@ -13,12 +13,16 @@ import com.squareup.javapoet.TypeSpec;
 import javax.lang.model.element.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Currency;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -162,7 +166,10 @@ public class MetadataConverterGenerator {
             case "java.lang.Character":
             case "char":
             case "java.net.URI":
+            case "java.net.URL":
             case "java.util.UUID":
+            case "java.util.Currency":
+            case "java.util.Locale":
                 // DEFAULT for these types is already String — no-op
                 emitToMapPutDefault(builder, key, javaType, getExpr);
                 break;
@@ -215,8 +222,15 @@ public class MetadataConverterGenerator {
                 builder.addStatement("map.put($S, $T.valueOf($L))", key, String.class, getExpr);
                 break;
             case "java.net.URI":
+            case "java.net.URL":
             case "java.util.UUID":
                 builder.addStatement("map.put($S, $L.toString())", key, getExpr);
+                break;
+            case "java.util.Currency":
+                builder.addStatement("map.put($S, $L.getCurrencyCode())", key, getExpr);
+                break;
+            case "java.util.Locale":
+                builder.addStatement("map.put($S, $L.toLanguageTag())", key, getExpr);
                 break;
             default:
                 break;
@@ -367,7 +381,10 @@ public class MetadataConverterGenerator {
             case "java.lang.Character":
             case "char":
             case "java.net.URI":
+            case "java.net.URL":
             case "java.util.UUID":
+            case "java.util.Currency":
+            case "java.util.Locale":
                 // DEFAULT for these types is already String — route through default deserialization
                 emitFromMapGetDefault(builder, field, javaType);
                 break;
@@ -451,9 +468,22 @@ public class MetadataConverterGenerator {
                 addSetterStatement(builder, field, "$T.create((String) v)", URI.class);
                 builder.endControlFlow();
                 break;
+            case "java.net.URL":
+                emitFromMapGetUrl(builder, field);
+                break;
             case "java.util.UUID":
                 builder.beginControlFlow("if (v instanceof $T)", String.class);
                 addSetterStatement(builder, field, "$T.fromString((String) v)", UUID.class);
+                builder.endControlFlow();
+                break;
+            case "java.util.Currency":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.getInstance((String) v)", Currency.class);
+                builder.endControlFlow();
+                break;
+            case "java.util.Locale":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.forLanguageTag((String) v)", Locale.class);
                 builder.endControlFlow();
                 break;
             default:
@@ -478,6 +508,26 @@ public class MetadataConverterGenerator {
         builder.endControlFlow();
         builder.endControlFlow();
         addSetterStatementRaw(builder, field, "_sb.toString()");
+        builder.endControlFlow();
+    }
+
+    /**
+     * Emits deserialization for a {@code java.net.URL} field. {@code new URL(String)} throws
+     * checked {@link MalformedURLException}, so the call is wrapped in a try-catch that
+     * re-throws as {@link IllegalArgumentException} (consistent with ADR 0004 — malformed
+     * on-chain data is a data integrity issue that should surface as a runtime exception).
+     */
+    private void emitFromMapGetUrl(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        builder.beginControlFlow("if (v instanceof $T)", String.class);
+        builder.beginControlFlow("try");
+        if (field.getSetterName() != null) {
+            builder.addStatement("obj.$L(new $T((String) v))", field.getSetterName(), URL.class);
+        } else {
+            builder.addStatement("obj.$L = new $T((String) v)", field.getJavaFieldName(), URL.class);
+        }
+        builder.nextControlFlow("catch ($T _e)", MalformedURLException.class);
+        builder.addStatement("throw new $T(\"Malformed URL: \" + v, _e)", IllegalArgumentException.class);
+        builder.endControlFlow();
         builder.endControlFlow();
     }
 
@@ -543,8 +593,15 @@ public class MetadataConverterGenerator {
                 builder.addStatement("_list.add(_el)");
                 break;
             case "java.net.URI":
+            case "java.net.URL":
             case "java.util.UUID":
                 builder.addStatement("_list.add(_el.toString())");
+                break;
+            case "java.util.Currency":
+                builder.addStatement("_list.add(_el.getCurrencyCode())");
+                break;
+            case "java.util.Locale":
+                builder.addStatement("_list.add(_el.toLanguageTag())");
                 break;
             default:
                 break;
@@ -705,9 +762,40 @@ public class MetadataConverterGenerator {
                 addOptionalEmptySetter(builder, field);
                 builder.endControlFlow();
                 break;
+            case "java.net.URL":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                builder.beginControlFlow("try");
+                if (field.getSetterName() != null) {
+                    builder.addStatement("obj.$L($T.of(new $T((String) v)))",
+                            field.getSetterName(), Optional.class, URL.class);
+                } else {
+                    builder.addStatement("obj.$L = $T.of(new $T((String) v))",
+                            field.getJavaFieldName(), Optional.class, URL.class);
+                }
+                builder.nextControlFlow("catch ($T _e)", MalformedURLException.class);
+                builder.addStatement("throw new $T(\"Malformed URL: \" + v, _e)", IllegalArgumentException.class);
+                builder.endControlFlow();
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
             case "java.util.UUID":
                 builder.beginControlFlow("if (v instanceof $T)", String.class);
                 addOptionalOfSetterWith1Arg(builder, field, "$T.fromString((String) v)", UUID.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.util.Currency":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterWith1Arg(builder, field, "$T.getInstance((String) v)", Currency.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.util.Locale":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterWith1Arg(builder, field, "$T.forLanguageTag((String) v)", Locale.class);
                 builder.nextControlFlow("else");
                 addOptionalEmptySetter(builder, field);
                 builder.endControlFlow();
@@ -851,9 +939,28 @@ public class MetadataConverterGenerator {
                 builder.addStatement("_result.add($T.create(($T) _el))", URI.class, String.class);
                 builder.endControlFlow();
                 break;
+            case "java.net.URL":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.beginControlFlow("try");
+                builder.addStatement("_result.add(new $T(($T) _el))", URL.class, String.class);
+                builder.nextControlFlow("catch ($T _e)", MalformedURLException.class);
+                builder.addStatement("throw new $T(\"Malformed URL: \" + _el, _e)", IllegalArgumentException.class);
+                builder.endControlFlow();
+                builder.endControlFlow();
+                break;
             case "java.util.UUID":
                 builder.beginControlFlow("if (_el instanceof $T)", String.class);
                 builder.addStatement("_result.add($T.fromString(($T) _el))", UUID.class, String.class);
+                builder.endControlFlow();
+                break;
+            case "java.util.Currency":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add($T.getInstance(($T) _el))", Currency.class, String.class);
+                builder.endControlFlow();
+                break;
+            case "java.util.Locale":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add($T.forLanguageTag(($T) _el))", Locale.class, String.class);
                 builder.endControlFlow();
                 break;
             default:
@@ -934,7 +1041,10 @@ public class MetadataConverterGenerator {
             case "java.lang.Character": return TypeName.get(Character.class);
             case "byte[]":              return TypeName.get(byte[].class);
             case "java.net.URI":        return TypeName.get(URI.class);
+            case "java.net.URL":        return TypeName.get(URL.class);
             case "java.util.UUID":      return TypeName.get(UUID.class);
+            case "java.util.Currency":  return TypeName.get(Currency.class);
+            case "java.util.Locale":    return TypeName.get(Locale.class);
             default: throw new IllegalArgumentException("Unsupported List element type: " + elementType);
         }
     }
