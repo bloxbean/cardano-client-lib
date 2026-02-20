@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.TreeSet;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
@@ -95,6 +96,11 @@ public class MetadataConverterGenerator {
         if (javaType.startsWith("java.util.List<") || javaType.startsWith("java.util.Set<")
                 || javaType.startsWith("java.util.SortedSet<")) {
             emitToMapPutList(builder, field, getExpr);
+            return;
+        }
+
+        if (javaType.startsWith("java.util.Optional<")) {
+            emitToMapPutOptional(builder, field, getExpr);
             return;
         }
 
@@ -261,6 +267,11 @@ public class MetadataConverterGenerator {
         if (javaType.startsWith("java.util.SortedSet<")) {
             emitFromMapGetCollection(builder, field,
                     ClassName.get("java.util", "SortedSet"), ClassName.get("java.util", "TreeSet"));
+            return;
+        }
+
+        if (javaType.startsWith("java.util.Optional<")) {
+            emitFromMapGetOptional(builder, field);
             return;
         }
 
@@ -503,6 +514,164 @@ public class MetadataConverterGenerator {
                 break;
             default:
                 break;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Optional<T> serialization / deserialization
+    // -------------------------------------------------------------------------
+
+    /**
+     * Emits the toMetadataMap body for an {@code Optional<T>} field.
+     * A present value is serialized identically to the corresponding plain scalar.
+     * A null or absent Optional means the key is omitted (the outer null guard handles null;
+     * this method adds the {@code isPresent()} check).
+     */
+    private void emitToMapPutOptional(MethodSpec.Builder builder, MetadataFieldInfo field,
+                                      String getExpr) {
+        builder.beginControlFlow("if ($L.isPresent())", getExpr);
+        emitToMapPutDefault(builder, field.getMetadataKey(), field.getElementTypeName(),
+                getExpr + ".get()");
+        builder.endControlFlow();
+    }
+
+    /**
+     * Emits the fromMetadataMap body for an {@code Optional<T>} field.
+     * The setter is always called: {@code Optional.of(value)} on a match, {@code Optional.empty()}
+     * in the else branch. This ensures the field is always initialised, unlike plain scalars.
+     */
+    private void emitFromMapGetOptional(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        String elementType = field.getElementTypeName();
+        switch (elementType) {
+            case "java.lang.String":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterWith1Arg(builder, field, "($T) v", String.class);
+                builder.nextControlFlow("else if (v instanceof $T)", MetadataList.class);
+                builder.addStatement("$T _sb = new $T()", StringBuilder.class, StringBuilder.class);
+                builder.addStatement("$T _list = ($T) v", MetadataList.class, MetadataList.class);
+                builder.beginControlFlow("for (int _i = 0; _i < _list.size(); _i++)");
+                builder.addStatement("$T _chunk = _list.getValueAt(_i)", Object.class);
+                builder.beginControlFlow("if (_chunk instanceof $T)", String.class);
+                builder.addStatement("_sb.append(($T) _chunk)", String.class);
+                builder.endControlFlow();
+                builder.endControlFlow();
+                addOptionalOfSetterRaw(builder, field, "_sb.toString()");
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.math.BigInteger":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addOptionalOfSetterWith1Arg(builder, field, "($T) v", BigInteger.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.math.BigDecimal":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterWith1Arg(builder, field, "new $T((String) v)", BigDecimal.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Long":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addOptionalOfSetterWith1Arg(builder, field, "(($T) v).longValue()", BigInteger.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Integer":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addOptionalOfSetterWith1Arg(builder, field, "(($T) v).intValue()", BigInteger.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Short":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addOptionalOfSetterWith1Arg(builder, field, "(($T) v).shortValue()", BigInteger.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Byte":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addOptionalOfSetterWith1Arg(builder, field, "(($T) v).byteValue()", BigInteger.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Boolean":
+                builder.beginControlFlow("if (v instanceof $T)", BigInteger.class);
+                addOptionalOfSetterWith1Arg(builder, field, "$T.ONE.equals(v)", BigInteger.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Double":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterWith1Arg(builder, field, "$T.parseDouble((String) v)", Double.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Float":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterWith1Arg(builder, field, "$T.parseFloat((String) v)", Float.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.lang.Character":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterRaw(builder, field, "((String) v).charAt(0)");
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "byte[]":
+                builder.beginControlFlow("if (v instanceof byte[])");
+                addOptionalOfSetterRaw(builder, field, "(byte[]) v");
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            default:
+                break;
+        }
+    }
+
+    /** Emits {@code obj.setX(Optional.of(innerFmt))} where innerFmt contains one {@code $T} arg. */
+    private void addOptionalOfSetterWith1Arg(MethodSpec.Builder builder, MetadataFieldInfo field,
+                                             String innerFmt, Object typeArg) {
+        if (field.getSetterName() != null) {
+            builder.addStatement("obj.$L($T.of(" + innerFmt + "))",
+                    field.getSetterName(), Optional.class, typeArg);
+        } else {
+            builder.addStatement("obj.$L = $T.of(" + innerFmt + ")",
+                    field.getJavaFieldName(), Optional.class, typeArg);
+        }
+    }
+
+    /** Emits {@code obj.setX(Optional.of(innerExpr))} with a raw inner expression (no {@code $T}). */
+    private void addOptionalOfSetterRaw(MethodSpec.Builder builder, MetadataFieldInfo field,
+                                        String innerExpr) {
+        if (field.getSetterName() != null) {
+            builder.addStatement("obj.$L($T.of(" + innerExpr + "))",
+                    field.getSetterName(), Optional.class);
+        } else {
+            builder.addStatement("obj.$L = $T.of(" + innerExpr + ")",
+                    field.getJavaFieldName(), Optional.class);
+        }
+    }
+
+    /** Emits {@code obj.setX(Optional.empty())} (the absent / key-missing case). */
+    private void addOptionalEmptySetter(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        if (field.getSetterName() != null) {
+            builder.addStatement("obj.$L($T.empty())", field.getSetterName(), Optional.class);
+        } else {
+            builder.addStatement("obj.$L = $T.empty()", field.getJavaFieldName(), Optional.class);
         }
     }
 

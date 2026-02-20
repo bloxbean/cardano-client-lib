@@ -119,10 +119,11 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
                 as = mf.as();
             }
 
-            // Extract element type for List<T> / Set<T> / SortedSet<T> fields; warn if as= is used
+            // Extract element type for List<T> / Set<T> / SortedSet<T> / Optional<T> fields; warn if as= is used
             String elementTypeName = null;
             if ((typeName.startsWith("java.util.List<") || typeName.startsWith("java.util.Set<")
-                    || typeName.startsWith("java.util.SortedSet<"))
+                    || typeName.startsWith("java.util.SortedSet<")
+                    || typeName.startsWith("java.util.Optional<"))
                     && typeName.endsWith(">")) {
                 elementTypeName = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
                 if (as != MetadataFieldType.DEFAULT) {
@@ -192,6 +193,10 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
             // byte[] is not Comparable — TreeSet would throw ClassCastException at runtime
             return isSupportedScalarType(elementType) && !"byte[]".equals(elementType);
+        }
+        if (typeName.startsWith("java.util.Optional<") && typeName.endsWith(">")) {
+            String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
+            return isSupportedScalarType(elementType);
         }
         return false;
     }

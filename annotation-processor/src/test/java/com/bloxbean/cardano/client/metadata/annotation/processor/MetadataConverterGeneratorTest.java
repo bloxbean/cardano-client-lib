@@ -117,6 +117,13 @@ public class MetadataConverterGeneratorTest {
         return f;
     }
 
+    /** Optional field with explicit getter/setter. */
+    private MetadataFieldInfo optionalField(String name, String elementType) {
+        MetadataFieldInfo f = field(name, "java.util.Optional<" + elementType + ">");
+        f.setElementTypeName(elementType);
+        return f;
+    }
+
     // =========================================================================
     // Class structure
     // =========================================================================
@@ -1594,6 +1601,190 @@ public class MetadataConverterGeneratorTest {
                 assertTrue(src.contains("new ArrayList<>()"));
                 assertTrue(src.contains("new LinkedHashSet<>()"));
                 assertTrue(src.contains("new TreeSet<>()"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // Optional<T> fields
+    // =========================================================================
+
+    @Nested
+    class OptionalFields {
+
+        @Nested
+        class ContainerType {
+
+            @Test
+            void toMetadataMap_hasNullGuard() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (order.getTags() != null)"));
+            }
+
+            @Test
+            void toMetadataMap_emitsIsPresentCheck() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (order.getTags().isPresent())"));
+            }
+
+            @Test
+            void fromMetadataMap_presentBranch_wrapsWithOptionalOf() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("Optional.of("));
+            }
+
+            @Test
+            void fromMetadataMap_absentBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("Optional.empty()"));
+            }
+        }
+
+        @Nested
+        class StringElements {
+
+            @Test
+            void toMetadataMap_usesGetDotGet() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("order.getTags().get()"));
+            }
+
+            @Test
+            void toMetadataMap_longString_chunksViaGet() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("splitStringEveryNCharacters(order.getTags().get(), 64)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfString_setsOptionalOf() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("if (v instanceof String)"));
+                assertTrue(src.contains("obj.setTags(Optional.of((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_metadataListBranch_setsOptionalOfAssembled() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("else if (v instanceof MetadataList)"));
+                assertTrue(src.contains("obj.setTags(Optional.of(_sb.toString()))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("tags", "java.lang.String")));
+                assertTrue(src.contains("obj.setTags(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class BigIntegerElements {
+
+            @Test
+            void toMetadataMap_putsGetResult() {
+                String src = generate(List.of(optionalField("amount", "java.math.BigInteger")));
+                assertTrue(src.contains("map.put(\"amount\", order.getAmount().get())"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigInteger_setsOptionalOf() {
+                String src = generate(List.of(optionalField("amount", "java.math.BigInteger")));
+                assertTrue(src.contains("if (v instanceof BigInteger)"));
+                assertTrue(src.contains("obj.setAmount(Optional.of((BigInteger) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("amount", "java.math.BigInteger")));
+                assertTrue(src.contains("obj.setAmount(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class IntegerElements {
+
+            @Test
+            void toMetadataMap_castToLongThenWrapped() {
+                String src = generate(List.of(optionalField("qty", "java.lang.Integer")));
+                assertTrue(src.contains("BigInteger.valueOf((long) order.getQty().get())"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigInteger_extractsIntValue() {
+                String src = generate(List.of(optionalField("qty", "java.lang.Integer")));
+                assertTrue(src.contains("obj.setQty(Optional.of(((BigInteger) v).intValue()))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("qty", "java.lang.Integer")));
+                assertTrue(src.contains("obj.setQty(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class BooleanElements {
+
+            @Test
+            void toMetadataMap_ternaryBigInteger() {
+                String src = generate(List.of(optionalField("active", "java.lang.Boolean")));
+                assertTrue(src.contains("order.getActive().get() ? BigInteger.ONE : BigInteger.ZERO"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigInteger_checksBigIntegerOne() {
+                String src = generate(List.of(optionalField("active", "java.lang.Boolean")));
+                assertTrue(src.contains("obj.setActive(Optional.of(BigInteger.ONE.equals(v)))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("active", "java.lang.Boolean")));
+                assertTrue(src.contains("obj.setActive(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class BigDecimalElements {
+
+            @Test
+            void toMetadataMap_usesToPlainString() {
+                String src = generate(List.of(optionalField("price", "java.math.BigDecimal")));
+                assertTrue(src.contains("order.getPrice().get().toPlainString()"));
+            }
+
+            @Test
+            void fromMetadataMap_parsedViaNewBigDecimal() {
+                String src = generate(List.of(optionalField("price", "java.math.BigDecimal")));
+                assertTrue(src.contains("obj.setPrice(Optional.of(new BigDecimal((String) v)))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("price", "java.math.BigDecimal")));
+                assertTrue(src.contains("obj.setPrice(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class ByteArrayElements {
+
+            @Test
+            void toMetadataMap_putsGetResult() {
+                String src = generate(List.of(optionalField("sig", "byte[]")));
+                assertTrue(src.contains("map.put(\"sig\", order.getSig().get())"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfByteArray_setsOptionalOf() {
+                String src = generate(List.of(optionalField("sig", "byte[]")));
+                assertTrue(src.contains("if (v instanceof byte[])"));
+                assertTrue(src.contains("obj.setSig(Optional.of((byte[]) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("sig", "byte[]")));
+                assertTrue(src.contains("obj.setSig(Optional.empty())"));
             }
         }
     }
