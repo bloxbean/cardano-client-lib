@@ -1,21 +1,21 @@
 [libraries]
-koios-java = "io.github.cardano-community:koios-java-client:1.19.1"
+koios-java = "io.github.cardano-community:koios-java-client:1.21.0"
 ogmios-java = "io.adabox:ogmios-java-client:1.0.0"
 
-slf4j-api = "org.slf4j:slf4j-api:2.0.11"
-slf4j-reload4j = "org.slf4j:slf4j-reload4j:2.0.11"
+slf4j-api = "org.slf4j:slf4j-api:2.0.17"
+slf4j-reload4j = "org.slf4j:slf4j-reload4j:2.0.17"
 
-bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk18on:1.78"
-guava = "com.google.guava:guava:33.0.0-jre"
+bouncycastle-bcprov = "org.bouncycastle:bcprov-jdk18on:1.83"
+guava = "com.google.guava:guava:33.5.0-jre"
 co-nstant-in-cbor = "co.nstant.in:cbor:0.9"
 i2p-crypto-eddsa = "com.bloxbean.cardano:net-i2p-crypto-eddsa:0.3.1"
 
-jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.16.0"
-jackson-datatype-jsr310 = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.16.0"
-jackson-dataformat-yaml = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.16.0"
+jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.21.0"
+jackson-datatype-jsr310 = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.0"
+jackson-dataformat-yaml = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.21.0"
 
-retrofit2 = "com.squareup.retrofit2:retrofit:2.9.0"
-retrofit2-converter-jackson = "com.squareup.retrofit2:converter-jackson:2.9.0"
+retrofit2 = "com.squareup.retrofit2:retrofit:3.0.0"
+retrofit2-converter-jackson = "com.squareup.retrofit2:converter-jackson:3.0.0"
 okhttp = "com.squareup.okhttp3:okhttp:4.12.0"
 
 aiken-java-binding = "com.bloxbean.cardano:aiken-java-binding:0.1.0"
@@ -25,22 +25,22 @@ javapoet="com.squareup:javapoet:1.13.0"
 google-testing-compile="com.google.testing.compile:compile-testing:0.21.0"
 mockito-core = "org.mockito:mockito-core:5.12.0"
 
-lombok = "org.projectlombok:lombok:1.18.30"
-apache-common-text="org.apache.commons:commons-text:1.12.0"
+lombok = "org.projectlombok:lombok:1.18.42"
+apache-common-text="org.apache.commons:commons-text:1.15.0"
 
 # JMH (Java Microbenchmark Harness) for performance testing
-jmh-core = "org.openjdk.jmh:jmh-core:1.36"
-jmh-generator-annprocess = "org.openjdk.jmh:jmh-generator-annprocess:1.36"
+jmh-core = "org.openjdk.jmh:jmh-core:1.37"
+jmh-generator-annprocess = "org.openjdk.jmh:jmh-generator-annprocess:1.37"
 
 # Micrometer (Optional metrics support - compileOnly in metrics module)
-micrometer-core = "io.micrometer:micrometer-core:1.15.4"
-micrometer-registry-prometheus = "io.micrometer:micrometer-registry-prometheus:1.15.4"
+micrometer-core = "io.micrometer:micrometer-core:1.16.3"
+micrometer-registry-prometheus = "io.micrometer:micrometer-registry-prometheus:1.16.3"
 
 # RocksDB persistence
-rocksdbjni = "org.rocksdb:rocksdbjni:8.9.1"
+rocksdbjni = "org.rocksdb:rocksdbjni:9.11.2"
 
 # RDBMS persistence
-hikaricp = "com.zaxxer:HikariCP:5.0.1"
-postgresql = "org.postgresql:postgresql:42.6.0"
-h2database = "com.h2database:h2:2.2.224"
-sqlite-jdbc = "org.xerial:sqlite-jdbc:3.45.0.0"
+hikaricp = "com.zaxxer:HikariCP:7.0.2"
+postgresql = "org.postgresql:postgresql:42.7.10"
+h2database = "com.h2database:h2:2.4.240"
+sqlite-jdbc = "org.xerial:sqlite-jdbc:3.51.2.0"
