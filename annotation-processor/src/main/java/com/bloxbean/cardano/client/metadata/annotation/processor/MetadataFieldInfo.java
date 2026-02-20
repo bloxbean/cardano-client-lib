@@ -44,4 +44,10 @@ public class MetadataFieldInfo {
      * {@code null} for scalar fields.
      */
     private String elementTypeName;
+
+    /**
+     * {@code true} when the field type is a Java {@code enum}. The concrete enum class name
+     * is stored in {@link #javaTypeName}.
+     */
+    private boolean enumType;
 }

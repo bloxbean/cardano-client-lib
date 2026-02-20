@@ -102,7 +102,11 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             String fieldName = ve.getSimpleName().toString();
             String typeName = ve.asType().toString();
 
-            if (!isSupportedType(typeName)) {
+            // Enum detection — enums are not in isSupportedScalarType() because the class name varies
+            Element typeEl = processingEnv.getTypeUtils().asElement(ve.asType());
+            boolean isEnum = typeEl != null && typeEl.getKind() == ElementKind.ENUM;
+
+            if (!isEnum && !isSupportedType(typeName)) {
                 messager.printMessage(Diagnostic.Kind.WARNING,
                         "Field '" + fieldName + "' has unsupported type '" + typeName + "' and will be skipped.", ve);
                 continue;
@@ -171,6 +175,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             info.setGetterName(getterName);
             info.setSetterName(setterName);
             info.setElementTypeName(elementTypeName);
+            info.setEnumType(isEnum);
 
             fields.add(info);
         }
@@ -224,6 +229,8 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             case "java.lang.Character":
             case "char":
             case "byte[]":
+            case "java.net.URI":
+            case "java.util.UUID":
                 return true;
             default:
                 return false;

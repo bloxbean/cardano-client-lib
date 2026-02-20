@@ -13,6 +13,7 @@ import com.squareup.javapoet.TypeSpec;
 import javax.lang.model.element.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -20,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.TreeSet;
+import java.util.UUID;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
 
@@ -104,6 +106,11 @@ public class MetadataConverterGenerator {
             return;
         }
 
+        if (field.isEnumType()) {
+            emitToMapPutEnum(builder, field, getExpr);
+            return;
+        }
+
         switch (enc) {
             case STRING_HEX:
                 builder.addStatement("map.put($S, $T.encodeHexString($L))", key, HEX_UTIL, getExpr);
@@ -154,6 +161,8 @@ public class MetadataConverterGenerator {
             case "float":
             case "java.lang.Character":
             case "char":
+            case "java.net.URI":
+            case "java.util.UUID":
                 // DEFAULT for these types is already String — no-op
                 emitToMapPutDefault(builder, key, javaType, getExpr);
                 break;
@@ -204,6 +213,10 @@ public class MetadataConverterGenerator {
             case "java.lang.Character":
             case "char":
                 builder.addStatement("map.put($S, $T.valueOf($L))", key, String.class, getExpr);
+                break;
+            case "java.net.URI":
+            case "java.util.UUID":
+                builder.addStatement("map.put($S, $L.toString())", key, getExpr);
                 break;
             default:
                 break;
@@ -272,6 +285,11 @@ public class MetadataConverterGenerator {
 
         if (javaType.startsWith("java.util.Optional<")) {
             emitFromMapGetOptional(builder, field);
+            return;
+        }
+
+        if (field.isEnumType()) {
+            emitFromMapGetEnum(builder, field);
             return;
         }
 
@@ -348,6 +366,8 @@ public class MetadataConverterGenerator {
             case "float":
             case "java.lang.Character":
             case "char":
+            case "java.net.URI":
+            case "java.util.UUID":
                 // DEFAULT for these types is already String — route through default deserialization
                 emitFromMapGetDefault(builder, field, javaType);
                 break;
@@ -424,6 +444,16 @@ public class MetadataConverterGenerator {
             case "byte[]":
                 builder.beginControlFlow("if (v instanceof byte[])");
                 addSetterStatementRaw(builder, field, "(byte[]) v");
+                builder.endControlFlow();
+                break;
+            case "java.net.URI":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.create((String) v)", URI.class);
+                builder.endControlFlow();
+                break;
+            case "java.util.UUID":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addSetterStatement(builder, field, "$T.fromString((String) v)", UUID.class);
                 builder.endControlFlow();
                 break;
             default:
@@ -512,6 +542,10 @@ public class MetadataConverterGenerator {
             case "byte[]":
                 builder.addStatement("_list.add(_el)");
                 break;
+            case "java.net.URI":
+            case "java.util.UUID":
+                builder.addStatement("_list.add(_el.toString())");
+                break;
             default:
                 break;
         }
@@ -532,6 +566,33 @@ public class MetadataConverterGenerator {
         builder.beginControlFlow("if ($L.isPresent())", getExpr);
         emitToMapPutDefault(builder, field.getMetadataKey(), field.getElementTypeName(),
                 getExpr + ".get()");
+        builder.endControlFlow();
+    }
+
+    // -------------------------------------------------------------------------
+    // Enum serialization / deserialization
+    // -------------------------------------------------------------------------
+
+    /**
+     * Emits the toMetadataMap body for an enum field: stores the enum constant's name as text.
+     * Example: {@code map.put("status", order.getStatus().name())}
+     */
+    private void emitToMapPutEnum(MethodSpec.Builder builder, MetadataFieldInfo field, String getExpr) {
+        builder.addStatement("map.put($S, $L.name())", field.getMetadataKey(), getExpr);
+    }
+
+    /**
+     * Emits the fromMetadataMap body for an enum field: reconstructs the constant via
+     * {@code EnumType.valueOf((String) v)}.
+     */
+    private void emitFromMapGetEnum(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        ClassName enumClass = ClassName.bestGuess(field.getJavaTypeName());
+        builder.beginControlFlow("if (v instanceof $T)", String.class);
+        if (field.getSetterName() != null) {
+            builder.addStatement("obj.$L($T.valueOf((String) v))", field.getSetterName(), enumClass);
+        } else {
+            builder.addStatement("obj.$L = $T.valueOf((String) v)", field.getJavaFieldName(), enumClass);
+        }
         builder.endControlFlow();
     }
 
@@ -633,6 +694,20 @@ public class MetadataConverterGenerator {
             case "byte[]":
                 builder.beginControlFlow("if (v instanceof byte[])");
                 addOptionalOfSetterRaw(builder, field, "(byte[]) v");
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.net.URI":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterWith1Arg(builder, field, "$T.create((String) v)", URI.class);
+                builder.nextControlFlow("else");
+                addOptionalEmptySetter(builder, field);
+                builder.endControlFlow();
+                break;
+            case "java.util.UUID":
+                builder.beginControlFlow("if (v instanceof $T)", String.class);
+                addOptionalOfSetterWith1Arg(builder, field, "$T.fromString((String) v)", UUID.class);
                 builder.nextControlFlow("else");
                 addOptionalEmptySetter(builder, field);
                 builder.endControlFlow();
@@ -771,6 +846,16 @@ public class MetadataConverterGenerator {
                 builder.addStatement("_result.add((byte[]) _el)");
                 builder.endControlFlow();
                 break;
+            case "java.net.URI":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add($T.create(($T) _el))", URI.class, String.class);
+                builder.endControlFlow();
+                break;
+            case "java.util.UUID":
+                builder.beginControlFlow("if (_el instanceof $T)", String.class);
+                builder.addStatement("_result.add($T.fromString(($T) _el))", UUID.class, String.class);
+                builder.endControlFlow();
+                break;
             default:
                 break;
         }
@@ -848,6 +933,8 @@ public class MetadataConverterGenerator {
             case "java.lang.Float":     return TypeName.get(Float.class);
             case "java.lang.Character": return TypeName.get(Character.class);
             case "byte[]":              return TypeName.get(byte[].class);
+            case "java.net.URI":        return TypeName.get(URI.class);
+            case "java.util.UUID":      return TypeName.get(UUID.class);
             default: throw new IllegalArgumentException("Unsupported List element type: " + elementType);
         }
     }

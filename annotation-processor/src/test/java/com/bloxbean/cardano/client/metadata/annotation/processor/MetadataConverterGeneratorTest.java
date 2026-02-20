@@ -1788,4 +1788,167 @@ public class MetadataConverterGeneratorTest {
             }
         }
     }
+
+    // =========================================================================
+    // URI fields
+    // =========================================================================
+
+    @Nested
+    class UriFields {
+
+        @Test
+        void toMetadataMap_storedViaToString() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("map.put(\"website\", order.getWebsite().toString())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("if (order.getWebsite() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_uriCreate() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("URI.create((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("obj.setWebsite(URI.create((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("website", "url", "java.net.URI")));
+            assertTrue(src.contains("map.put(\"url\", order.getWebsite().toString())"));
+        }
+    }
+
+    // =========================================================================
+    // UUID fields
+    // =========================================================================
+
+    @Nested
+    class UuidFields {
+
+        @Test
+        void toMetadataMap_storedViaToString() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("map.put(\"id\", order.getId().toString())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("if (order.getId() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_uuidFromString() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("UUID.fromString((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("obj.setId(UUID.fromString((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("id", "txId", "java.util.UUID")));
+            assertTrue(src.contains("map.put(\"txId\", order.getId().toString())"));
+        }
+    }
+
+    // =========================================================================
+    // Enum fields
+    // =========================================================================
+
+    @Nested
+    class EnumFields {
+
+        /** Creates a field info representing an enum type. */
+        private MetadataFieldInfo enumField(String name, String enumFqn) {
+            MetadataFieldInfo f = field(name, enumFqn);
+            f.setEnumType(true);
+            return f;
+        }
+
+        @Test
+        void toMetadataMap_storedViaName() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("map.put(\"status\", order.getStatus().name())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("if (order.getStatus() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_valueOfCalled() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("Status.valueOf((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("obj.setStatus(Status.valueOf((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            MetadataFieldInfo f = enumField("status", "com.example.Status");
+            f.setMetadataKey("st");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("map.put(\"st\", order.getStatus().name())"));
+        }
+
+        @Test
+        void toMetadataMap_directField_noGetter() {
+            MetadataFieldInfo f = new MetadataFieldInfo();
+            f.setJavaFieldName("status");
+            f.setMetadataKey("status");
+            f.setJavaTypeName("com.example.Status");
+            f.setEnumType(true);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("map.put(\"status\", order.status.name())"));
+        }
+
+        @Test
+        void fromMetadataMap_directField_noSetter() {
+            MetadataFieldInfo f = new MetadataFieldInfo();
+            f.setJavaFieldName("status");
+            f.setMetadataKey("status");
+            f.setJavaTypeName("com.example.Status");
+            f.setEnumType(true);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("obj.status = Status.valueOf((String) v)"));
+        }
+    }
 }
