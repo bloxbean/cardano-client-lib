@@ -15,7 +15,7 @@ import java.time.Duration;
  *     <li>Polling intervals and timeouts</li>
  * </ul>
  *
- * <h3>Default Values (Public Networks)</h3>
+ * <h2>Default Values (Public Networks)</h2>
  * <table border="1">
  *   <caption>Default configuration values for public Cardano networks</caption>
  *   <tr><th>Parameter</th><th>Value</th><th>Reasoning</th></tr>
@@ -24,7 +24,7 @@ import java.time.Duration;
  *   <tr><td>timeout</td><td>30 minutes</td><td>Maximum time to wait for confirmation</td></tr>
  * </table>
  *
- * <h3>Usage</h3>
+ * <h2>Usage</h2>
  * <pre>{@code
  * // Use defaults
  * ConfirmationConfig config = ConfirmationConfig.defaults();

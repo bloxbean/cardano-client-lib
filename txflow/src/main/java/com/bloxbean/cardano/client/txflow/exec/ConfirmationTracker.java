@@ -17,7 +17,7 @@ import java.util.function.BooleanSupplier;
  * ConfirmationTracker monitors transactions through their lifecycle from submission
  * to finality, detecting chain reorganizations (rollbacks) along the way.
  *
- * <h3>Key Features</h3>
+ * <h2>Key Features</h2>
  * <ul>
  *     <li>Calculates confirmation depth based on current chain tip</li>
  *     <li>Tracks previously seen transactions to detect rollbacks</li>
@@ -25,7 +25,7 @@ import java.util.function.BooleanSupplier;
  *     <li>Thread-safe for concurrent access</li>
  * </ul>
  *
- * <h3>Usage</h3>
+ * <h2>Usage</h2>
  * <pre>{@code
  * ConfirmationTracker tracker = new ConfirmationTracker(chainDataSupplier, ConfirmationConfig.defaults());
  *
