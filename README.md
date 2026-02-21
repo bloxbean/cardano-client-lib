@@ -21,11 +21,11 @@ We maintain three active branches for contributions. Please choose the appropria
 
 ### **Development Branches**
 
-| Branch | Purpose | What to Contribute |
-|--------|---------|-------------------|
-| **master** | Next major release (0.8.0) | New features, enhancements, breaking changes, and **all documentation updates** |
-| **release/0.7.x** | Current stable release line | Bug fixes and minor features (no breaking changes) |
-| **release/0.6.x** | Maintenance only | Critical bug fixes only |
+| Branch | Purpose | Min. Java | What to Contribute |
+|--------|---------|:---------:|-------------------|
+| **master** | Next major release (0.8.0) | 17+ | New features, enhancements, breaking changes, and **all documentation updates** |
+| **release/0.7.x** | Current stable release line | 11+ | Bug fixes and minor features (no breaking changes) |
+| **release/0.6.x** | Maintenance only | 11+ | Critical bug fixes only |
 
 ### **Contribution Guidelines**
 
@@ -394,7 +394,7 @@ ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplie
 
 ## Build from source and run integration tests
 
-Prerequisites: Java 11 
+Prerequisites: Java 17+
 
 #### Build 
 ```
