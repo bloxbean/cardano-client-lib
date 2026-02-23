@@ -300,6 +300,7 @@ public class TxPlan {
             }
 
             if (tx instanceof Tx) {
+                // Tx always serializes as tx: (with or without script intents)
                 Tx regularTx = (Tx) tx;
                 TransactionDocument.TxContent content = new TransactionDocument.TxContent();
 
@@ -336,13 +337,23 @@ public class TxPlan {
                 if (regularTx.getFromRef() != null && !regularTx.getFromRef().isEmpty())
                     content.setFromRef(regularTx.getFromRef());
                 content.setChangeAddress(regularTx.getPublicChangeAddress());
-                // Note: other attributes like fromWallet, collectFrom would be set here
-                // when available from the transaction object
+
+                // Set change datum attributes if present
+                try {
+                    String changeDatumHex = regularTx.getChangeDatumHex();
+                    if (changeDatumHex != null && !changeDatumHex.isEmpty())
+                        content.setChangeDatum(changeDatumHex);
+                } catch (Exception e) {
+                    // ignore serialization error for datum
+                }
+                String changeDatumHash = regularTx.getChangeDatumHash();
+                if (changeDatumHash != null && !changeDatumHash.isEmpty())
+                    content.setChangeDatumHash(changeDatumHash);
 
                 entries.add(new TransactionDocument.TxEntry(content));
 
             } else if (tx instanceof ScriptTx) {
-                ScriptTx scriptTx = (ScriptTx) tx;
+                // Legacy ScriptTx — serialize as ScriptTxContent
                 TransactionDocument.ScriptTxContent content = new TransactionDocument.ScriptTxContent();
 
                 // Separate input intentions from regular intentions
@@ -350,8 +361,8 @@ public class TxPlan {
                 List<TxIntent> regularIntentions = new ArrayList<>();
                 List<TxScriptAttachmentIntent> scriptIntentions = new ArrayList<>();
 
-                if (scriptTx.getIntentions() != null) {
-                    for (TxIntent intention : scriptTx.getIntentions()) {
+                if (tx.getIntentions() != null) {
+                    for (TxIntent intention : tx.getIntentions()) {
                         if (intention instanceof TxInputIntent) {
                             inputIntentions.add((TxInputIntent) intention);
                         } else if (intention instanceof TxScriptAttachmentIntent) {
@@ -373,22 +384,19 @@ public class TxPlan {
                     content.setScripts(scriptIntentions);
                 }
 
-                content.setChangeAddress(scriptTx.getPublicChangeAddress());
+                content.setChangeAddress(tx.getPublicChangeAddress());
 
                 // Set change datum attributes if present
                 try {
-                    String changeDatumHex = scriptTx.getChangeDatumHex();
+                    String changeDatumHex = tx.getChangeDatumHex();
                     if (changeDatumHex != null && !changeDatumHex.isEmpty())
                         content.setChangeDatum(changeDatumHex);
                 } catch (Exception e) {
                     // ignore serialization error for datum
                 }
-                String changeDatumHash = scriptTx.getChangeDatumHash();
+                String changeDatumHash = tx.getChangeDatumHash();
                 if (changeDatumHash != null && !changeDatumHash.isEmpty())
                     content.setChangeDatumHash(changeDatumHash);
-
-                // Note: scripts and collectFrom configurations would be set here
-                // when available from the ScriptTx object
 
                 entries.add(new TransactionDocument.TxEntry(content));
             }
@@ -486,7 +494,20 @@ public class TxPlan {
                 }
                 if (content.getChangeAddress() != null) {
                     String resolvedChangeAddr = VariableResolver.resolve(content.getChangeAddress(), vars);
-                    tx.withChangeAddress(resolvedChangeAddr);
+                    if (content.getChangeDatum() != null && !content.getChangeDatum().isEmpty()) {
+                        String resolvedDatumHex = VariableResolver.resolve(content.getChangeDatum(), vars);
+                        try {
+                            var pd = PlutusData.deserialize(HexUtil.decodeHexString(resolvedDatumHex));
+                            tx.withChangeAddress(resolvedChangeAddr, pd);
+                        } catch (Exception e) {
+                            throw new RuntimeException("Failed to deserialize change_datum", e);
+                        }
+                    } else if (content.getChangeDatumHash() != null && !content.getChangeDatumHash().isEmpty()) {
+                        String resolvedHash = VariableResolver.resolve(content.getChangeDatumHash(), vars);
+                        tx.withChangeAddress(resolvedChangeAddr, resolvedHash);
+                    } else {
+                        tx.withChangeAddress(resolvedChangeAddr);
+                    }
                 }
 
                 // Add input intentions first (if present)
@@ -514,11 +535,6 @@ public class TxPlan {
                         var resolvedIntention = scriptIntention.resolveVariables(vars);
                         tx.addIntention(resolvedIntention);
                     }
-                }
-
-                // still process them (this ensures old YAML files still work)
-                if (content.getInputs() == null && content.getIntents() != null) {
-                    // Input intentions are already included in the intentions processing above
                 }
 
                 transactions.add(tx);

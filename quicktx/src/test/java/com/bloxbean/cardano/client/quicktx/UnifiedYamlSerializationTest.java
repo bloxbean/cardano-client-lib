@@ -166,20 +166,22 @@ class UnifiedYamlSerializationTest {
     @Test
     void testVariableResolutionInDeserialization() {
         // Given - YAML with variables
-        String yamlWithVariables = "version: 1.0\n" +
-            "variables:\n" +
-            "  treasury: addr1_treasury_resolved\n" +
-            "  alice: addr1_alice_resolved\n" +
-            "transaction:\n" +
-            "- tx:\n" +
-            "    from: ${treasury}\n" +
-            "    change_address: ${treasury}\n" +
-            "    intents:\n" +
-            "    - type: payment\n" +
-            "      address: ${alice}\n" +
-            "      amounts:\n" +
-            "      - unit: lovelace\n" +
-            "        quantity: '10000000'\n";
+        String yamlWithVariables = """
+                version: 1.0
+                variables:
+                  treasury: addr1_treasury_resolved
+                  alice: addr1_alice_resolved
+                transaction:
+                - tx:
+                    from: ${treasury}
+                    change_address: ${treasury}
+                    intents:
+                    - type: payment
+                      address: ${alice}
+                      amounts:
+                      - unit: lovelace
+                        quantity: '10000000'
+                """;
 
         // When
         List<AbstractTx<?>> restored = TxPlan.getTxs(yamlWithVariables);

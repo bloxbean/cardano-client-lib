@@ -7,16 +7,21 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.InputBuilders;
+import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+import com.bloxbean.cardano.client.plutus.spec.Redeemer;
+import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.quicktx.intent.*;
 import java.util.Objects;
+import java.util.Optional;
 
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.hdwallet.Wallet;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -24,6 +29,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+@Slf4j
 public abstract class AbstractTx<T> {
     protected String changeAddress;
 
@@ -358,6 +364,23 @@ public abstract class AbstractTx<T> {
         return hasMultiAssetMinting;
     }
 
+    /**
+     * Checks if this transaction contains any script-related intents that require
+     * Plutus infrastructure (collateral inputs, script cost evaluation, ex-unit estimation).
+     * Detects both inherently script-based intents (ScriptCollectFromIntent, ScriptMintingIntent)
+     * and any intent that has a redeemer set (e.g., staking/governance intents with script witnesses).
+     *
+     * @return true if the transaction has script intents
+     */
+    public boolean hasScriptIntents() {
+        if (intentions == null || intentions.isEmpty()) return false;
+        return intentions.stream().anyMatch(intent ->
+                intent instanceof ScriptCollectFromIntent ||
+                intent instanceof ScriptMintingIntent ||
+                intent.hasRedeemer()
+        );
+    }
+
     TxBuilder complete() {
         if (this.intentions != null && !this.intentions.isEmpty()) {
             java.util.List<com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy> strategies = this.intentions.stream()
@@ -465,19 +488,100 @@ public abstract class AbstractTx<T> {
     protected abstract Wallet getFromWallet();
 
     /**
-     * Perform pre Tx evaluation action. This is called before Script evaluation if any
+     * Perform pre Tx evaluation action. This is called before Script evaluation if any.
+     * When the transaction has script intents, verifies and adjusts redeemer indexes.
      * @param transaction
      */
     protected void preTxEvaluation(Transaction transaction) {
-
+        if (hasScriptIntents()) {
+            verifyAndAdjustRedeemerIndexes(transaction);
+        }
     }
 
     /**
-     * Perform post balanceTx action
+     * Perform post balanceTx action.
+     * When the transaction has script intents, verifies and adjusts redeemer indexes.
      *
      * @param transaction
      */
-    protected abstract void postBalanceTx(Transaction transaction);
+    protected void postBalanceTx(Transaction transaction) {
+        if (hasScriptIntents()) {
+            verifyAndAdjustRedeemerIndexes(transaction);
+        }
+    }
+
+    /**
+     * Set a default from address. Package-private, called by {@code QuickTxBuilder} when a
+     * transaction has script intents but no explicit sender ({@code getFromAddress() == null}).
+     *
+     * <p>This method exists because calling the public {@code from()} would throw or set the
+     * {@code senderAdded} flag, conflicting with any prior user call to {@code from()}.
+     * Subclasses must override this to set the from address <em>only</em> when the user has
+     * not already provided one — i.e., guard against overriding an explicit sender.</p>
+     *
+     * <ul>
+     *   <li>{@link Tx} — guards with {@code !senderAdded && sender == null}; preserves user's explicit {@code from()} call.</li>
+     *   <li>{@link ScriptTx} — delegates directly to {@code from()}; always overwrites, matching legacy ScriptTx behaviour.</li>
+     * </ul>
+     *
+     * @param address the default from address (typically the fee-payer address)
+     */
+    void setDefaultFrom(String address) {
+        // Default no-op; overridden in subclasses
+    }
+
+    /**
+     * Set a default from wallet. Package-private, called by {@code QuickTxBuilder} when a
+     * transaction has script intents but no explicit sender ({@code getFromAddress() == null}).
+     *
+     * <p>Same contract as {@link #setDefaultFrom(String)}: subclasses must not override an
+     * explicit user-provided sender.</p>
+     *
+     * @param wallet the default from wallet (typically the fee-payer wallet)
+     */
+    void setDefaultFrom(Wallet wallet) {
+        // Default no-op; overridden in subclasses
+    }
+
+    /**
+     * Verify and adjust redeemer indexes in the transaction to match the sorted input order.
+     * Moved from ScriptTx to support unified Tx with script intents.
+     *
+     * @param transaction the transaction to adjust
+     */
+    protected void verifyAndAdjustRedeemerIndexes(Transaction transaction) {
+        if (transaction.getWitnessSet().getRedeemers() == null) return;
+        for (Redeemer redeemer : transaction.getWitnessSet().getRedeemers()) {
+            if (redeemer.getTag() != RedeemerTag.Spend)
+                continue;
+            Optional<Utxo> scriptUtxo = getUtxoForRedeemer(redeemer);
+            if (scriptUtxo.isPresent()) {
+                int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
+                if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
+                    redeemer.setIndex(scriptInputIndex);
+                }
+                log.debug("Sorting done for redeemer : " + redeemer);
+            } else
+                log.warn("No utxo found for redeemer. Something went wrong." + redeemer);
+        }
+    }
+
+    /**
+     * Find the UTXO associated with a given redeemer by searching ScriptCollectFromIntent intentions.
+     * Includes fix for P0 bug: filters for present Optionals before findFirst().
+     *
+     * @param redeemer the redeemer to find the UTXO for
+     * @return the matching UTXO if found
+     */
+    protected Optional<Utxo> getUtxoForRedeemer(Redeemer redeemer) {
+        if (intentions == null) return Optional.empty();
+        return intentions.stream()
+                .filter(intention -> intention instanceof ScriptCollectFromIntent)
+                .map(intention -> ((ScriptCollectFromIntent) intention).getUtxoForRedeemer(redeemer))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
+    }
 
     /**
      * Verify if the data is valid

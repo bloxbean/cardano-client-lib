@@ -27,17 +27,19 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void scriptCollectFromIntent_deserializesStructuredDatum() throws Exception {
-        String yaml = "type: script_collect_from\n" +
-                "utxo_refs:\n" +
-                "  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd\n" +
-                "    output_index: 0\n" +
-                "datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - \"@name\": seller\n" +
-                "      bytes: 48656c6c6f\n" +
-                "    - \"@name\": price\n" +
-                "      int: 100\n";
+        String yaml = """
+                type: script_collect_from
+                utxo_refs:
+                  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd
+                    output_index: 0
+                datum:
+                  constructor: 0
+                  fields:
+                    - "@name": seller
+                      bytes: 48656c6c6f
+                    - "@name": price
+                      int: 100
+                """;
 
         ScriptCollectFromIntent intent = YAML_MAPPER.readValue(yaml, ScriptCollectFromIntent.class);
 
@@ -60,15 +62,17 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void scriptCollectFromIntent_deserializesStructuredRedeemer() throws Exception {
-        String yaml = "type: script_collect_from\n" +
-                "utxo_refs:\n" +
-                "  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd\n" +
-                "    output_index: 0\n" +
-                "redeemer:\n" +
-                "  constructor: 1\n" +
-                "  fields:\n" +
-                "    - \"@name\": action\n" +
-                "      int: 0\n";
+        String yaml = """
+                type: script_collect_from
+                utxo_refs:
+                  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd
+                    output_index: 0
+                redeemer:
+                  constructor: 1
+                  fields:
+                    - "@name": action
+                      int: 0
+                """;
 
         ScriptCollectFromIntent intent = YAML_MAPPER.readValue(yaml, ScriptCollectFromIntent.class);
 
@@ -86,15 +90,17 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void scriptCollectFromIntent_variableResolutionInDatum() throws Exception {
-        String yaml = "type: script_collect_from\n" +
-                "utxo_refs:\n" +
-                "  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd\n" +
-                "    output_index: 0\n" +
-                "datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - bytes: \"${seller}\"\n" +
-                "    - int: \"${price}\"\n";
+        String yaml = """
+                type: script_collect_from
+                utxo_refs:
+                  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd
+                    output_index: 0
+                datum:
+                  constructor: 0
+                  fields:
+                    - bytes: "${seller}"
+                    - int: "${price}"
+                """;
 
         ScriptCollectFromIntent intent = YAML_MAPPER.readValue(yaml, ScriptCollectFromIntent.class);
 
@@ -162,15 +168,17 @@ class StructuredDatumRedeemerIntentTest {
                 .build();
         String datumHex = datum.serializeToHex();
 
-        String yaml = "type: script_collect_from\n" +
-                "utxo_refs:\n" +
-                "  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd\n" +
-                "    output_index: 0\n" +
-                "datum_hex: " + datumHex + "\n" +
-                "datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - int: 999\n";
+        String yaml = """
+                type: script_collect_from
+                utxo_refs:
+                  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd
+                    output_index: 0
+                datum_hex: %s
+                datum:
+                  constructor: 0
+                  fields:
+                    - int: 999
+                """.formatted(datumHex);
 
         ScriptCollectFromIntent intent = YAML_MAPPER.readValue(yaml, ScriptCollectFromIntent.class);
 
@@ -182,16 +190,18 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void paymentIntent_deserializesStructuredDatum() throws Exception {
-        String yaml = "type: payment\n" +
-                "address: addr_test1_receiver\n" +
-                "amounts:\n" +
-                "  - unit: lovelace\n" +
-                "    quantity: 10000000\n" +
-                "datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - \"@name\": metadata\n" +
-                "      bytes: 48656c6c6f\n";
+        String yaml = """
+                type: payment
+                address: addr_test1_receiver
+                amounts:
+                  - unit: lovelace
+                    quantity: 10000000
+                datum:
+                  constructor: 0
+                  fields:
+                    - "@name": metadata
+                      bytes: 48656c6c6f
+                """;
 
         PaymentIntent intent = YAML_MAPPER.readValue(yaml, PaymentIntent.class);
 
@@ -207,15 +217,17 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void paymentIntent_variableResolutionInDatum() throws Exception {
-        String yaml = "type: payment\n" +
-                "address: addr_test1_receiver\n" +
-                "amounts:\n" +
-                "  - unit: lovelace\n" +
-                "    quantity: 10000000\n" +
-                "datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - bytes: \"${metadata}\"\n";
+        String yaml = """
+                type: payment
+                address: addr_test1_receiver
+                amounts:
+                  - unit: lovelace
+                    quantity: 10000000
+                datum:
+                  constructor: 0
+                  fields:
+                    - bytes: "${metadata}"
+                """;
 
         PaymentIntent intent = YAML_MAPPER.readValue(yaml, PaymentIntent.class);
 
@@ -234,16 +246,18 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void scriptMintingIntent_deserializesStructuredRedeemer() throws Exception {
-        String yaml = "type: script_minting\n" +
-                "policyId: abc123\n" +
-                "assets:\n" +
-                "  - name: token1\n" +
-                "    value: 1000\n" +
-                "redeemer:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - \"@name\": action\n" +
-                "      int: 1\n";
+        String yaml = """
+                type: script_minting
+                policyId: abc123
+                assets:
+                  - name: token1
+                    value: 1000
+                redeemer:
+                  constructor: 0
+                  fields:
+                    - "@name": action
+                      int: 1
+                """;
 
         ScriptMintingIntent intent = YAML_MAPPER.readValue(yaml, ScriptMintingIntent.class);
 
@@ -259,17 +273,19 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void scriptMintingIntent_deserializesStructuredOutputDatum() throws Exception {
-        String yaml = "type: script_minting\n" +
-                "policyId: abc123\n" +
-                "assets:\n" +
-                "  - name: token1\n" +
-                "    value: 1000\n" +
-                "receiver: addr_test1_receiver\n" +
-                "output_datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - \"@name\": token_data\n" +
-                "      bytes: abcd1234\n";
+        String yaml = """
+                type: script_minting
+                policyId: abc123
+                assets:
+                  - name: token1
+                    value: 1000
+                receiver: addr_test1_receiver
+                output_datum:
+                  constructor: 0
+                  fields:
+                    - "@name": token_data
+                      bytes: abcd1234
+                """;
 
         ScriptMintingIntent intent = YAML_MAPPER.readValue(yaml, ScriptMintingIntent.class);
 
@@ -285,20 +301,22 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void scriptMintingIntent_variableResolutionInBothFields() throws Exception {
-        String yaml = "type: script_minting\n" +
-                "policyId: abc123\n" +
-                "assets:\n" +
-                "  - name: token1\n" +
-                "    value: 1000\n" +
-                "receiver: addr_test1_receiver\n" +
-                "redeemer:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - int: \"${action}\"\n" +
-                "output_datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - bytes: \"${token_data}\"\n";
+        String yaml = """
+                type: script_minting
+                policyId: abc123
+                assets:
+                  - name: token1
+                    value: 1000
+                receiver: addr_test1_receiver
+                redeemer:
+                  constructor: 0
+                  fields:
+                    - int: "${action}"
+                output_datum:
+                  constructor: 0
+                  fields:
+                    - bytes: "${token_data}"
+                """;
 
         ScriptMintingIntent intent = YAML_MAPPER.readValue(yaml, ScriptMintingIntent.class);
 
@@ -317,27 +335,31 @@ class StructuredDatumRedeemerIntentTest {
 
     @Test
     void datumWithNameAnnotations_producesIdenticalCBOR() throws Exception {
-        String yamlWith = "type: script_collect_from\n" +
-                "utxo_refs:\n" +
-                "  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd\n" +
-                "    output_index: 0\n" +
-                "datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - \"@name\": seller\n" +
-                "      bytes: 48656c6c6f\n" +
-                "    - \"@name\": price\n" +
-                "      int: 100\n";
+        String yamlWith = """
+                type: script_collect_from
+                utxo_refs:
+                  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd
+                    output_index: 0
+                datum:
+                  constructor: 0
+                  fields:
+                    - "@name": seller
+                      bytes: 48656c6c6f
+                    - "@name": price
+                      int: 100
+                """;
 
-        String yamlWithout = "type: script_collect_from\n" +
-                "utxo_refs:\n" +
-                "  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd\n" +
-                "    output_index: 0\n" +
-                "datum:\n" +
-                "  constructor: 0\n" +
-                "  fields:\n" +
-                "    - bytes: 48656c6c6f\n" +
-                "    - int: 100\n";
+        String yamlWithout = """
+                type: script_collect_from
+                utxo_refs:
+                  - tx_hash: abc123def456abc123def456abc123def456abc123def456abc123def456abcd
+                    output_index: 0
+                datum:
+                  constructor: 0
+                  fields:
+                    - bytes: 48656c6c6f
+                    - int: 100
+                """;
 
         ScriptCollectFromIntent intentWith = YAML_MAPPER.readValue(yamlWith, ScriptCollectFromIntent.class);
         ScriptCollectFromIntent intentWithout = YAML_MAPPER.readValue(yamlWithout, ScriptCollectFromIntent.class);

@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ScriptChangeDatumYamlTest {
+class UnifiedTxChangeDatumYamlTest {
 
     @Test
     void change_datum_round_trip_serializes_and_restores_inline_datum() {
@@ -15,7 +15,7 @@ class ScriptChangeDatumYamlTest {
         String changeAddr = "addr_test1_change_inline";
         PlutusData datum = BigIntPlutusData.of(123);
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .withChangeAddress(changeAddr, datum);
 
         // When
@@ -27,7 +27,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum_hash:");
 
         // Round-trip
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
 
         // Verify restored state exposes inline datum hex and not hash
         String restoredDatumHex = restored.getChangeDatumHex();
@@ -41,7 +41,7 @@ class ScriptChangeDatumYamlTest {
         String changeAddr = "addr_test1_change_hash";
         String datumHash = "9e1199a988ba72ffd6e9c269cadb3b25b8e4acff2e3dce4aef3793110255fc10";
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .withChangeAddress(changeAddr, datumHash);
 
         // When
@@ -53,7 +53,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum:");
 
         // Round-trip
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
 
         // Verify restored state exposes hash and not inline datum
         assertThat(restored.getChangeDatumHash()).isEqualTo(datumHash);
@@ -65,7 +65,7 @@ class ScriptChangeDatumYamlTest {
         // Given
         String changeAddr = "addr_test1_change_only";
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .withChangeAddress(changeAddr);
 
         // When
@@ -77,7 +77,7 @@ class ScriptChangeDatumYamlTest {
         assertThat(yaml).doesNotContain("change_datum_hash:");
 
         // Round-trip
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getPublicChangeAddress()).isEqualTo(changeAddr);
         assertThat(restored.getChangeDatumHex()).isNull();
         assertThat(restored.getChangeDatumHash()).isNull();

@@ -575,20 +575,20 @@ public class QuickTxBuilder {
                         fromAddresses.add(tx.getFromAddress());
                 }
 
-                //For scriptTx, set fee payer as change address and from address by default.
-                if (tx.getChangeAddress() == null && tx instanceof ScriptTx) {
-                    ((ScriptTx) tx).withChangeAddress(feePayer);
+                //For scriptTx or Tx with script intents, set fee payer as change address and from address by default.
+                if (tx.getChangeAddress() == null && (tx instanceof ScriptTx || tx.hasScriptIntents())) {
+                    tx.withChangeAddress(feePayer);
                 }
-                if (tx.getFromAddress() == null && tx instanceof ScriptTx) {
+                if (tx.getFromAddress() == null && (tx instanceof ScriptTx || tx.hasScriptIntents())) {
                     if (feePayerWallet != null)
-                        ((ScriptTx) tx).from(feePayerWallet);
+                        tx.setDefaultFrom(feePayerWallet);
                     else
-                        ((ScriptTx) tx).from(feePayer);
+                        tx.setDefaultFrom(feePayer);
                 }
 
                 txBuilder = txBuilder.andThen(tx.complete());
 
-                if (tx instanceof ScriptTx)
+                if (tx instanceof ScriptTx || tx.hasScriptIntents())
                     containsScriptTx = true;
 
                 hasMultiAssetMint = hasMultiAssetMint || tx.hasMultiAssetMinting();
