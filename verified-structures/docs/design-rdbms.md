@@ -10,8 +10,9 @@
 4. [Transaction Management](#transaction-management)
 5. [Schema Design](#schema-design)
 6. [Performance Tuning](#performance-tuning)
-7. [Design Decisions](#design-decisions)
-8. [References](#references)
+7. [StateTrees, RootsIndex, and GC](#statetrees-rootsindex-and-gc)
+8. [Design Decisions](#design-decisions)
+9. [References](#references)
 
 ---
 
@@ -622,3 +623,79 @@ maintenance_work_mem = 1GB
 checkpoint_completion_target = 0.9  -- Spread writes
 wal_buffers = 16MB                  -- WAL buffer
 ```
+
+---
+
+## 7. StateTrees, RootsIndex, and GC
+
+### 7.1 RdbmsStateTrees
+
+`RdbmsStateTrees` implements the `StateTrees` interface, composing `RdbmsNodeStore` and `RdbmsRootsIndex` into a unified API for the RDBMS backend.
+
+**Storage Modes:**
+- `SINGLE_VERSION`: Stores one root at version 0. Supports `putRootSnapshot()`, `getCurrentRoot()`, and `cleanupOrphanedNodes()`.
+- `MULTI_VERSION`: Stores roots with auto-incremented version numbers via `putRootWithRefcount()`. Note: refcount-based GC is not implemented for RDBMS; mark-sweep is the GC strategy.
+
+**Usage:**
+```java
+DbConfig config = DbConfig.builder().simpleJdbcUrl("jdbc:postgresql://...").build();
+try (RdbmsStateTrees trees = new RdbmsStateTrees(config, StorageMode.SINGLE_VERSION)) {
+    MpfTrie trie = new MpfTrie(trees.nodeStore());
+    trie.put(key, value);
+    trees.putRootSnapshot(trie.getRootHash());
+
+    // Later: clean up orphaned nodes
+    RdbmsGcReport report = (RdbmsGcReport) trees.cleanupOrphanedNodes(null);
+}
+```
+
+### 7.2 RdbmsRootsIndex
+
+`RdbmsRootsIndex` implements the `RootsIndex` interface for versioned root hash management using the `mpt_roots` and `mpt_latest` tables.
+
+**Key design decisions:**
+- Uses **DELETE + INSERT** for root storage instead of MERGE/upsert. This avoids H2's default MERGE KEY behavior which uses all columns as the key, causing conflicts when overwriting version 0 with a different root hash.
+- Participates in the same **ThreadLocal transaction context** as `RdbmsNodeStore` via `RdbmsNodeStore.currentConnection()`, enabling atomic operations across both nodes and roots.
+
+**Additional methods** (beyond `RootsIndex` interface):
+- `lastVersion()` — highest stored version, or -1 if empty
+- `nextVersion()` — `lastVersion() + 1`
+- `listAll()` — all versions as `NavigableMap<Long, byte[]>`
+- `listRange(from, to)` — versions in range as `NavigableMap<Long, byte[]>`
+
+### 7.3 Mark-Sweep Garbage Collection
+
+The RDBMS backend uses `RdbmsMarkSweepGc` (package-private) for garbage collection. It is accessed through `RdbmsStateTrees.cleanupOrphanedNodes()`.
+
+**Algorithm:**
+1. **Mark**: BFS from retained roots, collecting reachable node hashes in `Set<ByteBuffer>` (in JVM heap)
+2. **Sweep**: Scan `mpt_nodes` table, delete nodes not in the reachable set using JDBC batch deletes
+
+**Configuration via `RdbmsGcOptions`:**
+- `dryRun` (default `false`) — report orphans without deleting
+- `deleteBatchSize` (default `10,000`) — rows per DELETE batch
+- `progress` (default `null`) — `LongConsumer` callback after each batch
+
+**Report via `RdbmsGcReport`:**
+- `marked` — number of reachable nodes
+- `total` — total nodes in store
+- `deleted` — orphaned nodes removed
+- `durationMillis` — GC duration
+
+### 7.4 GC Limitations and Scale Guidance
+
+The current in-memory mark-set approach has known memory constraints:
+
+| Reachable Nodes | Heap Usage (mark set) | Practical? |
+|----------------|----------------------|------------|
+| up to 100K | ~13 MB | Yes |
+| up to 1M | ~127 MB | Yes (default JVM settings) |
+| 1M–5M | 127–635 MB | Requires tuned JVM heap |
+| > 5M | > 635 MB | Problematic — exceeds typical heap budgets |
+
+**Additional concerns at scale:**
+- Mark-phase I/O: one SQL SELECT per node in BFS (10M nodes = 10M queries)
+- JVM GC pressure from millions of `ByteBuffer` + `byte[]` pairs
+- The sweep `List<byte[]>` adds ~52 bytes per orphan
+
+See the [GC strategies documentation](../merkle-patricia-forestry-rocksdb/docs/gc.md#rdbms-mark-and-sweep-gc) for detailed analysis, comparison with RocksDB GC, and future improvement strategies.
