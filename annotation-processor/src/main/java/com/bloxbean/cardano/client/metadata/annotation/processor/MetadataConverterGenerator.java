@@ -637,19 +637,24 @@ public class MetadataConverterGenerator {
     private void emitToMapPutList(MethodSpec.Builder builder, MetadataFieldInfo field, String getExpr) {
         String key = field.getMetadataKey();
         String elementType = field.getElementTypeName();
-        TypeName elemTypeName = elementTypeName(elementType);
+        TypeName elemTypeName = elementTypeName(field);
 
         builder.addStatement("$T _list = $T.createList()", MetadataList.class, MetadataBuilder.class);
         builder.beginControlFlow("for ($T _el : $L)", elemTypeName, getExpr);
         builder.beginControlFlow("if (_el != null)");
-        emitListElementAdd(builder, elementType);
+        emitListElementAdd(builder, field);
         builder.endControlFlow(); // if not null
         builder.endControlFlow(); // for loop
         builder.addStatement("map.put($S, _list)", key);
     }
 
     /** Emits the add statement for a single element into {@code _list}. */
-    private void emitListElementAdd(MethodSpec.Builder builder, String elementType) {
+    private void emitListElementAdd(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        if (field.isElementEnumType()) {
+            builder.addStatement("_list.add(_el.name())");
+            return;
+        }
+        String elementType = field.getElementTypeName();
         switch (elementType) {
             case "java.lang.String":
                 builder.beginControlFlow("if (_el.getBytes($T.UTF_8).length > 64)", StandardCharsets.class);
@@ -731,8 +736,12 @@ public class MetadataConverterGenerator {
     private void emitToMapPutOptional(MethodSpec.Builder builder, MetadataFieldInfo field,
                                       String getExpr) {
         builder.beginControlFlow("if ($L.isPresent())", getExpr);
-        emitToMapPutDefault(builder, field.getMetadataKey(), field.getElementTypeName(),
-                getExpr + ".get()");
+        if (field.isElementEnumType()) {
+            builder.addStatement("map.put($S, $L.get().name())", field.getMetadataKey(), getExpr);
+        } else {
+            emitToMapPutDefault(builder, field.getMetadataKey(), field.getElementTypeName(),
+                    getExpr + ".get()");
+        }
         builder.endControlFlow();
     }
 
@@ -769,6 +778,21 @@ public class MetadataConverterGenerator {
      * in the else branch. This ensures the field is always initialised, unlike plain scalars.
      */
     private void emitFromMapGetOptional(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        if (field.isElementEnumType()) {
+            ClassName enumClass = ClassName.bestGuess(field.getElementTypeName());
+            builder.beginControlFlow("if (v instanceof $T)", String.class);
+            if (field.getSetterName() != null) {
+                builder.addStatement("obj.$L($T.of($T.valueOf(($T) v)))",
+                        field.getSetterName(), Optional.class, enumClass, String.class);
+            } else {
+                builder.addStatement("obj.$L = $T.of($T.valueOf(($T) v))",
+                        field.getJavaFieldName(), Optional.class, enumClass, String.class);
+            }
+            builder.nextControlFlow("else");
+            addOptionalEmptySetter(builder, field);
+            builder.endControlFlow();
+            return;
+        }
         String elementType = field.getElementTypeName();
         switch (elementType) {
             case "java.lang.String":
@@ -1002,7 +1026,7 @@ public class MetadataConverterGenerator {
     private void emitFromMapGetCollection(MethodSpec.Builder builder, MetadataFieldInfo field,
                                           ClassName interfaceClass, ClassName implClass) {
         String elementType = field.getElementTypeName();
-        TypeName elemTypeName = elementTypeName(elementType);
+        TypeName elemTypeName = elementTypeName(field);
         ParameterizedTypeName collectionType =
                 ParameterizedTypeName.get(interfaceClass, elemTypeName);
 
@@ -1011,14 +1035,22 @@ public class MetadataConverterGenerator {
         builder.addStatement("$T _result = new $T<>()", collectionType, implClass);
         builder.beginControlFlow("for (int _i = 0; _i < _rawList.size(); _i++)");
         builder.addStatement("$T _el = _rawList.getValueAt(_i)", Object.class);
-        emitListElementRead(builder, elementType);
+        emitListElementRead(builder, field);
         builder.endControlFlow(); // for loop
         addSetterStatementRaw(builder, field, "_result");
         builder.endControlFlow(); // instanceof MetadataList
     }
 
     /** Emits the code that reads a single raw element {@code _el} and adds it to {@code _result}. */
-    private void emitListElementRead(MethodSpec.Builder builder, String elementType) {
+    private void emitListElementRead(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        if (field.isElementEnumType()) {
+            ClassName enumClass = ClassName.bestGuess(field.getElementTypeName());
+            builder.beginControlFlow("if (_el instanceof $T)", String.class);
+            builder.addStatement("_result.add($T.valueOf(($T) _el))", enumClass, String.class);
+            builder.endControlFlow();
+            return;
+        }
+        String elementType = field.getElementTypeName();
         switch (elementType) {
             case "java.lang.String":
                 builder.beginControlFlow("if (_el instanceof $T)", String.class);
@@ -1204,9 +1236,12 @@ public class MetadataConverterGenerator {
         return Character.toLowerCase(s.charAt(0)) + s.substring(1);
     }
 
-    /** Maps a fully-qualified element type name to its JavaPoet {@link TypeName}. */
-    private TypeName elementTypeName(String elementType) {
-        switch (elementType) {
+    /** Maps a field's element type to its JavaPoet {@link TypeName}. Handles enum element types. */
+    private TypeName elementTypeName(MetadataFieldInfo field) {
+        if (field.isElementEnumType()) {
+            return ClassName.bestGuess(field.getElementTypeName());
+        }
+        switch (field.getElementTypeName()) {
             case "java.lang.String":    return TypeName.get(String.class);
             case "java.math.BigInteger": return TypeName.get(BigInteger.class);
             case "java.math.BigDecimal": return TypeName.get(BigDecimal.class);
@@ -1228,7 +1263,7 @@ public class MetadataConverterGenerator {
             case "java.time.LocalDate":     return TypeName.get(LocalDate.class);
             case "java.time.LocalDateTime": return TypeName.get(LocalDateTime.class);
             case "java.util.Date":          return TypeName.get(Date.class);
-            default: throw new IllegalArgumentException("Unsupported List element type: " + elementType);
+            default: throw new IllegalArgumentException("Unsupported List element type: " + field.getElementTypeName());
         }
     }
 }

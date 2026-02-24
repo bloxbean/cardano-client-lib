@@ -93,6 +93,11 @@ All scalar types supported by `isSupportedScalarType()`:
 `String`, `BigInteger`, `BigDecimal`, `Long`, `Integer`, `Short`, `Byte`, `Boolean`,
 `Double`, `Float`, `Character`, `byte[]`.
 
+Enum element types (`Optional<MyEnum>`) are also supported via the `elementEnumType` flag
+(see ADR 0010). Present value serializes as `opt.get().name()`; absent as key omission.
+Deserialization: `Optional.of(MyEnum.valueOf((String) v))` on match, `Optional.empty()`
+otherwise.
+
 ## Alternatives considered
 
 ### 1. Treat absent Optional identically to null on deserialization (rejected)

@@ -50,4 +50,10 @@ public class MetadataFieldInfo {
      * is stored in {@link #javaTypeName}.
      */
     private boolean enumType;
+
+    /**
+     * {@code true} when the element type of a collection or Optional field is an enum.
+     * The concrete enum class name is stored in {@link #elementTypeName}.
+     */
+    private boolean elementEnumType;
 }

@@ -94,13 +94,32 @@ identical to `DEFAULT`.
 
 ### Enum fields in collections and Optional
 
-Enum elements inside `List<MyEnum>`, `Set<MyEnum>`, `Optional<MyEnum>` are **not
-supported** in this revision. The collection and Optional machinery uses element type name
-strings to drive deserialization code generation; extending that to arbitrary enum names
-requires additional work (passing the enum class name alongside the element type string).
+`List<MyEnum>`, `Set<MyEnum>`, `SortedSet<MyEnum>`, and `Optional<MyEnum>` are fully
+supported (implemented after this ADR's initial revision).
 
-An unsupported `List<MyEnum>` field receives a compile-time WARNING and is skipped. This
-is consistent with how other unsupported types are handled.
+**Detection**: the processor extracts the element type name before the supported-type
+validation guard, then resolves it via `getTypeElement()` and checks `ElementKind.ENUM`.
+A `boolean elementEnumType` flag on `MetadataFieldInfo` carries this through to the
+generator — mirroring exactly how `enumType` works for plain enum fields.
+
+**Serialization** (collections): `_list.add(_el.name())` — stores each enum constant as
+a Cardano text value, consistent with the scalar enum approach.
+
+**Deserialization** (collections): `_result.add(MyEnum.valueOf((String) _el))` — each
+`instanceof String` element in the `MetadataList` is reconstructed via `valueOf`.
+
+**Optional**: present → `map.put(key, opt.get().name())`; absent → key omitted.
+Deserialization: `Optional.of(MyEnum.valueOf((String) v))` on match, `Optional.empty()`
+otherwise.
+
+`SortedSet<MyEnum>` is valid: all Java enums implement `Comparable<E>` (via their
+natural declaration order), so `TreeSet<MyEnum>` does not throw `ClassCastException`.
+
+**`elementTypeName(MetadataFieldInfo)`**: the generator helper that resolves element type
+strings to JavaPoet `TypeName` objects was refactored to accept the full `MetadataFieldInfo`
+instead of a bare `String`. Enum element types are dispatched at the top via
+`ClassName.bestGuess(field.getElementTypeName())`, and the original `default: throw`
+guard is preserved for truly unsupported types.
 
 ### Example
 
@@ -152,13 +171,13 @@ Enum has only one meaningful text representation: the constant name. An `enc=ORD
 value could be added to `MetadataFieldType` in a future revision if there is a use case
 for compact integer storage, but this is explicitly out of scope here.
 
-### 4. Support enum in collections (deferred)
+### 4. Support enum in collections (implemented in a later revision)
 
-Extending `List<MyEnum>` support requires carrying the concrete enum class through the
-element-type pipeline. The element type is currently represented as a plain `String` used
-to select code generation paths. Adding a parallel "enum element class" field to
-`MetadataFieldInfo` and extending `emitListElementAdd/Read` is straightforward but
-deferred to keep this revision minimal.
+Extending `List<MyEnum>` support required carrying the concrete enum class through the
+element-type pipeline. This was implemented by adding a `boolean elementEnumType` flag to
+`MetadataFieldInfo` and refactoring `elementTypeName()` to accept the full field context,
+dispatching enum element types via `ClassName.bestGuess()` before the scalar switch.
+All four container types (`List`, `Set`, `SortedSet`, `Optional`) are supported.
 
 ## Trade-offs
 
@@ -170,7 +189,6 @@ deferred to keep this revision minimal.
   the developer to a potential on-chain compatibility break.
 
 ### Negative / Limitations
-- **Enum-in-collections not supported**: `List<MyEnum>` fields are silently skipped.
 - **Renaming a constant is a breaking on-chain change**: existing metadata with the old
   constant name cannot be deserialized. This is the trade-off of name-based storage vs.
   ordinal-based storage and should be documented at the application level.
@@ -180,12 +198,19 @@ deferred to keep this revision minimal.
 
 ## Consequences
 
-- `MetadataFieldInfo` gains a `boolean enumType` field.
+- `MetadataFieldInfo` gains `boolean enumType` (scalar enum field) and `boolean elementEnumType`
+  (enum element inside a collection or Optional).
 - `MetadataAnnotationProcessor.extractFields()` performs an `ElementKind.ENUM` check before
   `isSupportedType()`, bypassing the scalar type switch for enum fields.
+- `extractFields()` also extracts `elementTypeName` before the validation guard, then checks
+  the element type via `getTypeElement()` to set `elementEnumType`.
 - `MetadataConverterGenerator.emitToMapPut()` and `emitFromMapGet()` dispatch on
   `field.isEnumType()` before the `switch(enc)` block.
-- Two new private methods: `emitToMapPutEnum()` and `emitFromMapGetEnum()`.
+- `elementTypeName(MetadataFieldInfo)` accepts the full field context; dispatches enum element
+  types via `ClassName.bestGuess()` before the scalar switch, preserving `default: throw`.
+- `emitListElementAdd()` and `emitListElementRead()` dispatch on `field.isElementEnumType()`.
+- `emitToMapPutOptional()` and `emitFromMapGetOptional()` dispatch on `field.isElementEnumType()`.
+- Two private methods added for scalar enum: `emitToMapPutEnum()` and `emitFromMapGetEnum()`.
 
 ## Related
 

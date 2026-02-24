@@ -16,7 +16,8 @@ equivalent in Cardano metadata but should still be serialisable without manual b
 ## Decision
 
 Support `java.util.Set<T>` as a field type, using the same element-type matrix as `List<T>`
-(ADR 0005). On-chain, both are stored as `MetadataList`. The difference is only on the
+(ADR 0005), including enum element types (see ADR 0010). On-chain, both are stored as
+`MetadataList`. The difference is only on the
 Java side during deserialization: a `LinkedHashSet` is produced instead of an `ArrayList`.
 
 ### Serialization (toMetadataMap)

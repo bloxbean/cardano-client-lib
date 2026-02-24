@@ -28,14 +28,14 @@ public class SamplePrimitives {
     private short shortPrimitive;
     private Short shortBoxed;
 
-    @MetadataField(key = "shortStr", as = MetadataFieldType.STRING)
+    @MetadataField(key = "shortStr", enc = MetadataFieldType.STRING)
     private short shortAsString;
 
     // --- byte ---
     private byte bytePrimitive;
     private Byte byteBoxed;
 
-    @MetadataField(key = "byteStr", as = MetadataFieldType.STRING)
+    @MetadataField(key = "byteStr", enc = MetadataFieldType.STRING)
     private byte byteAsString;
 
     // --- boolean: DEFAULT → 0/1 as BigInteger ---
@@ -43,7 +43,7 @@ public class SamplePrimitives {
     private Boolean boolBoxed;
 
     // --- boolean: as=STRING → "true"/"false" ---
-    @MetadataField(key = "boolStr", as = MetadataFieldType.STRING)
+    @MetadataField(key = "boolStr", enc = MetadataFieldType.STRING)
     private boolean boolAsString;
 
     // --- double ---

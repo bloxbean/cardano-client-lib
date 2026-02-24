@@ -2390,4 +2390,128 @@ public class MetadataConverterGeneratorTest {
             }
         }
     }
+
+    // =========================================================================
+    // Enum in collections / Optional
+    // =========================================================================
+
+    @Nested
+    class EnumInCollections {
+
+        private static final String ENUM_FQN = "com.example.OrderStatus";
+
+        /** Marks an existing collection / Optional field as having an enum element type. */
+        private MetadataFieldInfo asEnumElement(MetadataFieldInfo f) {
+            f.setElementEnumType(true);
+            return f;
+        }
+
+        @Nested
+        class ElementCodeShared {
+            // The per-element serialization/deserialization code (_list.add, _result.add)
+            // is identical across List, Set and SortedSet — verify once here.
+
+            @Test
+            void toMetadataMap_addsEnumNameToList() {
+                String src = generate(List.of(asEnumElement(listField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("_list.add(_el.name())"),
+                        "Expected _list.add(_el.name()) but got:\n" + src);
+            }
+
+            @Test
+            void toMetadataMap_iteratesWithEnumType() {
+                String src = generate(List.of(asEnumElement(listField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("OrderStatus _el"), "Expected loop variable of enum type");
+            }
+
+            @Test
+            void fromMetadataMap_checksMetadataList() {
+                String src = generate(List.of(asEnumElement(listField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("if (v instanceof MetadataList)"));
+            }
+
+            @Test
+            void fromMetadataMap_checksStringInstance() {
+                String src = generate(List.of(asEnumElement(listField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("if (_el instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_addsViaEnumValueOf() {
+                String src = generate(List.of(asEnumElement(listField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("OrderStatus.valueOf((String) _el)"),
+                        "Expected OrderStatus.valueOf((String) _el) but got:\n" + src);
+            }
+
+            @Test
+            void fromMetadataMap_setsResult() {
+                String src = generate(List.of(asEnumElement(listField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("obj.setStatuses(_result)"));
+            }
+        }
+
+        @Nested
+        class ContainerTypes {
+
+            @Test
+            void list_usesArrayList() {
+                String src = generate(List.of(asEnumElement(listField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("new ArrayList<>()"));
+            }
+
+            @Test
+            void set_usesLinkedHashSet() {
+                String src = generate(List.of(asEnumElement(setField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("new LinkedHashSet<>()"));
+            }
+
+            @Test
+            void sortedSet_usesTreeSet() {
+                String src = generate(List.of(asEnumElement(sortedSetField("statuses", ENUM_FQN))));
+                assertTrue(src.contains("new TreeSet<>()"));
+            }
+        }
+
+        @Nested
+        class OptionalOfEnum {
+
+            @Test
+            void toMetadataMap_presentValue_storesName() {
+                String src = generate(List.of(asEnumElement(optionalField("status", ENUM_FQN))));
+                assertTrue(src.contains("order.getStatus().get().name()"),
+                        "Expected .get().name() for present Optional enum\n" + src);
+            }
+
+            @Test
+            void toMetadataMap_wrapsInIsPresentCheck() {
+                String src = generate(List.of(asEnumElement(optionalField("status", ENUM_FQN))));
+                assertTrue(src.contains("if (order.getStatus().isPresent())"));
+            }
+
+            @Test
+            void fromMetadataMap_checksStringInstance() {
+                String src = generate(List.of(asEnumElement(optionalField("status", ENUM_FQN))));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_setsOptionalOf() {
+                String src = generate(List.of(asEnumElement(optionalField("status", ENUM_FQN))));
+                assertTrue(src.contains("Optional.of(OrderStatus.valueOf((String) v))"),
+                        "Expected Optional.of(OrderStatus.valueOf(...)) but got:\n" + src);
+            }
+
+            @Test
+            void fromMetadataMap_setsOptionalEmpty_onMismatch() {
+                String src = generate(List.of(asEnumElement(optionalField("status", ENUM_FQN))));
+                assertTrue(src.contains("Optional.empty()"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(asEnumElement(optionalField("status", ENUM_FQN))));
+                assertTrue(src.contains("obj.setStatus("));
+            }
+        }
+    }
 }

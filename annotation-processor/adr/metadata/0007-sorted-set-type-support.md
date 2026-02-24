@@ -59,6 +59,12 @@ ordering of strings, integers, and BigDecimal values is well-defined and expecte
 - The existing `Set<byte[]>` support is unaffected (`LinkedHashSet` does not require
   `Comparable`).
 
+### Enum element types
+
+`SortedSet<MyEnum>` is **supported**. All Java enums implement `Comparable<E>` (natural
+ordering by declaration order), so `TreeSet<MyEnum>` is safe. Detection and code generation
+follow the same `elementEnumType` mechanism described in ADR 0010.
+
 ### `enc=` restriction
 
 Same as `List<T>` and `Set<T>` — WARNING emitted, forced to DEFAULT.

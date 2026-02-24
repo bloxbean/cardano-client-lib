@@ -56,6 +56,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
                 String className = typeElement.getSimpleName().toString();
 
                 boolean hasLombok = detectLombok(typeElement);
+                validateNoArgConstructor(typeElement, hasLombok);
                 List<MetadataFieldInfo> fields = extractFields(typeElement, hasLombok);
 
                 try {
@@ -86,6 +87,25 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
         }
     }
 
+    private void validateNoArgConstructor(TypeElement typeElement, boolean hasLombok) {
+        for (Element e : typeElement.getEnclosedElements()) {
+            if (!(e instanceof ExecutableElement)) continue;
+            ExecutableElement ee = (ExecutableElement) e;
+            if (ee.getKind() == ElementKind.CONSTRUCTOR
+                    && ee.getParameters().isEmpty()
+                    && ee.getModifiers().contains(Modifier.PUBLIC)) {
+                return; // explicit public no-arg constructor found
+            }
+        }
+        if (!hasLombok) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "No public no-arg constructor found on '" + typeElement.getSimpleName() + "'. " +
+                    "The generated fromMetadataMap() calls new " + typeElement.getSimpleName() + "(). " +
+                    "Add a public no-arg constructor or use @lombok.NoArgsConstructor.", typeElement);
+        }
+        // If hasLombok → suppress: @Data / @NoArgsConstructor will generate one at compile time.
+    }
+
     private List<MetadataFieldInfo> extractFields(TypeElement typeElement, boolean hasLombok) {
         List<MetadataFieldInfo> fields = new ArrayList<>();
 
@@ -106,7 +126,25 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             Element typeEl = processingEnv.getTypeUtils().asElement(ve.asType());
             boolean isEnum = typeEl != null && typeEl.getKind() == ElementKind.ENUM;
 
-            if (!isEnum && !isSupportedType(typeName)) {
+            // Extract element type early (needed for enum-in-collection detection below)
+            String elementTypeName = null;
+            if ((typeName.startsWith("java.util.List<") || typeName.startsWith("java.util.Set<")
+                    || typeName.startsWith("java.util.SortedSet<")
+                    || typeName.startsWith("java.util.Optional<"))
+                    && typeName.endsWith(">")) {
+                elementTypeName = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
+            }
+
+            // Detect enum element type for collection / Optional fields
+            boolean elementEnumType = false;
+            if (elementTypeName != null && !isSupportedScalarType(elementTypeName)) {
+                TypeElement elTypeEl = processingEnv.getElementUtils().getTypeElement(elementTypeName);
+                if (elTypeEl != null && elTypeEl.getKind() == ElementKind.ENUM) {
+                    elementEnumType = true;
+                }
+            }
+
+            if (!isEnum && !isSupportedType(typeName) && !elementEnumType) {
                 messager.printMessage(Diagnostic.Kind.WARNING,
                         "Field '" + fieldName + "' has unsupported type '" + typeName + "' and will be skipped.", ve);
                 continue;
@@ -123,18 +161,11 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
                 enc = mf.enc();
             }
 
-            // Extract element type for List<T> / Set<T> / SortedSet<T> / Optional<T> fields; warn if enc= is used
-            String elementTypeName = null;
-            if ((typeName.startsWith("java.util.List<") || typeName.startsWith("java.util.Set<")
-                    || typeName.startsWith("java.util.SortedSet<")
-                    || typeName.startsWith("java.util.Optional<"))
-                    && typeName.endsWith(">")) {
-                elementTypeName = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
-                if (enc != MetadataFieldType.DEFAULT) {
-                    messager.printMessage(Diagnostic.Kind.WARNING,
-                            "Field '" + fieldName + "': @MetadataField(enc=...) is not supported on collection fields; using DEFAULT.", ve);
-                    enc = MetadataFieldType.DEFAULT;
-                }
+            // Warn and reset enc= on collection/Optional fields
+            if (elementTypeName != null && enc != MetadataFieldType.DEFAULT) {
+                messager.printMessage(Diagnostic.Kind.WARNING,
+                        "Field '" + fieldName + "': @MetadataField(enc=...) is not supported on collection fields; using DEFAULT.", ve);
+                enc = MetadataFieldType.DEFAULT;
             }
 
             if (!isValidEnc(typeName, enc, ve)) {
@@ -176,6 +207,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
             info.setSetterName(setterName);
             info.setElementTypeName(elementTypeName);
             info.setEnumType(isEnum);
+            info.setElementEnumType(elementEnumType);
 
             fields.add(info);
         }

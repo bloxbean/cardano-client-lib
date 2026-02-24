@@ -38,9 +38,13 @@ All scalar types from ADR 0002 are valid element types:
 | `List<Character>`     | text                 | `_list.add(String.valueOf(_el))`              | `.charAt(0)`                             |
 | `List<BigDecimal>`    | text                 | `_list.add(_el.toPlainString())`              | `new BigDecimal((String) _el)`           |
 | `List<byte[]>`        | bytes                | `_list.add(_el)`                              | `instanceof byte[]` cast                 |
+| `List<MyEnum>`        | text                 | `_list.add(_el.name())`                       | `MyEnum.valueOf((String) _el)`           |
 
 Primitive generics (`List<int>`, `List<boolean>`, etc.) are not legal Java and are therefore
 not supported. Only boxed types appear as valid element types.
+
+Enum element types are detected at annotation-processing time via `ElementKind.ENUM` and
+carried through a `boolean elementEnumType` flag on `MetadataFieldInfo` (see ADR 0010).
 
 ### What is not supported
 
@@ -48,7 +52,7 @@ not supported. Only boxed types appear as valid element types.
 |---|---|
 | `enc=` override on List fields | **Ignored with WARNING**; DEFAULT always used |
 | `List<List<T>>` (nested lists) | **Not supported**; field is skipped with WARNING |
-| `Set<T>`, `Collection<T>` | **Not supported**; only `java.util.List` recognised |
+| `Set<T>`, `Collection<T>` | **Not supported** as top-level field type here; see ADR 0006 for `Set<T>` |
 | `Map<K,V>` as element type | **Not supported** |
 | `null` elements within a list | **Silently skipped** during serialization |
 | Ordering guarantees | Preserved — `MetadataList` is ordered, `ArrayList` preserves insertion order |
