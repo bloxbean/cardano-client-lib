@@ -267,6 +267,195 @@ class SampleListMetadataConverterIT {
     }
 
     // =========================================================================
+    // List<Long>
+    // =========================================================================
+
+    @Nested
+    class LongListFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleList obj = new SampleList();
+            obj.setCounters(List.of(1_000_000_000L, -9_000_000_000L, 0L));
+
+            SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(List.of(1_000_000_000L, -9_000_000_000L, 0L), restored.getCounters());
+        }
+
+        @Test
+        void storedAsBigInteger() {
+            SampleList obj = new SampleList();
+            obj.setCounters(List.of(42L));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+            MetadataList list = (MetadataList) map.get("counters");
+
+            assertEquals(BigInteger.valueOf(42L), list.getValueAt(0));
+        }
+
+        @Test
+        void nullList_notPresentInMap() {
+            SampleList obj = new SampleList();
+            obj.setCounters(null);
+
+            assertNull(converter.toMetadataMap(obj).get("counters"));
+        }
+    }
+
+    // =========================================================================
+    // List<Short>
+    // =========================================================================
+
+    @Nested
+    class ShortListFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleList obj = new SampleList();
+            obj.setCodes(List.of((short) 10, (short) -5, (short) 32767));
+
+            SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(List.of((short) 10, (short) -5, (short) 32767), restored.getCodes());
+        }
+
+        @Test
+        void storedAsBigInteger() {
+            SampleList obj = new SampleList();
+            obj.setCodes(List.of((short) 100));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+            MetadataList list = (MetadataList) map.get("codes");
+
+            assertEquals(BigInteger.valueOf(100), list.getValueAt(0));
+        }
+
+        @Test
+        void nullList_notPresentInMap() {
+            SampleList obj = new SampleList();
+            obj.setCodes(null);
+
+            assertNull(converter.toMetadataMap(obj).get("codes"));
+        }
+    }
+
+    // =========================================================================
+    // List<Byte>
+    // =========================================================================
+
+    @Nested
+    class ByteListFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleList obj = new SampleList();
+            obj.setByteValues(List.of((byte) 1, (byte) -1, (byte) 127));
+
+            SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(List.of((byte) 1, (byte) -1, (byte) 127), restored.getByteValues());
+        }
+
+        @Test
+        void storedAsBigInteger() {
+            SampleList obj = new SampleList();
+            obj.setByteValues(List.of((byte) 15));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+            MetadataList list = (MetadataList) map.get("byteValues");
+
+            assertEquals(BigInteger.valueOf(15), list.getValueAt(0));
+        }
+
+        @Test
+        void nullList_notPresentInMap() {
+            SampleList obj = new SampleList();
+            obj.setByteValues(null);
+
+            assertNull(converter.toMetadataMap(obj).get("byteValues"));
+        }
+    }
+
+    // =========================================================================
+    // List<Float>
+    // =========================================================================
+
+    @Nested
+    class FloatListFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleList obj = new SampleList();
+            obj.setFactors(List.of(1.5f, 0.5f, -3.0f));
+
+            SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertNotNull(restored.getFactors());
+            assertEquals(3, restored.getFactors().size());
+            assertEquals(1.5f, restored.getFactors().get(0), 0.0001f);
+            assertEquals(0.5f, restored.getFactors().get(1), 0.0001f);
+            assertEquals(-3.0f, restored.getFactors().get(2), 0.0001f);
+        }
+
+        @Test
+        void storedAsString() {
+            SampleList obj = new SampleList();
+            obj.setFactors(List.of(2.0f));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+            MetadataList list = (MetadataList) map.get("factors");
+
+            assertEquals("2.0", list.getValueAt(0));
+        }
+
+        @Test
+        void nullList_notPresentInMap() {
+            SampleList obj = new SampleList();
+            obj.setFactors(null);
+
+            assertNull(converter.toMetadataMap(obj).get("factors"));
+        }
+    }
+
+    // =========================================================================
+    // List<Character>
+    // =========================================================================
+
+    @Nested
+    class CharacterListFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleList obj = new SampleList();
+            obj.setChars(List.of('A', 'z', '0'));
+
+            SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(List.of('A', 'z', '0'), restored.getChars());
+        }
+
+        @Test
+        void storedAsSingleCharString() {
+            SampleList obj = new SampleList();
+            obj.setChars(List.of('X'));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+            MetadataList list = (MetadataList) map.get("chars");
+
+            assertEquals("X", list.getValueAt(0));
+        }
+
+        @Test
+        void nullList_notPresentInMap() {
+            SampleList obj = new SampleList();
+            obj.setChars(null);
+
+            assertNull(converter.toMetadataMap(obj).get("chars"));
+        }
+    }
+
+    // =========================================================================
     // List<BigDecimal>
     // =========================================================================
 

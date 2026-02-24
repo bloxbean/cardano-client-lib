@@ -189,6 +189,169 @@ class SampleSortedSetMetadataConverterIT {
     }
 
     @Nested
+    class LongSortedSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setCounters(new TreeSet<>(java.util.Set.of(300L, 100L, 200L)));
+
+            SampleSortedSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getCounters().containsAll(java.util.Set.of(100L, 200L, 300L)));
+        }
+
+        @Test
+        void naturalOrdering_ascending() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setCounters(new TreeSet<>(java.util.Set.of(300L, 100L, 200L)));
+
+            SampleSortedSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(100L, (long) restored.getCounters().first());
+            assertEquals(300L, (long) restored.getCounters().last());
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setCounters(null);
+
+            assertNull(converter.toMetadataMap(obj).get("counters"));
+        }
+    }
+
+    @Nested
+    class ShortSortedSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setCodes(new TreeSet<>(java.util.Set.of((short) 30, (short) 10, (short) 20)));
+
+            SampleSortedSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getCodes().containsAll(java.util.Set.of((short) 10, (short) 20, (short) 30)));
+            assertEquals((short) 10, (short) restored.getCodes().first());
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setCodes(null);
+
+            assertNull(converter.toMetadataMap(obj).get("codes"));
+        }
+    }
+
+    @Nested
+    class ByteValueSortedSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setByteValues(new TreeSet<>(java.util.Set.of((byte) 3, (byte) 1, (byte) 2)));
+
+            SampleSortedSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getByteValues().containsAll(java.util.Set.of((byte) 1, (byte) 2, (byte) 3)));
+            assertEquals((byte) 1, (byte) restored.getByteValues().first());
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setByteValues(null);
+
+            assertNull(converter.toMetadataMap(obj).get("byteValues"));
+        }
+    }
+
+    @Nested
+    class DoubleSortedSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setRates(new TreeSet<>(java.util.Set.of(3.0, 1.5, 2.0)));
+
+            SampleSortedSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertNotNull(restored.getRates());
+            assertTrue(restored.getRates().contains(1.5));
+            assertTrue(restored.getRates().contains(3.0));
+            assertEquals(1.5, restored.getRates().first(), 0.0001);
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setRates(null);
+
+            assertNull(converter.toMetadataMap(obj).get("rates"));
+        }
+    }
+
+    @Nested
+    class FloatSortedSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setFactors(new TreeSet<>(java.util.Set.of(3.0f, 1.0f, 2.0f)));
+
+            SampleSortedSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertNotNull(restored.getFactors());
+            assertTrue(restored.getFactors().contains(1.0f));
+            assertTrue(restored.getFactors().contains(3.0f));
+            assertEquals(1.0f, restored.getFactors().first(), 0.0001f);
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setFactors(null);
+
+            assertNull(converter.toMetadataMap(obj).get("factors"));
+        }
+    }
+
+    @Nested
+    class CharacterSortedSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setChars(new TreeSet<>(java.util.Set.of('C', 'A', 'B')));
+
+            SampleSortedSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getChars().containsAll(java.util.Set.of('A', 'B', 'C')));
+            assertEquals(Character.valueOf('A'), restored.getChars().first());
+        }
+
+        @Test
+        void naturalOrdering_alphabetical() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setChars(new TreeSet<>(java.util.Set.of('Z', 'A', 'M')));
+
+            SampleSortedSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(Character.valueOf('A'), restored.getChars().first());
+            assertEquals(Character.valueOf('Z'), restored.getChars().last());
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSortedSet obj = new SampleSortedSet();
+            obj.setChars(null);
+
+            assertNull(converter.toMetadataMap(obj).get("chars"));
+        }
+    }
+
+    @Nested
     class BigDecimalSortedSetFields {
 
         @Test

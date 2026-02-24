@@ -170,6 +170,200 @@ class SampleOptionalMetadataConverterIT {
     }
 
     @Nested
+    class LongOptionalField {
+
+        @Test
+        void present_roundTrips() {
+            SampleOptional obj = new SampleOptional();
+            obj.setCounter(Optional.of(9_000_000_000L));
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(Optional.of(9_000_000_000L), restored.getCounter());
+        }
+
+        @Test
+        void nullOptional_keyAbsentInMap() {
+            SampleOptional obj = new SampleOptional();
+            obj.setCounter(null);
+
+            assertNull(converter.toMetadataMap(obj).get("counter"));
+        }
+
+        @Test
+        void emptyOptional_deserializesToOptionalEmpty() {
+            SampleOptional obj = new SampleOptional();
+            obj.setCounter(Optional.empty());
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertFalse(restored.getCounter().isPresent());
+        }
+    }
+
+    @Nested
+    class ShortOptionalField {
+
+        @Test
+        void present_roundTrips() {
+            SampleOptional obj = new SampleOptional();
+            obj.setCode(Optional.of((short) 200));
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(Optional.of((short) 200), restored.getCode());
+        }
+
+        @Test
+        void nullOptional_keyAbsentInMap() {
+            SampleOptional obj = new SampleOptional();
+            obj.setCode(null);
+
+            assertNull(converter.toMetadataMap(obj).get("code"));
+        }
+
+        @Test
+        void emptyOptional_deserializesToOptionalEmpty() {
+            SampleOptional obj = new SampleOptional();
+            obj.setCode(Optional.empty());
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertFalse(restored.getCode().isPresent());
+        }
+    }
+
+    @Nested
+    class ByteOptionalField {
+
+        @Test
+        void present_roundTrips() {
+            SampleOptional obj = new SampleOptional();
+            obj.setByteValue(Optional.of((byte) 42));
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(Optional.of((byte) 42), restored.getByteValue());
+        }
+
+        @Test
+        void nullOptional_keyAbsentInMap() {
+            SampleOptional obj = new SampleOptional();
+            obj.setByteValue(null);
+
+            assertNull(converter.toMetadataMap(obj).get("byteValue"));
+        }
+
+        @Test
+        void emptyOptional_deserializesToOptionalEmpty() {
+            SampleOptional obj = new SampleOptional();
+            obj.setByteValue(Optional.empty());
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertFalse(restored.getByteValue().isPresent());
+        }
+    }
+
+    @Nested
+    class DoubleOptionalField {
+
+        @Test
+        void present_roundTrips() {
+            SampleOptional obj = new SampleOptional();
+            obj.setRate(Optional.of(3.14));
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getRate().isPresent());
+            assertEquals(3.14, restored.getRate().get(), 0.0001);
+        }
+
+        @Test
+        void nullOptional_keyAbsentInMap() {
+            SampleOptional obj = new SampleOptional();
+            obj.setRate(null);
+
+            assertNull(converter.toMetadataMap(obj).get("rate"));
+        }
+
+        @Test
+        void emptyOptional_deserializesToOptionalEmpty() {
+            SampleOptional obj = new SampleOptional();
+            obj.setRate(Optional.empty());
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertFalse(restored.getRate().isPresent());
+        }
+    }
+
+    @Nested
+    class FloatOptionalField {
+
+        @Test
+        void present_roundTrips() {
+            SampleOptional obj = new SampleOptional();
+            obj.setFactor(Optional.of(1.5f));
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getFactor().isPresent());
+            assertEquals(1.5f, restored.getFactor().get(), 0.0001f);
+        }
+
+        @Test
+        void nullOptional_keyAbsentInMap() {
+            SampleOptional obj = new SampleOptional();
+            obj.setFactor(null);
+
+            assertNull(converter.toMetadataMap(obj).get("factor"));
+        }
+
+        @Test
+        void emptyOptional_deserializesToOptionalEmpty() {
+            SampleOptional obj = new SampleOptional();
+            obj.setFactor(Optional.empty());
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertFalse(restored.getFactor().isPresent());
+        }
+    }
+
+    @Nested
+    class CharacterOptionalField {
+
+        @Test
+        void present_roundTrips() {
+            SampleOptional obj = new SampleOptional();
+            obj.setLetter(Optional.of('Q'));
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(Optional.of('Q'), restored.getLetter());
+        }
+
+        @Test
+        void nullOptional_keyAbsentInMap() {
+            SampleOptional obj = new SampleOptional();
+            obj.setLetter(null);
+
+            assertNull(converter.toMetadataMap(obj).get("letter"));
+        }
+
+        @Test
+        void emptyOptional_deserializesToOptionalEmpty() {
+            SampleOptional obj = new SampleOptional();
+            obj.setLetter(Optional.empty());
+
+            SampleOptional restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertFalse(restored.getLetter().isPresent());
+        }
+    }
+
+    @Nested
     class BigDecimalOptionalField {
 
         @Test

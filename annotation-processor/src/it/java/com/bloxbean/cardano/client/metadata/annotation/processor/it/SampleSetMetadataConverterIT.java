@@ -188,6 +188,176 @@ class SampleSetMetadataConverterIT {
     }
 
     @Nested
+    class LongSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSet obj = new SampleSet();
+            obj.setCounters(new LinkedHashSet<>(Set.of(100L, 200L, -50L)));
+
+            SampleSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getCounters().containsAll(Set.of(100L, 200L, -50L)));
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSet obj = new SampleSet();
+            obj.setCounters(null);
+
+            assertNull(converter.toMetadataMap(obj).get("counters"));
+        }
+
+        @Test
+        void storedAsBigInteger() {
+            SampleSet obj = new SampleSet();
+            obj.setCounters(new LinkedHashSet<>(Set.of(42L)));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+            MetadataList list = (MetadataList) map.get("counters");
+
+            assertEquals(BigInteger.valueOf(42L), list.getValueAt(0));
+        }
+    }
+
+    @Nested
+    class ShortSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSet obj = new SampleSet();
+            obj.setCodes(new LinkedHashSet<>(Set.of((short) 10, (short) -5)));
+
+            SampleSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getCodes().containsAll(Set.of((short) 10, (short) -5)));
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSet obj = new SampleSet();
+            obj.setCodes(null);
+
+            assertNull(converter.toMetadataMap(obj).get("codes"));
+        }
+    }
+
+    @Nested
+    class ByteValueSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSet obj = new SampleSet();
+            obj.setByteValues(new LinkedHashSet<>(Set.of((byte) 1, (byte) -1, (byte) 127)));
+
+            SampleSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getByteValues().containsAll(Set.of((byte) 1, (byte) -1, (byte) 127)));
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSet obj = new SampleSet();
+            obj.setByteValues(null);
+
+            assertNull(converter.toMetadataMap(obj).get("byteValues"));
+        }
+    }
+
+    @Nested
+    class DoubleSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSet obj = new SampleSet();
+            obj.setRates(new LinkedHashSet<>(Set.of(1.5, 2.0, 3.14)));
+
+            SampleSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertNotNull(restored.getRates());
+            assertEquals(3, restored.getRates().size());
+            assertTrue(restored.getRates().contains(1.5));
+            assertTrue(restored.getRates().contains(2.0));
+        }
+
+        @Test
+        void storedAsString() {
+            SampleSet obj = new SampleSet();
+            obj.setRates(new LinkedHashSet<>(Set.of(1.5)));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+            MetadataList list = (MetadataList) map.get("rates");
+
+            assertEquals("1.5", list.getValueAt(0));
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSet obj = new SampleSet();
+            obj.setRates(null);
+
+            assertNull(converter.toMetadataMap(obj).get("rates"));
+        }
+    }
+
+    @Nested
+    class FloatSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSet obj = new SampleSet();
+            obj.setFactors(new LinkedHashSet<>(Set.of(1.5f, 2.0f)));
+
+            SampleSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertNotNull(restored.getFactors());
+            assertTrue(restored.getFactors().contains(1.5f));
+            assertTrue(restored.getFactors().contains(2.0f));
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSet obj = new SampleSet();
+            obj.setFactors(null);
+
+            assertNull(converter.toMetadataMap(obj).get("factors"));
+        }
+    }
+
+    @Nested
+    class CharacterSetFields {
+
+        @Test
+        void nonEmpty_roundTrip() {
+            SampleSet obj = new SampleSet();
+            obj.setChars(new LinkedHashSet<>(Set.of('A', 'B', 'C')));
+
+            SampleSet restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertTrue(restored.getChars().containsAll(Set.of('A', 'B', 'C')));
+        }
+
+        @Test
+        void storedAsSingleCharString() {
+            SampleSet obj = new SampleSet();
+            obj.setChars(new LinkedHashSet<>(Set.of('X')));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+            MetadataList list = (MetadataList) map.get("chars");
+
+            assertEquals("X", list.getValueAt(0));
+        }
+
+        @Test
+        void nullSet_notPresentInMap() {
+            SampleSet obj = new SampleSet();
+            obj.setChars(null);
+
+            assertNull(converter.toMetadataMap(obj).get("chars"));
+        }
+    }
+
+    @Nested
     class ByteArraySetFields {
 
         @Test
