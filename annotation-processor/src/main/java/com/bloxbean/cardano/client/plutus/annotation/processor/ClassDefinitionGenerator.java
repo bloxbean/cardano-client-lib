@@ -236,10 +236,16 @@ public class ClassDefinitionGenerator {
             fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
             fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
 
+        } else if (typeName.equals(ClassName.get(Pair.class))) {
+            // Raw Pair type (from shared type lookup — not parameterized)
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType(typeName.toString(), true));
+            fieldType.setRawPlutusDataConverter(true);
         } else {
             if (isSupportedType(typeName, typeMirror)) {
                 fieldType.setType(Type.CONSTRUCTOR);
                 fieldType.setJavaType(new JavaType(typeName.toString(), true));
+                fieldType.setRawPlutusDataConverter(isBytesWrapperType(typeMirror));
             } else {
                 throw new NotSupportedException("Type not supported: " + typeName);
             }
@@ -313,6 +319,20 @@ public class ClassDefinitionGenerator {
                 Diagnostic.Kind.ERROR,
                 String.format(msg, args),
                 e);
+    }
+
+    private static final String BYTE_ARRAY_WRAPPER_FQN = "com.bloxbean.cardano.client.plutus.aiken.blueprint.std.ByteArrayWrapper";
+
+    /**
+     * Checks if a type extends ByteArrayWrapper (bytes-wrapper shared type).
+     * These types serialize to BytesPlutusData rather than ConstrPlutusData.
+     */
+    private boolean isBytesWrapperType(TypeMirror typeMirror) {
+        if (typeMirror == null) return false;
+        TypeElement wrapperElement = elements.getTypeElement(BYTE_ARRAY_WRAPPER_FQN);
+        if (wrapperElement == null) return false; // ByteArrayWrapper not on classpath
+        Types typeUtils = processingEnvironment.getTypeUtils();
+        return typeUtils.isAssignable(typeMirror, wrapperElement.asType());
     }
 
     private boolean isAssignableToMap(TypeMirror typeMirror) {

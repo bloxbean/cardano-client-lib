@@ -24,6 +24,19 @@ public interface Credential extends Data<Credential> {
     }
 
     /**
+     * Deserializes a {@link ConstrPlutusData} back into a {@link Credential}.
+     * Alternative 0 → {@link VerificationKeyCredential}, alternative 1 → {@link ScriptCredential}.
+     */
+    static Credential fromPlutusData(ConstrPlutusData constr) {
+        byte[] hash = ((BytesPlutusData) constr.getData().getPlutusDataList().get(0)).getValue();
+        return switch ((int) constr.getAlternative()) {
+            case 0 -> new VerificationKeyCredential(hash);
+            case 1 -> new ScriptCredential(hash);
+            default -> throw new IllegalArgumentException("Invalid Credential alternative: " + constr.getAlternative());
+        };
+    }
+
+    /**
      * Credential backed by a verification key hash.
      */
     final class VerificationKeyCredential implements Credential {

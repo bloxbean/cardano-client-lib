@@ -20,6 +20,27 @@ public final class Address implements Data<Address> {
         this.stakeCredential = Objects.requireNonNull(stakeCredential, "stakeCredential cannot be null");
     }
 
+    /**
+     * Deserializes a {@link ConstrPlutusData} back into an {@link Address}.
+     * Index 0 = payment_credential, index 1 = stake_credential (Option wrapper).
+     */
+    public static Address fromPlutusData(ConstrPlutusData constr) {
+        Credential payment = Credential.fromPlutusData((ConstrPlutusData) constr.getData().getPlutusDataList().get(0));
+
+        ConstrPlutusData stakeOption = (ConstrPlutusData) constr.getData().getPlutusDataList().get(1);
+        Optional<ReferencedCredential> stake;
+        if (stakeOption.getAlternative() == 0) {
+            // Some(referenced_credential)
+            stake = Optional.of(ReferencedCredential.fromPlutusData(
+                    (ConstrPlutusData) stakeOption.getData().getPlutusDataList().get(0)));
+        } else {
+            // None
+            stake = Optional.empty();
+        }
+
+        return new Address(payment, stake);
+    }
+
     public Credential getPaymentCredential() {
         return paymentCredential;
     }

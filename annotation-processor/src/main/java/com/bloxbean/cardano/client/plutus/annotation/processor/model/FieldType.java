@@ -18,6 +18,11 @@ public class FieldType {
     private boolean isCollection;
     private String fqTypeName; //Fully qualified type name. This can be used to get the exact type.
     private List<FieldType> genericTypes = new ArrayList<>();
+    /**
+     * True when the type's converter accepts raw {@code PlutusData} rather than {@code ConstrPlutusData}.
+     * Applies to bytes-wrapper shared types (e.g., VerificationKeyHash) and list-based shared types (e.g., Pair).
+     */
+    private boolean rawPlutusDataConverter;
 
     public boolean isMap() {
         return javaType == JavaType.MAP;

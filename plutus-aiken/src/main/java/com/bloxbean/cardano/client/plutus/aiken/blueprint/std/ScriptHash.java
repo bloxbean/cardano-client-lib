@@ -1,5 +1,8 @@
 package com.bloxbean.cardano.client.plutus.aiken.blueprint.std;
 
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+
 /** Hash of a script (Blake2b-224). */
 public final class ScriptHash extends Hash {
 
@@ -11,4 +14,7 @@ public final class ScriptHash extends Hash {
         return new ScriptHash(value);
     }
 
+    public static ScriptHash fromPlutusData(PlutusData data) {
+        return new ScriptHash(((BytesPlutusData) data).getValue());
+    }
 }

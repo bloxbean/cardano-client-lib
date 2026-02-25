@@ -804,11 +804,20 @@ public class ConverterCodeGenerator implements CodeGenerator {
             case CONSTRUCTOR:
                 TypeName fieldTypeName = bestGuess(field.getFieldType().getJavaType().getName());
                 ClassName converterClazz = getConverterClassFromField(field.getFieldType());
-                codeBlock = CodeBlock.builder()
-                        .add("//Field $L\n", field.getName())
-                        .addStatement("$T $L = new $T().fromPlutusData((($T)data.getPlutusDataList().get($L)))",
-                                fieldTypeName, field.getName(), converterClazz, ConstrPlutusData.class, field.getIndex())
-                        .build();
+                if (field.getFieldType().isRawPlutusDataConverter()) {
+                    // Bytes-wrapper shared types (e.g., VerificationKeyHash) — pass PlutusData directly, no cast
+                    codeBlock = CodeBlock.builder()
+                            .add("//Field $L\n", field.getName())
+                            .addStatement("$T $L = new $T().fromPlutusData(data.getPlutusDataList().get($L))",
+                                    fieldTypeName, field.getName(), converterClazz, field.getIndex())
+                            .build();
+                } else {
+                    codeBlock = CodeBlock.builder()
+                            .add("//Field $L\n", field.getName())
+                            .addStatement("$T $L = new $T().fromPlutusData((($T)data.getPlutusDataList().get($L)))",
+                                    fieldTypeName, field.getName(), converterClazz, ConstrPlutusData.class, field.getIndex())
+                            .build();
+                }
                 break;
             case BOOL:
                 codeBlock = CodeBlock.builder()
@@ -1103,6 +1112,9 @@ public class ConverterCodeGenerator implements CodeGenerator {
             default:
                 ClassName converterClassName = getConverterClassFromField(itemType);
                 String converterClazz = converterClassName.packageName() + "." + converterClassName.simpleName();
+                if (itemType.isRawPlutusDataConverter()) {
+                    return String.format("new %s().fromPlutusData(%s)", converterClazz, fieldName);
+                }
                 return String.format("new %s().fromPlutusData((ConstrPlutusData)%s)", converterClazz, fieldName);
         }
 
