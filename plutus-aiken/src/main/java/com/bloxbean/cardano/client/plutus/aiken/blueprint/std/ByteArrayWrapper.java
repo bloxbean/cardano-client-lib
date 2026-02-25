@@ -1,5 +1,8 @@
 package com.bloxbean.cardano.client.plutus.aiken.blueprint.std;
 
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -17,6 +20,10 @@ abstract class ByteArrayWrapper {
 
     public byte[] bytes() {
         return value.clone();
+    }
+
+    public PlutusData toPlutusData() {
+        return BytesPlutusData.of(value);
     }
 
     @Override

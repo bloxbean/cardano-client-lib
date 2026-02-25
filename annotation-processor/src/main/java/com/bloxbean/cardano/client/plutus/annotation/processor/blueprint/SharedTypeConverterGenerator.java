@@ -189,7 +189,7 @@ public class SharedTypeConverterGenerator {
                 .returns(PlutusData.class)
                 .addParameter(type, "obj")
                 .addStatement("$T.requireNonNull(obj, \"obj cannot be null\")", Objects.class)
-                .addStatement("return $T.of(obj.bytes())", BytesPlutusData.class)
+                .addStatement("return obj.toPlutusData()")
                 .build();
     }
 
