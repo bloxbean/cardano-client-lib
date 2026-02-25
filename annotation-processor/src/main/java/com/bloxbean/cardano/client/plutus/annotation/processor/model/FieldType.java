@@ -19,10 +19,24 @@ public class FieldType {
     private String fqTypeName; //Fully qualified type name. This can be used to get the exact type.
     private List<FieldType> genericTypes = new ArrayList<>();
     /**
-     * True when the type's converter accepts raw {@code PlutusData} rather than {@code ConstrPlutusData}.
-     * Applies to bytes-wrapper shared types (e.g., VerificationKeyHash) and list-based shared types (e.g., Pair).
+     * Indicates that this field's on-chain representation is <em>not</em> a {@code ConstrPlutusData}.
+     * <p>
+     * Most custom/complex types in Plutus are encoded as constructors ({@code ConstrPlutusData}),
+     * and the generated deserialization code casts accordingly:
+     * <pre>new FooConverter().fromPlutusData((ConstrPlutusData) data.get(i))</pre>
+     *
+     * However, some shared types use a different encoding:
+     * <ul>
+     *   <li>Bytes-wrapper types (e.g., {@code VerificationKeyHash}, {@code ScriptHash}) are encoded
+     *       as raw {@code BytesPlutusData}</li>
+     *   <li>Pair/Tuple types are encoded as {@code ListPlutusData}</li>
+     * </ul>
+     *
+     * When this flag is {@code true}, the generated code passes the raw {@code PlutusData} directly
+     * to the converter without casting to {@code ConstrPlutusData}:
+     * <pre>new FooConverter().fromPlutusData(data.get(i))</pre>
      */
-    private boolean rawPlutusDataConverter;
+    private boolean nonConstrPlutusData;
 
     public boolean isMap() {
         return javaType == JavaType.MAP;
