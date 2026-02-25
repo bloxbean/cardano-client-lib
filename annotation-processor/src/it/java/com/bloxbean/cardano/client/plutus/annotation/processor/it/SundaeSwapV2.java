@@ -11,8 +11,7 @@ import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
  *
  * @see <a href="https://sundaeswap.finance/">SundaeSwap</a>
  */
-// TODO: Disabled until raw Object-typed fields and variable naming collisions are fixed
-// @Blueprint(fileInResources = "blueprint/sundaeswap_aiken_v1_0_26_alpha_075668b.json",
-//            packageName = "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswap")
+@Blueprint(fileInResources = "blueprint/sundaeswap_aiken_v1_0_26_alpha_075668b.json",
+           packageName = "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswap")
 public interface SundaeSwapV2 {
 }

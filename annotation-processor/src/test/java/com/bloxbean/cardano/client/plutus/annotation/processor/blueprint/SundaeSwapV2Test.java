@@ -81,6 +81,9 @@ public class SundaeSwapV2Test {
      *   <li>InlineDatum.data - raw Plutus data in transaction format</li>
      *   <li>RedeemerWrapper.data - wrapped arbitrary redeemer data</li>
      * </ul>
+     *
+     * <p>Note: 3+ item tuples (e.g., Tuple$ByteArray_ByteArray_Int) now generate ListPlutusData
+     * instead of PlutusData, so they are no longer whitelisted here.</p>
      */
     private void verifyNoOpaqueTypes(Compilation compilation) {
         String allGeneratedSources = compilation.generatedFiles().stream()
@@ -99,7 +102,10 @@ public class SundaeSwapV2Test {
                 .filter(line -> line.trim().matches("private\\s+PlutusData\\s+\\w+;"))
                 .collect(Collectors.toList());
 
-        // Filter out legitimate PlutusData fields (extension/data fields per CIP-57 abstract Data type)
+        // Filter out legitimate PlutusData fields:
+        // - extension/extensions: arbitrary extensibility data per protocol design
+        // - data: CIP-57 abstract Data type (InlineDatum.data, RedeemerWrapper.data)
+        // Note: 3+ item tuples now generate ListPlutusData, so they won't match the PlutusData regex
         List<String> illegitimateFields = plutusDataFields.stream()
                 .filter(line -> !line.contains("extensions")
                         && !line.contains("extension")
@@ -115,8 +121,8 @@ public class SundaeSwapV2Test {
         assertThat(illegitimateFields.size())
                 .as("Generated sources should not have untyped PlutusData for containers. " +
                     "Option<T> should be Optional<T>, List<T> should be List<T>. " +
-                    "PlutusData is ONLY allowed for: extension/extensions fields, and 'data' fields " +
-                    "(these reference CIP-57 abstract 'Data' type).\n" +
+                    "PlutusData is ONLY allowed for: extension/extensions fields and 'data' fields " +
+                    "(CIP-57 abstract 'Data' type). 3+ item tuples should be ListPlutusData.\n" +
                     "Found illegitimate fields: " + illegitimateFields)
                 .isZero();
     }

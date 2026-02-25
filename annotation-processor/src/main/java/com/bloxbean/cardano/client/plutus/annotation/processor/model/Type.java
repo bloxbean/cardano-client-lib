@@ -10,7 +10,8 @@ public enum Type {
     CONSTRUCTOR("constructor"),
     PLUTUSDATA("plutusdata"),
     OPTIONAL("optional"),
-    PAIR("pair");
+    PAIR("pair"),
+    TRIPLE("triple");
 
     private String type;
     Type(String type) {

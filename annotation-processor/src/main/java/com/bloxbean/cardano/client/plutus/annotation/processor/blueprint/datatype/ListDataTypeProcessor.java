@@ -23,11 +23,12 @@ public class ListDataTypeProcessor extends AbstractDataTypeProcessor {
 
     @Override
     public List<FieldSpec> process(DataTypeProcessingContext context) {
-        TypeName typeName = typeResolver.resolveListType(context.getNamespace(), context.getSchema());
+        TypeName typeName = typeResolver.resolveType(context.getNamespace(), context.getSchema());
         FieldSpec fieldSpec = FieldSpec.builder(typeName, resolveFieldName(context))
                 .addModifiers(Modifier.PRIVATE)
                 .addJavadoc(context.getJavaDoc())
                 .build();
+
         return List.of(fieldSpec);
     }
 }

@@ -7,6 +7,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.exception.NotSupp
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Triple;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
@@ -238,6 +239,24 @@ public class ClassDefinitionGenerator {
 
         } else if (typeName.equals(ClassName.get(Pair.class))) {
             // Raw Pair type (from shared type lookup — not parameterized)
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType(typeName.toString(), true));
+            fieldType.setNonConstrPlutusData(true);
+        } else if (typeName instanceof ParameterizedTypeName
+                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Triple.class))) {
+            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
+            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
+            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
+            TypeName thirdElementType = parameterizedTypeName.typeArguments.get(2);
+
+            fieldType.setType(Type.TRIPLE);
+            fieldType.setJavaType(JavaType.TRIPLE);
+            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
+            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
+            fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
+
+        } else if (typeName.equals(ClassName.get(Triple.class))) {
+            // Raw Triple type (from shared type lookup — not parameterized)
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType(typeName.toString(), true));
             fieldType.setNonConstrPlutusData(true);

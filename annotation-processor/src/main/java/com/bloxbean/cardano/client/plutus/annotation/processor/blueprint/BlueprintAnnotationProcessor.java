@@ -83,7 +83,6 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 error(typeElement, "Blueprint annotation not found for class %s", typeElement.getSimpleName());
                 return false;
             } else {
-                generatedTypesRegistry.clear();
                 validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup);
                 fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup);
             }
