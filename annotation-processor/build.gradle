@@ -21,6 +21,21 @@ dependencies {
     integrationTestAnnotationProcessor project(':annotation-processor')
 }
 
+// Integration test without shared type registry
+// Verifies blueprint processing works when no BlueprintTypeRegistry is active
+tasks.register('compileIntegrationTestNoRegistryJava', JavaCompile) {
+    source = sourceSets.integrationTest.java
+    classpath = sourceSets.integrationTest.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('classes/java/integrationTestNoRegistry')
+    options.annotationProcessorPath = configurations.integrationTestAnnotationProcessor
+    options.compilerArgs += ['-Acardano.registry.enable=false']
+}
+
+tasks.register('integrationTestNoRegistry') {
+    dependsOn 'compileIntegrationTestNoRegistryJava'
+    group = 'verification'
+    description = 'Compile integration tests with shared type registry disabled'
+}
 
 publishing {
     publications {
