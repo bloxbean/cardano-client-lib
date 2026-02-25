@@ -213,6 +213,12 @@ public class TransactionDocument {
         @JsonProperty("signers")
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         private java.util.List<SignerRef> signers;
+
+        @JsonProperty("deposit_payer")
+        private String depositPayer;
+
+        @JsonProperty("deposit_mode")
+        private String depositMode;
     }
 
     @Data

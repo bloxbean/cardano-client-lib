@@ -224,6 +224,13 @@ public class QuickTxBuilder {
             }
         }
 
+        if (plan.getDepositPayer() != null) {
+            context.depositPayer(plan.getDepositPayer());
+        }
+        if (plan.getDepositMode() != null) {
+            context.depositMode(DepositMode.valueOf(plan.getDepositMode()));
+        }
+
         return context;
     }
 

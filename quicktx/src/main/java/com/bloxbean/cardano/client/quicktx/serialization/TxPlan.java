@@ -35,6 +35,8 @@ public class TxPlan {
     private Long validFromSlot;
     private Long validToSlot;
     private List<TransactionDocument.SignerRef> signerRefs = new ArrayList<>();
+    private String depositPayer;
+    private String depositMode;
 
     public TxPlan() {
     }
@@ -224,6 +226,42 @@ public class TxPlan {
     }
 
     /**
+     * Set the deposit payer address.
+     * @param address the deposit payer address
+     * @return this plan for method chaining
+     */
+    public TxPlan depositPayer(String address) {
+        this.depositPayer = address;
+        return this;
+    }
+
+    /**
+     * Get the deposit payer address.
+     * @return deposit payer address
+     */
+    public String getDepositPayer() {
+        return depositPayer;
+    }
+
+    /**
+     * Set the deposit mode.
+     * @param mode the deposit mode name (AUTO, CHANGE_OUTPUT, ANY_OUTPUT, NEW_UTXO_SELECTION)
+     * @return this plan for method chaining
+     */
+    public TxPlan depositMode(String mode) {
+        this.depositMode = mode;
+        return this;
+    }
+
+    /**
+     * Get the deposit mode.
+     * @return deposit mode name
+     */
+    public String getDepositMode() {
+        return depositMode;
+    }
+
+    /**
      * Set validity window start slot.
      * Naming aligned with QuickTxBuilder.TxContext for consistency.
      * @param slot the start slot
@@ -272,7 +310,8 @@ public class TxPlan {
         // Set context properties if any are specified
         if (feePayer != null || collateralPayer != null || feePayerRef != null || collateralPayerRef != null ||
             !requiredSigners.isEmpty() || (signerRefs != null && !signerRefs.isEmpty()) ||
-            validFromSlot != null || validToSlot != null) {
+            validFromSlot != null || validToSlot != null ||
+            depositPayer != null || depositMode != null) {
             TransactionDocument.TxContext context = new TransactionDocument.TxContext();
             context.setFeePayer(feePayer);
             context.setCollateralPayer(collateralPayer);
@@ -286,6 +325,8 @@ public class TxPlan {
             if (signerRefs != null && !signerRefs.isEmpty()) {
                 context.setSigners(signerRefs);
             }
+            context.setDepositPayer(depositPayer);
+            context.setDepositMode(depositMode);
             doc.setContext(context);
         }
 
@@ -447,6 +488,12 @@ public class TxPlan {
             }
             if (context.getSigners() != null && !context.getSigners().isEmpty()) {
                 plan.signerRefs.addAll(context.getSigners());
+            }
+            if (context.getDepositPayer() != null) {
+                plan.depositPayer(context.getDepositPayer());
+            }
+            if (context.getDepositMode() != null) {
+                plan.depositMode(context.getDepositMode());
             }
         }
 
