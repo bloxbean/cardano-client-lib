@@ -1,7 +1,8 @@
 # ADR 0003: Shared Blueprint Type Registry
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2025-10-02
+- Updated: 2026-02-25
 - Owners: Cardano Client Lib maintainers
 
 ## Context
@@ -30,9 +31,9 @@ Introduce a “Shared Blueprint Type Registry” that sits between schema analys
 
 Core ideas:
 
-- **Schema signatures**: We will describe a schema by a structural signature (datatype, nested fields, `$ref` targets, titles, indices) and normalise it to a stable string key. Equal signatures imply identical structure, regardless of the compiled language that emitted the blueprint.
-- **Registry API**: Define a `BlueprintTypeRegistry` SPI (service-provider interface) that can look up a Java type (`TypeName`) for a given schema signature. The annotation processor consults the registry before generating classes.
-- **Layered sources**: Ship defaults in `plutus-blueprint-std` (or similar) and discover user extensions via `META-INF/services`, processor options, or configuration files. Later sources override earlier ones.
+- **Schema signatures**: We describe a schema by a structural signature (datatype, nested fields, `$ref` targets, titles, indices) and normalise it to a canonical JSON string. Equal signatures imply identical structure, regardless of the compiled language that emitted the blueprint.
+- **Registry API**: Define a `BlueprintTypeRegistry` SPI (service-provider interface) that can look up a `RegisteredType` (a decoupled value object with `packageName` and `simpleName`) for a given schema signature. The annotation processor consults the registry before generating classes.
+- **Layered sources**: Ship defaults in the `plutus-aiken` module and discover user extensions via `META-INF/services` and processor options. Later sources override earlier ones.
 
 With this in place, blueprints reusing standard schemas will lean on shared classes housed in the `plutus` module. Projects can still opt out by disabling the registry or providing their own mapping.
 
@@ -53,30 +54,33 @@ With this in place, blueprints reusing standard schemas will lean on shared clas
 
 ### 1. Schema Signature Builder
 
-- Implement in `plutus` module (shared with loader) so both runtime consumers and the processor can use it.
-- For a `BlueprintSchema`, compute a canonical form that includes:
-  - `dataType`, `title`, `comment` (optional), constructor index.
+- Implemented in `plutus` module (`SchemaSignatureBuilder`) so both runtime consumers and the processor can use it.
+- For a `BlueprintSchema`, computes a canonical form that includes:
+  - `dataType`, `title`, `description`, `comment` (optional), constructor index.
+  - `enum`, length constraints.
   - Normalised references (strip `#/definitions/`, resolve `~1`).
-  - Recursively computed signatures for `fields`, `anyOf`/`allOf`/`oneOf`, `items`, `keys`, `values`, `left/right`.
-  - Deterministic ordering (e.g., by field order) to avoid spurious differences.
-- Serialise to a string or lightweight hash (e.g., SHA-256) that serves as the registry key.
+  - Recursively computed signatures for `fields`, `anyOf`/`allOf`/`oneOf`/`notOf`, `items`, `keys`, `values`, `left/right`.
+  - Deterministic ordering via Jackson `ORDER_MAP_ENTRIES_BY_KEYS` to avoid spurious differences.
+  - Identity tracking for recursive/circular schemas.
+- Serialised to a **canonical JSON string** (not a hash) that serves as the registry key via `SchemaSignature.of(json)`.
 
 ### 2. `BlueprintTypeRegistry` SPI
 
 ```java
 public interface BlueprintTypeRegistry {
-    Optional<TypeName> lookup(SchemaSignature signature, BlueprintSchema schema, LookupContext context);
+    Optional<RegisteredType> lookup(SchemaSignature signature, BlueprintSchema schema, LookupContext context);
 }
 ```
 
-- `LookupContext` will expose namespace, package resolver, annotation options, etc.
-- Provide a base implementation that uses a simple `Map<String, TypeName>` for static registrations.
+- Returns `Optional<RegisteredType>` — a decoupled value object (`packageName` + `simpleName` + `canonicalName()`) rather than JavaPoet-specific `TypeName`. This keeps the SPI independent of code-generation libraries.
+- `LookupContext` exposes `namespace` (e.g., `"types.order"`) and `blueprintName` for contextual decisions.
+- Provide a base implementation that uses a simple `Map<SchemaSignature, RegisteredType>` for static registrations.
 
 ### 3. Default registry module
 
-- Add `plutus-blueprint-std` (package name TBD) with classes representing ledger primitives (`Address`, `Credential`, `VerificationKeyHash`, etc.).
-- Populate an `AikenBlueprintTypeRegistry` mapping canonical signatures for those schemas to the shared classes.
-- Export via `META-INF/services/com.bloxbean.cardano.client.plutus.blueprint.registry.BlueprintTypeRegistry` so the processor discovers it automatically.
+- Implemented in the `plutus-aiken` module with shared classes in package `com.bloxbean.cardano.client.plutus.aiken.blueprint.std`.
+- `AikenBlueprintTypeRegistry` maps canonical signatures for ledger-primitive schemas to the shared classes.
+- Exported via `META-INF/services/com.bloxbean.cardano.client.plutus.blueprint.registry.BlueprintTypeRegistry` so the processor discovers it automatically.
 
 ### 4. Processor integration
 
@@ -88,20 +92,34 @@ public interface BlueprintTypeRegistry {
 
 ### 5. Consumer extensibility
 
-- Provide two integration points:
-  1. **Service loader**: Users add their own implementation to `META-INF/services/...BlueprintTypeRegistry` on the annotation processor classpath.
-  2. **Processor option**: Support an annotation-processing option (e.g., `-Acardano.registry=config.json`) that lists bespoke mappings; the processor loads and registers them at build time.
-- Document how to disable defaults (e.g., `-Acardano.registry.disableDefaults=true`) for teams that want full control.
+- Provide three integration points:
+  1. **Service loader**: Users add their own `BlueprintTypeRegistry` implementation to `META-INF/services/...BlueprintTypeRegistry` on the annotation processor classpath.
+  2. **Runtime registration**: `BlueprintTypeRegistryExtensions.registerByTitle(title, packageName, simpleName)` allows programmatic registration. Title-based lookups are consulted **before** signature-based lookups in `ServiceLoaderSharedTypeLookup`, using a thread-safe `ConcurrentHashMap`.
+  3. **Processor option to disable**: `-Acardano.registry.enable=false` disables the registry entirely (returns a no-op lookup that always yields empty). The default is `true` (enabled).
+- **Deferred**: The `-Acardano.registry=config.json` option for file-based bespoke mappings is not yet implemented; runtime registration via `BlueprintTypeRegistryExtensions` covers the same use case for now.
 
-## Default Registrations (Seed List)
+## Default Registrations (Actual)
 
-Start with schemas that recur in current blueprints and align with the Aiken stdlib but are also general Cardano ledger concepts:
+The `AikenBlueprintTypeRegistry` ships 11 registrations, grouped by `SharedTypeKind`:
 
-- `Address`, `Credential`, `Referenced Credential`, `VerificationKeyHash`, `ScriptHash`.
-- `TransactionInput`, `Value`, `PolicyId`, `AssetName`, `StakeCredential`.
-- Generic `ByteArray`, `Int`, `String`, `Pair`, `java.util.Optional<T>`, `List<ByteArray>` (already represented but we can point them to existing core classes where sensible).
+### Constructor-based types (`SharedTypeKind.CONSTRUCTOR`)
+- `Address` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Address`
+- `Credential` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Credential`
+- `ReferencedCredential` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.ReferencedCredential`
 
-We will harvest canonical schemas from the Aiken stdlib repository and CIP-57 examples, compute their signatures once, and ship them with the registry.
+### Bytes-wrapper types (`SharedTypeKind.BYTES`)
+- `VerificationKey` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.VerificationKey`
+- `Script` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Script`
+- `Signature` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Signature`
+- `VerificationKeyHash` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.VerificationKeyHash`
+- `ScriptHash` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.ScriptHash`
+- `DataHash` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.DataHash`
+- `Hash` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Hash`
+
+### Pair type (`SharedTypeKind.PAIR`)
+- `Pair` (two-ByteArray tuple) → `com.bloxbean.cardano.client.plutus.blueprint.type.Pair`
+
+These were harvested from canonical schemas in the Aiken standard library and CIP-57 examples. Additional types (e.g., `TransactionInput`, `Value`) may be added in future releases as demand arises.
 
 ## Alternatives Considered
 
@@ -123,7 +141,7 @@ Neutral/Negative:
 
 ## Implementation Notes
 
-- Signature collisions: detect and warn when two different schemas hash to the same signature string (extremely unlikely with canonical string keys, but worth guarding).
+- Signature collisions: since signatures are full canonical JSON strings (not hashes), collisions are structurally impossible — identical signatures mean identical schemas.
 - Diagnostics: surface `Messager` warnings when a registry mapping is applied (debug mode) or when a registry rejects a schema that looks similar (future enhancement).
 - Testing:
   - Unit tests for signature builder covering primitives, lists, variants, referencing, tuples.
@@ -142,6 +160,7 @@ Neutral/Negative:
 
 ## Open Questions
 
-- How to version shared classes to avoid breaking consumers when schemas evolve? (Proposal: semantic version the registry module and maintain backward-compatible constructors.)
-- Should the registry operate at the validator namespace level (so different contracts can map the same schema to different classes)? Initial plan is global; reevaluate if conflicts appear.
-- Runtime exposure of the registry SPI is deferred; the initial implementation remains compile-time only to keep scope tight.
+- **Resolved**: How to version shared classes to avoid breaking consumers when schemas evolve? → Shared classes are versioned with the `plutus-aiken` module. Backward-compatible constructors are maintained.
+- **Resolved**: Should the registry operate at the validator namespace level? → Global registry with `LookupContext` providing namespace hints. No conflicts observed so far.
+- **Resolved**: Runtime exposure of the registry SPI? → Deferred; the implementation remains compile-time only. `BlueprintTypeRegistryExtensions.registerByTitle()` provides a runtime registration mechanism for test and advanced use cases.
+- **Deferred**: File-based configuration (`-Acardano.registry=config.json`) is not implemented. Runtime registration via `BlueprintTypeRegistryExtensions` covers the same use case with less ceremony.
