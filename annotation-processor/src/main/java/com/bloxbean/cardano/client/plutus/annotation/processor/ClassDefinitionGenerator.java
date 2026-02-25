@@ -240,12 +240,12 @@ public class ClassDefinitionGenerator {
             // Raw Pair type (from shared type lookup — not parameterized)
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setRawPlutusDataConverter(true);
+            fieldType.setNonConstrPlutusData(true);
         } else {
             if (isSupportedType(typeName, typeMirror)) {
                 fieldType.setType(Type.CONSTRUCTOR);
                 fieldType.setJavaType(new JavaType(typeName.toString(), true));
-                fieldType.setRawPlutusDataConverter(isBytesWrapperType(typeMirror));
+                fieldType.setNonConstrPlutusData(isBytesWrapperType(typeMirror));
             } else {
                 throw new NotSupportedException("Type not supported: " + typeName);
             }

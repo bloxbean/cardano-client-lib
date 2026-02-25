@@ -804,7 +804,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
             case CONSTRUCTOR:
                 TypeName fieldTypeName = bestGuess(field.getFieldType().getJavaType().getName());
                 ClassName converterClazz = getConverterClassFromField(field.getFieldType());
-                if (field.getFieldType().isRawPlutusDataConverter()) {
+                if (field.getFieldType().isNonConstrPlutusData()) {
                     // Bytes-wrapper shared types (e.g., VerificationKeyHash) — pass PlutusData directly, no cast
                     codeBlock = CodeBlock.builder()
                             .add("//Field $L\n", field.getName())
@@ -1112,7 +1112,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
             default:
                 ClassName converterClassName = getConverterClassFromField(itemType);
                 String converterClazz = converterClassName.packageName() + "." + converterClassName.simpleName();
-                if (itemType.isRawPlutusDataConverter()) {
+                if (itemType.isNonConstrPlutusData()) {
                     return String.format("new %s().fromPlutusData(%s)", converterClazz, fieldName);
                 }
                 return String.format("new %s().fromPlutusData((ConstrPlutusData)%s)", converterClazz, fieldName);
