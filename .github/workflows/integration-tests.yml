@@ -1,0 +1,43 @@
+name: Integration Tests
+
+# Runs integration tests for modules that are self-contained (no external services required).
+# We will add more modules here as they become eligible (e.g. when Yaci DevKit or other
+# services can be spun up as GitHub Actions services).
+#
+# Modules currently EXCLUDED and why:
+#
+#   hd-wallet                - requires Yaci DevKit (local Cardano devnet, localhost:8080)
+#   quicktx                  - requires Yaci DevKit (localhost:8080)
+#   txflow                   - requires Yaci DevKit (localhost:8080 + admin API localhost:10000)
+#   backend-modules/ogmios   - requires Ogmios (localhost:1337) and Kupo (localhost:1442)
+#   supplier/ogmios-supplier - requires Ogmios (localhost:1337)
+#   integration-test         - requires Blockfrost API key (BF_PROJECT_ID)
+#   backend-modules/koios    - hits live Koios preprod network (public API, no auth, but flaky in CI)
+#   backend-modules/cardano-graphql - requires a running CardanoGraphQL server
+
+on:
+  push:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: 'true'
+      - name: Set up JDK 17
+        uses: actions/setup-java@v2
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # annotation-processor: self-contained — runs the annotation processor on blueprint POJOs
+      # during compilation and verifies the generated converter classes. No network calls.
+      - name: Run annotation-processor integration tests
+        run: ./gradlew :annotation-processor:integrationTest -PskipSigning=true --stacktrace
