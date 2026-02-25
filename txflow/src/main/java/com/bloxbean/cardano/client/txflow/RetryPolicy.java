@@ -16,7 +16,7 @@ import java.time.Duration;
  *     <li>Which error types are retryable</li>
  * </ul>
  *
- * <h3>Example Usage:</h3>
+ * <h2>Example Usage:</h2>
  * <pre>{@code
  * // Default policy: 3 attempts with exponential backoff
  * RetryPolicy policy = RetryPolicy.defaults();

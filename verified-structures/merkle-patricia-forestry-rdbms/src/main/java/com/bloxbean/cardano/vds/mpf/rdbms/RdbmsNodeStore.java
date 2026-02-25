@@ -247,6 +247,106 @@ public class RdbmsNodeStore implements NodeStore, AutoCloseable {
         T execute() throws Exception;
     }
 
+    /**
+     * Inserts multiple nodes in a single JDBC batch operation.
+     *
+     * <p>Uses JDBC batch API for efficient bulk insertion. If called within
+     * a {@link #withTransaction(TransactionCallback)}, uses the existing connection.
+     * Otherwise, creates its own connection with auto-commit disabled.</p>
+     *
+     * @param nodes a map of node hash → node data to insert
+     */
+    public void putBatch(Map<byte[], byte[]> nodes) {
+        if (nodes == null || nodes.isEmpty()) return;
+
+        Connection conn = TL_CONNECTION.get();
+        boolean ownConnection = (conn == null);
+        try {
+            if (ownConnection) {
+                conn = dataSource.getConnection();
+                conn.setAutoCommit(false);
+            }
+            String sql = dialect.insertOrIgnoreSql(
+                schema.nodesTable(),
+                "namespace, node_hash, node_data",
+                "?, ?, ?"
+            );
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                for (Map.Entry<byte[], byte[]> e : nodes.entrySet()) {
+                    stmt.setInt(1, keyPrefix & 0xFF);
+                    keyCodec.setKey(stmt, 2, e.getKey());
+                    keyCodec.setKey(stmt, 3, e.getValue());
+                    stmt.addBatch();
+                }
+                stmt.executeBatch();
+            }
+            if (ownConnection) conn.commit();
+        } catch (SQLException e) {
+            if (ownConnection && conn != null) {
+                try { conn.rollback(); } catch (SQLException ignored) {}
+            }
+            throw new RuntimeException("Batch put failed", e);
+        } finally {
+            if (ownConnection && conn != null) {
+                try { conn.close(); } catch (SQLException ignored) {}
+            }
+        }
+    }
+
+    /**
+     * Returns the DataSource used by this store.
+     *
+     * @return the data source
+     */
+    DataSource dataSource() {
+        return dataSource;
+    }
+
+    /**
+     * Returns the namespace key prefix.
+     *
+     * @return the key prefix byte
+     */
+    byte keyPrefix() {
+        return keyPrefix;
+    }
+
+    /**
+     * Returns the schema used by this store.
+     *
+     * @return the schema
+     */
+    RdbmsMptSchema schema() {
+        return schema;
+    }
+
+    /**
+     * Returns the SQL dialect used by this store.
+     *
+     * @return the dialect
+     */
+    SqlDialect dialect() {
+        return dialect;
+    }
+
+    /**
+     * Returns the key codec used by this store.
+     *
+     * @return the key codec
+     */
+    KeyCodec keyCodec() {
+        return keyCodec;
+    }
+
+    /**
+     * Returns the ThreadLocal connection if within a transaction, null otherwise.
+     *
+     * @return the current thread-local connection or null
+     */
+    static Connection currentConnection() {
+        return TL_CONNECTION.get();
+    }
+
     @Override
     public void close() {
         // DataSource managed externally

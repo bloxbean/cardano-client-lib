@@ -57,7 +57,7 @@ import java.util.function.Consumer;
  *     <li>Notifying listeners of progress</li>
  * </ul>
  *
- * <h3>Example Usage:</h3>
+ * <h2>Example Usage:</h2>
  * <pre>{@code
  * FlowExecutor executor = FlowExecutor.create(backendService)
  *     .withSignerRegistry(signerRegistry)

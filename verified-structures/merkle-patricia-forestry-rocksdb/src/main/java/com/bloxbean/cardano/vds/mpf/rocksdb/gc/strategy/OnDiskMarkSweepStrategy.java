@@ -6,7 +6,7 @@ import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcOptions;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcReport;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.GcStrategy;
 import com.bloxbean.cardano.vds.mpf.rocksdb.gc.RetentionPolicy;
-import com.bloxbean.cardano.vds.mpf.rocksdb.gc.internal.NodeRefParser;
+import com.bloxbean.cardano.vds.mpf.internal.NodeRefParser;
 import com.bloxbean.cardano.vds.rocksdb.namespace.KeyPrefixer;
 import org.rocksdb.*;
 

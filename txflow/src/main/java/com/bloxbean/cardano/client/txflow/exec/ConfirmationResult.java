@@ -9,7 +9,7 @@ import lombok.Getter;
  * Contains the current confirmation status along with additional metadata
  * about the transaction's position in the chain.
  *
- * <h3>Usage</h3>
+ * <h2>Usage</h2>
  * <pre>{@code
  * ConfirmationResult result = tracker.checkStatus(txHash);
  * if (result.getStatus() == ConfirmationStatus.CONFIRMED) {

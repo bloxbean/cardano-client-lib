@@ -14,7 +14,7 @@ import lombok.Getter;
  * restarting the entire flow (for REBUILD_ENTIRE_FLOW strategy) or just rebuilding
  * the affected step (for REBUILD_FROM_FAILED strategy).
  *
- * <h3>Usage</h3>
+ * <h2>Usage</h2>
  * <pre>{@code
  * // Thrown internally when rollback is detected
  * throw new RollbackException(

@@ -18,8 +18,8 @@ dependencies {
 }
 
 compileJava {
-    sourceCompatibility = '11'
-    targetCompatibility = '11'
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 
     options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
 }
@@ -135,8 +135,8 @@ subprojects {
     }
 
     compileJava {
-        sourceCompatibility = '11'
-        targetCompatibility = '11'
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
 
         options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
     }

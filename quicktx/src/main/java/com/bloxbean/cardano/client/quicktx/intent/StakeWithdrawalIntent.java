@@ -93,8 +93,8 @@ public class StakeWithdrawalIntent implements TxIntent {
             throw new TxBuildException("Invalid address type. Only reward address can be used for withdrawal");
         }
 
-        if (amount == null || amount.compareTo(BigInteger.ZERO) <= 0) {
-            throw new IllegalStateException("Withdrawal amount must be positive");
+        if (amount == null || amount.compareTo(BigInteger.ZERO) < 0) {
+            throw new IllegalStateException("Withdrawal amount must be non-negative");
         }
 
         if (redeemerHex != null && !redeemerHex.isEmpty()) {
