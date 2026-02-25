@@ -274,6 +274,10 @@ public class QuickTxBuilder {
         private boolean removeDuplicateScriptWitnesses = false;
         private boolean searchUtxoByAddressVkh = false;
 
+        // Deposit resolution configuration
+        private String depositPayer;
+        private DepositMode depositMode;
+
         // Optional per-context override for registry
         private SignerRegistry contextSignerRegistry;
 
@@ -323,6 +327,30 @@ public class QuickTxBuilder {
             // TODO feePayer is not used in this scenarios, but it must be set to avoid breaking other things.
             this.feePayer = this.feePayerWallet.getBaseAddress(0).getAddress();
 
+            return this;
+        }
+
+        /**
+         * Set an explicit deposit payer address. When not set, deposits are paid by the
+         * transaction's from() address (or feePayer as fallback).
+         *
+         * @param address deposit payer address
+         * @return TxContext
+         */
+        public TxContext depositPayer(String address) {
+            this.depositPayer = address;
+            return this;
+        }
+
+        /**
+         * Set the deposit resolution mode. Controls how Phase 4 finds funds to cover
+         * protocol deposits. Default is {@link DepositMode#AUTO}.
+         *
+         * @param mode the deposit mode
+         * @return TxContext
+         */
+        public TxContext depositMode(DepositMode mode) {
+            this.depositMode = mode;
             return this;
         }
 
@@ -584,6 +612,14 @@ public class QuickTxBuilder {
                         tx.setDefaultFrom(feePayerWallet);
                     else
                         tx.setDefaultFrom(feePayer);
+                }
+
+                // Propagate deposit resolution configuration
+                if (depositPayer != null) {
+                    tx.setDepositPayer(depositPayer);
+                }
+                if (depositMode != null) {
+                    tx.setDepositMode(depositMode);
                 }
 
                 txBuilder = txBuilder.andThen(tx.complete());

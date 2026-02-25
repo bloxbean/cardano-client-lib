@@ -13,9 +13,6 @@ import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
 import com.bloxbean.cardano.client.plutus.spec.RedeemerTag;
 import com.bloxbean.cardano.client.quicktx.intent.*;
-import java.util.Objects;
-import java.util.Optional;
-
 import com.bloxbean.cardano.client.spec.Script;
 import com.bloxbean.cardano.client.transaction.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
@@ -26,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -43,6 +42,18 @@ public abstract class AbstractTx<T> {
     protected Function<UtxoSupplier, List<Utxo>> lazyUtxoResolver;
 
     protected List<TxIntent> intentions;
+
+    // Deposit resolution configuration (set via QuickTxBuilder.TxContext)
+    protected String depositPayerAddress;
+    protected DepositMode depositMode = DepositMode.AUTO;
+
+    void setDepositPayer(String address) {
+        this.depositPayerAddress = address;
+    }
+
+    void setDepositMode(DepositMode mode) {
+        this.depositMode = mode != null ? mode : DepositMode.AUTO;
+    }
 
     /**
      * Add an output to the transaction. This method can be called multiple times to add multiple outputs.
@@ -298,7 +309,7 @@ public abstract class AbstractTx<T> {
             .fromAddress(getFromAddress())
             .changeAddress(getChangeAddress())
             .build();
-        
+
         // This ensures all intents are valid before any transaction building begins
         List<TxIntent> allIntentions = getIntentions();
         for (TxIntent intention : allIntentions) {
@@ -420,6 +431,11 @@ public abstract class AbstractTx<T> {
 
         // Phase 3: Apply intention transformations
         txBuilder = txBuilder.andThen(applyIntentions());
+
+        // Phase 4: Resolve deposits — runs for ALL Txs with deposit intents
+        txBuilder = txBuilder.andThen(
+                DepositResolvers.resolveDeposits(intentions, depositPayerAddress, getFromAddress(), depositMode)
+        );
 
         return txBuilder;
     }
