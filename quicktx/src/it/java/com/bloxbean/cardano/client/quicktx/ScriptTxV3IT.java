@@ -697,7 +697,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
         var filterSpec = Spec.of(filter).limitAll().build();
 
-        ScriptTx scriptTx = new ScriptTx()
+        Tx scriptTx = new Tx()
                 .collectFrom(
                         scriptAddress,
                         filterSpec,

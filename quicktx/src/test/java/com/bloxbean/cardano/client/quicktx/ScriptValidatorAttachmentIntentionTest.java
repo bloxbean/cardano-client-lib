@@ -15,10 +15,10 @@ class ScriptValidatorAttachmentIntentionTest {
                 .cborHex("49480100002221200101")
                 .build();
 
-        ScriptTx scriptTx = new ScriptTx()
+        Tx tx = new Tx()
                 .attachSpendingValidator(script);
 
-        String yaml = TxPlan.from(scriptTx).toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("scripts:");
         assertThat(yaml).contains("type: validator");
         assertThat(yaml).contains("version: v2");

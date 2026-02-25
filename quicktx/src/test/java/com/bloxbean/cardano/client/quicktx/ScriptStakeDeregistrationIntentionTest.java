@@ -14,7 +14,7 @@ class ScriptStakeDeregistrationIntentionTest {
         String stakeAddr = "stake_test1qxyzabc"; // simple placeholder
         PlutusData redeemer = BigIntPlutusData.of(5);
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .deregisterStakeAddress(stakeAddr, redeemer);
 
         String yaml = TxPlan.from(tx).toYaml();
@@ -22,7 +22,7 @@ class ScriptStakeDeregistrationIntentionTest {
         assertThat(yaml).contains("stake_address: " + stakeAddr);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_deregistration".equals(i.getType()))).isTrue();
     }
