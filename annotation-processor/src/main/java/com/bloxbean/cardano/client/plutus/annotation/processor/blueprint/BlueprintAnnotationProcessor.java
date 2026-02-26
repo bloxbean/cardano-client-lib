@@ -106,6 +106,14 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions() != null? plutusContractBlueprint.getDefinitions()
                     : EMPTY_MAP;
 
+            // Detect and resolve type aliases (e.g., PaymentCredential → Credential)
+            // before generating classes, so alias definitions are removed and all
+            // $ref pointers redirect to the canonical type.
+            Map<String, String> typeAliases = detectTypeAliases(definitions);
+            if (!typeAliases.isEmpty()) {
+                resolveTypeAliases(definitions, plutusContractBlueprint.getValidators(), typeAliases);
+            }
+
             //Create Data classes
             for (Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();
@@ -132,6 +140,156 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         }
 
         return true;
+    }
+
+    /**
+     * Detects type aliases among blueprint definitions.
+     *
+     * <p>Two definitions are considered aliases when they share the same namespace and have
+     * structurally identical {@code anyOf} variants (same titles, constructor indices, and
+     * field {@code $ref} values). For example, in SundaeSwap V3, {@code PaymentCredential}
+     * is an alias for {@code Credential} — both have identical VerificationKey/Script variants.</p>
+     *
+     * @param definitions the blueprint definitions map
+     * @return a map from alias definition key to canonical definition key
+     */
+    Map<String, String> detectTypeAliases(Map<String, BlueprintSchema> definitions) {
+        Map<String, String> aliases = new LinkedHashMap<>();
+        // signature → first (canonical) definition key
+        Map<String, String> signatureToCanonical = new LinkedHashMap<>();
+
+        for (String key : new TreeSet<>(definitions.keySet())) {
+            BlueprintSchema schema = definitions.get(key);
+            if (schema.getAnyOf() == null || schema.getAnyOf().size() <= 1) {
+                continue;
+            }
+
+            String ns = getNamespaceFromReferenceKey(key);
+            String signature = computeAnyOfSignature(ns, schema.getAnyOf());
+
+            String existing = signatureToCanonical.get(signature);
+            if (existing != null) {
+                aliases.put(key, existing);
+                log.debug("Type alias detected: {} -> {}", key, existing);
+            } else {
+                signatureToCanonical.put(signature, key);
+            }
+        }
+        return aliases;
+    }
+
+    /**
+     * Computes a structural signature for a list of anyOf variants, used to detect
+     * type aliases. The signature includes namespace, variant titles, constructor
+     * indices, and field $ref values.
+     */
+    private String computeAnyOfSignature(String namespace, List<BlueprintSchema> anyOf) {
+        List<String> variantSignatures = new ArrayList<>();
+        for (BlueprintSchema variant : anyOf) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(variant.getTitle() != null ? variant.getTitle() : "");
+            sb.append("@").append(variant.getIndex());
+            if (variant.getFields() != null) {
+                for (BlueprintSchema field : variant.getFields()) {
+                    sb.append(":").append(field.getRef() != null ? field.getRef() : "");
+                }
+            }
+            variantSignatures.add(sb.toString());
+        }
+        Collections.sort(variantSignatures);
+
+        return namespace + "|" + String.join(",", variantSignatures);
+    }
+
+    /**
+     * Resolves type aliases by removing alias definitions and rewriting all {@code $ref}
+     * pointers that reference aliases to point to the canonical definitions instead.
+     *
+     * @param definitions the mutable definitions map
+     * @param validators  the list of validators whose schemas also need rewriting
+     * @param aliases     map from alias definition key to canonical definition key
+     */
+    void resolveTypeAliases(Map<String, BlueprintSchema> definitions,
+                            List<Validator> validators,
+                            Map<String, String> aliases) {
+        // Build $ref rewrite map: "#/definitions/cardano~1address~1PaymentCredential" → "#/definitions/cardano~1address~1Credential"
+        Map<String, String> refRewrites = new HashMap<>();
+        for (Map.Entry<String, String> entry : aliases.entrySet()) {
+            String aliasRef = "#/definitions/" + entry.getKey().replace("/", "~1");
+            String canonicalRef = "#/definitions/" + entry.getValue().replace("/", "~1");
+            refRewrites.put(aliasRef, canonicalRef);
+        }
+
+        // Remove alias definitions
+        for (String aliasKey : aliases.keySet()) {
+            definitions.remove(aliasKey);
+        }
+
+        // Rewrite $ref in all remaining definitions
+        for (BlueprintSchema schema : definitions.values()) {
+            rewriteRefs(schema, refRewrites);
+        }
+
+        // Rewrite $ref in all validator schemas (datum, redeemer, parameters)
+        if (validators != null) {
+            for (Validator validator : validators) {
+                if (validator.getDatum() != null && validator.getDatum().getSchema() != null) {
+                    rewriteRefs(validator.getDatum().getSchema(), refRewrites);
+                }
+                if (validator.getRedeemer() != null && validator.getRedeemer().getSchema() != null) {
+                    rewriteRefs(validator.getRedeemer().getSchema(), refRewrites);
+                }
+                if (validator.getParameters() != null) {
+                    for (BlueprintDatum param : validator.getParameters()) {
+                        if (param.getSchema() != null) {
+                            rewriteRefs(param.getSchema(), refRewrites);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Recursively rewrites {@code $ref} strings in a schema tree. Uses an identity set
+     * to handle object-graph cycles created by {@link BlueprintSchema#copyFrom} sharing
+     * sub-schema objects between definitions.
+     */
+    private void rewriteRefs(BlueprintSchema schema, Map<String, String> refRewrites) {
+        rewriteRefs(schema, refRewrites, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    private void rewriteRefs(BlueprintSchema schema, Map<String, String> refRewrites,
+                              Set<BlueprintSchema> visited) {
+        if (schema == null || !visited.add(schema)) return;
+
+        // Rewrite this schema's $ref if it matches an alias
+        if (schema.getRef() != null && refRewrites.containsKey(schema.getRef())) {
+            schema.setRef(refRewrites.get(schema.getRef()));
+        }
+
+        // Recurse into composite schema properties
+        rewriteRefsList(schema.getAnyOf(), refRewrites, visited);
+        rewriteRefsList(schema.getOneOf(), refRewrites, visited);
+        rewriteRefsList(schema.getAllOf(), refRewrites, visited);
+        rewriteRefsList(schema.getNotOf(), refRewrites, visited);
+        rewriteRefsList(schema.getFields(), refRewrites, visited);
+        rewriteRefsList(schema.getItems(), refRewrites, visited);
+
+        rewriteRefs(schema.getKeys(), refRewrites, visited);
+        rewriteRefs(schema.getValues(), refRewrites, visited);
+        rewriteRefs(schema.getLeft(), refRewrites, visited);
+        rewriteRefs(schema.getRight(), refRewrites, visited);
+    }
+
+    private void rewriteRefsList(List<BlueprintSchema> schemas,
+                                 Map<String, String> refRewrites,
+                                 Set<BlueprintSchema> visited) {
+        if (schemas == null) return;
+
+        for (BlueprintSchema s : schemas) {
+            rewriteRefs(s, refRewrites, visited);
+        }
     }
 
     /**
