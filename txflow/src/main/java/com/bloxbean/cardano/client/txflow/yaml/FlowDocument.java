@@ -476,7 +476,10 @@ public class FlowDocument {
         if (stepContent.getTx() != null) {
             entries.add(new TransactionDocument.TxEntry(stepContent.getTx()));
         } else if (stepContent.getScriptTx() != null) {
-            entries.add(new TransactionDocument.TxEntry(stepContent.getScriptTx()));
+            throw new UnsupportedOperationException(
+                "scriptTx YAML format is not supported. Use tx format instead — " +
+                "all script operations are now available in the unified Tx."
+            );
         }
         doc.setTransaction(entries);
 

@@ -19,12 +19,12 @@ class GovIntentionsInScriptTxTest {
         Anchor anchor = new Anchor("https://example.org", null);
         PlutusData redeemer = BigIntPlutusData.of(1);
 
-        ScriptTx tx = new ScriptTx().registerDRep(cred, anchor, redeemer);
+        Tx tx = new Tx().registerDRep(cred, anchor, redeemer);
         String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: drep_registration");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "drep_registration".equals(i.getType()))).isTrue();
     }
 
@@ -33,12 +33,12 @@ class GovIntentionsInScriptTxTest {
         Credential cred = Credential.fromKey(new byte[]{9,9,9});
         PlutusData redeemer = BigIntPlutusData.of(2);
 
-        ScriptTx tx = new ScriptTx().unRegisterDRep(cred, "addr_test1refund", null, redeemer);
+        Tx tx = new Tx().unRegisterDRep(cred, "addr_test1refund", null, redeemer);
         String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: drep_deregistration");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "drep_deregistration".equals(i.getType()))).isTrue();
     }
 
@@ -46,11 +46,11 @@ class GovIntentionsInScriptTxTest {
     void governance_proposal_with_redeemer_serializes_and_round_trips() {
         GovAction action = new NoConfidence();
         PlutusData redeemer = BigIntPlutusData.of(3);
-        ScriptTx tx = new ScriptTx().createProposal(action, "stake_test1return", null, redeemer);
+        Tx tx = new Tx().createProposal(action, "stake_test1return", null, redeemer);
         String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: governance_proposal");
         assertThat(yaml).contains("redeemer_hex:");
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions().stream().anyMatch(i -> "governance_proposal".equals(i.getType()))).isTrue();
     }
 

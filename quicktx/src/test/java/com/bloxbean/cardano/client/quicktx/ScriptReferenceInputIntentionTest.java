@@ -19,7 +19,7 @@ class ScriptReferenceInputIntentionTest {
                 .outputIndex(3)
                 .build();
 
-        ScriptTx scriptTx = new ScriptTx()
+        Tx scriptTx = new Tx()
                 .readFrom(refUtxo);
 
         String yaml = TxPlan.from(scriptTx).toYaml();
@@ -30,18 +30,18 @@ class ScriptReferenceInputIntentionTest {
         Yaml parser = new Yaml();
         Map<String, Object> doc = parser.load(yaml);
         List<Map<String, Object>> txs = (List<Map<String, Object>>) doc.get("transaction");
-        Map<String, Object> content = (Map<String, Object>) txs.get(0).get("scriptTx");
+        Map<String, Object> content = (Map<String, Object>) txs.get(0).get("tx");
         List<Map<String, Object>> intentions = (List<Map<String, Object>>) content.get("inputs");
         assertThat(intentions.stream().anyMatch(i -> "reference_input".equals(i.get("type")))).isTrue();
     }
 
     @Test
     void reference_inputs_round_trip_restores_intention() {
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .readFrom("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", 4);
 
         String yaml = TxPlan.from(original).toYaml();
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
 
         assertThat(restored).isNotNull();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "reference_input".equals(i.getType()))).isTrue();

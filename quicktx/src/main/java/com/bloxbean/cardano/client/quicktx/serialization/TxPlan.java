@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.quicktx.serialization;
 
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.AbstractTx;
-import com.bloxbean.cardano.client.quicktx.ScriptTx;
 import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.intent.TxInputIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
@@ -18,7 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Plan for handling multiple Txs/ScriptTxs in a single YAML document.
+ * Plan for handling multiple Txs in a single YAML document.
  * This is the main entry point for all YAML serialization/deserialization operations.
  */
 public class TxPlan {
@@ -64,7 +63,7 @@ public class TxPlan {
 
     /**
      * Add a transaction to the plan.
-     * @param transaction the transaction to add (Tx or ScriptTx)
+     * @param transaction the transaction to add
      * @return this plan for method chaining
      */
     public TxPlan addTransaction(AbstractTx<?> transaction) {
@@ -377,7 +376,11 @@ public class TxPlan {
                 content.setFrom(regularTx.getSender());
                 if (regularTx.getFromRef() != null && !regularTx.getFromRef().isEmpty())
                     content.setFromRef(regularTx.getFromRef());
-                content.setChangeAddress(regularTx.getPublicChangeAddress());
+                try {
+                    content.setChangeAddress(regularTx.getPublicChangeAddress());
+                } catch (Exception e) {
+                    // No change address set — valid for script-only Tx
+                }
 
                 // Set change datum attributes if present
                 try {
@@ -393,53 +396,12 @@ public class TxPlan {
 
                 entries.add(new TransactionDocument.TxEntry(content));
 
-            } else if (tx instanceof ScriptTx) {
-                // Legacy ScriptTx — serialize as ScriptTxContent
-                TransactionDocument.ScriptTxContent content = new TransactionDocument.ScriptTxContent();
-
-                // Separate input intentions from regular intentions
-                List<TxInputIntent> inputIntentions = new ArrayList<>();
-                List<TxIntent> regularIntentions = new ArrayList<>();
-                List<TxScriptAttachmentIntent> scriptIntentions = new ArrayList<>();
-
-                if (tx.getIntentions() != null) {
-                    for (TxIntent intention : tx.getIntentions()) {
-                        if (intention instanceof TxInputIntent) {
-                            inputIntentions.add((TxInputIntent) intention);
-                        } else if (intention instanceof TxScriptAttachmentIntent) {
-                            scriptIntentions.add((TxScriptAttachmentIntent) intention);
-                        } else {
-                            regularIntentions.add(intention);
-                        }
-                    }
-                }
-
-                // Set inputs and intentions separately
-                if (!inputIntentions.isEmpty()) {
-                    content.setInputs(inputIntentions);
-                }
-                if (!regularIntentions.isEmpty()) {
-                    content.setIntents(regularIntentions);
-                }
-                if (!scriptIntentions.isEmpty()) {
-                    content.setScripts(scriptIntentions);
-                }
-
-                content.setChangeAddress(tx.getPublicChangeAddress());
-
-                // Set change datum attributes if present
-                try {
-                    String changeDatumHex = tx.getChangeDatumHex();
-                    if (changeDatumHex != null && !changeDatumHex.isEmpty())
-                        content.setChangeDatum(changeDatumHex);
-                } catch (Exception e) {
-                    // ignore serialization error for datum
-                }
-                String changeDatumHash = tx.getChangeDatumHash();
-                if (changeDatumHash != null && !changeDatumHash.isEmpty())
-                    content.setChangeDatumHash(changeDatumHash);
-
-                entries.add(new TransactionDocument.TxEntry(content));
+            } else {
+                throw new UnsupportedOperationException(
+                    "Only Tx is supported for YAML serialization. " +
+                    "ScriptTx is deprecated — all script operations (collectFrom, mintAsset, attachValidator, etc.) " +
+                    "are now available on Tx."
+                );
             }
         }
 
@@ -587,62 +549,10 @@ public class TxPlan {
                 transactions.add(tx);
 
             } else if (entry.isScriptTx()) {
-                // Create ScriptTx from ScriptTxContent (no variable resolution, no legacy processing)
-                ScriptTx scriptTx = new ScriptTx();
-                TransactionDocument.ScriptTxContent content = entry.getScriptTx();
-
-                // Apply change address and optional change datum/datum hash (with variable resolution)
-                if (content.getChangeAddress() != null) {
-                    String changeAddr = VariableResolver.resolve(content.getChangeAddress(), vars);
-                    if (content.getChangeDatum() != null && !content.getChangeDatum().isEmpty()) {
-                        String resolvedDatumHex = VariableResolver.resolve(content.getChangeDatum(), vars);
-                        try {
-                            var pd = PlutusData.deserialize(HexUtil.decodeHexString(resolvedDatumHex));
-                            scriptTx.withChangeAddress(changeAddr, pd);
-                        } catch (Exception e) {
-                            throw new RuntimeException("Failed to deserialize change_datum", e);
-                        }
-                    } else if (content.getChangeDatumHash() != null && !content.getChangeDatumHash().isEmpty()) {
-                        String resolvedHash = VariableResolver.resolve(content.getChangeDatumHash(), vars);
-                        scriptTx.withChangeAddress(changeAddr, resolvedHash);
-                    } else {
-                        scriptTx.withChangeAddress(changeAddr);
-                    }
-                }
-
-                // Add input intentions first (if present)
-                if (content.getInputs() != null) {
-                    for (var inputIntention : content.getInputs()) {
-                        // Resolve variables using each intention's own resolveVariables method
-                        var resolvedIntention = inputIntention.resolveVariables(vars);
-                        scriptTx.addIntention(resolvedIntention);
-                    }
-                }
-
-                // Then add regular intentions
-                if (content.getIntents() != null) {
-                    for (var intention : content.getIntents()) {
-                        // Resolve variables using each intention's own resolveVariables method
-                        var resolvedIntention = intention.resolveVariables(vars);
-                        scriptTx.addIntention(resolvedIntention);
-                    }
-                }
-
-                // Script intentions
-                if (content.getScripts() != null) {
-                    for (var scriptIntention : content.getScripts()) {
-                        // Resolve variables using each intention's own resolveVariables method
-                        var resolvedIntention = scriptIntention.resolveVariables(vars);
-                        scriptTx.addIntention(resolvedIntention);
-                    }
-                }
-
-                if (content.getInputs() == null && content.getIntents() != null) {
-                    // Input intentions are already included in the intentions processing above
-                }
-
-                // Note: Script attachments and collectFrom configurations can be restored in a later phase.
-                transactions.add(scriptTx);
+                throw new UnsupportedOperationException(
+                    "scriptTx YAML format is not supported. Use tx format instead — " +
+                    "all script operations are now available in the unified Tx."
+                );
             }
         }
 
@@ -671,10 +581,10 @@ public class TxPlan {
     }
 
     /**
-     * Convenience method to directly convert a Tx or ScriptTx to YAML.
+     * Convenience method to directly convert a Tx to YAML.
      * Note: This produces YAML without any context properties (no fee_payer, collateral_payer, etc).
      * For YAML with context properties, use TxPlan.from(transaction).feePayer(...).toYaml()
-     * @param transaction the transaction to serialize (Tx or ScriptTx)
+     * @param transaction the transaction to serialize
      * @return YAML string representation of the transaction without context
      */
     public static String toYaml(AbstractTx<?> transaction) {

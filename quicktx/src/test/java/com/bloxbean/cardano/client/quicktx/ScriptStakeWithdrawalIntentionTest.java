@@ -17,7 +17,7 @@ class ScriptStakeWithdrawalIntentionTest {
         BigInteger amount = BigInteger.valueOf(1234567);
         PlutusData redeemer = BigIntPlutusData.of(9);
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .withdraw(rewardAddr, amount, redeemer);
 
         String yaml = TxPlan.from(tx).toYaml();
@@ -25,7 +25,7 @@ class ScriptStakeWithdrawalIntentionTest {
         assertThat(yaml).contains("reward_address: " + rewardAddr);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_withdrawal".equals(i.getType()))).isTrue();
     }
@@ -37,7 +37,7 @@ class ScriptStakeWithdrawalIntentionTest {
         String receiver = "addr_test1qpreceiver";
         PlutusData redeemer = BigIntPlutusData.of(19);
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .withdraw(rewardAddr, amount, redeemer, receiver);
 
         String yaml = TxPlan.from(tx).toYaml();
@@ -46,7 +46,7 @@ class ScriptStakeWithdrawalIntentionTest {
         assertThat(yaml).contains("receiver: " + receiver);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_withdrawal".equals(i.getType()))).isTrue();
     }

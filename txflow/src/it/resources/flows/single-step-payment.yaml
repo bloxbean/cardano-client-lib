@@ -1,0 +1,19 @@
+version: "1.0"
+flow:
+  id: single-step-payment
+  description: Single step payment flow - sends ADA from sender to receiver
+  steps:
+    - step:
+        id: payment
+        description: Send 2.5 ADA from sender to receiver
+        tx:
+          from_ref: account://sender
+          intents:
+            - type: payment
+              receiver: ${receiver_addr}
+              amount:
+                lovelace: 2500000
+        context:
+          signers:
+            - ref: account://sender
+              scope: payment
