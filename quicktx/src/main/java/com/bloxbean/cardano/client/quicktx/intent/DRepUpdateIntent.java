@@ -305,4 +305,9 @@ public class DRepUpdateIntent implements TxIntent {
             }
         };
     }
+
+    @Override
+    public boolean hasRedeemer() {
+        return redeemer != null || (redeemerHex != null && !redeemerHex.isEmpty());
+    }
 }

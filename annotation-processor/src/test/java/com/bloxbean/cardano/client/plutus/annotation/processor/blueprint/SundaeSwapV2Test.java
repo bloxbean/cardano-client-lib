@@ -81,9 +81,6 @@ public class SundaeSwapV2Test {
      *   <li>InlineDatum.data - raw Plutus data in transaction format</li>
      *   <li>RedeemerWrapper.data - wrapped arbitrary redeemer data</li>
      * </ul>
-     *
-     * <p>Note: 3+ item tuples (e.g., Tuple$ByteArray_ByteArray_Int) now generate ListPlutusData
-     * instead of PlutusData, so they are no longer whitelisted here.</p>
      */
     private void verifyNoOpaqueTypes(Compilation compilation) {
         String allGeneratedSources = compilation.generatedFiles().stream()

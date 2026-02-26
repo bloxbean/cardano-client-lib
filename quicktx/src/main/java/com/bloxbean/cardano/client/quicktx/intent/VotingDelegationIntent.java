@@ -353,4 +353,9 @@ public class VotingDelegationIntent implements TxIntent {
                 throw new TxBuildException("Unsupported DRepType: " + dRepType);
         }
     }
+
+    @Override
+    public boolean hasRedeemer() {
+        return redeemer != null || (redeemerHex != null && !redeemerHex.isEmpty());
+    }
 }

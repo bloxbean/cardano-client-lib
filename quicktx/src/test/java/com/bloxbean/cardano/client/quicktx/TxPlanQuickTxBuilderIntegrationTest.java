@@ -53,27 +53,29 @@ class TxPlanQuickTxBuilderIntegrationTest {
     @Test
     void yaml_to_txplan_to_txcontext_round_trip() {
         // Given - YAML with context properties
-        String yaml = "version: 1.0\n" +
-                "variables:\n" +
-                "  sender: addr1_treasury_test\n" +
-                "  receiver: addr1_alice_test\n" +
-                "context:\n" +
-                "  fee_payer: addr1_fee_payer\n" +
-                "  collateral_payer: addr1_collateral_payer\n" +
-                "  required_signers:\n" +
-                "    - ab123def\n" +
-                "    - cd456efa\n" +
-                "  valid_from_slot: 1000\n" +
-                "  valid_to_slot: 2000\n" +
-                "transaction:\n" +
-                "  - tx:\n" +
-                "      from: ${sender}\n" +
-                "      intents:\n" +
-                "        - type: payment\n" +
-                "          to: ${receiver}\n" +
-                "          amount:\n" +
-                "            unit: lovelace\n" +
-                "            quantity: 5000000\n";
+        String yaml = """
+                version: 1.0
+                variables:
+                  sender: addr1_treasury_test
+                  receiver: addr1_alice_test
+                context:
+                  fee_payer: addr1_fee_payer
+                  collateral_payer: addr1_collateral_payer
+                  required_signers:
+                    - ab123def
+                    - cd456efa
+                  valid_from_slot: 1000
+                  valid_to_slot: 2000
+                transaction:
+                  - tx:
+                      from: ${sender}
+                      intents:
+                        - type: payment
+                          to: ${receiver}
+                          amount:
+                            unit: lovelace
+                            quantity: 5000000
+                """;
 
         MockQuickTxBuilder builder = new MockQuickTxBuilder();
 

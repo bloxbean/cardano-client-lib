@@ -449,12 +449,12 @@ public class InputBuilders {
             throw new TxBuildException("Change address is required");
 
         if (!isMergeOutputs) //If merge outputs is false, return a separate change output
-            return new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
+            return new ChangeOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>()));
 
         return outputs.stream()
                 .filter(output -> output.getAddress().equals(changeAddress))
                 .findFirst()
-                .orElse(new TransactionOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>())));
+                .orElse(new ChangeOutput(changeAddress, new Value(BigInteger.ZERO, new ArrayList<>())));
     }
 
 }

@@ -18,14 +18,14 @@ class ScriptVotingDelegationIntentionTest {
         DRep drep = DRep.noConfidence();
         PlutusData redeemer = BigIntPlutusData.of(21);
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .delegateVotingPowerTo(addr, drep, redeemer);
 
         String yaml = TxPlan.from(tx).toYaml();
         assertThat(yaml).contains("type: voting_delegation");
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "voting_delegation".equals(i.getType()))).isTrue();
     }

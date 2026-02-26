@@ -15,7 +15,7 @@ class ScriptStakeDelegationIntentionTest {
         String poolId = "pool1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
         PlutusData redeemer = BigIntPlutusData.of(7);
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .delegateTo(stakeAddr, poolId, redeemer);
 
         String yaml = TxPlan.from(tx).toYaml();
@@ -24,7 +24,7 @@ class ScriptStakeDelegationIntentionTest {
         assertThat(yaml).contains("pool_id: " + poolId);
         assertThat(yaml).contains("redeemer_hex:");
 
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(restored.getIntentions()).isNotEmpty();
         assertThat(restored.getIntentions().stream().anyMatch(i -> "stake_delegation".equals(i.getType()))).isTrue();
     }

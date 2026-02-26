@@ -343,6 +343,11 @@ public class ScriptMintingIntent implements TxIntent {
         return vb.build();
     }
 
+    @Override
+    public boolean hasRedeemer() {
+        return redeemer != null || (redeemerHex != null && !redeemerHex.isEmpty()) || redeemerStructured != null;
+    }
+
     // Factory helpers
     public static ScriptMintingIntent of(String policyId, List<Asset> assets, PlutusData redeemer, String receiver, PlutusData outputDatum) {
         return ScriptMintingIntent.builder()

@@ -291,13 +291,22 @@ public class ConverterCodeGenerator implements CodeGenerator {
                     codeBlock = generateTripleSerializationCode(field);
                     break;
                 case CONSTRUCTOR:
-                    ClassName converterClass = getConverterClassFromField(field.getFieldType());
-                    codeBlock = CodeBlock.builder()
-                            .add("//Field $L\n", field.getName())
-                            .beginControlFlow("if(obj.$L != null)", fieldOrGetterName(field))
-                                .addStatement("constr.getData().add(new $T().toPlutusData(obj.$L))", converterClass, fieldOrGetterName(field))
-                            .endControlFlow()
-                            .build();
+                    if (field.getFieldType().isSharedType()) {
+                        codeBlock = CodeBlock.builder()
+                                .add("//Field $L\n", field.getName())
+                                .beginControlFlow("if(obj.$L != null)", fieldOrGetterName(field))
+                                    .addStatement("constr.getData().add(obj.$L.toPlutusData())", fieldOrGetterName(field))
+                                .endControlFlow()
+                                .build();
+                    } else {
+                        ClassName converterClass = getConverterClassFromField(field.getFieldType());
+                        codeBlock = CodeBlock.builder()
+                                .add("//Field $L\n", field.getName())
+                                .beginControlFlow("if(obj.$L != null)", fieldOrGetterName(field))
+                                    .addStatement("constr.getData().add(new $T().toPlutusData(obj.$L))", converterClass, fieldOrGetterName(field))
+                                .endControlFlow()
+                                .build();
+                    }
                     break;
                 case BOOL:
                     codeBlock = CodeBlock.builder()
@@ -340,6 +349,9 @@ public class ConverterCodeGenerator implements CodeGenerator {
             case TRIPLE:
                 throw new IllegalArgumentException("Triple type serialization should be handled explicitly");
             default:
+                if (itemType.isSharedType()) {
+                    return fieldOrGetterName + ".toPlutusData()";
+                }
                 ClassName converterClassName = getConverterClassFromField(itemType);
                 String converterClazz = converterClassName.packageName() + "." + converterClassName.simpleName();
                 return String.format("new %s().toPlutusData(%s)", converterClazz, fieldOrGetterName);
@@ -905,20 +917,38 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 break;
             case CONSTRUCTOR:
                 TypeName fieldTypeName = bestGuess(field.getFieldType().getJavaType().getName());
-                ClassName converterClazz = getConverterClassFromField(field.getFieldType());
-                if (field.getFieldType().isNonConstrPlutusData()) {
-                    // Bytes-wrapper shared types (e.g., VerificationKeyHash) — pass PlutusData directly, no cast
-                    codeBlock = CodeBlock.builder()
-                            .add("//Field $L\n", field.getName())
-                            .addStatement("$T $L = new $T().fromPlutusData(constrData.getPlutusDataList().get($L))",
-                                    fieldTypeName, field.getName(), converterClazz, field.getIndex())
-                            .build();
+                if (field.getFieldType().isSharedType()) {
+                    if (field.getFieldType().isRawDataType()) {
+                        // Shared bytes-wrapper types — static fromPlutusData, no cast
+                        codeBlock = CodeBlock.builder()
+                                .add("//Field $L\n", field.getName())
+                                .addStatement("$T $L = $T.fromPlutusData(constrData.getPlutusDataList().get($L))",
+                                        fieldTypeName, field.getName(), fieldTypeName, field.getIndex())
+                                .build();
+                    } else {
+                        // Shared constr types — static fromPlutusData with ConstrPlutusData cast
+                        codeBlock = CodeBlock.builder()
+                                .add("//Field $L\n", field.getName())
+                                .addStatement("$T $L = $T.fromPlutusData((($T)constrData.getPlutusDataList().get($L)))",
+                                        fieldTypeName, field.getName(), fieldTypeName, ConstrPlutusData.class, field.getIndex())
+                                .build();
+                    }
                 } else {
-                    codeBlock = CodeBlock.builder()
-                            .add("//Field $L\n", field.getName())
-                            .addStatement("$T $L = new $T().fromPlutusData((($T)constrData.getPlutusDataList().get($L)))",
-                                    fieldTypeName, field.getName(), converterClazz, ConstrPlutusData.class, field.getIndex())
-                            .build();
+                    ClassName converterClazz = getConverterClassFromField(field.getFieldType());
+                    if (field.getFieldType().isRawDataType()) {
+                        // Bytes-wrapper shared types (e.g., VerificationKeyHash) — pass PlutusData directly, no cast
+                        codeBlock = CodeBlock.builder()
+                                .add("//Field $L\n", field.getName())
+                                .addStatement("$T $L = new $T().fromPlutusData(constrData.getPlutusDataList().get($L))",
+                                        fieldTypeName, field.getName(), converterClazz, field.getIndex())
+                                .build();
+                    } else {
+                        codeBlock = CodeBlock.builder()
+                                .add("//Field $L\n", field.getName())
+                                .addStatement("$T $L = new $T().fromPlutusData((($T)constrData.getPlutusDataList().get($L)))",
+                                        fieldTypeName, field.getName(), converterClazz, ConstrPlutusData.class, field.getIndex())
+                                .build();
+                    }
                 }
                 break;
             case BOOL:
@@ -1270,9 +1300,16 @@ public class ConverterCodeGenerator implements CodeGenerator {
             case PLUTUSDATA:
                 return fieldName;
             default:
+                if (itemType.isSharedType()) {
+                    String typeFqn = itemType.getJavaType().getName();
+                    if (itemType.isRawDataType()) {
+                        return String.format("%s.fromPlutusData(%s)", typeFqn, fieldName);
+                    }
+                    return String.format("%s.fromPlutusData((ConstrPlutusData)%s)", typeFqn, fieldName);
+                }
                 ClassName converterClassName = getConverterClassFromField(itemType);
                 String converterClazz = converterClassName.packageName() + "." + converterClassName.simpleName();
-                if (itemType.isNonConstrPlutusData()) {
+                if (itemType.isRawDataType()) {
                     return String.format("new %s().fromPlutusData(%s)", converterClazz, fieldName);
                 }
                 return String.format("new %s().fromPlutusData((ConstrPlutusData)%s)", converterClazz, fieldName);

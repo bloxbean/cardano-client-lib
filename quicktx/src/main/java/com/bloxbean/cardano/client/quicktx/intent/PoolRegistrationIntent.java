@@ -96,19 +96,7 @@ public class PoolRegistrationIntent implements TxIntent {
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
-        // For new registrations, add dummy output equal to poolDeposit to trigger input selection
-        if (!isUpdate) {
-            final String from = ic.getFromAddress();
-            if (from == null || from.isBlank()) {
-                throw new TxBuildException("From address is required for pool registration");
-            }
-
-            // Use the deposit helper to create the output builder
-            return DepositHelper.createDepositOutputBuilder(from,
-                DepositHelper.DepositType.POOL_REGISTRATION);
-        }
-        // For updates, no outputs needed
-        return null;
+        return null; // Deposits resolved in Phase 4
     }
 
     @Override
@@ -132,13 +120,6 @@ public class PoolRegistrationIntent implements TxIntent {
                 txn.getBody().setCerts(new ArrayList<Certificate>());
             }
             txn.getBody().getCerts().add(poolRegistration);
-
-            if (!isUpdate) {
-                // Use the deposit helper to deduct the pool deposit
-                BigInteger poolDeposit = DepositHelper.getDepositAmount(
-                    ctx.getProtocolParams(), DepositHelper.DepositType.POOL_REGISTRATION);
-                DepositHelper.deductDepositFromOutputs(txn, ic.getFromAddress(), poolDeposit);
-            }
         };
     }
 }

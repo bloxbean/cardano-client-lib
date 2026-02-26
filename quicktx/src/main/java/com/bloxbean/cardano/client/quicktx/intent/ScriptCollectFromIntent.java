@@ -535,6 +535,11 @@ public class ScriptCollectFromIntent implements TxInputIntent {
 
 
 
+    @Override
+    public boolean hasRedeemer() {
+        return redeemerData != null || (redeemerHex != null && !redeemerHex.isEmpty()) || redeemerStructured != null;
+    }
+
     @Data
     @AllArgsConstructor
     class SpendingContext {

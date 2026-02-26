@@ -245,16 +245,7 @@ public class DRepRegistrationIntent implements TxIntent {
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
-        final String from = ic.getFromAddress();
-        if (from == null || from.isBlank()) {
-            throw new TxBuildException("From address is required for DRep registration");
-        }
-
-        // Use the deposit helper to create the output builder
-        //deposit here is a custom deposit amount if provided, otherwise,
-        //it will be fetched from protocol param in Deposit helper.
-        return DepositHelper.createDepositOutputBuilder(from,
-            DepositHelper.DepositType.DREP_REGISTRATION, deposit);
+        return null; // Deposits resolved in Phase 4
     }
 
     @Override
@@ -298,9 +289,6 @@ public class DRepRegistrationIntent implements TxIntent {
                         .build();
                 txn.getBody().getCerts().add(cert);
 
-                // Use the deposit helper to deduct the deposit
-                DepositHelper.deductDepositFromOutputs(txn, ic.getFromAddress(), dep);
-
                 // Add cert redeemer if provided
                 PlutusData rdData = redeemer;
                 if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
@@ -327,4 +315,8 @@ public class DRepRegistrationIntent implements TxIntent {
         };
     }
 
+    @Override
+    public boolean hasRedeemer() {
+        return redeemer != null || (redeemerHex != null && !redeemerHex.isEmpty());
+    }
 }

@@ -30,10 +30,12 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void stripFieldNames_removesNameAtTopLevel() throws JsonProcessingException {
-        String yaml = "constructor: 0\n" +
-                "\"@name\": test_name\n" +
-                "fields:\n" +
-                "  - int: 100\n";
+        String yaml = """
+                constructor: 0
+                "@name": test_name
+                fields:
+                  - int: 100
+                """;
 
         JsonNode node = MAPPER.readTree(yaml);
         JsonNode stripped = PlutusDataYamlUtil.stripFieldNames(node);
@@ -45,12 +47,14 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void stripFieldNames_removesNameInNestedFields() throws JsonProcessingException {
-        String yaml = "constructor: 0\n" +
-                "fields:\n" +
-                "  - \"@name\": seller\n" +
-                "    bytes: 48656c6c6f\n" +
-                "  - \"@name\": price\n" +
-                "    int: 100\n";
+        String yaml = """
+                constructor: 0
+                fields:
+                  - "@name": seller
+                    bytes: 48656c6c6f
+                  - "@name": price
+                    int: 100
+                """;
 
         JsonNode node = MAPPER.readTree(yaml);
         JsonNode stripped = PlutusDataYamlUtil.stripFieldNames(node);
@@ -64,21 +68,23 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void stripFieldNames_removesNameInDeeplyNestedStructures() throws JsonProcessingException {
-        String yaml = "constructor: 1\n" +
-                "fields:\n" +
-                "  - \"@name\": user_data\n" +
-                "    constructor: 0\n" +
-                "    fields:\n" +
-                "      - \"@name\": username\n" +
-                "        bytes: 616c696365\n" +
-                "      - \"@name\": balance\n" +
-                "        int: 5000\n" +
-                "  - \"@name\": nft_list\n" +
-                "    list:\n" +
-                "      - \"@name\": nft_1\n" +
-                "        bytes: abcd1234\n" +
-                "      - \"@name\": nft_2\n" +
-                "        bytes: ef567890\n";
+        String yaml = """
+                constructor: 1
+                fields:
+                  - "@name": user_data
+                    constructor: 0
+                    fields:
+                      - "@name": username
+                        bytes: 616c696365
+                      - "@name": balance
+                        int: 5000
+                  - "@name": nft_list
+                    list:
+                      - "@name": nft_1
+                        bytes: abcd1234
+                      - "@name": nft_2
+                        bytes: ef567890
+                """;
 
         JsonNode node = MAPPER.readTree(yaml);
         JsonNode stripped = PlutusDataYamlUtil.stripFieldNames(node);
@@ -102,13 +108,15 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void stripFieldNames_removesNameInMapStructures() throws JsonProcessingException {
-        String yaml = "map:\n" +
-                "  - k:\n" +
-                "      \"@name\": key1\n" +
-                "      bytes: 636f6c6f72\n" +
-                "    v:\n" +
-                "      \"@name\": value1\n" +
-                "      bytes: 626c7565\n";
+        String yaml = """
+                map:
+                  - k:
+                      "@name": key1
+                      bytes: 636f6c6f72
+                    v:
+                      "@name": value1
+                      bytes: 626c7565
+                """;
 
         JsonNode node = MAPPER.readTree(yaml);
         JsonNode stripped = PlutusDataYamlUtil.stripFieldNames(node);
@@ -121,10 +129,12 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void fromYamlNode_createsConstrPlutusData() throws JsonProcessingException {
-        String yaml = "constructor: 0\n" +
-                "fields:\n" +
-                "  - int: 100\n" +
-                "  - bytes: 48656c6c6f\n";
+        String yaml = """
+                constructor: 0
+                fields:
+                  - int: 100
+                  - bytes: 48656c6c6f
+                """;
 
         JsonNode node = MAPPER.readTree(yaml);
         PlutusData result = PlutusDataYamlUtil.fromYamlNode(node, new HashMap<>());
@@ -138,10 +148,12 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void fromYamlNode_withVariables() throws JsonProcessingException {
-        String yaml = "constructor: 0\n" +
-                "fields:\n" +
-                "  - int: \"${price}\"\n" +
-                "  - bytes: \"${seller}\"\n";
+        String yaml = """
+                constructor: 0
+                fields:
+                  - int: "${price}"
+                  - bytes: "${seller}"
+                """;
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("price", "10000000");
@@ -166,17 +178,21 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void fromYamlNode_withNameAnnotations_producesIdenticalResult() throws JsonProcessingException {
-        String yamlWith = "constructor: 0\n" +
-                "fields:\n" +
-                "  - \"@name\": seller\n" +
-                "    bytes: 48656c6c6f\n" +
-                "  - \"@name\": price\n" +
-                "    int: 100\n";
+        String yamlWith = """
+                constructor: 0
+                fields:
+                  - "@name": seller
+                    bytes: 48656c6c6f
+                  - "@name": price
+                    int: 100
+                """;
 
-        String yamlWithout = "constructor: 0\n" +
-                "fields:\n" +
-                "  - bytes: 48656c6c6f\n" +
-                "  - int: 100\n";
+        String yamlWithout = """
+                constructor: 0
+                fields:
+                  - bytes: 48656c6c6f
+                  - int: 100
+                """;
 
         JsonNode nodeWith = MAPPER.readTree(yamlWith);
         JsonNode nodeWithout = MAPPER.readTree(yamlWithout);
@@ -251,26 +267,30 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void nameAnnotations_haveZeroImpactOnCBOR() throws JsonProcessingException {
-        String yamlWith = "constructor: 0\n" +
-                "fields:\n" +
-                "  - \"@name\": seller\n" +
-                "    bytes: 48656c6c6f\n" +
-                "  - \"@name\": price\n" +
-                "    int: 100\n" +
-                "  - \"@name\": nft_list\n" +
-                "    list:\n" +
-                "      - \"@name\": nft1\n" +
-                "        bytes: abcd1234\n" +
-                "      - \"@name\": nft2\n" +
-                "        bytes: ef567890\n";
+        String yamlWith = """
+                constructor: 0
+                fields:
+                  - "@name": seller
+                    bytes: 48656c6c6f
+                  - "@name": price
+                    int: 100
+                  - "@name": nft_list
+                    list:
+                      - "@name": nft1
+                        bytes: abcd1234
+                      - "@name": nft2
+                        bytes: ef567890
+                """;
 
-        String yamlWithout = "constructor: 0\n" +
-                "fields:\n" +
-                "  - bytes: 48656c6c6f\n" +
-                "  - int: 100\n" +
-                "  - list:\n" +
-                "      - bytes: abcd1234\n" +
-                "      - bytes: ef567890\n";
+        String yamlWithout = """
+                constructor: 0
+                fields:
+                  - bytes: 48656c6c6f
+                  - int: 100
+                  - list:
+                      - bytes: abcd1234
+                      - bytes: ef567890
+                """;
 
         JsonNode nodeWith = MAPPER.readTree(yamlWith);
         JsonNode nodeWithout = MAPPER.readTree(yamlWithout);
@@ -287,10 +307,12 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void fromYamlNode_handlesListPlutusData() throws JsonProcessingException {
-        String yaml = "list:\n" +
-                "  - int: 1\n" +
-                "  - int: 2\n" +
-                "  - int: 3\n";
+        String yaml = """
+                list:
+                  - int: 1
+                  - int: 2
+                  - int: 3
+                """;
 
         JsonNode node = MAPPER.readTree(yaml);
         PlutusData result = PlutusDataYamlUtil.fromYamlNode(node, new HashMap<>());
@@ -303,11 +325,13 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void fromYamlNode_handlesMapPlutusData() throws JsonProcessingException {
-        String yaml = "map:\n" +
-                "  - k:\n" +
-                "      bytes: 6b6579\n" +
-                "    v:\n" +
-                "      int: 100\n";
+        String yaml = """
+                map:
+                  - k:
+                      bytes: 6b6579
+                    v:
+                      int: 100
+                """;
 
         JsonNode node = MAPPER.readTree(yaml);
         PlutusData result = PlutusDataYamlUtil.fromYamlNode(node, new HashMap<>());
@@ -332,15 +356,17 @@ class PlutusDataYamlUtilTest {
 
     @Test
     void variableResolution_inNestedStructures() throws JsonProcessingException {
-        String yaml = "constructor: 1\n" +
-                "fields:\n" +
-                "  - constructor: 0\n" +
-                "    fields:\n" +
-                "      - bytes: \"${username}\"\n" +
-                "      - int: \"${balance}\"\n" +
-                "  - list:\n" +
-                "      - bytes: \"${nft1}\"\n" +
-                "      - bytes: \"${nft2}\"\n";
+        String yaml = """
+                constructor: 1
+                fields:
+                  - constructor: 0
+                    fields:
+                      - bytes: "${username}"
+                      - int: "${balance}"
+                  - list:
+                      - bytes: "${nft1}"
+                      - bytes: "${nft2}"
+                """;
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("username", "616c696365");

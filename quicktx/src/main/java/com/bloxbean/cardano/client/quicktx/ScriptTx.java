@@ -6,13 +6,11 @@ import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.filter.yaml.UtxoFilterYaml;
 import com.bloxbean.cardano.client.quicktx.intent.*;
 import com.bloxbean.cardano.client.quicktx.filter.UtxoFilterSpec;
 import com.bloxbean.cardano.client.quicktx.filter.runtime.UtxoFilterStrategy;
-import com.bloxbean.cardano.client.quicktx.utxostrategy.LazyUtxoStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.ListUtxoPredicateStrategy;
 import com.bloxbean.cardano.client.quicktx.utxostrategy.SingleUtxoPredicateStrategy;
 import com.bloxbean.cardano.client.transaction.spec.*;
@@ -29,17 +27,18 @@ import lombok.extern.slf4j.Slf4j;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Predicate;
 
+/**
+ * @deprecated Use {@link Tx} instead. All ScriptTx operations are now available in Tx.
+ */
+@Deprecated
 @Slf4j
 public class ScriptTx extends AbstractTx<ScriptTx> {
-    protected List<LazyUtxoStrategy> lazyStrategies;
     protected String fromAddress;
     protected Wallet fromWallet;
 
     public ScriptTx() {
-        lazyStrategies = new ArrayList<>();
     }
 
     /**
@@ -874,51 +873,29 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         this.fromAddress = this.fromWallet.getBaseAddressString(0);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>Delegates directly to {@code from()} without any guard. ScriptTx's {@code from()} has no
+     * {@code senderAdded} flag — it always overwrites the current sender. This preserves the legacy
+     * ScriptTx behaviour where the fee-payer address is unconditionally applied.</p>
+     */
     @Override
-    protected void postBalanceTx(Transaction transaction) {
-//        if (spendingContexts != null && !spendingContexts.isEmpty()) {
-        //Verify if redeemer indexes are correct, if not set the correct index
-        verifyAndAdjustRedeemerIndexes(transaction);
-//        }
+    void setDefaultFrom(String address) {
+        from(address);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>Delegates directly to {@code from(Wallet)} without any guard, matching the unconditional
+     * overwrite behaviour described in {@link #setDefaultFrom(String)}.</p>
+     */
     @Override
-    protected void preTxEvaluation(Transaction transaction) {
-//        if (spendingContexts != null && !spendingContexts.isEmpty()) {
-        //Verify if redeemer indexes are correct, if not set the correct index
-        verifyAndAdjustRedeemerIndexes(transaction);
-//        }
+    void setDefaultFrom(Wallet wallet) {
+        from(wallet);
     }
 
-    private void verifyAndAdjustRedeemerIndexes(Transaction transaction) {
-        for (Redeemer redeemer : transaction.getWitnessSet().getRedeemers()) {
-            if (redeemer.getTag() != RedeemerTag.Spend)
-                continue;
-            Optional<Utxo> scriptUtxo = getUtxoForRedeemer(redeemer);
-            if (scriptUtxo.isPresent()) {
-                int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
-                if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
-                    redeemer.setIndex(scriptInputIndex);
-                }
-                log.debug("Sorting done for redeemer : " + redeemer);
-            } else
-                log.warn("No utxo found for redeemer. Something went wrong." + redeemer);
-        }
-    }
-
-    //TODO -- check how to do this ??
-    private Optional<Utxo> getUtxoForRedeemer(Redeemer redeemer) {
-        return intentions.stream()
-                .filter(intention -> intention instanceof ScriptCollectFromIntent)
-                .map(intention -> ((ScriptCollectFromIntent) intention).getUtxoForRedeemer(redeemer))
-                .findFirst().orElse(Optional.empty());
-
-//        return spendingContexts.stream()
-//                .filter(spendingContext -> spendingContext.getRedeemer() == redeemer) //object reference comparison
-//                .findFirst()
-//                .map(spendingContext -> spendingContext.getScriptUtxo());
-//        return Optional.empty();
-    }
+    // preTxEvaluation() and postBalanceTx() are now handled by AbstractTx.
+    // verifyAndAdjustRedeemerIndexes() and getUtxoForRedeemer() have been moved to AbstractTx.
 
     @Override
     protected void verifyData() {
@@ -936,14 +913,5 @@ public class ScriptTx extends AbstractTx<ScriptTx> {
         return txBuilder;
     }
 
-    /**
-     * Get lazy UTXO strategies for resolution during execution.
-     * This method is used by the watcher framework to resolve predicate-based UTXO selections.
-     *
-     * @return list of lazy UTXO strategies
-     */
-    public List<LazyUtxoStrategy> getLazyStrategies() {
-        return lazyStrategies;
-    }
 
 }

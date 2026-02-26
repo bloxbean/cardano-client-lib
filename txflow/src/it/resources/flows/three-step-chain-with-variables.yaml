@@ -1,0 +1,57 @@
+version: "1.0"
+flow:
+  id: three-step-chain-with-variables
+  description: Three-step circular payment chain using variables for addresses
+  variables:
+    step1_amount: 5000000
+    step2_amount: 3000000
+    step3_amount: 1500000
+  steps:
+    - step:
+        id: sender-to-receiver
+        description: Sender to Receiver (${step1_amount} lovelace)
+        tx:
+          from_ref: account://sender
+          intents:
+            - type: payment
+              receiver: ${receiver_addr}
+              amount:
+                lovelace: ${step1_amount}
+        context:
+          signers:
+            - ref: account://sender
+              scope: payment
+    - step:
+        id: receiver-to-relay
+        description: Receiver to Relay (${step2_amount} lovelace)
+        depends_on:
+          - from_step: sender-to-receiver
+            strategy: all
+        tx:
+          from_ref: account://receiver
+          intents:
+            - type: payment
+              receiver: ${relay_addr}
+              amount:
+                lovelace: ${step2_amount}
+        context:
+          signers:
+            - ref: account://receiver
+              scope: payment
+    - step:
+        id: relay-to-sender
+        description: Relay to Sender (${step3_amount} lovelace)
+        depends_on:
+          - from_step: receiver-to-relay
+            strategy: all
+        tx:
+          from_ref: account://relay
+          intents:
+            - type: payment
+              receiver: ${sender_addr}
+              amount:
+                lovelace: ${step3_amount}
+        context:
+          signers:
+            - ref: account://relay
+              scope: payment
