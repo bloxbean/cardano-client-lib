@@ -38,6 +38,19 @@ public class FieldType {
      */
     private boolean nonConstrPlutusData;
 
+    /**
+     * Indicates that this field's type is a shared type that has its own
+     * {@code toPlutusData()} instance method and {@code fromPlutusData()} static method.
+     * <p>
+     * When {@code true}, the generated converter inlines calls directly:
+     * <pre>obj.getField().toPlutusData()</pre>
+     * <pre>Type.fromPlutusData(data)</pre>
+     * instead of delegating through a generated converter class:
+     * <pre>new TypeConverter().toPlutusData(obj.getField())</pre>
+     * <pre>new TypeConverter().fromPlutusData(data)</pre>
+     */
+    private boolean sharedType;
+
     public boolean isMap() {
         return javaType == JavaType.MAP;
     }
