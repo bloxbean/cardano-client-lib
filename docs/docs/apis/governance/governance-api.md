@@ -1,33 +1,62 @@
 ---
-description: Governance API Usage
-sidebar_label: Governance Api
-sidebar_position: 3
+title: "Governance API"
+description: "APIs for Cardano governance operations (DRep, Voting, Proposals)"
+sidebar_position: 1
 ---
 
-# Governance Api
+# Governance API
 
-QuickTx Api now supports governance related transactions. It's supported through the existing `Tx` class.
+The Governance API provides comprehensive functionality for participating in Cardano's on-chain governance system. It supports DRep registration and management, governance proposal creation, voting, and delegation operations through the QuickTx framework.
 
-**Version:** 0.6.0-beta1 and later
+## Key Features
 
-Check out QuickTx Governance API [**integration tests**](https://github.com/bloxbean/cardano-client-lib/blob/master/quicktx/src/it/java/com/bloxbean/cardano/client/quicktx/GovernanceTxIT.java) for more examples.
+- **DRep Management**: Register, update, and deregister as a Delegated Representative
+- **Proposal Creation**: Create various types of governance proposals (Info, Constitution, Parameter Changes, etc.)
+- **Voting System**: Vote on governance proposals with different voter types
+- **Delegation**: Delegate voting power to DReps
+- **Anchor Support**: Attach metadata anchors to proposals and votes
+- **Multi-Signature Support**: Support for committee and stake pool voting
 
-## Pre-requisites
-Create a `QuickTxBuilder` instance and required accounts.
+## Core Classes
+
+### Tx Class
+The main class for building governance transactions, extending QuickTx functionality.
+
+### Governance Actions
+- `InfoAction` - Information proposals
+- `NewConstitution` - Constitution update proposals
+- `NoConfidence` - No confidence proposals
+- `ParameterChangeAction` - Protocol parameter changes
+- `HardForkInitiationAction` - Hard fork initiation
+- `TreasuryWithdrawalsAction` - Treasury withdrawal proposals
+- `UpdateCommittee` - Committee update proposals
+
+### Supporting Classes
+- `Voter` - Represents different voter types (DRep, SPO, Committee)
+- `Vote` - Vote options (Yes, No, Abstain)
+- `Anchor` - Metadata anchor for proposals
+- `GovActionId` - References to governance actions
+
+## Usage Examples
+
+### Setup
+
+Create QuickTxBuilder and Account instances for governance operations:
 
 ```java
 QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-Account accout = new Account("your mnemonic words");
+
+Account account = new Account(Networks.preprod(), "your mnemonic words");
 String address = account.baseAddress();
 ```
 
-## 1. DRep API
+### DRep Management
 
-**Note:** To find the DRepId of an account, you can use the `drepId()` method of the `Account` class.
+Manage Delegated Representative (DRep) registration and operations:
 
-### Register DRep
+#### Register DRep
 
-The following example shows how to register an account as a DRep.
+Register an account as a Delegated Representative:
 
 ```java
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
@@ -39,13 +68,12 @@ Tx drepRegTx = new Tx()
 Result<String> result = quickTxBuilder.compose(drepRegTx)
         .withSigner(SignerProviders.signerFrom(account))
         .withSigner(SignerProviders.signerFrom(account.drepHdKeyPair()))
-        .completeAndWait(s -> System.out.println(s));
+        .completeAndWait(System.out::println);
 ```
 
-### Deregister DRep
+#### Deregister DRep
 
-To deregister an account as a DRep, use the `unregisterDRep()` method of the `Tx` class. The transaction needs to be
-signed by the account for tx fee payment and by the DRep Key of the account.,
+Deregister an account as a DRep:
 
 ```java
 Tx tx = new Tx()
@@ -55,15 +83,12 @@ Tx tx = new Tx()
 Result<String> result = quickTxBuilder.compose(tx)
         .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
-        .completeAndWait(s -> System.out.println(s));
+        .completeAndWait(System.out::println);
 ```
 
-### Update DRep
+#### Update DRep
 
-To update the DRep information, use the `updateDRep()` method of the `Tx` class. The transaction needs to be signed
-by the account for tx fee payment and by the DRep Key of the account.
-
-In the following example, the DRep information is updated to remove the anchor.
+Update DRep information (remove anchor):
 
 ```java
  Tx drepRegTx = new Tx()
@@ -76,7 +101,7 @@ Result<String> result = quickTxBuilder.compose(drepRegTx)
         .completeAndWait(s -> System.out.println(s));
 ```
 
-To update the DRep information with a new anchor.
+Update DRep information with a new anchor:
 
 ```java
 var newAnchor = new Anchor("<anchor_url>", "<anchor_datahash>");
@@ -91,31 +116,13 @@ Result<String> result = quickTxBuilder.compose(drepRegTx)
         .completeAndWait(s -> System.out.println(s));
 ```
 
-## 2. Gov Action Create API
+### Governance Proposals
 
-Using the `Tx` class, you can create a governance proposal such as 
+Create various types of governance proposals using the `createProposal()` method. Any account can create a proposal — a DRep key signature is **not** required.
 
-- InfoAction
-- NewConstitution
-- NoConfidence
-- ParameterChangeAction
-- HardForkInitiationAction
-- TreasuryWithdrawalsAction
-- UpdateCommittee
+#### Info Proposal
 
-
-Use the `createProposal()` method of the Tx class to create a proposal. In addition to the GovAction instance, you also need to
-specify the return address (stake address) to which the deposit will be returned.
-
-The transaction needs to be signed by the account for tx fee & gov action deposit and by the DRep credential of the account.
-
-The required deposit amount for proposal creation is a protocol parameter (govActionDeposit) and it's currently set to 1000 ADA for Sanchonet.
-
-**Note:** In future versions, the deposit amount will be automatically fetched from the protocol parameters.
-
-### Create a Info Proposal
-
-Use `InfoAction` to create a proposal with anchor for proposal information.
+Create an information proposal:
 
 ```java
 var govAction = new InfoAction();
@@ -126,14 +133,13 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
 
-### Create new Constitution Proposal
+#### Constitution Proposal
 
-Use `NewConstitution` to create a proposal with anchor for new constitution.
+Create a new constitution proposal:
 
 ```java
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
@@ -149,14 +155,13 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
 
-### Create a NoConfidence Proposal
+#### No Confidence Proposal
 
-Use `NoConfidence` to create a proposal for no confidence.
+Create a no confidence proposal:
 
 ```java
 var noConfidence = new NoConfidence();
@@ -168,23 +173,20 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
 
-### Create a ParameterChange Proposal
+#### Parameter Change Proposal
 
-Use `ParameterChangeAction` to create a proposal for parameter change.
-
-In the below example, the minPoolCost parameter is updated to 100 ADA.
+Create a protocol parameter change proposal:
 
 ```java
 var parameterChange = new ParameterChangeAction();
 parameterChange.setPrevGovActionId(new GovActionId("529736be1fac33431667f2b66231b7b66d4c7a3975319ddac7cfb17dcb5c4145", 0));
 parameterChange.setProtocolParamUpdate(ProtocolParamUpdate.builder()
-                .minPoolCost(adaToLovelace(100))
-                .build());
+        .minPoolCost(ADAConversionUtil.adaToLovelace(100))
+        .build());
 
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
         
@@ -193,14 +195,13 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
 
-### Create a HardForkInitiation Proposal
+#### Hard Fork Initiation Proposal
 
-Use `HardForkInitiationAction` to create a proposal for hard fork initiation.
+Create a hard fork initiation proposal:
 
 ```java
 var hardforkInitiation = new HardForkInitiationAction();
@@ -214,19 +215,16 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
 
-### Create a TreasuryWithdrawal Proposal
+#### Treasury Withdrawal Proposal
 
-Use `TreasuryWithdrawalsAction` to create a proposal for treasury withdrawal.
-
-In the example below, a proposal is created to withdraw 20 ADA from the treasury and send it to the specified stake address.
+Create a treasury withdrawal proposal:
 ```java
 var treasuryWithdrawalsAction = new TreasuryWithdrawalsAction();
-treasuryWithdrawalsAction.addWithdrawal(new Withdrawal("stake_test1ur6l9f5l9jw44kl2nf6nm5kca3nwqqkccwynnjm0h2cv60ccngdwa", adaToLovelace(20)));
+treasuryWithdrawalsAction.addWithdrawal(new Withdrawal("<stake_address>", adaToLovelace(20)));
 
 var anchor = new Anchor("<anchor_url>", <anchor_datahash>);
 
@@ -235,16 +233,13 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
 
-### Create a UpdateCommittee Proposal
+#### Update Committee Proposal
 
-Use `UpdateCommittee` to create a proposal for updating the committee information.
-
-In the example below, a proposal is created to update the quorum threshold to 1/3.
+Create a committee update proposal:
 
 ```java
 var updateCommittee = new UpdateCommittee();
@@ -258,18 +253,13 @@ Tx tx = new Tx()
         .from(address);
 
 Result<String> result = quickTxBuilder.compose(tx)
-        .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(s -> System.out.println(s));
 ```
 
-## 3. Vote API
+### Voting
 
-Use the `Tx` class to vote on a governance proposal. 
-
-In addition to the GovActionId, you also need to specify Vote(Yes, No, Abstain), voter and an anchor for the vote information (optional).
-
-The transaction needs to be signed by the account for tx fee payment and by the DRep credential of the account.
+Vote on governance proposals:
 
 ```java
 var voter = new Voter(VoterType.DREP_KEY_HASH, account.drepCredential());
@@ -282,12 +272,12 @@ Tx tx = new Tx()
 Result<String> result = quickTxBuilder.compose(tx)
         .withSigner(SignerProviders.drepKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
-        .completeAndWait(s -> System.out.println(s));
+        .completeAndWait(System.out::println);
 ```
 
-## 4. Vote Delegation API
+### Vote Delegation
 
-Use the `Tx` class to delegate voting rights to a DRep.
+Delegate voting power to a DRep:
 
 ```java
 DRep drep = DRepId.toDrep(drepId, DRepType.ADDR_KEYHASH);
@@ -299,5 +289,5 @@ Tx tx = new Tx()
 Result<String> result = quickTxBuilder.compose(tx)
         .withSigner(SignerProviders.stakeKeySignerFrom(account))
         .withSigner(SignerProviders.signerFrom(account))
-        .completeAndWait(s -> System.out.println(s));
+        .completeAndWait(System.out::println);
 ```
