@@ -18,6 +18,38 @@ public class FieldType {
     private boolean isCollection;
     private String fqTypeName; //Fully qualified type name. This can be used to get the exact type.
     private List<FieldType> genericTypes = new ArrayList<>();
+    /**
+     * Indicates that this field's on-chain representation is <em>not</em> a {@code ConstrPlutusData}.
+     * <p>
+     * Most custom/complex types in Plutus are encoded as constructors ({@code ConstrPlutusData}),
+     * and the generated deserialization code casts accordingly:
+     * <pre>new FooConverter().fromPlutusData((ConstrPlutusData) data.get(i))</pre>
+     *
+     * However, some shared types use a different encoding:
+     * <ul>
+     *   <li>Bytes-wrapper types (e.g., {@code VerificationKeyHash}, {@code ScriptHash}) are encoded
+     *       as raw {@code BytesPlutusData}</li>
+     *   <li>Pair/Tuple types are encoded as {@code ListPlutusData}</li>
+     * </ul>
+     *
+     * When this flag is {@code true}, the generated code passes the raw {@code PlutusData} directly
+     * to the converter without casting to {@code ConstrPlutusData}:
+     * <pre>new FooConverter().fromPlutusData(data.get(i))</pre>
+     */
+    private boolean nonConstrPlutusData;
+
+    /**
+     * Indicates that this field's type is a shared type that has its own
+     * {@code toPlutusData()} instance method and {@code fromPlutusData()} static method.
+     * <p>
+     * When {@code true}, the generated converter inlines calls directly:
+     * <pre>obj.getField().toPlutusData()</pre>
+     * <pre>Type.fromPlutusData(data)</pre>
+     * instead of delegating through a generated converter class:
+     * <pre>new TypeConverter().toPlutusData(obj.getField())</pre>
+     * <pre>new TypeConverter().fromPlutusData(data)</pre>
+     */
+    private boolean sharedType;
 
     public boolean isMap() {
         return javaType == JavaType.MAP;

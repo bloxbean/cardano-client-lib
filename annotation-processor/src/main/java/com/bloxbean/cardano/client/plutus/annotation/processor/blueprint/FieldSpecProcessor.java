@@ -47,6 +47,7 @@ public class FieldSpecProcessor {
     private final SourceWriter sourceWriter;
     private final GeneratedTypesRegistry generatedTypesRegistry;
     private final SharedTypeLookup sharedTypeLookup;
+    private final SharedTypeConverterGenerator sharedTypeConverterGenerator;
 
     public FieldSpecProcessor(Blueprint annotation,
                               ProcessingEnvironment processingEnv,
@@ -60,6 +61,7 @@ public class FieldSpecProcessor {
         this.sourceWriter = new SourceWriter(processingEnv);
         this.generatedTypesRegistry = generatedTypesRegistry;
         this.sharedTypeLookup = sharedTypeLookup;
+        this.sharedTypeConverterGenerator = new SharedTypeConverterGenerator();
         this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver, sharedTypeLookup);
     }
 
@@ -230,7 +232,9 @@ public class FieldSpecProcessor {
         // Set the resolved title on the schema for downstream processing
         schema.setTitle(title);
 
-        if (sharedTypeLookup.lookup(ns, schema).isPresent()) {
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
+        if (sharedType.isPresent()) {
+            generateSharedTypeConverter(sharedType.get(), schema);
             return;
         }
 
@@ -427,6 +431,8 @@ public class FieldSpecProcessor {
         Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
 
         if (sharedType.isPresent()) {
+            generateSharedTypeConverter(sharedType.get(), schema);
+
             String fieldName = nameStrategy.firstLowerCase(nameStrategy.toCamelCase(title));
 
             FieldSpec fieldSpec = FieldSpec.builder(sharedType.get(), fieldName)
@@ -557,6 +563,27 @@ public class FieldSpecProcessor {
 
     public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         return dataTypeProcessUtil.generateFieldSpecs(ns, javaDoc, schema, className, alternativeName);
+    }
+
+    /**
+     * Generates a thin converter wrapper for a shared/registered type so that generated
+     * code can reference {@code XConverter} even though the model class was not generated.
+     */
+    void generateSharedTypeConverter(ClassName sharedType, BlueprintSchema schema) {
+        SharedTypeConverterGenerator.SharedTypeKind kind = SharedTypeConverterGenerator.kindOf(schema);
+
+        String converterPkg = sharedType.packageName() + ".converter";
+        String converterName = sharedType.simpleName() + "Converter";
+
+        if (!generatedTypesRegistry.markGenerated(converterPkg, converterName)) {
+            // Already generated — skip
+            return;
+        }
+
+        TypeSpec converterSpec = sharedTypeConverterGenerator.generate(sharedType, kind);
+        sourceWriter.write(converterPkg, converterSpec, converterName);
+
+        log.debug("Generated shared type converter: {}.{}", converterPkg, converterName);
     }
 
     private String getPackageName(String ns) {

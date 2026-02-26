@@ -39,5 +39,8 @@ jobs:
 
       # annotation-processor: self-contained — runs the annotation processor on blueprint POJOs
       # during compilation and verifies the generated converter classes. No network calls.
-      - name: Run annotation-processor integration tests
+      - name: Run annotation-processor integration tests (with shared type registry)
         run: ./gradlew :annotation-processor:integrationTest -PskipSigning=true --stacktrace
+
+      - name: Run annotation-processor integration tests (without shared type registry)
+        run: ./gradlew :annotation-processor:integrationTestNoRegistry -PskipSigning=true --stacktrace

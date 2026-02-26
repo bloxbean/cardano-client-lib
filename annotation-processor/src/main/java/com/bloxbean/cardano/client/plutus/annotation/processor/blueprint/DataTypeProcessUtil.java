@@ -86,6 +86,8 @@ public class DataTypeProcessUtil {
 
         var sharedType = sharedTypeLookup.lookup(namespace, schema);
         if (sharedType.isPresent()) {
+            fieldSpecProcessor.generateSharedTypeConverter(sharedType.get(), schema);
+
             FieldSpec.Builder builder = FieldSpec.builder(sharedType.get(), resolveFieldName(schema, resolvedAlternativeName))
                     .addModifiers(Modifier.PRIVATE);
             if (javaDoc != null && !javaDoc.isBlank())

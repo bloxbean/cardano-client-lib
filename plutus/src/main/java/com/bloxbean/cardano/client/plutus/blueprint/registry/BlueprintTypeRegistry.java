@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface BlueprintTypeRegistry {
 
     Optional<RegisteredType> lookup(SchemaSignature signature, BlueprintSchema schema, LookupContext context);
+
 }

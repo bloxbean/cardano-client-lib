@@ -236,10 +236,17 @@ public class ClassDefinitionGenerator {
             fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
             fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
 
+        } else if (typeName.equals(ClassName.get(Pair.class))) {
+            // Raw Pair type (from shared type lookup — not parameterized)
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType(typeName.toString(), true));
+            fieldType.setNonConstrPlutusData(true);
         } else {
             if (isSupportedType(typeName, typeMirror)) {
                 fieldType.setType(Type.CONSTRUCTOR);
                 fieldType.setJavaType(new JavaType(typeName.toString(), true));
+                fieldType.setNonConstrPlutusData(isBytesWrapperType(typeMirror));
+                fieldType.setSharedType(isSharedType(typeMirror));
             } else {
                 throw new NotSupportedException("Type not supported: " + typeName);
             }
@@ -313,6 +320,49 @@ public class ClassDefinitionGenerator {
                 Diagnostic.Kind.ERROR,
                 String.format(msg, args),
                 e);
+    }
+
+    /**
+     * Checks if a type is a shared type — a hand-written class that has its own
+     * {@code toPlutusData()} method and is NOT a generated {@code @Constr} model class.
+     * <p>
+     * Generated {@code @Constr} model classes also have {@code toPlutusData()} (via the
+     * {@code Data<T>} interface), but they delegate to a Converter. Shared types implement
+     * the conversion logic directly.
+     */
+    private boolean isSharedType(TypeMirror typeMirror) {
+        if (typeMirror == null) return false;
+        Types typeUtils = processingEnvironment.getTypeUtils();
+        Element element = typeUtils.asElement(typeMirror);
+        if (!(element instanceof TypeElement)) return false;
+        TypeElement typeElement = (TypeElement) element;
+        // @Constr-annotated classes are generated model classes, not shared types
+        if (typeElement.getAnnotation(Constr.class) != null) return false;
+        // Check for toPlutusData() method (including inherited)
+        for (Element member : elements.getAllMembers(typeElement)) {
+            if (member instanceof ExecutableElement) {
+                ExecutableElement method = (ExecutableElement) member;
+                if (method.getSimpleName().toString().equals("toPlutusData")
+                        && method.getParameters().isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static final String BYTE_ARRAY_WRAPPER_FQN = "com.bloxbean.cardano.client.plutus.aiken.blueprint.std.ByteArrayWrapper";
+
+    /**
+     * Checks if a type extends ByteArrayWrapper (bytes-wrapper shared type).
+     * These types serialize to BytesPlutusData rather than ConstrPlutusData.
+     */
+    private boolean isBytesWrapperType(TypeMirror typeMirror) {
+        if (typeMirror == null) return false;
+        TypeElement wrapperElement = elements.getTypeElement(BYTE_ARRAY_WRAPPER_FQN);
+        if (wrapperElement == null) return false; // ByteArrayWrapper not on classpath
+        Types typeUtils = processingEnvironment.getTypeUtils();
+        return typeUtils.isAssignable(typeMirror, wrapperElement.asType());
     }
 
     private boolean isAssignableToMap(TypeMirror typeMirror) {
