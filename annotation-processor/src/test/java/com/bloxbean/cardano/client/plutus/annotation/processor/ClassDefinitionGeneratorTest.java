@@ -89,7 +89,7 @@ public class ClassDefinitionGeneratorTest {
         @DisplayName("should deserialize RawData field WITHOUT ConstrPlutusData cast")
         void rawDataTypeField_shouldDeserializeWithoutConstrCast() {
             // RawData types use raw PlutusData — no ConstrPlutusData cast
-            assertThat(converterSource).contains("VerificationKeyHash.fromPlutusData(data.getPlutusDataList()");
+            assertThat(converterSource).contains("VerificationKeyHash.fromPlutusData(constrData.getPlutusDataList()");
             assertThat(converterSource).doesNotContain("VerificationKeyHash.fromPlutusData((ConstrPlutusData)");
         }
 

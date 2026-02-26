@@ -90,7 +90,10 @@ public class SundaeSwapV3Test {
                 .filter(line -> line.trim().matches("private\\s+PlutusData\\s+\\w+;"))
                 .collect(Collectors.toList());
 
-        // Filter out legitimate PlutusData fields (extension/data fields per CIP-57 abstract Data type)
+        // Filter out legitimate PlutusData fields:
+        // - extension/extensions: arbitrary extensibility data per protocol design
+        // - data: CIP-57 abstract Data type (InlineDatum.data, RedeemerWrapper.data)
+        // Note: 3+ item tuples now generate ListPlutusData, so they won't match the PlutusData regex
         List<String> illegitimateFields = plutusDataFields.stream()
                 .filter(line -> !line.contains("extensions")
                         && !line.contains("extension")
@@ -107,8 +110,8 @@ public class SundaeSwapV3Test {
                 .as("Generated sources should not have untyped PlutusData for containers. " +
                     "SundaeSwap V3 uses Option<T> syntax (Aiken v1.1.21+). " +
                     "Option<Credential> should be Optional<Credential>, not PlutusData. " +
-                    "PlutusData is ONLY allowed for: extension/extensions fields, and 'data' fields " +
-                    "(these reference CIP-57 abstract 'Data' type).\n" +
+                    "PlutusData is ONLY allowed for: extension/extensions fields and 'data' fields " +
+                    "(CIP-57 abstract 'Data' type). 3+ item tuples should be ListPlutusData.\n" +
                     "Found illegitimate fields: " + illegitimateFields)
                 .isZero();
     }

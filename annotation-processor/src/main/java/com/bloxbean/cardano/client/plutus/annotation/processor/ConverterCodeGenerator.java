@@ -8,6 +8,9 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Quartet;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Quintet;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Triple;
 import com.squareup.javapoet.*;
 import lombok.extern.slf4j.Slf4j;
 
@@ -286,6 +289,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 case PAIR:
                     codeBlock = generatePairSerializationCode(field);
                     break;
+                case TRIPLE:
+                    codeBlock = generateTripleSerializationCode(field);
+                    break;
+                case QUARTET:
+                    codeBlock = generateQuartetSerializationCode(field);
+                    break;
+                case QUINTET:
+                    codeBlock = generateQuintetSerializationCode(field);
+                    break;
                 case CONSTRUCTOR:
                     if (field.getFieldType().isSharedType()) {
                         codeBlock = CodeBlock.builder()
@@ -342,6 +354,12 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 return "toPlutusData(" + fieldOrGetterName + ")";
             case PAIR:
                 throw new IllegalArgumentException("Pair type serialization should be handled explicitly");
+            case TRIPLE:
+                throw new IllegalArgumentException("Triple type serialization should be handled explicitly");
+            case QUARTET:
+                throw new IllegalArgumentException("Quartet type serialization should be handled explicitly");
+            case QUINTET:
+                throw new IllegalArgumentException("Quintet type serialization should be handled explicitly");
             default:
                 if (itemType.isSharedType()) {
                     return fieldOrGetterName + ".toPlutusData()";
@@ -412,6 +430,21 @@ public class ConverterCodeGenerator implements CodeGenerator {
             String pairOutputVarName = outputVarName + "_$pair";
             codeBlockBuilder.add(generatePairSerializationFromExpression(genericType, pairVarName, pairOutputVarName, loopVarName));
             codeBlockBuilder.addStatement("$L.add($L)", outputVarName, pairOutputVarName);
+        } else if (genericType.getType() == Type.TRIPLE) {
+            String tripleVarName = loopVarName + "_$triple";
+            String tripleOutputVarName = outputVarName + "_$triple";
+            codeBlockBuilder.add(generateTripleSerializationFromExpression(genericType, tripleVarName, tripleOutputVarName, loopVarName));
+            codeBlockBuilder.addStatement("$L.add($L)", outputVarName, tripleOutputVarName);
+        } else if (genericType.getType() == Type.QUARTET) {
+            String quartetVarName = loopVarName + "_$quartet";
+            String quartetOutputVarName = outputVarName + "_$quartet";
+            codeBlockBuilder.add(generateQuartetSerializationFromExpression(genericType, quartetVarName, quartetOutputVarName, loopVarName));
+            codeBlockBuilder.addStatement("$L.add($L)", outputVarName, quartetOutputVarName);
+        } else if (genericType.getType() == Type.QUINTET) {
+            String quintetVarName = loopVarName + "_$quintet";
+            String quintetOutputVarName = outputVarName + "_$quintet";
+            codeBlockBuilder.add(generateQuintetSerializationFromExpression(genericType, quintetVarName, quintetOutputVarName, loopVarName));
+            codeBlockBuilder.addStatement("$L.add($L)", outputVarName, quintetOutputVarName);
         } else {
             codeBlockBuilder.addStatement("$L.add($L)", outputVarName, toPlutusDataCodeBlock(genericType, loopVarName));
         }
@@ -466,6 +499,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
         } else if (type.getType() == Type.PAIR) {
             String pairVarName = name + "_$pair";
             return generatePairSerializationFromExpression(type, pairVarName, outputVarName, objName);
+        } else if (type.getType() == Type.TRIPLE) {
+            String tripleVarName = name + "_$triple";
+            return generateTripleSerializationFromExpression(type, tripleVarName, outputVarName, objName);
+        } else if (type.getType() == Type.QUARTET) {
+            String quartetVarName = name + "_$quartet";
+            return generateQuartetSerializationFromExpression(type, quartetVarName, outputVarName, objName);
+        } else if (type.getType() == Type.QUINTET) {
+            String quintetVarName = name + "_$quintet";
+            return generateQuintetSerializationFromExpression(type, quintetVarName, outputVarName, objName);
         } else {
             return CodeBlock.builder().addStatement("var $L = $L", outputVarName, toPlutusDataCodeBlock(type, objName)).build();
         }
@@ -492,6 +534,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
         if (!genericType.isCollection()) {
             if (genericType.getType() == Type.PAIR) {
                 nestedBlock = generatePairSerializationFromExpression(genericType, fieldName + "_$nestedPair", nestedVarName,
+                        "obj." + fieldOrGetterName + ".get()");
+            } else if (genericType.getType() == Type.TRIPLE) {
+                nestedBlock = generateTripleSerializationFromExpression(genericType, fieldName + "_$nestedTriple", nestedVarName,
+                        "obj." + fieldOrGetterName + ".get()");
+            } else if (genericType.getType() == Type.QUARTET) {
+                nestedBlock = generateQuartetSerializationFromExpression(genericType, fieldName + "_$nestedQuartet", nestedVarName,
+                        "obj." + fieldOrGetterName + ".get()");
+            } else if (genericType.getType() == Type.QUINTET) {
+                nestedBlock = generateQuintetSerializationFromExpression(genericType, fieldName + "_$nestedQuintet", nestedVarName,
                         "obj." + fieldOrGetterName + ".get()");
             } else {
                 nestedBlock = CodeBlock.builder()
@@ -551,6 +602,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
         if (!genericType.isCollection()) {
             if (genericType.getType() == Type.PAIR) {
                 nestedBlock = generatePairSerializationFromExpression(genericType, varName + "_$nestedPair", nestedVarName,
+                        varName + ".get()");
+            } else if (genericType.getType() == Type.TRIPLE) {
+                nestedBlock = generateTripleSerializationFromExpression(genericType, varName + "_$nestedTriple", nestedVarName,
+                        varName + ".get()");
+            } else if (genericType.getType() == Type.QUARTET) {
+                nestedBlock = generateQuartetSerializationFromExpression(genericType, varName + "_$nestedQuartet", nestedVarName,
+                        varName + ".get()");
+            } else if (genericType.getType() == Type.QUINTET) {
+                nestedBlock = generateQuintetSerializationFromExpression(genericType, varName + "_$nestedQuintet", nestedVarName,
                         varName + ".get()");
             } else {
                 nestedBlock = CodeBlock.builder()
@@ -657,6 +717,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
         } else if (elementType.getType() == Type.PAIR) {
             String pairVarName = baseName + "_pair";
             return generatePairSerializationFromExpression(elementType, pairVarName, outputVarName, accessorExpression);
+        } else if (elementType.getType() == Type.TRIPLE) {
+            String tripleVarName = baseName + "_triple";
+            return generateTripleSerializationFromExpression(elementType, tripleVarName, outputVarName, accessorExpression);
+        } else if (elementType.getType() == Type.QUARTET) {
+            String quartetVarName = baseName + "_quartet";
+            return generateQuartetSerializationFromExpression(elementType, quartetVarName, outputVarName, accessorExpression);
+        } else if (elementType.getType() == Type.QUINTET) {
+            String quintetVarName = baseName + "_quintet";
+            return generateQuintetSerializationFromExpression(elementType, quintetVarName, outputVarName, accessorExpression);
         } else {
             return CodeBlock.builder()
                     .addStatement("var $L = $L", outputVarName, toPlutusDataCodeBlock(elementType, accessorExpression))
@@ -696,6 +765,300 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 .build();
     }
 
+    /**
+     * Generates a {@link CodeBlock} for serializing a triple field.
+     */
+    private CodeBlock generateTripleSerializationCode(Field field) {
+        FieldType fieldType = field.getFieldType();
+        String fieldName = field.getName();
+        String fieldOrGetterName = fieldOrGetterName(field);
+
+        return generateTripleSerializationCode(fieldType, fieldName, fieldOrGetterName);
+    }
+
+    private CodeBlock generateTripleSerializationCode(FieldType fieldType, String fieldName, String fieldOrGetterName) {
+        FieldType firstType = fieldType.getGenericTypes().get(0);
+        FieldType secondType = fieldType.getGenericTypes().get(1);
+        FieldType thirdType = fieldType.getGenericTypes().get(2);
+        String firstNestedVarName = fieldName + "_$nested_first";
+        String secondNestedVarName = fieldName + "_$nested_second";
+        String thirdNestedVarName = fieldName + "_$nested_third";
+
+        CodeBlock firstNestedBlock = generatePairElementSerialization(firstType, fieldName + "_$first", firstNestedVarName,
+                "obj." + fieldOrGetterName + ".getFirst()");
+        CodeBlock secondNestedBlock = generatePairElementSerialization(secondType, fieldName + "_$second", secondNestedVarName,
+                "obj." + fieldOrGetterName + ".getSecond()");
+        CodeBlock thirdNestedBlock = generatePairElementSerialization(thirdType, fieldName + "_$third", thirdNestedVarName,
+                "obj." + fieldOrGetterName + ".getThird()");
+
+        return CodeBlock.builder()
+                .add("//Field $L\n", fieldName)
+                .add(nullCheckStatement(fieldName, fieldOrGetterName))
+                .add(firstNestedBlock)
+                .add("\n")
+                .add(secondNestedBlock)
+                .add("\n")
+                .add(thirdNestedBlock)
+                .add("\n")
+                .addStatement("$T $LTriple = $T.builder().build()", ListPlutusData.class, fieldName, ListPlutusData.class)
+                .addStatement("$LTriple.add($L)", fieldName, firstNestedVarName)
+                .addStatement("$LTriple.add($L)", fieldName, secondNestedVarName)
+                .addStatement("$LTriple.add($L)", fieldName, thirdNestedVarName)
+                .addStatement("//Add the triple to the constructor")
+                .addStatement("constr.getData().add($LTriple)", fieldName)
+                .add("\n")
+                .build();
+    }
+
+    private CodeBlock generateTripleSerializationFromExpression(FieldType tripleType, String tripleVarName, String outputVarName,
+                                                                String tripleExpression) {
+        return CodeBlock.builder()
+                .addStatement("var $L = $L", tripleVarName, tripleExpression)
+                .add(generateNestedTripleSerializationCode(tripleType, tripleVarName, outputVarName))
+                .build();
+    }
+
+    private CodeBlock generateNestedTripleSerializationCode(FieldType tripleType, String tripleVarName, String outputVarName) {
+        FieldType firstType = tripleType.getGenericTypes().get(0);
+        FieldType secondType = tripleType.getGenericTypes().get(1);
+        FieldType thirdType = tripleType.getGenericTypes().get(2);
+
+        String firstNestedVarName = outputVarName + "_$first";
+        String secondNestedVarName = outputVarName + "_$second";
+        String thirdNestedVarName = outputVarName + "_$third";
+
+        CodeBlock firstNestedBlock = generatePairElementSerialization(firstType, tripleVarName + "_first", firstNestedVarName,
+                tripleVarName + ".getFirst()");
+        CodeBlock secondNestedBlock = generatePairElementSerialization(secondType, tripleVarName + "_second", secondNestedVarName,
+                tripleVarName + ".getSecond()");
+        CodeBlock thirdNestedBlock = generatePairElementSerialization(thirdType, tripleVarName + "_third", thirdNestedVarName,
+                tripleVarName + ".getThird()");
+
+        return CodeBlock.builder()
+                .addStatement("$T.requireNonNull($L, \"$L must not be null\")", Objects.class, tripleVarName, tripleVarName)
+                .add(firstNestedBlock)
+                .add("\n")
+                .add(secondNestedBlock)
+                .add("\n")
+                .add(thirdNestedBlock)
+                .add("\n")
+                .addStatement("$T $L = $T.builder().build()", ListPlutusData.class, outputVarName, ListPlutusData.class)
+                .addStatement("$L.add($L)", outputVarName, firstNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, secondNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, thirdNestedVarName)
+                .build();
+    }
+
+    /**
+     * Generates a {@link CodeBlock} for serializing a quartet field.
+     */
+    private CodeBlock generateQuartetSerializationCode(Field field) {
+        FieldType fieldType = field.getFieldType();
+        String fieldName = field.getName();
+        String fieldOrGetterName = fieldOrGetterName(field);
+
+        return generateQuartetSerializationCode(fieldType, fieldName, fieldOrGetterName);
+    }
+
+    private CodeBlock generateQuartetSerializationCode(FieldType fieldType, String fieldName, String fieldOrGetterName) {
+        FieldType firstType = fieldType.getGenericTypes().get(0);
+        FieldType secondType = fieldType.getGenericTypes().get(1);
+        FieldType thirdType = fieldType.getGenericTypes().get(2);
+        FieldType fourthType = fieldType.getGenericTypes().get(3);
+        String firstNestedVarName = fieldName + "_$nested_first";
+        String secondNestedVarName = fieldName + "_$nested_second";
+        String thirdNestedVarName = fieldName + "_$nested_third";
+        String fourthNestedVarName = fieldName + "_$nested_fourth";
+
+        CodeBlock firstNestedBlock = generatePairElementSerialization(firstType, fieldName + "_$first", firstNestedVarName,
+                "obj." + fieldOrGetterName + ".getFirst()");
+        CodeBlock secondNestedBlock = generatePairElementSerialization(secondType, fieldName + "_$second", secondNestedVarName,
+                "obj." + fieldOrGetterName + ".getSecond()");
+        CodeBlock thirdNestedBlock = generatePairElementSerialization(thirdType, fieldName + "_$third", thirdNestedVarName,
+                "obj." + fieldOrGetterName + ".getThird()");
+        CodeBlock fourthNestedBlock = generatePairElementSerialization(fourthType, fieldName + "_$fourth", fourthNestedVarName,
+                "obj." + fieldOrGetterName + ".getFourth()");
+
+        return CodeBlock.builder()
+                .add("//Field $L\n", fieldName)
+                .add(nullCheckStatement(fieldName, fieldOrGetterName))
+                .add(firstNestedBlock)
+                .add("\n")
+                .add(secondNestedBlock)
+                .add("\n")
+                .add(thirdNestedBlock)
+                .add("\n")
+                .add(fourthNestedBlock)
+                .add("\n")
+                .addStatement("$T $LQuartet = $T.builder().build()", ListPlutusData.class, fieldName, ListPlutusData.class)
+                .addStatement("$LQuartet.add($L)", fieldName, firstNestedVarName)
+                .addStatement("$LQuartet.add($L)", fieldName, secondNestedVarName)
+                .addStatement("$LQuartet.add($L)", fieldName, thirdNestedVarName)
+                .addStatement("$LQuartet.add($L)", fieldName, fourthNestedVarName)
+                .addStatement("//Add the quartet to the constructor")
+                .addStatement("constr.getData().add($LQuartet)", fieldName)
+                .add("\n")
+                .build();
+    }
+
+    private CodeBlock generateQuartetSerializationFromExpression(FieldType quartetType, String quartetVarName, String outputVarName,
+                                                                  String quartetExpression) {
+        return CodeBlock.builder()
+                .addStatement("var $L = $L", quartetVarName, quartetExpression)
+                .add(generateNestedQuartetSerializationCode(quartetType, quartetVarName, outputVarName))
+                .build();
+    }
+
+    private CodeBlock generateNestedQuartetSerializationCode(FieldType quartetType, String quartetVarName, String outputVarName) {
+        FieldType firstType = quartetType.getGenericTypes().get(0);
+        FieldType secondType = quartetType.getGenericTypes().get(1);
+        FieldType thirdType = quartetType.getGenericTypes().get(2);
+        FieldType fourthType = quartetType.getGenericTypes().get(3);
+
+        String firstNestedVarName = outputVarName + "_$first";
+        String secondNestedVarName = outputVarName + "_$second";
+        String thirdNestedVarName = outputVarName + "_$third";
+        String fourthNestedVarName = outputVarName + "_$fourth";
+
+        CodeBlock firstNestedBlock = generatePairElementSerialization(firstType, quartetVarName + "_first", firstNestedVarName,
+                quartetVarName + ".getFirst()");
+        CodeBlock secondNestedBlock = generatePairElementSerialization(secondType, quartetVarName + "_second", secondNestedVarName,
+                quartetVarName + ".getSecond()");
+        CodeBlock thirdNestedBlock = generatePairElementSerialization(thirdType, quartetVarName + "_third", thirdNestedVarName,
+                quartetVarName + ".getThird()");
+        CodeBlock fourthNestedBlock = generatePairElementSerialization(fourthType, quartetVarName + "_fourth", fourthNestedVarName,
+                quartetVarName + ".getFourth()");
+
+        return CodeBlock.builder()
+                .addStatement("$T.requireNonNull($L, \"$L must not be null\")", Objects.class, quartetVarName, quartetVarName)
+                .add(firstNestedBlock)
+                .add("\n")
+                .add(secondNestedBlock)
+                .add("\n")
+                .add(thirdNestedBlock)
+                .add("\n")
+                .add(fourthNestedBlock)
+                .add("\n")
+                .addStatement("$T $L = $T.builder().build()", ListPlutusData.class, outputVarName, ListPlutusData.class)
+                .addStatement("$L.add($L)", outputVarName, firstNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, secondNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, thirdNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, fourthNestedVarName)
+                .build();
+    }
+
+    /**
+     * Generates a {@link CodeBlock} for serializing a quintet field.
+     */
+    private CodeBlock generateQuintetSerializationCode(Field field) {
+        FieldType fieldType = field.getFieldType();
+        String fieldName = field.getName();
+        String fieldOrGetterName = fieldOrGetterName(field);
+
+        return generateQuintetSerializationCode(fieldType, fieldName, fieldOrGetterName);
+    }
+
+    private CodeBlock generateQuintetSerializationCode(FieldType fieldType, String fieldName, String fieldOrGetterName) {
+        FieldType firstType = fieldType.getGenericTypes().get(0);
+        FieldType secondType = fieldType.getGenericTypes().get(1);
+        FieldType thirdType = fieldType.getGenericTypes().get(2);
+        FieldType fourthType = fieldType.getGenericTypes().get(3);
+        FieldType fifthType = fieldType.getGenericTypes().get(4);
+        String firstNestedVarName = fieldName + "_$nested_first";
+        String secondNestedVarName = fieldName + "_$nested_second";
+        String thirdNestedVarName = fieldName + "_$nested_third";
+        String fourthNestedVarName = fieldName + "_$nested_fourth";
+        String fifthNestedVarName = fieldName + "_$nested_fifth";
+
+        CodeBlock firstNestedBlock = generatePairElementSerialization(firstType, fieldName + "_$first", firstNestedVarName,
+                "obj." + fieldOrGetterName + ".getFirst()");
+        CodeBlock secondNestedBlock = generatePairElementSerialization(secondType, fieldName + "_$second", secondNestedVarName,
+                "obj." + fieldOrGetterName + ".getSecond()");
+        CodeBlock thirdNestedBlock = generatePairElementSerialization(thirdType, fieldName + "_$third", thirdNestedVarName,
+                "obj." + fieldOrGetterName + ".getThird()");
+        CodeBlock fourthNestedBlock = generatePairElementSerialization(fourthType, fieldName + "_$fourth", fourthNestedVarName,
+                "obj." + fieldOrGetterName + ".getFourth()");
+        CodeBlock fifthNestedBlock = generatePairElementSerialization(fifthType, fieldName + "_$fifth", fifthNestedVarName,
+                "obj." + fieldOrGetterName + ".getFifth()");
+
+        return CodeBlock.builder()
+                .add("//Field $L\n", fieldName)
+                .add(nullCheckStatement(fieldName, fieldOrGetterName))
+                .add(firstNestedBlock)
+                .add("\n")
+                .add(secondNestedBlock)
+                .add("\n")
+                .add(thirdNestedBlock)
+                .add("\n")
+                .add(fourthNestedBlock)
+                .add("\n")
+                .add(fifthNestedBlock)
+                .add("\n")
+                .addStatement("$T $LQuintet = $T.builder().build()", ListPlutusData.class, fieldName, ListPlutusData.class)
+                .addStatement("$LQuintet.add($L)", fieldName, firstNestedVarName)
+                .addStatement("$LQuintet.add($L)", fieldName, secondNestedVarName)
+                .addStatement("$LQuintet.add($L)", fieldName, thirdNestedVarName)
+                .addStatement("$LQuintet.add($L)", fieldName, fourthNestedVarName)
+                .addStatement("$LQuintet.add($L)", fieldName, fifthNestedVarName)
+                .addStatement("//Add the quintet to the constructor")
+                .addStatement("constr.getData().add($LQuintet)", fieldName)
+                .add("\n")
+                .build();
+    }
+
+    private CodeBlock generateQuintetSerializationFromExpression(FieldType quintetType, String quintetVarName, String outputVarName,
+                                                                  String quintetExpression) {
+        return CodeBlock.builder()
+                .addStatement("var $L = $L", quintetVarName, quintetExpression)
+                .add(generateNestedQuintetSerializationCode(quintetType, quintetVarName, outputVarName))
+                .build();
+    }
+
+    private CodeBlock generateNestedQuintetSerializationCode(FieldType quintetType, String quintetVarName, String outputVarName) {
+        FieldType firstType = quintetType.getGenericTypes().get(0);
+        FieldType secondType = quintetType.getGenericTypes().get(1);
+        FieldType thirdType = quintetType.getGenericTypes().get(2);
+        FieldType fourthType = quintetType.getGenericTypes().get(3);
+        FieldType fifthType = quintetType.getGenericTypes().get(4);
+
+        String firstNestedVarName = outputVarName + "_$first";
+        String secondNestedVarName = outputVarName + "_$second";
+        String thirdNestedVarName = outputVarName + "_$third";
+        String fourthNestedVarName = outputVarName + "_$fourth";
+        String fifthNestedVarName = outputVarName + "_$fifth";
+
+        CodeBlock firstNestedBlock = generatePairElementSerialization(firstType, quintetVarName + "_first", firstNestedVarName,
+                quintetVarName + ".getFirst()");
+        CodeBlock secondNestedBlock = generatePairElementSerialization(secondType, quintetVarName + "_second", secondNestedVarName,
+                quintetVarName + ".getSecond()");
+        CodeBlock thirdNestedBlock = generatePairElementSerialization(thirdType, quintetVarName + "_third", thirdNestedVarName,
+                quintetVarName + ".getThird()");
+        CodeBlock fourthNestedBlock = generatePairElementSerialization(fourthType, quintetVarName + "_fourth", fourthNestedVarName,
+                quintetVarName + ".getFourth()");
+        CodeBlock fifthNestedBlock = generatePairElementSerialization(fifthType, quintetVarName + "_fifth", fifthNestedVarName,
+                quintetVarName + ".getFifth()");
+
+        return CodeBlock.builder()
+                .addStatement("$T.requireNonNull($L, \"$L must not be null\")", Objects.class, quintetVarName, quintetVarName)
+                .add(firstNestedBlock)
+                .add("\n")
+                .add(secondNestedBlock)
+                .add("\n")
+                .add(thirdNestedBlock)
+                .add("\n")
+                .add(fourthNestedBlock)
+                .add("\n")
+                .add(fifthNestedBlock)
+                .add("\n")
+                .addStatement("$T $L = $T.builder().build()", ListPlutusData.class, outputVarName, ListPlutusData.class)
+                .addStatement("$L.add($L)", outputVarName, firstNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, secondNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, thirdNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, fourthNestedVarName)
+                .addStatement("$L.add($L)", outputVarName, fifthNestedVarName)
+                .build();
+    }
+
     // ---- Deserialize methods
 
     /**
@@ -719,7 +1082,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
 
         CodeBlock initObjCodeBlock = CodeBlock.builder()
                 .addStatement("var obj = new $T()", objTypeName)
-                .addStatement("var data = constr.getData()")
+                .addStatement("var constrData = constr.getData()")
                 .build();
 
         CodeBlock.Builder bodyCodeBlock = CodeBlock.builder();
@@ -760,28 +1123,28 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 String getValueMethodName = getValueMethodNameForIntType(field.getFieldType());
                 codeBlock = CodeBlock.builder()
                         .add("//Field $L\n", field.getName())
-                        .addStatement("var $L = (($T)data.getPlutusDataList().get($L)).$L",
+                        .addStatement("var $L = (($T)constrData.getPlutusDataList().get($L)).$L",
                                 field.getName(), BigIntPlutusData.class, field.getIndex(), getValueMethodName)
                         .build();
                 break;
             case BYTES:
                 codeBlock = CodeBlock.builder()
                         .add("//Field $L\n", field.getName())
-                        .addStatement("var $L = (($T)data.getPlutusDataList().get($L)).getValue()",
+                        .addStatement("var $L = (($T)constrData.getPlutusDataList().get($L)).getValue()",
                                 field.getName(), BytesPlutusData.class, field.getIndex())
                         .build();
                 break;
             case STRING:
                 codeBlock = CodeBlock.builder()
                         .add("//Field $L\n", field.getName())
-                        .addStatement("var $L = deserializeBytesToString((($T)data.getPlutusDataList().get($L)).getValue(), $S)",
+                        .addStatement("var $L = deserializeBytesToString((($T)constrData.getPlutusDataList().get($L)).getValue(), $S)",
                                 field.getName(), BytesPlutusData.class, field.getIndex(), field.getFieldType().getEncoding())
                         .build();
                 break;
             case LIST:
                 codeBlock = CodeBlock.builder()
                         .add("//Field $L\n", field.getName())
-                        .addStatement("var $LList = (ListPlutusData)data.getPlutusDataList().get($L)", field.getName(), field.getIndex())
+                        .addStatement("var $LList = (ListPlutusData)constrData.getPlutusDataList().get($L)", field.getName(), field.getIndex())
                         .add(generateListDeserializeCode(field.getFieldType(), field.getName(), field.getName() + "List", "item"))
                        // .add("\n")
                         .build();
@@ -789,29 +1152,30 @@ public class ConverterCodeGenerator implements CodeGenerator {
             case MAP:
                 codeBlock = CodeBlock.builder()
                         .add("//Field $L\n", field.getName())
-                        .addStatement("var $LMap = (MapPlutusData)data.getPlutusDataList().get($L)", field.getName(), field.getIndex())
+                        .addStatement("var $LMap = (MapPlutusData)constrData.getPlutusDataList().get($L)", field.getName(), field.getIndex())
                         .add(generateMapDeserializeCode(field.getFieldType(), field.getName(), field.getName() + "Map", "entry"))
                         .build();
                 break;
             case PLUTUSDATA:
                 codeBlock = CodeBlock.builder()
                         .add("//Field $L\n", field.getName())
-                        .add("var $L = data.getPlutusDataList().get($L);\n", field.getName(), field.getIndex())
+                        .add("var $L = constrData.getPlutusDataList().get($L);\n", field.getName(), field.getIndex())
                         .build();
                 break;
             case OPTIONAL:
-//                var optConstr = (ConstrPlutusData)data.getPlutusDataList().get(2);
-//                if (optConstr.getAlternative() == 1) {
-//                    obj.setOpt(Optional.empty());
-//                } else {
-//                    AnotherData opt = new AnotherDataSerializer().deserialize(((ListPlutusData)optConstr.getData().get(0)).getPlutusDataList().get(0));
-//                    obj.setOpt(Optional.of(opt));
-//                }
-
                 codeBlock = generateOptionalDeserializationCode(field);
                 break;
             case PAIR:
                 codeBlock = generatePairDeserializationCode(field);
+                break;
+            case TRIPLE:
+                codeBlock = generateTripleDeserializationCode(field);
+                break;
+            case QUARTET:
+                codeBlock = generateQuartetDeserializationCode(field);
+                break;
+            case QUINTET:
+                codeBlock = generateQuintetDeserializationCode(field);
                 break;
             case CONSTRUCTOR:
                 TypeName fieldTypeName = bestGuess(field.getFieldType().getJavaType().getName());
@@ -820,14 +1184,14 @@ public class ConverterCodeGenerator implements CodeGenerator {
                         // Shared bytes-wrapper types — static fromPlutusData, no cast
                         codeBlock = CodeBlock.builder()
                                 .add("//Field $L\n", field.getName())
-                                .addStatement("$T $L = $T.fromPlutusData(data.getPlutusDataList().get($L))",
+                                .addStatement("$T $L = $T.fromPlutusData(constrData.getPlutusDataList().get($L))",
                                         fieldTypeName, field.getName(), fieldTypeName, field.getIndex())
                                 .build();
                     } else {
                         // Shared constr types — static fromPlutusData with ConstrPlutusData cast
                         codeBlock = CodeBlock.builder()
                                 .add("//Field $L\n", field.getName())
-                                .addStatement("$T $L = $T.fromPlutusData((($T)data.getPlutusDataList().get($L)))",
+                                .addStatement("$T $L = $T.fromPlutusData((($T)constrData.getPlutusDataList().get($L)))",
                                         fieldTypeName, field.getName(), fieldTypeName, ConstrPlutusData.class, field.getIndex())
                                 .build();
                     }
@@ -837,13 +1201,13 @@ public class ConverterCodeGenerator implements CodeGenerator {
                         // Bytes-wrapper shared types (e.g., VerificationKeyHash) — pass PlutusData directly, no cast
                         codeBlock = CodeBlock.builder()
                                 .add("//Field $L\n", field.getName())
-                                .addStatement("$T $L = new $T().fromPlutusData(data.getPlutusDataList().get($L))",
+                                .addStatement("$T $L = new $T().fromPlutusData(constrData.getPlutusDataList().get($L))",
                                         fieldTypeName, field.getName(), converterClazz, field.getIndex())
                                 .build();
                     } else {
                         codeBlock = CodeBlock.builder()
                                 .add("//Field $L\n", field.getName())
-                                .addStatement("$T $L = new $T().fromPlutusData((($T)data.getPlutusDataList().get($L)))",
+                                .addStatement("$T $L = new $T().fromPlutusData((($T)constrData.getPlutusDataList().get($L)))",
                                         fieldTypeName, field.getName(), converterClazz, ConstrPlutusData.class, field.getIndex())
                                 .build();
                     }
@@ -853,7 +1217,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 codeBlock = CodeBlock.builder()
                         .add("//Field $L\n", field.getName())
                         .add("$T $L = null;\n", Boolean.class, field.getName())
-                        .addStatement("var $LConstr = (($T)data.getPlutusDataList().get($L))",
+                        .addStatement("var $LConstr = (($T)constrData.getPlutusDataList().get($L))",
                                 field.getName(), ConstrPlutusData.class, field.getIndex())
                         .beginControlFlow("if($LConstr.getAlternative() == 0)", field.getName())
                         .addStatement("$L = false", field.getName())
@@ -912,6 +1276,21 @@ public class ConverterCodeGenerator implements CodeGenerator {
             String pairBaseName = itemVarName + "_pair";
             codeBlockBuilder.add(generatePairDeserializationFromExpression(genericType, pairBaseName, pairOutputVarName, itemVarName));
             codeBlockBuilder.addStatement("$L.add($L)", fieldName, pairOutputVarName);
+        } else if (genericType.getType() == Type.TRIPLE) {
+            String tripleOutputVarName = itemVarName + "_$triple";
+            String tripleBaseName = itemVarName + "_triple";
+            codeBlockBuilder.add(generateTripleDeserializationFromExpression(genericType, tripleBaseName, tripleOutputVarName, itemVarName));
+            codeBlockBuilder.addStatement("$L.add($L)", fieldName, tripleOutputVarName);
+        } else if (genericType.getType() == Type.QUARTET) {
+            String quartetOutputVarName = itemVarName + "_$quartet";
+            String quartetBaseName = itemVarName + "_quartet";
+            codeBlockBuilder.add(generateQuartetDeserializationFromExpression(genericType, quartetBaseName, quartetOutputVarName, itemVarName));
+            codeBlockBuilder.addStatement("$L.add($L)", fieldName, quartetOutputVarName);
+        } else if (genericType.getType() == Type.QUINTET) {
+            String quintetOutputVarName = itemVarName + "_$quintet";
+            String quintetBaseName = itemVarName + "_quintet";
+            codeBlockBuilder.add(generateQuintetDeserializationFromExpression(genericType, quintetBaseName, quintetOutputVarName, itemVarName));
+            codeBlockBuilder.addStatement("$L.add($L)", fieldName, quintetOutputVarName);
         } else {
             codeBlockBuilder.addStatement("var o = $L", fromPlutusDataToObj(genericType, itemVarName))
                     .addStatement("$L.add(o)", fieldName);
@@ -968,6 +1347,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
         } else if (type.getType() == Type.PAIR) {
             String pairBaseName = itemVarName + "_pair";
             return generatePairDeserializationFromExpression(type, pairBaseName, fieldName, pdName);
+        } else if (type.getType() == Type.TRIPLE) {
+            String tripleBaseName = itemVarName + "_triple";
+            return generateTripleDeserializationFromExpression(type, tripleBaseName, fieldName, pdName);
+        } else if (type.getType() == Type.QUARTET) {
+            String quartetBaseName = itemVarName + "_quartet";
+            return generateQuartetDeserializationFromExpression(type, quartetBaseName, fieldName, pdName);
+        } else if (type.getType() == Type.QUINTET) {
+            String quintetBaseName = itemVarName + "_quintet";
+            return generateQuintetDeserializationFromExpression(type, quintetBaseName, fieldName, pdName);
         } else {
             return CodeBlock.builder().addStatement("var $L = $L", fieldName, fromPlutusDataToObj(type, pdName)).build();
         }
@@ -991,6 +1379,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
         } else if (genericType.getType() == Type.PAIR) {
             nestedBlock = generatePairDeserializationFromExpression(genericType, field.getName() + "_optional_pair", nestedVarName,
                     field.getName() + "PlutusData");
+        } else if (genericType.getType() == Type.TRIPLE) {
+            nestedBlock = generateTripleDeserializationFromExpression(genericType, field.getName() + "_optional_triple", nestedVarName,
+                    field.getName() + "PlutusData");
+        } else if (genericType.getType() == Type.QUARTET) {
+            nestedBlock = generateQuartetDeserializationFromExpression(genericType, field.getName() + "_optional_quartet", nestedVarName,
+                    field.getName() + "PlutusData");
+        } else if (genericType.getType() == Type.QUINTET) {
+            nestedBlock = generateQuintetDeserializationFromExpression(genericType, field.getName() + "_optional_quintet", nestedVarName,
+                    field.getName() + "PlutusData");
         } else {
             nestedBlock = CodeBlock.builder()
                     .addStatement("var $L=$L;",nestedVarName,
@@ -1001,7 +1398,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
         return CodeBlock.builder()
                 .add("//Field $L\n", field.getName())
                 .add("$L $L = null;\n", field.getFieldType().getFqTypeName(), field.getName())
-                .addStatement("var $LConstr = (ConstrPlutusData)data.getPlutusDataList().get($L)", field.getName(), field.getIndex())
+                .addStatement("var $LConstr = (ConstrPlutusData)constrData.getPlutusDataList().get($L)", field.getName(), field.getIndex())
                 .beginControlFlow("if($LConstr.getAlternative() == 1)", field.getName())
                 .addStatement("$L = $T.empty()", field.getName(), Optional.class)
                 .nextControlFlow("else")
@@ -1028,6 +1425,15 @@ public class ConverterCodeGenerator implements CodeGenerator {
             nestedBlock = generateMapDeserializeCode(genericType, nestedVarName, varName + "PlutusData", innerEntryName);
         } else if (genericType.getType() == Type.PAIR) {
             nestedBlock = generatePairDeserializationFromExpression(genericType, varName + "_optional_pair", nestedVarName,
+                    varName + "PlutusData");
+        } else if (genericType.getType() == Type.TRIPLE) {
+            nestedBlock = generateTripleDeserializationFromExpression(genericType, varName + "_optional_triple", nestedVarName,
+                    varName + "PlutusData");
+        } else if (genericType.getType() == Type.QUARTET) {
+            nestedBlock = generateQuartetDeserializationFromExpression(genericType, varName + "_optional_quartet", nestedVarName,
+                    varName + "PlutusData");
+        } else if (genericType.getType() == Type.QUINTET) {
+            nestedBlock = generateQuintetDeserializationFromExpression(genericType, varName + "_optional_quintet", nestedVarName,
                     varName + "PlutusData");
         } else {
             nestedBlock = CodeBlock.builder()
@@ -1062,7 +1468,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
         return CodeBlock.builder()
                 .add("//Field $L\n", field.getName())
                 .add(generatePairDeserializationFromExpression(field.getFieldType(), field.getName() + "_field_pair", field.getName(),
-                        "data.getPlutusDataList().get(" + field.getIndex() + ")"))
+                        "constrData.getPlutusDataList().get(" + field.getIndex() + ")"))
                 .add("\n")
                 .build();
     }
@@ -1112,11 +1518,155 @@ public class ConverterCodeGenerator implements CodeGenerator {
                     .build();
         } else if (elementType.getType() == Type.PAIR) {
             return generatePairDeserializationFromExpression(elementType, baseName + "_pair", outputVarName, pdExpression);
+        } else if (elementType.getType() == Type.TRIPLE) {
+            return generateTripleDeserializationFromExpression(elementType, baseName + "_triple", outputVarName, pdExpression);
+        } else if (elementType.getType() == Type.QUARTET) {
+            return generateQuartetDeserializationFromExpression(elementType, baseName + "_quartet", outputVarName, pdExpression);
+        } else if (elementType.getType() == Type.QUINTET) {
+            return generateQuintetDeserializationFromExpression(elementType, baseName + "_quintet", outputVarName, pdExpression);
         } else {
             return CodeBlock.builder()
                     .addStatement("var $L = $L", outputVarName, fromPlutusDataToObj(elementType, pdExpression))
                     .build();
         }
+    }
+
+    /**
+     * Generates code for deserializing a field that is of type Triple.
+     */
+    private CodeBlock generateTripleDeserializationCode(Field field) {
+        return CodeBlock.builder()
+                .add("//Field $L\n", field.getName())
+                .add(generateTripleDeserializationFromExpression(field.getFieldType(), field.getName() + "_field_triple", field.getName(),
+                        "constrData.getPlutusDataList().get(" + field.getIndex() + ")"))
+                .add("\n")
+                .build();
+    }
+
+    private CodeBlock generateTripleDeserializationFromExpression(FieldType tripleType, String baseName, String outputVarName, String triplePlutusDataExpression) {
+        FieldType firstType = tripleType.getGenericTypes().get(0);
+        FieldType secondType = tripleType.getGenericTypes().get(1);
+        FieldType thirdType = tripleType.getGenericTypes().get(2);
+
+        String listVarName = baseName + "_list";
+        String firstPdVarName = baseName + "_pd_first";
+        String secondPdVarName = baseName + "_pd_second";
+        String thirdPdVarName = baseName + "_pd_third";
+        String firstValueVarName = baseName + "_value_first";
+        String secondValueVarName = baseName + "_value_second";
+        String thirdValueVarName = baseName + "_value_third";
+
+        return CodeBlock.builder()
+                .addStatement("var $L = (ListPlutusData)$L", listVarName, triplePlutusDataExpression)
+                .addStatement("var $L = $L.getPlutusDataList().get(0)", firstPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(1)", secondPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(2)", thirdPdVarName, listVarName)
+                .add(generatePairElementDeserialization(firstType, baseName + "_first", firstValueVarName, firstPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(secondType, baseName + "_second", secondValueVarName, secondPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(thirdType, baseName + "_third", thirdValueVarName, thirdPdVarName))
+                .add("\n")
+                .addStatement("var $L = new $T($L, $L, $L)", outputVarName, Triple.class, firstValueVarName, secondValueVarName, thirdValueVarName)
+                .build();
+    }
+
+    /**
+     * Generates code for deserializing a field that is of type Quartet.
+     */
+    private CodeBlock generateQuartetDeserializationCode(Field field) {
+        return CodeBlock.builder()
+                .add("//Field $L\n", field.getName())
+                .add(generateQuartetDeserializationFromExpression(field.getFieldType(), field.getName() + "_field_quartet", field.getName(),
+                        "constrData.getPlutusDataList().get(" + field.getIndex() + ")"))
+                .add("\n")
+                .build();
+    }
+
+    private CodeBlock generateQuartetDeserializationFromExpression(FieldType quartetType, String baseName, String outputVarName, String quartetPlutusDataExpression) {
+        FieldType firstType = quartetType.getGenericTypes().get(0);
+        FieldType secondType = quartetType.getGenericTypes().get(1);
+        FieldType thirdType = quartetType.getGenericTypes().get(2);
+        FieldType fourthType = quartetType.getGenericTypes().get(3);
+
+        String listVarName = baseName + "_list";
+        String firstPdVarName = baseName + "_pd_first";
+        String secondPdVarName = baseName + "_pd_second";
+        String thirdPdVarName = baseName + "_pd_third";
+        String fourthPdVarName = baseName + "_pd_fourth";
+        String firstValueVarName = baseName + "_value_first";
+        String secondValueVarName = baseName + "_value_second";
+        String thirdValueVarName = baseName + "_value_third";
+        String fourthValueVarName = baseName + "_value_fourth";
+
+        return CodeBlock.builder()
+                .addStatement("var $L = (ListPlutusData)$L", listVarName, quartetPlutusDataExpression)
+                .addStatement("var $L = $L.getPlutusDataList().get(0)", firstPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(1)", secondPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(2)", thirdPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(3)", fourthPdVarName, listVarName)
+                .add(generatePairElementDeserialization(firstType, baseName + "_first", firstValueVarName, firstPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(secondType, baseName + "_second", secondValueVarName, secondPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(thirdType, baseName + "_third", thirdValueVarName, thirdPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(fourthType, baseName + "_fourth", fourthValueVarName, fourthPdVarName))
+                .add("\n")
+                .addStatement("var $L = new $T($L, $L, $L, $L)", outputVarName, Quartet.class, firstValueVarName, secondValueVarName, thirdValueVarName, fourthValueVarName)
+                .build();
+    }
+
+    /**
+     * Generates code for deserializing a field that is of type Quintet.
+     */
+    private CodeBlock generateQuintetDeserializationCode(Field field) {
+        return CodeBlock.builder()
+                .add("//Field $L\n", field.getName())
+                .add(generateQuintetDeserializationFromExpression(field.getFieldType(), field.getName() + "_field_quintet", field.getName(),
+                        "constrData.getPlutusDataList().get(" + field.getIndex() + ")"))
+                .add("\n")
+                .build();
+    }
+
+    private CodeBlock generateQuintetDeserializationFromExpression(FieldType quintetType, String baseName, String outputVarName, String quintetPlutusDataExpression) {
+        FieldType firstType = quintetType.getGenericTypes().get(0);
+        FieldType secondType = quintetType.getGenericTypes().get(1);
+        FieldType thirdType = quintetType.getGenericTypes().get(2);
+        FieldType fourthType = quintetType.getGenericTypes().get(3);
+        FieldType fifthType = quintetType.getGenericTypes().get(4);
+
+        String listVarName = baseName + "_list";
+        String firstPdVarName = baseName + "_pd_first";
+        String secondPdVarName = baseName + "_pd_second";
+        String thirdPdVarName = baseName + "_pd_third";
+        String fourthPdVarName = baseName + "_pd_fourth";
+        String fifthPdVarName = baseName + "_pd_fifth";
+        String firstValueVarName = baseName + "_value_first";
+        String secondValueVarName = baseName + "_value_second";
+        String thirdValueVarName = baseName + "_value_third";
+        String fourthValueVarName = baseName + "_value_fourth";
+        String fifthValueVarName = baseName + "_value_fifth";
+
+        return CodeBlock.builder()
+                .addStatement("var $L = (ListPlutusData)$L", listVarName, quintetPlutusDataExpression)
+                .addStatement("var $L = $L.getPlutusDataList().get(0)", firstPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(1)", secondPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(2)", thirdPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(3)", fourthPdVarName, listVarName)
+                .addStatement("var $L = $L.getPlutusDataList().get(4)", fifthPdVarName, listVarName)
+                .add(generatePairElementDeserialization(firstType, baseName + "_first", firstValueVarName, firstPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(secondType, baseName + "_second", secondValueVarName, secondPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(thirdType, baseName + "_third", thirdValueVarName, thirdPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(fourthType, baseName + "_fourth", fourthValueVarName, fourthPdVarName))
+                .add("\n")
+                .add(generatePairElementDeserialization(fifthType, baseName + "_fifth", fifthValueVarName, fifthPdVarName))
+                .add("\n")
+                .addStatement("var $L = new $T($L, $L, $L, $L, $L)", outputVarName, Quintet.class, firstValueVarName, secondValueVarName, thirdValueVarName, fourthValueVarName, fifthValueVarName)
+                .build();
     }
 
     private String fromPlutusDataToObj(FieldType itemType, String fieldName) {
@@ -1139,6 +1689,8 @@ public class ConverterCodeGenerator implements CodeGenerator {
                     return String.format("plutusDataToString(%s, \"%s\")", fieldName, itemType.getEncoding());
             case BOOL:
                 return String.format("plutusDataToBoolean(%s)", fieldName);
+            case PLUTUSDATA:
+                return fieldName;
             default:
                 if (itemType.isSharedType()) {
                     String typeFqn = itemType.getJavaType().getName();
@@ -1234,7 +1786,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 .returns(enumClassName)
                 .addParameter(ConstrPlutusData.class, "constr");
 
-        fromPlutusDataMethodBuilder.addStatement("var data = constr.getData()");
+        fromPlutusDataMethodBuilder.addStatement("var constrData = constr.getData()");
 
         for (int i = 0; i < enumConstants.size(); i++) {
             String enumConstant = enumConstants.get(i);

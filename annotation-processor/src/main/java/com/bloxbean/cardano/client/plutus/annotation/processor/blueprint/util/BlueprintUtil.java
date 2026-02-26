@@ -357,7 +357,9 @@ public class BlueprintUtil {
             || "Map".equals(simpleName)
             || "Dict".equals(simpleName)
             || "Data".equals(simpleName)
-            || "Redeemer".equals(simpleName);
+            || "Redeemer".equals(simpleName)
+            || "Quartet".equals(simpleName)
+            || "Quintet".equals(simpleName);
     }
 
     /**

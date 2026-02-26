@@ -6,6 +6,9 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.exception.Bluepri
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Quartet;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Quintet;
+import com.bloxbean.cardano.client.plutus.blueprint.type.Triple;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
@@ -50,6 +53,20 @@ public class SchemaTypeResolver {
             case bool:
                 return TypeName.get(Boolean.class);
             case list:
+                if (schema.getItems() != null && schema.getItems().size() == 3) {
+                    return resolveTripleType(namespace, schema);
+                }
+                if (schema.getItems() != null && schema.getItems().size() == 4) {
+                    return resolveQuartetType(namespace, schema);
+                }
+                if (schema.getItems() != null && schema.getItems().size() == 5) {
+                    return resolveQuintetType(namespace, schema);
+                }
+                if (schema.getItems() != null && schema.getItems().size() > 5) {
+                    throw new BlueprintGenerationException(
+                            "Tuples with 6+ items are not supported. Found " + schema.getItems().size()
+                            + " items. Please file an issue if you need this feature.");
+                }
                 return resolveListType(namespace, schema);
             case map:
                 return resolveMapType(namespace, schema);
@@ -79,7 +96,7 @@ public class SchemaTypeResolver {
             );
         }
 
-        if ("Tuple".equalsIgnoreCase(schema.getTitle()) && items.size() == 2) {
+        if (items.size() == 2) {
             return ParameterizedTypeName.get(
                     ClassName.get(Pair.class),
                     resolveType(namespace, items.get(0)),
@@ -87,9 +104,43 @@ public class SchemaTypeResolver {
             );
         }
 
+        // Fallback: should not be reached since 3+ item tuples are handled in resolveType()
         return ParameterizedTypeName.get(
                 ClassName.get(List.class),
                 TypeName.get(Object.class)
+        );
+    }
+
+    public ParameterizedTypeName resolveTripleType(String namespace, BlueprintSchema schema) {
+        List<BlueprintSchema> items = schema.getItems();
+        return ParameterizedTypeName.get(
+                ClassName.get(Triple.class),
+                resolveType(namespace, items.get(0)),
+                resolveType(namespace, items.get(1)),
+                resolveType(namespace, items.get(2))
+        );
+    }
+
+    public ParameterizedTypeName resolveQuartetType(String namespace, BlueprintSchema schema) {
+        List<BlueprintSchema> items = schema.getItems();
+        return ParameterizedTypeName.get(
+                ClassName.get(Quartet.class),
+                resolveType(namespace, items.get(0)),
+                resolveType(namespace, items.get(1)),
+                resolveType(namespace, items.get(2)),
+                resolveType(namespace, items.get(3))
+        );
+    }
+
+    public ParameterizedTypeName resolveQuintetType(String namespace, BlueprintSchema schema) {
+        List<BlueprintSchema> items = schema.getItems();
+        return ParameterizedTypeName.get(
+                ClassName.get(Quintet.class),
+                resolveType(namespace, items.get(0)),
+                resolveType(namespace, items.get(1)),
+                resolveType(namespace, items.get(2)),
+                resolveType(namespace, items.get(3)),
+                resolveType(namespace, items.get(4))
         );
     }
 

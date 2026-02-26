@@ -21,8 +21,10 @@ public class JavaType {
     public final static JavaType BOOLEAN_OBJ = new JavaType("java.lang.Boolean", false);
     public final static JavaType BOOLEAN = new JavaType("boolean", false);
     public final static JavaType PLUTUSDATA = new JavaType("plutusdata", false);
-
     public final static JavaType PAIR = new JavaType("pair", false);
+    public final static JavaType TRIPLE = new JavaType("triple", false);
+    public final static JavaType QUARTET = new JavaType("quartet", false);
+    public final static JavaType QUINTET = new JavaType("quintet", false);
 
     private String name;
     private boolean userDefined;
