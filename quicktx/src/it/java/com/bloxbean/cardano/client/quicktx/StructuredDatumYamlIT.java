@@ -62,28 +62,30 @@ public class StructuredDatumYamlIT extends TestDataBaseIT {
         System.out.println(ownerHash);
 
         // YAML with structured datum format
-        String yaml = "version: 1.0\n" +
-                "variables:\n" +
-                "  script_address: " + scriptAddr + "\n" +
-                "  owner_hash: " + ownerHash + "\n" +
-                "  lock_amount: 10000000\n" +
-                "\n" +
-                "transaction:\n" +
-                "  - tx:\n" +
-                "      from: " + sender1.baseAddress() + "\n" +
-                "      intents:\n" +
-                "        # Lock funds with structured datum\n" +
-                "        - type: payment\n" +
-                "          address: ${script_address}\n" +
-                "          amounts:\n" +
-                "            - unit: lovelace\n" +
-                "              quantity: ${lock_amount}\n" +
-                "          # Structured datum with @name annotations for readability\n" +
-                "          datum:\n" +
-                "            constructor: 0\n" +
-                "            fields:\n" +
-                "              - \"@name\": owner_payment_hash\n" +
-                "                bytes: ${owner_hash}\n";
+        String yaml = """
+                version: 1.0
+                variables:
+                  script_address: %s
+                  owner_hash: %s
+                  lock_amount: 10000000
+
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        # Lock funds with structured datum
+                        - type: payment
+                          address: ${script_address}
+                          amounts:
+                            - unit: lovelace
+                              quantity: ${lock_amount}
+                          # Structured datum with @name annotations for readability
+                          datum:
+                            constructor: 0
+                            fields:
+                              - "@name": owner_payment_hash
+                                bytes: ${owner_hash}
+                """.formatted(scriptAddr, ownerHash, sender1.baseAddress());
 
         System.out.println("=== Lock Transaction YAML ===");
         System.out.println(yaml);
@@ -134,37 +136,39 @@ public class StructuredDatumYamlIT extends TestDataBaseIT {
         String scriptCborHex = plutusScript.getCborHex();
 
         // Construct unlock transaction with structured redeemer in YAML
-        String yaml = "version: 1.0\n" +
-                "variables:\n" +
-                "  greeting_message: 48656c6c6f2c20576f726c6421  # \"Hello, World!\" in hex\n" +
-                "  recipient: " + receiver1 + "\n" +
-                "  unlock_amount: 10000000\n" +
-                "  script_cbor: " + scriptCborHex + "\n" +
-                "\n" +
-                "transaction:\n" +
-                "  - scriptTx:\n" +
-                "      inputs:\n" +
-                "        - type: script_collect_from\n" +
-                "          utxo_refs:\n" +
-                "            - tx_hash: " + scriptUtxo.getTxHash() + "\n" +
-                "              output_index: " + scriptUtxo.getOutputIndex() + "\n" +
-                "          # Structured redeemer with @name annotations\n" +
-                "          redeemer:\n" +
-                "            constructor: 0\n" +
-                "            fields:\n" +
-                "              - \"@name\": message\n" +
-                "                bytes: ${greeting_message}\n" +
-                "      intents:\n" +
-                "        # Attach spending validator\n" +
-                "        - type: validator\n" +
-                "          role: spend\n" +
-                "          cbor_hex: ${script_cbor}\n" +
-                "          version: v3\n" +
-                "        - type: payment\n" +
-                "          address: ${recipient}\n" +
-                "          amounts:\n" +
-                "            - unit: lovelace\n" +
-                "              quantity: ${unlock_amount}\n";
+        String yaml = """
+                version: 1.0
+                variables:
+                  greeting_message: 48656c6c6f2c20576f726c6421  # "Hello, World!" in hex
+                  recipient: %s
+                  unlock_amount: 10000000
+                  script_cbor: %s
+
+                transaction:
+                  - tx:
+                      inputs:
+                        - type: script_collect_from
+                          utxo_refs:
+                            - tx_hash: %s
+                              output_index: %s
+                          # Structured redeemer with @name annotations
+                          redeemer:
+                            constructor: 0
+                            fields:
+                              - "@name": message
+                                bytes: ${greeting_message}
+                      intents:
+                        # Attach spending validator
+                        - type: validator
+                          role: spend
+                          cbor_hex: ${script_cbor}
+                          version: v3
+                        - type: payment
+                          address: ${recipient}
+                          amounts:
+                            - unit: lovelace
+                              quantity: ${unlock_amount}
+                """.formatted(receiver1, scriptCborHex, scriptUtxo.getTxHash(), scriptUtxo.getOutputIndex());
 
         System.out.println("=== Unlock Transaction YAML ===");
         System.out.println(yaml);
@@ -207,41 +211,43 @@ public class StructuredDatumYamlIT extends TestDataBaseIT {
     @Test
     public void testStructuredDatumWithNestedData() {
         // Demonstrate more complex structured datum with nested constructors
-        String yaml = "version: 1.0\n" +
-                "variables:\n" +
-                "  user_name: 616c696365  # \"alice\" in hex\n" +
-                "  balance: 1000000\n" +
-                "  nft1: abcd1234\n" +
-                "  nft2: ef567890\n" +
-                "\n" +
-                "transaction:\n" +
-                "  - tx:\n" +
-                "      from: " + sender1.baseAddress() + "\n" +
-                "      intents:\n" +
-                "        - type: payment\n" +
-                "          address: " + scriptAddr + "\n" +
-                "          amounts:\n" +
-                "            - unit: lovelace\n" +
-                "              quantity: 2000000\n" +
-                "          # Complex nested datum structure\n" +
-                "          datum:\n" +
-                "            constructor: 1\n" +
-                "            fields:\n" +
-                "              # Nested constructor for user data\n" +
-                "              - \"@name\": user_info\n" +
-                "                constructor: 0\n" +
-                "                fields:\n" +
-                "                  - \"@name\": username\n" +
-                "                    bytes: ${user_name}\n" +
-                "                  - \"@name\": account_balance\n" +
-                "                    int: ${balance}\n" +
-                "              # List of NFTs\n" +
-                "              - \"@name\": owned_nfts\n" +
-                "                list:\n" +
-                "                  - \"@name\": first_nft\n" +
-                "                    bytes: ${nft1}\n" +
-                "                  - \"@name\": second_nft\n" +
-                "                    bytes: ${nft2}\n";
+        String yaml = """
+                version: 1.0
+                variables:
+                  user_name: 616c696365  # "alice" in hex
+                  balance: 1000000
+                  nft1: abcd1234
+                  nft2: ef567890
+
+                transaction:
+                  - tx:
+                      from: %s
+                      intents:
+                        - type: payment
+                          address: %s
+                          amounts:
+                            - unit: lovelace
+                              quantity: 2000000
+                          # Complex nested datum structure
+                          datum:
+                            constructor: 1
+                            fields:
+                              # Nested constructor for user data
+                              - "@name": user_info
+                                constructor: 0
+                                fields:
+                                  - "@name": username
+                                    bytes: ${user_name}
+                                  - "@name": account_balance
+                                    int: ${balance}
+                              # List of NFTs
+                              - "@name": owned_nfts
+                                list:
+                                  - "@name": first_nft
+                                    bytes: ${nft1}
+                                  - "@name": second_nft
+                                    bytes: ${nft2}
+                """.formatted(sender1.baseAddress(), scriptAddr);
 
         System.out.println("=== Complex Nested Datum YAML ===");
         System.out.println(yaml);

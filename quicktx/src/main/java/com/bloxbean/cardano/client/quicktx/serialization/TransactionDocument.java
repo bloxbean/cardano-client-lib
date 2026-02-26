@@ -96,6 +96,12 @@ public class TransactionDocument {
         @JsonProperty("change_address")
         private String changeAddress;
 
+        @JsonProperty("change_datum")
+        private String changeDatum;
+
+        @JsonProperty("change_datum_hash")
+        private String changeDatumHash;
+
         @JsonProperty("collect_from")
         private List<UtxoRef> collectFrom;
 
@@ -207,6 +213,12 @@ public class TransactionDocument {
         @JsonProperty("signers")
         @JsonInclude(JsonInclude.Include.NON_EMPTY)
         private java.util.List<SignerRef> signers;
+
+        @JsonProperty("deposit_payer")
+        private String depositPayer;
+
+        @JsonProperty("deposit_mode")
+        private String depositMode;
     }
 
     @Data

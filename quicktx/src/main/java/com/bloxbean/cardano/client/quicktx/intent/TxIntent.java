@@ -168,4 +168,14 @@ public interface TxIntent {
         // Default: no variable resolution needed
         return this;
     }
+
+    /**
+     * Check if this intention has a redeemer, indicating it's a script-based operation.
+     * Intentions with redeemers require Plutus script infrastructure (collateral, ex-unit evaluation).
+     *
+     * @return true if this intention has a redeemer set
+     */
+    default boolean hasRedeemer() {
+        return false;
+    }
 }

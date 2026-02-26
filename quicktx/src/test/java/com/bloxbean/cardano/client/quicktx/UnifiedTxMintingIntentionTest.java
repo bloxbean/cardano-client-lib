@@ -15,7 +15,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ScriptMintingIntentionTest {
+class UnifiedTxMintingIntentionTest {
 
     @Test
     void scriptMinting_serializes_to_yaml_with_redeemer_and_output_datum() {
@@ -29,12 +29,12 @@ class ScriptMintingIntentionTest {
         PlutusData redeemer = BigIntPlutusData.of(11);
         PlutusData outputDatum = BigIntPlutusData.of(42);
 
-        ScriptTx scriptTx = new ScriptTx()
+        Tx tx = new Tx()
                 .mintAsset(plutusScript, List.of(asset), redeemer, "addr_test1_receiver_mint", outputDatum)
                 .payToAddress("addr_test1_some_other", Amount.ada(1));
 
         // When
-        String yaml = TxPlan.from(scriptTx).toYaml();
+        String yaml = TxPlan.from(tx).toYaml();
 
         // Then
         assertThat(yaml).contains("type: script_minting");
@@ -64,13 +64,13 @@ class ScriptMintingIntentionTest {
         Asset asset = new Asset("xyz", BigInteger.valueOf(500));
         PlutusData redeemer = BigIntPlutusData.of(5);
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .mintAsset(plutusScript, asset, redeemer, "addr_test1_receiver_round");
 
         String yaml = TxPlan.from(original).toYaml();
 
         // When
-        ScriptTx restored = (ScriptTx) TxPlan.getTxs(yaml).get(0);
+        Tx restored = (Tx) TxPlan.getTxs(yaml).get(0);
 
         // Then
         assertThat(restored).isNotNull();

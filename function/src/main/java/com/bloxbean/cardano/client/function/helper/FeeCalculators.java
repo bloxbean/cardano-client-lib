@@ -169,7 +169,7 @@ public class FeeCalculators {
                     output.getValue().setCoin(output.getValue().getCoin().subtract(totalFee));
                 }, () -> {
                     Value value = new Value(BigInteger.ZERO.subtract(totalFee), new ArrayList<>());
-                    TransactionOutput output = new TransactionOutput(changeAddress, value);
+                    ChangeOutput output = new ChangeOutput(changeAddress, value);
                     transaction.getBody().getOutputs().add(output); //New change output //Need to calculate fee again
                 });
             } else {

@@ -245,13 +245,7 @@ public class GovernanceProposalIntent implements TxIntent {
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
-        final String from = ic.getFromAddress();
-        if (from == null || from.isBlank())
-            throw new TxBuildException("From address is required for governance proposal");
-
-        // Use the deposit helper to create the output builder
-        return DepositHelper.createDepositOutputBuilder(from,
-            DepositHelper.DepositType.GOV_ACTION_PROPOSAL, deposit);
+        return null; // Deposits resolved in Phase 4
     }
 
     @Override
@@ -293,9 +287,6 @@ public class GovernanceProposalIntent implements TxIntent {
                         .anchor(anch)
                         .build());
 
-                // Use the deposit helper to deduct the deposit
-                DepositHelper.deductDepositFromOutputs(txn, ic.getFromAddress(), dep);
-
                 // Add proposing redeemer if provided
                 PlutusData rdData = redeemer;
                 if (rdData == null && redeemerHex != null && !redeemerHex.isEmpty()) {
@@ -320,5 +311,10 @@ public class GovernanceProposalIntent implements TxIntent {
                 throw new TxBuildException("Failed to apply GovernanceProposalIntention: " + e.getMessage(), e);
             }
         };
+    }
+
+    @Override
+    public boolean hasRedeemer() {
+        return redeemer != null || (redeemerHex != null && !redeemerHex.isEmpty());
     }
 }

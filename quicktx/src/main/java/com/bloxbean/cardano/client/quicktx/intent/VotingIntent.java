@@ -418,4 +418,9 @@ public class VotingIntent implements TxIntent {
             }
         };
     }
+
+    @Override
+    public boolean hasRedeemer() {
+        return redeemer != null || (redeemerHex != null && !redeemerHex.isEmpty());
+    }
 }
