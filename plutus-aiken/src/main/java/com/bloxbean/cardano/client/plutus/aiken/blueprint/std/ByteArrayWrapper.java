@@ -1,12 +1,13 @@
 package com.bloxbean.cardano.client.plutus.aiken.blueprint.std;
 
+import com.bloxbean.cardano.client.plutus.blueprint.model.RawData;
 import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 
 import java.util.Arrays;
 import java.util.Objects;
 
-abstract class ByteArrayWrapper {
+abstract class ByteArrayWrapper implements RawData {
 
     private final byte[] value;
 
