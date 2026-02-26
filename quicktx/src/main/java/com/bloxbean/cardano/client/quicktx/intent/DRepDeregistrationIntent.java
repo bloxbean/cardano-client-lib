@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.quicktx.intent;
 
 import com.bloxbean.cardano.client.address.Credential;
-import com.bloxbean.cardano.client.common.ADAConversionUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
@@ -212,18 +211,6 @@ public class DRepDeregistrationIntent implements TxIntent {
             .drepCredentialHex(drepCredentialHex)
             .refundAddress(refundAddress)
             .build();
-    }
-
-    @Override
-    public TxOutputBuilder outputBuilder(IntentContext ic) {
-        // Add a small dummy output to trigger input selection
-        final String from = ic.getFromAddress();
-        if (from == null || from.isBlank()) {
-            throw new TxBuildException("From address is required for DRep deregistration");
-        }
-
-        // Use helper to create smart dummy output that merges with existing outputs
-        return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
     }
 
     @Override

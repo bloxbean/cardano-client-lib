@@ -3,12 +3,23 @@ package com.bloxbean.cardano.client.function.helper;
 import com.bloxbean.cardano.client.api.AddressIterator;
 import com.bloxbean.cardano.client.api.TransactionEvaluator;
 import com.bloxbean.cardano.client.api.common.AddressIterators;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.util.UtxoUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
+import com.bloxbean.cardano.client.transaction.spec.ChangeOutput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
+import com.bloxbean.cardano.client.transaction.spec.TransactionOutput;
 import com.bloxbean.cardano.client.transaction.spec.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+
+import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
 
 /**
  * Helper class to balance a transaction with script.
@@ -46,6 +57,37 @@ public class ScriptBalanceTxProviders {
         return (ctx, transaction) -> {
 
             String feePayerAddr = feePayerAddrIter.getFirst().getAddress();
+
+            // A valid Cardano transaction requires at least one input.
+            // When intent outputBuilder() returns null (e.g., deregistration/withdrawal),
+            // refund at the change address may cover the fee, leaving 0 inputs.
+            if (transaction.getBody().getInputs().isEmpty()) {
+                Set<Utxo> excludeSet = new HashSet<>(ctx.getUtxos());
+                Set<Utxo> selectedUtxos = ctx.getUtxoSelectionStrategy()
+                        .select(feePayerAddr, new Amount(LOVELACE, BigInteger.ONE), excludeSet);
+
+                for (Utxo utxo : selectedUtxos) {
+                    transaction.getBody().getInputs().add(
+                            new TransactionInput(utxo.getTxHash(), utxo.getOutputIndex()));
+                    ctx.addUtxo(utxo);
+                }
+
+                if (!selectedUtxos.isEmpty()) {
+                    // Add UTXO values to existing output at fee payer address, or create new change output
+                    TransactionOutput changeOut = transaction.getBody().getOutputs().stream()
+                            .filter(o -> feePayerAddr.equals(o.getAddress()))
+                            .findFirst()
+                            .orElseGet(() -> {
+                                ChangeOutput co = new ChangeOutput(feePayerAddr,
+                                        new Value(BigInteger.ZERO, new ArrayList<>()));
+                                transaction.getBody().getOutputs().add(co);
+                                return co;
+                            });
+                    for (Utxo utxo : selectedUtxos) {
+                        UtxoUtil.copyUtxoValuesToOutput(changeOut, utxo);
+                    }
+                }
+            }
 
             int inputSize = transaction.getBody().getInputs().size();
             BalanceTxBuilders.balanceTxWithAdditionalSigners(feePayerAddrIter.clone(), additionalSigners).apply(ctx, transaction);

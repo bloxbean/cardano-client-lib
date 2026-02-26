@@ -163,8 +163,10 @@ public class GovTxScriptTest extends QuickTxBaseTest {
         assertThat(transaction.getWitnessSet().getRedeemers()).hasSize(1);
         assertThat(transaction.getBody().getInputs()).hasSize(1);
         assertThat(transaction.getBody().getOutputs()).hasSize(2);
-        assertThat(transaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(receiver1);
-        assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin()).isEqualTo(BigInteger.valueOf(1000));
+        var refundOutput = transaction.getBody().getOutputs().stream()
+                .filter(o -> o.getAddress().equals(receiver1))
+                .findFirst().orElseThrow();
+        assertThat(refundOutput.getValue().getCoin()).isEqualTo(BigInteger.valueOf(1000));
     }
 
     @Test
@@ -250,7 +252,7 @@ public class GovTxScriptTest extends QuickTxBaseTest {
                 .build();
         var scriptHash = plutusScript.getScriptHash();
 
-        ScriptTx voteDelgTx = new ScriptTx()
+        Tx voteDelgTx = new Tx()
                 .delegateVotingPowerTo(new Address(sender1), DRep.scriptHash(scriptHash), BigIntPlutusData.of(1))
                 .attachCertificateValidator(plutusScript);
 
