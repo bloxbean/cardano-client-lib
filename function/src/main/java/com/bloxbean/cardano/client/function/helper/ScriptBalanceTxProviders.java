@@ -86,6 +86,8 @@ public class ScriptBalanceTxProviders {
                     for (Utxo utxo : selectedUtxos) {
                         UtxoUtil.copyUtxoValuesToOutput(changeOut, utxo);
                     }
+                } else {
+                    throw new TxBuildException("Transaction has no inputs. Could not find any UTXOs at fee payer address to fund the transaction: " + feePayerAddr);
                 }
             }
 
