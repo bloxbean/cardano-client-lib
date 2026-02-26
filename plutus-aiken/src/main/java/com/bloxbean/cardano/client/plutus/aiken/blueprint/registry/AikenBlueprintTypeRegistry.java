@@ -32,6 +32,7 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
         this.mappings = new HashMap<>();
         registerTuplePair();
         registerCredential();
+        registerPaymentCredential();
         registerReferencedCredential();
         registerAddress();
         registerHashWrappers();
@@ -55,6 +56,11 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
 
     private void registerCredential() {
         registerSchema(credentialSchema(), new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "Credential"));
+    }
+
+    private void registerPaymentCredential() {
+        BlueprintSchema schema = paymentCredentialSchema();
+        registerSchema(schema, new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "PaymentCredential"));
     }
 
     private void registerReferencedCredential() {
@@ -81,6 +87,17 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
                 constructor("ScriptCredential", 1, List.of(ref("#/definitions/ByteArray")))
         ));
 
+        return schema;
+    }
+
+    static BlueprintSchema paymentCredentialSchema() {
+        BlueprintSchema schema = new BlueprintSchema();
+        schema.setTitle("PaymentCredential");
+        schema.setDescription("A general structure for representing an on-chain `Credential`.\n\n Credentials are always one of two kinds: a direct public/private key\n pair, or a script (native or Plutus).");
+        schema.setAnyOf(List.of(
+                constructor("VerificationKeyCredential", 0, List.of(ref("#/definitions/ByteArray"))),
+                constructor("ScriptCredential", 1, List.of(ref("#/definitions/ByteArray")))
+        ));
         return schema;
     }
 

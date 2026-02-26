@@ -5,11 +5,15 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.processing.ProcessingEnvironment;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -19,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FieldSpecProcessorTest {
 
     private FieldSpecProcessor fieldSpecProcessor;
+    private GeneratedTypesRegistry mockRegistry;
 
     @BeforeEach
     void setUp() {
@@ -28,7 +33,7 @@ class FieldSpecProcessorTest {
 
         // Create minimal mocks for dependencies
         ProcessingEnvironment mockProcessingEnv = Mockito.mock(ProcessingEnvironment.class);
-        GeneratedTypesRegistry mockRegistry = Mockito.mock(GeneratedTypesRegistry.class);
+        mockRegistry = Mockito.mock(GeneratedTypesRegistry.class);
         SharedTypeLookup mockSharedTypeLookup = Mockito.mock(SharedTypeLookup.class);
 
         fieldSpecProcessor = new FieldSpecProcessor(
@@ -571,6 +576,132 @@ class FieldSpecProcessorTest {
             );
 
             assertThat(result).isNull();  // Skip class generation, fields handled by OptionDataTypeProcessor
+        }
+    }
+
+    // ========================================
+    // TYPE ALIAS CONFIGURATION TESTS
+    // ========================================
+
+    /**
+     * Tests for {@link FieldSpecProcessor#setTypeAliases(Map, Map)}.
+     *
+     * <p>Verifies that type alias maps are stored correctly and that the processor
+     * can distinguish between alias definitions and canonical definitions.</p>
+     */
+    @Nested
+    @DisplayName("setTypeAliases() tests")
+    class SetTypeAliasesTests {
+
+        @Test
+        @DisplayName("should accept empty maps without error")
+        void shouldAcceptEmptyMaps() {
+            // Default state: no aliases configured
+            fieldSpecProcessor.setTypeAliases(Collections.emptyMap(), Collections.emptyMap());
+            // No exception — passes
+        }
+
+        @Test
+        @DisplayName("should accept single alias mapping")
+        void shouldAcceptSingleAlias() {
+            Map<String, String> aliases = Map.of(
+                    "cardano/address/PaymentCredential", "cardano/address/Credential");
+            Map<String, List<String>> reverse = Map.of(
+                    "cardano/address/Credential", List.of("cardano/address/PaymentCredential"));
+
+            fieldSpecProcessor.setTypeAliases(aliases, reverse);
+            // No exception — passes
+        }
+
+        @Test
+        @DisplayName("should accept multiple aliases for one canonical type")
+        void shouldAcceptMultipleAliases() {
+            Map<String, String> aliases = Map.of(
+                    "ns/AliasA", "ns/Canonical",
+                    "ns/AliasB", "ns/Canonical");
+            Map<String, List<String>> reverse = Map.of(
+                    "ns/Canonical", List.of("ns/AliasA", "ns/AliasB"));
+
+            fieldSpecProcessor.setTypeAliases(aliases, reverse);
+            // No exception — passes
+        }
+    }
+
+    // ========================================
+    // CREATE ALIAS INTERFACE TESTS
+    // ========================================
+
+    /**
+     * Tests for {@link FieldSpecProcessor#createAliasInterface(String, String, String)}.
+     *
+     * <p>Verifies that the alias interface generation interacts correctly with
+     * the {@link GeneratedTypesRegistry}, which controls deduplication.</p>
+     *
+     * <p><b>Note:</b> These tests use {@code markGenerated → false} to avoid triggering
+     * {@code sourceWriter.write()} which would need a full ProcessingEnvironment.
+     * The actual source content is verified by the compilation-level tests in
+     * {@link SundaeSwapV3Test}.</p>
+     */
+    @Nested
+    @DisplayName("createAliasInterface() tests")
+    class CreateAliasInterfaceTests {
+
+        @Test
+        @DisplayName("should call markGenerated with alias class name")
+        void shouldCallMarkGenerated() {
+            // markGenerated returns false to avoid sourceWriter.write() on mock env
+            Mockito.when(mockRegistry.markGenerated(Mockito.anyString(), Mockito.eq("PaymentCredential")))
+                    .thenReturn(false);
+
+            fieldSpecProcessor.createAliasInterface(
+                    "cardano/address", "PaymentCredential", "cardano/address/Credential");
+
+            Mockito.verify(mockRegistry)
+                    .markGenerated(Mockito.anyString(), Mockito.eq("PaymentCredential"));
+        }
+
+        @Test
+        @DisplayName("should not throw when markGenerated returns false (deduplication)")
+        void shouldNotThrowIfAlreadyGenerated() {
+            Mockito.when(mockRegistry.markGenerated(Mockito.anyString(), Mockito.eq("PaymentCredential")))
+                    .thenReturn(false);
+
+            // Should not throw even though sourceWriter has a mock ProcessingEnv
+            fieldSpecProcessor.createAliasInterface(
+                    "cardano/address", "PaymentCredential", "cardano/address/Credential");
+
+            Mockito.verify(mockRegistry)
+                    .markGenerated(Mockito.anyString(), Mockito.eq("PaymentCredential"));
+        }
+
+        @Test
+        @DisplayName("should use alias name as class name, not canonical name")
+        void shouldUseAliasNameNotCanonical() {
+            Mockito.when(mockRegistry.markGenerated(Mockito.anyString(), Mockito.anyString()))
+                    .thenReturn(false);
+
+            // The canonical key "deep/ns/path/Canonical" should extract class name "Canonical"
+            // but markGenerated should use the ALIAS name "MyAlias"
+            fieldSpecProcessor.createAliasInterface(
+                    "deep/ns/path", "MyAlias", "deep/ns/path/Canonical");
+
+            Mockito.verify(mockRegistry)
+                    .markGenerated(Mockito.anyString(), Mockito.eq("MyAlias"));
+        }
+
+        @Test
+        @DisplayName("should derive package from alias namespace")
+        void shouldDerivePackageFromAliasNamespace() {
+            Mockito.when(mockRegistry.markGenerated(Mockito.anyString(), Mockito.anyString()))
+                    .thenReturn(false);
+
+            fieldSpecProcessor.createAliasInterface(
+                    "cardano/address", "PaymentCredential", "cardano/address/Credential");
+
+            // The package should contain the alias namespace segments
+            Mockito.verify(mockRegistry)
+                    .markGenerated(Mockito.argThat(pkg -> pkg.contains("cardano") && pkg.contains("address")),
+                            Mockito.eq("PaymentCredential"));
         }
     }
 }

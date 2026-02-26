@@ -106,12 +106,19 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions() != null? plutusContractBlueprint.getDefinitions()
                     : EMPTY_MAP;
 
-            // Detect and resolve type aliases (e.g., PaymentCredential → Credential)
-            // before generating classes, so alias definitions are removed and all
-            // $ref pointers redirect to the canonical type.
+            // Detect type aliases (e.g., PaymentCredential → Credential).
+            // Alias definitions are kept in place and $refs are NOT rewritten.
+            // Instead, alias info is passed to FieldSpecProcessor which:
+            // - Generates alias interfaces extending the canonical interface
+            // - Makes canonical type's variants implement the alias interfaces
             Map<String, String> typeAliases = detectTypeAliases(definitions);
             if (!typeAliases.isEmpty()) {
-                resolveTypeAliases(definitions, plutusContractBlueprint.getValidators(), typeAliases);
+                Map<String, List<String>> canonicalToAliases = new LinkedHashMap<>();
+                for (Map.Entry<String, String> entry : typeAliases.entrySet()) {
+                    canonicalToAliases.computeIfAbsent(entry.getValue(), k -> new ArrayList<>())
+                            .add(entry.getKey());
+                }
+                fieldSpecProcessor.setTypeAliases(typeAliases, canonicalToAliases);
             }
 
             //Create Data classes
@@ -199,97 +206,6 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         Collections.sort(variantSignatures);
 
         return namespace + "|" + String.join(",", variantSignatures);
-    }
-
-    /**
-     * Resolves type aliases by removing alias definitions and rewriting all {@code $ref}
-     * pointers that reference aliases to point to the canonical definitions instead.
-     *
-     * @param definitions the mutable definitions map
-     * @param validators  the list of validators whose schemas also need rewriting
-     * @param aliases     map from alias definition key to canonical definition key
-     */
-    void resolveTypeAliases(Map<String, BlueprintSchema> definitions,
-                            List<Validator> validators,
-                            Map<String, String> aliases) {
-        // Build $ref rewrite map: "#/definitions/cardano~1address~1PaymentCredential" → "#/definitions/cardano~1address~1Credential"
-        Map<String, String> refRewrites = new HashMap<>();
-        for (Map.Entry<String, String> entry : aliases.entrySet()) {
-            String aliasRef = "#/definitions/" + entry.getKey().replace("/", "~1");
-            String canonicalRef = "#/definitions/" + entry.getValue().replace("/", "~1");
-            refRewrites.put(aliasRef, canonicalRef);
-        }
-
-        // Remove alias definitions
-        for (String aliasKey : aliases.keySet()) {
-            definitions.remove(aliasKey);
-        }
-
-        // Rewrite $ref in all remaining definitions
-        for (BlueprintSchema schema : definitions.values()) {
-            rewriteRefs(schema, refRewrites);
-        }
-
-        // Rewrite $ref in all validator schemas (datum, redeemer, parameters)
-        if (validators != null) {
-            for (Validator validator : validators) {
-                if (validator.getDatum() != null && validator.getDatum().getSchema() != null) {
-                    rewriteRefs(validator.getDatum().getSchema(), refRewrites);
-                }
-                if (validator.getRedeemer() != null && validator.getRedeemer().getSchema() != null) {
-                    rewriteRefs(validator.getRedeemer().getSchema(), refRewrites);
-                }
-                if (validator.getParameters() != null) {
-                    for (BlueprintDatum param : validator.getParameters()) {
-                        if (param.getSchema() != null) {
-                            rewriteRefs(param.getSchema(), refRewrites);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Recursively rewrites {@code $ref} strings in a schema tree. Uses an identity set
-     * to handle object-graph cycles created by {@link BlueprintSchema#copyFrom} sharing
-     * sub-schema objects between definitions.
-     */
-    private void rewriteRefs(BlueprintSchema schema, Map<String, String> refRewrites) {
-        rewriteRefs(schema, refRewrites, Collections.newSetFromMap(new IdentityHashMap<>()));
-    }
-
-    private void rewriteRefs(BlueprintSchema schema, Map<String, String> refRewrites,
-                              Set<BlueprintSchema> visited) {
-        if (schema == null || !visited.add(schema)) return;
-
-        // Rewrite this schema's $ref if it matches an alias
-        if (schema.getRef() != null && refRewrites.containsKey(schema.getRef())) {
-            schema.setRef(refRewrites.get(schema.getRef()));
-        }
-
-        // Recurse into composite schema properties
-        rewriteRefsList(schema.getAnyOf(), refRewrites, visited);
-        rewriteRefsList(schema.getOneOf(), refRewrites, visited);
-        rewriteRefsList(schema.getAllOf(), refRewrites, visited);
-        rewriteRefsList(schema.getNotOf(), refRewrites, visited);
-        rewriteRefsList(schema.getFields(), refRewrites, visited);
-        rewriteRefsList(schema.getItems(), refRewrites, visited);
-
-        rewriteRefs(schema.getKeys(), refRewrites, visited);
-        rewriteRefs(schema.getValues(), refRewrites, visited);
-        rewriteRefs(schema.getLeft(), refRewrites, visited);
-        rewriteRefs(schema.getRight(), refRewrites, visited);
-    }
-
-    private void rewriteRefsList(List<BlueprintSchema> schemas,
-                                 Map<String, String> refRewrites,
-                                 Set<BlueprintSchema> visited) {
-        if (schemas == null) return;
-
-        for (BlueprintSchema s : schemas) {
-            rewriteRefs(s, refRewrites, visited);
-        }
     }
 
     /**

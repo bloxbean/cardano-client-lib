@@ -24,7 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isAbstractPlutusDataType;
@@ -49,6 +51,13 @@ public class FieldSpecProcessor {
     private final SharedTypeLookup sharedTypeLookup;
     private final SharedTypeConverterGenerator sharedTypeConverterGenerator;
 
+    // Type alias maps: alias definition key → canonical definition key,
+    // and canonical key → list of alias keys
+    private Map<String, String> typeAliases = Collections.emptyMap();
+    private Map<String, List<String>> canonicalToAliases = Collections.emptyMap();
+    // Alias interfaces to add to variant classes of the current canonical type being processed
+    private List<ClassName> currentAliasInterfaces = Collections.emptyList();
+
     public FieldSpecProcessor(Blueprint annotation,
                               ProcessingEnvironment processingEnv,
                               GeneratedTypesRegistry generatedTypesRegistry,
@@ -63,6 +72,17 @@ public class FieldSpecProcessor {
         this.sharedTypeLookup = sharedTypeLookup;
         this.sharedTypeConverterGenerator = new SharedTypeConverterGenerator();
         this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver, sharedTypeLookup);
+    }
+
+    /**
+     * Sets type alias information detected by {@link BlueprintAnnotationProcessor}.
+     *
+     * @param typeAliases       map from alias definition key to canonical definition key
+     * @param canonicalToAliases reverse map from canonical key to its alias keys
+     */
+    public void setTypeAliases(Map<String, String> typeAliases, Map<String, List<String>> canonicalToAliases) {
+        this.typeAliases = typeAliases;
+        this.canonicalToAliases = canonicalToAliases;
     }
 
     /**
@@ -238,6 +258,14 @@ public class FieldSpecProcessor {
             return;
         }
 
+        // If this definition is a type alias, generate a thin interface extending the canonical type
+        // instead of a full class hierarchy (the canonical type's variants will implement both)
+        if (typeAliases.containsKey(definitionKey)) {
+            String canonicalKey = typeAliases.get(definitionKey);
+            createAliasInterface(ns, schema.getTitle(), canonicalKey);
+            return;
+        }
+
         DatumModel datumModel;
         try {
             datumModel = datumModelFactory.create(ns, schema);
@@ -249,7 +277,22 @@ public class FieldSpecProcessor {
             throw BlueprintGenerationException.forDefinition(definitionKey, ex.getMessage());
         }
 
+        // Compute alias interfaces for variants of this canonical type.
+        // When this type has aliases (e.g., PaymentCredential aliases Credential),
+        // variant classes should implement both the canonical and alias interfaces.
+        List<String> aliasKeys = canonicalToAliases.getOrDefault(definitionKey, Collections.emptyList());
+        List<ClassName> aliasInterfaces = new ArrayList<>();
+        for (String aliasKey : aliasKeys) {
+            String aliasNs = BlueprintUtil.getNamespaceFromReferenceKey(aliasKey);
+            String aliasClassName = nameStrategy.toClassName(
+                    BlueprintUtil.getClassNameFromReferenceKey(aliasKey));
+            aliasInterfaces.add(ClassName.get(getPackageName(aliasNs), aliasClassName));
+        }
+        this.currentAliasInterfaces = aliasInterfaces;
+
         createDatumClass(datumModel);
+
+        this.currentAliasInterfaces = Collections.emptyList();
     }
 
     public void createDatumClass(DatumModel datumModel) {
@@ -419,6 +462,39 @@ public class FieldSpecProcessor {
     }
 
     /**
+     * Creates a thin alias interface that extends the canonical interface.
+     * Used when a blueprint definition is a type alias (structurally identical to another definition).
+     * For example, {@code PaymentCredential} extends {@code Credential}.
+     *
+     * @param ns           namespace of the alias type
+     * @param aliasName    simple name of the alias (e.g., "PaymentCredential")
+     * @param canonicalKey definition key of the canonical type (e.g., "cardano/address/Credential")
+     */
+    void createAliasInterface(String ns, String aliasName, String canonicalKey) {
+        String canonicalNs = BlueprintUtil.getNamespaceFromReferenceKey(canonicalKey);
+        String canonicalClassName = nameStrategy.toClassName(
+                BlueprintUtil.getClassNameFromReferenceKey(canonicalKey));
+
+        String pkg = getPackageName(ns);
+        String className = nameStrategy.toClassName(aliasName);
+        String canonicalPkg = getPackageName(canonicalNs);
+
+        AnnotationSpec constrAnnotation = AnnotationSpec.builder(Constr.class).build();
+        ClassName canonicalType = ClassName.get(canonicalPkg, canonicalClassName);
+
+        TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(constrAnnotation)
+                .addSuperinterface(canonicalType);
+
+        if (generatedTypesRegistry.markGenerated(pkg, className)) {
+            sourceWriter.write(pkg, interfaceBuilder.build(), className);
+        }
+
+        log.debug("Generated alias interface: {}.{} extends {}", pkg, className, canonicalClassName);
+    }
+
+    /**
      * Creates a Datum field for a given schema. It also creates a Datum class for the schema if it's not already created
      *
      * @param ns            namespace or package suffix
@@ -535,6 +611,12 @@ public class FieldSpecProcessor {
         if (interfaceName != null && !interfaceName.isEmpty()) {
             ClassName interfaceTypeName = ClassName.get(pkg, interfaceName);
             classBuilder.addSuperinterface(interfaceTypeName);
+        }
+
+        // Add alias interfaces so variants implement both canonical and alias types
+        // e.g., VerificationKey implements Credential, PaymentCredential
+        for (ClassName aliasInterface : currentAliasInterfaces) {
+            classBuilder.addSuperinterface(aliasInterface);
         }
 
         TypeSpec build = classBuilder.build();

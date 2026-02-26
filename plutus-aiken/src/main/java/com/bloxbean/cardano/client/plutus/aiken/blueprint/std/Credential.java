@@ -39,7 +39,7 @@ public interface Credential extends Data<Credential> {
     /**
      * Credential backed by a verification key hash.
      */
-    final class VerificationKeyCredential implements Credential {
+    final class VerificationKeyCredential implements Credential, PaymentCredential {
         private final byte[] hash;
 
         public VerificationKeyCredential(byte[] hash) {
@@ -79,7 +79,7 @@ public interface Credential extends Data<Credential> {
     /**
      * Credential backed by a script hash.
      */
-    final class ScriptCredential implements Credential {
+    final class ScriptCredential implements Credential, PaymentCredential {
         private final byte[] hash;
 
         public ScriptCredential(byte[] hash) {
