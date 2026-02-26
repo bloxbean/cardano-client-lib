@@ -32,7 +32,7 @@ Without version information in filenames, this distinction was invisible.
 Adopt a standardized naming convention for blueprint test files that includes the **sanitized Aiken compiler version**:
 
 ```
-<BlueprintName>_aiken_v<major>_<minor>_<patch>_<prerelease>.json
+<BlueprintName>_aiken_v<major>_<minor>_<patch>_<prerelease>_<hash>.json
 ```
 
 ### Sanitization Rules
@@ -42,17 +42,20 @@ Convert the Aiken version from `preamble.compiler.version` using these rules:
 | Character | Replacement | Example |
 |-----------|-------------|---------|
 | Dots (`.`) | Underscore (`_`) | `v1.0.21` → `v1_0_21` |
-| Plus (`+`) | Underscore (`_`) | `+4b04517` → `_4b04517` (omit in practice) |
+| Plus (`+`) | Underscore (`_`) | `+4b04517` → `_4b04517` |
 | Dash in prerelease (`-alpha`, `-rc1`) | Underscore (`_`) | `-alpha` → `_alpha` |
-| Build metadata (`+hash`) | **Omit entirely** | `v1.0.21-alpha+4b04517` → `v1_0_21_alpha` |
+| Build metadata (`+hash`) | **Include as `_<hash>`** | `v1.0.21-alpha+4b04517` → `v1_0_21_alpha_4b04517` |
+
+> **Note**: The original proposal omitted build metadata, but in practice all 44+ blueprint test files consistently include the build hash suffix for full traceability. This convention is now the standard.
 
 ### Examples
 
 | Aiken Compiler Version | Filename |
 |------------------------|----------|
-| `v1.0.21-alpha+4b04517` | `AnyPlutusDataBlueprint_aiken_v1_0_21_alpha.json` |
-| `v1.1.17+c3a7fba` | `CIP113Token_aiken_v1_1_17.json` |
-| `v2.0.0` | `HelloWorld_aiken_v2_0_0.json` |
+| `v1.0.21-alpha+4b04517` | `AnyPlutusDataBlueprint_aiken_v1_0_21_alpha_4b04517.json` |
+| `v1.1.17+c3a7fba` | `cip113Token_aiken_v1_1_17_c3a7fba.json` |
+| `v1.1.21+42babe5` | `giftcard_aiken_v1_1_21_42babe5.json` |
+| `v1.0.26-alpha+075668b` | `aftermarket_aiken_v1_0_26_alpha_075668b.json` |
 
 ### Migration Strategy
 
@@ -153,7 +156,7 @@ When adding or updating blueprint test files:
 
 **Role**: End-to-end validation that the processor handles large modern blueprints correctly. Not designed to test specific CIP-57 edge cases.
 
-**Filename**: `CIP113Token_aiken_v1_1_17.json` (if we were to rename it).
+**Filename**: `cip113Token_aiken_v1_1_17_c3a7fba.json` (renamed).
 
 ### Test Organization Guidelines
 
@@ -182,8 +185,8 @@ When adding or updating blueprint test files:
 ### 3. Include Full Build Metadata (`+hash`)
 **Example**: `AnyPlutusDataBlueprint_aiken_v1_0_21_alpha_4b04517.json`
 **Pros**: Complete version traceability.
-**Cons**: Excessively long filenames, build metadata rarely relevant for testing.
-**Verdict**: Rejected — omit build metadata, keep only semantic version.
+**Cons**: Longer filenames.
+**Verdict**: Initially rejected, but **adopted in practice** — all 44+ files consistently include the build hash for full traceability. The slight filename length increase is acceptable.
 
 ### 4. Version in Test Method Name Only
 **Example**: `@Test void anyPlutusData_aiken_v1_0_21_alpha() { ... }`
@@ -231,8 +234,8 @@ These map to `com.bloxbean.cardano.client.plutus.spec.PlutusData`, **not** gener
 ## Implementation Notes
 
 - **Sanitization is mandatory**: Filesystem-illegal characters (`+`, `/`) must be replaced.
-- **Omit build metadata**: The `+hash` portion of versions like `v1.0.21-alpha+4b04517` should be dropped.
-- **Consistency**: All new blueprint test files must follow this convention.
+- **Include build hash**: The `+hash` portion of versions like `v1.0.21-alpha+4b04517` is included as `_4b04517` for full traceability.
+- **Consistency**: All new blueprint test files must follow this convention (44+ files already do).
 - **Documentation**: Each test file should include a comment explaining what CIP-57 feature or Aiken version behavior it validates.
 
 ## Rollout Plan
@@ -242,8 +245,8 @@ These map to `com.bloxbean.cardano.client.plutus.spec.PlutusData`, **not** gener
 - [x] Update corresponding Java interfaces (`@Blueprint` annotation).
 - [x] Enhance `AnyPlutusDataBlueprint` to include namespaced abstract types demonstrating the bug.
 - [ ] Document convention in project README or developer guide.
-- [ ] Apply convention to future blueprint test additions.
-- [ ] Consider renaming `CIP113Token.json` → `CIP113Token_aiken_v1_1_17.json` for consistency (optional).
+- [x] Apply convention to future blueprint test additions (all 44+ files follow the convention).
+- [x] Renamed `CIP113Token.json` → `cip113Token_aiken_v1_1_17_c3a7fba.json`.
 
 ## Open Questions
 
