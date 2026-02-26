@@ -23,6 +23,8 @@ public class JavaType {
     public final static JavaType PLUTUSDATA = new JavaType("plutusdata", false);
     public final static JavaType PAIR = new JavaType("pair", false);
     public final static JavaType TRIPLE = new JavaType("triple", false);
+    public final static JavaType QUARTET = new JavaType("quartet", false);
+    public final static JavaType QUINTET = new JavaType("quintet", false);
 
     private String name;
     private boolean userDefined;

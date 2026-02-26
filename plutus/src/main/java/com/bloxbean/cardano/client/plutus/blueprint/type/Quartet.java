@@ -2,8 +2,7 @@ package com.bloxbean.cardano.client.plutus.blueprint.type;
 
 import java.util.Objects;
 
-//NOTE: This class is not used currently. It is here for future implementation
-class Quartet<T1, T2, T3, T4> {
+public class Quartet<T1, T2, T3, T4> {
     private T1 first;
     private T2 second;
     private T3 third;

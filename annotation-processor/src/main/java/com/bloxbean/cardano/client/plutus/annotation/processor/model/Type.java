@@ -11,7 +11,9 @@ public enum Type {
     PLUTUSDATA("plutusdata"),
     OPTIONAL("optional"),
     PAIR("pair"),
-    TRIPLE("triple");
+    TRIPLE("triple"),
+    QUARTET("quartet"),
+    QUINTET("quintet");
 
     private String type;
     Type(String type) {
