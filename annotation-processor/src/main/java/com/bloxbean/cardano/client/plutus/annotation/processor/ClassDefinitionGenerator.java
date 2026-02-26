@@ -240,13 +240,13 @@ public class ClassDefinitionGenerator {
             // Raw Pair type (from shared type lookup — not parameterized)
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setNonConstrPlutusData(true);
+            fieldType.setRawDataType(true);
         } else {
             if (isSupportedType(typeName, typeMirror)) {
                 fieldType.setType(Type.CONSTRUCTOR);
                 fieldType.setJavaType(new JavaType(typeName.toString(), true));
-                fieldType.setNonConstrPlutusData(isBytesWrapperType(typeMirror));
-                fieldType.setSharedType(isSharedType(typeMirror));
+                fieldType.setRawDataType(isRawDataType(typeMirror));
+                fieldType.setDataType(isDataType(typeMirror));
             } else {
                 throw new NotSupportedException("Type not supported: " + typeName);
             }
@@ -322,15 +322,14 @@ public class ClassDefinitionGenerator {
                 e);
     }
 
+    private static final String DATA_INTERFACE_FQN = "com.bloxbean.cardano.client.plutus.blueprint.model.Data";
+    private static final String RAW_DATA_INTERFACE_FQN = "com.bloxbean.cardano.client.plutus.blueprint.model.RawData";
+
     /**
-     * Checks if a type is a shared type — a hand-written class that has its own
-     * {@code toPlutusData()} method and is NOT a generated {@code @Constr} model class.
-     * <p>
-     * Generated {@code @Constr} model classes also have {@code toPlutusData()} (via the
-     * {@code Data<T>} interface), but they delegate to a Converter. Shared types implement
-     * the conversion logic directly.
+     * Checks if a type implements {@code Data<T>} — a constr-based shared type
+     * that is NOT a generated {@code @Constr} model class.
      */
-    private boolean isSharedType(TypeMirror typeMirror) {
+    private boolean isDataType(TypeMirror typeMirror) {
         if (typeMirror == null) return false;
         Types typeUtils = processingEnvironment.getTypeUtils();
         Element element = typeUtils.asElement(typeMirror);
@@ -338,31 +337,21 @@ public class ClassDefinitionGenerator {
         TypeElement typeElement = (TypeElement) element;
         // @Constr-annotated classes are generated model classes, not shared types
         if (typeElement.getAnnotation(Constr.class) != null) return false;
-        // Check for toPlutusData() method (including inherited)
-        for (Element member : elements.getAllMembers(typeElement)) {
-            if (member instanceof ExecutableElement) {
-                ExecutableElement method = (ExecutableElement) member;
-                if (method.getSimpleName().toString().equals("toPlutusData")
-                        && method.getParameters().isEmpty()) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        TypeElement dataInterface = elements.getTypeElement(DATA_INTERFACE_FQN);
+        if (dataInterface == null) return false;
+        return typeUtils.isAssignable(typeUtils.erasure(typeMirror), typeUtils.erasure(dataInterface.asType()));
     }
 
-    private static final String BYTE_ARRAY_WRAPPER_FQN = "com.bloxbean.cardano.client.plutus.aiken.blueprint.std.ByteArrayWrapper";
-
     /**
-     * Checks if a type extends ByteArrayWrapper (bytes-wrapper shared type).
-     * These types serialize to BytesPlutusData rather than ConstrPlutusData.
+     * Checks if a type implements {@code RawData} — a bytes-wrapper shared type
+     * whose on-chain encoding is raw {@code PlutusData} (not {@code ConstrPlutusData}).
      */
-    private boolean isBytesWrapperType(TypeMirror typeMirror) {
+    private boolean isRawDataType(TypeMirror typeMirror) {
         if (typeMirror == null) return false;
-        TypeElement wrapperElement = elements.getTypeElement(BYTE_ARRAY_WRAPPER_FQN);
-        if (wrapperElement == null) return false; // ByteArrayWrapper not on classpath
+        TypeElement rawDataInterface = elements.getTypeElement(RAW_DATA_INTERFACE_FQN);
+        if (rawDataInterface == null) return false;
         Types typeUtils = processingEnvironment.getTypeUtils();
-        return typeUtils.isAssignable(typeMirror, wrapperElement.asType());
+        return typeUtils.isAssignable(typeMirror, rawDataInterface.asType());
     }
 
     private boolean isAssignableToMap(TypeMirror typeMirror) {
