@@ -2,7 +2,6 @@ package com.bloxbean.cardano.client.quicktx.intent;
 
 import com.bloxbean.cardano.client.address.Address;
 import com.bloxbean.cardano.client.address.AddressType;
-import com.bloxbean.cardano.client.common.ADAConversionUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
@@ -147,18 +146,6 @@ public class StakeWithdrawalIntent implements TxIntent {
             .amount(amount)
             .receiver(receiver)
             .build();
-    }
-
-    @Override
-    public TxOutputBuilder outputBuilder(IntentContext ic) {
-        // Add a dummy output (1 ADA) to fromAddress to trigger input selection
-        final String from = ic.getFromAddress();
-        if (from == null || from.isBlank()) {
-            throw new TxBuildException("From address is required for stake withdrawal");
-        }
-
-        // Use helper to create smart dummy output that merges with existing outputs
-        return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
     }
 
     @Override

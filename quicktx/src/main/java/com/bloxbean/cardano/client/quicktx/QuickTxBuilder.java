@@ -267,7 +267,7 @@ public class QuickTxBuilder {
         private long validFrom;
         private long validTo;
 
-        private boolean mergeOutputs = true;
+        private boolean mergeOutputs = false;
 
         private TransactionEvaluator txnEvaluator;
         private UtxoSelectionStrategy utxoSelectionStrategy;
@@ -276,7 +276,7 @@ public class QuickTxBuilder {
 
         private List<PlutusScript> referenceScripts;
 
-        private boolean ignoreScriptCostEvaluationError = true;
+        private boolean ignoreScriptCostEvaluationError = false;
         private Era serializationEra;
         private boolean removeDuplicateScriptWitnesses = false;
         private boolean searchUtxoByAddressVkh = false;
@@ -1087,7 +1087,7 @@ public class QuickTxBuilder {
 
         /**
          * Define if outputs with the same address should be merged into one output.
-         * Default is true
+         * Default is false
          *
          * @param merge
          * @return TxContext
@@ -1234,7 +1234,7 @@ public class QuickTxBuilder {
          * If set to false, the builder will throw an exception if the script cost evaluation fails and stop building the transaction.
          * </p>
          *
-         * Default is true
+         * Default is false
          *
          * @param flag
          * @return TxContext

@@ -5,12 +5,14 @@ import com.bloxbean.cardano.client.address.AddressProvider;
 import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
 import com.bloxbean.cardano.client.api.TransactionProcessor;
 import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.impl.StaticTransactionEvaluator;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
 import com.bloxbean.cardano.client.api.model.Utxo;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborSerializationException;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.ExUnits;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusV2Script;
 import com.bloxbean.cardano.client.transaction.spec.Asset;
@@ -92,6 +94,10 @@ class ScriptTxTest extends QuickTxBaseTest {
         Transaction transaction = quickTxBuilder.compose(scriptTx)
                 .collateralPayer(sender1)
                 .feePayer(receiver1)
+                .withTxEvaluator(new StaticTransactionEvaluator(List.of(ExUnits
+                        .builder()
+                        .mem(BigInteger.valueOf(1000_000))
+                        .steps(BigInteger.valueOf(1_000_000)).build())))
                 .build();
 
         assertThat(transaction.getBody().getOutputs()).hasSize(1);
@@ -143,6 +149,10 @@ class ScriptTxTest extends QuickTxBaseTest {
         Transaction transaction = quickTxBuilder.compose(scriptTx)
                 .collateralPayer(sender1)
                 .feePayer(receiver1)
+                .withTxEvaluator(new StaticTransactionEvaluator(List.of(
+                        ExUnits.builder().mem(BigInteger.valueOf(1000_000)).steps(BigInteger.valueOf(1_000_000)).build(),
+                        ExUnits.builder().mem(BigInteger.valueOf(1000_000)).steps(BigInteger.valueOf(1_000_000)).build()
+                )))
                 .build();
 
         assertThat(transaction.getBody().getOutputs()).hasSize(3);
@@ -209,6 +219,11 @@ class ScriptTxTest extends QuickTxBaseTest {
         Transaction transaction = quickTxBuilder.compose(scriptTx)
                 .collateralPayer(sender1)
                 .feePayer(receiver1)
+                .withTxEvaluator(new StaticTransactionEvaluator(List.of(
+                        ExUnits.builder().mem(BigInteger.valueOf(1000_000)).steps(BigInteger.valueOf(1_000_000)).build(),
+                        ExUnits.builder().mem(BigInteger.valueOf(1000_000)).steps(BigInteger.valueOf(1_000_000)).build()
+                        )
+                ))
                 .build();
 
         assertThat(transaction.getBody().getOutputs()).hasSize(3);
