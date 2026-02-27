@@ -163,5 +163,4 @@ rust/jniLibs
 .gradle-user
 .gradle-user-home
 /.claude/
-/docs-nextra/public/_pagefind
 /docs/public/_pagefind
