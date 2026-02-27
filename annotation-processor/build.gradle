@@ -3,6 +3,7 @@ dependencies {
     api project(':plutus-aiken')
     api project(':address')
     api project(':quicktx')
+    api project(':metadata')
 
     implementation(libs.google.auto.service){
         exclude group: 'com.google.guava', module: 'guava'
