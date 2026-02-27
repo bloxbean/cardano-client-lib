@@ -261,9 +261,10 @@ public class TxFlowYamlIntegrationTest {
                           from_ref: account://sender
                           intents:
                             - type: payment
-                              receiver: %s
-                              amount:
-                                lovelace: 2000000
+                              address: %s
+                              amounts:
+                                - unit: lovelace
+                                  quantity: '2000000'
                         context:
                           signers:
                             - ref: account://sender
@@ -311,9 +312,10 @@ public class TxFlowYamlIntegrationTest {
                           from_ref: account://sender
                           intents:
                             - type: payment
-                              receiver: ${receiver_addr}
-                              amount:
-                                lovelace: 3000000
+                              address: ${receiver_addr}
+                              amounts:
+                                - unit: lovelace
+                                  quantity: '3000000'
                         context:
                           signers:
                             - ref: account://sender
@@ -328,9 +330,10 @@ public class TxFlowYamlIntegrationTest {
                           from_ref: account://receiver
                           intents:
                             - type: payment
-                              receiver: ${relay_addr}
-                              amount:
-                                lovelace: 1500000
+                              address: ${relay_addr}
+                              amounts:
+                                - unit: lovelace
+                                  quantity: '1500000'
                         context:
                           signers:
                             - ref: account://receiver
@@ -377,9 +380,10 @@ public class TxFlowYamlIntegrationTest {
                           from_ref: account://sender
                           intents:
                             - type: payment
-                              receiver: ${receiver_addr}
-                              amount:
-                                lovelace: ${payment_amount}
+                              address: ${receiver_addr}
+                              amounts:
+                                - unit: lovelace
+                                  quantity: '${payment_amount}'
                         context:
                           signers:
                             - ref: account://sender
