@@ -1,0 +1,235 @@
+---
+description: A simple ada transfer example.
+---
+
+# Simple Ada Transfer
+
+# Overview
+
+In this section, we will go through the steps required to do a simple Ada transfer from a
+sender account to two receiver addresses.
+
+## Select a Network and Provider
+
+First we need to select a network for our transaction. You can choose one of the available public test network.
+
+- **Preprod**
+- **Preview**
+- **Local Devnet (Yaci DevKit)** — for local development and testing
+
+Similarly, choose a backend provider to interact with Cardano blockchain. You can select either Koios or Blockfrost as
+backend provider.
+
+Please check [dependencies](dependencies) page to find the required dependency for your selected backend provider.
+
+>
+> For **Blockfrost** as backend provider, you need to first create an account on [blockfrost.io](https://blockfrost.io) and get
+> a ``Project Id`` for the selected network.
+>
+> For **Koios** backend provider, you don't need any registration.
+
+> For **Yaci DevKit** as a local development environment, install and run
+> [Yaci DevKit](https://devkit.yaci.xyz). It provides a local Cardano devnet with
+> built-in Yaci Store that exposes Blockfrost-compatible APIs. No registration or API key is required.
+
+## Create Sender and Receiver accounts
+
+We need three accounts for this example, a sender account and two receiver accounts. As we are going to use one of the test
+network, the following code will generate three testnet addresses.
+
+```java
+Account senderAccount = new Account(Networks.testnet());
+String senderAddress = senderAccount.baseAddress();
+String senderMnemonic = senderAccount.mnemonic();
+
+Account receiverAccount1 = new Account(Networks.testnet());
+String receiverAddress1 = receiverAccount1.baseAddress();
+
+Account receiverAccount2 = new Account(Networks.testnet());
+String receiverAddress2 = receiverAccount2.baseAddress();
+
+```
+
+If you already have mnemonic for an existing account, you can create a sender account from the mnemonic. For this example,
+we just need sender account's mnemonic.
+
+```java
+String senderMnemonic = "<24 words mnemonic>";
+Account senderAccount = Account.createFromMnemonic(Networks.testnet(), senderMnemonic);
+```
+
+Similarly, we need two receiver addresses to receive some ada. Unlike other account-based blockchains, Cardano supports multiple outputs
+in a single transaction. So let's define two receiving addresses.
+
+```java
+String receiverAddress1 = "addr_test...";
+String receiverAddress2 = "addr_test...";
+```
+
+>
+> Two types of address can be generated, mainnet address or testnet address.
+>
+> To generate a test network address, you can use any of the network constant ``Networks.testnet()``, ``Networks.preprod()`` or
+> ``Networks.preview()``. The generated testnet address can be used on any of the test network.
+> **(The address generation depends on the NetworkId in Network object not protocol magic. These public test networks have same network id (0))**
+>
+> For mainnet address, you need to use ``Networks.mainnet()``
+
+
+## Topup sender account with test Ada
+
+Based on your selected network, get some test Ada from one of the below faucet. You need to provide ``senderAddress``
+generated in the previous section to get some test Ada.
+
+https://docs.cardano.org/cardano-testnet/tools/faucet
+
+## Create Backend Service
+
+**For Blockfrost :**
+
+Use the correct Blockfrost url for the selected network and project id to create an instance of BackendService.
+
+```java
+String bfProjectId = "preprod...";
+BackendService backendService =
+        new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bfProjectId);
+```
+**Note:** You can find Blockfrost urls for the supported networks in ``com.bloxbean.cardano.client.backend.blockfrost.common.Constants``.
+
+or,
+
+**For Koios :**
+
+```java
+BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREVIEW_URL);
+```
+**Note:** You can find other Koios urls in ``com.bloxbean.cardano.client.backend.koios.Constants``
+
+or,
+
+**For Yaci DevKit (Local Devnet) :**
+
+```java
+BackendService backendService =
+        new BFBackendService("http://localhost:8080/api/v1/", "dummy-key");
+```
+**Note:** Yaci DevKit provides a local Cardano devnet with a built-in faucet.
+You can top up test accounts through the Yaci DevKit CLI instead of using the public testnet faucet.
+
+## Simple Transfer - Using QuickTx API
+
+The **QuickTx API** provides a simple and declarative way to build, sign, and submit transactions. It handles
+fee calculation, balancing, and change output automatically.
+
+### Create QuickTxBuilder
+
+First, create a ``QuickTxBuilder`` instance from the ``BackendService``.
+
+```java
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+```
+
+### Create a transaction message metadata (Optional)
+
+Let's create a [CIP20](https://cips.cardano.org/cips/cip20/) compliant metadata to add a message to the transaction.
+This is optional, but it demonstrates how metadata can be attached to a transaction.
+
+```java
+MessageMetadata metadata = MessageMetadata.create()
+        .add("First transfer transaction");
+```
+
+### Define the Transaction
+
+Use the ``Tx`` class to define the transaction. You can specify multiple outputs, attach metadata, and set the sender address.
+
+```java
+Tx tx = new Tx()
+        .payToAddress(receiverAddress1, Amount.ada(10))
+        .payToAddress(receiverAddress2, Amount.ada(20))
+        .attachMetadata(metadata)
+        .from(senderAddress);
+```
+
+### Build, Sign, and Submit
+
+Use ``QuickTxBuilder`` to compose the transaction, attach a signer, and submit it. The ``completeAndWait`` method
+builds, signs, submits, and waits for the transaction to be confirmed on-chain.
+
+```java
+Result<String> result = quickTxBuilder.compose(tx)
+        .withSigner(SignerProviders.signerFrom(senderAccount))
+        .completeAndWait(System.out::println);
+```
+
+If successful, ``result.isSuccessful()`` will return true and ``result.getValue()`` will contain the transaction hash.
+
+### Full Source Code
+
+```java showLineNumbers
+import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.api.model.Amount;
+import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
+import com.bloxbean.cardano.client.cip.cip20.MessageMetadata;
+import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.function.helper.SignerProviders;
+import com.bloxbean.cardano.client.quicktx.QuickTxBuilder;
+import com.bloxbean.cardano.client.quicktx.Tx;
+
+public class SimpleTransfer {
+
+    public void transfer() throws Exception {
+        //Sender account
+        String senderMnemonic = "<24 words mnemonic>";
+        Account senderAccount = Account.createFromMnemonic(Networks.testnet(), senderMnemonic);
+        String senderAddress = senderAccount.baseAddress();
+
+        //Addresses to receive ada
+        String receiverAddress1 = "addr_test1qpjs693nk7makhcax3k7h0hkjyye2adwv3e300dkfwpqj8k2le4j5lg6gd773gdvs7jcnwdxvtztmxawwcdmvm0h870sardwde";
+        String receiverAddress2 = "addr_test1qzvy33rr24huuqv46ajex99hrcl0dauqcch7meznf4mdyd4sqwzjy5gaynruuwtdmwmdlnasa8t2g2t0fqmf8rhq3e6svxzum4";
+
+        // For Blockfrost
+        String bf_projectId = "<Blockfrost Project Id>";
+        BackendService backendService =
+                new BFBackendService(Constants.BLOCKFROST_PREVIEW_URL, bf_projectId);
+
+        // For Koios
+        // BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREVIEW_URL);
+
+        // For Yaci DevKit (Local Devnet)
+        // BackendService backendService =
+        //         new BFBackendService("http://localhost:8080/api/v1/", "dummy-key");
+
+        // Create QuickTxBuilder
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+        // Create a CIP20 message metadata
+        MessageMetadata metadata = MessageMetadata.create()
+                .add("First transfer transaction");
+
+        // Define transaction
+        Tx tx = new Tx()
+                .payToAddress(receiverAddress1, Amount.ada(10))
+                .payToAddress(receiverAddress2, Amount.ada(20))
+                .attachMetadata(metadata)
+                .from(senderAddress);
+
+        // Build, sign, submit and wait for confirmation
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(senderAccount))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result);
+    }
+
+    public static void main(String[] args) throws Exception {
+        new SimpleTransfer().transfer();
+    }
+}
+
+```
+
+> **Looking for the Composable Functions version?** Check the [Simple Ada Transfer - Composable Functions](/docs/tutorials/legacy-tutorials/simple-transfer) tutorial.

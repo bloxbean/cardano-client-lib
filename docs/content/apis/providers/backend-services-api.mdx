@@ -1,0 +1,219 @@
+---
+title: "Backend Services API"
+description: "APIs for integrating with Cardano backend services"
+---
+
+# Backend Services API
+
+The Backend Services API provides integration with various Cardano backend services through a unified interface.
+
+## Key Features
+
+- **Unified Interface**: Single API for multiple backend providers
+- **Provider Flexibility**: Switch between different backend services easily
+- **Service Coverage**: Access to blockchain data and transaction services
+
+## Core Classes
+
+### BackendService Interface
+The main interface for all backend service implementations, providing access to various blockchain services.
+
+### Provider Implementations
+- `BFBackendService` - Blockfrost integration
+- `KoiosBackendService` - Koios REST API integration
+- `OgmiosBackendService` - Ogmios JSON-over-HTTP for protocol params and transactions
+- `KupmiosBackendService` - Ogmios (protocol params + tx) combined with Kupo (UTxOs) for full transaction building
+
+### Service Interfaces
+- `TransactionService` - Transaction submission and querying
+- `UtxoService` - UTXO management and queries
+- `AddressService` - Address information and history
+- `AssetService` - Native token and NFT data
+- `BlockService` - Block information and navigation
+- `EpochService` - Epoch and staking information
+
+## Supported Backend Services
+
+| Provider | Module | Features | Status |
+|----------|--------|----------|--------|
+| **Blockfrost** | `cardano-client-backend-blockfrost` | Chain data and transaction services (governance endpoints not yet available). Also compatible with [Yaci Store](https://github.com/bloxbean/yaci-store) | Stable |
+| **Koios** | `cardano-client-backend-koios` | REST API, community-driven | Stable |
+| **Ogmios** | `cardano-client-backend-ogmios` | Protocol parameters and transaction submission over HTTP (no UTxO API) | Stable |
+
+## Usage Examples
+
+### Blockfrost Integration
+
+Initialize Blockfrost backend service with API key:
+
+```java
+// Initialize Blockfrost service
+BackendService backendService = new BFBackendService(
+    Constants.BLOCKFROST_PREPROD_URL,
+    "your-project-id"
+);
+
+// Access different services
+TransactionService transactionService = backendService.getTransactionService();
+UtxoService utxoService = backendService.getUtxoService();
+AddressService addressService = backendService.getAddressService();
+AssetService assetService = backendService.getAssetService();
+
+// Use with QuickTx
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+```
+
+### Koios Integration
+
+Initialize Koios backend service for community-driven API:
+
+```java
+// Initialize Koios service
+BackendService backendService = new KoiosBackendService(
+    "https://api.koios.rest/api/v1"
+);
+
+// Access services
+TransactionService transactionService = backendService.getTransactionService();
+UtxoService utxoService = backendService.getUtxoService();
+AddressService addressService = backendService.getAddressService();
+
+// Query address information
+List<AddressContent> addressInfo = addressService.getAddressInfo("addr1...");
+System.out.println("Address balance: " + addressInfo.get(0).getAmount());
+```
+
+### Ogmios Integration
+
+Initialize Ogmios backend service:
+
+```java
+// Initialize Ogmios service (HTTP)
+BackendService backendService = new OgmiosBackendService(
+    "http://localhost:1337"
+);
+
+// Access services
+TransactionService transactionService = backendService.getTransactionService();
+
+// Submit transaction
+Result<String> result = transactionService.submitTransaction(transactionCbor);
+if (result.isSuccessful()) {
+    System.out.println("Transaction submitted: " + result.getValue());
+}
+```
+
+**Note:** Ogmios backend implements protocol parameters and transaction services.
+For UTXO queries, use Kupo with `KupmiosBackendService` (see below).
+
+### Kupmios Integration (Ogmios + Kupo)
+
+For complete transaction building capabilities, use `KupmiosBackendService` which combines Ogmios and Kupo:
+
+```java
+// Initialize Kupmios service (Ogmios + Kupo)
+BackendService backendService = new KupmiosBackendService(
+    "http://localhost:1337",  // Ogmios URL
+    "http://localhost:1442"   // Kupo URL
+);
+
+// Now you have access to all services:
+// - Kupo provides: UtxoService
+// - Ogmios provides: TransactionService, ProtocolParams
+TransactionService transactionService = backendService.getTransactionService();
+UtxoService utxoService = backendService.getUtxoService();
+EpochService epochService = backendService.getEpochService();
+```
+
+For more details about Ogmios/Kupo integration, see the [Ogmios backend README](https://github.com/bloxbean/cardano-client-lib/tree/master/backend-modules/ogmios).
+
+### Yaci DevKit / Yaci Store (Local Development)
+
+[Yaci Store](https://github.com/bloxbean/yaci-store) is a Cardano blockchain indexer that provides
+Blockfrost-compatible APIs. Since `BFBackendService` communicates using the Blockfrost API protocol,
+it works seamlessly with any Yaci Store instance — no code changes required.
+
+[Yaci DevKit](https://github.com/bloxbean/yaci-devkit) bundles Yaci Store with a local Cardano devnet,
+giving you a complete local development environment. This is ideal for:
+
+- **Rapid iteration** — no waiting for testnet confirmations
+- **Offline development** — no internet or API keys required
+- **Deterministic testing** — full control over the local chain
+
+To connect to a Yaci DevKit instance running locally:
+
+```java
+// Connect to Yaci DevKit's built-in Yaci Store (Blockfrost-compatible)
+BackendService backendService = new BFBackendService(
+    "http://localhost:8080/api/v1/",
+    "dummy-key"
+);
+
+// Use exactly like any other BackendService
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+```
+
+To connect to a hosted Yaci Store instance:
+
+```java
+BackendService backendService = new BFBackendService(
+    "https://your-yaci-store-host/api/v1/",
+    "dummy-key"
+);
+```
+
+For more details, see the [Yaci DevKit documentation](https://devkit.yaci.xyz)
+and [Yaci Store documentation](https://store.yaci.xyz).
+
+## Advanced Usage
+
+### Provider Switching
+
+Each provider is instantiated directly — pick the one that fits your infrastructure:
+
+```java
+// Blockfrost
+BackendService bfService = new BFBackendService(
+    Constants.BLOCKFROST_MAINNET_URL, "your-api-key");
+
+// Koios
+BackendService koiosService = new KoiosBackendService(
+    "https://api.koios.rest/api/v1");
+
+// Kupmios (Ogmios + Kupo)
+BackendService kupmiosService = new KupmiosBackendService(
+    "http://localhost:1337", "http://localhost:1442");
+```
+
+### Service Usage Examples
+
+Query blockchain data using backend services:
+
+```java
+// Get UTXO information
+List<Utxo> utxos = utxoService.getUtxos("addr1...", 50, 1);
+System.out.println("Found " + utxos.size() + " UTXOs");
+
+// Get transaction details
+Transaction transaction = transactionService.getTransaction("tx_hash...");
+System.out.println("Transaction fee: " + transaction.getFee());
+
+// Get address balance
+AddressContent addressInfo = addressService.getAddressInfo("addr1...").get(0);
+System.out.println("Address balance: " + addressInfo.getAmount());
+```
+
+## Available Services
+
+| Service | Purpose | Key Methods |
+|---------|---------|-------------|
+| **TransactionService** | Transaction operations | `submitTransaction()`, `getTransaction()` |
+| **UtxoService** | UTXO management | `getUtxos()`, `getUtxoByTxnIdAndIndex()` |
+| **AddressService** | Address information | `getAddressInfo()`, `getAddressTransactions()` |
+| **AssetService** | Asset and token data | `getAsset()`, `getAssetAddresses()` |
+| **BlockService** | Block information | `getLatestBlock()`, `getBlockByHash()` |
+| **EpochService** | Epoch and staking data | `getLatestEpoch()`, `getEpochParameters()` |
+| **MetadataService** | Transaction metadata | `getTransactionMetadata()` |
+| **FeeCalculationService** | Fee estimation | `calculateFee()` |
+
+The Backend Services API provides a flexible and robust foundation for Cardano blockchain integration across multiple provider ecosystems.

@@ -1,0 +1,381 @@
+---
+title: "Address API"
+description: "Address generation, validation, and conversion utilities"
+---
+
+# Address API
+
+The Address API provides comprehensive functionality for working with Cardano addresses. It supports address creation, validation, conversion, and extraction of address components. The API handles both Shelley addresses (current) and Byron addresses (legacy) with full support for different address types and networks.
+
+## Key Features
+
+- **Address Creation**: Create addresses from various inputs (strings, bytes, credentials)
+- **Address Validation**: Validate address format and network compatibility
+- **Address Conversion**: Convert between different address formats and representations
+- **Credential Extraction**: Extract payment and delegation credentials from addresses
+- **Type Support**: Support for all Cardano address types (base, enterprise, pointer, reward)
+
+## Core Classes
+
+### Address Class
+The main class for Shelley address operations, supporting Bech32 encoded addresses and credential extraction.
+
+**Constructors:**
+- `Address(String address)` — Create from Bech32 string
+- `Address(byte[] addressBytes)` — Create from byte array
+- `Address(String prefix, byte[] bytes)` — Create with custom prefix
+
+**Credential & Hash Methods:**
+- `getPaymentCredential()` — Extract payment credential as `Optional<Credential>`
+- `getDelegationCredential()` — Extract delegation credential as `Optional<Credential>`
+- `getPaymentCredentialHash()` — Get raw payment key/script hash as `Optional<byte[]>`
+- `getDelegationCredentialHash()` — Get raw delegation key/script hash as `Optional<byte[]>`
+- `getBech32VerificationKeyHash()` — Get Bech32-encoded (`addr_vkh`) payment credential hash
+
+**Type Checking Methods:**
+- `isPubKeyHashInPaymentPart()` — Check if payment credential is a public key hash
+- `isScriptHashInPaymentPart()` — Check if payment credential is a script hash
+- `isStakeKeyHashInDelegationPart()` — Check if delegation credential is a stake key hash
+- `isScriptHashInDelegationPart()` — Check if delegation credential is a script hash
+
+**Other Methods:**
+- `toBech32()` / `getAddress()` — Convert to Bech32 format
+- `getAddressType()` — Get the address type (Base, Enterprise, Pointer, Reward)
+- `getNetwork()` — Get the network (mainnet/testnet)
+- `getPrefix()` — Get the address prefix
+- `getBytes()` — Get raw address bytes
+
+### AddressProvider Class
+Utility class for generating addresses from keys, scripts, and credentials.
+
+**Address Generation:**
+- `getBaseAddress(HdPublicKey, HdPublicKey, Network)` — Base address from key pair
+- `getBaseAddress(Credential, Credential, Network)` — Base address from any credential pair (key or script)
+- `getBaseAddress(Script, HdPublicKey, Network)` — Base address with script payment
+- `getBaseAddress(HdPublicKey, Script, Network)` — Base address with script delegation
+- `getBaseAddress(Script, Script, Network)` — Base address with both scripts
+- `getEntAddress(HdPublicKey, Network)` — Enterprise address from key
+- `getEntAddress(Script, Network)` — Enterprise address from script
+- `getEntAddress(Credential, Network)` — Enterprise address from credential
+- `getRewardAddress(HdPublicKey, Network)` — Reward address from delegation key
+- `getRewardAddress(Script, Network)` — Reward address from delegation script
+- `getRewardAddress(Credential, Network)` — Reward address from stake credential
+- `getPointerAddress(HdPublicKey, Pointer, Network)` — Pointer address from key
+- `getPointerAddress(Script, Pointer, Network)` — Pointer address from script
+- `getPointerAddress(Credential, Pointer, Network)` — Pointer address from credential
+
+**Stake Address Derivation:**
+- `getStakeAddress(Address)` — Derive stake/reward address from a base address
+- `getStakeAddressFromAccountPublicKey(String, Network)` — Stake address from Bech32 account public key (`acct_xvk` or `xpub`)
+- `getStakeAddressFromAccountPublicKey(byte[], Network)` — Stake address from account public key bytes
+
+**Verification & Inspection:**
+- `verifyAddress(Address, byte[])` — Verify address matches a public key
+- `isPubKeyHashInPaymentPart(Address)` / `isScriptHashInPaymentPart(Address)` — Check payment credential type
+- `isStakeKeyHashInDelegationPart(Address)` / `isScriptHashInDelegationPart(Address)` — Check delegation credential type
+- `getPaymentCredential(Address)` / `getDelegationCredential(Address)` — Extract credentials
+- `getPaymentCredentialHash(Address)` / `getDelegationCredentialHash(Address)` — Extract raw hashes
+
+### AddressUtil Class
+Utility class for address validation and byte-level conversion.
+
+**Key Methods:**
+- `AddressUtil.isValidAddress(String address)` — Validate Shelley or Byron address format
+- `AddressUtil.addressToBytes(String address)` — Convert Shelley or Byron address string to bytes
+- `AddressUtil.bytesToAddress(byte[])` — Convert bytes to Shelley (Bech32) or Byron (Base58) address string
+- `AddressUtil.bytesToBase58Address(byte[])` — Convert Byron address bytes to Base58 string
+
+## Usage Examples
+
+### Creating Addresses
+
+Create addresses from different input formats:
+
+```java
+// Create address from Bech32 string
+String bech32 = "addr_test1qpx4kmt...plwg6";
+Address address = new Address(bech32);
+
+// Create address from byte array
+byte[] addressBytes = address.getBytes();
+Address addressFromBytes = new Address(addressBytes);
+
+// Create address with custom prefix
+Address customAddress = new Address("addr_test", addressBytes);
+```
+
+### Address Generation from Accounts
+
+Generate addresses from account credentials:
+
+```java
+// Generate addresses from account
+Account account = new Account(Networks.testnet());
+
+// Get base address (payment + staking)
+String baseAddress = account.baseAddress();
+System.out.println("Base Address: " + baseAddress);
+
+// Get enterprise address (payment only)
+String enterpriseAddress = account.enterpriseAddress();
+System.out.println("Enterprise Address: " + enterpriseAddress);
+
+// Get stake address (for delegation)
+String stakeAddress = account.stakeAddress();
+System.out.println("Stake Address: " + stakeAddress);
+```
+
+### Address Generation from Credentials
+
+Build addresses directly from `Credential` objects, useful when working with key hashes or script hashes:
+
+```java
+// From key hashes
+byte[] paymentKeyHash = ...; // 28-byte Blake2b-224 hash
+byte[] stakeKeyHash = ...;
+
+Credential paymentCred = Credential.fromKey(paymentKeyHash);
+Credential stakeCred = Credential.fromKey(stakeKeyHash);
+
+// Base address from credentials
+Address baseAddr = AddressProvider.getBaseAddress(paymentCred, stakeCred, Networks.testnet());
+
+// Enterprise address (payment only, no staking)
+Address entAddr = AddressProvider.getEntAddress(paymentCred, Networks.testnet());
+
+// Reward address (for staking/delegation)
+Address rewardAddr = AddressProvider.getRewardAddress(stakeCred, Networks.testnet());
+```
+
+You can mix key and script credentials:
+
+```java
+// Script-locked payment with key-based staking
+Credential scriptPayment = Credential.fromScript(scriptHash);
+Credential keyStake = Credential.fromKey(stakeKeyHash);
+
+Address scriptBaseAddr = AddressProvider.getBaseAddress(scriptPayment, keyStake, Networks.mainnet());
+```
+
+### Stake Address Derivation
+
+Derive the stake (reward) address from an existing base address:
+
+```java
+// From a base address
+Address baseAddress = new Address("addr_test1qpx4kmt...plwg6");
+Address stakeAddress = AddressProvider.getStakeAddress(baseAddress);
+System.out.println("Stake Address: " + stakeAddress.toBech32());
+
+// From a CIP-1852 extended account public key (Bech32 encoded)
+String accountPubKey = "acct_xvk1abc...xyz";
+Address stakeAddr = AddressProvider.getStakeAddressFromAccountPublicKey(accountPubKey, Networks.mainnet());
+```
+
+### Address Verification
+
+Verify that an address was derived from a given public key:
+
+```java
+Address address = new Address("addr_test1qpx4kmt...plwg6");
+byte[] publicKeyBytes = ...; // Ed25519 public key bytes
+
+boolean isMatch = AddressProvider.verifyAddress(address, publicKeyBytes);
+if (isMatch) {
+    System.out.println("Address matches the public key");
+}
+```
+
+### Address Validation
+
+Validate address format and network compatibility:
+
+```java
+// Basic address validation (supports both Shelley and Byron)
+String addressToValidate = "addr_test1qpx4kmt...plwg6";
+
+boolean isValid = AddressUtil.isValidAddress(addressToValidate);
+if (isValid) {
+    System.out.println("Address is valid");
+}
+
+// Network-specific validation
+Address addr = new Address(addressToValidate);
+boolean isTestnet = addr.getNetwork().equals(Networks.testnet());
+
+// Validate address type
+boolean isBase = addr.getAddressType() == AddressType.Base;
+```
+
+### Address Conversion
+
+Convert addresses between different formats:
+
+```java
+// Convert address to bytes
+String addressString = "addr_test1qpx4kmt...plwg6";
+byte[] addressBytes = AddressUtil.addressToBytes(addressString);
+
+// Convert bytes back to address string (auto-detects Shelley vs Byron)
+String addressStr = AddressUtil.bytesToAddress(addressBytes);
+
+// Convert Byron address bytes to Base58
+byte[] byronBytes = ...;
+String byronAddress = AddressUtil.bytesToBase58Address(byronBytes);
+
+// Bech32 round-trip via Address class
+Address address = new Address(addressBytes);
+String bech32 = address.toBech32();
+```
+
+### Credential Extraction
+
+Extract payment and delegation credentials from addresses:
+
+```java
+Address address = new Address("addr_test1qpx4kmt...plwg6");
+
+// Extract payment credential
+Optional<Credential> paymentCredential = address.getPaymentCredential();
+if (paymentCredential.isPresent()) {
+    Credential payment = paymentCredential.get();
+    System.out.println("Payment Credential Type: " + payment.getType());
+    System.out.println("Payment Credential Hash: " + HexUtil.encodeHexString(payment.getBytes()));
+}
+
+// Extract delegation credential
+Optional<Credential> delegationCredential = address.getDelegationCredential();
+if (delegationCredential.isPresent()) {
+    Credential delegation = delegationCredential.get();
+    System.out.println("Delegation Credential Type: " + delegation.getType());
+    System.out.println("Delegation Credential Hash: " + HexUtil.encodeHexString(delegation.getBytes()));
+}
+
+// Get raw hashes directly
+Optional<byte[]> paymentHash = address.getPaymentCredentialHash();
+Optional<byte[]> delegationHash = address.getDelegationCredentialHash();
+
+// Get Bech32-encoded payment verification key hash (addr_vkh1...)
+Optional<String> vkh = address.getBech32VerificationKeyHash();
+```
+
+### Credential Type Checking
+
+Determine whether address credentials are key-based or script-based:
+
+```java
+Address address = new Address("addr_test1qpx4kmt...plwg6");
+
+// Check payment credential type
+if (address.isPubKeyHashInPaymentPart()) {
+    System.out.println("Payment is key-based");
+} else if (address.isScriptHashInPaymentPart()) {
+    System.out.println("Payment is script-based");
+}
+
+// Check delegation credential type
+if (address.isStakeKeyHashInDelegationPart()) {
+    System.out.println("Delegation is key-based");
+} else if (address.isScriptHashInDelegationPart()) {
+    System.out.println("Delegation is script-based");
+}
+```
+
+### Address Information
+
+Get detailed information about addresses:
+
+```java
+Address address = new Address("addr_test1qpx4kmt...plwg6");
+
+// Get address type
+AddressType addressType = address.getAddressType();
+System.out.println("Address Type: " + addressType);
+
+// Get network
+Network network = address.getNetwork();
+System.out.println("Network: " + network);
+
+// Get prefix
+String prefix = address.getPrefix();
+System.out.println("Prefix: " + prefix);
+
+// Get raw bytes
+byte[] bytes = address.getBytes();
+System.out.println("Address Length: " + bytes.length + " bytes");
+```
+
+## Advanced Usage
+
+### Script Addresses
+
+Work with script-based addresses:
+
+```java
+// Generate key pair for script
+Keys keyPair = KeyGenUtil.generateKey();
+VerificationKey verificationKey = keyPair.getVkey();
+
+// Create script pubkey
+ScriptPubkey scriptPubkey = ScriptPubkey.create(verificationKey);
+
+// Generate script address
+Address scriptAddress = AddressProvider.getEntAddress(scriptPubkey, Networks.testnet());
+System.out.println("Script Address: " + scriptAddress.getAddress());
+
+// Verify it's a script address
+if (scriptAddress.isScriptHashInPaymentPart()) {
+    System.out.println("Successfully created script address");
+}
+```
+
+### Multi-Signature Addresses
+
+Create addresses for multi-signature scenarios:
+
+```java
+// Generate multiple key pairs
+Keys key1 = KeyGenUtil.generateKey();
+Keys key2 = KeyGenUtil.generateKey();
+Keys key3 = KeyGenUtil.generateKey();
+
+// Create script pubkeys
+ScriptPubkey scriptPubkey1 = ScriptPubkey.create(key1.getVkey());
+ScriptPubkey scriptPubkey2 = ScriptPubkey.create(key2.getVkey());
+ScriptPubkey scriptPubkey3 = ScriptPubkey.create(key3.getVkey());
+
+// Create multi-sig script (2 of 3)
+ScriptAtLeast multiSigScript = ScriptAtLeast.create(2)
+    .addScript(scriptPubkey1)
+    .addScript(scriptPubkey2)
+    .addScript(scriptPubkey3);
+
+// Generate multi-sig address
+Address multiSigAddress = AddressProvider.getEntAddress(multiSigScript, Networks.testnet());
+System.out.println("Multi-Sig Address: " + multiSigAddress.getAddress());
+```
+
+## Best Practices
+
+### Address Validation
+
+```java
+// Always validate addresses before use
+if (!AddressUtil.isValidAddress(addressString)) {
+    System.err.println("Invalid address format");
+    return;
+}
+
+Address address = new Address(addressString);
+// Proceed with validated address
+```
+
+## Address Types Reference
+
+| Address Type | Prefix | Use Case | Components |
+|--------------|--------|----------|------------|
+| **Base** | `addr` / `addr_test` | Payment + Staking | Payment credential + Delegation credential |
+| **Enterprise** | `addr` / `addr_test` | Payment only | Payment credential only |
+| **Pointer** | `addr` / `addr_test` | Payment + Pointer to stake | Payment credential + Stake pointer |
+| **Reward** | `stake` / `stake_test` | Staking rewards | Delegation credential only |
+| **Byron** | `Ae2` / `37` | Legacy addresses | Legacy format (deprecated) |

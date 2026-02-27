@@ -1,20 +1,39 @@
 # Dependencies
-/node_modules
+node_modules/
 
-# Production
-/build
+# Next.js build output
+.next/
+out/
 
-# Generated files
-.docusaurus
-.cache-loader
+# Production build
+build/
+dist/
 
-# Misc
-.DS_Store
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
