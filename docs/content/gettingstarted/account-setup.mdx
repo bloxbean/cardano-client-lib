@@ -10,6 +10,7 @@ First we need to select a network for our transaction. You can choose one of the
 
 - **Preprod**
 - **Preview**
+- **Local Devnet (Yaci DevKit)** — for local development and testing
 
 Similarly, choose a backend provider to interact with Cardano blockchain. You can select either Koios or Blockfrost as
 backend provider.
@@ -21,6 +22,10 @@ Please check [dependencies](dependencies) page to find the required dependency f
 > a ``Project Id`` for the selected network.
 >
 > For **Koios** backend provider, you don't need any registration.
+
+> For **Yaci DevKit** as a local development environment, install and run
+> [Yaci DevKit](https://devkit.yaci.xyz). It provides a local Cardano devnet with
+> built-in Yaci Store that exposes Blockfrost-compatible APIs. No registration or API key is required.
 
 ## Create Accounts
 
@@ -77,3 +82,13 @@ or,
 BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREVIEW_URL);
 ```
 **Note:** You can find other Koios urls in ``com.bloxbean.cardano.client.backend.koios.Constants``
+
+or,
+
+**For Yaci DevKit (Local Devnet) :**
+
+```java
+BackendService backendService =
+        new BFBackendService("http://localhost:8080/api/v1/", "dummy-key");
+```
+**Note:** Yaci DevKit uses Yaci Store which provides Blockfrost-compatible APIs.

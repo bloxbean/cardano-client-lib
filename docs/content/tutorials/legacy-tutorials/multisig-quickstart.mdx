@@ -1,0 +1,243 @@
+---
+description: Multi-signature transfer with native script using Composable Functions API.
+---
+
+# Multi-sig Transfer - Composable Functions
+
+This tutorial shows how to claim fund from a multi-sig script address using the **Composable Functions** API.
+
+> **Looking for the QuickTx version?** Check the [Multi-sig Transfer using Native Script](/docs/gettingstarted/multisig-quickstart) tutorial for the recommended QuickTx approach.
+
+## Prerequisites
+
+Before starting, make sure you have completed the setup steps from the main tutorial:
+- [Multi-sig Transfer using Native Script](/docs/gettingstarted/multisig-quickstart) — for native script theory, account setup, script creation, address generation, topup, and backend service setup
+
+## Claim fund from script address
+
+Now we are ready to claim fund from the script address.
+
+### Define expected output
+
+Let's say we want to claim total **50 Ada** from the script address and transfer **25 Ada** to account1 and **25 Ada** to account2.
+
+```java
+String address1 = account1.baseAddress();
+Output output1 = Output.builder()
+        .address(address1)
+        .assetName(LOVELACE)
+        .qty(adaToLovelace(25))
+        .build();
+
+String address2 = account2.baseAddress();
+Output output2 = Output.builder()
+        .address(address2)
+        .assetName(LOVELACE)
+        .qty(adaToLovelace(25))
+        .build();
+```
+
+### Define Transaction
+
+**Line-1**, **Line-2** Create ``TxOutputBuilder`` from ``output1`` and compose it with another ``TxOutputBuilder``
+generated from ``output2``.
+
+>
+> **Note:** Check out various helper methods in ``com.bloxbean.cardano.client.function.helper.OutputBuilders`` to create ``TxOutputBuilder``.
+
+**Line-3,** Invoke ``TxOutputBuilder.buildInputs`` with a ``TxInputBuilder`` function. ``TxInputBuilder`` function builds required
+inputs based on the expected outputs.
+
+>
+> As we are claiming fund from script address, both **sender address** and **change address** are set to **scriptAddress**
+> in ``TxInputBuilder createFromSender`` method call.
+
+**Line-5**, Add ``scriptAtLeast`` multi-sig script to transaction's witnessset.
+
+**Line-7,** Use ``BalanceTxBuilders.balanceTx`` composable function to balance the unbalanced transaction.
+It handles the followings to balance a transaction
+
+- Fee calculation
+- Adjust the outputs (if required)
+
+The first parameter is change address which is set to ``scriptAddress`` as the fee is deducted from scriptAddress.
+
+The second parameter is "no of signatures'. This is set to 2 as we have two signers for this transaction. This info is required
+to calculate correct fee as fee calculation depends on transaction size.
+
+```java showLineNumbers
+TxBuilder txBuilder = output1.outputBuilder()
+                .and(output2.outputBuilder())
+                .buildInputs(createFromSender(scriptAddress, scriptAddress))
+                .andThen((context, txn) -> {
+                    txn.getWitnessSet().getNativeScripts().add(scriptAtLeast);
+                })
+                .andThen(balanceTx(scriptAddress, 2));
+```
+
+### Build and Sign
+
+**Line-1 & Line-2,** Create ``UtxoSupplier`` & ``ProtocolParamsSupplier`` from the ``BackendService`` instance.
+
+**Line-4 & Line-5,** Create ``TxSigner`` function by composing ``SignerProviders.signerFrom(Account... signers)`` &
+``SignerProviders.signerFrom(SecretKey sk)``. Then use ``TxSigner`` to sign the transaction.
+In this case we are signing the transaction with ``account1`` and ``secretkey`` (third key) as we need at least 2 signatures
+as per the rule defined in the multi-sig script.
+
+>
+> Alternatively, you can also sign with account1 and account2.
+
+**Line-6,** Initialize ``TxBuilderContext`` using ``UtxoSupplier`` and ``ProtocolParamsSupplier``.
+
+>
+> Using ``TxBuilderContext`` you can customize few behaviors during transaction building.
+>
+> **For example:** Select a different ``UtxoSelectionStrategy`` implementation
+
+```java showLineNumbers
+UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+
+TxSigner signers = signerFrom(account1)
+                .andThen(signerFrom(secretKey)); //3rd sk/vk pair
+Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier)
+                .buildAndSign(txBuilder, signers);
+
+```
+
+### Submit the transaction to Cardano network
+
+Now we are ready to submit the transaction to the network. In this example, we are going to submit this transaction through
+``BackendService``. Alternatively, you can submit the generated transaction using your own ``TransactionProcessor`` implementation.
+
+```java
+Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+System.out.println(result);
+```
+
+If successful, ``result.isSuccessful()`` will return true.
+
+Now copy the transaction id from the output and then go to a
+Cardano explorer, [Cardanoscan](https://cardanoscan.io) or [Cardano Explorer](https://cexplorer.io), to check the transaction
+details. You may need to wait for few secs to a min depending on the blockchain load.
+
+### Full Source Code
+
+```java showLineNumbers
+import com.bloxbean.cardano.client.account.Account;
+import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.api.ProtocolParamsSupplier;
+import com.bloxbean.cardano.client.api.UtxoSupplier;
+import com.bloxbean.cardano.client.api.model.Result;
+import com.bloxbean.cardano.client.backend.api.BackendService;
+import com.bloxbean.cardano.client.backend.api.DefaultProtocolParamsSupplier;
+import com.bloxbean.cardano.client.backend.api.DefaultUtxoSupplier;
+import com.bloxbean.cardano.client.backend.blockfrost.common.Constants;
+import com.bloxbean.cardano.client.backend.blockfrost.service.BFBackendService;
+import com.bloxbean.cardano.client.common.model.Networks;
+import com.bloxbean.cardano.client.crypto.KeyGenUtil;
+import com.bloxbean.cardano.client.crypto.SecretKey;
+import com.bloxbean.cardano.client.crypto.VerificationKey;
+import com.bloxbean.cardano.client.function.Output;
+import com.bloxbean.cardano.client.function.TxBuilder;
+import com.bloxbean.cardano.client.function.TxBuilderContext;
+import com.bloxbean.cardano.client.function.TxSigner;
+import com.bloxbean.cardano.client.transaction.spec.Transaction;
+import com.bloxbean.cardano.client.transaction.spec.script.ScriptAtLeast;
+import com.bloxbean.cardano.client.transaction.spec.script.ScriptPubkey;
+
+import static com.bloxbean.cardano.client.common.ADAConversionUtil.adaToLovelace;
+import static com.bloxbean.cardano.client.common.CardanoConstants.LOVELACE;
+import static com.bloxbean.cardano.client.function.helper.BalanceTxBuilders.balanceTx;
+import static com.bloxbean.cardano.client.function.helper.InputBuilders.createFromSender;
+import static com.bloxbean.cardano.client.function.helper.SignerProviders.signerFrom;
+
+public class MultiSigTransfer {
+
+    public void transfer() throws Exception {
+        //First account
+        String account1Mnemonic = "turkey elder dad veteran they lumber feature garment race answer file erase riot resist sting process law deputy turtle foil legal calm exist civil";
+        Account account1 = Account.createFromMnemonic(Networks.testnet(), account1Mnemonic);
+
+        //Second account
+        String account2Mnemonic = "report crowd trophy rough twin column access include evolve awkward world random bounce pave select rocket vote junk farm group main boat tissue mad";
+        Account account2 = Account.createFromMnemonic(Networks.testnet(), account2Mnemonic);
+
+        //Third account payment key
+        String paymentSigningKeyCborHex = "58205d9ccc4202bde1785708c10f8b13231d5a57078c326d0e0ff172191f975a983e";
+        SecretKey secretKey = new SecretKey(paymentSigningKeyCborHex);
+        VerificationKey verificationKey = KeyGenUtil.getPublicKeyFromPrivateKey(secretKey);
+
+        //Derive verification key for account1 and account2
+        VerificationKey account1Vk = VerificationKey.create(account1.publicKeyBytes());
+        VerificationKey account2Vk = VerificationKey.create(account2.publicKeyBytes());
+
+        //Create native script with type=sig for each verification key
+        ScriptPubkey scriptPubkey1 = ScriptPubkey.create(account1Vk);
+        ScriptPubkey scriptPubkey2 = ScriptPubkey.create(account2Vk);
+        ScriptPubkey scriptPubkey3 = ScriptPubkey.create(verificationKey);
+
+        //Create multi-sig script with type "atLeast"
+        ScriptAtLeast scriptAtLeast = new ScriptAtLeast(2)
+                .addScript(scriptPubkey1)
+                .addScript(scriptPubkey2)
+                .addScript(scriptPubkey3);
+
+        //addr_test1wr6fvn0y3rumu30ch3lrggss4vmgsr65cxly2t6dulvwamq3y98et
+        String scriptAddress = AddressProvider.getEntAddress(scriptAtLeast, Networks.testnet()).toBech32();
+
+        // For Blockfrost
+        String bf_projectId = "preprod...";
+        BackendService backendService = new BFBackendService(Constants.BLOCKFROST_PREPROD_URL, bf_projectId);
+        // For Koios
+        //BackendService backendService = new KoiosBackendService(Constants.KOIOS_PREVIEW_URL);
+
+        //Define outputs
+        String address1 = account1.baseAddress();
+        Output output1 = Output.builder()
+                .address(address1)
+                .assetName(LOVELACE)
+                .qty(adaToLovelace(25))
+                .build();
+
+        String address2 = account2.baseAddress();
+        Output output2 = Output.builder()
+                .address(address2)
+                .assetName(LOVELACE)
+                .qty(adaToLovelace(25))
+                .build();
+
+        TxBuilder txBuilder = output1.outputBuilder()
+                .and(output2.outputBuilder())
+                .buildInputs(createFromSender(scriptAddress, scriptAddress))
+                .andThen((context, txn) -> {
+                    txn.getWitnessSet().getNativeScripts().add(scriptAtLeast);
+                })
+                .andThen(balanceTx(scriptAddress, 2));
+
+
+        UtxoSupplier utxoSupplier = new DefaultUtxoSupplier(backendService.getUtxoService());
+        ProtocolParamsSupplier protocolParamsSupplier = new DefaultProtocolParamsSupplier(backendService.getEpochService());
+
+        TxSigner signers = signerFrom(account1)
+                .andThen(signerFrom(secretKey)); //3rd sk/vk pair
+        Transaction signedTransaction = TxBuilderContext.init(utxoSupplier, protocolParamsSupplier)
+                .buildAndSign(txBuilder, signers);
+
+        Result<String> result = backendService.getTransactionService().submitTransaction(signedTransaction.serialize());
+        System.out.println(result);
+
+    }
+
+    public static void main(String[] args) throws Exception {
+        new MultiSigTransfer().transfer();
+    }
+}
+
+```
+
+### What's next ?
+
+Update the multi-sig script to support time-lock. For example, evaluate to true if minimum 2 signatures and slot number is after X.
+
+**Hint:** Use **RequireTimeAfter** with **RequireMOf** to create multi-sig script.

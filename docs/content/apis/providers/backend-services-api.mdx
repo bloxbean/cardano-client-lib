@@ -36,7 +36,7 @@ The main interface for all backend service implementations, providing access to 
 
 | Provider | Module | Features | Status |
 |----------|--------|----------|--------|
-| **Blockfrost** | `cardano-client-backend-blockfrost` | Chain data and transaction services (governance endpoints not yet available) | Stable |
+| **Blockfrost** | `cardano-client-backend-blockfrost` | Chain data and transaction services (governance endpoints not yet available). Also compatible with [Yaci Store](https://github.com/bloxbean/yaci-store) | Stable |
 | **Koios** | `cardano-client-backend-koios` | REST API, community-driven | Stable |
 | **Ogmios** | `cardano-client-backend-ogmios` | Protocol parameters and transaction submission over HTTP (no UTxO API) | Stable |
 
@@ -126,6 +126,44 @@ EpochService epochService = backendService.getEpochService();
 ```
 
 For more details about Ogmios/Kupo integration, see the [Ogmios backend README](https://github.com/bloxbean/cardano-client-lib/tree/master/backend-modules/ogmios).
+
+### Yaci DevKit / Yaci Store (Local Development)
+
+[Yaci Store](https://github.com/bloxbean/yaci-store) is a Cardano blockchain indexer that provides
+Blockfrost-compatible APIs. Since `BFBackendService` communicates using the Blockfrost API protocol,
+it works seamlessly with any Yaci Store instance — no code changes required.
+
+[Yaci DevKit](https://github.com/bloxbean/yaci-devkit) bundles Yaci Store with a local Cardano devnet,
+giving you a complete local development environment. This is ideal for:
+
+- **Rapid iteration** — no waiting for testnet confirmations
+- **Offline development** — no internet or API keys required
+- **Deterministic testing** — full control over the local chain
+
+To connect to a Yaci DevKit instance running locally:
+
+```java
+// Connect to Yaci DevKit's built-in Yaci Store (Blockfrost-compatible)
+BackendService backendService = new BFBackendService(
+    "http://localhost:8080/api/v1/",
+    "dummy-key"
+);
+
+// Use exactly like any other BackendService
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+```
+
+To connect to a hosted Yaci Store instance:
+
+```java
+BackendService backendService = new BFBackendService(
+    "https://your-yaci-store-host/api/v1/",
+    "dummy-key"
+);
+```
+
+For more details, see the [Yaci DevKit documentation](https://devkit.yaci.xyz)
+and [Yaci Store documentation](https://store.yaci.xyz).
 
 ## Advanced Usage
 

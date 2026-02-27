@@ -3,7 +3,7 @@ title: "QuickTx API"
 description: "Declarative transaction building API"
 ---
 
-# QuickTx API
+# QuickTx API (Recommended for most use cases)
 
 QuickTx is a declarative transaction builder layered on top of the Composable Functions API. It keeps common flows concise while still letting you plug in custom UTXO selection, evaluators, script suppliers, and verifiers.
 
@@ -14,7 +14,7 @@ Use QuickTx when you want the happy path to be short and readable, but still nee
 - Declarative, readable transaction description
 - Payments, NativeScript mint/burn, Plutus script spending/minting, staking, governance
 - Compose multiple `Tx`/`ScriptTx` into one transaction
-- Per-tx overrides for UTXO selection, reference scripts, serialization era, and verifiers
+- Per-tx overrides for UTXO selection, reference scripts, and verifiers
 
 ## Dependencies
 
@@ -157,8 +157,6 @@ Transaction signed   = ctx.buildAndSign();
 TxResult submitted   = ctx.complete();
 TxResult confirmed   = ctx.completeAndWait(); // returns TxStatus (SUBMITTED/CONFIRMED/TIMEOUT/FAILED)
 ```
-
-You can also rebuild from a serialized plan (`TxPlan`) via `compose(TxPlan plan [, SignerRegistry registry])` to replay stored transactions with context (fee payer, validity, signers, etc.).
 
 Execution flow:
 - Build one or more `Tx`/`ScriptTx` describing intent.

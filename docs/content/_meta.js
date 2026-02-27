@@ -14,8 +14,8 @@ export default {
   integrations: {
     title: 'Integrations'
   },
-  guides: {
-    title: 'Guides'
+  tutorials: {
+    title: 'Tutorials'
   },
   '---': {
     type: 'separator'

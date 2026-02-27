@@ -35,7 +35,7 @@ docs-nextra/
 │   ├── apis/              # APIs section
 │   ├── annotations/       # Annotations section
 │   ├── integrations/      # Integrations section
-│   └── guides/            # Guides section
+│   └── tutorials/         # Tutorials section
 ├── package.json
 └── next.config.mjs
 ```
@@ -124,10 +124,11 @@ export default {
 Each subfolder can have its own `_meta.js` to control page order:
 
 ```javascript
-// content/guides/_meta.js
+// content/tutorials/_meta.js
 export default {
+  'smart-contract-calls': 'Smart Contract Calls',
   'nft-minting': 'NFT Minting',
-  'smart-contract-calls': 'Smart Contract Calls'
+  'legacy-tutorials': 'Legacy Tutorials'
 }
 ```
 

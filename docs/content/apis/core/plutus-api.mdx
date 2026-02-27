@@ -50,6 +50,86 @@ PlutusV3Script v3Script = PlutusV3Script.builder()
 System.out.println("Scripts created successfully");
 ```
 
+### Loading Plutus Scripts from a Blueprint (CIP-57)
+
+Smart contract compilers like [Aiken](https://aiken-lang.org/) and [Scalus](https://scalus.org/) produce a `plutus.json` blueprint file
+following the [CIP-57](https://cips.cardano.org/cip/CIP-0057) standard. This file contains a `compiledCode` field for each validator,
+which is **single-encoded** CBOR hex. CCL's `PlutusScript` objects require **double-encoded** CBOR, and the
+`PlutusBlueprintUtil` class handles this conversion automatically.
+
+A typical `plutus.json` looks like this:
+
+```json
+{
+  "preamble": {
+    "title": "aiken-lang/hello_world",
+    "version": "1.0.0",
+    "plutusVersion": "v3"
+  },
+  "validators": [
+    {
+      "title": "hello_world.spend",
+      "compiledCode": "58ad0100003232322..."
+    }
+  ]
+}
+```
+
+#### Option A: Direct conversion with `PlutusBlueprintUtil`
+
+If you already have the `compiledCode` hex string and know the Plutus version, you can convert it directly:
+
+```java
+import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
+
+String compiledCode = "58ad0100003232322..."; // from plutus.json validators[].compiledCode
+
+PlutusScript plutusScript = PlutusBlueprintUtil.getPlutusScriptFromCompiledCode(
+        compiledCode, PlutusVersion.v3);
+```
+
+This performs double CBOR encoding internally and returns the appropriate `PlutusV1Script`, `PlutusV2Script`, or `PlutusV3Script` instance.
+
+#### Option B: Load the full blueprint with `PlutusBlueprintLoader`
+
+For a more streamlined approach, load the entire `plutus.json` and extract scripts by validator title:
+
+```java
+import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusContractBlueprint;
+
+// Load the blueprint from classpath
+InputStream is = getClass().getResourceAsStream("/plutus.json");
+PlutusContractBlueprint blueprint = PlutusBlueprintLoader.loadBlueprint(is);
+
+// Extract a PlutusScript by validator title
+PlutusScript plutusScript = blueprint.getPlutusScript("hello_world.spend");
+```
+
+#### Using the loaded script with QuickTx
+
+Once you have a `PlutusScript`, use it with `ScriptTx` the same way as a manually created script:
+
+```java
+QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+
+ScriptTx scriptTx = new ScriptTx()
+        .collectFrom(utxo, redeemer)
+        .payToAddress(receiverAddress, Amount.ada(10))
+        .attachSpendingValidator(plutusScript);
+
+Result<String> result = quickTxBuilder.compose(scriptTx)
+        .feePayer(senderAddress)
+        .withSigner(SignerProviders.signerFrom(senderAccount))
+        .completeAndWait(System.out::println);
+```
+
+> **See also:**
+> - [Plutus Blueprint Code Generation](/docs/annotations/plutus-blueprint-code-generation) — generate type-safe Java bindings from a blueprint using annotations
+> - [Aiken Integration](/docs/integrations/aiken-integration-api) — Script cost evaluation and parameterized contracts
+> - [Scalus Integration](/docs/integrations/scalus-integration-api) — Script cost evaluation and parameterized contracts
+
 ### Working with PlutusData
 
 Create and manipulate PlutusData structures:
@@ -92,16 +172,3 @@ public PlutusData createTypeSafePlutusData() {
     return intData;
 }
 ```
-
-## Plutus Version Comparison
-
-| Feature | Plutus V1 | Plutus V2 | Plutus V3 |
-|---------|-----------|-----------|-----------|
-| **Reference Inputs** | No | Yes | Yes |
-| **Inline Datums** | No | Yes | Yes |
-| **Reference Scripts** | No | Yes | Yes |
-| **Collateral Outputs** | No | Yes | Yes |
-| **New Primitives** | No | No | Yes |
-| **Performance** | Basic | Improved | Optimized |
-
-Choose the appropriate Plutus version based on your smart contract requirements and the features you need.
