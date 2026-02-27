@@ -1,6 +1,9 @@
 package com.bloxbean.cardano.client.function.helper;
 
 import co.nstant.in.cbor.CborException;
+import com.bloxbean.cardano.client.address.Address;
+import com.bloxbean.cardano.client.address.AddressProvider;
+import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.function.BaseTest;
 import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.ProtocolParams;
@@ -349,6 +352,276 @@ class ScriptCallContextProvidersTest extends BaseTest {
 
         //assertThat(transaction.getBody().getScriptDataHash()).isNotNull();
 
+    }
+
+    @Test
+    void scriptCallContext_multiMint_redeemerIndicesMatchSortedPolicyIdOrder() throws Exception {
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+        Transaction transaction = new Transaction();
+
+        // Two PlutusV2 scripts with different policyIds
+        PlutusV2Script scriptA = PlutusV2Script.builder()
+                .cborHex("49480100002221200101")
+                .build();
+        PlutusV2Script scriptB = PlutusV2Script.builder()
+                .cborHex("4e4d01000033222220051200120011")
+                .build();
+
+        String policyIdA = scriptA.getPolicyId();
+        String policyIdB = scriptB.getPolicyId();
+
+        // Determine which sorts first (lower hex = lower index)
+        PlutusV2Script lowerScript, higherScript;
+        String lowerPolicyId, higherPolicyId;
+        if (policyIdA.compareTo(policyIdB) < 0) {
+            lowerScript = scriptA;  lowerPolicyId = policyIdA;
+            higherScript = scriptB; higherPolicyId = policyIdB;
+        } else {
+            lowerScript = scriptB;  lowerPolicyId = policyIdB;
+            higherScript = scriptA; higherPolicyId = policyIdA;
+        }
+
+        // Add a regular input + output for valid transaction structure
+        transaction.getBody().getInputs().add(
+                new TransactionInput("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0));
+        transaction.getBody().getOutputs().add(
+                TransactionOutput.builder()
+                        .address("addr_test1qq46hhhpppek6e33hqakqyu2z5xeqwlc4pc0xynwamn34l6vps306wwr475xeh2lnt4hqjm4mfyjqnvla9j5wtc3fxespv67ka")
+                        .value(Value.builder().coin(BigInteger.valueOf(1000)).build())
+                        .build());
+
+        // Pre-populate mint list in REVERSE sorted order (higher policyId first)
+        List<MultiAsset> mintList = transaction.getBody().getMint();
+        mintList.add(MultiAsset.builder()
+                .policyId(higherPolicyId)
+                .assets(List.of(Asset.builder().name("TokenH").value(BigInteger.ONE).build()))
+                .build());
+        mintList.add(MultiAsset.builder()
+                .policyId(lowerPolicyId)
+                .assets(List.of(Asset.builder().name("TokenL").value(BigInteger.ONE).build()))
+                .build());
+
+        ExUnits exUnits1 = ExUnits.builder().mem(BigInteger.valueOf(100000)).steps(BigInteger.valueOf(200000)).build();
+        ExUnits exUnits2 = ExUnits.builder().mem(BigInteger.valueOf(300000)).steps(BigInteger.valueOf(400000)).build();
+
+        // Execute: chain higher script (data=1) then lower script (data=2)
+        ScriptCallContextProviders.scriptCallContext(higherScript, null, null, BigIntPlutusData.of(1), RedeemerTag.Mint, exUnits1)
+                .andThen(ScriptCallContextProviders.scriptCallContext(lowerScript, null, null, BigIntPlutusData.of(2), RedeemerTag.Mint, exUnits2))
+                .apply(context, transaction);
+
+        // Assert
+        List<Redeemer> redeemers = transaction.getWitnessSet().getRedeemers();
+        assertThat(redeemers).hasSize(2);
+
+        // Find redeemer for higher script (data=BigIntPlutusData.of(1)) and lower script (data=BigIntPlutusData.of(2))
+        Redeemer redeemerForHigher = redeemers.stream()
+                .filter(r -> r.getData().getDatumHash().equals(BigIntPlutusData.of(1).getDatumHash()))
+                .findFirst().orElseThrow();
+        Redeemer redeemerForLower = redeemers.stream()
+                .filter(r -> r.getData().getDatumHash().equals(BigIntPlutusData.of(2).getDatumHash()))
+                .findFirst().orElseThrow();
+
+        // Lower policyId should be index 0, higher should be index 1
+        assertThat(redeemerForLower.getIndex()).isEqualTo(BigInteger.ZERO);
+        assertThat(redeemerForHigher.getIndex()).isEqualTo(BigInteger.ONE);
+        assertThat(redeemerForLower.getTag()).isEqualTo(RedeemerTag.Mint);
+        assertThat(redeemerForHigher.getTag()).isEqualTo(RedeemerTag.Mint);
+    }
+
+    @Test
+    void scriptCallContext_multiWithdrawal_redeemerIndicesMatchSortedCredentialOrder() throws Exception {
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+        Transaction transaction = new Transaction();
+
+        // Two PlutusV2 scripts with different script hashes
+        PlutusV2Script scriptA = PlutusV2Script.builder()
+                .cborHex("49480100002221200101")
+                .build();
+        PlutusV2Script scriptB = PlutusV2Script.builder()
+                .cborHex("4e4d01000033222220051200120011")
+                .build();
+
+        // Derive reward addresses
+        Address rewardAddrA = AddressProvider.getRewardAddress(scriptA, Networks.testnet());
+        Address rewardAddrB = AddressProvider.getRewardAddress(scriptB, Networks.testnet());
+
+        // Get credential hashes to determine sorted order
+        String credHashA = HexUtil.encodeHexString(
+                AddressProvider.getDelegationCredentialHash(rewardAddrA).orElseThrow());
+        String credHashB = HexUtil.encodeHexString(
+                AddressProvider.getDelegationCredentialHash(rewardAddrB).orElseThrow());
+
+        PlutusV2Script lowerScript, higherScript;
+        Address lowerRewardAddr, higherRewardAddr;
+        if (credHashA.compareTo(credHashB) < 0) {
+            lowerScript = scriptA;  lowerRewardAddr = rewardAddrA;
+            higherScript = scriptB; higherRewardAddr = rewardAddrB;
+        } else {
+            lowerScript = scriptB;  lowerRewardAddr = rewardAddrB;
+            higherScript = scriptA; higherRewardAddr = rewardAddrA;
+        }
+
+        // Add a regular input + output
+        transaction.getBody().getInputs().add(
+                new TransactionInput("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0));
+        transaction.getBody().getOutputs().add(
+                TransactionOutput.builder()
+                        .address("addr_test1qq46hhhpppek6e33hqakqyu2z5xeqwlc4pc0xynwamn34l6vps306wwr475xeh2lnt4hqjm4mfyjqnvla9j5wtc3fxespv67ka")
+                        .value(Value.builder().coin(BigInteger.valueOf(1000)).build())
+                        .build());
+
+        // Pre-populate withdrawals in REVERSE credential hash order (higher first)
+        transaction.getBody().getWithdrawals().add(Withdrawal.builder()
+                .rewardAddress(higherRewardAddr.toBech32())
+                .coin(BigInteger.ZERO)
+                .build());
+        transaction.getBody().getWithdrawals().add(Withdrawal.builder()
+                .rewardAddress(lowerRewardAddr.toBech32())
+                .coin(BigInteger.ZERO)
+                .build());
+
+        ExUnits exUnits1 = ExUnits.builder().mem(BigInteger.valueOf(100000)).steps(BigInteger.valueOf(200000)).build();
+        ExUnits exUnits2 = ExUnits.builder().mem(BigInteger.valueOf(300000)).steps(BigInteger.valueOf(400000)).build();
+
+        // Execute: chain higher script (data=10) then lower script (data=20)
+        ScriptCallContextProviders.scriptCallContext(higherScript, null, null, BigIntPlutusData.of(10), RedeemerTag.Reward, exUnits1)
+                .andThen(ScriptCallContextProviders.scriptCallContext(lowerScript, null, null, BigIntPlutusData.of(20), RedeemerTag.Reward, exUnits2))
+                .apply(context, transaction);
+
+        // Assert
+        List<Redeemer> redeemers = transaction.getWitnessSet().getRedeemers();
+        assertThat(redeemers).hasSize(2);
+
+        Redeemer redeemerForHigher = redeemers.stream()
+                .filter(r -> r.getData().getDatumHash().equals(BigIntPlutusData.of(10).getDatumHash()))
+                .findFirst().orElseThrow();
+        Redeemer redeemerForLower = redeemers.stream()
+                .filter(r -> r.getData().getDatumHash().equals(BigIntPlutusData.of(20).getDatumHash()))
+                .findFirst().orElseThrow();
+
+        // Lower credential hash should be index 0, higher should be index 1
+        assertThat(redeemerForLower.getIndex()).isEqualTo(BigInteger.ZERO);
+        assertThat(redeemerForHigher.getIndex()).isEqualTo(BigInteger.ONE);
+        assertThat(redeemerForLower.getTag()).isEqualTo(RedeemerTag.Reward);
+        assertThat(redeemerForHigher.getTag()).isEqualTo(RedeemerTag.Reward);
+    }
+
+    @Test
+    void scriptCallContext_combinedMintAndWithdrawal_redeemerIndicesCorrect() throws Exception {
+        TxBuilderContext context = new TxBuilderContext(utxoSupplier, protocolParams);
+        Transaction transaction = new Transaction();
+
+        // Two PlutusV2 scripts
+        PlutusV2Script scriptA = PlutusV2Script.builder()
+                .cborHex("49480100002221200101")
+                .build();
+        PlutusV2Script scriptB = PlutusV2Script.builder()
+                .cborHex("4e4d01000033222220051200120011")
+                .build();
+
+        String policyIdA = scriptA.getPolicyId();
+        String policyIdB = scriptB.getPolicyId();
+
+        PlutusV2Script lowerMintScript, higherMintScript;
+        String lowerPolicyId, higherPolicyId;
+        if (policyIdA.compareTo(policyIdB) < 0) {
+            lowerMintScript = scriptA;  lowerPolicyId = policyIdA;
+            higherMintScript = scriptB; higherPolicyId = policyIdB;
+        } else {
+            lowerMintScript = scriptB;  lowerPolicyId = policyIdB;
+            higherMintScript = scriptA; higherPolicyId = policyIdA;
+        }
+
+        Address rewardAddrA = AddressProvider.getRewardAddress(scriptA, Networks.testnet());
+        Address rewardAddrB = AddressProvider.getRewardAddress(scriptB, Networks.testnet());
+        String credHashA = HexUtil.encodeHexString(
+                AddressProvider.getDelegationCredentialHash(rewardAddrA).orElseThrow());
+        String credHashB = HexUtil.encodeHexString(
+                AddressProvider.getDelegationCredentialHash(rewardAddrB).orElseThrow());
+
+        PlutusV2Script lowerRewardScript, higherRewardScript;
+        Address lowerRewardAddr, higherRewardAddr;
+        if (credHashA.compareTo(credHashB) < 0) {
+            lowerRewardScript = scriptA;  lowerRewardAddr = rewardAddrA;
+            higherRewardScript = scriptB; higherRewardAddr = rewardAddrB;
+        } else {
+            lowerRewardScript = scriptB;  lowerRewardAddr = rewardAddrB;
+            higherRewardScript = scriptA; higherRewardAddr = rewardAddrA;
+        }
+
+        // Add a regular input + output
+        transaction.getBody().getInputs().add(
+                new TransactionInput("735262c68b5fa220dee2b447d0d1dd44e0800ba6212dcea7955c561f365fb0e9", 0));
+        transaction.getBody().getOutputs().add(
+                TransactionOutput.builder()
+                        .address("addr_test1qq46hhhpppek6e33hqakqyu2z5xeqwlc4pc0xynwamn34l6vps306wwr475xeh2lnt4hqjm4mfyjqnvla9j5wtc3fxespv67ka")
+                        .value(Value.builder().coin(BigInteger.valueOf(1000)).build())
+                        .build());
+
+        // Pre-populate mint in reverse sorted order
+        List<MultiAsset> mintList = transaction.getBody().getMint();
+        mintList.add(MultiAsset.builder()
+                .policyId(higherPolicyId)
+                .assets(List.of(Asset.builder().name("TokenH").value(BigInteger.ONE).build()))
+                .build());
+        mintList.add(MultiAsset.builder()
+                .policyId(lowerPolicyId)
+                .assets(List.of(Asset.builder().name("TokenL").value(BigInteger.ONE).build()))
+                .build());
+
+        // Pre-populate withdrawals in reverse credential hash order
+        transaction.getBody().getWithdrawals().add(Withdrawal.builder()
+                .rewardAddress(higherRewardAddr.toBech32())
+                .coin(BigInteger.ZERO)
+                .build());
+        transaction.getBody().getWithdrawals().add(Withdrawal.builder()
+                .rewardAddress(lowerRewardAddr.toBech32())
+                .coin(BigInteger.ZERO)
+                .build());
+
+        ExUnits mintExUnits1 = ExUnits.builder().mem(BigInteger.valueOf(100000)).steps(BigInteger.valueOf(200000)).build();
+        ExUnits mintExUnits2 = ExUnits.builder().mem(BigInteger.valueOf(300000)).steps(BigInteger.valueOf(400000)).build();
+        ExUnits rewardExUnits1 = ExUnits.builder().mem(BigInteger.valueOf(500000)).steps(BigInteger.valueOf(600000)).build();
+        ExUnits rewardExUnits2 = ExUnits.builder().mem(BigInteger.valueOf(700000)).steps(BigInteger.valueOf(800000)).build();
+
+        // Chain 4 calls: 2 Mint (higher then lower) + 2 Reward (higher then lower)
+        ScriptCallContextProviders.scriptCallContext(higherMintScript, null, null, BigIntPlutusData.of(100), RedeemerTag.Mint, mintExUnits1)
+                .andThen(ScriptCallContextProviders.scriptCallContext(lowerMintScript, null, null, BigIntPlutusData.of(200), RedeemerTag.Mint, mintExUnits2))
+                .andThen(ScriptCallContextProviders.scriptCallContext(higherRewardScript, null, null, BigIntPlutusData.of(300), RedeemerTag.Reward, rewardExUnits1))
+                .andThen(ScriptCallContextProviders.scriptCallContext(lowerRewardScript, null, null, BigIntPlutusData.of(400), RedeemerTag.Reward, rewardExUnits2))
+                .apply(context, transaction);
+
+        // Assert
+        List<Redeemer> redeemers = transaction.getWitnessSet().getRedeemers();
+        assertThat(redeemers).hasSize(4);
+
+        // Mint redeemers
+        Redeemer mintRedeemerHigher = redeemers.stream()
+                .filter(r -> r.getTag() == RedeemerTag.Mint && r.getData().getDatumHash().equals(BigIntPlutusData.of(100).getDatumHash()))
+                .findFirst().orElseThrow();
+        Redeemer mintRedeemerLower = redeemers.stream()
+                .filter(r -> r.getTag() == RedeemerTag.Mint && r.getData().getDatumHash().equals(BigIntPlutusData.of(200).getDatumHash()))
+                .findFirst().orElseThrow();
+
+        // Mint indices: lower policyId = 0, higher = 1
+        assertThat(mintRedeemerLower.getIndex()).isEqualTo(BigInteger.ZERO);
+        assertThat(mintRedeemerHigher.getIndex()).isEqualTo(BigInteger.ONE);
+
+        // Reward redeemers
+        Redeemer rewardRedeemerHigher = redeemers.stream()
+                .filter(r -> r.getTag() == RedeemerTag.Reward && r.getData().getDatumHash().equals(BigIntPlutusData.of(300).getDatumHash()))
+                .findFirst().orElseThrow();
+        Redeemer rewardRedeemerLower = redeemers.stream()
+                .filter(r -> r.getTag() == RedeemerTag.Reward && r.getData().getDatumHash().equals(BigIntPlutusData.of(400).getDatumHash()))
+                .findFirst().orElseThrow();
+
+        // Reward indices: lower credential hash = 0, higher = 1
+        assertThat(rewardRedeemerLower.getIndex()).isEqualTo(BigInteger.ZERO);
+        assertThat(rewardRedeemerHigher.getIndex()).isEqualTo(BigInteger.ONE);
+
+        // Mint indices are independent of Reward indices (both start from 0)
+        assertThat(mintRedeemerLower.getTag()).isEqualTo(RedeemerTag.Mint);
+        assertThat(rewardRedeemerLower.getTag()).isEqualTo(RedeemerTag.Reward);
     }
 
     @Constr

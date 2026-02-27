@@ -7,7 +7,9 @@ import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.InputBuilders;
+import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.RedeemerUtil;
+import com.bloxbean.cardano.client.function.helper.WithdrawalUtil;
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.plutus.spec.Redeemer;
@@ -323,6 +325,21 @@ public abstract class AbstractTx<T> {
             combinedBuilder = combinedBuilder.andThen(intention.preApply(intentContext));
         }
 
+        // Add a central sorting step here to ensure consistent ordering of mint and withdrawal entries before any transformations.
+        // This is crucial for correct redeemer index assignment in script transactions, as it ensures the transaction body is
+        // in a predictable state before any intent applies transformations that may rely on that order.
+        //
+        // Limitation: All script based mints or withdrawals should be in one Tx, as the sorting is done at Tx level.
+        // If there are multiple Txs with script based mint or withdrawal, the sorting may not work as expected.
+        // This is because the sorting is done at Tx level. So, if there are multiple Txs with script based mint or withdrawal, the sorting may not work as expected.
+        // This is a known limitation and we will consider improving it in future if there is a demand for it as it needs architectural changes.
+        combinedBuilder = combinedBuilder.andThen((context, txn) -> {
+            if (txn.getBody().getMint() != null)
+                txn.getBody().setMint(MintUtil.getSortedMultiAssets(txn.getBody().getMint()));
+            if (txn.getBody().getWithdrawals() != null)
+                txn.getBody().setWithdrawals(WithdrawalUtil.getSortedWithdrawals(txn.getBody().getWithdrawals()));
+        });
+
         for (TxIntent intention : allIntentions) {
             combinedBuilder = combinedBuilder.andThen(intention.apply(intentContext));     // Transformations
         }
@@ -568,17 +585,20 @@ public abstract class AbstractTx<T> {
     protected void verifyAndAdjustRedeemerIndexes(Transaction transaction) {
         if (transaction.getWitnessSet().getRedeemers() == null) return;
         for (Redeemer redeemer : transaction.getWitnessSet().getRedeemers()) {
-            if (redeemer.getTag() != RedeemerTag.Spend)
-                continue;
-            Optional<Utxo> scriptUtxo = getUtxoForRedeemer(redeemer);
-            if (scriptUtxo.isPresent()) {
-                int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
-                if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
-                    redeemer.setIndex(scriptInputIndex);
+            if (redeemer.getTag() == RedeemerTag.Spend) {
+                Optional<Utxo> scriptUtxo = getUtxoForRedeemer(redeemer);
+                if (scriptUtxo.isPresent()) {
+                    int scriptInputIndex = RedeemerUtil.getScriptInputIndex(scriptUtxo.get(), transaction);
+                    if (redeemer.getIndex().intValue() != scriptInputIndex && scriptInputIndex != -1) {
+                        redeemer.setIndex(scriptInputIndex);
+                    }
+                    log.debug("Sorting done for redeemer : " + redeemer);
+                } else {
+                    log.warn("No utxo found for redeemer. Something went wrong." + redeemer);
                 }
-                log.debug("Sorting done for redeemer : " + redeemer);
-            } else
-                log.warn("No utxo found for redeemer. Something went wrong." + redeemer);
+            }
+            // Mint and Reward redeemer indexes are set correctly in apply() of corresponding intents via sorted lookup,
+            // so no post-hoc adjustment is needed here.
         }
     }
 
