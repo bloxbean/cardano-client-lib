@@ -14,9 +14,10 @@ flow:
           from_ref: account://sender
           intents:
             - type: payment
-              receiver: ${receiver_addr}
-              amount:
-                lovelace: ${step1_amount}
+              address: ${receiver_addr}
+              amounts:
+                - unit: lovelace
+                  quantity: '${step1_amount}'
         context:
           signers:
             - ref: account://sender
@@ -31,9 +32,10 @@ flow:
           from_ref: account://receiver
           intents:
             - type: payment
-              receiver: ${relay_addr}
-              amount:
-                lovelace: ${step2_amount}
+              address: ${relay_addr}
+              amounts:
+                - unit: lovelace
+                  quantity: '${step2_amount}'
         context:
           signers:
             - ref: account://receiver
@@ -48,9 +50,10 @@ flow:
           from_ref: account://relay
           intents:
             - type: payment
-              receiver: ${sender_addr}
-              amount:
-                lovelace: ${step3_amount}
+              address: ${sender_addr}
+              amounts:
+                - unit: lovelace
+                  quantity: '${step3_amount}'
         context:
           signers:
             - ref: account://relay

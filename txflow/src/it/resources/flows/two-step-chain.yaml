@@ -10,9 +10,10 @@ flow:
           from_ref: account://sender
           intents:
             - type: payment
-              receiver: ${receiver_addr}
-              amount:
-                lovelace: 3000000
+              address: ${receiver_addr}
+              amounts:
+                - unit: lovelace
+                  quantity: '3000000'
         context:
           signers:
             - ref: account://sender
@@ -27,9 +28,10 @@ flow:
           from_ref: account://receiver
           intents:
             - type: payment
-              receiver: ${relay_addr}
-              amount:
-                lovelace: 1500000
+              address: ${relay_addr}
+              amounts:
+                - unit: lovelace
+                  quantity: '1500000'
         context:
           signers:
             - ref: account://receiver
