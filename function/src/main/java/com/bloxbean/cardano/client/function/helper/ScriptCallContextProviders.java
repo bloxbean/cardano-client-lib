@@ -9,6 +9,7 @@ import com.bloxbean.cardano.client.function.exception.TxBuildException;
 import com.bloxbean.cardano.client.function.helper.model.ScriptCallContext;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.transaction.spec.*;
+import com.bloxbean.cardano.client.util.HexUtil;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -127,7 +128,17 @@ public class ScriptCallContextProviders {
                     }
                 }
 
-                //TODO -- index for RedeemerTag.Cert
+                if (index == -1 && tag == RedeemerTag.Reward) {
+                    if (transaction.getBody().getWithdrawals() != null && !transaction.getBody().getWithdrawals().isEmpty()) {
+                        List<Withdrawal> sortedWithdrawals = WithdrawalUtil.getSortedWithdrawals(transaction.getBody().getWithdrawals());
+                        try {
+                            String scriptHash = HexUtil.encodeHexString(plutusScript.getScriptHash());
+                            index = WithdrawalUtil.getIndexByStakeKeyHash(sortedWithdrawals, scriptHash);
+                        } catch (Exception e) {
+                            throw new TxBuildException("Error getting script hash from the reward script " + plutusScript, e);
+                        }
+                    }
+                }
 
                 Redeemer redeemer = Redeemer.builder()
                         .tag(tag)

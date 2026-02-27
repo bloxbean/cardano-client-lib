@@ -793,9 +793,10 @@ public class ScriptTxIT extends TestDataBaseIT {
         System.out.println("policy 2: " + plutusScript2.getPolicyId());
 
         ScriptTx scriptTx = new ScriptTx()
-                .mintAsset(plutusScript1, asset1, BigIntPlutusData.of(1), receiver1)
-                .mintAsset(plutusScript2, asset2, BigIntPlutusData.of(2), sender1Addr)
                 .mintAsset(plutusScript3.getPolicyId(), asset3, BigIntPlutusData.of(3), receiver1)
+                .mintAsset(plutusScript2, asset2, BigIntPlutusData.of(2), sender1Addr)
+                .mintAsset(plutusScript1, asset1, BigIntPlutusData.of(1), receiver1)
+
                 .attachMintValidator(plutusScript3)
                 .withChangeAddress(sender2Addr);
 
