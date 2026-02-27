@@ -1,5 +1,8 @@
 export default {
-  'address-api': 'Address API',
-  'governance-api': 'Governance API',
-  'cip68-api': 'CIP68 API'
+  core: { title: 'Core' },
+  transaction: { title: 'Transaction' },
+  standards: { title: 'Standards (CIPs)' },
+  providers: { title: 'Providers' },
+  governance: { title: 'Governance' },
+  utility: { title: 'Utility' }
 }

@@ -14,7 +14,7 @@ const navbar = (
     logoLink="/"
     projectLink="https://github.com/bloxbean/cardano-client-lib"
   >
-    <a href="https://discord.gg/fzfmWPEpsb" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
+    <a href="https://discord.gg/JtQ54MSw6p" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
       Discord
     </a>
     <a href="https://x.com/BloxBean" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', marginRight: '8px' }}>
