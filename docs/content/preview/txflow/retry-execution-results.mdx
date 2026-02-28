@@ -1,0 +1,235 @@
+---
+title: "Retry, Execution & Results"
+description: "RetryPolicy, FlowExecutor configuration, sync/async execution, FlowResult"
+---
+
+# Retry, Execution & Results
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+## Retry Policy
+
+Retry policies handle transient failures during step execution (network errors, timeouts). They are distinct from
+rollback handling.
+
+### Configuration
+
+```java
+RetryPolicy policy = RetryPolicy.builder()
+    .maxAttempts(5)                                    // Default: 3
+    .backoffStrategy(BackoffStrategy.EXPONENTIAL)      // Default: EXPONENTIAL
+    .initialDelay(Duration.ofSeconds(2))               // Default: 1s
+    .maxDelay(Duration.ofSeconds(60))                  // Default: 30s
+    .retryOnTimeout(true)                              // Default: true
+    .retryOnNetworkError(true)                         // Default: true
+    .build();
+```
+
+### Backoff Strategies
+
+| Strategy | Delay Formula | Example (initialDelay=1s) |
+|----------|---------------|---------------------------|
+| `FIXED` | `initialDelay` | 1s, 1s, 1s, 1s |
+| `LINEAR` | `initialDelay * attempt` | 1s, 2s, 3s, 4s |
+| `EXPONENTIAL` | `initialDelay * 2^(attempt-1)` | 1s, 2s, 4s, 8s |
+
+All strategies are capped by `maxDelay`.
+
+### Factory Methods
+
+```java
+RetryPolicy.defaults()  // 3 attempts, exponential, 1s initial, 30s max
+RetryPolicy.noRetry()   // 1 attempt (no retries)
+```
+
+### Per-Step vs Default
+
+```java
+// Default policy for all steps
+FlowExecutor executor = FlowExecutor.create(backendService)
+    .withDefaultRetryPolicy(RetryPolicy.defaults());
+
+// Step-level override takes precedence
+FlowStep criticalStep = FlowStep.builder("critical")
+    .withTxContext(...)
+    .withRetryPolicy(RetryPolicy.builder()
+        .maxAttempts(10)
+        .initialDelay(Duration.ofSeconds(5))
+        .build())
+    .build();
+```
+
+### What Is Retryable
+
+| Error Type | Retryable? |
+|-----------|-----------|
+| Network timeout | Yes (if `retryOnTimeout` is true) |
+| Connection refused / reset | Yes (if `retryOnNetworkError` is true) |
+| Insufficient funds | No |
+| Invalid transaction | No |
+| Already spent UTXOs | No |
+| Confirmation timeout | No |
+
+## FlowExecutor
+
+### Creation
+
+```java
+// From BackendService (convenient)
+FlowExecutor executor = FlowExecutor.create(backendService);
+
+// From individual suppliers
+FlowExecutor executor = FlowExecutor.create(
+    utxoSupplier,
+    protocolParamsSupplier,
+    transactionProcessor,
+    chainDataSupplier
+);
+```
+
+### Full Configuration
+
+```java
+FlowExecutor executor = FlowExecutor.create(backendService)
+    .withChainingMode(ChainingMode.SEQUENTIAL)
+    .withConfirmationConfig(ConfirmationConfig.devnet())
+    .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW)
+    .withDefaultRetryPolicy(RetryPolicy.defaults())
+    .withListener(new MyFlowListener())
+    .withSignerRegistry(signerRegistry)
+    .withExecutor(virtualThreadExecutor)
+    .withTxInspector(tx -> log.debug("Built: {}", tx))
+    .withRegistry(flowRegistry)
+    .withStateStore(stateStore)
+    .withConfirmationTimeout(Duration.ofSeconds(60))
+    .withCheckInterval(Duration.ofSeconds(2));
+```
+
+### Configuration Reference
+
+| Method | Description |
+|--------|-------------|
+| `withChainingMode(ChainingMode)` | Execution mode (default: SEQUENTIAL) |
+| `withConfirmationConfig(ConfirmationConfig)` | Enable confirmation tracking |
+| `withRollbackStrategy(RollbackStrategy)` | Rollback handling (default: FAIL_IMMEDIATELY) |
+| `withDefaultRetryPolicy(RetryPolicy)` | Default retry for all steps |
+| `withListener(FlowListener)` | Event callbacks |
+| `withSignerRegistry(SignerRegistry)` | For YAML/TxPlan workflows |
+| `withExecutor(Executor)` | Custom thread executor (e.g., virtual threads) |
+| `withTxInspector(Consumer<Transaction>)` | Debug transaction inspection |
+| `withRegistry(FlowRegistry)` | Auto-register flows |
+| `withStateStore(FlowStateStore)` | Persist state for recovery |
+| `withConfirmationTimeout(Duration)` | Simple mode timeout (default: 60s) |
+| `withCheckInterval(Duration)` | Simple mode check interval (default: 2s) |
+
+## Synchronous Execution
+
+Blocks until the flow completes. Returns `FlowResult` directly.
+
+```java
+FlowResult result = executor.executeSync(flow);
+
+if (result.isSuccessful()) {
+    System.out.println("Completed in " + result.getDuration());
+    result.getTransactionHashes().forEach(System.out::println);
+} else {
+    System.err.println("Failed: " + result.getError().getMessage());
+    result.getFailedStep().ifPresent(step ->
+        System.err.println("Failed at step: " + step.getStepId()));
+}
+```
+
+## Asynchronous Execution
+
+Returns a `FlowHandle` immediately for non-blocking monitoring.
+
+```java
+FlowHandle handle = executor.execute(flow);
+
+// Monitor progress
+while (handle.isRunning()) {
+    System.out.printf("Progress: %d/%d (step: %s)%n",
+        handle.getCompletedStepCount(),
+        handle.getTotalStepCount(),
+        handle.getCurrentStepId().orElse("none"));
+    Thread.sleep(1000);
+}
+
+// Block until done (or with timeout)
+FlowResult result = handle.await();
+FlowResult result = handle.await(Duration.ofMinutes(5));
+```
+
+### FlowHandle API
+
+| Method | Description |
+|--------|-------------|
+| `getStatus()` | Current `FlowStatus` (PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED) |
+| `getCurrentStepId()` | ID of the step currently executing |
+| `getCompletedStepCount()` | Number of completed steps |
+| `getTotalStepCount()` | Total number of steps |
+| `isRunning()` | True if status is IN_PROGRESS |
+| `isDone()` | True if the underlying future is complete |
+| `await()` | Block until complete, return FlowResult |
+| `await(Duration)` | Block with timeout |
+| `getResult()` | Non-blocking: get result if available |
+| `getResultFuture()` | Access the underlying `CompletableFuture` |
+| `cancel()` | Request cancellation |
+
+## FlowResult
+
+```java
+FlowResult result = executor.executeSync(flow);
+
+result.isSuccessful();           // true if status == COMPLETED
+result.isFailed();               // true if status == FAILED
+result.getStatus();              // FlowStatus enum
+result.getDuration();            // Duration from start to completion
+result.getTransactionHashes();   // List of tx hashes from successful steps
+result.getStepResults();         // List<FlowStepResult> for all steps
+result.getStepResult("deposit"); // Optional<FlowStepResult> by step ID
+result.getFailedStep();          // Optional<FlowStepResult> of the failed step
+result.getCompletedStepCount();  // Count of successful steps
+result.getTotalStepCount();      // Total step count
+result.getError();               // Throwable if failed
+result.getStartedAt();           // Instant when execution started
+result.getCompletedAt();         // Instant when execution finished
+```
+
+## FlowStepResult
+
+```java
+FlowStepResult stepResult = result.getStepResult("deposit").orElseThrow();
+
+stepResult.isSuccessful();        // true if completed
+stepResult.getStatus();           // FlowStatus
+stepResult.getStepId();           // Step ID
+stepResult.getTransactionHash();  // Tx hash (null if failed)
+stepResult.getOutputUtxos();      // List<Utxo> produced by this step
+stepResult.getSpentInputs();      // List<TransactionInput> consumed
+stepResult.getError();            // Throwable if failed
+stepResult.getCompletedAt();      // Instant when this step finished
+```
+
+## Error Handling
+
+```java
+FlowResult result = executor.executeSync(flow);
+
+if (result.isFailed()) {
+    // Identify which step failed
+    result.getFailedStep().ifPresent(failedStep -> {
+        System.err.printf("Step '%s' failed: %s%n",
+            failedStep.getStepId(),
+            failedStep.getError().getMessage());
+    });
+
+    // Check which steps succeeded before the failure
+    for (FlowStepResult step : result.getStepResults()) {
+        if (step.isSuccessful()) {
+            System.out.printf("Step '%s' succeeded: %s%n",
+                step.getStepId(), step.getTransactionHash());
+        }
+    }
+}
+```

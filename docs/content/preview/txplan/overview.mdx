@@ -1,0 +1,176 @@
+---
+title: "TxPlan Overview"
+description: "YAML-based transaction definitions with variable substitution"
+---
+
+# TxPlan — YAML-Based Transactions
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+TxPlan provides a configuration-driven approach to defining Cardano transactions. Instead of writing Java code for every
+transaction, you can define transactions in YAML with variable substitution, context properties, and signer registry
+references — then execute them through the standard `QuickTxBuilder` pipeline.
+
+## Benefits
+
+- **Configuration-driven** — define transactions in YAML files, separate from application code
+- **Variable resolution** — use `${variable}` placeholders for dynamic values
+- **Context properties** — centralize fee payer, collateral, validity, and signer configuration
+- **Version control friendly** — human-readable transaction definitions
+- **No extra dependency** — TxPlan is part of the `quicktx` module
+
+## Dependency
+
+TxPlan is included in the `quicktx` module. If you already use `cardano-client-lib` or `cardano-client-quicktx`,
+no additional dependency is needed.
+
+```gradle
+dependencies {
+    implementation 'com.bloxbean.cardano:cardano-client-lib:0.8.0-preview1'
+}
+```
+
+## Creating a TxPlan
+
+### From a Tx Object
+
+```java
+Tx tx = new Tx()
+        .from("addr_test1...")
+        .payToAddress("addr_test1_receiver", Amount.ada(5));
+
+TxPlan plan = TxPlan.from(tx)
+        .feePayer("addr_test1_fee_payer")
+        .validTo(2000L);
+
+// Serialize to YAML
+String yaml = plan.toYaml();
+```
+
+### From YAML
+
+```java
+TxPlan plan = TxPlan.from(yamlString);
+
+// Access transactions
+List<AbstractTx<?>> transactions = plan.getTxs();
+```
+
+## YAML Format
+
+### Basic Structure
+
+```yaml
+version: 1.0
+variables:
+  sender: addr_test1_sender_address
+  receiver: addr_test1_receiver_address
+  amount: 5000000
+context:
+  fee_payer: ${sender}
+  valid_to_slot: 5000
+transaction:
+  - tx:
+      from: ${sender}
+      intents:
+        - type: payment
+          address: ${receiver}
+          amounts:
+            - unit: lovelace
+              quantity: ${amount}
+```
+
+### Variables
+
+The `variables` section defines key-value pairs that can be referenced anywhere in the YAML using `${variable_name}`
+syntax. Variables are resolved before deserialization.
+
+```yaml
+variables:
+  treasury: addr_test1_treasury
+  alice: addr_test1_alice
+  payment_amount: 10000000
+  pool_id: pool1abc123
+```
+
+### Context Properties
+
+The `context` section configures transaction-level settings that apply to the `QuickTxBuilder.TxContext`.
+
+| Property | Description |
+|----------|-------------|
+| `fee_payer` | Address that pays transaction fees |
+| `fee_payer_ref` | Registry reference for fee payer (e.g., `account://ops`) |
+| `collateral_payer` | Address that provides collateral for script transactions |
+| `collateral_payer_ref` | Registry reference for collateral payer |
+| `signers` | Array of `{ref, scope}` entries for additional signers |
+| `required_signers` | List of required signer credential hashes (hex) |
+| `valid_from_slot` | Transaction validity start slot |
+| `valid_to_slot` | Transaction validity end slot |
+| `deposit_payer` | Address that pays deposit (e.g., for stake registration) |
+| `deposit_mode` | Deposit handling mode (`AUTO`, `CHANGE_OUTPUT`, `ANY_OUTPUT`, `NEW_UTXO_SELECTION`) |
+
+### Transaction Entries
+
+Each entry in the `transaction` list contains a `tx` block with:
+
+- `from` / `from_ref` — sender address or registry reference
+- `change_address` — optional explicit change address
+- `change_datum` / `change_datum_hash` — datum for change output (script transactions)
+- `inputs` — script UTXO inputs with redeemers
+- `intents` — transaction intents (payments, minting, staking, etc.)
+- `scripts` — validator attachments
+
+## QuickTxBuilder Integration
+
+### Direct Composition
+
+```java
+QuickTxBuilder builder = new QuickTxBuilder(backendService);
+
+TxPlan plan = TxPlan.from(yamlString);
+
+TxResult result = builder.compose(plan)
+        .withSigner(SignerProviders.signerFrom(account))
+        .completeAndWait();
+```
+
+### With Variables
+
+```java
+TxPlan plan = TxPlan.from(yamlString);
+
+// Override or add variables programmatically
+plan.addVariable("amount", "10000000");
+plan.addVariable("receiver", dynamicReceiverAddress);
+```
+
+## Complete Example
+
+```java
+String yamlPlan = """
+    version: 1.0
+    variables:
+      sender: addr_test1_sender
+      receiver: addr_test1_receiver
+    context:
+      fee_payer: ${sender}
+      valid_to_slot: 5000
+    transaction:
+      - tx:
+          from: ${sender}
+          intents:
+            - type: payment
+              address: ${receiver}
+              amounts:
+                - unit: lovelace
+                  quantity: '5000000'
+    """;
+
+QuickTxBuilder builder = new QuickTxBuilder(backendService);
+TxPlan plan = TxPlan.from(yamlPlan);
+
+TxResult result = builder.compose(plan)
+        .withSigner(SignerProviders.signerFrom(account))
+        .completeAndWait();
+```

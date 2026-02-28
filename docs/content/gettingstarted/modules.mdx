@@ -36,3 +36,13 @@ For fine-grained dependency management, add one or more below modules as require
 | [cip25](https://github.com/bloxbean/cardano-client-lib/tree/master/cip/cip25)                       | cardano-client-cip25 | [CIP 25 - Media NFT Metadata Standard](https://cips.cardano.org/cips/cip25/) <br/> **Dependencies:** metadata                                                                                                                                                                                                                                                                                   |
 | [cip27](https://github.com/bloxbean/cardano-client-lib/tree/master/cip/cip27)                       | cardano-client-cip27 | [CIP 27 - CNFT Community Royalties Standard](https://cips.cardano.org/cips/cip27/) <br/> **Dependencies:** cip25                                                                                                                                                                                                                                                                                |
 | [cip30](https://github.com/bloxbean/cardano-client-lib/tree/master/cip/cip30)                       | cardano-client-cip30 | [CIP 30 - Cardano dApp-Wallet Web Bridge](https://cips.cardano.org/cips/cip30/) <br/> **Dependencies:** cip8, core                                                                                                                                                                                                                                                                              |
+
+## Preview Modules (0.8.0-preview1)
+
+The following modules are available in the 0.8.0-preview1 release. APIs may change before stable release.
+See [What's New in 0.8.0](/docs/preview) for details.
+
+| Modules | Artifact Id | Description |
+|---------|-------------|-------------|
+| [txflow](https://github.com/bloxbean/cardano-client-lib/tree/master/txflow) | txflow | Multi-step transaction orchestration with UTXO chaining, confirmation tracking, and rollback handling. <br/> **Dependencies:** quicktx, core, function, backend |
+| [merkle-patricia-forestry-rocksdb](https://github.com/bloxbean/cardano-client-lib/tree/master/verified-structures/merkle-patricia-forestry-rocksdb) | merkle-patricia-forestry-rocksdb | Merkle Patricia Forestry with RocksDB persistence and garbage collection. Aiken-compatible proof generation. <br/> **Dependencies:** merkle-patricia-forestry, rocksdb-core |

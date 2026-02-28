@@ -1,0 +1,172 @@
+---
+title: "Multi-Version & Garbage Collection"
+description: "RocksDbStateTrees versioning, GC strategies, retention policies"
+---
+
+# Multi-Version & Garbage Collection
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+## RocksDbStateTrees
+
+`RocksDbStateTrees` provides multi-version support, allowing you to maintain versioned snapshots of the trie and
+roll back to any previous version.
+
+### Setup
+
+```java
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbStateTrees;
+import com.bloxbean.cardano.vds.mpf.MpfTrie;
+import com.bloxbean.cardano.vds.core.api.StorageMode;
+
+// Enable versioning
+RocksDbStateTrees stateTrees = new RocksDbStateTrees("data/mpf", StorageMode.MULTI_VERSION);
+
+// Get node store and create MpfTrie
+MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
+```
+
+### Versioning
+
+```java
+// Version 1
+trie.put("alice".getBytes(), "100".getBytes());
+stateTrees.commit("ledger");
+long v1 = stateTrees.currentVersion("ledger");
+
+// Version 2
+trie.put("alice".getBytes(), "150".getBytes());
+stateTrees.commit("ledger");
+long v2 = stateTrees.currentVersion("ledger");
+
+// Rollback to version 1
+byte[] rootV1 = stateTrees.getRootHash("ledger", v1);
+trie.setRootHash(rootV1);
+
+byte[] value = trie.get("alice".getBytes()); // Returns "100"
+```
+
+### API Reference
+
+```java
+// Constructors
+RocksDbStateTrees(String path)
+RocksDbStateTrees(String path, StorageMode mode)
+RocksDbStateTrees(RocksDB db, StorageMode mode)
+
+// Version management
+void commit(String name)
+byte[] getRootHash(String name)
+byte[] getRootHash(String name, long version)
+long currentVersion(String name)
+long nextVersion(String name)
+
+// Access internals
+RocksDbNodeStore nodeStore()
+RocksDbRootsIndex rootsIndex()
+RocksDB db()
+```
+
+## Garbage Collection (Experimental)
+
+> **Experimental**: Garbage collection is available for testing but APIs may change significantly before stable release.
+
+MPF with RocksDB includes a mark-sweep GC strategy to reclaim space from stale nodes that are no longer reachable
+from any retained root.
+
+### Mark-Sweep GC
+
+Marks reachable nodes from retained roots, then sweeps unreachable ones. Uses a temporary RocksDB column family
+to persist the mark set, keeping memory usage low even for large tries.
+
+```java
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.*;
+import com.bloxbean.cardano.vds.mpf.rocksdb.gc.strategy.OnDiskMarkSweepStrategy;
+
+GcManager gcManager = new GcManager(
+    stateTrees.nodeStore(),
+    stateTrees.rootsIndex()
+);
+
+GcOptions options = new GcOptions();
+options.deleteBatchSize = 10_000;
+options.progress = deleted -> System.out.println("Deleted: " + deleted);
+
+// Run GC (keep latest 5 versions)
+RetentionPolicy policy = RetentionPolicy.keepLatestN(5);
+GcStrategy strategy = new OnDiskMarkSweepStrategy();
+
+GcReport report = gcManager.runSync(strategy, policy, options);
+
+System.out.println("Deleted nodes: " + report.deleted);
+System.out.println("Duration: " + report.durationMillis + "ms");
+```
+
+### GcManager API
+
+```java
+// Constructor
+GcManager(RocksDbNodeStore nodeStore, RocksDbRootsIndex rootsIndex)
+
+// Synchronous GC
+GcReport runSync(GcStrategy strategy, RetentionPolicy policy, GcOptions options)
+
+// Asynchronous GC
+CompletableFuture<GcReport> runAsync(GcStrategy strategy, RetentionPolicy policy, GcOptions options)
+```
+
+### GcOptions
+
+```java
+GcOptions options = new GcOptions();
+options.deleteBatchSize = 10_000;        // Nodes per delete batch
+options.progress = n -> log.info("{}", n); // Progress callback
+options.dryRun = false;                   // Set true to simulate
+```
+
+### GcReport
+
+```java
+GcReport {
+    long marked;         // Nodes marked as reachable
+    long deleted;        // Nodes deleted
+    long total;          // Total nodes processed
+    long durationMillis; // Execution time
+}
+```
+
+## Retention Policies
+
+Retention policies determine which versions to keep during GC.
+
+```java
+// Keep latest N versions
+RetentionPolicy.keepLatestN(10);
+
+// Keep versions newer than timestamp
+RetentionPolicy.keepNewerThan(System.currentTimeMillis() - 7 * 24 * 3600 * 1000); // 7 days
+
+// Keep specific versions
+RetentionPolicy.keepVersions(Set.of(1L, 5L, 10L));
+
+// Custom policy
+RetentionPolicy.custom(version -> version > 100);
+```
+
+## GC Tool (CLI)
+
+Command-line utility for testing and debugging GC:
+
+```bash
+# Generate test data (10K keys, 5 versions)
+java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
+  generate /tmp/mpt 10000 5
+
+# Show stats
+java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
+  stats /tmp/mpt
+
+# Run mark-sweep GC (keep latest 1 version)
+java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
+  gc-marksweep /tmp/mpt keep-latest 1
+```

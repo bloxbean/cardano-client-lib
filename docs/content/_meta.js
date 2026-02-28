@@ -17,6 +17,12 @@ export default {
   tutorials: {
     title: 'Tutorials'
   },
+  '--- 1': {
+    type: 'separator'
+  },
+  preview: {
+    title: '0.8.0 Preview'
+  },
   '---': {
     type: 'separator'
   },

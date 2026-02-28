@@ -1,0 +1,226 @@
+---
+title: "TxPlan Advanced Usage"
+description: "Signer Registry, script transactions, multi-tx plans, and dynamic configuration"
+---
+
+# TxPlan — Advanced Usage
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+## Signer Registry
+
+The `SignerRegistry` keeps private keys and signing logic out of YAML files. Senders, fee payers, collateral payers,
+and additional signers are referenced by URI-style identifiers that the registry resolves at runtime.
+
+### InMemorySignerRegistry
+
+```java
+SignerRegistry registry = new InMemorySignerRegistry()
+        .addAccount("account://ops", opsAccount)
+        .addPolicy("policy://nft", nftPolicy);
+```
+
+### Using Registry References in Java
+
+```java
+Tx tx = new Tx()
+        .fromRef("account://ops")
+        .payToAddress("addr_test1_receiver", Amount.ada(5));
+
+TxResult result = builder
+        .withSignerRegistry(registry)
+        .compose(tx)
+        .feePayerRef("account://ops")
+        .withSignerRef("policy://nft", "policy")
+        .completeAndWait();
+```
+
+- `fromRef` defers sender selection and automatically provides the payment signer
+- `feePayerRef` / `collateralPayerRef` resolve to a wallet or address at compose time
+- `withSignerRef(ref, scope)` adds additional witnesses (scopes: `payment`, `stake`, `drep`, `committeeCold`,
+  `committeeHot`, `policy`)
+- Mixing address-based APIs with references is allowed; conflicts raise a `TxBuildException`
+
+### Using Registry References in YAML
+
+```yaml
+version: 1.1
+variables:
+  receiver: addr_test1_receiver_address
+  amount: 5000000
+context:
+  fee_payer_ref: account://ops
+  collateral_payer_ref: account://ops
+  signers:
+    - ref: policy://nft
+      scope: policy
+transaction:
+  - tx:
+      from_ref: account://ops
+      intents:
+        - type: payment
+          address: ${receiver}
+          amounts:
+            - unit: lovelace
+              quantity: ${amount}
+```
+
+When any `*_ref` field or `signers` entries are present, supply a compatible `SignerRegistry` at runtime:
+
+```java
+TxPlan plan = TxPlan.from(yamlString);
+
+TxResult result = builder
+        .withSignerRegistry(registry)
+        .compose(plan)
+        .completeAndWait();
+```
+
+If the registry cannot resolve a reference, `QuickTxBuilder` fails fast with a `TxBuildException`.
+
+## Multiple Transactions
+
+A single YAML document can define multiple transactions that are composed together:
+
+```yaml
+version: 1.0
+variables:
+  treasury: addr_test1_treasury
+  pool_operator: addr_test1_pool_op
+
+context:
+  fee_payer: ${treasury}
+  valid_to_slot: 5000
+
+transaction:
+  - tx:
+      from: ${treasury}
+      intents:
+        - type: payment
+          address: ${pool_operator}
+          amounts:
+            - unit: lovelace
+              quantity: '500000000'
+
+  - tx:
+      from: ${treasury}
+      intents:
+        - type: payment
+          address: addr_test1_alice
+          amounts:
+            - unit: lovelace
+              quantity: '100000000'
+```
+
+## Script Transactions in YAML
+
+With the [Unified Tx API](/docs/preview/unified-tx), all script operations are available in the `tx` block. Script
+inputs go in the `inputs` section, validator attachments in the `scripts` section:
+
+```yaml
+transaction:
+  - tx:
+      from: addr_test1_sender
+      change_address: addr_test1_change
+      inputs:
+        - type: script_collect
+          utxo_ref: "tx_hash#0"
+          redeemer:
+            constructor: 0
+            fields: []
+      intents:
+        - type: payment
+          address: addr_test1_receiver
+          amounts:
+            - unit: lovelace
+              quantity: '10000000'
+      scripts:
+        - type: spending_validator
+          script_hex: "590a01..."
+          plutus_version: v2
+```
+
+### Change Address with Datum
+
+For script transactions that need a datum on the change output:
+
+```yaml
+transaction:
+  - tx:
+      change_address: addr_test1_script
+      change_datum: "590a01a1581c..."
+      # or
+      change_datum_hash: "abc123def..."
+```
+
+## Dynamic Configuration
+
+Load a base plan and customize it programmatically for different environments:
+
+```java
+// Load base plan from file or resource
+TxPlan basePlan = TxPlan.from(yamlContent);
+
+// Customize for environment
+TxPlan customPlan = basePlan
+        .feePayer(environmentConfig.getFeePayer())
+        .validTo(getCurrentSlot() + 3600)
+        .addVariable("amount", environmentConfig.getAmount());
+
+// Execute
+TxResult result = builder.compose(customPlan)
+        .withSigner(signerProvider)
+        .completeAndWait();
+```
+
+## TxPlan with TxFlow
+
+TxPlan can be used as the transaction definition within [TxFlow](/docs/preview/txflow/overview) steps, enabling
+YAML-defined transactions in multi-step orchestrated flows:
+
+```java
+TxPlan depositPlan = TxPlan.from(depositYaml);
+
+FlowStep depositStep = FlowStep.builder("deposit")
+        .withTxPlan(depositPlan)
+        .build();
+
+TxFlow flow = TxFlow.builder("escrow")
+        .addStep(depositStep)
+        .addStep(FlowStep.builder("release")
+                .dependsOn("deposit")
+                .withTxPlan(TxPlan.from(releaseYaml))
+                .build())
+        .build();
+```
+
+## TxPlan API Reference
+
+### Construction
+
+| Method | Description |
+|--------|-------------|
+| `TxPlan.from(String yaml)` | Deserialize from YAML string |
+| `TxPlan.from(AbstractTx<?> tx)` | Create from a single transaction |
+| `TxPlan.from(List<AbstractTx<?>> txs)` | Create from multiple transactions |
+| `TxPlan.toYaml(AbstractTx<?> tx)` | Convenience: serialize a transaction to YAML |
+
+### Configuration (fluent builder)
+
+| Method | Description |
+|--------|-------------|
+| `addVariable(key, value)` | Add a variable for `${key}` resolution |
+| `setVariables(map)` | Set all variables at once |
+| `addTransaction(tx)` | Add a transaction to the plan |
+| `feePayer(address)` | Set fee payer address |
+| `feePayerRef(ref)` | Set fee payer registry reference |
+| `collateralPayer(address)` | Set collateral payer address |
+| `collateralPayerRef(ref)` | Set collateral payer registry reference |
+| `withRequiredSigners(hex...)` | Add required signer credentials |
+| `withSigner(ref)` | Add a payment-scope signer reference |
+| `withSigner(ref, scope)` | Add a signer reference with specific scope |
+| `validFrom(slot)` | Set validity start slot |
+| `validTo(slot)` | Set validity end slot |
+| `depositPayer(address)` | Set deposit payer address |
+| `depositMode(mode)` | Set deposit mode (`AUTO`, `CHANGE_OUTPUT`, etc.) |
+| `toYaml()` | Serialize to YAML string |
