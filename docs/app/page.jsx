@@ -14,7 +14,7 @@ const features = [
     icon: '🔌',
     title: 'Multiple Backend Providers',
     description: 'Connect to Cardano through your preferred backend service with unified API interfaces.',
-    list: ['Blockfrost integration', 'Koios support', 'Ogmios/Kupo backends', 'Custom provider support']
+    list: ['Blockfrost integration', 'Koios support', 'Ogmios/Kupo backends', 'Yac Store / Yaci DevKit support with Blockfrost Provider', 'Custom provider support']
   },
   {
     icon: '📋',
