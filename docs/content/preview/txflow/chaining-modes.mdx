@@ -1,0 +1,87 @@
+---
+title: "Chaining Modes"
+description: "SEQUENTIAL, PIPELINED, and BATCH execution strategies"
+---
+
+# Chaining Modes
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+The chaining mode controls how transactions are submitted and confirmed relative to each other.
+
+## SEQUENTIAL (Default)
+
+Each step waits for confirmation before the next step begins.
+
+```
+Step 1: build -> submit -> wait for confirmation
+Step 2:                                          build -> submit -> wait for confirmation
+Step 3:                                                                                   build -> submit -> wait
+```
+
+**Guarantees:** Each transaction is in a separate block. Safest option for production.
+
+## PIPELINED
+
+All transactions are built and submitted without waiting for confirmations between steps. Confirmations are awaited
+after all submissions.
+
+```
+Step 1: build -> submit                    -> wait for confirmation
+Step 2:          build -> submit           -> wait for confirmation
+Step 3:                   build -> submit  -> wait for confirmation
+```
+
+**Enables:** Multiple transactions in the same block for faster execution.
+
+## BATCH
+
+All transactions are built and signed first (Phase 1), then submitted in rapid succession (Phase 2), then
+confirmations are awaited (Phase 3).
+
+```
+Phase 1 (Build):   build tx1 -> build tx2 -> build tx3
+Phase 2 (Submit):  submit tx1, submit tx2, submit tx3  (rapid fire)
+Phase 3 (Confirm): wait for tx1, wait for tx2, wait for tx3
+```
+
+**Enables:** Highest likelihood of same-block inclusion. Transaction hashes are computed client-side using Blake2b-256,
+so subsequent transactions can reference earlier outputs before any are submitted.
+
+## Comparison
+
+| Aspect | SEQUENTIAL | PIPELINED | BATCH |
+|--------|-----------|-----------|-------|
+| Safety | Highest | Medium | Medium |
+| Speed | Slowest | Fast | Fastest |
+| Same-block possible | No | Yes | Highest likelihood |
+| Cascade failure risk | None | Medium | High |
+| Default | Yes | No | No |
+| Best for | Production, complex deps | Simple UTXO chaining | Devnets, fast networks |
+
+## Rollback Behavior by Mode
+
+Rollback handling differs across chaining modes:
+
+**SEQUENTIAL:** Supports all 4 rollback strategies with full per-step control. `REBUILD_FROM_FAILED` rebuilds only
+the rolled-back step (with auto-escalation to flow restart if the step has downstream dependents).
+
+**PIPELINED:** Any rollback triggers a full flow restart regardless of the configured strategy. On restart, the
+executor identifies which transactions are still confirmed on-chain and skips those steps.
+
+**BATCH:** Same as PIPELINED — any rollback triggers a flow restart. The executor checks which transactions are
+still confirmed on-chain and skips those steps across all three phases.
+
+| Aspect | SEQUENTIAL | PIPELINED | BATCH |
+|--------|-----------|-----------|-------|
+| Rollback scope | Per-step or full flow | Always full flow restart | Always full flow restart |
+| Skip confirmed on restart | N/A | Yes | Yes |
+| `REBUILD_FROM_FAILED` | Rebuilds single step | Same as `REBUILD_ENTIRE_FLOW` | Same as `REBUILD_ENTIRE_FLOW` |
+| Auto-escalation | Yes (if step has dependents) | N/A (always full restart) | N/A (always full restart) |
+
+## Usage
+
+```java
+FlowExecutor executor = FlowExecutor.create(backendService)
+    .withChainingMode(ChainingMode.PIPELINED);
+```

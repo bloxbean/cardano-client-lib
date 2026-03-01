@@ -1,0 +1,67 @@
+---
+title: "What's New in 0.8.0-preview1"
+description: "Overview of new features in Cardano Client Lib 0.8.0-preview1"
+---
+
+# What's New in 0.8.0-preview1
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+The 0.8.0-preview1 release introduces several major features for building sophisticated Cardano applications in Java.
+
+## New Features
+
+### [Unified Tx API](/docs/preview/unified-tx)
+
+`ScriptTx` is now deprecated. All script operations — `collectFrom` with redeemers, Plutus minting, validator
+attachment, and script-protected staking/governance — are available directly on the `Tx` class. This eliminates the
+need to choose between `Tx` and `ScriptTx`, and allows mixing script and non-script operations in a single transaction
+object.
+
+### [TxFlow — Multi-Step Transaction Orchestration](/docs/preview/txflow/overview)
+
+TxFlow provides a builder-based API for orchestrating multi-step Cardano transactions with automatic UTXO chaining,
+confirmation tracking, rollback detection, and retry logic. Build complex transaction workflows like token deployment
+pipelines, multi-party swap sequences, or batched operations — all with declarative configuration.
+
+### [TxPlan — YAML-Based Transactions](/docs/preview/txplan/overview)
+
+TxPlan allows you to define Cardano transactions in YAML format with variable substitution and context properties.
+Transactions can be loaded from YAML files, configured externally, and executed through the standard `QuickTxBuilder`
+pipeline. Part of the `quicktx` module — no additional dependency required.
+
+### [MpfTrie — Verified Data Structures](/docs/preview/mpftrie/overview)
+
+Production-ready Merkle Patricia Forestry (MPF) with RocksDB persistence. Build verifiable data structures compatible
+with Aiken's on-chain proof verification. Includes multi-version support, garbage collection strategies, and batch
+operations for high-throughput scenarios.
+
+## Gradle Dependencies
+
+```gradle
+// Preview version
+def cclVersion = "0.8.0-preview1"
+
+dependencies {
+    // Core library (includes quicktx with Unified Tx API and TxPlan)
+    implementation "com.bloxbean.cardano:cardano-client-lib:${cclVersion}"
+
+    // TxFlow module (multi-step transaction orchestration)
+    implementation "com.bloxbean.cardano:txflow:${cclVersion}"
+
+    // MpfTrie with RocksDB persistence
+    implementation "com.bloxbean.cardano:merkle-patricia-forestry-rocksdb:${cclVersion}"
+
+    // Backend provider (choose one)
+    implementation "com.bloxbean.cardano:cardano-client-backend-blockfrost:${cclVersion}"
+}
+```
+
+## API Stability
+
+These APIs are provided as a preview for early adopters. While the core concepts and overall design are stable, specific
+method signatures, configuration options, and default behaviors may change before the final 0.8.0 release based on
+community feedback.
+
+If you encounter issues or have suggestions, please open an issue on
+[GitHub](https://github.com/bloxbean/cardano-client-lib/issues).
