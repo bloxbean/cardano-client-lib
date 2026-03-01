@@ -31,6 +31,15 @@ subprojects {
         }
     }
 
-    // Publishing configuration is inherited from root build.gradle
-    // No need to define it here to avoid duplicate publications
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Verified Structures'
+                description = 'Cardano Client Lib - Verified Data Structures'
+            }
+        }
+    }
 }

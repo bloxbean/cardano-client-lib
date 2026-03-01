@@ -49,3 +49,14 @@ shadowJar {
         attributes 'Main-Class': 'com.bloxbean.cardano.vds.tools.Tools'
     }
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Verified Structures Load Tools'
+                description = 'Cardano Client Lib - Verified Structures Load Testing Tools'
+            }
+        }
+    }
+}

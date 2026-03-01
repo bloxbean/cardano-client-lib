@@ -7,3 +7,14 @@ dependencies {
     implementation(libs.rocksdbjni)
     implementation(libs.slf4j.api)
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Verified Structures RocksDB Core'
+                description = 'Cardano Client Lib - Verified Data Structures RocksDB Core Backend'
+            }
+        }
+    }
+}

@@ -17,3 +17,14 @@ dependencies {
     // For RocksDB vs RDBMS comparison tests
     testImplementation project(':verified-structures:jellyfish-merkle-rocksdb')
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Jellyfish Merkle RDBMS'
+                description = 'Cardano Client Lib - Jellyfish Merkle Tree RDBMS Backend'
+            }
+        }
+    }
+}
