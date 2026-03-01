@@ -1,3 +1,14 @@
 dependencies {
     api project(':plutus')
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Plutus Aiken'
+                description = 'Cardano Client Lib - Plutus Aiken Support'
+            }
+        }
+    }
+}

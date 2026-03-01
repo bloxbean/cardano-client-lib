@@ -14,3 +14,14 @@ dependencies {
 
     testImplementation(libs.slf4j.reload4j)
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Jellyfish Merkle RocksDB'
+                description = 'Cardano Client Lib - Jellyfish Merkle Tree RocksDB Backend'
+            }
+        }
+    }
+}
