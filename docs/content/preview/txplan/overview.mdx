@@ -137,13 +137,20 @@ TxResult result = builder.compose(plan)
 
 ### With Variables
 
-```java
-TxPlan plan = TxPlan.from(yamlString);
+> **Important:** Variables are resolved during `TxPlan.from()` — calling `addVariable()` after parsing only updates
+> the variable map for `toYaml()` serialization. It does **not** re-resolve already-parsed transaction fields.
 
-// Override or add variables programmatically
-plan.addVariable("amount", "10000000");
-plan.addVariable("receiver", dynamicReceiverAddress);
+To use dynamic variables, set them in the YAML string before calling `from()`:
+
+```java
+String yaml = baseYaml
+    .replace("${amount}", "10000000")
+    .replace("${receiver}", dynamicReceiverAddress);
+
+TxPlan plan = TxPlan.from(yaml);
 ```
+
+Alternatively, define variables in the YAML `variables` section with their final values before parsing.
 
 ## Complete Example
 

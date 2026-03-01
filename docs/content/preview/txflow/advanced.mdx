@@ -42,7 +42,6 @@ alerting, and audit trails.
 | `onTransactionInBlock(step, txHash, height)` | Tx included in block |
 | `onTransactionConfirmed(step, txHash)` | Tx reaches confirmation threshold |
 | `onConfirmationDepthChanged(step, txHash, depth, status)` | Depth updates |
-| `onTransactionFinalized(step, txHash)` | Tx reaches finality |
 | `onTransactionRolledBack(step, txHash, height)` | Chain reorg removes tx |
 
 ### Example: Logging Listener
@@ -158,14 +157,18 @@ flow completed.
 
 ### Recovery on Startup
 
+Recovery requires reconstructing the `TxFlow` object and passing the previous `FlowResult` to `executor.resume()`:
+
 ```java
 // Load pending flows from store
 List<FlowStateSnapshot> pending = stateStore.loadPendingFlows();
 
-// Resume tracking for each
+// Resume each flow
 for (FlowStateSnapshot snapshot : pending) {
-    FlowHandle handle = executor.resumeTracking(snapshot);
-    registry.register(snapshot.getFlowId(), handle);
+    TxFlow flow = rebuildFlow(snapshot);              // Application-specific reconstruction
+    FlowResult previousResult = toPreviousResult(snapshot); // Convert snapshot to FlowResult
+
+    FlowHandle handle = executor.resume(flow, previousResult);
 }
 ```
 

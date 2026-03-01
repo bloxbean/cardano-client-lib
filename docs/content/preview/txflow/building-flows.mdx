@@ -12,7 +12,6 @@ description: "TxFlow and FlowStep builder API, step dependencies, and UTXO chain
 ```java
 TxFlow flow = TxFlow.builder("escrow-flow")       // Required: unique flow ID
     .withDescription("Deposit and release escrow") // Optional: human-readable description
-    .withVersion("1.0")                            // Optional: schema version (default "1.0")
     .addVariable("amount", 50_000_000L)            // Optional: flow-level variables
     .addVariable("receiver", "addr_test1...")
     .addStep(step1)                                // Required: at least one step
@@ -61,7 +60,6 @@ UTXOs available to the dependent step's UTXO supplier.
 |----------|-------------|----------------|
 | `ALL` | All outputs from the previous step | `dependsOn("stepId")` |
 | `INDEX` | A specific output by index | `dependsOnIndex("stepId", 0)` |
-| `CHANGE` | The change output (last output) | `dependsOnChange("stepId")` |
 | `FILTER` | Outputs matching a predicate | `StepDependency.filter("stepId", predicate)` |
 
 ### Examples
@@ -76,12 +74,6 @@ FlowStep.builder("release")
 // Use only output at index 0
 FlowStep.builder("release")
     .dependsOnIndex("deposit", 0)
-    .withTxContext(...)
-    .build();
-
-// Use only the change output
-FlowStep.builder("next-payment")
-    .dependsOnChange("deposit")
     .withTxContext(...)
     .build();
 

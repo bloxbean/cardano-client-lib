@@ -12,10 +12,10 @@ description: "Signer Registry, script transactions, multi-tx plans, and dynamic 
 The `SignerRegistry` keeps private keys and signing logic out of YAML files. Senders, fee payers, collateral payers,
 and additional signers are referenced by URI-style identifiers that the registry resolves at runtime.
 
-### InMemorySignerRegistry
+### DefaultSignerRegistry
 
 ```java
-SignerRegistry registry = new InMemorySignerRegistry()
+SignerRegistry registry = new DefaultSignerRegistry()
         .addAccount("account://ops", opsAccount)
         .addPolicy("policy://nft", nftPolicy);
 ```
@@ -27,15 +27,19 @@ Tx tx = new Tx()
         .fromRef("account://ops")
         .payToAddress("addr_test1_receiver", Amount.ada(5));
 
-TxResult result = builder
-        .withSignerRegistry(registry)
+Result<String> result = builder
         .compose(tx)
+        .withSignerRegistry(registry)
         .feePayerRef("account://ops")
+        .withSignerRef("account://ops", "payment")  // fromRef does NOT auto-add a signer
         .withSignerRef("policy://nft", "policy")
         .completeAndWait();
 ```
 
-- `fromRef` defers sender selection and automatically provides the payment signer
+> **Note:** `fromRef()` resolves the sender address but does **not** automatically add a signer.
+> Use `withSignerRef()` or the YAML `signers` context to provide signing.
+
+- `fromRef` defers sender selection to the registry at compose time
 - `feePayerRef` / `collateralPayerRef` resolve to a wallet or address at compose time
 - `withSignerRef(ref, scope)` adds additional witnesses (scopes: `payment`, `stake`, `drep`, `committeeCold`,
   `committeeHot`, `policy`)
@@ -70,15 +74,17 @@ When any `*_ref` field or `signers` entries are present, supply a compatible `Si
 ```java
 TxPlan plan = TxPlan.from(yamlString);
 
-TxResult result = builder
-        .withSignerRegistry(registry)
-        .compose(plan)
+Result<String> result = builder
+        .compose(plan, registry)
         .completeAndWait();
 ```
 
 If the registry cannot resolve a reference, `QuickTxBuilder` fails fast with a `TxBuildException`.
 
 ## Multiple Transactions
+
+> **Important:** Each `tx` entry in a plan must have a **unique `from` address**. To send multiple payments from the
+> same address, use multiple intents within a single `tx` entry rather than multiple `tx` entries.
 
 A single YAML document can define multiple transactions that are composed together:
 
@@ -157,18 +163,21 @@ transaction:
 
 Load a base plan and customize it programmatically for different environments:
 
-```java
-// Load base plan from file or resource
-TxPlan basePlan = TxPlan.from(yamlContent);
+> **Important:** Variables are resolved during `TxPlan.from()`. Calling `addVariable()` after parsing only updates
+> the variable map for `toYaml()` serialization — it does **not** re-resolve already-parsed transaction fields.
+> Set variable values in the YAML string before calling `from()`.
 
-// Customize for environment
-TxPlan customPlan = basePlan
-        .feePayer(environmentConfig.getFeePayer())
-        .validTo(getCurrentSlot() + 3600)
-        .addVariable("amount", environmentConfig.getAmount());
+```java
+// Replace variables in YAML before parsing
+String customYaml = yamlContent
+        .replace("${fee_payer}", environmentConfig.getFeePayer())
+        .replace("${amount}", environmentConfig.getAmount());
+
+TxPlan plan = TxPlan.from(customYaml)
+        .validTo(getCurrentSlot() + 3600);
 
 // Execute
-TxResult result = builder.compose(customPlan)
+Result<String> result = builder.compose(plan)
         .withSigner(signerProvider)
         .completeAndWait();
 ```

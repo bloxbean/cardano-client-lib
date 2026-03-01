@@ -3,9 +3,12 @@ title: "Multi-Version & Garbage Collection"
 description: "RocksDbStateTrees versioning, GC strategies, retention policies"
 ---
 
-# Multi-Version & Garbage Collection
+# Multi-Version & Garbage Collection (Experimental)
 
 > **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+> The StateTree and GC APIs used in this section are experimental and not ready for production use. They are available for testing
+> and feedback but may change significantly before stable release.
 
 ## RocksDbStateTrees
 
@@ -31,16 +34,14 @@ MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
 ```java
 // Version 1
 trie.put("alice".getBytes(), "100".getBytes());
-stateTrees.commit("ledger");
-long v1 = stateTrees.currentVersion("ledger");
+long v1 = stateTrees.putRootWithRefcount(trie.getRootHash());
 
 // Version 2
 trie.put("alice".getBytes(), "150".getBytes());
-stateTrees.commit("ledger");
-long v2 = stateTrees.currentVersion("ledger");
+long v2 = stateTrees.putRootWithRefcount(trie.getRootHash());
 
 // Rollback to version 1
-byte[] rootV1 = stateTrees.getRootHash("ledger", v1);
+byte[] rootV1 = stateTrees.rootsIndex().get(v1);
 trie.setRootHash(rootV1);
 
 byte[] value = trie.get("alice".getBytes()); // Returns "100"
@@ -55,15 +56,11 @@ RocksDbStateTrees(String path, StorageMode mode)
 RocksDbStateTrees(RocksDB db, StorageMode mode)
 
 // Version management
-void commit(String name)
-byte[] getRootHash(String name)
-byte[] getRootHash(String name, long version)
-long currentVersion(String name)
-long nextVersion(String name)
+long putRootWithRefcount(byte[] rootHash)  // Stores root hash, returns version number
 
 // Access internals
 RocksDbNodeStore nodeStore()
-RocksDbRootsIndex rootsIndex()
+RocksDbRootsIndex rootsIndex()             // Access version→root mapping
 RocksDB db()
 ```
 
@@ -143,30 +140,9 @@ Retention policies determine which versions to keep during GC.
 // Keep latest N versions
 RetentionPolicy.keepLatestN(10);
 
-// Keep versions newer than timestamp
-RetentionPolicy.keepNewerThan(System.currentTimeMillis() - 7 * 24 * 3600 * 1000); // 7 days
-
 // Keep specific versions
-RetentionPolicy.keepVersions(Set.of(1L, 5L, 10L));
+RetentionPolicy.keepVersions(List.of(1L, 5L, 10L));
 
-// Custom policy
-RetentionPolicy.custom(version -> version > 100);
-```
-
-## GC Tool (CLI)
-
-Command-line utility for testing and debugging GC:
-
-```bash
-# Generate test data (10K keys, 5 versions)
-java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
-  generate /tmp/mpt 10000 5
-
-# Show stats
-java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
-  stats /tmp/mpt
-
-# Run mark-sweep GC (keep latest 1 version)
-java -cp ... com.bloxbean.cardano.vds.mpt.rocksdb.tools.GcTool \
-  gc-marksweep /tmp/mpt keep-latest 1
+// Keep a range of versions (inclusive)
+RetentionPolicy.keepRange(5, 15);
 ```

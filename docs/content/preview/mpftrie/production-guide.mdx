@@ -146,7 +146,145 @@ BackupEngine backupEngine = BackupEngine.open(env, new BackupEngineOptions(backu
 backupEngine.createNewBackup(db);
 backupEngine.close();
 
+// Restore---
+title: "Production Guide"
+description: "Batch operations, performance tuning, monitoring, and thread safety"
+---
+
+# MpfTrie — Production Guide
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+## Batch Operations
+
+### WriteBatch
+
+Use RocksDB's `WriteBatch` for atomic multi-operation writes:
+
+```java
+RocksDbNodeStore nodeStore = stateTrees.nodeStore();
+MpfTrie trie = new MpfTrie(nodeStore);
+
+try (WriteBatch batch = new WriteBatch();
+     WriteOptions writeOpts = new WriteOptions()) {
+
+    nodeStore.withBatch(batch, () -> {
+        // All operations go into the batch
+        trie.put("key1".getBytes(), "value1".getBytes());
+        trie.put("key2".getBytes(), "value2".getBytes());
+        trie.put("key3".getBytes(), "value3".getBytes());
+        return null;
+    });
+
+    // Atomic commit
+    stateTrees.db().write(writeOpts, batch);
+}
+```
+
+### Session-Based Batching
+
+`RocksDbMptSession` provides automatic batching with try-with-resources:
+
+```java
+import com.bloxbean.cardano.vds.mpf.rocksdb.RocksDbMptSession;
+
+MpfTrie trie = new MpfTrie(stateTrees.nodeStore());
+
+try (RocksDbMptSession session = RocksDbMptSession.of(stateTrees)) {
+    session.write(() -> {
+        trie.put("alice".getBytes(), "100".getBytes());
+        trie.put("bob".getBytes(), "200".getBytes());
+        trie.put("charlie".getBytes(), "300".getBytes());
+    });
+}
+
+// Store the root hash as a new version
+stateTrees.putRootWithRefcount(trie.getRootHash());
+```
+
+## Storage Schema
+
+RocksDB stores MPF data in multiple column families:
+
+| Column Family | Key | Value |
+|--------------|-----|-------|
+| `nodes` | Blake2b-256 hash (32 bytes) | CBOR-encoded node |
+| `roots` | tree name + version | Root hash |
+| `metadata` | configuration key | Configuration value |
+| `refcounts` | 0xF0 prefix + node hash | Reference count (for GC) |
+
+## Performance
+
+### RocksDB Tuning
+
+**Write-heavy workload:**
+
+```java
+Options options = new Options()
+    .setWriteBufferSize(128 * 1024 * 1024)  // 128 MB
+    .setMaxWriteBufferNumber(4);
+
+// Create RocksDB with custom options, then use the
+// RocksDbNodeStore(RocksDB, ColumnFamilyHandle) constructor
+```
+
+**Read-heavy workload:**
+
+```java
+BlockBasedTableConfig tableConfig = new BlockBasedTableConfig()
+    .setBlockSize(64 * 1024)  // 64 KB blocks
+    .setCacheIndexAndFilterBlocks(true)
+    .setFilterPolicy(new BloomFilter(10));
+
+Options options = new Options()
+    .setTableFormatConfig(tableConfig);
+```
+
+## Thread Safety
+
+| Component | Thread Safety |
+|-----------|--------------|
+| **RocksDbStateTrees** | Thread-safe for reads, serialize writes |
+| **RocksDbNodeStore** | Thread-safe for reads, batch writes need coordination |
+| **MpfTrie** | NOT thread-safe — use separate instances per thread |
+
+For multi-threaded access, create a separate `MpfTrie` instance per thread, all sharing the same `RocksDbNodeStore`.
+
+## Monitoring
+
+```java
+// Monitor RocksDB stats
+String stats = db.getProperty("rocksdb.stats");
+String estimatedSize = db.getProperty("rocksdb.total-sst-files-size");
+
+logger.info("RocksDB stats: {}", stats);
+logger.info("Total size: {} bytes", estimatedSize);
+```
+
+## Backup and Restore
+
+```java
+// Backup
+BackupEngine backupEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
+backupEngine.createNewBackup(db);
+backupEngine.close();
+
 // Restore
+BackupEngine restoreEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
+restoreEngine.restoreDbFromLatestBackup(dbPath, dbPath, new RestoreOptions(false));
+restoreEngine.close();
+```
+
+## Graceful Shutdown
+
+```java
+// Ensure all writes are flushed
+db.flush(new FlushOptions().setWaitForFlush(true));
+
+// Close in correct order
+stateTrees.close();  // Closes DB and resources
+```
+
 BackupEngine restoreEngine = BackupEngine.open(env, new BackupEngineOptions(backupPath));
 restoreEngine.restoreDbFromLatestBackup(dbPath, dbPath, new RestoreOptions(false));
 restoreEngine.close();
