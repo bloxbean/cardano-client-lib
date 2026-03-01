@@ -12,18 +12,18 @@ jobs:
     name: Test deployment
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
-          cache: yarn
-          cache-dependency-path: "./docs/yarn.lock"
+          node-version: 20
+          cache: npm
+          cache-dependency-path: "./docs/package-lock.json"
 
       - name: Install dependencies
         run: |
           cd docs
-          yarn install --frozen-lockfile
+          npm ci
       - name: Test build website
         run: |
           cd docs
-          yarn build
+          npm run build
