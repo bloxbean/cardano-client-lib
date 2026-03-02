@@ -44,6 +44,9 @@ public class ScriptDataHashGenerator {
          ; field is an empty string.
          **/
         Array datumArray = new Array();
+        if (era != null && era.value >= Era.Conway.value) {
+            datumArray.setTag(258);
+        }
         if (datums != null && datums.size() > 0) {
             for (PlutusData datum : datums) {
                 datumArray.add(datum.serialize());
