@@ -1,7 +1,11 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.FieldType;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.JavaType;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.Type;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
+import com.squareup.javapoet.ClassName;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -120,6 +124,59 @@ public class ClassDefinitionGeneratorTest {
         @DisplayName("should NOT inline toPlutusData() for @Constr field")
         void constrTypeField_shouldNotInlineToPlutusData() {
             assertThat(converterSource).doesNotContain("obj.getNested().toPlutusData()");
+        }
+    }
+
+    /**
+     * Tests for {@link ClassDefinitionGenerator#getConverterClassFromField(FieldType)}.
+     *
+     * <p>This static method generates converter class names from field types.
+     * After commit 155bf39a, it uses {@code String.join("", fieldClass.simpleNames())}
+     * to handle nested classes correctly.</p>
+     */
+    @Nested
+    @DisplayName("getConverterClassFromField() — nested class converter naming")
+    class GetConverterClassFromField {
+
+        @Test
+        @DisplayName("top-level class should produce simple converter name")
+        void topLevelClass_shouldProduceSimpleConverterName() {
+            FieldType fieldType = new FieldType();
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType("com.example.Address", true));
+
+            ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
+
+            assertThat(result.packageName()).isEqualTo("com.example.converter");
+            assertThat(result.simpleName()).isEqualTo("AddressConverter");
+        }
+
+        @Test
+        @DisplayName("nested class should produce prefixed converter name")
+        void nestedClass_shouldProducePrefixedConverterName() {
+            // Credential.VerificationKey → CredentialVerificationKeyConverter
+            FieldType fieldType = new FieldType();
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType("com.example.Credential.VerificationKey", true));
+
+            ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
+
+            assertThat(result.packageName()).isEqualTo("com.example.converter");
+            assertThat(result.simpleName()).isEqualTo("CredentialVerificationKeyConverter");
+        }
+
+        @Test
+        @DisplayName("deeply nested class should concatenate all simple names")
+        void deeplyNestedClass_shouldConcatenateAllSimpleNames() {
+            // A.B.C → ABCConverter
+            FieldType fieldType = new FieldType();
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType("com.example.A.B.C", true));
+
+            ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
+
+            assertThat(result.packageName()).isEqualTo("com.example.converter");
+            assertThat(result.simpleName()).isEqualTo("ABCConverter");
         }
     }
 }
