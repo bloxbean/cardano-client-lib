@@ -13,7 +13,7 @@ import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
  *
  * @see <a href="https://sundaeswap.finance/">SundaeSwap</a>
  */
-// TODO: Disabled until raw Object-typed fields and variable naming collisions are fixed
+// TODO: Disabled — generated Pair converter calls toPlutusData()/fromPlutusData() which Pair lacks
 // @Blueprint(fileInResources = "blueprint/sundaeswap_aiken_v1_0_26_alpha_075668b.json",
 //            packageName = "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswap")
 // @AikenStdlib(AikenStdlibVersion.V1)
