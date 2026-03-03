@@ -68,45 +68,30 @@ public class SundaeSwapV3Test {
     class InnerClassStructureTests {
 
         @Test
-        @DisplayName("Credential should contain VerificationKey and Script as inner classes")
-        void credentialInnerClasses() throws Exception {
+        @DisplayName("Credential should be resolved as shared stdlib type, not generated")
+        void credentialResolvedAsSharedType() {
             assertThat(compilation).succeeded();
 
-            JavaFileObject file = compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.Credential")
-                    .orElseThrow(() -> new AssertionError("Credential.java not generated"));
-            String source = file.getCharContent(true).toString();
-
-            assertThat(source)
-                    .as("Credential should be an interface")
-                    .contains("public interface Credential");
-            assertThat(source)
-                    .as("Should contain VerificationKey inner class")
-                    .contains("abstract class VerificationKey implements Data<VerificationKey>, Credential");
-            assertThat(source)
-                    .as("Should contain Script inner class")
-                    .contains("abstract class Script implements Data<Script>, Credential");
+            // SundaeSwap V3 blueprint uses Aiken stdlib v3 Credential schema, which matches
+            // the V3 entry in AikenBlueprintTypeRegistry. The processor correctly resolves it
+            // as a shared stdlib type instead of generating a blueprint-specific class.
+            assertThat(compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.Credential"))
+                    .as("Credential should be resolved as shared stdlib type, not generated")
+                    .isEmpty();
         }
 
         @Test
-        @DisplayName("PaymentCredential should contain its own VerificationKey and Script inner classes")
-        void paymentCredentialInnerClasses() throws Exception {
+        @DisplayName("PaymentCredential should be resolved as shared stdlib type, not generated")
+        void paymentCredentialResolvedAsSharedType() {
             assertThat(compilation).succeeded();
 
-            JavaFileObject file = compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.PaymentCredential")
-                    .orElseThrow(() -> new AssertionError("PaymentCredential.java not generated"));
-            String source = file.getCharContent(true).toString();
-
-            assertThat(source)
-                    .as("PaymentCredential should be an interface")
-                    .contains("public interface PaymentCredential");
-            assertThat(source)
-                    .as("Should contain VerificationKey inner class")
-                    .contains("abstract class VerificationKey implements Data<VerificationKey>, PaymentCredential");
-            assertThat(source)
-                    .as("Should contain Script inner class")
-                    .contains("abstract class Script implements Data<Script>, PaymentCredential");
+            // Same as Credential: the V3 PaymentCredential schema matches the registry entry,
+            // so it's resolved as a shared stdlib type.
+            assertThat(compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.PaymentCredential"))
+                    .as("PaymentCredential should be resolved as shared stdlib type, not generated")
+                    .isEmpty();
         }
 
         @Test

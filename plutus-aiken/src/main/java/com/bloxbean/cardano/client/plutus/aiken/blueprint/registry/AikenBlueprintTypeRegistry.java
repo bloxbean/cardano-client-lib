@@ -2,11 +2,14 @@ package com.bloxbean.cardano.client.plutus.aiken.blueprint.registry;
 
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import com.bloxbean.cardano.client.plutus.blueprint.registry.AnnotationHintDescriptor;
 import com.bloxbean.cardano.client.plutus.blueprint.registry.BlueprintTypeRegistry;
 import com.bloxbean.cardano.client.plutus.blueprint.registry.LookupContext;
 import com.bloxbean.cardano.client.plutus.blueprint.registry.RegisteredType;
 import com.bloxbean.cardano.client.plutus.blueprint.registry.SchemaSignature;
 import com.bloxbean.cardano.client.plutus.blueprint.registry.SchemaSignatureBuilder;
+
+import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
 
 import java.util.HashMap;
 import java.util.List;
@@ -17,12 +20,20 @@ import java.util.Optional;
 /**
  * Default registry seeded with standard CIP-57 schemas. Registers all known
  * schema patterns grouped by Aiken stdlib version.
+ *
+ * <p>When the lookup context contains a {@value HINT_STDLIB_VERSION} hint,
+ * only types registered for that version (plus common types) are returned.
+ * When no hint is present, defaults to {@code V3}.</p>
  */
 public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
 
+    /** Hint key used to pass the Aiken stdlib version through {@link LookupContext}. */
+    public static final String HINT_STDLIB_VERSION = "aiken.stdlib.version";
+
     private static final String STD_PKG = "com.bloxbean.cardano.client.plutus.aiken.blueprint.std";
 
-    private final Map<SchemaSignature, RegisteredType> mappings;
+    private final Map<SchemaSignature, RegisteredType> commonMappings;
+    private final Map<String, Map<SchemaSignature, RegisteredType>> versionedMappings;
     private final SchemaSignatureBuilder signatureBuilder;
 
     public AikenBlueprintTypeRegistry() {
@@ -31,7 +42,11 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
 
     AikenBlueprintTypeRegistry(SchemaSignatureBuilder signatureBuilder) {
         this.signatureBuilder = signatureBuilder;
-        this.mappings = new HashMap<>();
+        this.commonMappings = new HashMap<>();
+        this.versionedMappings = new HashMap<>();
+        for (AikenStdlibVersion v : AikenStdlibVersion.values()) {
+            versionedMappings.put(v.name(), new HashMap<>());
+        }
         registerTuplePair();
         registerBytesWrappers();
         registerStdlibV1Types();
@@ -40,8 +55,32 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
     }
 
     @Override
+    public List<AnnotationHintDescriptor> annotationHints() {
+        return List.of(new AnnotationHintDescriptor(
+                "com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlib",
+                "value", HINT_STDLIB_VERSION, AikenStdlibVersion.LATEST.name()
+        ));
+    }
+
+    @Override
     public Optional<RegisteredType> lookup(SchemaSignature signature, BlueprintSchema schema, LookupContext context) {
-        return Optional.ofNullable(mappings.get(signature));
+        // Common types first (version-independent)
+        RegisteredType common = commonMappings.get(signature);
+        if (common != null) {
+            return Optional.of(common);
+        }
+
+        // Version-specific lookup
+        String version = context.hint(HINT_STDLIB_VERSION).orElse(AikenStdlibVersion.LATEST.name());
+        Map<SchemaSignature, RegisteredType> vMap = versionedMappings.get(version);
+        if (vMap != null) {
+            RegisteredType versioned = vMap.get(signature);
+            if (versioned != null) {
+                return Optional.of(versioned);
+            }
+        }
+
+        return Optional.empty();
     }
 
     // ── Version-independent types ───────────────────────────────────────────
@@ -53,65 +92,82 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
         tupleSchema.setItems(List.of(defRef("ByteArray"), defRef("ByteArray")));
 
         SchemaSignature signature = signatureBuilder.build(tupleSchema);
-        mappings.put(signature, new RegisteredType("com.bloxbean.cardano.client.plutus.blueprint.type", "Pair"));
+        commonMappings.put(signature, new RegisteredType("com.bloxbean.cardano.client.plutus.blueprint.type", "Pair"));
     }
 
     private void registerBytesWrappers() {
-        registerSchema(bytesSchema("VerificationKey"), new RegisteredType(STD_PKG, "VerificationKey"));
-        registerSchema(bytesSchema("Script"), new RegisteredType(STD_PKG, "Script"));
-        registerSchema(bytesSchema("Signature"), new RegisteredType(STD_PKG, "Signature"));
-        registerSchema(bytesSchema("VerificationKeyHash"), new RegisteredType(STD_PKG, "VerificationKeyHash"));
-        registerSchema(bytesSchema("ScriptHash"), new RegisteredType(STD_PKG, "ScriptHash"));
-        registerSchema(bytesSchema("DataHash"), new RegisteredType(STD_PKG, "DataHash"));
-        registerSchema(bytesSchema("Hash"), new RegisteredType(STD_PKG, "Hash"));
-        registerSchema(bytesSchema("PolicyId"), new RegisteredType(STD_PKG, "PolicyId"));
-        registerSchema(bytesSchema("AssetName"), new RegisteredType(STD_PKG, "AssetName"));
-        registerSchema(intervalBoundTypeSchema(), new RegisteredType(STD_PKG, "IntervalBoundType"));
+        registerCommonSchema(bytesSchema("VerificationKey"), new RegisteredType(STD_PKG, "VerificationKey"));
+        registerCommonSchema(bytesSchema("Script"), new RegisteredType(STD_PKG, "Script"));
+        registerCommonSchema(bytesSchema("Signature"), new RegisteredType(STD_PKG, "Signature"));
+        registerCommonSchema(bytesSchema("VerificationKeyHash"), new RegisteredType(STD_PKG, "VerificationKeyHash"));
+        registerCommonSchema(bytesSchema("ScriptHash"), new RegisteredType(STD_PKG, "ScriptHash"));
+        registerCommonSchema(bytesSchema("DataHash"), new RegisteredType(STD_PKG, "DataHash"));
+        registerCommonSchema(bytesSchema("Hash"), new RegisteredType(STD_PKG, "Hash"));
+        registerCommonSchema(bytesSchema("PolicyId"), new RegisteredType(STD_PKG, "PolicyId"));
+        registerCommonSchema(bytesSchema("AssetName"), new RegisteredType(STD_PKG, "AssetName"));
+        registerCommonSchema(intervalBoundTypeSchema(), new RegisteredType(STD_PKG, "IntervalBoundType"));
     }
 
     // ── Aiken stdlib v1 (>= 1.9.0, < 2.0.0) ───────────────────────────────
 
     private void registerStdlibV1Types() {
-        registerSchema(credentialV1Schema(), new RegisteredType(STD_PKG, "Credential"));
-        registerSchema(referencedV1Schema(), new RegisteredType(STD_PKG, "ReferencedCredential"));
-        registerSchema(addressV1Schema(), new RegisteredType(STD_PKG, "Address"));
-        registerSchema(outputReferenceV1Schema(), new RegisteredType(STD_PKG, "OutputReferenceV1"));
-        registerSchema(intervalBoundV1Schema(), new RegisteredType(STD_PKG, "IntervalBound"));
-        registerSchema(validityRangeV1Schema(), new RegisteredType(STD_PKG, "ValidityRange"));
+        String v1 = AikenStdlibVersion.V1.name();
+        registerVersionedSchema(v1, credentialV1Schema(), new RegisteredType(STD_PKG, "Credential"));
+        registerVersionedSchema(v1, referencedV1Schema(), new RegisteredType(STD_PKG, "ReferencedCredential"));
+        registerVersionedSchema(v1, addressV1Schema(), new RegisteredType(STD_PKG, "Address"));
+        registerVersionedSchema(v1, outputReferenceV1Schema(), new RegisteredType(STD_PKG, "OutputReferenceV1"));
+        registerVersionedSchema(v1, intervalBoundV1Schema(), new RegisteredType(STD_PKG, "IntervalBound"));
+        registerVersionedSchema(v1, validityRangeV1Schema(), new RegisteredType(STD_PKG, "ValidityRange"));
     }
 
     // ── Aiken stdlib v2 (>= 2.0.0, < 3.0.0) ───────────────────────────────
 
     private void registerStdlibV2Types() {
+        String v2 = AikenStdlibVersion.V2.name();
         RegisteredType paymentCredentialType = new RegisteredType(STD_PKG, "PaymentCredential");
 
-        registerSchema(credentialV2Schema("Credential"), paymentCredentialType);
-        registerSchema(credentialV2Schema("PaymentCredential"), paymentCredentialType);
-        registerSchema(stakeCredentialV2Schema(), new RegisteredType(STD_PKG, "StakeCredential"));
-        registerSchema(addressV2Schema(), new RegisteredType(STD_PKG, "Address"));
-        registerSchema(outputReferenceV2Schema(), new RegisteredType(STD_PKG, "OutputReference"));
+        registerVersionedSchema(v2, credentialV2Schema("Credential"), paymentCredentialType);
+        registerVersionedSchema(v2, credentialV2Schema("PaymentCredential"), paymentCredentialType);
+        registerVersionedSchema(v2, stakeCredentialV2Schema(), new RegisteredType(STD_PKG, "StakeCredential"));
+        registerVersionedSchema(v2, addressV2Schema(), new RegisteredType(STD_PKG, "Address"));
+        registerVersionedSchema(v2, outputReferenceV2Schema(), new RegisteredType(STD_PKG, "OutputReference"));
     }
 
     // ── Aiken stdlib v3 (>= 3.0.0) ─────────────────────────────────────────
 
     private void registerStdlibV3Types() {
+        String v3 = AikenStdlibVersion.V3.name();
         RegisteredType paymentCredentialType = new RegisteredType(STD_PKG, "PaymentCredential");
 
-        registerSchema(credentialV3Schema("Credential"), paymentCredentialType);
-        registerSchema(credentialV3Schema("PaymentCredential"), paymentCredentialType);
-        registerSchema(addressV3Schema(), new RegisteredType(STD_PKG, "Address"));
-        // StakeCredential and OutputReference schemas are structurally identical to v2
-        registerSchema(intervalBoundV3Schema(), new RegisteredType(STD_PKG, "IntervalBound"));
-        registerSchema(validityRangeV3Schema(), new RegisteredType(STD_PKG, "ValidityRange"));
+        registerVersionedSchema(v3, credentialV3Schema("Credential"), paymentCredentialType);
+        registerVersionedSchema(v3, credentialV3Schema("PaymentCredential"), paymentCredentialType);
+        registerVersionedSchema(v3, addressV3Schema(), new RegisteredType(STD_PKG, "Address"));
+        // StakeCredential and OutputReference schemas are structurally identical to v2;
+        // register them under V3 as well so V3 lookups find them
+        registerVersionedSchema(v3, stakeCredentialV2Schema(), new RegisteredType(STD_PKG, "StakeCredential"));
+        registerVersionedSchema(v3, outputReferenceV2Schema(), new RegisteredType(STD_PKG, "OutputReference"));
+        registerVersionedSchema(v3, intervalBoundV3Schema(), new RegisteredType(STD_PKG, "IntervalBound"));
+        registerVersionedSchema(v3, validityRangeV3Schema(), new RegisteredType(STD_PKG, "ValidityRange"));
     }
 
-    // ── Registration helper ─────────────────────────────────────────────────
+    // ── Registration helpers ─────────────────────────────────────────────────
 
     protected void registerSchema(BlueprintSchema schema, RegisteredType type) {
+        registerCommonSchema(schema, type);
+    }
+
+    private void registerCommonSchema(BlueprintSchema schema, RegisteredType type) {
         Objects.requireNonNull(schema, "schema cannot be null");
         Objects.requireNonNull(type, "type cannot be null");
         SchemaSignature signature = signatureBuilder.build(schema);
-        mappings.put(signature, type);
+        commonMappings.put(signature, type);
+    }
+
+    private void registerVersionedSchema(String version, BlueprintSchema schema, RegisteredType type) {
+        Objects.requireNonNull(schema, "schema cannot be null");
+        Objects.requireNonNull(type, "type cannot be null");
+        SchemaSignature signature = signatureBuilder.build(schema);
+        versionedMappings.get(version).put(signature, type);
     }
 
     // ── Schema builders: Credential ─────────────────────────────────────────
