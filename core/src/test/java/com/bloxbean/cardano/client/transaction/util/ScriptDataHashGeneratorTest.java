@@ -67,7 +67,7 @@ class ScriptDataHashGeneratorTest {
     }
 
     @Test
-    void generate_plutusV1_noEraSet() throws CborException, CborSerializationException {
+    void generate_plutusV1_babbageEra() throws CborException, CborSerializationException {
         ListPlutusData listPlutusData = new ListPlutusData();
         PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
         listPlutusData.add(plutusData);
@@ -82,7 +82,7 @@ class ScriptDataHashGeneratorTest {
                         .build()
                 ).build();
 
-        byte[] hashBytes = ScriptDataHashGenerator.generate(Arrays.asList(redeemer), Arrays.asList(plutusData), costMdls);
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(redeemer), Arrays.asList(plutusData), costMdls);
         String hash = HexUtil.encodeHexString(hashBytes);
         System.out.println(hash);
 
@@ -135,7 +135,7 @@ class ScriptDataHashGeneratorTest {
         String hash = HexUtil.encodeHexString(hashBytes);
         System.out.println(hash);
 
-        assertThat(hash).isEqualTo("83d39add124e06e9cf8c4fee28c8b8063932c4bdfc3d4900fb08f49beffef601");
+        assertThat(hash).isEqualTo("cf58efbd56fb50dfcbc825f05310950e4b011dc3412b2a26d2815712235048d8");
     }
 
     @Test
@@ -187,7 +187,7 @@ class ScriptDataHashGeneratorTest {
         String hash = HexUtil.encodeHexString(hashBytes);
         System.out.println(hash);
 
-        assertThat(hash).isEqualTo("83d39add124e06e9cf8c4fee28c8b8063932c4bdfc3d4900fb08f49beffef601");
+        assertThat(hash).isEqualTo("cf58efbd56fb50dfcbc825f05310950e4b011dc3412b2a26d2815712235048d8");
     }
 
     @Test
@@ -203,11 +203,11 @@ class ScriptDataHashGeneratorTest {
         String hash = HexUtil.encodeHexString(hashBytes);
         System.out.println(hash);
 
-        assertThat(hash).isEqualTo("62d142288edfbd6b5bceec2bd476a22e6856c0904fcf26116fc4dd54440c038e");
+        assertThat(hash).isEqualTo("7793caa4709c7ebf536d3f6d6113f600c3383e72b0b4a214e004d1d5469ac71f");
     }
 
     @Test
-    void generate_plutusV1_emptyRedeemer() throws CborException, CborSerializationException {
+    void generate_plutusV1_emptyRedeemer_BabbageEra() throws CborException, CborSerializationException {
         ListPlutusData listPlutusData = new ListPlutusData();
         PlutusData plutusData = new BigIntPlutusData(new BigInteger("1000"));
         listPlutusData.add(plutusData);
@@ -215,7 +215,7 @@ class ScriptDataHashGeneratorTest {
         var _costMdls = new CostMdls();
         _costMdls.add(PlutusV1CostModel);
 
-        byte[] hashBytes = ScriptDataHashGenerator.generate(Arrays.asList(), Arrays.asList(plutusData), _costMdls);
+        byte[] hashBytes = ScriptDataHashGenerator.generate(Era.Babbage, Arrays.asList(), Arrays.asList(plutusData), _costMdls);
         String hash = HexUtil.encodeHexString(hashBytes);
         System.out.println(hash);
 
