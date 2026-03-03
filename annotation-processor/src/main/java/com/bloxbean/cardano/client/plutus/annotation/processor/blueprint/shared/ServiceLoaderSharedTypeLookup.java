@@ -105,27 +105,6 @@ class ServiceLoaderSharedTypeLookup implements SharedTypeLookup {
      * Cache key that includes both the schema signature and context hints,
      * so lookups for different stdlib versions don't collide.
      */
-    private static final class CacheKey {
-        private final SchemaSignature signature;
-        private final Map<String, String> hints;
-
-        CacheKey(SchemaSignature signature, Map<String, String> hints) {
-            this.signature = signature;
-            this.hints = hints;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof CacheKey)) return false;
-            CacheKey that = (CacheKey) o;
-            return Objects.equals(signature, that.signature) && Objects.equals(hints, that.hints);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(signature, hints);
-        }
-    }
+    private record CacheKey(SchemaSignature signature, Map<String, String> hints) { }
 
 }
