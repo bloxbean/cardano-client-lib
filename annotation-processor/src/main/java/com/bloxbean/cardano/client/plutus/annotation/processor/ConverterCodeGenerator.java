@@ -112,21 +112,16 @@ public class ConverterCodeGenerator implements CodeGenerator {
         toPlutusDataMethod.addStatement("$T.requireNonNull($L, \"$L cannot be null\")", Objects.class, paramName, paramName);
 
         for (ClassDefinition constructor : constructors) {
-            String converterClassName = constructor.getConverterClassName(); //constructor.getDataClassName() + CONVERTER;
-            String converterPkgName = constructor.getConverterPackageName();//JavaFileUtil.getConverterPackageName(constructor.getPackageName());
+            String converterClassName = constructor.getConverterClassName();
+            String converterPkgName = constructor.getConverterPackageName();
 
             ClassName constrConverterTypeName = ClassName.get(converterPkgName, converterClassName);
-            ClassName constrTypeName = ClassName.get(constructor.getPackageName(), constructor.getDataClassName());
+            // Use objType for correct nested class resolution (e.g., Credential.VerificationKey)
+            ClassName constrTypeName = ClassName.bestGuess(constructor.getObjType());
 
-            if (constructor.getFields().size() == 0) {
-                toPlutusDataMethod.beginControlFlow("if($L instanceof $T)", paramName, ClassName.get(classDef.getPackageName(), constructor.getDataClassName()))
-                        .addStatement("return new $T().toPlutusData(($T)$L)", ClassName.get(constructor.getPackageName(), constructor.getDataClassName()), ClassName.get(constructor.getPackageName(), constructor.getDataClassName()), paramName)
-                        .endControlFlow();
-            } else {
-                toPlutusDataMethod.beginControlFlow("if($L instanceof $T)", paramName, constrTypeName)
-                        .addStatement("return new $T().toPlutusData(($T)$L)", constrConverterTypeName, constrTypeName, paramName)
-                        .endControlFlow();
-            }
+            toPlutusDataMethod.beginControlFlow("if($L instanceof $T)", paramName, constrTypeName)
+                    .addStatement("return new $T().toPlutusData(($T)$L)", constrConverterTypeName, constrTypeName, paramName)
+                    .endControlFlow();
         }
         toPlutusDataMethod.addCode("\n");
         toPlutusDataMethod.addStatement("throw new $T(\"Unsupported type: \" + $L.getClass())", CborRuntimeException.class, paramName);

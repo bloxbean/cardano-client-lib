@@ -2,13 +2,19 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassifier;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookupFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
-import com.bloxbean.cardano.client.plutus.blueprint.model.*;
+import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusContractBlueprint;
+import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
 import com.google.auto.service.AutoService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,9 +28,7 @@ import javax.tools.StandardLocation;
 import java.io.File;
 import java.util.*;
 
-import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.getNamespaceFromReferenceKey;
-import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isBuiltInGenericContainer;
-import static java.util.Collections.EMPTY_MAP;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.*;
 
 /**
  * Annotation processor that consumes {@link com.bloxbean.cardano.client.plutus.annotation.Blueprint}
@@ -40,20 +44,27 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
     private FieldSpecProcessor fieldSpecProcessor;
     private final GeneratedTypesRegistry generatedTypesRegistry = new GeneratedTypesRegistry();
     private SharedTypeLookup sharedTypeLookup;
+    private NamingStrategy nameStrategy;
+    private PackageResolver packageResolver;
+    private SchemaClassifier classifier;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         messager = processingEnv.getMessager();
         sharedTypeLookup = SharedTypeLookupFactory.create(processingEnv);
+
+        this.nameStrategy = new DefaultNamingStrategy();
+        this.packageResolver = new PackageResolver();
+        this.classifier = new SchemaClassifier(nameStrategy);
     }
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        Set<String> annotataions = new LinkedHashSet<>();
-        annotataions.add(Blueprint.class.getCanonicalName());
+        Set<String> annotations = new LinkedHashSet<>();
+        annotations.add(Blueprint.class.getCanonicalName());
 
-        return annotataions;
+        return annotations;
     }
 
     @Override
@@ -82,11 +93,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             if (annotation == null) {
                 error(typeElement, "Blueprint annotation not found for class %s", typeElement.getSimpleName());
                 return false;
-            } else {
-                validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup);
-                fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup);
             }
-
 
             File blueprintFile = getFileFromAnnotation(annotation);
             if (blueprintFile == null || !blueprintFile.exists()) {
@@ -102,9 +109,11 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
                 return false;
             }
 
-
             Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions() != null? plutusContractBlueprint.getDefinitions()
-                    : EMPTY_MAP;
+                    : Collections.emptyMap();
+
+            fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup);
+            validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup);
 
             //Create Data classes
             for (Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {

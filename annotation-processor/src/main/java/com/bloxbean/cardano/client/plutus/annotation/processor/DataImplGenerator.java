@@ -23,7 +23,8 @@ public class DataImplGenerator implements CodeGenerator {
         String dataImplClassName = classDef.getImplClassName();
 
         ClassName converterClass = ClassName.bestGuess(classDef.getConverterPackageName() + "." + classDef.getConverterClassName());
-        ClassName dataClass = ClassName.bestGuess(classDef.getPackageName() + "." + classDef.getDataClassName());
+        // Use objType for correct nested class resolution (e.g., pkg.Credential.VerificationKey)
+        ClassName dataClass = ClassName.bestGuess(classDef.getObjType());
         ClassName dataClassImpl = ClassName.bestGuess(classDef.getImplPackageName() + "." + classDef.getImplClassName());
 
         //Data.class

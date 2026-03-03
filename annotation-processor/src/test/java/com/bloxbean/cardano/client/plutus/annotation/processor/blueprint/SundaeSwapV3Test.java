@@ -2,6 +2,9 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.tools.JavaFileObject;
@@ -11,6 +14,7 @@ import java.util.stream.Collectors;
 
 import static com.google.testing.compile.CompilationSubject.assertThat;
 import static com.google.testing.compile.Compiler.javac;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests for SundaeSwap DEX blueprint annotation processing (Plutus v3).
@@ -27,15 +31,17 @@ import static com.google.testing.compile.Compiler.javac;
  */
 public class SundaeSwapV3Test {
 
+    private static Compilation compilation;
+
+    @BeforeAll
+    static void setUp() {
+        compilation = javac()
+                .withProcessors(new BlueprintAnnotationProcessor())
+                .compile(JavaFileObjects.forResource("blueprint/SundaeSwapV3.java"));
+    }
+
     @Test
     void sundaeSwapV3() {
-        Compilation compilation =
-                javac()
-                        .withProcessors(new BlueprintAnnotationProcessor())
-                        .compile(
-                                JavaFileObjects.forResource("blueprint/SundaeSwapV3.java")
-                        );
-
         System.out.println(compilation.diagnostics());
 
         compilation.generatedFiles().forEach(javaFileObject -> {
@@ -55,6 +61,101 @@ public class SundaeSwapV3Test {
         // This is critical for SundaeSwap V3 which uses Option<T> syntax (Aiken v1.1.21+)
         // Our fix ensures Option<Credential> generates Optional<Credential>, not PlutusData
         verifyNoOpaqueTypes(compilation);
+    }
+
+    @Nested
+    @DisplayName("Inner class structure for interface types")
+    class InnerClassStructureTests {
+
+        @Test
+        @DisplayName("Credential should contain VerificationKey and Script as inner classes")
+        void credentialInnerClasses() throws Exception {
+            assertThat(compilation).succeeded();
+
+            JavaFileObject file = compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.Credential")
+                    .orElseThrow(() -> new AssertionError("Credential.java not generated"));
+            String source = file.getCharContent(true).toString();
+
+            assertThat(source)
+                    .as("Credential should be an interface")
+                    .contains("public interface Credential");
+            assertThat(source)
+                    .as("Should contain VerificationKey inner class")
+                    .contains("abstract class VerificationKey implements Data<VerificationKey>, Credential");
+            assertThat(source)
+                    .as("Should contain Script inner class")
+                    .contains("abstract class Script implements Data<Script>, Credential");
+        }
+
+        @Test
+        @DisplayName("PaymentCredential should contain its own VerificationKey and Script inner classes")
+        void paymentCredentialInnerClasses() throws Exception {
+            assertThat(compilation).succeeded();
+
+            JavaFileObject file = compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.PaymentCredential")
+                    .orElseThrow(() -> new AssertionError("PaymentCredential.java not generated"));
+            String source = file.getCharContent(true).toString();
+
+            assertThat(source)
+                    .as("PaymentCredential should be an interface")
+                    .contains("public interface PaymentCredential");
+            assertThat(source)
+                    .as("Should contain VerificationKey inner class")
+                    .contains("abstract class VerificationKey implements Data<VerificationKey>, PaymentCredential");
+            assertThat(source)
+                    .as("Should contain Script inner class")
+                    .contains("abstract class Script implements Data<Script>, PaymentCredential");
+        }
+
+        @Test
+        @DisplayName("Order should contain all 6 variants as inner classes")
+        void orderInnerClasses() throws Exception {
+            assertThat(compilation).succeeded();
+
+            JavaFileObject file = compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.types.order.model.Order")
+                    .orElseThrow(() -> new AssertionError("Order.java not generated"));
+            String source = file.getCharContent(true).toString();
+
+            assertThat(source)
+                    .as("Order should be an interface")
+                    .contains("public interface Order");
+            assertThat(source)
+                    .as("Should contain Strategy inner class")
+                    .contains("abstract class Strategy implements Data<Strategy>, Order");
+            assertThat(source)
+                    .as("Should contain Swap inner class")
+                    .contains("abstract class Swap implements Data<Swap>, Order");
+            assertThat(source)
+                    .as("Should contain Deposit inner class")
+                    .contains("abstract class Deposit implements Data<Deposit>, Order");
+            assertThat(source)
+                    .as("Should contain Withdrawal inner class")
+                    .contains("abstract class Withdrawal implements Data<Withdrawal>, Order");
+            assertThat(source)
+                    .as("Should contain Donation inner class")
+                    .contains("abstract class Donation implements Data<Donation>, Order");
+            assertThat(source)
+                    .as("Should contain Record inner class")
+                    .contains("abstract class Record implements Data<Record>, Order");
+        }
+
+        @Test
+        @DisplayName("Credential variants should NOT be generated as separate top-level classes")
+        void credentialVariantsShouldNotBeTopLevel() {
+            assertThat(compilation).succeeded();
+
+            assertThat(compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.VerificationKey"))
+                    .as("VerificationKey should not be a separate top-level file")
+                    .isEmpty();
+            assertThat(compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.Script"))
+                    .as("Script should not be a separate top-level file")
+                    .isEmpty();
+        }
     }
 
     /**
@@ -106,7 +207,7 @@ public class SundaeSwapV3Test {
             System.out.println("==============================================================\n");
         }
 
-        org.assertj.core.api.Assertions.assertThat(illegitimateFields.size())
+        assertThat(illegitimateFields.size())
                 .as("Generated sources should not have untyped PlutusData for containers. " +
                     "SundaeSwap V3 uses Option<T> syntax (Aiken v1.1.21+). " +
                     "Option<Credential> should be Optional<Credential>, not PlutusData. " +
