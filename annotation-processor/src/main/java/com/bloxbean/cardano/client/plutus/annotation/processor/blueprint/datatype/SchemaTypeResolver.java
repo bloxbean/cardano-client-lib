@@ -53,19 +53,15 @@ public class SchemaTypeResolver {
             case bool:
                 return TypeName.get(Boolean.class);
             case list:
-                if (schema.getItems() != null && schema.getItems().size() == 3) {
-                    return resolveTripleType(namespace, schema);
-                }
-                if (schema.getItems() != null && schema.getItems().size() == 4) {
-                    return resolveQuartetType(namespace, schema);
-                }
-                if (schema.getItems() != null && schema.getItems().size() == 5) {
-                    return resolveQuintetType(namespace, schema);
-                }
-                if (schema.getItems() != null && schema.getItems().size() > 5) {
-                    throw new BlueprintGenerationException(
-                            "Tuples with 6+ items are not supported. Found " + schema.getItems().size()
-                            + " items. Please file an issue if you need this feature.");
+                if (schema.getItems() != null && schema.getItems().size() >= 3) {
+                    return switch (schema.getItems().size()) {
+                        case 3 -> resolveTripleType(namespace, schema);
+                        case 4 -> resolveQuartetType(namespace, schema);
+                        case 5 -> resolveQuintetType(namespace, schema);
+                        default -> throw new BlueprintGenerationException(
+                                "Tuples with 6+ items are not supported. Found " + schema.getItems().size()
+                                + " items. Please file an issue if you need this feature.");
+                    };
                 }
                 return resolveListType(namespace, schema);
             case map:
