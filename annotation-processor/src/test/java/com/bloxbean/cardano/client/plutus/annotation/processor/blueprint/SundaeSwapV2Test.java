@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -148,6 +149,33 @@ public class SundaeSwapV2Test {
                     "com.bloxbean.cardano.client.plutus.aiken.blueprint.std.converter.OutputReferenceV1Converter"))
                     .as("OutputReferenceV1Converter should be generated for shared V1 stdlib type")
                     .isPresent();
+        }
+
+        @Test
+        @DisplayName("Tuple$ByteArray_ByteArray should generate Pair<byte[], byte[]>, not raw Pair")
+        void tuplePairFieldShouldBeParameterized() throws Exception {
+            assertThat(compilation).succeeded();
+
+            // V2's Order.Record has a "policy" field referencing Tuple$ByteArray_ByteArray.
+            // This must produce Pair<byte[], byte[]> (parameterized), not raw Pair.
+            // The bug was: registerTuplePair() intercepted the schema lookup and returned
+            // raw ClassName("Pair"), which was classified as CONSTRUCTOR, generating broken
+            // toPlutusData()/fromPlutusData() calls. With the fix, it falls through to
+            // ListDataTypeProcessor → Pair<byte[], byte[]> → inline getFirst()/getSecond().
+            JavaFileObject orderFile = compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswap.types.order.model.Order")
+                    .orElseThrow(() -> new AssertionError("Order.java not generated"));
+            String orderSource = orderFile.getCharContent(true).toString();
+
+            assertThat(orderSource)
+                    .as("Record inner class should have Pair<byte[], byte[]> policy field")
+                    .contains("Pair<byte[], byte[]> policy");
+
+            // No PairConverter should be generated — Pair fields are handled inline
+            assertThat(compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.blueprint.type.converter.PairConverter"))
+                    .as("PairConverter should NOT be generated (Pair is handled inline)")
+                    .isEmpty();
         }
 
         @Test

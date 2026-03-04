@@ -128,6 +128,25 @@ public class SundaeSwapV3Test {
         }
 
         @Test
+        @DisplayName("Tuple fields should generate parameterized Pair<byte[], byte[]>, not raw Pair")
+        void tuplePairFieldShouldBeParameterized() throws Exception {
+            assertThat(compilation).succeeded();
+
+            // V3's Order.Record has a "policy" field referencing
+            // Tuple<<cardano/assets/PolicyId,cardano/assets/AssetName>>.
+            // PolicyId and AssetName resolve to their underlying ByteArray schemas,
+            // so the field type is Pair<byte[], byte[]> (parameterized, not raw Pair).
+            JavaFileObject orderFile = compilation.generatedSourceFile(
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.types.order.model.Order")
+                    .orElseThrow(() -> new AssertionError("Order.java not generated"));
+            String orderSource = orderFile.getCharContent(true).toString();
+
+            assertThat(orderSource)
+                    .as("Record inner class should have parameterized Pair<byte[], byte[]> policy field")
+                    .contains("Pair<byte[], byte[]> policy");
+        }
+
+        @Test
         @DisplayName("Credential variants should NOT be generated as separate top-level classes")
         void credentialVariantsShouldNotBeTopLevel() {
             assertThat(compilation).succeeded();

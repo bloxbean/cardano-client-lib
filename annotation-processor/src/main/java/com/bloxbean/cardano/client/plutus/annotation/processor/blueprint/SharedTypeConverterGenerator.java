@@ -5,10 +5,7 @@ import com.bloxbean.cardano.client.exception.CborRuntimeException;
 import com.bloxbean.cardano.client.plutus.annotation.BasePlutusDataConverter;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
-import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.ConstrPlutusData;
-import com.bloxbean.cardano.client.plutus.spec.ListPlutusData;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.squareup.javapoet.AnnotationSpec;
@@ -36,9 +33,7 @@ public class SharedTypeConverterGenerator {
         /** Constructor-based type (e.g., Address, Credential) — uses ConstrPlutusData */
         CONSTRUCTOR,
         /** Bytes-wrapper type (e.g., VerificationKeyHash) — uses BytesPlutusData/PlutusData */
-        BYTES,
-        /** List-based Pair type (Tuple of two ByteArrays) — uses ListPlutusData */
-        PAIR
+        BYTES
     }
 
     /**
@@ -73,17 +68,6 @@ public class SharedTypeConverterGenerator {
                     .addMethod(deserializeBytes(sharedType))
                     .addMethod(deserializeFromHexBytes(sharedType))
                     .build();
-            case PAIR -> classBuilder
-                    .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class)
-                            .addMember("value", "$S", "unchecked")
-                            .build())
-                    .addMethod(toPlutusDataPair(sharedType))
-                    .addMethod(fromPlutusDataPair(sharedType))
-                    .addMethod(serializeBytes(sharedType))
-                    .addMethod(serializeToHexBytes(sharedType))
-                    .addMethod(deserializeBytes(sharedType))
-                    .addMethod(deserializeFromHexBytes(sharedType))
-                    .build();
         };
     }
 
@@ -95,9 +79,6 @@ public class SharedTypeConverterGenerator {
 
         if (resolved.getDataType() == BlueprintDatatype.bytes) {
             return SharedTypeKind.BYTES;
-        }
-        if (resolved.getDataType() == BlueprintDatatype.list) {
-            return SharedTypeKind.PAIR;
         }
         // Constructor-based types have anyOf with constructor variants, or dataType == constructor
         return SharedTypeKind.CONSTRUCTOR;
@@ -259,30 +240,4 @@ public class SharedTypeConverterGenerator {
                 .build();
     }
 
-    // ---- Pair (Tuple of two ByteArrays) ----
-
-    private MethodSpec toPlutusDataPair(ClassName type) {
-        return MethodSpec.methodBuilder("toPlutusData")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(PlutusData.class)
-                .addParameter(type, "obj")
-                .addStatement("$T.requireNonNull(obj, \"obj cannot be null\")", Objects.class)
-                .addStatement("$T list = $T.builder().build()", ListPlutusData.class, ListPlutusData.class)
-                .addStatement("list.add($T.of((byte[]) obj.getFirst()))", BytesPlutusData.class)
-                .addStatement("list.add($T.of((byte[]) obj.getSecond()))", BytesPlutusData.class)
-                .addStatement("return list")
-                .build();
-    }
-
-    private MethodSpec fromPlutusDataPair(ClassName type) {
-        return MethodSpec.methodBuilder("fromPlutusData")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(type)
-                .addParameter(PlutusData.class, "data")
-                .addStatement("$T list = ($T) data", ListPlutusData.class, ListPlutusData.class)
-                .addStatement("byte[] first = (($T) list.getPlutusDataList().get(0)).getValue()", BytesPlutusData.class)
-                .addStatement("byte[] second = (($T) list.getPlutusDataList().get(1)).getValue()", BytesPlutusData.class)
-                .addStatement("return new $T<>(first, second)", Pair.class)
-                .build();
-    }
 }

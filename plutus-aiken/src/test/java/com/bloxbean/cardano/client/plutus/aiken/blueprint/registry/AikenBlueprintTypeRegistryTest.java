@@ -31,46 +31,6 @@ class AikenBlueprintTypeRegistryTest {
         return LookupContext.EMPTY.withHint(AikenBlueprintTypeRegistry.HINT_STDLIB_VERSION, AikenStdlibVersion.V3.name());
     }
 
-    // ── Tuple (version-independent) ─────────────────────────────────────────
-
-    @Test
-    void lookupTuplePairMapping() {
-        BlueprintSchema tupleSchema = new BlueprintSchema();
-        tupleSchema.setTitle("Tuple");
-        tupleSchema.setDataType(BlueprintDatatype.list);
-
-        BlueprintSchema leftRef = new BlueprintSchema();
-        leftRef.setRef("#/definitions/ByteArray");
-        BlueprintSchema rightRef = new BlueprintSchema();
-        rightRef.setRef("#/definitions/ByteArray");
-        tupleSchema.setItems(java.util.List.of(leftRef, rightRef));
-
-        SchemaSignature signature = new SchemaSignatureBuilder().build(tupleSchema);
-        Optional<RegisteredType> result = registry.lookup(signature, tupleSchema, LookupContext.EMPTY);
-
-        assertThat(result).isPresent();
-        assertThat(result.get().canonicalName()).isEqualTo("com.bloxbean.cardano.client.plutus.blueprint.type.Pair");
-    }
-
-    @Test
-    void commonTypesAvailableRegardlessOfVersion() {
-        // Tuple should be found with any version hint
-        BlueprintSchema tupleSchema = new BlueprintSchema();
-        tupleSchema.setTitle("Tuple");
-        tupleSchema.setDataType(BlueprintDatatype.list);
-        BlueprintSchema leftRef = new BlueprintSchema();
-        leftRef.setRef("#/definitions/ByteArray");
-        BlueprintSchema rightRef = new BlueprintSchema();
-        rightRef.setRef("#/definitions/ByteArray");
-        tupleSchema.setItems(java.util.List.of(leftRef, rightRef));
-
-        SchemaSignature signature = new SchemaSignatureBuilder().build(tupleSchema);
-
-        assertThat(registry.lookup(signature, tupleSchema, ctxV1())).isPresent();
-        assertThat(registry.lookup(signature, tupleSchema, ctxV2())).isPresent();
-        assertThat(registry.lookup(signature, tupleSchema, ctxV3())).isPresent();
-    }
-
     // ── Bytes wrappers (version-independent) ────────────────────────────────
 
     @Test
