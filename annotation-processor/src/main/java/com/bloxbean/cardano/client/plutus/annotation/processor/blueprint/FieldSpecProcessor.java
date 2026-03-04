@@ -132,7 +132,7 @@ public class FieldSpecProcessor {
      * @param key the definition key that may contain generic parameters
      * @return the base type without generic parameters
      */
-    private String extractBaseType(final String key) {
+    String extractBaseType(final String key) {
         if (key == null || key.isEmpty()) {
             return key;
         }
@@ -420,7 +420,7 @@ public class FieldSpecProcessor {
      * @param dataClassName name of the interface
      * @return TypeSpec.Builder for the interface
      */
-    private TypeSpec.Builder buildInterfaceTypeSpecBuilder(String dataClassName) {
+    TypeSpec.Builder buildInterfaceTypeSpecBuilder(String dataClassName) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
         String className = nameStrategy.toClassName(dataClassName);
@@ -440,7 +440,7 @@ public class FieldSpecProcessor {
      * @param schema        the variant schema
      * @return TypeSpec for the variant, or null if schema has no dataType
      */
-    private TypeSpec buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema) {
+    TypeSpec buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema) {
         if (schema.getDataType() == null) {
             return null; // No dataType means no class generation needed
         }
