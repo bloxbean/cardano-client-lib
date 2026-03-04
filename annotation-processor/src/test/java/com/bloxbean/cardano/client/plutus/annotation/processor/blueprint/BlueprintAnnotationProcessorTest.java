@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.ConstrAnnotationP
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.Compiler;
 import com.google.testing.compile.JavaFileObjects;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -537,6 +538,142 @@ class BlueprintAnnotationProcessorTest {
                     .as("Should not generate Option$Int, List$ByteArray or other $ generic classes")
                     .noneMatch(name -> name.matches(".*/Option\\$.*\\.java") ||
                                        name.matches(".*/List\\$.*\\.java"));
+        }
+    }
+
+    /**
+     * Compilation tests for pseudo-alias anyOf types (inner class generation).
+     *
+     * <p><b>What this tests:</b> End-to-end verification that when a blueprint defines
+     * interface types (anyOf > 1) like Credential and PaymentCredential, each generates
+     * its variants as nested static inner classes (e.g., Credential.VerificationKey,
+     * PaymentCredential.VerificationKey). This eliminates the semantic incorrectness of
+     * shared variant classes implementing multiple unrelated interfaces.</p>
+     *
+     * <p><b>Blueprint used:</b> {@code pseudo-alias-test.json} which defines:</p>
+     * <ul>
+     *   <li>{@code test/Credential} — anyOf: VerificationKey (index 0), Script (index 1)</li>
+     *   <li>{@code test/PaymentCredential} — anyOf: VerificationKey (index 0), Script (index 1)</li>
+     *   <li>{@code test/Address} — constructor with payment_credential ($ref PaymentCredential) and
+     *       stake_credential ($ref Credential) fields</li>
+     * </ul>
+     */
+    @Nested
+    @DisplayName("Pseudo-alias inner class compilation tests")
+    class PseudoAliasCompilationTests {
+
+        @Test
+        @DisplayName("should compile successfully with variants as inner classes")
+        void shouldCompileWithVariantsAsInnerClasses() {
+            Compilation compilation = Compiler.javac()
+                    .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
+                    .withClasspathFrom(ClassLoader.getSystemClassLoader())
+                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+
+            assertThat(compilation).succeeded();
+        }
+
+        @Test
+        @DisplayName("Credential should contain inner classes VerificationKey and Script")
+        void credentialShouldContainInnerClasses() throws Exception {
+            Compilation compilation = Compiler.javac()
+                    .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
+                    .withClasspathFrom(ClassLoader.getSystemClassLoader())
+                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+
+            assertThat(compilation).succeeded();
+
+            JavaFileObject credFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.Credential")
+                    .orElseThrow(() -> new AssertionError("Credential.java not generated"));
+            String credSource = credFile.getCharContent(true).toString();
+
+            assertThat(credSource)
+                    .as("Credential should be an interface")
+                    .contains("public interface Credential");
+            // In Java interfaces, nested classes are implicitly public and static,
+            // so JavaPoet omits those modifiers
+            assertThat(credSource)
+                    .as("Credential should contain VerificationKey inner class")
+                    .contains("abstract class VerificationKey");
+            assertThat(credSource)
+                    .as("Credential should contain Script inner class")
+                    .contains("abstract class Script");
+        }
+
+        @Test
+        @DisplayName("PaymentCredential should contain its own inner classes VerificationKey and Script")
+        void paymentCredentialShouldContainInnerClasses() throws Exception {
+            Compilation compilation = Compiler.javac()
+                    .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
+                    .withClasspathFrom(ClassLoader.getSystemClassLoader())
+                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+
+            assertThat(compilation).succeeded();
+
+            JavaFileObject pcFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.PaymentCredential")
+                    .orElseThrow(() -> new AssertionError("PaymentCredential.java not generated"));
+            String pcSource = pcFile.getCharContent(true).toString();
+
+            assertThat(pcSource)
+                    .as("PaymentCredential should be an interface")
+                    .contains("public interface PaymentCredential");
+            // In Java interfaces, nested classes are implicitly public and static,
+            // so JavaPoet omits those modifiers
+            assertThat(pcSource)
+                    .as("PaymentCredential should contain VerificationKey inner class")
+                    .contains("abstract class VerificationKey");
+            assertThat(pcSource)
+                    .as("PaymentCredential should contain Script inner class")
+                    .contains("abstract class Script");
+        }
+
+        @Test
+        @DisplayName("converters should be prefixed: CredentialVerificationKeyConverter, etc.")
+        void convertersShouldBePrefixed() {
+            Compilation compilation = Compiler.javac()
+                    .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
+                    .withClasspathFrom(ClassLoader.getSystemClassLoader())
+                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+
+            assertThat(compilation).succeeded();
+
+            List<String> generatedSources = compilation.generatedSourceFiles().stream()
+                    .map(jfo -> jfo.getName())
+                    .collect(Collectors.toList());
+
+            // Interface converters
+            assertThat(generatedSources)
+                    .as("CredentialConverter should be generated")
+                    .anyMatch(name -> name.contains("CredentialConverter"));
+            assertThat(generatedSources)
+                    .as("PaymentCredentialConverter should be generated")
+                    .anyMatch(name -> name.contains("PaymentCredentialConverter"));
+
+            // Variant converters with prefixed names
+            assertThat(generatedSources)
+                    .as("CredentialVerificationKeyConverter should be generated")
+                    .anyMatch(name -> name.contains("CredentialVerificationKeyConverter"));
+            assertThat(generatedSources)
+                    .as("PaymentCredentialVerificationKeyConverter should be generated")
+                    .anyMatch(name -> name.contains("PaymentCredentialVerificationKeyConverter"));
+        }
+
+        @Test
+        @DisplayName("Address type using both Credential and PaymentCredential refs should compile")
+        void addressTypeUsingBothRefsShouldCompile() throws Exception {
+            Compilation compilation = Compiler.javac()
+                    .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
+                    .withClasspathFrom(ClassLoader.getSystemClassLoader())
+                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+
+            assertThat(compilation).succeeded();
+
+            // Verify Address model class was generated
+            JavaFileObject addressFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.Address")
+                    .orElseThrow(() -> new AssertionError("Address.java not generated"));
+            String addressSource = addressFile.getCharContent(true).toString();
+
+            assertThat(addressSource).contains("package com.test.pseudoalias.test.model;");
         }
     }
 

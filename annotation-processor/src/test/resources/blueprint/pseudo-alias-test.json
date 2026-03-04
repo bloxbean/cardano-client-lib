@@ -1,0 +1,106 @@
+{
+  "preamble": {
+    "title": "pseudo_alias_test",
+    "description": "Test blueprint for pseudo-alias anyOf types: Credential and PaymentCredential have the same variant names (VerificationKey, Script) but generate separate inner classes per interface.",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+test"
+    }
+  },
+  "validators": [
+    {
+      "title": "pseudo_alias.spend",
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/test~1Address"
+        }
+      },
+      "compiledCode": "0000",
+      "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "test/Credential": {
+      "title": "Credential",
+      "description": "A credential type — either a verification key or a script.",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "hash",
+              "dataType": "bytes"
+            }
+          ]
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "hash",
+              "dataType": "bytes"
+            }
+          ]
+        }
+      ]
+    },
+    "test/PaymentCredential": {
+      "title": "PaymentCredential",
+      "description": "Same structure as Credential but used for payment specifically.",
+      "anyOf": [
+        {
+          "title": "VerificationKey",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "hash",
+              "dataType": "bytes"
+            }
+          ]
+        },
+        {
+          "title": "Script",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "hash",
+              "dataType": "bytes"
+            }
+          ]
+        }
+      ]
+    },
+    "test/Address": {
+      "title": "Address",
+      "anyOf": [
+        {
+          "title": "Address",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "payment_credential",
+              "$ref": "#/definitions/test~1PaymentCredential"
+            },
+            {
+              "title": "stake_credential",
+              "$ref": "#/definitions/test~1Credential"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

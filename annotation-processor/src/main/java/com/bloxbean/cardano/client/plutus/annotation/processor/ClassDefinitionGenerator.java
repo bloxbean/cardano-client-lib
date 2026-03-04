@@ -52,14 +52,22 @@ public class ClassDefinitionGenerator {
     public ClassDefinition getClassDefinition(TypeElement typeElement) {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
-        String converterClassName = className + CONVERTER;
+
+        // For nested classes inside interfaces, prefix converter/impl names with enclosing type
+        // to avoid collisions (e.g., Credential.VerificationKey → CredentialVerificationKeyConverter)
+        String prefix = className;
+        Element enclosing = typeElement.getEnclosingElement();
+        if (enclosing != null && enclosing.getKind().isInterface()) {
+            String enclosingName = ((TypeElement) enclosing).getSimpleName().toString();
+            prefix = enclosingName + className;
+        }
 
         ClassDefinition classDefinition = new ClassDefinition();
         classDefinition.setPackageName(packageName);
         classDefinition.setName(className);
         classDefinition.setDataClassName(className);
-        classDefinition.setImplClassName(className + IMPL);
-        classDefinition.setConverterClassName(converterClassName);
+        classDefinition.setImplClassName(prefix + IMPL);
+        classDefinition.setConverterClassName(prefix + CONVERTER);
         classDefinition.setObjType(typeElement.asType().toString());
 
         typeElement.getModifiers().stream().filter(modifier -> modifier.equals(Modifier.ABSTRACT))
@@ -444,8 +452,10 @@ public class ClassDefinitionGenerator {
     public static ClassName getConverterClassFromField(FieldType fieldType) {
         ClassName fieldClass = ClassName.bestGuess(fieldType.getJavaType().getName());
         String converterPkg = getConverterPackageName(fieldClass.packageName());
-        ClassName converterClass = ClassName.get(converterPkg, fieldClass.simpleName() + CONVERTER);
-        return converterClass;
+        // Join all simple names for nested classes: ["Credential","VerificationKey"] → "CredentialVerificationKey"
+        // For top-level classes: ["Address"] → "Address" (unchanged)
+        String converterSimpleName = String.join("", fieldClass.simpleNames()) + CONVERTER;
+        return ClassName.get(converterPkg, converterSimpleName);
     }
 
     private static String getConverterPackageName(String modelPackage) {

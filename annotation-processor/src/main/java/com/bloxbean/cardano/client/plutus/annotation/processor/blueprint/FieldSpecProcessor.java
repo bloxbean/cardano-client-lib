@@ -23,9 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isAbstractPlutusDataType;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isBuiltInGenericContainer;
@@ -123,7 +121,7 @@ public class FieldSpecProcessor {
      * @param key the definition key that may contain generic parameters
      * @return the base type without generic parameters
      */
-    private String extractBaseType(final String key) {
+    String extractBaseType(final String key) {
         if (key == null || key.isEmpty()) {
             return key;
         }
@@ -268,21 +266,34 @@ public class FieldSpecProcessor {
         }
 
         var schema = datumModel.getSchema();
-        String interfaceName = null;
-        if (classification.getClassification() == SchemaClassification.INTERFACE) {
-            log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
-            createDatumInterface(datumModel.getNamespace(), datumModel.getName(), schema);
-            interfaceName = datumModel.getName();
-        }
-
         Tuple<String, List<BlueprintSchema>> allFields = FieldSpecProcessor.collectAllFields(schema);
-        for (BlueprintSchema innerSchema : allFields._2) {
-            String outerClassName = datumModel.getName();
-            if (outerClassName == null || outerClassName.isEmpty()) {
-                continue;
+
+        if (classification.getClassification() == SchemaClassification.INTERFACE) {
+            // Build interface with nested variant classes
+            log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
+            String interfaceName = datumModel.getName();
+            TypeSpec.Builder interfaceBuilder = buildInterfaceTypeSpecBuilder(interfaceName);
+
+            for (BlueprintSchema innerSchema : allFields._2) {
+                if (interfaceName == null || interfaceName.isEmpty()) continue;
+                TypeSpec variantTypeSpec = buildVariantTypeSpec(datumModel.getNamespace(), interfaceName, innerSchema);
+                if (variantTypeSpec != null) {
+                    interfaceBuilder.addType(variantTypeSpec);
+                }
             }
 
-            createDatumFieldSpec(datumModel.getNamespace(), interfaceName, innerSchema, outerClassName);
+            String pkg = getPackageName(datumModel.getNamespace());
+            String className = nameStrategy.toClassName(interfaceName);
+            if (generatedTypesRegistry.markGenerated(pkg, className)) {
+                sourceWriter.write(pkg, interfaceBuilder.build(), className);
+            }
+        } else {
+            // Non-interface: keep existing flat-class behavior (single anyOf or no anyOf)
+            for (BlueprintSchema innerSchema : allFields._2) {
+                String outerClassName = datumModel.getName();
+                if (outerClassName == null || outerClassName.isEmpty()) continue;
+                createDatumFieldSpec(datumModel.getNamespace(), null, innerSchema, outerClassName);
+            }
         }
     }
 
@@ -392,30 +403,80 @@ public class FieldSpecProcessor {
     }
 
     /**
-     * Creates a Datum interface for a given schema. This is used when a schema has anyOf &gt; 1
+     * Builds a TypeSpec.Builder for a Datum interface. Does not write the file —
+     * the caller adds nested variant classes and then writes.
      *
-     * @param ns            namespace or package suffix
      * @param dataClassName name of the interface
-     * @param schema        the blueprint schema to create an interface for
-     * @return ClassName of the interface
+     * @return TypeSpec.Builder for the interface
      */
-    public ClassName createDatumInterface(String ns, String dataClassName, BlueprintSchema schema) {
+    TypeSpec.Builder buildInterfaceTypeSpecBuilder(String dataClassName) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
         String className = nameStrategy.toClassName(dataClassName);
 
-        TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
+        return TypeSpec.interfaceBuilder(className)
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(constrAnnotationBuilder);
+    }
 
-        TypeSpec build = interfaceBuilder.build();
-        String pkg = getPackageName(ns);
-
-        if (generatedTypesRegistry.markGenerated(pkg, className)) {
-            sourceWriter.write(pkg, build, className);
+    /**
+     * Builds a TypeSpec for a variant class that will be nested inside an interface.
+     * The variant is a static abstract class implementing Data&lt;InterfaceName.VariantName&gt;
+     * and the parent interface.
+     *
+     * @param ns            namespace or package suffix
+     * @param interfaceName the parent interface name
+     * @param schema        the variant schema
+     * @return TypeSpec for the variant, or null if schema has no dataType
+     */
+    TypeSpec buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema) {
+        if (schema.getDataType() == null) {
+            return null; // No dataType means no class generation needed
         }
 
-        return ClassName.get(pkg, className);
+        // Process the variant's actual fields directly (not via collectAllFields which would
+        // wrap the variant schema itself and create self-referential enum fields for empty variants)
+        List<FieldSpec> fields = new ArrayList<>();
+        if (schema.getFields() != null) {
+            for (BlueprintSchema field : schema.getFields()) {
+                if (field.getDataType() != null) {
+                    fields.addAll(createFieldSpecForDataTypes(ns, "AnyOf", field, "", field.getTitle()));
+                } else {
+                    Tuple<FieldSpec, ClassName> tuple = createDatumFieldSpec(ns, null, field, field.getTitle());
+                    fields.add(tuple._1);
+                }
+            }
+        }
+
+        AnnotationSpec constrAnnotation = AnnotationSpec.builder(Constr.class)
+                .addMember("alternative", "$L", schema.getIndex()).build();
+
+        String className = nameStrategy.toClassName(schema.getTitle());
+        String pkg = getPackageName(ns);
+        String interfaceClassName = nameStrategy.toClassName(interfaceName);
+
+        // Use nested ClassName: InterfaceName.VariantName for correct Data<T> parameterization
+        ClassName datumClass = ClassName.get(pkg, interfaceClassName, className);
+        ClassName dataInterface = ClassName.get(Data.class);
+        ParameterizedTypeName parameterizedInterface = ParameterizedTypeName.get(dataInterface, datumClass);
+
+        // Parent interface type
+        ClassName interfaceTypeName = ClassName.get(pkg, interfaceClassName);
+
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.ABSTRACT)
+                .addFields(fields)
+                .addSuperinterface(parameterizedInterface)
+                .addSuperinterface(interfaceTypeName)
+                .addMethods(createMethodSpecsForGetterSetters(fields, false))
+                .addAnnotation(constrAnnotation);
+
+        log.debug("---------- Inside buildVariantTypeSpec ---------");
+        log.debug("Package: " + pkg);
+        log.debug("Interface: " + interfaceClassName);
+        log.debug("Variant: " + className);
+
+        return classBuilder.build();
     }
 
     /**
@@ -487,7 +548,7 @@ public class FieldSpecProcessor {
             className = nameStrategy.toClassName(className);
         }
 
-        String finalNS = BlueprintUtil.getNamespaceFromReference(schema.getRef());;
+        String finalNS = BlueprintUtil.getNamespaceFromReference(schema.getRef());
         String pkg = getPackageName(finalNS);
 
         ClassName classNameType = ClassName.get(pkg, className);
