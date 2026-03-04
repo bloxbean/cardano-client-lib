@@ -22,15 +22,7 @@ public class DataImplGenerator implements CodeGenerator {
     public TypeSpec generate(ClassDefinition classDef) {
         String dataImplClassName = classDef.getImplClassName();
 
-        // For nested converters, construct nested ClassName; otherwise use flat path
-        ClassName converterClass;
-        if (classDef.getEnclosingInterfaceName() != null) {
-            converterClass = ClassName.get(classDef.getConverterPackageName(),
-                    classDef.getEnclosingInterfaceName(),
-                    classDef.getConverterClassName());
-        } else {
-            converterClass = ClassName.bestGuess(classDef.getConverterPackageName() + "." + classDef.getConverterClassName());
-        }
+        ClassName converterClass = classDef.resolveConverterClassName();
         // Use objType for correct nested class resolution (e.g., pkg.Credential.VerificationKey)
         ClassName dataClass = ClassName.bestGuess(classDef.getObjType());
         ClassName dataClassImpl = ClassName.bestGuess(classDef.getImplPackageName() + "." + classDef.getImplClassName());

@@ -12,7 +12,8 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.ConverterCodeGene
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
-import com.bloxbean.cardano.client.plutus.annotation.processor.model.ClassDefinition;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.FieldTypeDetector;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
@@ -32,6 +33,8 @@ import java.util.*;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isAbstractPlutusDataType;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isBuiltInGenericContainer;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.CONVERTER;
+import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.IMPL;
 
 /**
  * Builds datum model types/interfaces and corresponding field specifications from
@@ -51,6 +54,9 @@ public class FieldSpecProcessor {
     private final SharedTypeLookup sharedTypeLookup;
     private final SharedTypeConverterGenerator sharedTypeConverterGenerator;
     private final LookupContext lookupContext;
+
+    private Map<String, BlueprintSchema> definitions;
+    private boolean preScanDone;
 
     public FieldSpecProcessor(Blueprint annotation,
                               ProcessingEnvironment processingEnv,
@@ -78,13 +84,21 @@ public class FieldSpecProcessor {
     }
 
     /**
+     * Sets the blueprint definitions map. When set, interface types will be
+     * automatically pre-scanned on the first {@link #createDatumClass} call.
+     */
+    public void setDefinitions(Map<String, BlueprintSchema> definitions) {
+        this.definitions = definitions;
+    }
+
+    /**
      * Pre-scans all blueprint definitions to identify and register interface types in the
-     * {@link GeneratedTypesRegistry}. Must be called BEFORE any {@link #createDatumClass}
-     * invocations to ensure interface types are known when generating nested converters.
+     * {@link GeneratedTypesRegistry}. Automatically triggered on the first
+     * {@link #createDatumClass} call when definitions have been set via {@link #setDefinitions}.
      *
      * @param definitions all blueprint definitions (key → schema)
      */
-    public void preScanInterfaces(Map<String, BlueprintSchema> definitions) {
+    private void preScanInterfaces(Map<String, BlueprintSchema> definitions) {
         SchemaClassifier classifier = new SchemaClassifier(nameStrategy);
         for (Map.Entry<String, BlueprintSchema> entry : definitions.entrySet()) {
             BlueprintSchema schema = entry.getValue();
@@ -264,6 +278,11 @@ public class FieldSpecProcessor {
      * @throws BlueprintGenerationException if title cannot be resolved or datum model creation fails
      */
     public void createDatumClass(String ns, String definitionKey, BlueprintSchema schema) {
+        if (!preScanDone && definitions != null) {
+            preScanInterfaces(definitions);
+            preScanDone = true;
+        }
+
         if (schema == null) {
             return;
         }
@@ -330,7 +349,6 @@ public class FieldSpecProcessor {
             generatedTypesRegistry.markInterface(pkg, className);
 
             ConverterCodeGenerator converterGen = new ConverterCodeGenerator(processingEnv);
-            FieldDefinitionBuilder fieldDefBuilder = new FieldDefinitionBuilder(generatedTypesRegistry);
             List<ClassDefinition> variantClassDefs = new ArrayList<>();
 
             for (BlueprintSchema innerSchema : allFields._2) {
@@ -344,7 +362,7 @@ public class FieldSpecProcessor {
                     int alternative = innerSchema.getIndex();
                     List<FieldSpec> variantFields = extractNonStaticFields(variantTypeSpec);
 
-                    ClassDefinition variantClassDef = fieldDefBuilder.buildVariantClassDefinition(
+                    ClassDefinition variantClassDef = buildVariantClassDefinition(
                             pkg, className, variantName, alternative, variantFields);
                     variantClassDefs.add(variantClassDef);
 
@@ -361,7 +379,7 @@ public class FieldSpecProcessor {
 
             // Generate dispatch converter for the interface
             if (!variantClassDefs.isEmpty()) {
-                ClassDefinition interfaceClassDef = fieldDefBuilder.buildInterfaceClassDefinition(pkg, className);
+                ClassDefinition interfaceClassDef = buildInterfaceClassDefinition(pkg, className);
                 try {
                     TypeSpec dispatchConverterSpec = converterGen.generateInterfaceConverter(
                             interfaceClassDef, variantClassDefs);
@@ -751,6 +769,119 @@ public class FieldSpecProcessor {
 
     private String getPackageName(String ns) {
         return packageResolver.getModelPackage(annotation, ns);
+    }
+
+    // --- Inlined from FieldDefinitionBuilder ---
+
+    /**
+     * Builds a {@link ClassDefinition} for a variant inner class.
+     */
+    private ClassDefinition buildVariantClassDefinition(String pkg, String interfaceName,
+                                                        String variantName, int alternative,
+                                                        List<FieldSpec> fieldSpecs) {
+        ClassDefinition def = new ClassDefinition();
+        def.setPackageName(pkg);
+        def.setDataClassName(variantName);
+        def.setObjType(pkg + "." + interfaceName + "." + variantName);
+        def.setAlternative(alternative);
+        def.setAbstract(true);
+        def.setHasLombokAnnotation(false);
+        def.setConverterClassName(variantName + CONVERTER);
+        def.setConverterPackageName(pkg);
+        def.setEnclosingInterfaceName(interfaceName);
+        def.setImplClassName(interfaceName + variantName + IMPL);
+        def.setImplPackageName(pkg + ".impl");
+
+        List<Field> fields = new ArrayList<>();
+        for (int i = 0; i < fieldSpecs.size(); i++) {
+            fields.add(fieldFromSpec(fieldSpecs.get(i), i));
+        }
+        def.setFields(fields);
+        return def;
+    }
+
+    /**
+     * Builds a {@link ClassDefinition} for an interface (dispatch converter).
+     */
+    private ClassDefinition buildInterfaceClassDefinition(String pkg, String interfaceName) {
+        ClassDefinition def = new ClassDefinition();
+        def.setPackageName(pkg);
+        def.setDataClassName(interfaceName);
+        def.setObjType(pkg + "." + interfaceName);
+        def.setAlternative(0);
+        def.setAbstract(false);
+        def.setHasLombokAnnotation(false);
+        def.setConverterClassName(interfaceName + CONVERTER);
+        def.setConverterPackageName(pkg);
+        def.setEnclosingInterfaceName(interfaceName);
+        def.setImplClassName(interfaceName + IMPL);
+        def.setImplPackageName(pkg + ".impl");
+        return def;
+    }
+
+    /**
+     * Converts a JavaPoet {@link FieldSpec} to a model {@link Field} using
+     * {@link FieldTypeDetector} for type detection with a CONSTRUCTOR fallback
+     * for user-defined types (interface check via registry).
+     */
+    private Field fieldFromSpec(FieldSpec fs, int index) {
+        FieldType ft = FieldTypeDetector.fromTypeName(fs.type);
+        if (ft == null) {
+            ft = new FieldType();
+            ft.setFqTypeName(fs.type.toString());
+            ft.setType(Type.CONSTRUCTOR);
+            ft.setJavaType(new JavaType(fs.type.toString(), true));
+            if (fs.type instanceof ClassName) {
+                ClassName cn = (ClassName) fs.type;
+                if (generatedTypesRegistry.isInterface(cn.packageName(), cn.simpleName())) {
+                    ft.setInterfaceType(true);
+                }
+            }
+        } else {
+            // Fix up CONSTRUCTOR-typed generic arguments (e.g., List<Script>
+            // where Script is an interface — FieldTypeDetector doesn't have registry access)
+            fixUpInterfaceGenericTypes(ft);
+        }
+
+        String getter;
+        if (Type.BOOL.equals(ft.getType()) && JavaType.BOOLEAN.equals(ft.getJavaType())) {
+            getter = "is" + capitalize(fs.name);
+        } else {
+            getter = "get" + capitalize(fs.name);
+        }
+
+        return Field.builder()
+                .name(fs.name)
+                .index(index)
+                .fieldType(ft)
+                .hashGetter(true)
+                .getterName(getter)
+                .build();
+    }
+
+    /**
+     * Post-processes generic type arguments to set interfaceType flag for
+     * CONSTRUCTOR types that are known interfaces via the registry.
+     */
+    private void fixUpInterfaceGenericTypes(FieldType fieldType) {
+        for (FieldType genericType : fieldType.getGenericTypes()) {
+            if (genericType.getType() == Type.CONSTRUCTOR) {
+                String typeFqn = genericType.getJavaType().getName();
+                try {
+                    ClassName cn = ClassName.bestGuess(typeFqn);
+                    if (generatedTypesRegistry.isInterface(cn.packageName(), cn.simpleName())) {
+                        genericType.setInterfaceType(true);
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // bestGuess can fail for parameterized types — skip
+                }
+            }
+            fixUpInterfaceGenericTypes(genericType);
+        }
+    }
+
+    private static String capitalize(String s) {
+        return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
 }

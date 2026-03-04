@@ -5,11 +5,7 @@ import com.bloxbean.cardano.client.plutus.annotation.Enc;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusIgnore;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.NotSupportedException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
-import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Quartet;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Quintet;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Triple;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.FieldTypeDetector;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
@@ -22,10 +18,8 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.CONVERTER;
@@ -184,148 +178,82 @@ public class ClassDefinitionGenerator {
     }
 
     private FieldType detectFieldType(TypeName typeName, TypeMirror typeMirror) throws NotSupportedException {
-        FieldType fieldType = new FieldType();
-        fieldType.setFqTypeName(typeName.toString());
-        if (typeName.equals(TypeName.get(Long.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.LONG_OBJECT);
-        } else if (typeName.equals(TypeName.LONG)) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.LONG);
-        } else if (typeName.equals(TypeName.get(BigInteger.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.BIGINTEGER);
-        } else if (typeName.equals(TypeName.get(Integer.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.INTEGER);
-        } else if (typeName.equals(TypeName.INT)) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.INT);
-        } else if (typeName.equals(TypeName.get(String.class))) {
-            fieldType.setType(Type.STRING);
-            fieldType.setJavaType(JavaType.STRING);
-        } else if (typeName.equals(TypeName.get(byte[].class))) {
-            fieldType.setType(Type.BYTES);
-            fieldType.setJavaType(JavaType.BYTES);
-        } else if (typeName.equals(TypeName.get(Boolean.class))) {
-            fieldType.setType(Type.BOOL);
-            fieldType.setJavaType(JavaType.BOOLEAN_OBJ);
-        } else if (typeName.equals(TypeName.BOOLEAN)) {
-            fieldType.setType(Type.BOOL);
-            fieldType.setJavaType(JavaType.BOOLEAN);
-        } else if (typeName.equals(TypeName.get(PlutusData.class))) {
-            fieldType.setType(Type.PLUTUSDATA);
-            fieldType.setJavaType(JavaType.PLUTUSDATA);
-        } else if (typeName instanceof ParameterizedTypeName &&
-                (((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(List.class))
-                        || isAssignableToList(typeMirror))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName itemType = parameterizedTypeName.typeArguments.get(0);
+        FieldType fieldType = FieldTypeDetector.fromTypeName(typeName);
+        if (fieldType != null) {
+            // FieldTypeDetector doesn't have TypeMirror/typeElements context,
+            // so fix up CONSTRUCTOR-typed generic arguments (e.g., List<Script>
+            // where Script is an interface with nested converters)
+            fixUpConstructorGenericTypes(fieldType);
+            return fieldType;
+        }
 
+        // TypeMirror-based List/Map subtype check (e.g., ArrayList<T> implements List<T>)
+        if (typeName instanceof ParameterizedTypeName && isAssignableToList(typeMirror)) {
+            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
+            fieldType = new FieldType();
+            fieldType.setFqTypeName(typeName.toString());
             fieldType.setType(Type.LIST);
             fieldType.setJavaType(JavaType.LIST);
             fieldType.setCollection(true);
-            fieldType.getGenericTypes().add(detectFieldType(itemType, null));
-        } else if (typeName instanceof ParameterizedTypeName
-                && (((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Map.class)) ||
-                isAssignableToMap(typeMirror))) {
+            fieldType.getGenericTypes().add(detectFieldType(parameterizedTypeName.typeArguments.get(0), null));
+            return fieldType;
+        }
+        if (typeName instanceof ParameterizedTypeName && isAssignableToMap(typeMirror)) {
             ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName keyItemType = parameterizedTypeName.typeArguments.get(0);
-            TypeName valueItemType = parameterizedTypeName.typeArguments.get(1);
-
+            fieldType = new FieldType();
+            fieldType.setFqTypeName(typeName.toString());
             fieldType.setType(Type.MAP);
             fieldType.setJavaType(JavaType.MAP);
             fieldType.setCollection(true);
-            fieldType.getGenericTypes().add(detectFieldType(keyItemType, null));
-            fieldType.getGenericTypes().add(detectFieldType(valueItemType, null));
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Optional.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName itemType = parameterizedTypeName.typeArguments.get(0);
-
-            fieldType.setType(Type.OPTIONAL);
-            fieldType.setJavaType(JavaType.OPTIONAL);
-            fieldType.getGenericTypes().add(detectFieldType(itemType, null));
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Pair.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
-            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
-
-            fieldType.setType(Type.PAIR);
-            fieldType.setJavaType(JavaType.PAIR);
-            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
-
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Triple.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
-            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
-            TypeName thirdElementType = parameterizedTypeName.typeArguments.get(2);
-
-            fieldType.setType(Type.TRIPLE);
-            fieldType.setJavaType(JavaType.TRIPLE);
-            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
-
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Quartet.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
-            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
-            TypeName thirdElementType = parameterizedTypeName.typeArguments.get(2);
-            TypeName fourthElementType = parameterizedTypeName.typeArguments.get(3);
-
-            fieldType.setType(Type.QUARTET);
-            fieldType.setJavaType(JavaType.QUARTET);
-            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(fourthElementType, null));
-
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Quintet.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
-            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
-            TypeName thirdElementType = parameterizedTypeName.typeArguments.get(2);
-            TypeName fourthElementType = parameterizedTypeName.typeArguments.get(3);
-            TypeName fifthElementType = parameterizedTypeName.typeArguments.get(4);
-
-            fieldType.setType(Type.QUINTET);
-            fieldType.setJavaType(JavaType.QUINTET);
-            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(fourthElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(fifthElementType, null));
-
-        } else {
-            if (isSupportedType(typeName, typeMirror)) {
-                fieldType.setType(Type.CONSTRUCTOR);
-                fieldType.setJavaType(new JavaType(typeName.toString(), true));
-                fieldType.setRawDataType(isRawDataType(typeMirror));
-                fieldType.setDataType(isDataType(typeMirror));
-
-                // Check if the referenced type is an interface (has nested converters)
-                if (typeElements != null) {
-                    for (TypeElement te : typeElements) {
-                        boolean match = (typeMirror != null && te.asType().equals(typeMirror))
-                                || te.getQualifiedName().toString().equals(typeName.toString());
-                        if (match && te.getKind().isInterface()) {
-                            fieldType.setInterfaceType(true);
-                            break;
-                        }
-                    }
-                }
-            } else {
-                throw new NotSupportedException("Type not supported: " + typeName);
-            }
+            fieldType.getGenericTypes().add(detectFieldType(parameterizedTypeName.typeArguments.get(0), null));
+            fieldType.getGenericTypes().add(detectFieldType(parameterizedTypeName.typeArguments.get(1), null));
+            return fieldType;
         }
 
-        return fieldType;
+        // CONSTRUCTOR fallback — needs TypeMirror for shared type checks
+        if (isSupportedType(typeName, typeMirror)) {
+            fieldType = new FieldType();
+            fieldType.setFqTypeName(typeName.toString());
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType(typeName.toString(), true));
+            fieldType.setRawDataType(isRawDataType(typeMirror));
+            fieldType.setDataType(isDataType(typeMirror));
+
+            // Check if the referenced type is an interface (has nested converters)
+            if (typeElements != null) {
+                for (TypeElement te : typeElements) {
+                    boolean match = (typeMirror != null && te.asType().equals(typeMirror))
+                            || te.getQualifiedName().toString().equals(typeName.toString());
+                    if (match && te.getKind().isInterface()) {
+                        fieldType.setInterfaceType(true);
+                        break;
+                    }
+                }
+            }
+            return fieldType;
+        }
+
+        throw new NotSupportedException("Type not supported: " + typeName);
+    }
+
+    /**
+     * Post-processes generic type arguments to set interfaceType flag for
+     * CONSTRUCTOR types that are known interfaces. FieldTypeDetector can't do
+     * this because it lacks access to typeElements.
+     */
+    private void fixUpConstructorGenericTypes(FieldType fieldType) {
+        for (FieldType genericType : fieldType.getGenericTypes()) {
+            if (genericType.getType() == Type.CONSTRUCTOR && typeElements != null) {
+                String typeFqn = genericType.getJavaType().getName();
+                for (TypeElement te : typeElements) {
+                    if (te.getQualifiedName().toString().equals(typeFqn) && te.getKind().isInterface()) {
+                        genericType.setInterfaceType(true);
+                        break;
+                    }
+                }
+            }
+            fixUpConstructorGenericTypes(genericType);
+        }
     }
 
     private boolean isSupportedType(TypeName typeName, TypeMirror typeMirror) {

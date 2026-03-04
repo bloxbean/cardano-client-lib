@@ -88,7 +88,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                 .addParameter(ConstrPlutusData.class, "constr");
 
         for (ClassDefinition constructor : constructors) {
-            ClassName constrConverterTypeName = resolveConverterClassName(constructor);
+            ClassName constrConverterTypeName = constructor.resolveConverterClassName();
 
             fromPlutusDataMethod.beginControlFlow("if(constr.getAlternative() == $L)", constructor.getAlternative())
                     .addStatement("return new $T().fromPlutusData(constr)", constrConverterTypeName)
@@ -109,7 +109,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
         toPlutusDataMethod.addStatement("$T.requireNonNull($L, \"$L cannot be null\")", Objects.class, paramName, paramName);
 
         for (ClassDefinition constructor : constructors) {
-            ClassName constrConverterTypeName = resolveConverterClassName(constructor);
+            ClassName constrConverterTypeName = constructor.resolveConverterClassName();
             // Use objType for correct nested class resolution (e.g., Credential.VerificationKey)
             ClassName constrTypeName = ClassName.bestGuess(constructor.getObjType());
 
@@ -122,18 +122,6 @@ public class ConverterCodeGenerator implements CodeGenerator {
         return toPlutusDataMethod;
     }
 
-    /**
-     * Resolves the converter ClassName for a ClassDefinition, handling nested converters.
-     * When {@code enclosingInterfaceName} is set, the converter is nested inside the interface.
-     */
-    private static ClassName resolveConverterClassName(ClassDefinition classDef) {
-        if (classDef.getEnclosingInterfaceName() != null) {
-            return ClassName.get(classDef.getConverterPackageName(),
-                    classDef.getEnclosingInterfaceName(),
-                    classDef.getConverterClassName());
-        }
-        return ClassName.get(classDef.getConverterPackageName(), classDef.getConverterClassName());
-    }
 
     //-- serializeToHex(obj) method
     private MethodSpec generateSerializeToHex(ClassDefinition classDefinition) {
@@ -367,7 +355,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                     return fieldOrGetterName + ".toPlutusData()";
                 }
                 ClassName converterClassName = getConverterClassFromField(itemType);
-                String converterClazz = converterClassName.packageName() + "." + String.join(".", converterClassName.simpleNames());
+                String converterClazz = converterClassName.canonicalName();
                 return String.format("new %s().toPlutusData(%s)", converterClazz, fieldOrGetterName);
         }
     }
@@ -1702,7 +1690,7 @@ public class ConverterCodeGenerator implements CodeGenerator {
                     return String.format("%s.fromPlutusData((ConstrPlutusData)%s)", typeFqn, fieldName);
                 }
                 ClassName converterClassName = getConverterClassFromField(itemType);
-                String converterClazz = converterClassName.packageName() + "." + String.join(".", converterClassName.simpleNames());
+                String converterClazz = converterClassName.canonicalName();
                 if (itemType.isRawDataType()) {
                     return String.format("new %s().fromPlutusData(%s)", converterClazz, fieldName);
                 }
