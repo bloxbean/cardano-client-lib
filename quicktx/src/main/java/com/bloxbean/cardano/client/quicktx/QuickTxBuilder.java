@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.api.exception.ApiRuntimeException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.api.model.ValidationResult;
 import com.bloxbean.cardano.client.backend.api.*;
 import com.bloxbean.cardano.client.coinselection.UtxoSelectionStrategy;
 import com.bloxbean.cardano.client.coinselection.impl.DefaultUtxoSelectionStrategyImpl;
@@ -270,6 +271,7 @@ public class QuickTxBuilder {
         private boolean mergeOutputs = false;
 
         private TransactionEvaluator txnEvaluator;
+        private TransactionValidator txValidator;
         private UtxoSelectionStrategy utxoSelectionStrategy;
         private ScriptSupplier scriptSupplier;
         private Verifier txVerifier;
@@ -847,13 +849,43 @@ public class QuickTxBuilder {
 //            if(txListContainsWallet && !(utxoSupplier instanceof WalletUtxoSupplier))
 //                throw new TxBuildException("Provide a WalletUtxoSupplier when using a sender wallet");
 
-            Transaction transaction = buildAndSign();
+            Tuple<TxBuilderContext, TxBuilder> tuple = _build();
+
+            // Build the transaction (applies txBuilder which populates utxos in context)
+            Transaction transaction = new Transaction();
+            transaction.setEra(tuple._1.getSerializationEra());
+            tuple._2.apply(tuple._1, transaction);
+
+            // Capture resolved UTXOs before signing clears them
+            Set<Utxo> resolvedUtxos = txValidator != null
+                    ? new HashSet<>(tuple._1.getAllUtxos())
+                    : Collections.emptySet();
+
+            // Sign
+            if (signers != null)
+                transaction = signers.sign(tuple._1, transaction);
+            else
+                throw new IllegalStateException("No signers found");
+
+            tuple._1.clearTempStates();
 
             if (txInspector != null)
                 txInspector.accept(transaction);
 
             if (txVerifier != null)
                 txVerifier.verify(transaction);
+
+            if (txValidator != null) {
+                ValidationResult validationResult = txValidator.validateTx(transaction, resolvedUtxos);
+                if (!validationResult.isValid()) {
+                    String errorMsg = validationResult.getErrors().stream()
+                            .map(e -> e.getRule() + ": " + e.getMessage())
+                            .reduce((a, b) -> a + "; " + b)
+                            .orElse("Validation failed");
+                    return TxResult.fromResult(Result.error(errorMsg))
+                            .withTxStatus(TxStatus.FAILED);
+                }
+            }
 
             try {
                 Result<String> result = transactionProcessor.submitTransaction(transaction.serialize());
@@ -1104,6 +1136,20 @@ public class QuickTxBuilder {
          */
         public TxContext withTxEvaluator(TransactionEvaluator txEvaluator) {
             this.txnEvaluator = txEvaluator;
+            return this;
+        }
+
+        /**
+         * Validate the transaction against ledger rules before submitting.
+         * Unlike {@link Verifier} which throws exceptions, the validator returns a
+         * {@link ValidationResult} with structured error information, and validation failures
+         * result in a failed {@link TxResult} rather than an exception.
+         *
+         * @param txValidator TransactionValidator
+         * @return TxContext
+         */
+        public TxContext withTxValidator(TransactionValidator txValidator) {
+            this.txValidator = txValidator;
             return this;
         }
 

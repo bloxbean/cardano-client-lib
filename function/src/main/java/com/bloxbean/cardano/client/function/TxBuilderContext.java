@@ -336,7 +336,7 @@ public class TxBuilderContext {
         return transaction;
     }
 
-    private void clearTempStates() {
+    public void clearTempStates() {
         clearMintMultiAssets();
         clearUtxos();
         clearCollateralUtxos();

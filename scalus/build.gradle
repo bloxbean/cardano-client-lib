@@ -1,0 +1,28 @@
+dependencies {
+    api project(':core-api')
+    api project(':scalus-bridge')
+    implementation project(':backend')
+    implementation project(':quicktx')
+
+    testImplementation project(':core')
+    testImplementation project(':quicktx')
+    testImplementation project(':backend')
+    testImplementation project(':backend-modules:blockfrost')
+
+    integrationTestImplementation project(':core')
+    integrationTestImplementation project(':quicktx')
+    integrationTestImplementation project(':backend')
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation project(':it-support')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Lib - Scalus'
+                description = 'Cardano Client Lib - Scalus Integration (offline ledger validation, script evaluation)'
+            }
+        }
+    }
+}
