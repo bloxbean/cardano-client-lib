@@ -2,6 +2,8 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.util.naming;
 
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JsonPointerUtil;
 
+import javax.lang.model.SourceVersion;
+
 /**
  * Default implementation of NamingStrategy that handles all CIP-57 blueprint naming conventions.
  *
@@ -184,7 +186,11 @@ public class DefaultNamingStrategy implements NamingStrategy {
         if (value == null || value.isEmpty()) {
             return value;
         }
-        return value.substring(0, 1).toLowerCase() + value.substring(1);
+        String result = value.substring(0, 1).toLowerCase() + value.substring(1);
+        if (SourceVersion.isKeyword(result)) {
+            result = result + "_";
+        }
+        return result;
     }
 
     @Override

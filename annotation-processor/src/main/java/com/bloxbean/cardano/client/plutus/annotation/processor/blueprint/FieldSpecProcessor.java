@@ -16,6 +16,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
+import com.bloxbean.cardano.client.plutus.blueprint.registry.LookupContext;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.squareup.javapoet.*;
@@ -46,11 +47,20 @@ public class FieldSpecProcessor {
     private final GeneratedTypesRegistry generatedTypesRegistry;
     private final SharedTypeLookup sharedTypeLookup;
     private final SharedTypeConverterGenerator sharedTypeConverterGenerator;
+    private final LookupContext lookupContext;
 
     public FieldSpecProcessor(Blueprint annotation,
                               ProcessingEnvironment processingEnv,
                               GeneratedTypesRegistry generatedTypesRegistry,
                               SharedTypeLookup sharedTypeLookup) {
+        this(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup, LookupContext.EMPTY);
+    }
+
+    public FieldSpecProcessor(Blueprint annotation,
+                              ProcessingEnvironment processingEnv,
+                              GeneratedTypesRegistry generatedTypesRegistry,
+                              SharedTypeLookup sharedTypeLookup,
+                              LookupContext lookupContext) {
         this.annotation = annotation;
         this.processingEnv = processingEnv;
         this.nameStrategy = new DefaultNamingStrategy();
@@ -60,7 +70,8 @@ public class FieldSpecProcessor {
         this.generatedTypesRegistry = generatedTypesRegistry;
         this.sharedTypeLookup = sharedTypeLookup;
         this.sharedTypeConverterGenerator = new SharedTypeConverterGenerator();
-        this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver, sharedTypeLookup);
+        this.lookupContext = lookupContext;
+        this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver, sharedTypeLookup, lookupContext);
     }
 
     /**
@@ -121,7 +132,7 @@ public class FieldSpecProcessor {
      * @param key the definition key that may contain generic parameters
      * @return the base type without generic parameters
      */
-    String extractBaseType(final String key) {
+    private String extractBaseType(final String key) {
         if (key == null || key.isEmpty()) {
             return key;
         }
@@ -230,7 +241,7 @@ public class FieldSpecProcessor {
         // Set the resolved title on the schema for downstream processing
         schema.setTitle(title);
 
-        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema, lookupContext);
         if (sharedType.isPresent()) {
             generateSharedTypeConverter(sharedType.get(), schema);
             return;
@@ -322,7 +333,7 @@ public class FieldSpecProcessor {
      * @return ClassName of the inner class
      */
     public ClassName getInnerDatumClass(String ns, BlueprintSchema schema) {
-        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema, lookupContext);
         if (sharedType.isPresent()) {
             return sharedType.get();
         }
@@ -409,7 +420,7 @@ public class FieldSpecProcessor {
      * @param dataClassName name of the interface
      * @return TypeSpec.Builder for the interface
      */
-    TypeSpec.Builder buildInterfaceTypeSpecBuilder(String dataClassName) {
+    private TypeSpec.Builder buildInterfaceTypeSpecBuilder(String dataClassName) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
         String className = nameStrategy.toClassName(dataClassName);
@@ -429,7 +440,7 @@ public class FieldSpecProcessor {
      * @param schema        the variant schema
      * @return TypeSpec for the variant, or null if schema has no dataType
      */
-    TypeSpec buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema) {
+    private TypeSpec buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema) {
         if (schema.getDataType() == null) {
             return null; // No dataType means no class generation needed
         }
@@ -489,7 +500,7 @@ public class FieldSpecProcessor {
      * @return Tuple of FieldSpec and ClassName of the field
      */
     public Tuple<FieldSpec, ClassName> createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String title) {
-        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema, lookupContext);
 
         if (sharedType.isPresent()) {
             generateSharedTypeConverter(sharedType.get(), schema);

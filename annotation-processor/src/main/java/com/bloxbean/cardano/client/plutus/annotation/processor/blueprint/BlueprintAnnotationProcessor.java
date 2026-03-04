@@ -15,6 +15,7 @@ import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusContractBlueprint;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Validator;
+import com.bloxbean.cardano.client.plutus.blueprint.registry.LookupContext;
 import com.google.auto.service.AutoService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -117,8 +118,10 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             Map<String, BlueprintSchema> definitions = plutusContractBlueprint.getDefinitions() != null? plutusContractBlueprint.getDefinitions()
                     : Collections.emptyMap();
 
-            fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup);
-            validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup);
+            LookupContext lookupContext = sharedTypeLookup.resolveHints(typeElement);
+
+            fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
+            validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
 
             //Create Data classes
             for (Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
