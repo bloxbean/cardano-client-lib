@@ -12,7 +12,6 @@ import java.util.List;
 @AllArgsConstructor
 public class ClassDefinition {
     private String packageName;
-    private String name;
     private String dataClassName;
     private String implClassName;
     private String converterClassName;

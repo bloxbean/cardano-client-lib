@@ -21,6 +21,5 @@ public class Field {
 
     private String getterName;
 
-    private int alternative;
 
 }

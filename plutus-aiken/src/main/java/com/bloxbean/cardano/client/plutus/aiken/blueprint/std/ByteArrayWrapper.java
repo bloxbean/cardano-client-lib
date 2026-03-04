@@ -15,10 +15,6 @@ abstract class ByteArrayWrapper implements RawData {
         this.value = Objects.requireNonNull(value, "value cannot be null").clone();
     }
 
-    protected byte[] bytesInternal() {
-        return value;
-    }
-
     public byte[] bytes() {
         return value.clone();
     }

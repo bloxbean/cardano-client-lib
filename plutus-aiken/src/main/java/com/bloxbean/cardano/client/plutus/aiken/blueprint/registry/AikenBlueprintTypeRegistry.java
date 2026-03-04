@@ -141,10 +141,6 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
 
     // ── Registration helpers ─────────────────────────────────────────────────
 
-    protected void registerSchema(BlueprintSchema schema, RegisteredType type) {
-        registerCommonSchema(schema, type);
-    }
-
     private void registerCommonSchema(BlueprintSchema schema, RegisteredType type) {
         Objects.requireNonNull(schema, "schema cannot be null");
         Objects.requireNonNull(type, "type cannot be null");

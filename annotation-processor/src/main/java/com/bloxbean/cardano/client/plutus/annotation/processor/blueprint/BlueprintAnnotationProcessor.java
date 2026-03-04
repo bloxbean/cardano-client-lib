@@ -2,15 +2,11 @@ package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassifier;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookupFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
-import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.JavaFileUtil;
-import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
-import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintLoader;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusContractBlueprint;
@@ -45,19 +41,12 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
     private FieldSpecProcessor fieldSpecProcessor;
     private final GeneratedTypesRegistry generatedTypesRegistry = new GeneratedTypesRegistry();
     private SharedTypeLookup sharedTypeLookup;
-    private NamingStrategy nameStrategy;
-    private PackageResolver packageResolver;
-    private SchemaClassifier classifier;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         messager = processingEnv.getMessager();
         sharedTypeLookup = SharedTypeLookupFactory.create(processingEnv);
-
-        this.nameStrategy = new DefaultNamingStrategy();
-        this.packageResolver = new PackageResolver();
-        this.classifier = new SchemaClassifier(nameStrategy);
     }
 
     @Override
