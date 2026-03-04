@@ -68,6 +68,11 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
     }
 
     @Override
+    public Set<String> getSupportedOptions() {
+        return Set.of(SharedTypeLookupFactory.OPTION_ENABLE_REGISTRY);
+    }
+
+    @Override
     public SourceVersion getSupportedSourceVersion() {
         return SourceVersion.latestSupported();
     }
