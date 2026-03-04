@@ -628,8 +628,8 @@ class BlueprintAnnotationProcessorTest {
         }
 
         @Test
-        @DisplayName("converters should be prefixed: CredentialVerificationKeyConverter, etc.")
-        void convertersShouldBePrefixed() {
+        @DisplayName("converters should be nested inside interface, not separate files")
+        void convertersShouldBeNestedInInterface() throws Exception {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
@@ -637,25 +637,51 @@ class BlueprintAnnotationProcessorTest {
 
             assertThat(compilation).succeeded();
 
+            // Verify Credential.java contains nested converter classes
+            JavaFileObject credFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.Credential")
+                    .orElseThrow(() -> new AssertionError("Credential.java not generated"));
+            String credSource = credFile.getCharContent(true).toString();
+
+            assertThat(credSource)
+                    .as("Credential should contain nested VerificationKeyConverter")
+                    .contains("class VerificationKeyConverter extends BasePlutusDataConverter");
+            assertThat(credSource)
+                    .as("Credential should contain nested ScriptConverter")
+                    .contains("class ScriptConverter extends BasePlutusDataConverter");
+            assertThat(credSource)
+                    .as("Credential should contain nested CredentialConverter (dispatch)")
+                    .contains("class CredentialConverter extends BasePlutusDataConverter");
+
+            // Verify PaymentCredential.java contains nested converter classes
+            JavaFileObject pcFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.PaymentCredential")
+                    .orElseThrow(() -> new AssertionError("PaymentCredential.java not generated"));
+            String pcSource = pcFile.getCharContent(true).toString();
+
+            assertThat(pcSource)
+                    .as("PaymentCredential should contain nested VerificationKeyConverter")
+                    .contains("class VerificationKeyConverter extends BasePlutusDataConverter");
+            assertThat(pcSource)
+                    .as("PaymentCredential should contain nested ScriptConverter")
+                    .contains("class ScriptConverter extends BasePlutusDataConverter");
+            assertThat(pcSource)
+                    .as("PaymentCredential should contain nested PaymentCredentialConverter (dispatch)")
+                    .contains("class PaymentCredentialConverter extends BasePlutusDataConverter");
+
+            // Verify NO separate converter files for nested variants
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
                     .collect(Collectors.toList());
 
-            // Interface converters
             assertThat(generatedSources)
-                    .as("CredentialConverter should be generated")
-                    .anyMatch(name -> name.contains("CredentialConverter"));
+                    .as("CredentialVerificationKeyConverter should NOT be a separate file")
+                    .noneMatch(name -> name.contains("CredentialVerificationKeyConverter"));
             assertThat(generatedSources)
-                    .as("PaymentCredentialConverter should be generated")
-                    .anyMatch(name -> name.contains("PaymentCredentialConverter"));
-
-            // Variant converters with prefixed names
+                    .as("CredentialScriptConverter should NOT be a separate file")
+                    .noneMatch(name -> name.contains("CredentialScriptConverter"));
             assertThat(generatedSources)
-                    .as("CredentialVerificationKeyConverter should be generated")
-                    .anyMatch(name -> name.contains("CredentialVerificationKeyConverter"));
-            assertThat(generatedSources)
-                    .as("PaymentCredentialVerificationKeyConverter should be generated")
-                    .anyMatch(name -> name.contains("PaymentCredentialVerificationKeyConverter"));
+                    .as("Separate CredentialConverter file should NOT exist in converter package")
+                    .noneMatch(name -> name.contains("converter/CredentialConverter")
+                            || name.contains("converter.CredentialConverter"));
         }
 
         @Test

@@ -30,6 +30,13 @@ public class FieldType {
     private boolean rawDataType;
 
     /**
+     * {@code true} when the referenced type is an interface (anyOf &gt; 1) with
+     * nested converters. Used by {@code getConverterClassFromField} to construct
+     * the nested converter {@code ClassName} (e.g., {@code Credential.CredentialConverter}).
+     */
+    private boolean interfaceType;
+
+    /**
      * {@code true} when the type implements {@code Data<T>} — a constr-based shared
      * type that has its own {@code toPlutusData()} instance method and
      * {@code fromPlutusData()} static method.

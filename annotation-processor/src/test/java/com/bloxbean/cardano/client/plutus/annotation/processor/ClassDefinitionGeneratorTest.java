@@ -236,31 +236,33 @@ public class ClassDefinitionGeneratorTest {
         }
 
         @Test
-        @DisplayName("nested class should produce prefixed converter name")
-        void nestedClass_shouldProducePrefixedConverterName() {
-            // Credential.VerificationKey → CredentialVerificationKeyConverter
+        @DisplayName("nested class should produce nested converter in parent interface")
+        void nestedClass_shouldProduceNestedConverterName() {
+            // Credential.VerificationKey → Credential.VerificationKeyConverter (nested)
             FieldType fieldType = new FieldType();
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType("com.example.Credential.VerificationKey", true));
 
             ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
 
-            assertThat(result.packageName()).isEqualTo("com.example.converter");
-            assertThat(result.simpleName()).isEqualTo("CredentialVerificationKeyConverter");
+            assertThat(result.packageName()).isEqualTo("com.example");
+            assertThat(result.simpleName()).isEqualTo("VerificationKeyConverter");
+            assertThat(result.enclosingClassName().simpleName()).isEqualTo("Credential");
         }
 
         @Test
-        @DisplayName("deeply nested class should concatenate all simple names")
-        void deeplyNestedClass_shouldConcatenateAllSimpleNames() {
-            // A.B.C → ABCConverter
+        @DisplayName("deeply nested class should produce converter nested in outermost parent")
+        void deeplyNestedClass_shouldProduceNestedConverterInOutermostParent() {
+            // A.B.C → A.CConverter (nested in outermost)
             FieldType fieldType = new FieldType();
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType("com.example.A.B.C", true));
 
             ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
 
-            assertThat(result.packageName()).isEqualTo("com.example.converter");
-            assertThat(result.simpleName()).isEqualTo("ABCConverter");
+            assertThat(result.packageName()).isEqualTo("com.example");
+            assertThat(result.simpleName()).isEqualTo("CConverter");
+            assertThat(result.enclosingClassName().simpleName()).isEqualTo("A");
         }
     }
 }

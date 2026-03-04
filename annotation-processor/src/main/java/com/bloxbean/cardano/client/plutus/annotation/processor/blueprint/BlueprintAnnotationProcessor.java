@@ -112,6 +112,11 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
             validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
 
+            // Pre-scan all definitions to identify interface types
+            // This must happen before createDatumClass so that nested converter generation
+            // can correctly reference converters for interface types not yet generated
+            fieldSpecProcessor.preScanInterfaces(definitions);
+
             //Create Data classes
             for (Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();

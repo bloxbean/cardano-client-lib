@@ -53,21 +53,31 @@ public class ClassDefinitionGenerator {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
 
-        // For nested classes inside interfaces, prefix converter/impl names with enclosing type
-        // to avoid collisions (e.g., Credential.VerificationKey → CredentialVerificationKeyConverter)
-        String prefix = className;
-        Element enclosing = typeElement.getEnclosingElement();
-        if (enclosing != null && enclosing.getKind().isInterface()) {
-            String enclosingName = ((TypeElement) enclosing).getSimpleName().toString();
-            prefix = enclosingName + className;
-        }
-
         ClassDefinition classDefinition = new ClassDefinition();
         classDefinition.setPackageName(packageName);
         classDefinition.setDataClassName(className);
-        classDefinition.setImplClassName(prefix + IMPL);
-        classDefinition.setConverterClassName(prefix + CONVERTER);
         classDefinition.setObjType(typeElement.asType().toString());
+
+        // Detect nesting inside interfaces → converters are nested, not separate files
+        Element enclosing = typeElement.getEnclosingElement();
+        if (enclosing != null && enclosing.getKind().isInterface()) {
+            // Nested variant inside interface: converter nested in interface, impl prefixed
+            String enclosingName = ((TypeElement) enclosing).getSimpleName().toString();
+            classDefinition.setConverterClassName(className + CONVERTER);
+            classDefinition.setConverterPackageName(packageName);
+            classDefinition.setEnclosingInterfaceName(enclosingName);
+            classDefinition.setImplClassName(enclosingName + className + IMPL);
+        } else if (typeElement.getKind().isInterface()) {
+            // Interface type itself: dispatch converter nested inside
+            classDefinition.setConverterClassName(className + CONVERTER);
+            classDefinition.setConverterPackageName(packageName);
+            classDefinition.setEnclosingInterfaceName(className);
+            classDefinition.setImplClassName(className + IMPL);
+        } else {
+            // Regular top-level type: converter in converter sub-package
+            classDefinition.setConverterClassName(className + CONVERTER);
+            classDefinition.setImplClassName(className + IMPL);
+        }
 
         typeElement.getModifiers().stream().filter(modifier -> modifier.equals(Modifier.ABSTRACT))
                 .findFirst().ifPresent(modifier -> classDefinition.setAbstract(true));
@@ -77,7 +87,10 @@ public class ClassDefinitionGenerator {
             processEnum(typeElement, classDefinition);
         }
 
-        classDefinition.setConverterPackageName(getConverterPackageName(packageName));
+        // Only set default packages if not already set (nested types set their own)
+        if (classDefinition.getConverterPackageName() == null) {
+            classDefinition.setConverterPackageName(getConverterPackageName(packageName));
+        }
         classDefinition.setImplPackageName(getImplPackageName(packageName));
 
         Class lombokDataClazz;
@@ -295,6 +308,18 @@ public class ClassDefinitionGenerator {
                 fieldType.setJavaType(new JavaType(typeName.toString(), true));
                 fieldType.setRawDataType(isRawDataType(typeMirror));
                 fieldType.setDataType(isDataType(typeMirror));
+
+                // Check if the referenced type is an interface (has nested converters)
+                if (typeElements != null) {
+                    for (TypeElement te : typeElements) {
+                        boolean match = (typeMirror != null && te.asType().equals(typeMirror))
+                                || te.getQualifiedName().toString().equals(typeName.toString());
+                        if (match && te.getKind().isInterface()) {
+                            fieldType.setInterfaceType(true);
+                            break;
+                        }
+                    }
+                }
             } else {
                 throw new NotSupportedException("Type not supported: " + typeName);
             }
@@ -428,10 +453,27 @@ public class ClassDefinitionGenerator {
 
     public static ClassName getConverterClassFromField(FieldType fieldType) {
         ClassName fieldClass = ClassName.bestGuess(fieldType.getJavaType().getName());
+
+        if (fieldClass.simpleNames().size() > 1) {
+            // Nested variant type (e.g., Credential.VerificationKey):
+            // converter is a sibling nested class in the parent interface
+            String pkg = fieldClass.packageName();
+            List<String> simpleNames = fieldClass.simpleNames();
+            String parentName = simpleNames.get(0);
+            String variantName = simpleNames.get(simpleNames.size() - 1);
+            return ClassName.get(pkg, parentName, variantName + CONVERTER);
+        }
+
+        if (fieldType.isInterfaceType()) {
+            // Interface type with nested dispatch converter
+            String pkg = fieldClass.packageName();
+            String name = fieldClass.simpleName();
+            return ClassName.get(pkg, name, name + CONVERTER);
+        }
+
+        // Top-level type: converter in converter sub-package
         String converterPkg = getConverterPackageName(fieldClass.packageName());
-        // Join all simple names for nested classes: ["Credential","VerificationKey"] → "CredentialVerificationKey"
-        // For top-level classes: ["Address"] → "Address" (unchanged)
-        String converterSimpleName = String.join("", fieldClass.simpleNames()) + CONVERTER;
+        String converterSimpleName = fieldClass.simpleName() + CONVERTER;
         return ClassName.get(converterPkg, converterSimpleName);
     }
 

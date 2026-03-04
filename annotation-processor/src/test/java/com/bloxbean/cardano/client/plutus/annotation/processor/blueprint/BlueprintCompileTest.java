@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.ConstrAnnotationProcessor;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,7 @@ public class BlueprintCompileTest {
     void nestedListMapCompile() {
         Compilation compilation =
                 javac()
-                        .withProcessors(new BlueprintAnnotationProcessor())
+                        .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                         .compile(
                                 JavaFileObjects.forResource("blueprint/BasicTypesBlueprint.java"),
                                 JavaFileObjects.forResource("blueprint/ComplexTypesBlueprint.java"),

@@ -22,6 +22,14 @@ public class ClassDefinition {
     private String converterPackageName;
     private String implPackageName;
 
+    /**
+     * When set, the converter for this type is nested inside the named interface.
+     * For variant inner classes: the enclosing interface name (e.g., "Credential").
+     * For interfaces themselves: the interface's own name (converter nested inside itself).
+     * When null, the converter is a separate top-level file in the converter sub-package.
+     */
+    private String enclosingInterfaceName;
+
     private boolean hasLombokAnnotation;
 
     private boolean isEnum;
