@@ -128,6 +128,120 @@ public class ClassDefinitionGeneratorTest {
     }
 
     /**
+     * Tests for parameterized tuple types (Pair, Triple, Quartet, Quintet).
+     *
+     * <p>Verifies that {@code detectFieldType()} recognizes parameterized tuple containers
+     * and generates inline {@code ListPlutusData} serialization using getter accessors
+     * ({@code getFirst()}, {@code getSecond()}, etc.) — NOT {@code toPlutusData()} calls.</p>
+     */
+    @Nested
+    @DisplayName("Parameterized tuple types — Pair, Triple, Quartet, Quintet")
+    class TupleTypeDetection {
+
+        private static String tupleConverterSource;
+
+        @BeforeAll
+        static void compileTupleModel() throws IOException {
+            Compilation compilation = javac()
+                    .withProcessors(new ConstrAnnotationProcessor())
+                    .compile(JavaFileObjects.forResource("TupleFieldModel.java"),
+                             JavaFileObjects.forResource("Model2.java"));
+
+            assertThat(compilation).succeeded();
+
+            JavaFileObject converter = compilation.generatedSourceFiles().stream()
+                    .filter(f -> f.getName().contains("TupleFieldModelConverter"))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("TupleFieldModelConverter not generated"));
+
+            tupleConverterSource = converter.getCharContent(true).toString();
+        }
+
+        @Test
+        @DisplayName("Pair<byte[], byte[]> should generate inline ListPlutusData with getFirst()/getSecond()")
+        void pairField_shouldGenerateInlineListPlutusData() {
+            assertThat(tupleConverterSource).contains("obj.getPairField().getFirst()");
+            assertThat(tupleConverterSource).contains("obj.getPairField().getSecond()");
+            assertThat(tupleConverterSource).contains("pairFieldPair.add(");
+        }
+
+        @Test
+        @DisplayName("Pair field should NOT call toPlutusData() on the Pair itself")
+        void pairField_shouldNotCallToPlutusData() {
+            assertThat(tupleConverterSource).doesNotContain("obj.getPairField().toPlutusData()");
+        }
+
+        @Test
+        @DisplayName("Triple<byte[], BigInteger, String> should generate inline serialization with getFirst()/getSecond()/getThird()")
+        void tripleField_shouldGenerateInlineSerialization() {
+            assertThat(tupleConverterSource).contains("obj.getTripleField().getFirst()");
+            assertThat(tupleConverterSource).contains("obj.getTripleField().getSecond()");
+            assertThat(tupleConverterSource).contains("obj.getTripleField().getThird()");
+        }
+
+        @Test
+        @DisplayName("Triple field should NOT call toPlutusData() on the Triple itself")
+        void tripleField_shouldNotCallToPlutusData() {
+            assertThat(tupleConverterSource).doesNotContain("obj.getTripleField().toPlutusData()");
+        }
+
+        @Test
+        @DisplayName("Quartet should generate inline serialization with getFourth()")
+        void quartetField_shouldGenerateInlineSerialization() {
+            assertThat(tupleConverterSource).contains("obj.getQuartetField().getFirst()");
+            assertThat(tupleConverterSource).contains("obj.getQuartetField().getFourth()");
+        }
+
+        @Test
+        @DisplayName("Quartet field should NOT call toPlutusData() on the Quartet itself")
+        void quartetField_shouldNotCallToPlutusData() {
+            assertThat(tupleConverterSource).doesNotContain("obj.getQuartetField().toPlutusData()");
+        }
+
+        @Test
+        @DisplayName("Quintet should generate inline serialization with getFifth()")
+        void quintetField_shouldGenerateInlineSerialization() {
+            assertThat(tupleConverterSource).contains("obj.getQuintetField().getFirst()");
+            assertThat(tupleConverterSource).contains("obj.getQuintetField().getFifth()");
+        }
+
+        @Test
+        @DisplayName("Quintet field should NOT call toPlutusData() on the Quintet itself")
+        void quintetField_shouldNotCallToPlutusData() {
+            assertThat(tupleConverterSource).doesNotContain("obj.getQuintetField().toPlutusData()");
+        }
+
+        // ── Complex generic parameters: Constr types and nested collections ──
+
+        @Test
+        @DisplayName("Pair<Model2, List<byte[]>> should delegate first element to Model2Converter")
+        void pairConstrList_shouldDelegateConstrToConverter() {
+            assertThat(tupleConverterSource).contains("obj.getPairConstrList().getFirst()");
+            assertThat(tupleConverterSource).contains("Model2Converter");
+        }
+
+        @Test
+        @DisplayName("Pair<Model2, List<byte[]>> should handle List in second position")
+        void pairConstrList_shouldHandleListSecondElement() {
+            assertThat(tupleConverterSource).contains("obj.getPairConstrList().getSecond()");
+        }
+
+        @Test
+        @DisplayName("Pair<byte[], Model2> should delegate second element to Model2Converter")
+        void pairPrimitiveConstr_shouldDelegateConstrToConverter() {
+            assertThat(tupleConverterSource).contains("obj.getPairPrimitiveConstr().getSecond()");
+        }
+
+        @Test
+        @DisplayName("Triple<Model2, List<BigInteger>, byte[]> should handle mixed Constr, List, and primitive")
+        void tripleConstrListPrimitive_shouldHandleAllElementTypes() {
+            assertThat(tupleConverterSource).contains("obj.getTripleConstrListPrimitive().getFirst()");
+            assertThat(tupleConverterSource).contains("obj.getTripleConstrListPrimitive().getSecond()");
+            assertThat(tupleConverterSource).contains("obj.getTripleConstrListPrimitive().getThird()");
+        }
+    }
+
+    /**
      * Tests for {@link ClassDefinitionGenerator#getConverterClassFromField(FieldType)}.
      *
      * <p>This static method generates converter class names from field types.

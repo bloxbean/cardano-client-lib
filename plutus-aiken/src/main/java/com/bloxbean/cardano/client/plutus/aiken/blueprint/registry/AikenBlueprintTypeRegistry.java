@@ -47,7 +47,6 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
         for (AikenStdlibVersion v : AikenStdlibVersion.values()) {
             versionedMappings.put(v.name(), new HashMap<>());
         }
-        registerTuplePair();
         registerBytesWrappers();
         registerStdlibV1Types();
         registerStdlibV2Types();
@@ -84,16 +83,6 @@ public class AikenBlueprintTypeRegistry implements BlueprintTypeRegistry {
     }
 
     // ── Version-independent types ───────────────────────────────────────────
-
-    private void registerTuplePair() {
-        BlueprintSchema tupleSchema = new BlueprintSchema();
-        tupleSchema.setTitle("Tuple");
-        tupleSchema.setDataType(BlueprintDatatype.list);
-        tupleSchema.setItems(List.of(defRef("ByteArray"), defRef("ByteArray")));
-
-        SchemaSignature signature = signatureBuilder.build(tupleSchema);
-        commonMappings.put(signature, new RegisteredType("com.bloxbean.cardano.client.plutus.blueprint.type", "Pair"));
-    }
 
     private void registerBytesWrappers() {
         registerCommonSchema(bytesSchema("VerificationKey"), new RegisteredType(STD_PKG, "VerificationKey"));

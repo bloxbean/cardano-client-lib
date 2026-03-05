@@ -247,11 +247,6 @@ public class ClassDefinitionGenerator {
             fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
             fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
 
-        } else if (typeName.equals(ClassName.get(Pair.class))) {
-            // Raw Pair type (from shared type lookup — not parameterized)
-            fieldType.setType(Type.CONSTRUCTOR);
-            fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setRawDataType(true);
         } else if (typeName instanceof ParameterizedTypeName
                 && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Triple.class))) {
             ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
@@ -265,11 +260,6 @@ public class ClassDefinitionGenerator {
             fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
             fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
 
-        } else if (typeName.equals(ClassName.get(Triple.class))) {
-            // Raw Triple type (from shared type lookup — not parameterized)
-            fieldType.setType(Type.CONSTRUCTOR);
-            fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setRawDataType(true);
         } else if (typeName instanceof ParameterizedTypeName
                 && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Quartet.class))) {
             ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
@@ -285,11 +275,6 @@ public class ClassDefinitionGenerator {
             fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
             fieldType.getGenericTypes().add(detectFieldType(fourthElementType, null));
 
-        } else if (typeName.equals(ClassName.get(Quartet.class))) {
-            // Raw Quartet type (from shared type lookup — not parameterized)
-            fieldType.setType(Type.CONSTRUCTOR);
-            fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setRawDataType(true);
         } else if (typeName instanceof ParameterizedTypeName
                 && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Quintet.class))) {
             ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
@@ -307,11 +292,6 @@ public class ClassDefinitionGenerator {
             fieldType.getGenericTypes().add(detectFieldType(fourthElementType, null));
             fieldType.getGenericTypes().add(detectFieldType(fifthElementType, null));
 
-        } else if (typeName.equals(ClassName.get(Quintet.class))) {
-            // Raw Quintet type (from shared type lookup — not parameterized)
-            fieldType.setType(Type.CONSTRUCTOR);
-            fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setRawDataType(true);
         } else {
             if (isSupportedType(typeName, typeMirror)) {
                 fieldType.setType(Type.CONSTRUCTOR);
