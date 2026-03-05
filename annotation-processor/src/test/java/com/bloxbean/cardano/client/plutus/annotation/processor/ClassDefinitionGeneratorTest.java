@@ -144,7 +144,8 @@ public class ClassDefinitionGeneratorTest {
         static void compileTupleModel() throws IOException {
             Compilation compilation = javac()
                     .withProcessors(new ConstrAnnotationProcessor())
-                    .compile(JavaFileObjects.forResource("TupleFieldModel.java"));
+                    .compile(JavaFileObjects.forResource("TupleFieldModel.java"),
+                             JavaFileObjects.forResource("Model2.java"));
 
             assertThat(compilation).succeeded();
 
@@ -208,6 +209,35 @@ public class ClassDefinitionGeneratorTest {
         @DisplayName("Quintet field should NOT call toPlutusData() on the Quintet itself")
         void quintetField_shouldNotCallToPlutusData() {
             assertThat(tupleConverterSource).doesNotContain("obj.getQuintetField().toPlutusData()");
+        }
+
+        // ── Complex generic parameters: Constr types and nested collections ──
+
+        @Test
+        @DisplayName("Pair<Model2, List<byte[]>> should delegate first element to Model2Converter")
+        void pairConstrList_shouldDelegateConstrToConverter() {
+            assertThat(tupleConverterSource).contains("obj.getPairConstrList().getFirst()");
+            assertThat(tupleConverterSource).contains("Model2Converter");
+        }
+
+        @Test
+        @DisplayName("Pair<Model2, List<byte[]>> should handle List in second position")
+        void pairConstrList_shouldHandleListSecondElement() {
+            assertThat(tupleConverterSource).contains("obj.getPairConstrList().getSecond()");
+        }
+
+        @Test
+        @DisplayName("Pair<byte[], Model2> should delegate second element to Model2Converter")
+        void pairPrimitiveConstr_shouldDelegateConstrToConverter() {
+            assertThat(tupleConverterSource).contains("obj.getPairPrimitiveConstr().getSecond()");
+        }
+
+        @Test
+        @DisplayName("Triple<Model2, List<BigInteger>, byte[]> should handle mixed Constr, List, and primitive")
+        void tripleConstrListPrimitive_shouldHandleAllElementTypes() {
+            assertThat(tupleConverterSource).contains("obj.getTripleConstrListPrimitive().getFirst()");
+            assertThat(tupleConverterSource).contains("obj.getTripleConstrListPrimitive().getSecond()");
+            assertThat(tupleConverterSource).contains("obj.getTripleConstrListPrimitive().getThird()");
         }
     }
 
