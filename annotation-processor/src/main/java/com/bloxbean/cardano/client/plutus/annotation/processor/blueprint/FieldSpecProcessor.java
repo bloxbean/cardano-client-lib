@@ -13,7 +13,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
-import com.bloxbean.cardano.client.plutus.annotation.processor.util.FieldTypeDetector;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.FieldMapper;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
@@ -33,8 +33,6 @@ import java.util.*;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isAbstractPlutusDataType;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isBuiltInGenericContainer;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
-import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.CONVERTER;
-import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.IMPL;
 
 /**
  * Builds datum model types/interfaces and corresponding field specifications from
@@ -362,8 +360,10 @@ public class FieldSpecProcessor {
                     int alternative = innerSchema.getIndex();
                     List<FieldSpec> variantFields = extractNonStaticFields(variantTypeSpec);
 
-                    ClassDefinition variantClassDef = buildVariantClassDefinition(
-                            pkg, className, variantName, alternative, variantFields);
+                    ClassDefinition variantClassDef = ClassDefinition.forNestedVariant(
+                            pkg, className, variantName, alternative);
+                    variantClassDef.setFields(FieldMapper.fromSpecs(
+                            variantFields, generatedTypesRegistry::isInterface));
                     variantClassDefs.add(variantClassDef);
 
                     try {
@@ -379,7 +379,7 @@ public class FieldSpecProcessor {
 
             // Generate dispatch converter for the interface
             if (!variantClassDefs.isEmpty()) {
-                ClassDefinition interfaceClassDef = buildInterfaceClassDefinition(pkg, className);
+                ClassDefinition interfaceClassDef = ClassDefinition.forInterface(pkg, className);
                 try {
                     TypeSpec dispatchConverterSpec = converterGen.generateInterfaceConverter(
                             interfaceClassDef, variantClassDefs);
@@ -769,119 +769,6 @@ public class FieldSpecProcessor {
 
     private String getPackageName(String ns) {
         return packageResolver.getModelPackage(annotation, ns);
-    }
-
-    // --- Inlined from FieldDefinitionBuilder ---
-
-    /**
-     * Builds a {@link ClassDefinition} for a variant inner class.
-     */
-    private ClassDefinition buildVariantClassDefinition(String pkg, String interfaceName,
-                                                        String variantName, int alternative,
-                                                        List<FieldSpec> fieldSpecs) {
-        ClassDefinition def = new ClassDefinition();
-        def.setPackageName(pkg);
-        def.setDataClassName(variantName);
-        def.setObjType(pkg + "." + interfaceName + "." + variantName);
-        def.setAlternative(alternative);
-        def.setAbstract(true);
-        def.setHasLombokAnnotation(false);
-        def.setConverterClassName(variantName + CONVERTER);
-        def.setConverterPackageName(pkg);
-        def.setEnclosingInterfaceName(interfaceName);
-        def.setImplClassName(interfaceName + variantName + IMPL);
-        def.setImplPackageName(pkg + ".impl");
-
-        List<Field> fields = new ArrayList<>();
-        for (int i = 0; i < fieldSpecs.size(); i++) {
-            fields.add(fieldFromSpec(fieldSpecs.get(i), i));
-        }
-        def.setFields(fields);
-        return def;
-    }
-
-    /**
-     * Builds a {@link ClassDefinition} for an interface (dispatch converter).
-     */
-    private ClassDefinition buildInterfaceClassDefinition(String pkg, String interfaceName) {
-        ClassDefinition def = new ClassDefinition();
-        def.setPackageName(pkg);
-        def.setDataClassName(interfaceName);
-        def.setObjType(pkg + "." + interfaceName);
-        def.setAlternative(0);
-        def.setAbstract(false);
-        def.setHasLombokAnnotation(false);
-        def.setConverterClassName(interfaceName + CONVERTER);
-        def.setConverterPackageName(pkg);
-        def.setEnclosingInterfaceName(interfaceName);
-        def.setImplClassName(interfaceName + IMPL);
-        def.setImplPackageName(pkg + ".impl");
-        return def;
-    }
-
-    /**
-     * Converts a JavaPoet {@link FieldSpec} to a model {@link Field} using
-     * {@link FieldTypeDetector} for type detection with a CONSTRUCTOR fallback
-     * for user-defined types (interface check via registry).
-     */
-    private Field fieldFromSpec(FieldSpec fs, int index) {
-        FieldType ft = FieldTypeDetector.fromTypeName(fs.type);
-        if (ft == null) {
-            ft = new FieldType();
-            ft.setFqTypeName(fs.type.toString());
-            ft.setType(Type.CONSTRUCTOR);
-            ft.setJavaType(new JavaType(fs.type.toString(), true));
-            if (fs.type instanceof ClassName) {
-                ClassName cn = (ClassName) fs.type;
-                if (generatedTypesRegistry.isInterface(cn.packageName(), cn.simpleName())) {
-                    ft.setInterfaceType(true);
-                }
-            }
-        } else {
-            // Fix up CONSTRUCTOR-typed generic arguments (e.g., List<Script>
-            // where Script is an interface — FieldTypeDetector doesn't have registry access)
-            fixUpInterfaceGenericTypes(ft);
-        }
-
-        String getter;
-        if (Type.BOOL.equals(ft.getType()) && JavaType.BOOLEAN.equals(ft.getJavaType())) {
-            getter = "is" + capitalize(fs.name);
-        } else {
-            getter = "get" + capitalize(fs.name);
-        }
-
-        return Field.builder()
-                .name(fs.name)
-                .index(index)
-                .fieldType(ft)
-                .hashGetter(true)
-                .getterName(getter)
-                .build();
-    }
-
-    /**
-     * Post-processes generic type arguments to set interfaceType flag for
-     * CONSTRUCTOR types that are known interfaces via the registry.
-     */
-    private void fixUpInterfaceGenericTypes(FieldType fieldType) {
-        for (FieldType genericType : fieldType.getGenericTypes()) {
-            if (genericType.getType() == Type.CONSTRUCTOR) {
-                String typeFqn = genericType.getJavaType().getName();
-                try {
-                    ClassName cn = ClassName.bestGuess(typeFqn);
-                    if (generatedTypesRegistry.isInterface(cn.packageName(), cn.simpleName())) {
-                        genericType.setInterfaceType(true);
-                    }
-                } catch (IllegalArgumentException ignored) {
-                    // bestGuess can fail for parameterized types — skip
-                }
-            }
-            fixUpInterfaceGenericTypes(genericType);
-        }
-    }
-
-    private static String capitalize(String s) {
-        return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
 }

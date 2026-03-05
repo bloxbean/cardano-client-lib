@@ -30,11 +30,14 @@ public class FieldType {
     private boolean rawDataType;
 
     /**
-     * {@code true} when the referenced type is an interface (anyOf &gt; 1) with
-     * nested converters. Used by {@code getConverterClassFromField} to construct
-     * the nested converter {@code ClassName} (e.g., {@code Credential.CredentialConverter}).
+     * Fully-qualified converter class name for this type (e.g.,
+     * {@code "com.example.Credential.CredentialConverter"} for an interface type,
+     * {@code "com.example.converter.AddressConverter"} for a top-level type).
+     * <p>
+     * When set, {@code getConverterClassFromField} uses this directly via
+     * {@code ClassName.bestGuess()} instead of applying heuristic rules.
      */
-    private boolean interfaceType;
+    private String converterClassFqn;
 
     /**
      * {@code true} when the type implements {@code Data<T>} — a constr-based shared

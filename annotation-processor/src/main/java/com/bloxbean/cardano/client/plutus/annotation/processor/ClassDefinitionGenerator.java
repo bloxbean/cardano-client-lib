@@ -47,31 +47,21 @@ public class ClassDefinitionGenerator {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
 
-        ClassDefinition classDefinition = new ClassDefinition();
-        classDefinition.setPackageName(packageName);
-        classDefinition.setDataClassName(className);
-        classDefinition.setObjType(typeElement.asType().toString());
-
-        // Detect nesting inside interfaces → converters are nested, not separate files
+        // Use factory methods based on nesting context
+        ClassDefinition classDefinition;
         Element enclosing = typeElement.getEnclosingElement();
         if (enclosing != null && enclosing.getKind().isInterface()) {
-            // Nested variant inside interface: converter nested in interface, impl prefixed
+            // Nested variant inside interface
             String enclosingName = ((TypeElement) enclosing).getSimpleName().toString();
-            classDefinition.setConverterClassName(className + CONVERTER);
-            classDefinition.setConverterPackageName(packageName);
-            classDefinition.setEnclosingInterfaceName(enclosingName);
-            classDefinition.setImplClassName(enclosingName + className + IMPL);
+            classDefinition = ClassDefinition.forNestedVariant(packageName, enclosingName, className, 0);
         } else if (typeElement.getKind().isInterface()) {
-            // Interface type itself: dispatch converter nested inside
-            classDefinition.setConverterClassName(className + CONVERTER);
-            classDefinition.setConverterPackageName(packageName);
-            classDefinition.setEnclosingInterfaceName(className);
-            classDefinition.setImplClassName(className + IMPL);
+            // Interface type itself
+            classDefinition = ClassDefinition.forInterface(packageName, className);
         } else {
-            // Regular top-level type: converter in converter sub-package
-            classDefinition.setConverterClassName(className + CONVERTER);
-            classDefinition.setImplClassName(className + IMPL);
+            // Regular top-level type
+            classDefinition = ClassDefinition.forTopLevel(packageName, className);
         }
+        classDefinition.setObjType(typeElement.asType().toString());
 
         typeElement.getModifiers().stream().filter(modifier -> modifier.equals(Modifier.ABSTRACT))
                 .findFirst().ifPresent(modifier -> classDefinition.setAbstract(true));
@@ -80,12 +70,6 @@ public class ClassDefinitionGenerator {
         if(typeElement.getKind() == ElementKind.ENUM) {
             processEnum(typeElement, classDefinition);
         }
-
-        // Only set default packages if not already set (nested types set their own)
-        if (classDefinition.getConverterPackageName() == null) {
-            classDefinition.setConverterPackageName(getConverterPackageName(packageName));
-        }
-        classDefinition.setImplPackageName(getImplPackageName(packageName));
 
         Class lombokDataClazz;
         Class lombokGetterClazz;
@@ -219,16 +203,21 @@ public class ClassDefinitionGenerator {
             fieldType.setRawDataType(isRawDataType(typeMirror));
             fieldType.setDataType(isDataType(typeMirror));
 
-            // Check if the referenced type is an interface (has nested converters)
-            if (typeElements != null) {
-                for (TypeElement te : typeElements) {
-                    boolean match = (typeMirror != null && te.asType().equals(typeMirror))
-                            || te.getQualifiedName().toString().equals(typeName.toString());
-                    if (match && te.getKind().isInterface()) {
-                        fieldType.setInterfaceType(true);
-                        break;
+            // Resolve converter FQN, checking if the type is an interface
+            if (typeName instanceof ClassName) {
+                boolean isIface = false;
+                if (typeElements != null) {
+                    for (TypeElement te : typeElements) {
+                        boolean match = (typeMirror != null && te.asType().equals(typeMirror))
+                                || te.getQualifiedName().toString().equals(typeName.toString());
+                        if (match && te.getKind().isInterface()) {
+                            isIface = true;
+                            break;
+                        }
                     }
                 }
+                fieldType.setConverterClassFqn(
+                        resolveConverterFqn((ClassName) typeName, isIface));
             }
             return fieldType;
         }
@@ -237,19 +226,26 @@ public class ClassDefinitionGenerator {
     }
 
     /**
-     * Post-processes generic type arguments to set interfaceType flag for
-     * CONSTRUCTOR types that are known interfaces. FieldTypeDetector can't do
-     * this because it lacks access to typeElements.
+     * Post-processes generic type arguments to set converterClassFqn for
+     * CONSTRUCTOR types. FieldTypeDetector can't do this because it lacks
+     * access to typeElements.
      */
     private void fixUpConstructorGenericTypes(FieldType fieldType) {
         for (FieldType genericType : fieldType.getGenericTypes()) {
             if (genericType.getType() == Type.CONSTRUCTOR && typeElements != null) {
                 String typeFqn = genericType.getJavaType().getName();
+                boolean isIface = false;
                 for (TypeElement te : typeElements) {
                     if (te.getQualifiedName().toString().equals(typeFqn) && te.getKind().isInterface()) {
-                        genericType.setInterfaceType(true);
+                        isIface = true;
                         break;
                     }
+                }
+                try {
+                    ClassName cn = ClassName.bestGuess(typeFqn);
+                    genericType.setConverterClassFqn(resolveConverterFqn(cn, isIface));
+                } catch (IllegalArgumentException ignored) {
+                    // bestGuess can fail for parameterized types — skip
                 }
             }
             fixUpConstructorGenericTypes(genericType);
@@ -379,7 +375,37 @@ public class ClassDefinitionGenerator {
             return false;
     }
 
+    /**
+     * Resolves the fully-qualified converter class name for a given type.
+     *
+     * @param typeClass   the ClassName of the type
+     * @param isInterface true if the type is an interface with nested converters
+     * @return the FQN of the converter (e.g., "com.example.Credential.CredentialConverter")
+     */
+    public static String resolveConverterFqn(ClassName typeClass, boolean isInterface) {
+        if (typeClass.simpleNames().size() > 1) {
+            // Nested variant type (e.g., Credential.VerificationKey):
+            // converter is a sibling nested class in the parent interface
+            String parentName = typeClass.simpleNames().get(0);
+            String variantName = typeClass.simpleNames().get(typeClass.simpleNames().size() - 1);
+            return typeClass.packageName() + "." + parentName + "." + variantName + CONVERTER;
+        }
+        if (isInterface) {
+            // Interface type with nested dispatch converter
+            String name = typeClass.simpleName();
+            return typeClass.packageName() + "." + name + "." + name + CONVERTER;
+        }
+        // Top-level type: converter in converter sub-package
+        return getConverterPackageName(typeClass.packageName()) + "." + typeClass.simpleName() + CONVERTER;
+    }
+
     public static ClassName getConverterClassFromField(FieldType fieldType) {
+        // Direct FQN lookup — set at construction time
+        if (fieldType.getConverterClassFqn() != null) {
+            return ClassName.bestGuess(fieldType.getConverterClassFqn());
+        }
+
+        // Defensive fallback: derive from type name
         ClassName fieldClass = ClassName.bestGuess(fieldType.getJavaType().getName());
 
         if (fieldClass.simpleNames().size() > 1) {
@@ -390,13 +416,6 @@ public class ClassDefinitionGenerator {
             String parentName = simpleNames.get(0);
             String variantName = simpleNames.get(simpleNames.size() - 1);
             return ClassName.get(pkg, parentName, variantName + CONVERTER);
-        }
-
-        if (fieldType.isInterfaceType()) {
-            // Interface type with nested dispatch converter
-            String pkg = fieldClass.packageName();
-            String name = fieldClass.simpleName();
-            return ClassName.get(pkg, name, name + CONVERTER);
         }
 
         // Top-level type: converter in converter sub-package
