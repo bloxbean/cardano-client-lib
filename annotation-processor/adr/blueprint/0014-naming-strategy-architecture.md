@@ -91,6 +91,31 @@ return pkg.toLowerCase()
     .replace(",", "").replace("$", "");
 ```
 
+### Keyword Escaping
+
+`firstLowerCase()` appends a `_` suffix when the lowercased result is a Java reserved keyword:
+
+```java
+public String firstLowerCase(String value) {
+    String result = value.substring(0, 1).toLowerCase() + value.substring(1);
+    if (SourceVersion.isKeyword(result)) {
+        result = result + "_";
+    }
+    return result;
+}
+```
+
+This prevents generating invalid Java identifiers from schema titles that happen to match keywords:
+
+| Input | `firstLowerCase()` Output |
+|-------|--------------------------|
+| `Enum` | `enum_` |
+| `Class` | `class_` |
+| `Default` | `default_` |
+| `Action` | `action` (no change) |
+
+Detection uses `javax.lang.model.SourceVersion.isKeyword()`, which covers all Java reserved words and contextual keywords.
+
 ### Usage Across the Processor
 
 `DefaultNamingStrategy` is instantiated by:

@@ -2,8 +2,9 @@
 
 - Status: Accepted
 - Date: 2025-10-02
-- Updated: 2026-02-25
+- Updated: 2026-03-04
 - Owners: Cardano Client Lib maintainers
+- Related: ADR-0009 (Shared Type Converter Architecture), ADR-0017 (Aiken Stdlib Version Hints SPI)
 
 ## Context
 
@@ -69,11 +70,16 @@ With this in place, blueprints reusing standard schemas will lean on shared clas
 ```java
 public interface BlueprintTypeRegistry {
     Optional<RegisteredType> lookup(SchemaSignature signature, BlueprintSchema schema, LookupContext context);
+
+    default List<AnnotationHintDescriptor> annotationHints() {
+        return Collections.emptyList();
+    }
 }
 ```
 
 - Returns `Optional<RegisteredType>` — a decoupled value object (`packageName` + `simpleName` + `canonicalName()`) rather than JavaPoet-specific `TypeName`. This keeps the SPI independent of code-generation libraries.
-- `LookupContext` exposes `namespace` (e.g., `"types.order"`) and `blueprintName` for contextual decisions.
+- `LookupContext` exposes `namespace` (e.g., `"types.order"`), `blueprintName`, and resolved annotation `hints` (see ADR-0017) for contextual decisions.
+- `annotationHints()` allows registries to declare which annotations the processor should read from the blueprint marker interface — enabling version-aware lookup without coupling the processor to specific annotations (see ADR-0017).
 - Provide a base implementation that uses a simple `Map<SchemaSignature, RegisteredType>` for static registrations.
 
 ### 3. Default registry module
@@ -95,31 +101,44 @@ public interface BlueprintTypeRegistry {
 - Provide three integration points:
   1. **Service loader**: Users add their own `BlueprintTypeRegistry` implementation to `META-INF/services/...BlueprintTypeRegistry` on the annotation processor classpath.
   2. **Runtime registration**: `BlueprintTypeRegistryExtensions.registerByTitle(title, packageName, simpleName)` allows programmatic registration. Title-based lookups are consulted **before** signature-based lookups in `ServiceLoaderSharedTypeLookup`, using a thread-safe `ConcurrentHashMap`.
-  3. **Processor option to disable**: `-Acardano.registry.enable=false` disables the registry entirely (returns a no-op lookup that always yields empty). The default is `true` (enabled).
+  3. **Processor option to disable**: `-Acardano.registry.enable=false` disables the registry entirely (returns a no-op lookup that always yields empty). The default is `true` (enabled). The option is declared via `getSupportedOptions()` in the annotation processor.
 - **Deferred**: The `-Acardano.registry=config.json` option for file-based bespoke mappings is not yet implemented; runtime registration via `BlueprintTypeRegistryExtensions` covers the same use case for now.
 
 ## Default Registrations (Actual)
 
-The `AikenBlueprintTypeRegistry` ships 11 registrations, grouped by `SharedTypeKind`:
+The `AikenBlueprintTypeRegistry` organizes registrations into **common** (version-independent) and **versioned** (per Aiken stdlib version) buckets. See ADR-0017 for the version hint mechanism.
 
-### Constructor-based types (`SharedTypeKind.CONSTRUCTOR`)
-- `Address` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Address`
-- `Credential` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Credential`
-- `ReferencedCredential` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.ReferencedCredential`
+All shared types are in package `com.bloxbean.cardano.client.plutus.aiken.blueprint.std` (abbreviated as `std` below), except `Pair` which is in `com.bloxbean.cardano.client.plutus.blueprint.type`.
 
-### Bytes-wrapper types (`SharedTypeKind.BYTES`)
-- `VerificationKey` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.VerificationKey`
-- `Script` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Script`
-- `Signature` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Signature`
-- `VerificationKeyHash` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.VerificationKeyHash`
-- `ScriptHash` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.ScriptHash`
-- `DataHash` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.DataHash`
-- `Hash` → `com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Hash`
+### Common mappings (version-independent)
 
-### Pair type (`SharedTypeKind.PAIR`)
-- `Pair` (two-ByteArray tuple) → `com.bloxbean.cardano.client.plutus.blueprint.type.Pair`
+| Type | SharedTypeKind | Notes |
+|------|---------------|-------|
+| `Pair` | `PAIR` | Two-ByteArray tuple |
+| `VerificationKey` | `BYTES` | |
+| `Script` | `BYTES` | |
+| `Signature` | `BYTES` | |
+| `VerificationKeyHash` | `BYTES` | |
+| `ScriptHash` | `BYTES` | |
+| `DataHash` | `BYTES` | |
+| `Hash` | `BYTES` | |
+| `PolicyId` | `BYTES` | |
+| `AssetName` | `BYTES` | |
+| `IntervalBoundType` | `CONSTRUCTOR` | 3 variants: NegativeInfinity, Finite(Int), PositiveInfinity |
 
-These were harvested from canonical schemas in the Aiken standard library and CIP-57 examples. Additional types (e.g., `TransactionInput`, `Value`) may be added in future releases as demand arises.
+### Versioned mappings
+
+| Type | V1 | V2 | V3 | SharedTypeKind |
+|------|----|----|----|---------------|
+| `Credential` / `PaymentCredential` | `Credential` (V1 schema) | `PaymentCredential` | `PaymentCredential` | `CONSTRUCTOR` |
+| `StakeCredential` | — | `StakeCredential` | `StakeCredential` | `CONSTRUCTOR` |
+| `ReferencedCredential` | `ReferencedCredential` | — | — | `CONSTRUCTOR` |
+| `Address` | `Address` (V1 schema) | `Address` (V2 schema) | `Address` (V3 schema) | `CONSTRUCTOR` |
+| `OutputReference` | `OutputReferenceV1` | `OutputReference` | `OutputReference` | `CONSTRUCTOR` |
+| `IntervalBound` | `IntervalBound` (V1 refs) | — | `IntervalBound` (V3 refs) | `CONSTRUCTOR` |
+| `ValidityRange` | `ValidityRange` (V1 refs) | — | `ValidityRange` (V3 refs) | `CONSTRUCTOR` |
+
+**Version differences**: V1 uses `VerificationKeyCredential`/`ScriptCredential` variant names and `$`-delimited refs; V2 uses `VerificationKey`/`Script` with bare hash refs; V3 uses `VerificationKey`/`Script` with namespaced refs (e.g., `cardano/address/PaymentCredential`). See ADR-0017 for details.
 
 ## Alternatives Considered
 

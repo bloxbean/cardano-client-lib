@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-02-25
 - Owners: Cardano Client Lib maintainers
-- Related: ADR-0003 (Shared Blueprint Type Registry)
+- Related: ADR-0003 (Shared Blueprint Type Registry), ADR-0017 (Aiken Stdlib Version Hints SPI)
 
 ## Context
 
@@ -16,6 +16,8 @@ Additionally, different shared types use fundamentally different PlutusData repr
 - **Bytes-wrapper** types (e.g., `VerificationKeyHash`, `ScriptHash`) serialize to `BytesPlutusData`
 - **Pair** types (e.g., `Pair<byte[], byte[]>`) serialize to `ListPlutusData` with two `BytesPlutusData` elements
 
+> **Note (ADR-0017)**: Most list schemas with 2 items now produce parameterized `Pair<T1, T2>` via `SchemaTypeResolver.resolveListType()` at the type resolution layer, bypassing the registry entirely. The `PAIR` kind in `SharedTypeKind` and the `Pair` entry in the registry's `commonMappings` remain for backward compatibility with blueprints whose two-ByteArray tuple schema signature matches the registered `Pair` type.
+
 ## Decision
 
 Generate **thin wrapper converters** that delegate to the shared type's own serialization methods. The converter shape is determined by a `SharedTypeKind` enum.
@@ -24,9 +26,9 @@ Generate **thin wrapper converters** that delegate to the shared type's own seri
 
 ```java
 public enum SharedTypeKind {
-    CONSTRUCTOR,  // Address, Credential, ReferencedCredential → ConstrPlutusData
-    BYTES,        // VerificationKeyHash, ScriptHash, Hash, etc. → PlutusData (BytesPlutusData)
-    PAIR          // Pair (two-ByteArray tuple) → ListPlutusData
+    CONSTRUCTOR,  // Address, Credential, PaymentCredential, etc. → ConstrPlutusData
+    BYTES,        // VerificationKeyHash, ScriptHash, Hash, PolicyId, AssetName, etc. → PlutusData (BytesPlutusData)
+    PAIR          // Pair (two-ByteArray tuple) → ListPlutusData (see note above)
 }
 ```
 
@@ -130,4 +132,5 @@ All generated converters:
 - `FieldSpecProcessor.generateSharedTypeConverter()` — integration point
 - `GeneratedTypesRegistry` — deduplication tracking
 - ADR-0003: Shared Blueprint Type Registry (the registry that triggers converter generation)
+- ADR-0017: Aiken Stdlib Version Hints SPI (parameterized Pair and version-aware lookup)
 - `BasePlutusDataConverter` — base class for all converters
