@@ -6,7 +6,24 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
 import com.bloxbean.cardano.client.plutus.spec.BigIntPlutusData;
 import com.squareup.javapoet.CodeBlock;
 
+import java.util.Map;
+
 public class IntegerFieldCodeGen implements FieldCodeGenerator {
+
+    private static final Map<JavaType, String> FROM_PD_METHODS = Map.of(
+            JavaType.INT, "plutusDataToInteger",
+            JavaType.INTEGER, "plutusDataToInteger",
+            JavaType.LONG, "plutusDataToLong",
+            JavaType.LONG_OBJECT, "plutusDataToLong",
+            JavaType.BIGINTEGER, "plutusDataToBigInteger"
+    );
+
+    private static final Map<JavaType, String> VALUE_METHODS = Map.of(
+            JavaType.INT, "getValue().intValue()",
+            JavaType.INTEGER, "getValue().intValue()",
+            JavaType.LONG, "getValue().longValue()",
+            JavaType.LONG_OBJECT, "getValue().longValue()"
+    );
 
     @Override
     public Type supportedType() { return Type.INTEGER; }
@@ -38,20 +55,11 @@ public class IntegerFieldCodeGen implements FieldCodeGenerator {
 
     @Override
     public String fromPlutusDataExpression(FieldType type, String pdExpression) {
-        if (type.getJavaType() == JavaType.INT || type.getJavaType() == JavaType.INTEGER)
-            return String.format("plutusDataToInteger(%s)", pdExpression);
-        else if (type.getJavaType() == JavaType.LONG || type.getJavaType() == JavaType.LONG_OBJECT)
-            return String.format("plutusDataToLong(%s)", pdExpression);
-        else if (type.getJavaType() == JavaType.BIGINTEGER)
-            return String.format("plutusDataToBigInteger(%s)", pdExpression);
-        return "";
+        String method = FROM_PD_METHODS.get(type.getJavaType());
+        return method != null ? String.format("%s(%s)", method, pdExpression) : "";
     }
 
     static String getValueMethodNameForIntType(FieldType fieldType) {
-        if (fieldType.getJavaType() == JavaType.INT || fieldType.getJavaType() == JavaType.INTEGER)
-            return "getValue().intValue()";
-        else if (fieldType.getJavaType() == JavaType.LONG || fieldType.getJavaType() == JavaType.LONG_OBJECT)
-            return "getValue().longValue()";
-        return "getValue()";
+        return VALUE_METHODS.getOrDefault(fieldType.getJavaType(), "getValue()");
     }
 }
