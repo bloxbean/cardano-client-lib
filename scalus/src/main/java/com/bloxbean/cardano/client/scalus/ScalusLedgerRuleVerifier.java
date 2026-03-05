@@ -19,7 +19,7 @@ import java.util.*;
 
 /**
  * A {@link Verifier} implementation that validates transactions against Cardano's
- * full UTxO ledger rules using the Scalus library via the scalus-bridge.
+ * full UTxO ledger rules using the Scalus library.
  * <p>
  * This verifier performs Phase 1 (structural) and Phase 2 (script execution) validation
  * offline, without requiring a running Cardano node.

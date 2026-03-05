@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 
 /**
  * A {@link BackendService} implementation backed by the Scalus in-memory emulator
- * via the scalus-bridge.
+ * using the Scalus in-memory emulator.
  * <p>
  * This backend provides deterministic, fast, fully-offline transaction processing
  * with complete Cardano ledger rule enforcement. It's ideal for unit testing and

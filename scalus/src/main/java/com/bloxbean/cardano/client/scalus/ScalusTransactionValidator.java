@@ -17,7 +17,7 @@ import java.util.*;
 
 /**
  * A {@link TransactionValidator} implementation that validates transactions against Cardano's
- * full UTxO ledger rules using the Scalus library via the scalus-bridge.
+ * full UTxO ledger rules using the Scalus library.
  * <p>
  * Returns structured {@link ValidationResult} with per-rule error information instead of throwing exceptions.
  * This validator can be used with {@code QuickTxBuilder.withTxValidator()} which passes resolved UTxOs

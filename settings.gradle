@@ -55,5 +55,4 @@ include 'verified-structures:jellyfish-merkle-rdbms'
 include 'verified-structures:load-tools'
 
 include ':plutus-aiken'
-include 'scalus-bridge'
 include 'scalus'

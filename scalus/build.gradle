@@ -1,19 +1,38 @@
+apply plugin: 'scala'
+
 dependencies {
     api project(':core-api')
-    api project(':scalus-bridge')
+
+    implementation 'org.scala-lang:scala3-library_3:3.3.4'
+    implementation 'org.scalus:scalus-bloxbean-cardano-client-lib_3:0.15.0'
+    implementation 'org.scalus:scalus-cardano-ledger_3:0.15.0'
+
     implementation project(':backend')
     implementation project(':quicktx')
 
     testImplementation project(':core')
-    testImplementation project(':quicktx')
-    testImplementation project(':backend')
     testImplementation project(':backend-modules:blockfrost')
 
     integrationTestImplementation project(':core')
-    integrationTestImplementation project(':quicktx')
-    integrationTestImplementation project(':backend')
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':it-support')
+}
+
+// Java depends on Scala bridge classes: compile Scala first, then Java
+// Break the default compileScala -> compileJava dependency
+tasks.named('compileScala') {
+    classpath = sourceSets.main.compileClasspath
+}
+tasks.named('compileJava') {
+    dependsOn 'compileScala'
+    classpath += files(tasks.named('compileScala').get().destinationDirectory)
+}
+
+// Include both Java and Scala sources in source JAR (override root's allJava-only config)
+sourceJar {
+    from(sourceSets.main.allSource) {
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
 }
 
 publishing {
