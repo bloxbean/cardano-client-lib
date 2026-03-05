@@ -64,7 +64,6 @@ public class ClassDefinitionGenerator {
 
         ClassDefinition classDefinition = new ClassDefinition();
         classDefinition.setPackageName(packageName);
-        classDefinition.setName(className);
         classDefinition.setDataClassName(className);
         classDefinition.setImplClassName(prefix + IMPL);
         classDefinition.setConverterClassName(prefix + CONVERTER);
@@ -114,8 +113,6 @@ public class ClassDefinitionGenerator {
                 VariableElement variableElement = (VariableElement) enclosedElement;
                 String fieldName = variableElement.getSimpleName().toString();
                 field.setName(fieldName);
-                field.setAlternative(getAlternative(fieldName));
-
                 ExecutableElement getter = findGetter(typeElement, variableElement);
                 ExecutableElement setter = findSetter(typeElement, variableElement);
                 boolean isFieldVisible = variableElement.getModifiers().contains(Modifier.PUBLIC)

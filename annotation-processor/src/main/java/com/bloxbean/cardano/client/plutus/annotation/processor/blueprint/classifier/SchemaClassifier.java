@@ -38,8 +38,7 @@ public class SchemaClassifier {
             return SchemaClassificationResult.enumType(extractEnumValues(schema));
 
         if (isInterface(schema)) {
-            String interfaceName = nameStrategy.toClassName(schema.getTitle());
-            return SchemaClassificationResult.interfaceType(interfaceName);
+            return SchemaClassificationResult.interfaceType();
         }
 
         return SchemaClassificationResult.classType();
