@@ -53,14 +53,7 @@ public class ClassDefinitionGenerator {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
 
-        // For nested classes inside interfaces, prefix converter/impl names with enclosing type
-        // to avoid collisions (e.g., Credential.VerificationKey → CredentialVerificationKeyConverter)
         String prefix = className;
-        Element enclosing = typeElement.getEnclosingElement();
-        if (enclosing != null && enclosing.getKind().isInterface()) {
-            String enclosingName = ((TypeElement) enclosing).getSimpleName().toString();
-            prefix = enclosingName + className;
-        }
 
         ClassDefinition classDefinition = new ClassDefinition();
         classDefinition.setPackageName(packageName);
@@ -377,8 +370,6 @@ public class ClassDefinitionGenerator {
     public static ClassName getConverterClassFromField(FieldType fieldType) {
         ClassName fieldClass = ClassName.bestGuess(fieldType.getJavaType().getName());
         String converterPkg = getConverterPackageName(fieldClass.packageName());
-        // Join all simple names for nested classes: ["Credential","VerificationKey"] → "CredentialVerificationKey"
-        // For top-level classes: ["Address"] → "Address" (unchanged)
         String converterSimpleName = String.join("", fieldClass.simpleNames()) + CONVERTER;
         return ClassName.get(converterPkg, converterSimpleName);
     }

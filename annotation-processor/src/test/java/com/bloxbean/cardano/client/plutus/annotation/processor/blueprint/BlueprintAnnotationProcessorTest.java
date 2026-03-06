@@ -543,13 +543,13 @@ class BlueprintAnnotationProcessorTest {
     }
 
     /**
-     * Compilation tests for pseudo-alias anyOf types (inner class generation).
+     * Compilation tests for pseudo-alias anyOf types (top-level variant generation).
      *
      * <p><b>What this tests:</b> End-to-end verification that when a blueprint defines
      * interface types (anyOf > 1) like Credential and PaymentCredential, each generates
-     * its variants as nested static inner classes (e.g., Credential.VerificationKey,
-     * PaymentCredential.VerificationKey). This eliminates the semantic incorrectness of
-     * shared variant classes implementing multiple unrelated interfaces.</p>
+     * its variants as top-level classes with prefixed names (e.g., CredentialVerificationKey,
+     * PaymentCredentialVerificationKey). This avoids naming collisions between variants
+     * of different interfaces that share the same variant name.</p>
      *
      * <p><b>Blueprint used:</b> {@code pseudo-alias-test.json} which defines:</p>
      * <ul>
@@ -560,7 +560,7 @@ class BlueprintAnnotationProcessorTest {
      * </ul>
      */
     @Nested
-    @DisplayName("Pseudo-alias inner class compilation tests")
+    @DisplayName("Pseudo-alias top-level variant compilation tests")
     class PseudoAliasCompilationTests {
 
         @Test
@@ -575,8 +575,8 @@ class BlueprintAnnotationProcessorTest {
         }
 
         @Test
-        @DisplayName("Credential should contain inner classes VerificationKey and Script")
-        void credentialShouldContainInnerClasses() throws Exception {
+        @DisplayName("Credential variants should be top-level classes with prefixed names")
+        void credentialVariantsShouldBeTopLevel() throws Exception {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
@@ -591,19 +591,22 @@ class BlueprintAnnotationProcessorTest {
             assertThat(credSource)
                     .as("Credential should be an interface")
                     .contains("public interface Credential");
-            // In Java interfaces, nested classes are implicitly public and static,
-            // so JavaPoet omits those modifiers
-            assertThat(credSource)
-                    .as("Credential should contain VerificationKey inner class")
-                    .contains("abstract class VerificationKey");
-            assertThat(credSource)
-                    .as("Credential should contain Script inner class")
-                    .contains("abstract class Script");
+
+            // Variants are now separate top-level files with prefixed names
+            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.CredentialVerificationKey")
+                    .orElseThrow(() -> new AssertionError("CredentialVerificationKey.java not generated"));
+            String vkSource = vkFile.getCharContent(true).toString();
+            assertThat(vkSource).contains("abstract class CredentialVerificationKey");
+
+            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.CredentialScript")
+                    .orElseThrow(() -> new AssertionError("CredentialScript.java not generated"));
+            String scriptSource = scriptFile.getCharContent(true).toString();
+            assertThat(scriptSource).contains("abstract class CredentialScript");
         }
 
         @Test
-        @DisplayName("PaymentCredential should contain its own inner classes VerificationKey and Script")
-        void paymentCredentialShouldContainInnerClasses() throws Exception {
+        @DisplayName("PaymentCredential variants should be top-level classes with prefixed names")
+        void paymentCredentialVariantsShouldBeTopLevel() throws Exception {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
@@ -618,14 +621,17 @@ class BlueprintAnnotationProcessorTest {
             assertThat(pcSource)
                     .as("PaymentCredential should be an interface")
                     .contains("public interface PaymentCredential");
-            // In Java interfaces, nested classes are implicitly public and static,
-            // so JavaPoet omits those modifiers
-            assertThat(pcSource)
-                    .as("PaymentCredential should contain VerificationKey inner class")
-                    .contains("abstract class VerificationKey");
-            assertThat(pcSource)
-                    .as("PaymentCredential should contain Script inner class")
-                    .contains("abstract class Script");
+
+            // Variants are now separate top-level files with prefixed names
+            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.PaymentCredentialVerificationKey")
+                    .orElseThrow(() -> new AssertionError("PaymentCredentialVerificationKey.java not generated"));
+            String vkSource = vkFile.getCharContent(true).toString();
+            assertThat(vkSource).contains("abstract class PaymentCredentialVerificationKey");
+
+            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.PaymentCredentialScript")
+                    .orElseThrow(() -> new AssertionError("PaymentCredentialScript.java not generated"));
+            String scriptSource = scriptFile.getCharContent(true).toString();
+            assertThat(scriptSource).contains("abstract class PaymentCredentialScript");
         }
 
         @Test

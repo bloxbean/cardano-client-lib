@@ -44,18 +44,19 @@ public class Cip113Test {
     }
 
     @Nested
-    @DisplayName("Inner class structure for interface types")
-    class InnerClassStructureTests {
+    @DisplayName("Top-level variant structure for interface types")
+    class TopLevelVariantTests {
 
         @Test
-        @DisplayName("GlobalStateSpendAction should contain variants as inner classes")
-        void globalStateSpendActionInnerClasses() throws Exception {
+        @DisplayName("GlobalStateSpendAction should be interface with variants as top-level classes")
+        void globalStateSpendActionVariantsAreTopLevel() throws Exception {
             assertThat(compilation).succeeded();
 
             // GlobalStateSpendAction has 3 variants: MintSecurity, PauseTransfers, ModifySecurityInfo
             // Namespace: types/global_state → package segment: types.globalstate
-            JavaFileObject file = compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.globalstate.model.GlobalStateSpendAction")
+            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.globalstate.model";
+
+            JavaFileObject file = compilation.generatedSourceFile(basePkg + ".GlobalStateSpendAction")
                     .orElseThrow(() -> new AssertionError("GlobalStateSpendAction.java not generated"));
             String source = file.getCharContent(true).toString();
 
@@ -63,53 +64,56 @@ public class Cip113Test {
                     .as("GlobalStateSpendAction should be an interface")
                     .contains("public interface GlobalStateSpendAction");
 
-            assertThat(source)
-                    .as("Should contain MintSecurity inner class")
-                    .contains("abstract class MintSecurity implements Data<MintSecurity>, GlobalStateSpendAction");
-            assertThat(source)
-                    .as("Should contain PauseTransfers inner class")
-                    .contains("abstract class PauseTransfers implements Data<PauseTransfers>, GlobalStateSpendAction");
-            assertThat(source)
-                    .as("Should contain ModifySecurityInfo inner class")
-                    .contains("abstract class ModifySecurityInfo implements Data<ModifySecurityInfo>, GlobalStateSpendAction");
+            for (String variant : new String[]{"MintSecurity", "PauseTransfers", "ModifySecurityInfo"}) {
+                JavaFileObject variantFile = compilation.generatedSourceFile(basePkg + ".GlobalStateSpendAction" + variant)
+                        .orElseThrow(() -> new AssertionError("GlobalStateSpendAction" + variant + ".java not generated as top-level"));
+                String variantSource = variantFile.getCharContent(true).toString();
+                assertThat(variantSource)
+                        .as("GlobalStateSpendAction" + variant + " should implement Data and GlobalStateSpendAction")
+                        .contains("abstract class GlobalStateSpendAction" + variant + " implements Data<GlobalStateSpendAction" + variant + ">, GlobalStateSpendAction");
+            }
         }
 
         @Test
-        @DisplayName("MintRedeemer should be an interface with variants as inner classes")
-        void mintRedeemerInnerClasses() throws Exception {
+        @DisplayName("MintRedeemer should be interface with variants as top-level classes")
+        void mintRedeemerVariantsAreTopLevel() throws Exception {
             assertThat(compilation).succeeded();
 
             // power_users/MintRedeemer has 4 variants: Init, Deinit, AddPowerUser, RemovePowerUser
-            JavaFileObject file = compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.powerusers.model.MintRedeemer")
+            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.powerusers.model";
+
+            JavaFileObject file = compilation.generatedSourceFile(basePkg + ".MintRedeemer")
                     .orElseThrow(() -> new AssertionError("MintRedeemer.java not generated"));
             String source = file.getCharContent(true).toString();
 
             assertThat(source)
                     .as("MintRedeemer should be an interface")
                     .contains("public interface MintRedeemer");
-            assertThat(source)
-                    .as("Should contain Init inner class")
-                    .contains("abstract class Init implements Data<Init>, MintRedeemer");
-            assertThat(source)
-                    .as("Should contain Deinit inner class")
-                    .contains("abstract class Deinit implements Data<Deinit>, MintRedeemer");
+
+            for (String variant : new String[]{"Init", "Deinit"}) {
+                JavaFileObject variantFile = compilation.generatedSourceFile(basePkg + ".MintRedeemer" + variant)
+                        .orElseThrow(() -> new AssertionError("MintRedeemer" + variant + ".java not generated as top-level"));
+                String variantSource = variantFile.getCharContent(true).toString();
+                assertThat(variantSource)
+                        .as("MintRedeemer" + variant + " should implement Data and MintRedeemer")
+                        .contains("abstract class MintRedeemer" + variant + " implements Data<MintRedeemer" + variant + ">, MintRedeemer");
+            }
         }
 
         @Test
-        @DisplayName("MintRedeemer variants should NOT be separate top-level files")
-        void mintRedeemerVariantsShouldNotBeTopLevel() {
+        @DisplayName("MintRedeemer variants should be top-level with prefixed names")
+        void mintRedeemerVariantsArePrefixed() {
             assertThat(compilation).succeeded();
 
-            // MintRedeemer variants (Init, Deinit, AddPowerUser, RemovePowerUser) should be inner classes
-            assertThat(compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.powerusers.model.Init"))
-                    .as("Init should not be a separate top-level file")
-                    .isEmpty();
-            assertThat(compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.powerusers.model.Deinit"))
-                    .as("Deinit should not be a separate top-level file")
-                    .isEmpty();
+            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.powerusers.model";
+
+            // Variants should exist as prefixed top-level files
+            assertThat(compilation.generatedSourceFile(basePkg + ".MintRedeemerInit"))
+                    .as("MintRedeemerInit should be a top-level file")
+                    .isPresent();
+            assertThat(compilation.generatedSourceFile(basePkg + ".MintRedeemerDeinit"))
+                    .as("MintRedeemerDeinit should be a top-level file")
+                    .isPresent();
         }
     }
 }

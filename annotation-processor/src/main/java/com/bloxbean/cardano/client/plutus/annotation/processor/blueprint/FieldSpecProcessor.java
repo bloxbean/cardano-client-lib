@@ -280,23 +280,27 @@ public class FieldSpecProcessor {
         Tuple<String, List<BlueprintSchema>> allFields = FieldSpecProcessor.collectAllFields(schema);
 
         if (classification.getClassification() == SchemaClassification.INTERFACE) {
-            // Build interface with nested variant classes
+            // Build interface (standalone, no inner types) and separate top-level variant classes
             log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
             String interfaceName = datumModel.getName();
             TypeSpec.Builder interfaceBuilder = buildInterfaceTypeSpecBuilder(interfaceName);
-
-            for (BlueprintSchema innerSchema : allFields._2) {
-                if (interfaceName == null || interfaceName.isEmpty()) continue;
-                TypeSpec variantTypeSpec = buildVariantTypeSpec(datumModel.getNamespace(), interfaceName, innerSchema);
-                if (variantTypeSpec != null) {
-                    interfaceBuilder.addType(variantTypeSpec);
-                }
-            }
 
             String pkg = getPackageName(datumModel.getNamespace());
             String className = nameStrategy.toClassName(interfaceName);
             if (generatedTypesRegistry.markGenerated(pkg, className)) {
                 sourceWriter.write(pkg, interfaceBuilder.build(), className);
+            }
+
+            // Write each variant as a separate top-level file with prefixed name
+            for (BlueprintSchema innerSchema : allFields._2) {
+                if (interfaceName == null || interfaceName.isEmpty()) continue;
+                TypeSpec variantTypeSpec = buildVariantTypeSpec(datumModel.getNamespace(), interfaceName, innerSchema);
+                if (variantTypeSpec != null) {
+                    String variantClassName = variantTypeSpec.name;
+                    if (generatedTypesRegistry.markGenerated(pkg, variantClassName)) {
+                        sourceWriter.write(pkg, variantTypeSpec, variantClassName);
+                    }
+                }
             }
         } else {
             // Non-interface: keep existing flat-class behavior (single anyOf or no anyOf)
@@ -431,8 +435,8 @@ public class FieldSpecProcessor {
     }
 
     /**
-     * Builds a TypeSpec for a variant class that will be nested inside an interface.
-     * The variant is a static abstract class implementing Data&lt;InterfaceName.VariantName&gt;
+     * Builds a TypeSpec for a variant class as a top-level class with a prefixed name.
+     * The variant is a public abstract class implementing Data&lt;InterfaceNameVariantName&gt;
      * and the parent interface.
      *
      * @param ns            namespace or package suffix
@@ -462,20 +466,23 @@ public class FieldSpecProcessor {
         AnnotationSpec constrAnnotation = AnnotationSpec.builder(Constr.class)
                 .addMember("alternative", "$L", schema.getIndex()).build();
 
-        String className = nameStrategy.toClassName(schema.getTitle());
+        String variantName = nameStrategy.toClassName(schema.getTitle());
         String pkg = getPackageName(ns);
         String interfaceClassName = nameStrategy.toClassName(interfaceName);
 
-        // Use nested ClassName: InterfaceName.VariantName for correct Data<T> parameterization
-        ClassName datumClass = ClassName.get(pkg, interfaceClassName, className);
+        // Top-level class with prefixed name: InterfaceName + VariantName
+        String prefixedName = interfaceClassName + variantName;
+
+        // Use top-level ClassName for correct Data<T> parameterization
+        ClassName datumClass = ClassName.get(pkg, prefixedName);
         ClassName dataInterface = ClassName.get(Data.class);
         ParameterizedTypeName parameterizedInterface = ParameterizedTypeName.get(dataInterface, datumClass);
 
         // Parent interface type
         ClassName interfaceTypeName = ClassName.get(pkg, interfaceClassName);
 
-        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC, Modifier.ABSTRACT)
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(prefixedName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .addFields(fields)
                 .addSuperinterface(parameterizedInterface)
                 .addSuperinterface(interfaceTypeName)
@@ -485,7 +492,7 @@ public class FieldSpecProcessor {
         log.debug("---------- Inside buildVariantTypeSpec ---------");
         log.debug("Package: " + pkg);
         log.debug("Interface: " + interfaceClassName);
-        log.debug("Variant: " + className);
+        log.debug("Variant: " + prefixedName);
 
         return classBuilder.build();
     }
