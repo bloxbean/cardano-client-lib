@@ -57,7 +57,7 @@ At compile time, this single annotation triggers the processor to parse the blue
 
 14. **[ADR-0011](0011-multi-item-tuple-support.md)** — Pair through Quintet tuple mapping
 15. **[ADR-0018](0018-converter-code-generator-decomposition.md)** — Strategy-based converter code generation
-16. **[ADR-0016](0016-nested-interface-variant-generation.md)** — anyOf variants as static inner classes
+16. **[ADR-0016](0016-nested-interface-variant-generation.md)** — anyOf variants as top-level classes with prefixed names
 17. **[ADR-0010](0010-validator-name-collision-resolution.md)** — Validator name disambiguation
 
 **Finally** — testing:
@@ -98,7 +98,7 @@ BlueprintAnnotationProcessor.process()               [ADR-0001]
         │    │    ├─ PAIR_ALIAS → skip (PairDataTypeProcessor)
         │    │    ├─ ENUM     → generate Java enum
         │    │    ├─ INTERFACE → generate interface       [ADR-0016]
-        │    │    │              + nested variant classes
+        │    │    │              + top-level variant classes
         │    │    └─ CLASS    → generate @Data class
         │    │
         │    ├─ Opaque PlutusData check                  [ADR-0007]
@@ -169,7 +169,7 @@ BlueprintAnnotationProcessor.process()               [ADR-0001]
 |-----|-------|---------|
 | [0011](0011-multi-item-tuple-support.md) | Multi-Item Tuple Support | `SchemaTypeResolver` maps list schemas to Pair/Triple/Quartet/Quintet (2–5 items) |
 | [0018](0018-converter-code-generator-decomposition.md) | Converter Code Generator Decomposition | `FieldCodeGenerator` strategy interface, `FieldCodeGeneratorRegistry` dispatch, `TupleInfo`-parameterized tuple generation |
-| [0016](0016-nested-interface-variant-generation.md) | Nested Interface Variant Generation | anyOf variants as static inner classes of the parent interface |
+| [0016](0016-nested-interface-variant-generation.md) | Interface Variant Generation | anyOf variants as top-level classes with prefixed names (e.g., `CredentialVerificationKey`) |
 | [0010](0010-validator-name-collision-resolution.md) | Validator Name Collision Resolution | `ValidatorProcessor.calculateValidatorName()`, skip-first-token strategy |
 
 ### Testing Conventions
