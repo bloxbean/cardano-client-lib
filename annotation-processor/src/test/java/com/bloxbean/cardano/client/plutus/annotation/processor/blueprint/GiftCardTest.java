@@ -50,17 +50,18 @@ public class GiftCardTest {
     }
 
     @Nested
-    @DisplayName("Inner class structure for interface types")
-    class InnerClassStructureTests {
+    @DisplayName("Top-level variant structure for interface types")
+    class TopLevelVariantTests {
 
         @Test
-        @DisplayName("Action interface should contain Mint and Burn as inner classes")
-        void actionShouldContainInnerClasses() throws Exception {
+        @DisplayName("Action interface should have Mint and Burn as top-level classes")
+        void actionVariantsAreTopLevel() throws Exception {
             assertThat(compilation).succeeded();
 
+            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.giftcard.multi.model";
+
             // Action is an anyOf > 1 interface with variants: Mint (1 field), Burn (0 fields)
-            JavaFileObject actionFile = compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.giftcard.multi.model.Action")
+            JavaFileObject actionFile = compilation.generatedSourceFile(basePkg + ".Action")
                     .orElseThrow(() -> new AssertionError("Action.java not generated"));
             String actionSource = actionFile.getCharContent(true).toString();
 
@@ -68,38 +69,41 @@ public class GiftCardTest {
                     .as("Action should be an interface")
                     .contains("public interface Action");
 
-            // In Java interfaces, nested classes are implicitly public and static,
-            // so JavaPoet omits those modifiers
-            assertThat(actionSource)
-                    .as("Action should contain Mint inner class")
-                    .contains("abstract class Mint implements Data<Mint>, Action");
-            assertThat(actionSource)
-                    .as("Action should contain Burn inner class")
-                    .contains("abstract class Burn implements Data<Burn>, Action");
+            // Variants should be separate top-level files with prefixed names
+            JavaFileObject mintFile = compilation.generatedSourceFile(basePkg + ".ActionMint")
+                    .orElseThrow(() -> new AssertionError("ActionMint.java not generated as top-level"));
+            String mintSource = mintFile.getCharContent(true).toString();
+            assertThat(mintSource)
+                    .as("ActionMint should implement Data and Action")
+                    .contains("abstract class ActionMint implements Data<ActionMint>, Action");
+            assertThat(mintSource)
+                    .as("ActionMint variant should have @Constr(alternative = 0)")
+                    .contains("@Constr(\n    alternative = 0\n)\npublic abstract class ActionMint");
 
-            // Mint variant has a field, Burn does not
-            assertThat(actionSource)
-                    .as("Mint variant should have @Constr(alternative = 0)")
-                    .contains("@Constr(\n      alternative = 0\n  )\n  abstract class Mint");
-            assertThat(actionSource)
-                    .as("Burn variant should have @Constr(alternative = 1)")
-                    .contains("@Constr(\n      alternative = 1\n  )\n  abstract class Burn");
+            JavaFileObject burnFile = compilation.generatedSourceFile(basePkg + ".ActionBurn")
+                    .orElseThrow(() -> new AssertionError("ActionBurn.java not generated as top-level"));
+            String burnSource = burnFile.getCharContent(true).toString();
+            assertThat(burnSource)
+                    .as("ActionBurn should implement Data and Action")
+                    .contains("abstract class ActionBurn implements Data<ActionBurn>, Action");
+            assertThat(burnSource)
+                    .as("ActionBurn variant should have @Constr(alternative = 1)")
+                    .contains("@Constr(\n    alternative = 1\n)\npublic abstract class ActionBurn");
         }
 
         @Test
-        @DisplayName("Action variants should NOT be generated as separate top-level classes")
-        void actionVariantsShouldNotBeTopLevel() {
+        @DisplayName("Action variants should exist as prefixed top-level files")
+        void actionVariantsExistAsPrefixedFiles() {
             assertThat(compilation).succeeded();
 
-            // Verify Mint and Burn are NOT generated as separate files — they should only exist inside Action
-            assertThat(compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.giftcard.multi.model.Mint"))
-                    .as("Mint should not be a separate top-level file")
-                    .isEmpty();
-            assertThat(compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.giftcard.multi.model.Burn"))
-                    .as("Burn should not be a separate top-level file")
-                    .isEmpty();
+            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.giftcard.multi.model";
+
+            assertThat(compilation.generatedSourceFile(basePkg + ".ActionMint"))
+                    .as("ActionMint should be a top-level file")
+                    .isPresent();
+            assertThat(compilation.generatedSourceFile(basePkg + ".ActionBurn"))
+                    .as("ActionBurn should be a top-level file")
+                    .isPresent();
         }
     }
 }

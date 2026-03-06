@@ -95,8 +95,8 @@ public class SundaeSwapV3Test {
         }
 
         @Test
-        @DisplayName("Order should contain all 6 variants as inner classes")
-        void orderInnerClasses() throws Exception {
+        @DisplayName("Order should be an interface with 6 variants as top-level classes")
+        void orderVariantsAreTopLevel() throws Exception {
             assertThat(compilation).succeeded();
 
             JavaFileObject file = compilation.generatedSourceFile(
@@ -107,38 +107,32 @@ public class SundaeSwapV3Test {
             assertThat(source)
                     .as("Order should be an interface")
                     .contains("public interface Order");
-            assertThat(source)
-                    .as("Should contain Strategy inner class")
-                    .contains("abstract class Strategy implements Data<Strategy>, Order");
-            assertThat(source)
-                    .as("Should contain Swap inner class")
-                    .contains("abstract class Swap implements Data<Swap>, Order");
-            assertThat(source)
-                    .as("Should contain Deposit inner class")
-                    .contains("abstract class Deposit implements Data<Deposit>, Order");
-            assertThat(source)
-                    .as("Should contain Withdrawal inner class")
-                    .contains("abstract class Withdrawal implements Data<Withdrawal>, Order");
-            assertThat(source)
-                    .as("Should contain Donation inner class")
-                    .contains("abstract class Donation implements Data<Donation>, Order");
-            assertThat(source)
-                    .as("Should contain Record inner class")
-                    .contains("abstract class Record implements Data<Record>, Order");
+
+            // Variants should be separate top-level files with prefixed names
+            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.types.order.model";
+            for (String variant : new String[]{"Strategy", "Swap", "Deposit", "Withdrawal", "Donation", "Record"}) {
+                JavaFileObject variantFile = compilation.generatedSourceFile(basePkg + ".Order" + variant)
+                        .orElseThrow(() -> new AssertionError("Order" + variant + ".java not generated as top-level"));
+                String variantSource = variantFile.getCharContent(true).toString();
+                assertThat(variantSource)
+                        .as("Order" + variant + " should implement Data and Order")
+                        .contains("abstract class Order" + variant + " implements Data<Order" + variant + ">, Order");
+            }
         }
 
         @Test
-        @DisplayName("Credential variants should NOT be generated as separate top-level classes")
-        void credentialVariantsShouldNotBeTopLevel() {
+        @DisplayName("Credential variants should NOT be generated (shared stdlib type)")
+        void credentialVariantsShouldNotBeGenerated() {
             assertThat(compilation).succeeded();
 
+            // Credential is resolved as a shared stdlib type, so no variants are generated at all
             assertThat(compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.VerificationKey"))
-                    .as("VerificationKey should not be a separate top-level file")
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.CredentialVerificationKey"))
+                    .as("CredentialVerificationKey should not be generated (shared type)")
                     .isEmpty();
             assertThat(compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.Script"))
-                    .as("Script should not be a separate top-level file")
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.CredentialScript"))
+                    .as("CredentialScript should not be generated (shared type)")
                     .isEmpty();
         }
     }

@@ -1,115 +1,106 @@
-# ADR 0016: anyOf Interface Variants as Nested Static Inner Classes
+# ADR 0016: anyOf Interface Variants as Top-Level Classes with Prefixed Names
 
 - Status: Accepted
-- Date: 2026-03-04
+- Date: 2026-03-06
 - Owners: Cardano Client Lib maintainers
-- Related: ADR-0002 (Blueprint Code Generation Pipeline), ADR-0008 (Schema Classification Strategy), PR #595
+- Related: ADR-0002 (Blueprint Code Generation Pipeline), ADR-0008 (Schema Classification Strategy)
 
 ## Context
 
-When the schema classifier (ADR-0008) identifies an `INTERFACE` classification — an `anyOf` schema with more than one variant — the processor generates a Java interface and one class per variant. Prior to this change, each variant was emitted as a **top-level class** that implemented the interface.
+When the schema classifier (ADR-0008) identifies an `INTERFACE` classification — an `anyOf` schema with more than one variant — the processor generates a Java interface and one class per variant. The variants must avoid naming collisions: both `Credential` and `PaymentCredential` can have a `VerificationKey` variant in the same package.
 
-This caused two problems:
+An earlier approach nested variants as static inner classes (e.g., `Credential.VerificationKey`). While this solved collisions, it created downstream complexity:
 
-1. **Naming collisions**: Multiple interfaces could share variant names. For example, both `Credential` and `PaymentCredential` could have a `VerificationKey` variant. As top-level classes, these would collide in the same package.
-2. **Semantic incorrectness**: A variant like `VerificationKey` belongs to its parent interface. Placing it at the top level loses that scoping relationship.
+1. **Converter FQN resolution**: `ClassDefinitionGenerator` needed enclosing-element inspection to prefix converter names (detecting that `VerificationKey` is inside `Credential` to produce `CredentialVerificationKeyConverter`).
+2. **Nested `ClassName` construction**: `buildVariantTypeSpec()` used `ClassName.get(pkg, interfaceClassName, variantName)` for nested references, and all downstream code (`ConverterCodeGenerator`, `DataImplGenerator`) needed `ClassName.bestGuess()` to parse dotted notation.
+3. **Converter placement complexity**: Placing converters for nested classes required special handling in the code generation pipeline.
+
+A simpler approach achieves the same collision avoidance: generate variants as **top-level classes** with the interface name prepended to the variant name.
 
 ## Decision
 
-Generate each `anyOf` variant as a **`static` nested inner class** of its parent interface. This scopes variants naturally (e.g., `Credential.VerificationKey` vs `PaymentCredential.VerificationKey`) and eliminates naming collisions without artificial prefixes.
+Generate each `anyOf` variant as a **top-level class** with a prefixed name (`InterfaceName` + `VariantName`). The interface itself is written as a standalone file with no inner types.
 
 ### Generated Structure
 
 ```
-Before (top-level):                    After (nested):
-  Credential.java (interface)            Credential.java
-  VerificationKey.java (class)             public interface Credential {
-  Script.java (class)                        public static abstract class VerificationKey
-                                                 implements Data<Credential.VerificationKey>, Credential { ... }
-                                             public static abstract class Script
-                                                 implements Data<Credential.Script>, Credential { ... }
-                                           }
+Credential.java
+  public interface Credential {}
+
+CredentialVerificationKey.java
+  public abstract class CredentialVerificationKey
+      implements Data<CredentialVerificationKey>, Credential { ... }
+
+CredentialScript.java
+  public abstract class CredentialScript
+      implements Data<CredentialScript>, Credential { ... }
 ```
 
-A single `.java` file is emitted per interface, containing the interface declaration and all nested variant classes.
+Multiple files are emitted: one for the interface and one per variant.
 
 ### Key Implementation
 
 #### `FieldSpecProcessor` — Interface and Variant Generation
 
 - `buildInterfaceTypeSpecBuilder(String interfaceName)` — creates the interface `TypeSpec.Builder` with `@Constr` annotation and public modifier.
-- `buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema)` — creates each variant as a `static abstract class` nested inside the interface:
-  - Uses `ClassName.get(pkg, interfaceClassName, className)` to construct the nested class reference.
-  - Adds both `Data<InterfaceName.VariantName>` and the parent interface as superinterfaces.
+- `createDatumClass(DatumModel)` INTERFACE branch:
+  1. Writes the interface file first (standalone, no inner types).
+  2. Iterates over variants, calling `buildVariantTypeSpec()` for each.
+  3. Writes each variant as a separate file, registered with `GeneratedTypesRegistry`.
+
+- `buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema)`:
+  - Constructs the prefixed name: `nameStrategy.toClassName(interfaceName) + nameStrategy.toClassName(schema.getTitle())`.
+  - Uses `ClassName.get(pkg, prefixedName)` — a top-level reference, no nesting.
+  - Modifiers: `PUBLIC, ABSTRACT` (no `STATIC` since it's top-level).
+  - Parameterizes `Data<PrefixedName>` (e.g., `Data<CredentialVerificationKey>`).
+  - Still implements the parent interface (e.g., `Credential`).
   - Applies `@Constr(alternative = X)` annotation with the correct constructor index.
   - Processes fields directly from the variant schema (no recursive `collectAllFields`).
-- Variants are added to the interface builder via `interfaceBuilder.addType(variantTypeSpec)`.
-- The interface file is written once, containing all nested variants.
 
-#### `ClassDefinitionGenerator` — Nested Class Detection
+#### `ClassDefinitionGenerator` — Simplified
 
-Detects nested classes by inspecting the enclosing element:
+No enclosing-element inspection is needed. Since the class is already named `CredentialVerificationKey`, the converter name `CredentialVerificationKeyConverter` and impl name `CredentialVerificationKeyImpl` are derived naturally:
 
 ```java
-Element enclosing = typeElement.getEnclosingElement();
-if (enclosing != null && enclosing.getKind().isInterface()) {
-    String enclosingName = ((TypeElement) enclosing).getSimpleName().toString();
-    prefix = enclosingName + className;  // e.g., "CredentialVerificationKey"
-}
+String prefix = className;  // Already "CredentialVerificationKey"
 ```
 
-Prefixes converter and impl class names to avoid collisions:
-- `Credential.VerificationKey` → converter: `CredentialVerificationKeyConverter`, impl: `CredentialVerificationKeyImpl`
-- `Credential.Script` → converter: `CredentialScriptConverter`, impl: `CredentialScriptImpl`
+`getConverterClassFromField()` continues to use `String.join("", fieldClass.simpleNames())` which works for top-level classes (single-element list).
 
-`getConverterClassFromField()` uses `String.join("", fieldClass.simpleNames())` to flatten nested class names for converter lookup.
+### What Does NOT Change
 
-#### `ConverterCodeGenerator` — Nested Class Resolution
-
-Uses `ClassName.bestGuess(objType)` to correctly resolve nested class references:
-
-```java
-// objType = "com.example.Credential.VerificationKey"
-// ClassName.bestGuess() parses dotted notation into correct nested ClassName
-ClassName constrTypeName = ClassName.bestGuess(constructor.getObjType());
-```
-
-Interface converter `toPlutusData()` dispatches to the correct variant converter via `instanceof` checks against nested class types.
-
-#### `DataImplGenerator` — Impl Class Generation
-
-Similarly uses `ClassName.bestGuess(classDef.getObjType())` to construct the correct nested class reference for impl generation.
-
-#### `BlueprintAnnotationProcessor`
-
-The `buildVariantInterfaceMap()` pre-scan was removed — it is no longer needed since variant scoping is handled naturally by nesting within the parent interface.
+- **`SchemaClassifier`** — still classifies `anyOf > 1` as INTERFACE.
+- **`ConstrAnnotationProcessor`** — interface detection via `getInterfaces()` still works (variants still implement the interface).
+- **`ConverterCodeGenerator` / `InterfaceConverterBuilder`** — dispatch converter generation unchanged.
+- **`DataImplGenerator`** — works with any class name.
+- **Converter location** — always `pkg.converter.XConverter` (standard path).
 
 ## Rationale
 
-1. **Natural scoping**: Java's nested class mechanism directly models the "variant belongs to interface" relationship. `Credential.VerificationKey` is unambiguous.
-2. **No artificial prefixes**: Previous approaches would prefix variant names (e.g., `CredentialVerificationKey`) to avoid collisions, losing the clean name. Nesting preserves the short name while avoiding collisions.
-3. **Single file per interface**: All variants for an interface live in one file, making it easy to see the complete sum type at a glance.
-4. **`ClassName.bestGuess()` support**: JavaPoet's `ClassName.bestGuess()` naturally handles dotted names as nested classes, making the implementation straightforward.
+1. **Simplicity**: No enclosing-element detection, no nested `ClassName` construction, no special converter placement logic. The prefixed name carries all necessary information.
+2. **Collision avoidance**: `CredentialVerificationKey` and `PaymentCredentialVerificationKey` are distinct names — same guarantee as nesting, without the complexity.
+3. **Predictable converter names**: `CredentialVerificationKeyConverter` is derived from the class name alone, with no need to inspect the type hierarchy.
+4. **Reduced downstream complexity**: Eliminates the need for `ClassName.bestGuess()` to parse dotted nested-class notation in converter and impl generators.
 
 ## Consequences
 
 ### Positive
 - Naming collisions between same-named variants of different interfaces are eliminated.
-- Generated code is semantically correct — variants are scoped to their parent interface.
-- Converter and impl class names are unambiguous via enclosing-name prefixing.
-- Reduced number of generated files (one per interface instead of one per variant).
+- Converter and impl class generation is simpler — no enclosing-element inspection needed.
+- Each variant is a self-contained file, easy to navigate in IDEs.
+- Downstream code (converter generators, impl generators) works with standard top-level class references.
 
 ### Negative
-- Converter/impl class names become longer for nested variants (e.g., `CredentialVerificationKeyConverter`).
-  - **Mitigation**: These names are generated and rarely typed manually.
-- All variant classes must be processed together when the interface is generated, requiring all variant schemas to be available at interface processing time.
-  - **Mitigation**: CIP-57 blueprint structure guarantees all variants are present in the `anyOf` array.
+- More generated files (one per variant instead of one per interface).
+  - **Mitigation**: IDE file trees and package structure keep them organized.
+- Variant class names are longer (e.g., `MarketDatumSpotDatum` instead of `SpotDatum`).
+  - **Mitigation**: These names are generated and rarely typed manually. The prefix provides useful context.
+- The short variant name (e.g., `VerificationKey`) is no longer directly visible as a class name.
+  - **Mitigation**: The interface still exists as a marker, and the prefix clearly indicates the relationship.
 
 ## References
 
 - `FieldSpecProcessor.buildInterfaceTypeSpecBuilder()`, `buildVariantTypeSpec()` — interface and variant generation
-- `ClassDefinitionGenerator` — nested class detection and name prefixing
-- `ConverterCodeGenerator` — `ClassName.bestGuess()` for nested class resolution
-- `DataImplGenerator` — impl generation with nested class support
+- `ClassDefinitionGenerator` — simplified name prefixing (no enclosing-element detection)
 - ADR-0002: Blueprint Code Generation Pipeline (INTERFACE classification flow)
 - ADR-0008: Schema Classification Strategy (anyOf classification)

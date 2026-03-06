@@ -245,11 +245,12 @@ public class ClassDefinitionGeneratorTest {
      * Tests for {@link ClassDefinitionGenerator#getConverterClassFromField(FieldType)}.
      *
      * <p>This static method generates converter class names from field types.
-     * After commit 155bf39a, it uses {@code String.join("", fieldClass.simpleNames())}
-     * to handle nested classes correctly.</p>
+     * Uses {@code String.join("", fieldClass.simpleNames())} to handle class names.
+     * Blueprint variants are now top-level with prefixed names (e.g., CredentialVerificationKey),
+     * but this method still supports nested classes for general use cases.</p>
      */
     @Nested
-    @DisplayName("getConverterClassFromField() — nested class converter naming")
+    @DisplayName("getConverterClassFromField() — converter naming")
     class GetConverterClassFromField {
 
         @Test
