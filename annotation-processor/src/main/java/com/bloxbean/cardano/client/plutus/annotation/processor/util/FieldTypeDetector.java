@@ -16,6 +16,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Detects {@link FieldType} from a JavaPoet {@link TypeName}.
@@ -29,6 +30,40 @@ import java.util.Optional;
  * and {@code FieldSpecProcessor} (Phase 1, TypeName only).
  */
 public final class FieldTypeDetector {
+
+    private record SimpleMapping(Type type, JavaType javaType) {}
+
+    private record ParameterizedMapping(Type type, JavaType javaType, boolean collection) {}
+
+    private static final Map<TypeName, SimpleMapping> SIMPLE_TYPES = Map.ofEntries(
+            Map.entry(TypeName.get(Long.class),       new SimpleMapping(Type.INTEGER, JavaType.LONG_OBJECT)),
+            Map.entry(TypeName.LONG,                  new SimpleMapping(Type.INTEGER, JavaType.LONG)),
+            Map.entry(TypeName.get(BigInteger.class),  new SimpleMapping(Type.INTEGER, JavaType.BIGINTEGER)),
+            Map.entry(TypeName.get(Integer.class),     new SimpleMapping(Type.INTEGER, JavaType.INTEGER)),
+            Map.entry(TypeName.INT,                   new SimpleMapping(Type.INTEGER, JavaType.INT)),
+            Map.entry(TypeName.get(String.class),      new SimpleMapping(Type.STRING, JavaType.STRING)),
+            Map.entry(TypeName.get(byte[].class),      new SimpleMapping(Type.BYTES, JavaType.BYTES)),
+            Map.entry(TypeName.get(Boolean.class),     new SimpleMapping(Type.BOOL, JavaType.BOOLEAN_OBJ)),
+            Map.entry(TypeName.BOOLEAN,               new SimpleMapping(Type.BOOL, JavaType.BOOLEAN)),
+            Map.entry(TypeName.get(PlutusData.class),  new SimpleMapping(Type.PLUTUSDATA, JavaType.PLUTUSDATA))
+    );
+
+    private static final Map<ClassName, ParameterizedMapping> PARAMETERIZED_TYPES = Map.of(
+            ClassName.get(List.class),     new ParameterizedMapping(Type.LIST, JavaType.LIST, true),
+            ClassName.get(Map.class),      new ParameterizedMapping(Type.MAP, JavaType.MAP, true),
+            ClassName.get(Optional.class), new ParameterizedMapping(Type.OPTIONAL, JavaType.OPTIONAL, false),
+            ClassName.get(Pair.class),     new ParameterizedMapping(Type.PAIR, JavaType.PAIR, false),
+            ClassName.get(Triple.class),   new ParameterizedMapping(Type.TRIPLE, JavaType.TRIPLE, false),
+            ClassName.get(Quartet.class),  new ParameterizedMapping(Type.QUARTET, JavaType.QUARTET, false),
+            ClassName.get(Quintet.class),  new ParameterizedMapping(Type.QUINTET, JavaType.QUINTET, false)
+    );
+
+    private static final Set<ClassName> RAW_TUPLE_TYPES = Set.of(
+            ClassName.get(Pair.class),
+            ClassName.get(Triple.class),
+            ClassName.get(Quartet.class),
+            ClassName.get(Quintet.class)
+    );
 
     private FieldTypeDetector() {
     }
@@ -45,94 +80,37 @@ public final class FieldTypeDetector {
         fieldType.setFqTypeName(typeName.toString());
 
         // Simple (non-generic) types
-        if (typeName.equals(TypeName.get(Long.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.LONG_OBJECT);
-        } else if (typeName.equals(TypeName.LONG)) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.LONG);
-        } else if (typeName.equals(TypeName.get(BigInteger.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.BIGINTEGER);
-        } else if (typeName.equals(TypeName.get(Integer.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.INTEGER);
-        } else if (typeName.equals(TypeName.INT)) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.INT);
-        } else if (typeName.equals(TypeName.get(String.class))) {
-            fieldType.setType(Type.STRING);
-            fieldType.setJavaType(JavaType.STRING);
-        } else if (typeName.equals(TypeName.get(byte[].class))) {
-            fieldType.setType(Type.BYTES);
-            fieldType.setJavaType(JavaType.BYTES);
-        } else if (typeName.equals(TypeName.get(Boolean.class))) {
-            fieldType.setType(Type.BOOL);
-            fieldType.setJavaType(JavaType.BOOLEAN_OBJ);
-        } else if (typeName.equals(TypeName.BOOLEAN)) {
-            fieldType.setType(Type.BOOL);
-            fieldType.setJavaType(JavaType.BOOLEAN);
-        } else if (typeName.equals(TypeName.get(PlutusData.class))) {
-            fieldType.setType(Type.PLUTUSDATA);
-            fieldType.setJavaType(JavaType.PLUTUSDATA);
+        SimpleMapping simple = SIMPLE_TYPES.get(typeName);
+        if (simple != null) {
+            fieldType.setType(simple.type());
+            fieldType.setJavaType(simple.javaType());
+            return fieldType;
+        }
 
-        // Parameterized collection/optional types
-        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(List.class))) {
-            fieldType.setType(Type.LIST);
-            fieldType.setJavaType(JavaType.LIST);
-            fieldType.setCollection(true);
-            fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(0)));
-        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Map.class))) {
-            fieldType.setType(Type.MAP);
-            fieldType.setJavaType(JavaType.MAP);
-            fieldType.setCollection(true);
-            fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(0)));
-            fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(1)));
-        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Optional.class))) {
-            fieldType.setType(Type.OPTIONAL);
-            fieldType.setJavaType(JavaType.OPTIONAL);
-            fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(0)));
-
-        // Parameterized tuple types
-        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Pair.class))) {
-            fieldType.setType(Type.PAIR);
-            fieldType.setJavaType(JavaType.PAIR);
-            for (TypeName arg : ptn.typeArguments) {
-                fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
+        // Parameterized types (collections, optionals, tuples)
+        if (typeName instanceof ParameterizedTypeName ptn) {
+            ParameterizedMapping mapping = PARAMETERIZED_TYPES.get(ptn.rawType);
+            if (mapping != null) {
+                fieldType.setType(mapping.type());
+                fieldType.setJavaType(mapping.javaType());
+                fieldType.setCollection(mapping.collection());
+                for (TypeName arg : ptn.typeArguments) {
+                    fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
+                }
+                return fieldType;
             }
-        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Triple.class))) {
-            fieldType.setType(Type.TRIPLE);
-            fieldType.setJavaType(JavaType.TRIPLE);
-            for (TypeName arg : ptn.typeArguments) {
-                fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
-            }
-        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Quartet.class))) {
-            fieldType.setType(Type.QUARTET);
-            fieldType.setJavaType(JavaType.QUARTET);
-            for (TypeName arg : ptn.typeArguments) {
-                fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
-            }
-        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Quintet.class))) {
-            fieldType.setType(Type.QUINTET);
-            fieldType.setJavaType(JavaType.QUINTET);
-            for (TypeName arg : ptn.typeArguments) {
-                fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
-            }
+        }
 
         // Raw (unparameterized) tuple types — treated as opaque PlutusData
-        } else if (typeName.equals(ClassName.get(Pair.class))
-                || typeName.equals(ClassName.get(Triple.class))
-                || typeName.equals(ClassName.get(Quartet.class))
-                || typeName.equals(ClassName.get(Quintet.class))) {
+        if (typeName instanceof ClassName cn && RAW_TUPLE_TYPES.contains(cn)) {
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType(typeName.toString(), true));
             fieldType.setRawDataType(true);
-        } else {
-            // Not a recognized type — caller must handle CONSTRUCTOR fallback
-            return null;
+            return fieldType;
         }
 
-        return fieldType;
+        // Not a recognized type — caller must handle CONSTRUCTOR fallback
+        return null;
     }
 
     /**
