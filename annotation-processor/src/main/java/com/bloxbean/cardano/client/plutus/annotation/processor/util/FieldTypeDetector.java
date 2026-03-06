@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.util;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.ClassDefinitionGenerator;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.FieldType;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.JavaType;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.Type;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiPredicate;
 
 /**
  * Detects {@link FieldType} from a JavaPoet {@link TypeName}.
@@ -111,6 +113,32 @@ public final class FieldTypeDetector {
 
         // Not a recognized type — caller must handle CONSTRUCTOR fallback
         return null;
+    }
+
+    /**
+     * Recursively walks generic type arguments and sets {@code converterClassFqn}
+     * for CONSTRUCTOR-typed fields. Shared by both Phase 1 (blueprint/FieldSpecProcessor)
+     * and Phase 2 ({@code @Constr}/ClassDefinitionGenerator).
+     *
+     * @param fieldType   the field type whose generic arguments to process
+     * @param isInterface predicate that checks (packageName, simpleName) → true if the type is an interface
+     */
+    public static void resolveConverterFqns(FieldType fieldType,
+                                             BiPredicate<String, String> isInterface) {
+        for (FieldType genericType : fieldType.getGenericTypes()) {
+            if (genericType.getType() == Type.CONSTRUCTOR) {
+                String typeFqn = genericType.getJavaType().getName();
+                try {
+                    ClassName cn = ClassName.bestGuess(typeFqn);
+                    boolean isIface = isInterface.test(cn.packageName(), cn.simpleName());
+                    genericType.setConverterClassFqn(
+                            ClassDefinitionGenerator.resolveConverterFqn(cn, isIface));
+                } catch (IllegalArgumentException ignored) {
+                    // bestGuess can fail for parameterized types — skip
+                }
+            }
+            resolveConverterFqns(genericType, isInterface);
+        }
     }
 
     /**

@@ -166,7 +166,7 @@ public class ClassDefinitionGenerator {
             // FieldTypeDetector doesn't have TypeMirror/typeElements context,
             // so fix up CONSTRUCTOR-typed generic arguments (e.g., List<Script>
             // where Script is an interface with nested converters)
-            fixUpConstructorGenericTypes(fieldType);
+            FieldTypeDetector.resolveConverterFqns(fieldType, this::isInterfaceType);
             return fieldType;
         }
 
@@ -223,30 +223,18 @@ public class ClassDefinitionGenerator {
     }
 
     /**
-     * Post-processes generic type arguments to set converterClassFqn for
-     * CONSTRUCTOR types. FieldTypeDetector can't do this because it lacks
-     * access to typeElements.
+     * Checks if a type identified by (packageName, simpleName) is an interface
+     * in the current set of {@code @Constr}-annotated type elements.
      */
-    private void fixUpConstructorGenericTypes(FieldType fieldType) {
-        for (FieldType genericType : fieldType.getGenericTypes()) {
-            if (genericType.getType() == Type.CONSTRUCTOR && typeElements != null) {
-                String typeFqn = genericType.getJavaType().getName();
-                boolean isIface = false;
-                for (TypeElement te : typeElements) {
-                    if (te.getQualifiedName().toString().equals(typeFqn) && te.getKind().isInterface()) {
-                        isIface = true;
-                        break;
-                    }
-                }
-                try {
-                    ClassName cn = ClassName.bestGuess(typeFqn);
-                    genericType.setConverterClassFqn(resolveConverterFqn(cn, isIface));
-                } catch (IllegalArgumentException ignored) {
-                    // bestGuess can fail for parameterized types — skip
-                }
+    private boolean isInterfaceType(String packageName, String simpleName) {
+        if (typeElements == null) return false;
+        String fqn = packageName + "." + simpleName;
+        for (TypeElement te : typeElements) {
+            if (te.getQualifiedName().toString().equals(fqn) && te.getKind().isInterface()) {
+                return true;
             }
-            fixUpConstructorGenericTypes(genericType);
         }
+        return false;
     }
 
     private boolean isSupportedType(TypeName typeName, TypeMirror typeMirror) {

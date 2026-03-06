@@ -8,12 +8,13 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classif
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModel;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
+import com.bloxbean.cardano.client.plutus.annotation.processor.ClassDefinitionGenerator;
 import com.bloxbean.cardano.client.plutus.annotation.processor.ConverterCodeGenerator;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
-import com.bloxbean.cardano.client.plutus.annotation.processor.util.FieldMapper;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.FieldTypeDetector;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
@@ -355,8 +356,7 @@ public class FieldSpecProcessor {
 
                     ClassDefinition variantClassDef = ClassDefinition.forNestedVariant(
                             pkg, className, variantName, alternative);
-                    variantClassDef.setFields(FieldMapper.fromSpecs(
-                            variantFields, generatedTypesRegistry::isInterface));
+                    variantClassDef.setFields(mapFieldSpecs(variantFields));
                     variantClassDefs.add(variantClassDef);
 
                     try {
@@ -758,6 +758,53 @@ public class FieldSpecProcessor {
             }
         }
         return fields;
+    }
+
+    /**
+     * Converts a list of JavaPoet FieldSpecs to model Fields, detecting types
+     * via {@link FieldTypeDetector} and resolving converter FQNs for CONSTRUCTOR types.
+     */
+    private List<Field> mapFieldSpecs(List<FieldSpec> fieldSpecs) {
+        List<Field> fields = new ArrayList<>();
+        for (int i = 0; i < fieldSpecs.size(); i++) {
+            fields.add(mapFieldSpec(fieldSpecs.get(i), i));
+        }
+        return fields;
+    }
+
+    private Field mapFieldSpec(FieldSpec fs, int index) {
+        FieldType ft = FieldTypeDetector.fromTypeName(fs.type);
+        if (ft == null) {
+            ft = new FieldType();
+            ft.setFqTypeName(fs.type.toString());
+            ft.setType(Type.CONSTRUCTOR);
+            ft.setJavaType(new JavaType(fs.type.toString(), true));
+            if (fs.type instanceof ClassName cn) {
+                boolean isIface = generatedTypesRegistry.isInterface(cn.packageName(), cn.simpleName());
+                ft.setConverterClassFqn(ClassDefinitionGenerator.resolveConverterFqn(cn, isIface));
+            }
+        } else {
+            FieldTypeDetector.resolveConverterFqns(ft, generatedTypesRegistry::isInterface);
+        }
+
+        String getter;
+        if (Type.BOOL.equals(ft.getType()) && JavaType.BOOLEAN.equals(ft.getJavaType())) {
+            getter = "is" + capitalize(fs.name);
+        } else {
+            getter = "get" + capitalize(fs.name);
+        }
+
+        return Field.builder()
+                .name(fs.name)
+                .index(index)
+                .fieldType(ft)
+                .hashGetter(true)
+                .getterName(getter)
+                .build();
+    }
+
+    private static String capitalize(String s) {
+        return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
     private String getPackageName(String ns) {
