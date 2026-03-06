@@ -20,10 +20,8 @@ import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.CONVERTER;
-import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.IMPL;
 
 /**
  * Generates ClassDefinition from the given TypeElement
@@ -47,38 +45,46 @@ public class ClassDefinitionGenerator {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
 
-        // Use factory methods based on nesting context
-        ClassDefinition classDefinition;
-        Element enclosing = typeElement.getEnclosingElement();
-        if (enclosing != null && enclosing.getKind().isInterface()) {
-            // Nested variant inside interface
-            String enclosingName = ((TypeElement) enclosing).getSimpleName().toString();
-            classDefinition = ClassDefinition.forNestedVariant(packageName, enclosingName, className, 0);
-        } else if (typeElement.getKind().isInterface()) {
-            // Interface type itself
-            classDefinition = ClassDefinition.forInterface(packageName, className);
-        } else {
-            // Regular top-level type
-            classDefinition = ClassDefinition.forTopLevel(packageName, className);
-        }
+        ClassDefinition classDefinition = createClassDefinition(typeElement, packageName, className);
         classDefinition.setObjType(typeElement.asType().toString());
 
         typeElement.getModifiers().stream().filter(modifier -> modifier.equals(Modifier.ABSTRACT))
                 .findFirst().ifPresent(modifier -> classDefinition.setAbstract(true));
 
-        //If typeElement is enum, get emum values
-        if(typeElement.getKind() == ElementKind.ENUM) {
+        if (typeElement.getKind() == ElementKind.ENUM) {
             processEnum(typeElement, classDefinition);
         }
 
-        Class lombokDataClazz;
-        Class lombokGetterClazz;
-        Class lombokSetterClazz;
+        detectLombokAnnotations(typeElement, classDefinition);
 
+        Constr plutusConstr = typeElement.getAnnotation(Constr.class);
+        classDefinition.setAlternative(plutusConstr.alternative());
+
+        processFields(typeElement, classDefinition);
+
+        return classDefinition;
+    }
+
+    private ClassDefinition createClassDefinition(TypeElement typeElement, String packageName, String className) {
+        Element enclosing = typeElement.getEnclosingElement();
+        if (enclosing != null && enclosing.getKind().isInterface()) {
+            String enclosingName = enclosing.getSimpleName().toString();
+
+            return ClassDefinition.forNestedVariant(packageName, enclosingName, className, 0);
+        }
+
+        if (typeElement.getKind().isInterface()) {
+            return ClassDefinition.forInterface(packageName, className);
+        }
+
+        return ClassDefinition.forTopLevel(packageName, className);
+    }
+
+    private void detectLombokAnnotations(TypeElement typeElement, ClassDefinition classDefinition) {
         try {
-            lombokDataClazz = Class.forName("lombok.Data");
-            lombokGetterClazz = Class.forName("lombok.Getter");
-            lombokSetterClazz = Class.forName("lombok.Setter");
+            Class lombokDataClazz = Class.forName("lombok.Data");
+            Class lombokGetterClazz = Class.forName("lombok.Getter");
+            Class lombokSetterClazz = Class.forName("lombok.Setter");
 
             boolean lombokData = typeElement.getAnnotation(lombokDataClazz) != null;
             boolean lombokGetter = typeElement.getAnnotation(lombokGetterClazz) != null;
@@ -89,73 +95,68 @@ public class ClassDefinitionGenerator {
             }
         } catch (Exception e) {
         }
+    }
 
-        Constr plutusConstr = typeElement.getAnnotation(Constr.class);
-        int alternative = plutusConstr.alternative();
-        classDefinition.setAlternative(alternative);
-
+    private void processFields(TypeElement typeElement, ClassDefinition classDefinition) {
         int index = 0;
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
             if (enclosedElement instanceof VariableElement variableElement &&
                     enclosedElement.getAnnotation(PlutusIgnore.class) == null) {
-                Field field = new Field();
-                field.setIndex(index++);
-                String fieldName = variableElement.getSimpleName().toString();
-                field.setName(fieldName);
-                ExecutableElement getter = findGetter(typeElement, variableElement);
-                ExecutableElement setter = findSetter(typeElement, variableElement);
-                boolean isFieldVisible = variableElement.getModifiers().contains(Modifier.PUBLIC)
-                        || variableElement.getModifiers().size() == 0; //default
-
-                if ((getter == null || setter == null) && !isFieldVisible && !classDefinition.isHasLombokAnnotation()) {
-                    error(variableElement, "Getter / Setter method not found for field: " + fieldName);
-                    continue;
+                Field field = processField(typeElement, classDefinition, variableElement, index++);
+                if (field != null) {
+                    classDefinition.getFields().add(field);
                 }
-
-                TypeName typeName = TypeName.get(variableElement.asType());
-                FieldType fieldType = null;
-                try {
-                    fieldType = detectFieldType(typeName, variableElement.asType());
-                } catch (NotSupportedException e) {
-                    error(variableElement, e.getMessage());
-                }
-                field.setFieldType(fieldType);
-
-                if (getter != null && setter != null) {
-                    field.setHashGetter(true);
-                    field.setGetterName(getter.getSimpleName().toString());
-                } else if (classDefinition.isHasLombokAnnotation()) {
-                    field.setHashGetter(true);
-                    if (Type.BOOL.equals(field.getFieldType().getType())) {
-                        if (JavaType.BOOLEAN.equals(field.getFieldType().getJavaType())) {
-                            field.setGetterName("is" + capitalize(fieldName));
-                        } else {
-                            field.setGetterName("get" + capitalize(fieldName));
-                        }
-                    } else {
-                        field.setGetterName("get" + capitalize(fieldName));
-                    }
-                }
-
-                Enc encodingField = variableElement.getAnnotation(Enc.class);
-                if (encodingField != null && encodingField.value() != null) {
-                    field.getFieldType().setEncoding(encodingField.value());
-                }
-
-                classDefinition.getFields().add(field);
             }
         }
-
-        return classDefinition;
     }
 
-    private int getAlternative(String fieldName) {
-        Optional<TypeElement> first = typeElements.stream().filter(typeElement -> typeElement.getSimpleName().toString().toLowerCase().equals(fieldName.toLowerCase())).findFirst();
-        if(first.isPresent()) {
-            TypeElement typeElement = first.get();
-            return typeElement.getAnnotation(Constr.class).alternative();
-        } else {
-            return 0;
+    private Field processField(TypeElement typeElement, ClassDefinition classDefinition,
+                               VariableElement variableElement, int index) {
+        String fieldName = variableElement.getSimpleName().toString();
+        ExecutableElement getter = findGetter(typeElement, variableElement);
+        ExecutableElement setter = findSetter(typeElement, variableElement);
+        boolean isFieldVisible = variableElement.getModifiers().contains(Modifier.PUBLIC)
+                || variableElement.getModifiers().isEmpty();
+
+        if ((getter == null || setter == null) && !isFieldVisible && !classDefinition.isHasLombokAnnotation()) {
+            error(variableElement, "Getter / Setter method not found for field: " + fieldName);
+            return null;
+        }
+
+        Field field = new Field();
+        field.setIndex(index);
+        field.setName(fieldName);
+
+        TypeName typeName = TypeName.get(variableElement.asType());
+        try {
+            field.setFieldType(detectFieldType(typeName, variableElement.asType()));
+        } catch (NotSupportedException e) {
+            error(variableElement, e.getMessage());
+        }
+
+        resolveGetterName(field, getter, setter, classDefinition, fieldName);
+
+        Enc encodingField = variableElement.getAnnotation(Enc.class);
+        if (encodingField != null && encodingField.value() != null) {
+            field.getFieldType().setEncoding(encodingField.value());
+        }
+
+        return field;
+    }
+
+    private void resolveGetterName(Field field, ExecutableElement getter, ExecutableElement setter,
+                                   ClassDefinition classDefinition, String fieldName) {
+        if (getter != null && setter != null) {
+            field.setHashGetter(true);
+            field.setGetterName(getter.getSimpleName().toString());
+        } else if (classDefinition.isHasLombokAnnotation()) {
+            field.setHashGetter(true);
+            if (Type.BOOL.equals(field.getFieldType().getType())
+                    && JavaType.BOOLEAN.equals(field.getFieldType().getJavaType())) {
+                field.setGetterName("is" + capitalize(fieldName));
+            } else {
+                field.setGetterName("get" + capitalize(fieldName));
+            }
         }
     }
 
@@ -423,10 +424,6 @@ public class ClassDefinitionGenerator {
         return modelPackage + ".converter";
     }
 
-    private static String getImplPackageName(String modelPackage) {
-        return modelPackage + ".impl";
-    }
-
     private void processEnum(TypeElement typeElement, ClassDefinition classDefinition) {
         // Log that we found an enum
        log.debug("Found enum: " + typeElement.getQualifiedName());
@@ -444,4 +441,5 @@ public class ClassDefinitionGenerator {
 
         classDefinition.setEnumValues(enumValues);
     }
+
 }
