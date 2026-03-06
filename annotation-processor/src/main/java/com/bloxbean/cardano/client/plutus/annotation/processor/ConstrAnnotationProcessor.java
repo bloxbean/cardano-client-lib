@@ -40,9 +40,7 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        Set<String> annotataions = new LinkedHashSet<String>();
-        annotataions.add(Constr.class.getCanonicalName());
-        return annotataions;
+        return Set.of(Constr.class.getCanonicalName());
     }
 
     @Override
@@ -87,10 +85,10 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
                     //check if the class implements any known Constr interface
                     var interfaces = typeElement.getInterfaces();
                     for (TypeMirror typeMirror : interfaces) {
-                        TypeElement interfaceElement = (TypeElement) processingEnv.getTypeUtils().asElement(typeMirror);
-                        if(interfaceElements.contains(interfaceElement)) {
-                            List<ClassDefinition> constructors = interfaceToConstructorsMap.computeIfAbsent(interfaceElement, k -> new ArrayList<>());
-                            constructors.add(classDefinition);
+                        if (processingEnv.getTypeUtils().asElement(typeMirror) instanceof TypeElement interfaceElement
+                                && interfaceElements.contains(interfaceElement)) {
+                            interfaceToConstructorsMap.computeIfAbsent(interfaceElement, k -> new ArrayList<>())
+                                    .add(classDefinition);
                         }
                     }
 

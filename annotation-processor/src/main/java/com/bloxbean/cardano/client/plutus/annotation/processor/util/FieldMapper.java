@@ -43,8 +43,7 @@ public final class FieldMapper {
             ft.setFqTypeName(fs.type.toString());
             ft.setType(Type.CONSTRUCTOR);
             ft.setJavaType(new JavaType(fs.type.toString(), true));
-            if (fs.type instanceof ClassName) {
-                ClassName cn = (ClassName) fs.type;
+            if (fs.type instanceof ClassName cn) {
                 boolean isIface = isInterface.test(cn.packageName(), cn.simpleName());
                 ft.setConverterClassFqn(ClassDefinitionGenerator.resolveConverterFqn(cn, isIface));
             }

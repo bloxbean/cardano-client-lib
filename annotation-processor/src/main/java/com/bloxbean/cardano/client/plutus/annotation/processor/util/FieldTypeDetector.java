@@ -44,6 +44,7 @@ public final class FieldTypeDetector {
         FieldType fieldType = new FieldType();
         fieldType.setFqTypeName(typeName.toString());
 
+        // Simple (non-generic) types
         if (typeName.equals(TypeName.get(Long.class))) {
             fieldType.setType(Type.INTEGER);
             fieldType.setJavaType(JavaType.LONG_OBJECT);
@@ -74,64 +75,55 @@ public final class FieldTypeDetector {
         } else if (typeName.equals(TypeName.get(PlutusData.class))) {
             fieldType.setType(Type.PLUTUSDATA);
             fieldType.setJavaType(JavaType.PLUTUSDATA);
-        } else if (isParameterizedType(typeName, List.class)) {
-            ParameterizedTypeName ptn = (ParameterizedTypeName) typeName;
+
+        // Parameterized collection/optional types
+        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(List.class))) {
             fieldType.setType(Type.LIST);
             fieldType.setJavaType(JavaType.LIST);
             fieldType.setCollection(true);
             fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(0)));
-        } else if (isParameterizedType(typeName, Map.class)) {
-            ParameterizedTypeName ptn = (ParameterizedTypeName) typeName;
+        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Map.class))) {
             fieldType.setType(Type.MAP);
             fieldType.setJavaType(JavaType.MAP);
             fieldType.setCollection(true);
             fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(0)));
             fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(1)));
-        } else if (isParameterizedType(typeName, Optional.class)) {
-            ParameterizedTypeName ptn = (ParameterizedTypeName) typeName;
+        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Optional.class))) {
             fieldType.setType(Type.OPTIONAL);
             fieldType.setJavaType(JavaType.OPTIONAL);
             fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(0)));
-        } else if (isParameterizedType(typeName, Pair.class)) {
-            ParameterizedTypeName ptn = (ParameterizedTypeName) typeName;
+
+        // Parameterized tuple types
+        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Pair.class))) {
             fieldType.setType(Type.PAIR);
             fieldType.setJavaType(JavaType.PAIR);
-            fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(0)));
-            fieldType.getGenericTypes().add(fromTypeNameOrConstructor(ptn.typeArguments.get(1)));
-        } else if (typeName.equals(ClassName.get(Pair.class))) {
-            fieldType.setType(Type.CONSTRUCTOR);
-            fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setRawDataType(true);
-        } else if (isParameterizedType(typeName, Triple.class)) {
-            ParameterizedTypeName ptn = (ParameterizedTypeName) typeName;
+            for (TypeName arg : ptn.typeArguments) {
+                fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
+            }
+        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Triple.class))) {
             fieldType.setType(Type.TRIPLE);
             fieldType.setJavaType(JavaType.TRIPLE);
             for (TypeName arg : ptn.typeArguments) {
                 fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
             }
-        } else if (typeName.equals(ClassName.get(Triple.class))) {
-            fieldType.setType(Type.CONSTRUCTOR);
-            fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setRawDataType(true);
-        } else if (isParameterizedType(typeName, Quartet.class)) {
-            ParameterizedTypeName ptn = (ParameterizedTypeName) typeName;
+        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Quartet.class))) {
             fieldType.setType(Type.QUARTET);
             fieldType.setJavaType(JavaType.QUARTET);
             for (TypeName arg : ptn.typeArguments) {
                 fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
             }
-        } else if (typeName.equals(ClassName.get(Quartet.class))) {
-            fieldType.setType(Type.CONSTRUCTOR);
-            fieldType.setJavaType(new JavaType(typeName.toString(), true));
-            fieldType.setRawDataType(true);
-        } else if (isParameterizedType(typeName, Quintet.class)) {
-            ParameterizedTypeName ptn = (ParameterizedTypeName) typeName;
+        } else if (typeName instanceof ParameterizedTypeName ptn && ptn.rawType.equals(ClassName.get(Quintet.class))) {
             fieldType.setType(Type.QUINTET);
             fieldType.setJavaType(JavaType.QUINTET);
             for (TypeName arg : ptn.typeArguments) {
                 fieldType.getGenericTypes().add(fromTypeNameOrConstructor(arg));
             }
-        } else if (typeName.equals(ClassName.get(Quintet.class))) {
+
+        // Raw (unparameterized) tuple types — treated as opaque PlutusData
+        } else if (typeName.equals(ClassName.get(Pair.class))
+                || typeName.equals(ClassName.get(Triple.class))
+                || typeName.equals(ClassName.get(Quartet.class))
+                || typeName.equals(ClassName.get(Quintet.class))) {
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType(typeName.toString(), true));
             fieldType.setRawDataType(true);
@@ -157,10 +149,5 @@ public final class FieldTypeDetector {
         fieldType.setType(Type.CONSTRUCTOR);
         fieldType.setJavaType(new JavaType(typeName.toString(), true));
         return fieldType;
-    }
-
-    private static boolean isParameterizedType(TypeName typeName, Class<?> rawType) {
-        return typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(rawType));
     }
 }

@@ -171,25 +171,23 @@ public class ClassDefinitionGenerator {
         }
 
         // TypeMirror-based List/Map subtype check (e.g., ArrayList<T> implements List<T>)
-        if (typeName instanceof ParameterizedTypeName && isAssignableToList(typeMirror)) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
+        if (typeName instanceof ParameterizedTypeName ptn && isAssignableToList(typeMirror)) {
             fieldType = new FieldType();
             fieldType.setFqTypeName(typeName.toString());
             fieldType.setType(Type.LIST);
             fieldType.setJavaType(JavaType.LIST);
             fieldType.setCollection(true);
-            fieldType.getGenericTypes().add(detectFieldType(parameterizedTypeName.typeArguments.get(0), null));
+            fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
             return fieldType;
         }
-        if (typeName instanceof ParameterizedTypeName && isAssignableToMap(typeMirror)) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
+        if (typeName instanceof ParameterizedTypeName ptn && isAssignableToMap(typeMirror)) {
             fieldType = new FieldType();
             fieldType.setFqTypeName(typeName.toString());
             fieldType.setType(Type.MAP);
             fieldType.setJavaType(JavaType.MAP);
             fieldType.setCollection(true);
-            fieldType.getGenericTypes().add(detectFieldType(parameterizedTypeName.typeArguments.get(0), null));
-            fieldType.getGenericTypes().add(detectFieldType(parameterizedTypeName.typeArguments.get(1), null));
+            fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
+            fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(1), null));
             return fieldType;
         }
 
@@ -203,7 +201,7 @@ public class ClassDefinitionGenerator {
             fieldType.setDataType(isDataType(typeMirror));
 
             // Resolve converter FQN, checking if the type is an interface
-            if (typeName instanceof ClassName) {
+            if (typeName instanceof ClassName className) {
                 boolean isIface = false;
                 if (typeElements != null) {
                     for (TypeElement te : typeElements) {
@@ -216,7 +214,7 @@ public class ClassDefinitionGenerator {
                     }
                 }
                 fieldType.setConverterClassFqn(
-                        resolveConverterFqn((ClassName) typeName, isIface));
+                        resolveConverterFqn(className, isIface));
             }
             return fieldType;
         }
@@ -432,8 +430,8 @@ public class ClassDefinitionGenerator {
         List<String> enumValues = new ArrayList<>();
         // Find all enum constants
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
-            if (enclosedElement.getKind() == ElementKind.ENUM_CONSTANT) {
-                VariableElement variableElement = (VariableElement) enclosedElement;
+            if (enclosedElement instanceof VariableElement variableElement
+                    && enclosedElement.getKind() == ElementKind.ENUM_CONSTANT) {
                 log.debug("Enum constant: " + variableElement.getSimpleName());
                 enumValues.add(variableElement.getSimpleName().toString());
             }
