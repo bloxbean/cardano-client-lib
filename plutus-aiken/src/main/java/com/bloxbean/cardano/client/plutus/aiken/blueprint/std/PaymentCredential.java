@@ -74,8 +74,7 @@ public interface PaymentCredential extends Data<PaymentCredential> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof VerificationKey)) return false;
-            VerificationKey that = (VerificationKey) o;
+            if (!(o instanceof VerificationKey that)) return false;
             return Arrays.equals(hash, that.hash);
         }
 
@@ -114,8 +113,7 @@ public interface PaymentCredential extends Data<PaymentCredential> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Script)) return false;
-            Script that = (Script) o;
+            if (!(o instanceof Script that)) return false;
             return Arrays.equals(hash, that.hash);
         }
 

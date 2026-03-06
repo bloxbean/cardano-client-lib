@@ -49,8 +49,7 @@ public interface ReferencedCredential extends Data<ReferencedCredential> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Inline)) return false;
-            Inline inline = (Inline) o;
+            if (!(o instanceof Inline inline)) return false;
             return credential.equals(inline.credential);
         }
 
@@ -101,8 +100,7 @@ public interface ReferencedCredential extends Data<ReferencedCredential> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Pointer)) return false;
-            Pointer pointer = (Pointer) o;
+            if (!(o instanceof Pointer pointer)) return false;
             return slotNumber.equals(pointer.slotNumber)
                     && transactionIndex.equals(pointer.transactionIndex)
                     && certificateIndex.equals(pointer.certificateIndex);

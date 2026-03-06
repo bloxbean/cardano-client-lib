@@ -105,12 +105,10 @@ public class ClassDefinitionGenerator {
 
         int index = 0;
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
-            if (enclosedElement instanceof VariableElement &&
+            if (enclosedElement instanceof VariableElement variableElement &&
                     enclosedElement.getAnnotation(PlutusIgnore.class) == null) {
                 Field field = new Field();
                 field.setIndex(index++);
-
-                VariableElement variableElement = (VariableElement) enclosedElement;
                 String fieldName = variableElement.getSimpleName().toString();
                 field.setName(fieldName);
                 ExecutableElement getter = findGetter(typeElement, variableElement);
@@ -278,8 +276,7 @@ public class ClassDefinitionGenerator {
         }
 
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
-            if (enclosedElement instanceof ExecutableElement) {
-                ExecutableElement executableElement = (ExecutableElement) enclosedElement;
+            if (enclosedElement instanceof ExecutableElement executableElement) {
                 if ((executableElement.getSimpleName().toString().equals(getterMethodName) ||
                         executableElement.getSimpleName().toString().equals(altGetterMethodName)) &&
                         executableElement.getModifiers().contains(Modifier.PUBLIC) &&
@@ -297,8 +294,7 @@ public class ClassDefinitionGenerator {
         String fieldName = variableElement.getSimpleName().toString();
         String setterName = "set" + capitalize(fieldName.toString());
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
-            if (enclosedElement instanceof ExecutableElement) {
-                ExecutableElement executableElement = (ExecutableElement) enclosedElement;
+            if (enclosedElement instanceof ExecutableElement executableElement) {
                 if (executableElement.getSimpleName().toString().equals(setterName) &&
                         executableElement.getModifiers().contains(Modifier.PUBLIC) &&
                         executableElement.getParameters().size() == 1 &&
@@ -334,8 +330,7 @@ public class ClassDefinitionGenerator {
         if (typeMirror == null) return false;
         Types typeUtils = processingEnvironment.getTypeUtils();
         Element element = typeUtils.asElement(typeMirror);
-        if (!(element instanceof TypeElement)) return false;
-        TypeElement typeElement = (TypeElement) element;
+        if (!(element instanceof TypeElement typeElement)) return false;
         // @Constr-annotated classes are generated model classes, not shared types
         if (typeElement.getAnnotation(Constr.class) != null) return false;
         TypeElement dataInterface = elements.getTypeElement(DATA_INTERFACE_FQN);

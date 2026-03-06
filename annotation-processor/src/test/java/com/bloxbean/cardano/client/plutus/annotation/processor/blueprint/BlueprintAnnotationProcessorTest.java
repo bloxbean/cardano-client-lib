@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.stream.Collectors;
 import javax.tools.JavaFileObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -437,7 +436,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             // Verify that SOME classes were generated (concrete types)
             assertThat(generatedSources)
@@ -465,7 +464,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertThat(generatedSources)
                     .as("Should generate classes despite nested generic definitions")
@@ -493,7 +492,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertThat(generatedSources)
                     .as("Should generate Cardano types and custom types")
@@ -527,7 +526,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertThat(generatedSources)
                     .as("Should generate concrete types (Item, StorageData) but not generic wrappers")
@@ -639,7 +638,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             // Interface converters
             assertThat(generatedSources)
