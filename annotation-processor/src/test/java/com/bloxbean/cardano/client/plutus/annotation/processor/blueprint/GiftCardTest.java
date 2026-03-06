@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.ConstrAnnotationProcessor;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
 import org.junit.jupiter.api.BeforeAll;
@@ -27,7 +28,7 @@ public class GiftCardTest {
     @BeforeAll
     static void setUp() {
         compilation = javac()
-                .withProcessors(new BlueprintAnnotationProcessor())
+                .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                 .compile(JavaFileObjects.forResource("blueprint/GiftCard.java"));
     }
 

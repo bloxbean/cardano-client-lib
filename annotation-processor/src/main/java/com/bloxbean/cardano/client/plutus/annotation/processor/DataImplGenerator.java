@@ -22,7 +22,7 @@ public class DataImplGenerator implements CodeGenerator {
     public TypeSpec generate(ClassDefinition classDef) {
         String dataImplClassName = classDef.getImplClassName();
 
-        ClassName converterClass = ClassName.bestGuess(classDef.getConverterPackageName() + "." + classDef.getConverterClassName());
+        ClassName converterClass = classDef.resolveConverterClassName();
         // Use objType for correct nested class resolution (e.g., pkg.Credential.VerificationKey)
         ClassName dataClass = ClassName.bestGuess(classDef.getObjType());
         ClassName dataClassImpl = ClassName.bestGuess(classDef.getImplPackageName() + "." + classDef.getImplClassName());
@@ -118,6 +118,9 @@ public class DataImplGenerator implements CodeGenerator {
                                           ClassName dataClassImpl) {
 
         String dataClassFieldName = JavaFileUtil.firstLowerCase(dataClass.simpleName());
+        if (javax.lang.model.SourceVersion.isKeyword(dataClassFieldName)) {
+            dataClassFieldName = dataClassFieldName + "_";
+        }
         FieldSpec dataClassFieldSpec = FieldSpec.builder(dataClass, dataClassFieldName)
                 .addModifiers(Modifier.PRIVATE)
                 .build();

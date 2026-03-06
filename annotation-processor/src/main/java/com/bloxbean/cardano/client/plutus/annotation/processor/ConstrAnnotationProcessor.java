@@ -40,9 +40,7 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        Set<String> annotataions = new LinkedHashSet<String>();
-        annotataions.add(Constr.class.getCanonicalName());
-        return annotataions;
+        return Set.of(Constr.class.getCanonicalName());
     }
 
     @Override
@@ -82,38 +80,42 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
                     }
 
                     ClassDefinition classDefinition = classDefinitionGenerator.getClassDefinition(typeElement);
+                    boolean isNestedInInterface = classDefinition.getEnclosingInterfaceName() != null;
 
                     //check if the class implements any known Constr interface
                     var interfaces = typeElement.getInterfaces();
                     for (TypeMirror typeMirror : interfaces) {
-                        TypeElement interfaceElement = (TypeElement) processingEnv.getTypeUtils().asElement(typeMirror);
-                        if(interfaceElements.contains(interfaceElement)) {
-                            List<ClassDefinition> constructors = interfaceToConstructorsMap.computeIfAbsent(interfaceElement, k -> new ArrayList<>());
-                            constructors.add(classDefinition);
+                        if (processingEnv.getTypeUtils().asElement(typeMirror) instanceof TypeElement interfaceElement
+                                && interfaceElements.contains(interfaceElement)) {
+                            interfaceToConstructorsMap.computeIfAbsent(interfaceElement, k -> new ArrayList<>())
+                                    .add(classDefinition);
                         }
                     }
 
-                    //Handle enum first
-                    //Only need to create Converter for now
-                    if (classDefinition.isEnum()) {
-                        serializerCodeGenerator.generateEnumConverter(classDefinition)
-                                        .ifPresent(typeSpec -> {
-                                            JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec,
-                                                    classDefinition.getConverterClassName(), processingEnv);
-                                        });
-                    } else {
-                        //Generate converter class
-                        try {
-                            TypeSpec typeSpec = serializerCodeGenerator.generate(classDefinition);
-                            JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec, classDefinition.getConverterClassName(), processingEnv);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            log.error("Failed to generate serialization class: " + e.getMessage(), e);
-                            error(typeElement, "Failed to generate serialization class for " + typeElement.getQualifiedName());
+                    // Skip converter generation for nested variants — already nested in Phase 1
+                    if (!isNestedInInterface) {
+                        //Handle enum first
+                        //Only need to create Converter for now
+                        if (classDefinition.isEnum()) {
+                            serializerCodeGenerator.generateEnumConverter(classDefinition)
+                                            .ifPresent(typeSpec -> {
+                                                JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec,
+                                                        classDefinition.getConverterClassName(), processingEnv);
+                                            });
+                        } else {
+                            //Generate converter class
+                            try {
+                                TypeSpec typeSpec = serializerCodeGenerator.generate(classDefinition);
+                                JavaFileUtil.createJavaFile(classDefinition.getConverterPackageName(), typeSpec, classDefinition.getConverterClassName(), processingEnv);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                log.error("Failed to generate serialization class: " + e.getMessage(), e);
+                                error(typeElement, "Failed to generate serialization class for " + typeElement.getQualifiedName());
+                            }
                         }
                     }
 
-                    //Generate Data Impl class
+                    //Generate Data Impl class (always, even for nested variants)
                     try {
                         TypeSpec typeSpec = dataImplGenerator.generate(classDefinition);
                         JavaFileUtil.createJavaFile(classDefinition.getImplPackageName(), typeSpec, classDefinition.getImplClassName(), processingEnv);
@@ -131,6 +133,13 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
         for (Map.Entry<TypeElement, List<ClassDefinition>> entry : interfaceToConstructorsMap.entrySet()) {
             TypeElement interfaceElement = entry.getKey();
             List<ClassDefinition> constructors = entry.getValue();
+
+            // Skip dispatch converter generation if variant converters are already nested (Phase 1)
+            boolean convertersNested = constructors.stream()
+                    .anyMatch(c -> c.getEnclosingInterfaceName() != null);
+            if (convertersNested) {
+                continue;
+            }
 
             ClassDefinition classDefinition = classDefinitionGenerator.getClassDefinition(interfaceElement);
 

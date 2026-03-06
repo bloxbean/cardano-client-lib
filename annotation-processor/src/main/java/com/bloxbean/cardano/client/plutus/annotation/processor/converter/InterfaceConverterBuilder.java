@@ -60,10 +60,7 @@ public class InterfaceConverterBuilder {
                 .addParameter(ConstrPlutusData.class, "constr");
 
         for (ClassDefinition constructor : constructors) {
-            String converterClassName = constructor.getConverterClassName();
-            String converterPkgName = constructor.getConverterPackageName();
-
-            ClassName constrConverterTypeName = ClassName.get(converterPkgName, converterClassName);
+            ClassName constrConverterTypeName = constructor.resolveConverterClassName();
 
             fromPlutusDataMethod.beginControlFlow("if(constr.getAlternative() == $L)", constructor.getAlternative())
                     .addStatement("return new $T().fromPlutusData(constr)", constrConverterTypeName)
@@ -86,10 +83,8 @@ public class InterfaceConverterBuilder {
         toPlutusDataMethod.addStatement("$T.requireNonNull($L, \"$L cannot be null\")", Objects.class, paramName, paramName);
 
         for (ClassDefinition constructor : constructors) {
-            String converterClassName = constructor.getConverterClassName();
-            String converterPkgName = constructor.getConverterPackageName();
-
-            ClassName constrConverterTypeName = ClassName.get(converterPkgName, converterClassName);
+            ClassName constrConverterTypeName = constructor.resolveConverterClassName();
+            // Use objType for correct nested class resolution (e.g., Credential.VerificationKey)
             ClassName constrTypeName = ClassName.bestGuess(constructor.getObjType());
 
             toPlutusDataMethod.beginControlFlow("if($L instanceof $T)", paramName, constrTypeName)

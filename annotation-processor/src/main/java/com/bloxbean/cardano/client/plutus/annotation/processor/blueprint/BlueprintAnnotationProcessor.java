@@ -112,6 +112,8 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
             validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
 
+            fieldSpecProcessor.setDefinitions(definitions);
+
             //Create Data classes
             for (Map.Entry<String, BlueprintSchema> definition: definitions.entrySet()) {
                 String key = definition.getKey();

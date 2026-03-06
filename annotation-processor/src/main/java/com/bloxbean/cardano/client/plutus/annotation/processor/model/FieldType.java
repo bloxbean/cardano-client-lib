@@ -30,6 +30,16 @@ public class FieldType {
     private boolean rawDataType;
 
     /**
+     * Fully-qualified converter class name for this type (e.g.,
+     * {@code "com.example.Credential.CredentialConverter"} for an interface type,
+     * {@code "com.example.converter.AddressConverter"} for a top-level type).
+     * <p>
+     * When set, {@code getConverterClassFromField} uses this directly via
+     * {@code ClassName.bestGuess()} instead of applying heuristic rules.
+     */
+    private String converterClassFqn;
+
+    /**
      * {@code true} when the type implements {@code Data<T>} — a constr-based shared
      * type that has its own {@code toPlutusData()} instance method and
      * {@code fromPlutusData()} static method.

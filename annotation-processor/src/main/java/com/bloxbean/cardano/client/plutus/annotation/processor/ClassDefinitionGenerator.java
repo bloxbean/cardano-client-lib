@@ -5,11 +5,7 @@ import com.bloxbean.cardano.client.plutus.annotation.Enc;
 import com.bloxbean.cardano.client.plutus.annotation.PlutusIgnore;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.NotSupportedException;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
-import com.bloxbean.cardano.client.plutus.spec.PlutusData;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Pair;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Quartet;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Quintet;
-import com.bloxbean.cardano.client.plutus.blueprint.type.Triple;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.FieldTypeDetector;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
@@ -22,14 +18,10 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.CONVERTER;
-import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.IMPL;
 
 /**
  * Generates ClassDefinition from the given TypeElement
@@ -53,41 +45,46 @@ public class ClassDefinitionGenerator {
         String packageName = processingEnvironment.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
 
-        // For nested classes inside interfaces, prefix converter/impl names with enclosing type
-        // to avoid collisions (e.g., Credential.VerificationKey → CredentialVerificationKeyConverter)
-        String prefix = className;
-        Element enclosing = typeElement.getEnclosingElement();
-        if (enclosing != null && enclosing.getKind().isInterface()) {
-            String enclosingName = ((TypeElement) enclosing).getSimpleName().toString();
-            prefix = enclosingName + className;
-        }
-
-        ClassDefinition classDefinition = new ClassDefinition();
-        classDefinition.setPackageName(packageName);
-        classDefinition.setDataClassName(className);
-        classDefinition.setImplClassName(prefix + IMPL);
-        classDefinition.setConverterClassName(prefix + CONVERTER);
+        ClassDefinition classDefinition = createClassDefinition(typeElement, packageName, className);
         classDefinition.setObjType(typeElement.asType().toString());
 
         typeElement.getModifiers().stream().filter(modifier -> modifier.equals(Modifier.ABSTRACT))
                 .findFirst().ifPresent(modifier -> classDefinition.setAbstract(true));
 
-        //If typeElement is enum, get emum values
-        if(typeElement.getKind() == ElementKind.ENUM) {
+        if (typeElement.getKind() == ElementKind.ENUM) {
             processEnum(typeElement, classDefinition);
         }
 
-        classDefinition.setConverterPackageName(getConverterPackageName(packageName));
-        classDefinition.setImplPackageName(getImplPackageName(packageName));
+        detectLombokAnnotations(typeElement, classDefinition);
 
-        Class lombokDataClazz;
-        Class lombokGetterClazz;
-        Class lombokSetterClazz;
+        Constr plutusConstr = typeElement.getAnnotation(Constr.class);
+        classDefinition.setAlternative(plutusConstr.alternative());
 
+        processFields(typeElement, classDefinition);
+
+        return classDefinition;
+    }
+
+    private ClassDefinition createClassDefinition(TypeElement typeElement, String packageName, String className) {
+        Element enclosing = typeElement.getEnclosingElement();
+        if (enclosing != null && enclosing.getKind().isInterface()) {
+            String enclosingName = enclosing.getSimpleName().toString();
+
+            return ClassDefinition.forNestedVariant(packageName, enclosingName, className, 0);
+        }
+
+        if (typeElement.getKind().isInterface()) {
+            return ClassDefinition.forInterface(packageName, className);
+        }
+
+        return ClassDefinition.forTopLevel(packageName, className);
+    }
+
+    private void detectLombokAnnotations(TypeElement typeElement, ClassDefinition classDefinition) {
         try {
-            lombokDataClazz = Class.forName("lombok.Data");
-            lombokGetterClazz = Class.forName("lombok.Getter");
-            lombokSetterClazz = Class.forName("lombok.Setter");
+            Class lombokDataClazz = Class.forName("lombok.Data");
+            Class lombokGetterClazz = Class.forName("lombok.Getter");
+            Class lombokSetterClazz = Class.forName("lombok.Setter");
 
             boolean lombokData = typeElement.getAnnotation(lombokDataClazz) != null;
             boolean lombokGetter = typeElement.getAnnotation(lombokGetterClazz) != null;
@@ -98,160 +95,146 @@ public class ClassDefinitionGenerator {
             }
         } catch (Exception e) {
         }
+    }
 
-        Constr plutusConstr = typeElement.getAnnotation(Constr.class);
-        int alternative = plutusConstr.alternative();
-        classDefinition.setAlternative(alternative);
-
+    private void processFields(TypeElement typeElement, ClassDefinition classDefinition) {
         int index = 0;
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
             if (enclosedElement instanceof VariableElement variableElement &&
                     enclosedElement.getAnnotation(PlutusIgnore.class) == null) {
-                Field field = new Field();
-                field.setIndex(index++);
-                String fieldName = variableElement.getSimpleName().toString();
-                field.setName(fieldName);
-                ExecutableElement getter = findGetter(typeElement, variableElement);
-                ExecutableElement setter = findSetter(typeElement, variableElement);
-                boolean isFieldVisible = variableElement.getModifiers().contains(Modifier.PUBLIC)
-                        || variableElement.getModifiers().size() == 0; //default
-
-                if ((getter == null || setter == null) && !isFieldVisible && !classDefinition.isHasLombokAnnotation()) {
-                    error(variableElement, "Getter / Setter method not found for field: " + fieldName);
-                    continue;
+                Field field = processField(typeElement, classDefinition, variableElement, index++);
+                if (field != null) {
+                    classDefinition.getFields().add(field);
                 }
-
-                TypeName typeName = TypeName.get(variableElement.asType());
-                FieldType fieldType = null;
-                try {
-                    fieldType = detectFieldType(typeName, variableElement.asType());
-                } catch (NotSupportedException e) {
-                    error(variableElement, e.getMessage());
-                }
-                field.setFieldType(fieldType);
-
-                if (getter != null && setter != null) {
-                    field.setHashGetter(true);
-                    field.setGetterName(getter.getSimpleName().toString());
-                } else if (classDefinition.isHasLombokAnnotation()) {
-                    field.setHashGetter(true);
-                    if (Type.BOOL.equals(field.getFieldType().getType())) {
-                        if (JavaType.BOOLEAN.equals(field.getFieldType().getJavaType())) {
-                            field.setGetterName("is" + capitalize(fieldName));
-                        } else {
-                            field.setGetterName("get" + capitalize(fieldName));
-                        }
-                    } else {
-                        field.setGetterName("get" + capitalize(fieldName));
-                    }
-                }
-
-                Enc encodingField = variableElement.getAnnotation(Enc.class);
-                if (encodingField != null && encodingField.value() != null) {
-                    field.getFieldType().setEncoding(encodingField.value());
-                }
-
-                classDefinition.getFields().add(field);
             }
         }
-
-        return classDefinition;
     }
 
-    private int getAlternative(String fieldName) {
-        Optional<TypeElement> first = typeElements.stream().filter(typeElement -> typeElement.getSimpleName().toString().toLowerCase().equals(fieldName.toLowerCase())).findFirst();
-        if(first.isPresent()) {
-            TypeElement typeElement = first.get();
-            return typeElement.getAnnotation(Constr.class).alternative();
-        } else {
-            return 0;
+    private Field processField(TypeElement typeElement, ClassDefinition classDefinition,
+                               VariableElement variableElement, int index) {
+        String fieldName = variableElement.getSimpleName().toString();
+        ExecutableElement getter = findGetter(typeElement, variableElement);
+        ExecutableElement setter = findSetter(typeElement, variableElement);
+        boolean isFieldVisible = variableElement.getModifiers().contains(Modifier.PUBLIC)
+                || variableElement.getModifiers().isEmpty();
+
+        if ((getter == null || setter == null) && !isFieldVisible && !classDefinition.isHasLombokAnnotation()) {
+            error(variableElement, "Getter / Setter method not found for field: " + fieldName);
+            return null;
+        }
+
+        Field field = new Field();
+        field.setIndex(index);
+        field.setName(fieldName);
+
+        TypeName typeName = TypeName.get(variableElement.asType());
+        try {
+            field.setFieldType(detectFieldType(typeName, variableElement.asType()));
+        } catch (NotSupportedException e) {
+            error(variableElement, e.getMessage());
+        }
+
+        resolveGetterName(field, getter, setter, classDefinition, fieldName);
+
+        Enc encodingField = variableElement.getAnnotation(Enc.class);
+        if (encodingField != null && encodingField.value() != null) {
+            field.getFieldType().setEncoding(encodingField.value());
+        }
+
+        return field;
+    }
+
+    private void resolveGetterName(Field field, ExecutableElement getter, ExecutableElement setter,
+                                   ClassDefinition classDefinition, String fieldName) {
+        if (getter != null && setter != null) {
+            field.setHashGetter(true);
+            field.setGetterName(getter.getSimpleName().toString());
+        } else if (classDefinition.isHasLombokAnnotation()) {
+            field.setHashGetter(true);
+            if (Type.BOOL.equals(field.getFieldType().getType())
+                    && JavaType.BOOLEAN.equals(field.getFieldType().getJavaType())) {
+                field.setGetterName("is" + capitalize(fieldName));
+            } else {
+                field.setGetterName("get" + capitalize(fieldName));
+            }
         }
     }
 
-    private record TypeMapping(Type type, JavaType javaType) {}
-
-    private static final Map<TypeName, TypeMapping> SIMPLE_TYPES = Map.ofEntries(
-            Map.entry(TypeName.get(Long.class),       new TypeMapping(Type.INTEGER, JavaType.LONG_OBJECT)),
-            Map.entry(TypeName.LONG,                  new TypeMapping(Type.INTEGER, JavaType.LONG)),
-            Map.entry(TypeName.get(BigInteger.class),  new TypeMapping(Type.INTEGER, JavaType.BIGINTEGER)),
-            Map.entry(TypeName.get(Integer.class),     new TypeMapping(Type.INTEGER, JavaType.INTEGER)),
-            Map.entry(TypeName.INT,                   new TypeMapping(Type.INTEGER, JavaType.INT)),
-            Map.entry(TypeName.get(String.class),      new TypeMapping(Type.STRING, JavaType.STRING)),
-            Map.entry(TypeName.get(byte[].class),      new TypeMapping(Type.BYTES, JavaType.BYTES)),
-            Map.entry(TypeName.get(Boolean.class),     new TypeMapping(Type.BOOL, JavaType.BOOLEAN_OBJ)),
-            Map.entry(TypeName.BOOLEAN,               new TypeMapping(Type.BOOL, JavaType.BOOLEAN)),
-            Map.entry(TypeName.get(PlutusData.class),  new TypeMapping(Type.PLUTUSDATA, JavaType.PLUTUSDATA))
-    );
-
-    private static final Map<ClassName, TypeMapping> TUPLE_TYPES = Map.of(
-            ClassName.get(Pair.class),    new TypeMapping(Type.PAIR, JavaType.PAIR),
-            ClassName.get(Triple.class),  new TypeMapping(Type.TRIPLE, JavaType.TRIPLE),
-            ClassName.get(Quartet.class), new TypeMapping(Type.QUARTET, JavaType.QUARTET),
-            ClassName.get(Quintet.class), new TypeMapping(Type.QUINTET, JavaType.QUINTET)
-    );
-
     private FieldType detectFieldType(TypeName typeName, TypeMirror typeMirror) throws NotSupportedException {
-        FieldType fieldType = new FieldType();
-        fieldType.setFqTypeName(typeName.toString());
-
-        // Simple (non-generic) types
-        TypeMapping simple = SIMPLE_TYPES.get(typeName);
-        if (simple != null) {
-            fieldType.setType(simple.type());
-            fieldType.setJavaType(simple.javaType());
+        FieldType fieldType = FieldTypeDetector.fromTypeName(typeName);
+        if (fieldType != null) {
+            // FieldTypeDetector doesn't have TypeMirror/typeElements context,
+            // so fix up CONSTRUCTOR-typed generic arguments (e.g., List<Script>
+            // where Script is an interface with nested converters)
+            FieldTypeDetector.resolveConverterFqns(fieldType, this::isInterfaceType);
             return fieldType;
         }
 
-        // Parameterized types
-        if (typeName instanceof ParameterizedTypeName ptn) {
-            ClassName rawType = ptn.rawType;
-
-            if (rawType.equals(ClassName.get(List.class)) || isAssignableToList(typeMirror)) {
-                fieldType.setType(Type.LIST);
-                fieldType.setJavaType(JavaType.LIST);
-                fieldType.setCollection(true);
-                fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
-                return fieldType;
-            }
-
-            if (rawType.equals(ClassName.get(Map.class)) || isAssignableToMap(typeMirror)) {
-                fieldType.setType(Type.MAP);
-                fieldType.setJavaType(JavaType.MAP);
-                fieldType.setCollection(true);
-                fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
-                fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(1), null));
-                return fieldType;
-            }
-
-            if (rawType.equals(ClassName.get(Optional.class))) {
-                fieldType.setType(Type.OPTIONAL);
-                fieldType.setJavaType(JavaType.OPTIONAL);
-                fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
-                return fieldType;
-            }
-
-            // Tuple types (Pair, Triple, Quartet, Quintet)
-            TypeMapping tuple = TUPLE_TYPES.get(rawType);
-            if (tuple != null) {
-                fieldType.setType(tuple.type());
-                fieldType.setJavaType(tuple.javaType());
-                for (TypeName arg : ptn.typeArguments) {
-                    fieldType.getGenericTypes().add(detectFieldType(arg, null));
-                }
-                return fieldType;
-            }
+        // TypeMirror-based List/Map subtype check (e.g., ArrayList<T> implements List<T>)
+        if (typeName instanceof ParameterizedTypeName ptn && isAssignableToList(typeMirror)) {
+            fieldType = new FieldType();
+            fieldType.setFqTypeName(typeName.toString());
+            fieldType.setType(Type.LIST);
+            fieldType.setJavaType(JavaType.LIST);
+            fieldType.setCollection(true);
+            fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
+            return fieldType;
+        }
+        if (typeName instanceof ParameterizedTypeName ptn && isAssignableToMap(typeMirror)) {
+            fieldType = new FieldType();
+            fieldType.setFqTypeName(typeName.toString());
+            fieldType.setType(Type.MAP);
+            fieldType.setJavaType(JavaType.MAP);
+            fieldType.setCollection(true);
+            fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
+            fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(1), null));
+            return fieldType;
         }
 
-        // Constructor/custom type fallback
+        // CONSTRUCTOR fallback — needs TypeMirror for shared type checks
         if (isSupportedType(typeName, typeMirror)) {
+            fieldType = new FieldType();
+            fieldType.setFqTypeName(typeName.toString());
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType(typeName.toString(), true));
             fieldType.setRawDataType(isRawDataType(typeMirror));
             fieldType.setDataType(isDataType(typeMirror));
+
+            // Resolve converter FQN, checking if the type is an interface
+            if (typeName instanceof ClassName className) {
+                boolean isIface = false;
+                if (typeElements != null) {
+                    for (TypeElement te : typeElements) {
+                        boolean match = (typeMirror != null && te.asType().equals(typeMirror))
+                                || te.getQualifiedName().toString().equals(typeName.toString());
+                        if (match && te.getKind().isInterface()) {
+                            isIface = true;
+                            break;
+                        }
+                    }
+                }
+                fieldType.setConverterClassFqn(
+                        resolveConverterFqn(className, isIface));
+            }
             return fieldType;
         }
 
         throw new NotSupportedException("Type not supported: " + typeName);
+    }
+
+    /**
+     * Checks if a type identified by (packageName, simpleName) is an interface
+     * in the current set of {@code @Constr}-annotated type elements.
+     */
+    private boolean isInterfaceType(String packageName, String simpleName) {
+        if (typeElements == null) return false;
+        String fqn = packageName + "." + simpleName;
+        for (TypeElement te : typeElements) {
+            if (te.getQualifiedName().toString().equals(fqn) && te.getKind().isInterface()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isSupportedType(TypeName typeName, TypeMirror typeMirror) {
@@ -374,21 +357,57 @@ public class ClassDefinitionGenerator {
             return false;
     }
 
+    /**
+     * Resolves the fully-qualified converter class name for a given type.
+     *
+     * @param typeClass   the ClassName of the type
+     * @param isInterface true if the type is an interface with nested converters
+     * @return the FQN of the converter (e.g., "com.example.Credential.CredentialConverter")
+     */
+    public static String resolveConverterFqn(ClassName typeClass, boolean isInterface) {
+        if (typeClass.simpleNames().size() > 1) {
+            // Nested variant type (e.g., Credential.VerificationKey):
+            // converter is a sibling nested class in the parent interface
+            String parentName = typeClass.simpleNames().get(0);
+            String variantName = typeClass.simpleNames().get(typeClass.simpleNames().size() - 1);
+            return typeClass.packageName() + "." + parentName + "." + variantName + CONVERTER;
+        }
+        if (isInterface) {
+            // Interface type with nested dispatch converter
+            String name = typeClass.simpleName();
+            return typeClass.packageName() + "." + name + "." + name + CONVERTER;
+        }
+        // Top-level type: converter in converter sub-package
+        return getConverterPackageName(typeClass.packageName()) + "." + typeClass.simpleName() + CONVERTER;
+    }
+
     public static ClassName getConverterClassFromField(FieldType fieldType) {
+        // Direct FQN lookup — set at construction time
+        if (fieldType.getConverterClassFqn() != null) {
+            return ClassName.bestGuess(fieldType.getConverterClassFqn());
+        }
+
+        // Defensive fallback: derive from type name
         ClassName fieldClass = ClassName.bestGuess(fieldType.getJavaType().getName());
+
+        if (fieldClass.simpleNames().size() > 1) {
+            // Nested variant type (e.g., Credential.VerificationKey):
+            // converter is a sibling nested class in the parent interface
+            String pkg = fieldClass.packageName();
+            List<String> simpleNames = fieldClass.simpleNames();
+            String parentName = simpleNames.get(0);
+            String variantName = simpleNames.get(simpleNames.size() - 1);
+            return ClassName.get(pkg, parentName, variantName + CONVERTER);
+        }
+
+        // Top-level type: converter in converter sub-package
         String converterPkg = getConverterPackageName(fieldClass.packageName());
-        // Join all simple names for nested classes: ["Credential","VerificationKey"] → "CredentialVerificationKey"
-        // For top-level classes: ["Address"] → "Address" (unchanged)
-        String converterSimpleName = String.join("", fieldClass.simpleNames()) + CONVERTER;
+        String converterSimpleName = fieldClass.simpleName() + CONVERTER;
         return ClassName.get(converterPkg, converterSimpleName);
     }
 
     private static String getConverterPackageName(String modelPackage) {
         return modelPackage + ".converter";
-    }
-
-    private static String getImplPackageName(String modelPackage) {
-        return modelPackage + ".impl";
     }
 
     private void processEnum(TypeElement typeElement, ClassDefinition classDefinition) {
@@ -399,8 +418,8 @@ public class ClassDefinitionGenerator {
         List<String> enumValues = new ArrayList<>();
         // Find all enum constants
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
-            if (enclosedElement.getKind() == ElementKind.ENUM_CONSTANT) {
-                VariableElement variableElement = (VariableElement) enclosedElement;
+            if (enclosedElement instanceof VariableElement variableElement
+                    && enclosedElement.getKind() == ElementKind.ENUM_CONSTANT) {
                 log.debug("Enum constant: " + variableElement.getSimpleName());
                 enumValues.add(variableElement.getSimpleName().toString());
             }
@@ -408,4 +427,5 @@ public class ClassDefinitionGenerator {
 
         classDefinition.setEnumValues(enumValues);
     }
+
 }

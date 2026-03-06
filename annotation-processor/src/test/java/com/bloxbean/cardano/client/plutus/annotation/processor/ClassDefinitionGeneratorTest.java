@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor;
 
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.ClassDefinition;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.FieldType;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.JavaType;
 import com.bloxbean.cardano.client.plutus.annotation.processor.model.Type;
@@ -243,10 +244,6 @@ public class ClassDefinitionGeneratorTest {
 
     /**
      * Tests for {@link ClassDefinitionGenerator#getConverterClassFromField(FieldType)}.
-     *
-     * <p>This static method generates converter class names from field types.
-     * After commit 155bf39a, it uses {@code String.join("", fieldClass.simpleNames())}
-     * to handle nested classes correctly.</p>
      */
     @Nested
     @DisplayName("getConverterClassFromField() — nested class converter naming")
@@ -266,31 +263,144 @@ public class ClassDefinitionGeneratorTest {
         }
 
         @Test
-        @DisplayName("nested class should produce prefixed converter name")
-        void nestedClass_shouldProducePrefixedConverterName() {
-            // Credential.VerificationKey → CredentialVerificationKeyConverter
+        @DisplayName("nested class should produce nested converter in parent interface")
+        void nestedClass_shouldProduceNestedConverterName() {
+            // Credential.VerificationKey → Credential.VerificationKeyConverter (nested)
             FieldType fieldType = new FieldType();
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType("com.example.Credential.VerificationKey", true));
 
             ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
 
-            assertThat(result.packageName()).isEqualTo("com.example.converter");
-            assertThat(result.simpleName()).isEqualTo("CredentialVerificationKeyConverter");
+            assertThat(result.packageName()).isEqualTo("com.example");
+            assertThat(result.simpleName()).isEqualTo("VerificationKeyConverter");
+            assertThat(result.enclosingClassName().simpleName()).isEqualTo("Credential");
         }
 
         @Test
-        @DisplayName("deeply nested class should concatenate all simple names")
-        void deeplyNestedClass_shouldConcatenateAllSimpleNames() {
-            // A.B.C → ABCConverter
+        @DisplayName("deeply nested class should produce converter nested in outermost parent")
+        void deeplyNestedClass_shouldProduceNestedConverterInOutermostParent() {
+            // A.B.C → A.CConverter (nested in outermost)
             FieldType fieldType = new FieldType();
             fieldType.setType(Type.CONSTRUCTOR);
             fieldType.setJavaType(new JavaType("com.example.A.B.C", true));
 
             ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
 
+            assertThat(result.packageName()).isEqualTo("com.example");
+            assertThat(result.simpleName()).isEqualTo("CConverter");
+            assertThat(result.enclosingClassName().simpleName()).isEqualTo("A");
+        }
+
+        @Test
+        @DisplayName("converterClassFqn should take priority over heuristic fallback")
+        void converterClassFqn_shouldTakePriority() {
+            FieldType fieldType = new FieldType();
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType("com.example.Credential", true));
+            fieldType.setConverterClassFqn("com.example.Credential.CredentialConverter");
+
+            ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
+
+            assertThat(result.packageName()).isEqualTo("com.example");
+            assertThat(result.simpleName()).isEqualTo("CredentialConverter");
+            assertThat(result.enclosingClassName().simpleName()).isEqualTo("Credential");
+        }
+
+        @Test
+        @DisplayName("converterClassFqn for top-level should produce correct converter")
+        void converterClassFqn_topLevel_shouldProduceCorrectConverter() {
+            FieldType fieldType = new FieldType();
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType("com.example.Address", true));
+            fieldType.setConverterClassFqn("com.example.converter.AddressConverter");
+
+            ClassName result = ClassDefinitionGenerator.getConverterClassFromField(fieldType);
+
             assertThat(result.packageName()).isEqualTo("com.example.converter");
-            assertThat(result.simpleName()).isEqualTo("ABCConverter");
+            assertThat(result.simpleName()).isEqualTo("AddressConverter");
+        }
+    }
+
+    @Nested
+    @DisplayName("resolveConverterFqn() — converter FQN resolution")
+    class ResolveConverterFqn {
+
+        @Test
+        @DisplayName("nested variant type should produce nested converter FQN")
+        void nestedVariant_shouldProduceNestedConverterFqn() {
+            ClassName typeClass = ClassName.get("com.example", "Credential", "VerificationKey");
+
+            String fqn = ClassDefinitionGenerator.resolveConverterFqn(typeClass, false);
+
+            assertThat(fqn).isEqualTo("com.example.Credential.VerificationKeyConverter");
+        }
+
+        @Test
+        @DisplayName("interface type should produce self-nested converter FQN")
+        void interfaceType_shouldProduceSelfNestedConverterFqn() {
+            ClassName typeClass = ClassName.get("com.example", "Credential");
+
+            String fqn = ClassDefinitionGenerator.resolveConverterFqn(typeClass, true);
+
+            assertThat(fqn).isEqualTo("com.example.Credential.CredentialConverter");
+        }
+
+        @Test
+        @DisplayName("top-level type should produce converter sub-package FQN")
+        void topLevel_shouldProduceConverterSubPackageFqn() {
+            ClassName typeClass = ClassName.get("com.example", "Address");
+
+            String fqn = ClassDefinitionGenerator.resolveConverterFqn(typeClass, false);
+
+            assertThat(fqn).isEqualTo("com.example.converter.AddressConverter");
+        }
+    }
+
+    @Nested
+    @DisplayName("ClassDefinition factory methods")
+    class ClassDefinitionFactories {
+
+        @Test
+        @DisplayName("forNestedVariant should set enclosingInterfaceName and prefixed impl")
+        void forNestedVariant_shouldSetCorrectFields() {
+            ClassDefinition def = ClassDefinition.forNestedVariant(
+                    "com.example", "Credential", "VerificationKey", 1);
+
+            assertThat(def.getPackageName()).isEqualTo("com.example");
+            assertThat(def.getDataClassName()).isEqualTo("VerificationKey");
+            assertThat(def.getConverterClassName()).isEqualTo("VerificationKeyConverter");
+            assertThat(def.getConverterPackageName()).isEqualTo("com.example");
+            assertThat(def.getEnclosingInterfaceName()).isEqualTo("Credential");
+            assertThat(def.getImplClassName()).isEqualTo("CredentialVerificationKeyData");
+            assertThat(def.getAlternative()).isEqualTo(1);
+            assertThat(def.isAbstract()).isTrue();
+        }
+
+        @Test
+        @DisplayName("forInterface should set self-referencing enclosingInterfaceName")
+        void forInterface_shouldSetSelfReferencingEnclosingName() {
+            ClassDefinition def = ClassDefinition.forInterface("com.example", "Credential");
+
+            assertThat(def.getPackageName()).isEqualTo("com.example");
+            assertThat(def.getDataClassName()).isEqualTo("Credential");
+            assertThat(def.getConverterClassName()).isEqualTo("CredentialConverter");
+            assertThat(def.getConverterPackageName()).isEqualTo("com.example");
+            assertThat(def.getEnclosingInterfaceName()).isEqualTo("Credential");
+            assertThat(def.getImplClassName()).isEqualTo("CredentialData");
+        }
+
+        @Test
+        @DisplayName("forTopLevel should set converter in sub-package")
+        void forTopLevel_shouldSetConverterInSubPackage() {
+            ClassDefinition def = ClassDefinition.forTopLevel("com.example", "Address");
+
+            assertThat(def.getPackageName()).isEqualTo("com.example");
+            assertThat(def.getDataClassName()).isEqualTo("Address");
+            assertThat(def.getConverterClassName()).isEqualTo("AddressConverter");
+            assertThat(def.getConverterPackageName()).isEqualTo("com.example.converter");
+            assertThat(def.getEnclosingInterfaceName()).isNull();
+            assertThat(def.getImplClassName()).isEqualTo("AddressData");
         }
     }
 }

@@ -79,7 +79,7 @@ public class ConstructorFieldCodeGen implements FieldCodeGenerator {
             return expression + ".toPlutusData()";
         }
         ClassName converterClassName = getConverterClassFromField(type);
-        String converterClazz = converterClassName.packageName() + "." + converterClassName.simpleName();
+        String converterClazz = converterClassName.canonicalName();
         return String.format("new %s().toPlutusData(%s)", converterClazz, expression);
     }
 
@@ -93,7 +93,7 @@ public class ConstructorFieldCodeGen implements FieldCodeGenerator {
             return String.format("%s.fromPlutusData((ConstrPlutusData)%s)", typeFqn, pdExpression);
         }
         ClassName converterClassName = getConverterClassFromField(type);
-        String converterClazz = converterClassName.packageName() + "." + converterClassName.simpleName();
+        String converterClazz = converterClassName.canonicalName();
         if (type.isRawDataType()) {
             return String.format("new %s().fromPlutusData(%s)", converterClazz, pdExpression);
         }

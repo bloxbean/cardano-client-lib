@@ -4,12 +4,17 @@ import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
 import com.bloxbean.cardano.client.plutus.annotation.Constr;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassification;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassificationResult;
+import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.classifier.SchemaClassifier;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModel;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.model.DatumModelFactory;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.shared.SharedTypeLookup;
+import com.bloxbean.cardano.client.plutus.annotation.processor.ClassDefinitionGenerator;
+import com.bloxbean.cardano.client.plutus.annotation.processor.ConverterCodeGenerator;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.GeneratedTypesRegistry;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.annotation.processor.exception.BlueprintGenerationException;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.*;
+import com.bloxbean.cardano.client.plutus.annotation.processor.util.FieldTypeDetector;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver;
@@ -49,6 +54,8 @@ public class FieldSpecProcessor {
     private final SharedTypeConverterGenerator sharedTypeConverterGenerator;
     private final LookupContext lookupContext;
 
+    private Map<String, BlueprintSchema> definitions;
+
     public FieldSpecProcessor(Blueprint annotation,
                               ProcessingEnvironment processingEnv,
                               GeneratedTypesRegistry generatedTypesRegistry,
@@ -72,6 +79,48 @@ public class FieldSpecProcessor {
         this.sharedTypeConverterGenerator = new SharedTypeConverterGenerator();
         this.lookupContext = lookupContext;
         this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver, sharedTypeLookup, lookupContext);
+    }
+
+    /**
+     * Sets the blueprint definitions map and pre-scans interface types.
+     */
+    public void setDefinitions(Map<String, BlueprintSchema> definitions) {
+        this.definitions = definitions;
+        preScanInterfaces(definitions);
+    }
+
+    /**
+     * Pre-scans all blueprint definitions to identify and register interface types in the
+     * {@link GeneratedTypesRegistry}. Called eagerly from {@link #setDefinitions}.
+     *
+     * @param definitions all blueprint definitions (key → schema)
+     */
+    private void preScanInterfaces(Map<String, BlueprintSchema> definitions) {
+        SchemaClassifier classifier = new SchemaClassifier(nameStrategy);
+        for (Map.Entry<String, BlueprintSchema> entry : definitions.entrySet()) {
+            BlueprintSchema schema = entry.getValue();
+            if (schema == null) continue;
+
+            // Resolve title the same way createDatumClass does
+            String title = resolveTitleFromDefinitionKey(entry.getKey(), schema);
+            if (title == null || title.isEmpty()) continue;
+
+            schema.setTitle(title);
+
+            // Check shared type — skip if shared
+            Optional<ClassName> sharedType = sharedTypeLookup.lookup(null, schema);
+            if (sharedType.isPresent()) continue;
+
+            SchemaClassificationResult result = classifier.classify(schema);
+            if (result.getClassification() == SchemaClassification.INTERFACE) {
+                String ns = com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil
+                        .getNamespaceFromReferenceKey(entry.getKey());
+                String pkg = getPackageName(ns);
+                String className = nameStrategy.toClassName(title);
+                generatedTypesRegistry.markInterface(pkg, className);
+                log.debug("Pre-scanned interface type: {}.{}", pkg, className);
+            }
+        }
     }
 
     /**
@@ -280,21 +329,61 @@ public class FieldSpecProcessor {
         Tuple<String, List<BlueprintSchema>> allFields = FieldSpecProcessor.collectAllFields(schema);
 
         if (classification.getClassification() == SchemaClassification.INTERFACE) {
-            // Build interface with nested variant classes
+            // Build interface with nested variant classes and converters
             log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
             String interfaceName = datumModel.getName();
             TypeSpec.Builder interfaceBuilder = buildInterfaceTypeSpecBuilder(interfaceName);
+
+            String pkg = getPackageName(datumModel.getNamespace());
+            String className = nameStrategy.toClassName(interfaceName);
+
+            // Track this as an interface type for nested converter resolution
+            generatedTypesRegistry.markInterface(pkg, className);
+
+            ConverterCodeGenerator converterGen = new ConverterCodeGenerator(processingEnv);
+            List<ClassDefinition> variantClassDefs = new ArrayList<>();
 
             for (BlueprintSchema innerSchema : allFields._2) {
                 if (interfaceName == null || interfaceName.isEmpty()) continue;
                 TypeSpec variantTypeSpec = buildVariantTypeSpec(datumModel.getNamespace(), interfaceName, innerSchema);
                 if (variantTypeSpec != null) {
                     interfaceBuilder.addType(variantTypeSpec);
+
+                    // Build ClassDefinition for the variant and generate its converter
+                    String variantName = nameStrategy.toClassName(innerSchema.getTitle());
+                    int alternative = innerSchema.getIndex();
+                    List<FieldSpec> variantFields = extractNonStaticFields(variantTypeSpec);
+
+                    ClassDefinition variantClassDef = ClassDefinition.forNestedVariant(
+                            pkg, className, variantName, alternative);
+                    variantClassDef.setFields(mapFieldSpecs(variantFields));
+                    variantClassDefs.add(variantClassDef);
+
+                    try {
+                        TypeSpec converterTypeSpec = converterGen.generate(variantClassDef);
+                        // Add STATIC modifier — required for classes nested inside an interface
+                        interfaceBuilder.addType(converterTypeSpec.toBuilder()
+                                .addModifiers(Modifier.STATIC).build());
+                    } catch (Exception e) {
+                        log.error("Failed to generate nested converter for " + className + "." + variantName, e);
+                    }
                 }
             }
 
-            String pkg = getPackageName(datumModel.getNamespace());
-            String className = nameStrategy.toClassName(interfaceName);
+            // Generate dispatch converter for the interface
+            if (!variantClassDefs.isEmpty()) {
+                ClassDefinition interfaceClassDef = ClassDefinition.forInterface(pkg, className);
+                try {
+                    TypeSpec dispatchConverterSpec = converterGen.generateInterfaceConverter(
+                            interfaceClassDef, variantClassDefs);
+                    // Add STATIC modifier — required for classes nested inside an interface
+                    interfaceBuilder.addType(dispatchConverterSpec.toBuilder()
+                            .addModifiers(Modifier.STATIC).build());
+                } catch (Exception e) {
+                    log.error("Failed to generate dispatch converter for " + className, e);
+                }
+            }
+
             if (generatedTypesRegistry.markGenerated(pkg, className)) {
                 sourceWriter.write(pkg, interfaceBuilder.build(), className);
             }
@@ -656,6 +745,66 @@ public class FieldSpecProcessor {
         sourceWriter.write(converterPkg, converterSpec, converterName);
 
         log.debug("Generated shared type converter: {}.{}", converterPkg, converterName);
+    }
+
+    /**
+     * Extracts non-static field specs from a built TypeSpec (the variant's fields).
+     */
+    private static List<FieldSpec> extractNonStaticFields(TypeSpec typeSpec) {
+        List<FieldSpec> fields = new ArrayList<>();
+        for (FieldSpec fs : typeSpec.fieldSpecs) {
+            if (!fs.modifiers.contains(Modifier.STATIC)) {
+                fields.add(fs);
+            }
+        }
+        return fields;
+    }
+
+    /**
+     * Converts a list of JavaPoet FieldSpecs to model Fields, detecting types
+     * via {@link FieldTypeDetector} and resolving converter FQNs for CONSTRUCTOR types.
+     */
+    private List<Field> mapFieldSpecs(List<FieldSpec> fieldSpecs) {
+        List<Field> fields = new ArrayList<>();
+        for (int i = 0; i < fieldSpecs.size(); i++) {
+            fields.add(mapFieldSpec(fieldSpecs.get(i), i));
+        }
+        return fields;
+    }
+
+    private Field mapFieldSpec(FieldSpec fs, int index) {
+        FieldType ft = FieldTypeDetector.fromTypeName(fs.type);
+        if (ft == null) {
+            ft = new FieldType();
+            ft.setFqTypeName(fs.type.toString());
+            ft.setType(Type.CONSTRUCTOR);
+            ft.setJavaType(new JavaType(fs.type.toString(), true));
+            if (fs.type instanceof ClassName cn) {
+                boolean isIface = generatedTypesRegistry.isInterface(cn.packageName(), cn.simpleName());
+                ft.setConverterClassFqn(ClassDefinitionGenerator.resolveConverterFqn(cn, isIface));
+            }
+        } else {
+            FieldTypeDetector.resolveConverterFqns(ft, generatedTypesRegistry::isInterface);
+        }
+
+        String getter;
+        if (Type.BOOL.equals(ft.getType()) && JavaType.BOOLEAN.equals(ft.getJavaType())) {
+            getter = "is" + capitalize(fs.name);
+        } else {
+            getter = "get" + capitalize(fs.name);
+        }
+
+        return Field.builder()
+                .name(fs.name)
+                .index(index)
+                .fieldType(ft)
+                .hashGetter(true)
+                .getterName(getter)
+                .build();
+    }
+
+    private static String capitalize(String s) {
+        return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
     private String getPackageName(String ns) {
