@@ -43,18 +43,14 @@ public class SchemaTypeResolver {
         }
 
         BlueprintDatatype datatype = schema.getDataType();
-        switch (datatype) {
-            case bytes:
-                return TypeName.get(byte[].class);
-            case integer:
-                return TypeName.get(BigInteger.class);
-            case string:
-                return TypeName.get(String.class);
-            case bool:
-                return TypeName.get(Boolean.class);
-            case list:
+        return switch (datatype) {
+            case bytes -> TypeName.get(byte[].class);
+            case integer -> TypeName.get(BigInteger.class);
+            case string -> TypeName.get(String.class);
+            case bool -> TypeName.get(Boolean.class);
+            case list -> {
                 if (schema.getItems() != null && schema.getItems().size() >= 3) {
-                    return switch (schema.getItems().size()) {
+                    yield switch (schema.getItems().size()) {
                         case 3 -> resolveTripleType(namespace, schema);
                         case 4 -> resolveQuartetType(namespace, schema);
                         case 5 -> resolveQuintetType(namespace, schema);
@@ -63,16 +59,13 @@ public class SchemaTypeResolver {
                                 + " items. Please file an issue if you need this feature.");
                     };
                 }
-                return resolveListType(namespace, schema);
-            case map:
-                return resolveMapType(namespace, schema);
-            case option:
-                return resolveOptionType(namespace, schema);
-            case pair:
-                return resolvePairType(namespace, schema);
-            default:
-                return TypeName.get(String.class);
-        }
+                yield resolveListType(namespace, schema);
+            }
+            case map -> resolveMapType(namespace, schema);
+            case option -> resolveOptionType(namespace, schema);
+            case pair -> resolvePairType(namespace, schema);
+            default -> TypeName.get(String.class);
+        };
     }
 
     public ParameterizedTypeName resolveListType(String namespace, BlueprintSchema schema) {

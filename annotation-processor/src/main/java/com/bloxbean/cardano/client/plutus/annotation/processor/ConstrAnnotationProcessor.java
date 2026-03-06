@@ -57,8 +57,7 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
         for (TypeElement annotation : annotations) {
             Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
             for (Element element : elements) {
-                if (element instanceof TypeElement) {
-                    TypeElement typeElement = (TypeElement) element;
+                if (element instanceof TypeElement typeElement) {
                     typeElements.add(typeElement);
 
                     if (typeElement.getKind().isInterface()) {
@@ -76,8 +75,7 @@ public class ConstrAnnotationProcessor extends AbstractProcessor {
         for (TypeElement annotation : annotations) {
             Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
             for (Element element : elements) {
-                if (element instanceof TypeElement) {
-                    TypeElement typeElement = (TypeElement) element;
+                if (element instanceof TypeElement typeElement) {
 
                     if (typeElement.getKind().isInterface()) {
                         continue;

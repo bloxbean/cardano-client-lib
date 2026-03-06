@@ -233,17 +233,12 @@ public class BlueprintUtil {
      * @return {@code true} if the name belongs to a built-in container that should be skipped
      */
     public static boolean isBuiltInGenericContainer(String simpleName) {
-        return "List".equals(simpleName)
-            || "Option".equals(simpleName)
-            || "Optional".equals(simpleName)
-            || "Tuple".equals(simpleName)
-            || "Pair".equals(simpleName)
-            || "Map".equals(simpleName)
-            || "Dict".equals(simpleName)
-            || "Data".equals(simpleName)
-            || "Redeemer".equals(simpleName)
-            || "Quartet".equals(simpleName)
-            || "Quintet".equals(simpleName);
+        if (simpleName == null) return false;
+        return switch (simpleName) {
+            case "List", "Option", "Optional", "Tuple", "Pair", "Map",
+                 "Dict", "Data", "Redeemer", "Quartet", "Quintet" -> true;
+            default -> false;
+        };
     }
 
     /**

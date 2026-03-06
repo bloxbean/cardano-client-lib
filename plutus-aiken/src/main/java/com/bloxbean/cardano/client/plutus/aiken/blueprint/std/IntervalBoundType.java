@@ -98,8 +98,7 @@ public interface IntervalBoundType extends Data<IntervalBoundType> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Finite)) return false;
-            Finite finite = (Finite) o;
+            if (!(o instanceof Finite finite)) return false;
             return value.equals(finite.value);
         }
 

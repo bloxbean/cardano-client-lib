@@ -248,8 +248,7 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
         for (TypeElement annotation : annotations) {
             Set<? extends Element> elements = roundEnv.getElementsAnnotatedWith(annotation);
             for (Element element : elements) {
-                if (element instanceof TypeElement) {
-                    TypeElement typeElement = (TypeElement) element;
+                if (element instanceof TypeElement typeElement) {
                     elementsList.add(typeElement);
 
                 }

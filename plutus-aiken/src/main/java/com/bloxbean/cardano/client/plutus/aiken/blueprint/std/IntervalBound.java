@@ -62,8 +62,7 @@ public final class IntervalBound implements Data<IntervalBound> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof IntervalBound)) return false;
-        IntervalBound that = (IntervalBound) o;
+        if (!(o instanceof IntervalBound that)) return false;
         return isInclusive == that.isInclusive && boundType.equals(that.boundType);
     }
 
