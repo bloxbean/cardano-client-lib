@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.stream.Collectors;
 import javax.tools.JavaFileObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -53,13 +52,15 @@ class BlueprintAnnotationProcessorTest {
     void blueprintProcessorShouldGenerateExpectedValidatorArtifacts() throws Exception {
         JavaFileObject source = JavaFileObjects.forSourceString(
                 "com.test.multiple.MultipleValidatorsBlueprint",
-                "package com.test.multiple;\n" +
-                        "import com.bloxbean.cardano.client.plutus.annotation.Blueprint;\n" +
-                        "import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;\n" +
-                        "import com.bloxbean.cardano.client.quicktx.blueprint.extender.LockUnlockValidatorExtender;\n" +
-                        "@Blueprint(fileInResources = \"blueprint/multiple_validators_aiken_v1_0_29_alpha_16fb02e.json\", packageName = \"com.test.multiple\")\n" +
-                        "@ExtendWith(LockUnlockValidatorExtender.class)\n" +
-                        "public interface MultipleValidatorsBlueprint { }\n");
+                """
+                        package com.test.multiple;
+                        import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
+                        import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
+                        import com.bloxbean.cardano.client.quicktx.blueprint.extender.LockUnlockValidatorExtender;
+                        @Blueprint(fileInResources = "blueprint/multiple_validators_aiken_v1_0_29_alpha_16fb02e.json", packageName = "com.test.multiple")
+                        @ExtendWith(LockUnlockValidatorExtender.class)
+                        public interface MultipleValidatorsBlueprint { }
+                        """);
 
         Compilation compilation = Compiler.javac()
                 .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
@@ -437,7 +438,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             // Verify that SOME classes were generated (concrete types)
             assertThat(generatedSources)
@@ -465,7 +466,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertThat(generatedSources)
                     .as("Should generate classes despite nested generic definitions")
@@ -493,7 +494,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertThat(generatedSources)
                     .as("Should generate Cardano types and custom types")
@@ -527,7 +528,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             assertThat(generatedSources)
                     .as("Should generate concrete types (Item, StorageData) but not generic wrappers")
@@ -639,7 +640,7 @@ class BlueprintAnnotationProcessorTest {
 
             List<String> generatedSources = compilation.generatedSourceFiles().stream()
                     .map(jfo -> jfo.getName())
-                    .collect(Collectors.toList());
+                    .toList();
 
             // Interface converters
             assertThat(generatedSources)

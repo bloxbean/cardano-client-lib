@@ -21,7 +21,7 @@ class ServiceLoaderSharedTypeLookup implements SharedTypeLookup {
         ServiceLoader<BlueprintTypeRegistry> loader = ServiceLoader.load(BlueprintTypeRegistry.class, classLoader);
         List<BlueprintTypeRegistry> loaded = new ArrayList<>();
         loader.iterator().forEachRemaining(loaded::add);
-        this.registries = Collections.unmodifiableList(loaded);
+        this.registries = List.copyOf(loaded);
     }
 
     @Override

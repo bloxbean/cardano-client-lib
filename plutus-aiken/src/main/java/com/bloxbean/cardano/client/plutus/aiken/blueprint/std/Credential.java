@@ -60,8 +60,7 @@ public interface Credential extends Data<Credential> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof VerificationKeyCredential)) return false;
-            VerificationKeyCredential that = (VerificationKeyCredential) o;
+            if (!(o instanceof VerificationKeyCredential that)) return false;
             return Arrays.equals(hash, that.hash);
         }
 
@@ -100,8 +99,7 @@ public interface Credential extends Data<Credential> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof ScriptCredential)) return false;
-            ScriptCredential that = (ScriptCredential) o;
+            if (!(o instanceof ScriptCredential that)) return false;
             return Arrays.equals(hash, that.hash);
         }
 

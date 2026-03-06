@@ -93,14 +93,14 @@ public class UVerifyTest {
         // Find PlutusData fields
         List<String> plutusDataFields = allGeneratedSources.lines()
                 .filter(line -> line.trim().matches("private\\s+PlutusData\\s+\\w+;"))
-                .collect(Collectors.toList());
+                .toList();
 
         // Filter out legitimate PlutusData fields (extension/data fields per CIP-57 abstract Data type)
         List<String> illegitimateFields = plutusDataFields.stream()
                 .filter(line -> !line.contains("extensions")
                         && !line.contains("extension")
                         && !line.contains(" data;"))
-                .collect(Collectors.toList());
+                .toList();
 
         if (!illegitimateFields.isEmpty()) {
             System.out.println("\n=== Found ILLEGITIMATE PlutusData fields (should be typed) ===");

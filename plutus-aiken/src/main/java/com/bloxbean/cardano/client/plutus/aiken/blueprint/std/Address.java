@@ -63,8 +63,7 @@ public final class Address implements Data<Address> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof Address)) return false;
-        Address address = (Address) o;
+        if (!(o instanceof Address address)) return false;
 
         return paymentCredential.equals(address.paymentCredential) && stakeCredential.equals(address.stakeCredential);
     }

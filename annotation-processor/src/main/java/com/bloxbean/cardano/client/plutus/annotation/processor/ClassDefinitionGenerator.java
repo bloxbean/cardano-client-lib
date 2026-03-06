@@ -105,12 +105,10 @@ public class ClassDefinitionGenerator {
 
         int index = 0;
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
-            if (enclosedElement instanceof VariableElement &&
+            if (enclosedElement instanceof VariableElement variableElement &&
                     enclosedElement.getAnnotation(PlutusIgnore.class) == null) {
                 Field field = new Field();
                 field.setIndex(index++);
-
-                VariableElement variableElement = (VariableElement) enclosedElement;
                 String fieldName = variableElement.getSimpleName().toString();
                 field.setName(fieldName);
                 ExecutableElement getter = findGetter(typeElement, variableElement);
@@ -170,137 +168,90 @@ public class ClassDefinitionGenerator {
         }
     }
 
+    private record TypeMapping(Type type, JavaType javaType) {}
+
+    private static final Map<TypeName, TypeMapping> SIMPLE_TYPES = Map.ofEntries(
+            Map.entry(TypeName.get(Long.class),       new TypeMapping(Type.INTEGER, JavaType.LONG_OBJECT)),
+            Map.entry(TypeName.LONG,                  new TypeMapping(Type.INTEGER, JavaType.LONG)),
+            Map.entry(TypeName.get(BigInteger.class),  new TypeMapping(Type.INTEGER, JavaType.BIGINTEGER)),
+            Map.entry(TypeName.get(Integer.class),     new TypeMapping(Type.INTEGER, JavaType.INTEGER)),
+            Map.entry(TypeName.INT,                   new TypeMapping(Type.INTEGER, JavaType.INT)),
+            Map.entry(TypeName.get(String.class),      new TypeMapping(Type.STRING, JavaType.STRING)),
+            Map.entry(TypeName.get(byte[].class),      new TypeMapping(Type.BYTES, JavaType.BYTES)),
+            Map.entry(TypeName.get(Boolean.class),     new TypeMapping(Type.BOOL, JavaType.BOOLEAN_OBJ)),
+            Map.entry(TypeName.BOOLEAN,               new TypeMapping(Type.BOOL, JavaType.BOOLEAN)),
+            Map.entry(TypeName.get(PlutusData.class),  new TypeMapping(Type.PLUTUSDATA, JavaType.PLUTUSDATA))
+    );
+
+    private static final Map<ClassName, TypeMapping> TUPLE_TYPES = Map.of(
+            ClassName.get(Pair.class),    new TypeMapping(Type.PAIR, JavaType.PAIR),
+            ClassName.get(Triple.class),  new TypeMapping(Type.TRIPLE, JavaType.TRIPLE),
+            ClassName.get(Quartet.class), new TypeMapping(Type.QUARTET, JavaType.QUARTET),
+            ClassName.get(Quintet.class), new TypeMapping(Type.QUINTET, JavaType.QUINTET)
+    );
+
     private FieldType detectFieldType(TypeName typeName, TypeMirror typeMirror) throws NotSupportedException {
         FieldType fieldType = new FieldType();
         fieldType.setFqTypeName(typeName.toString());
-        if (typeName.equals(TypeName.get(Long.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.LONG_OBJECT);
-        } else if (typeName.equals(TypeName.LONG)) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.LONG);
-        } else if (typeName.equals(TypeName.get(BigInteger.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.BIGINTEGER);
-        } else if (typeName.equals(TypeName.get(Integer.class))) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.INTEGER);
-        } else if (typeName.equals(TypeName.INT)) {
-            fieldType.setType(Type.INTEGER);
-            fieldType.setJavaType(JavaType.INT);
-        } else if (typeName.equals(TypeName.get(String.class))) {
-            fieldType.setType(Type.STRING);
-            fieldType.setJavaType(JavaType.STRING);
-        } else if (typeName.equals(TypeName.get(byte[].class))) {
-            fieldType.setType(Type.BYTES);
-            fieldType.setJavaType(JavaType.BYTES);
-        } else if (typeName.equals(TypeName.get(Boolean.class))) {
-            fieldType.setType(Type.BOOL);
-            fieldType.setJavaType(JavaType.BOOLEAN_OBJ);
-        } else if (typeName.equals(TypeName.BOOLEAN)) {
-            fieldType.setType(Type.BOOL);
-            fieldType.setJavaType(JavaType.BOOLEAN);
-        } else if (typeName.equals(TypeName.get(PlutusData.class))) {
-            fieldType.setType(Type.PLUTUSDATA);
-            fieldType.setJavaType(JavaType.PLUTUSDATA);
-        } else if (typeName instanceof ParameterizedTypeName &&
-                (((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(List.class))
-                        || isAssignableToList(typeMirror))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName itemType = parameterizedTypeName.typeArguments.get(0);
 
-            fieldType.setType(Type.LIST);
-            fieldType.setJavaType(JavaType.LIST);
-            fieldType.setCollection(true);
-            fieldType.getGenericTypes().add(detectFieldType(itemType, null));
-        } else if (typeName instanceof ParameterizedTypeName
-                && (((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Map.class)) ||
-                isAssignableToMap(typeMirror))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName keyItemType = parameterizedTypeName.typeArguments.get(0);
-            TypeName valueItemType = parameterizedTypeName.typeArguments.get(1);
+        // Simple (non-generic) types
+        TypeMapping simple = SIMPLE_TYPES.get(typeName);
+        if (simple != null) {
+            fieldType.setType(simple.type());
+            fieldType.setJavaType(simple.javaType());
+            return fieldType;
+        }
 
-            fieldType.setType(Type.MAP);
-            fieldType.setJavaType(JavaType.MAP);
-            fieldType.setCollection(true);
-            fieldType.getGenericTypes().add(detectFieldType(keyItemType, null));
-            fieldType.getGenericTypes().add(detectFieldType(valueItemType, null));
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Optional.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName itemType = parameterizedTypeName.typeArguments.get(0);
+        // Parameterized types
+        if (typeName instanceof ParameterizedTypeName ptn) {
+            ClassName rawType = ptn.rawType;
 
-            fieldType.setType(Type.OPTIONAL);
-            fieldType.setJavaType(JavaType.OPTIONAL);
-            fieldType.getGenericTypes().add(detectFieldType(itemType, null));
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Pair.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
-            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
+            if (rawType.equals(ClassName.get(List.class)) || isAssignableToList(typeMirror)) {
+                fieldType.setType(Type.LIST);
+                fieldType.setJavaType(JavaType.LIST);
+                fieldType.setCollection(true);
+                fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
+                return fieldType;
+            }
 
-            fieldType.setType(Type.PAIR);
-            fieldType.setJavaType(JavaType.PAIR);
-            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
+            if (rawType.equals(ClassName.get(Map.class)) || isAssignableToMap(typeMirror)) {
+                fieldType.setType(Type.MAP);
+                fieldType.setJavaType(JavaType.MAP);
+                fieldType.setCollection(true);
+                fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
+                fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(1), null));
+                return fieldType;
+            }
 
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Triple.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
-            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
-            TypeName thirdElementType = parameterizedTypeName.typeArguments.get(2);
+            if (rawType.equals(ClassName.get(Optional.class))) {
+                fieldType.setType(Type.OPTIONAL);
+                fieldType.setJavaType(JavaType.OPTIONAL);
+                fieldType.getGenericTypes().add(detectFieldType(ptn.typeArguments.get(0), null));
+                return fieldType;
+            }
 
-            fieldType.setType(Type.TRIPLE);
-            fieldType.setJavaType(JavaType.TRIPLE);
-            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
-
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Quartet.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
-            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
-            TypeName thirdElementType = parameterizedTypeName.typeArguments.get(2);
-            TypeName fourthElementType = parameterizedTypeName.typeArguments.get(3);
-
-            fieldType.setType(Type.QUARTET);
-            fieldType.setJavaType(JavaType.QUARTET);
-            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(fourthElementType, null));
-
-        } else if (typeName instanceof ParameterizedTypeName
-                && ((ParameterizedTypeName) typeName).rawType.equals(ClassName.get(Quintet.class))) {
-            ParameterizedTypeName parameterizedTypeName = (ParameterizedTypeName) typeName;
-            TypeName firstElementType = parameterizedTypeName.typeArguments.get(0);
-            TypeName secondElementType = parameterizedTypeName.typeArguments.get(1);
-            TypeName thirdElementType = parameterizedTypeName.typeArguments.get(2);
-            TypeName fourthElementType = parameterizedTypeName.typeArguments.get(3);
-            TypeName fifthElementType = parameterizedTypeName.typeArguments.get(4);
-
-            fieldType.setType(Type.QUINTET);
-            fieldType.setJavaType(JavaType.QUINTET);
-            fieldType.getGenericTypes().add(detectFieldType(firstElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(secondElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(thirdElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(fourthElementType, null));
-            fieldType.getGenericTypes().add(detectFieldType(fifthElementType, null));
-
-        } else {
-            if (isSupportedType(typeName, typeMirror)) {
-                fieldType.setType(Type.CONSTRUCTOR);
-                fieldType.setJavaType(new JavaType(typeName.toString(), true));
-                fieldType.setRawDataType(isRawDataType(typeMirror));
-                fieldType.setDataType(isDataType(typeMirror));
-            } else {
-                throw new NotSupportedException("Type not supported: " + typeName);
+            // Tuple types (Pair, Triple, Quartet, Quintet)
+            TypeMapping tuple = TUPLE_TYPES.get(rawType);
+            if (tuple != null) {
+                fieldType.setType(tuple.type());
+                fieldType.setJavaType(tuple.javaType());
+                for (TypeName arg : ptn.typeArguments) {
+                    fieldType.getGenericTypes().add(detectFieldType(arg, null));
+                }
+                return fieldType;
             }
         }
 
-        return fieldType;
+        // Constructor/custom type fallback
+        if (isSupportedType(typeName, typeMirror)) {
+            fieldType.setType(Type.CONSTRUCTOR);
+            fieldType.setJavaType(new JavaType(typeName.toString(), true));
+            fieldType.setRawDataType(isRawDataType(typeMirror));
+            fieldType.setDataType(isDataType(typeMirror));
+            return fieldType;
+        }
+
+        throw new NotSupportedException("Type not supported: " + typeName);
     }
 
     private boolean isSupportedType(TypeName typeName, TypeMirror typeMirror) {
@@ -325,8 +276,7 @@ public class ClassDefinitionGenerator {
         }
 
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
-            if (enclosedElement instanceof ExecutableElement) {
-                ExecutableElement executableElement = (ExecutableElement) enclosedElement;
+            if (enclosedElement instanceof ExecutableElement executableElement) {
                 if ((executableElement.getSimpleName().toString().equals(getterMethodName) ||
                         executableElement.getSimpleName().toString().equals(altGetterMethodName)) &&
                         executableElement.getModifiers().contains(Modifier.PUBLIC) &&
@@ -344,8 +294,7 @@ public class ClassDefinitionGenerator {
         String fieldName = variableElement.getSimpleName().toString();
         String setterName = "set" + capitalize(fieldName.toString());
         for (Element enclosedElement : typeElement.getEnclosedElements()) {
-            if (enclosedElement instanceof ExecutableElement) {
-                ExecutableElement executableElement = (ExecutableElement) enclosedElement;
+            if (enclosedElement instanceof ExecutableElement executableElement) {
                 if (executableElement.getSimpleName().toString().equals(setterName) &&
                         executableElement.getModifiers().contains(Modifier.PUBLIC) &&
                         executableElement.getParameters().size() == 1 &&
@@ -381,8 +330,7 @@ public class ClassDefinitionGenerator {
         if (typeMirror == null) return false;
         Types typeUtils = processingEnvironment.getTypeUtils();
         Element element = typeUtils.asElement(typeMirror);
-        if (!(element instanceof TypeElement)) return false;
-        TypeElement typeElement = (TypeElement) element;
+        if (!(element instanceof TypeElement typeElement)) return false;
         // @Constr-annotated classes are generated model classes, not shared types
         if (typeElement.getAnnotation(Constr.class) != null) return false;
         TypeElement dataInterface = elements.getTypeElement(DATA_INTERFACE_FQN);

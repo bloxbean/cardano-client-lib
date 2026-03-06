@@ -62,7 +62,10 @@ public class SchemaClassifier {
         if (title == null)
             return false;
 
-        boolean optionTitle = "Option".equals(title) || "Optional".equals(title);
+        boolean optionTitle = switch (title) {
+            case "Option", "Optional" -> true;
+            default -> false;
+        };
         if (!optionTitle)
             return false;
 

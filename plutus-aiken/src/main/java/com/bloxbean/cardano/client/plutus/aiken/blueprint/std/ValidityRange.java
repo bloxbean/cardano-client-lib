@@ -56,8 +56,7 @@ public final class ValidityRange implements Data<ValidityRange> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ValidityRange)) return false;
-        ValidityRange that = (ValidityRange) o;
+        if (!(o instanceof ValidityRange that)) return false;
         return lowerBound.equals(that.lowerBound) && upperBound.equals(that.upperBound);
     }
 

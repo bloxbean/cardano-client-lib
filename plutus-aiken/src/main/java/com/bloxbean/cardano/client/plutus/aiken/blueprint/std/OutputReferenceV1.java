@@ -77,8 +77,7 @@ public final class OutputReferenceV1 implements Data<OutputReferenceV1> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof OutputReferenceV1)) return false;
-        OutputReferenceV1 that = (OutputReferenceV1) o;
+        if (!(o instanceof OutputReferenceV1 that)) return false;
         return Arrays.equals(transactionId, that.transactionId) && outputIndex.equals(that.outputIndex);
     }
 
