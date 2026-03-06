@@ -466,12 +466,12 @@ public class FieldSpecProcessor {
         AnnotationSpec constrAnnotation = AnnotationSpec.builder(Constr.class)
                 .addMember("alternative", "$L", schema.getIndex()).build();
 
-        String variantName = nameStrategy.toClassName(schema.getTitle());
+        String className = nameStrategy.toClassName(schema.getTitle());
         String pkg = getPackageName(ns);
         String interfaceClassName = nameStrategy.toClassName(interfaceName);
 
         // Top-level class with prefixed name: InterfaceName + VariantName
-        String prefixedName = interfaceClassName + variantName;
+        String prefixedName = interfaceClassName + className;
 
         // Use top-level ClassName for correct Data<T> parameterization
         ClassName datumClass = ClassName.get(pkg, prefixedName);
