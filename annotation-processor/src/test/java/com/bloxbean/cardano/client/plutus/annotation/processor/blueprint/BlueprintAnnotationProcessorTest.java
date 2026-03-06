@@ -52,13 +52,15 @@ class BlueprintAnnotationProcessorTest {
     void blueprintProcessorShouldGenerateExpectedValidatorArtifacts() throws Exception {
         JavaFileObject source = JavaFileObjects.forSourceString(
                 "com.test.multiple.MultipleValidatorsBlueprint",
-                "package com.test.multiple;\n" +
-                        "import com.bloxbean.cardano.client.plutus.annotation.Blueprint;\n" +
-                        "import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;\n" +
-                        "import com.bloxbean.cardano.client.quicktx.blueprint.extender.LockUnlockValidatorExtender;\n" +
-                        "@Blueprint(fileInResources = \"blueprint/multiple_validators_aiken_v1_0_29_alpha_16fb02e.json\", packageName = \"com.test.multiple\")\n" +
-                        "@ExtendWith(LockUnlockValidatorExtender.class)\n" +
-                        "public interface MultipleValidatorsBlueprint { }\n");
+                """
+                        package com.test.multiple;
+                        import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
+                        import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
+                        import com.bloxbean.cardano.client.quicktx.blueprint.extender.LockUnlockValidatorExtender;
+                        @Blueprint(fileInResources = "blueprint/multiple_validators_aiken_v1_0_29_alpha_16fb02e.json", packageName = "com.test.multiple")
+                        @ExtendWith(LockUnlockValidatorExtender.class)
+                        public interface MultipleValidatorsBlueprint { }
+                        """);
 
         Compilation compilation = Compiler.javac()
                 .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
