@@ -54,7 +54,6 @@ public class FieldSpecProcessor {
     private final LookupContext lookupContext;
 
     private Map<String, BlueprintSchema> definitions;
-    private boolean preScanDone;
 
     public FieldSpecProcessor(Blueprint annotation,
                               ProcessingEnvironment processingEnv,
@@ -82,17 +81,16 @@ public class FieldSpecProcessor {
     }
 
     /**
-     * Sets the blueprint definitions map. When set, interface types will be
-     * automatically pre-scanned on the first {@link #createDatumClass} call.
+     * Sets the blueprint definitions map and pre-scans interface types.
      */
     public void setDefinitions(Map<String, BlueprintSchema> definitions) {
         this.definitions = definitions;
+        preScanInterfaces(definitions);
     }
 
     /**
      * Pre-scans all blueprint definitions to identify and register interface types in the
-     * {@link GeneratedTypesRegistry}. Automatically triggered on the first
-     * {@link #createDatumClass} call when definitions have been set via {@link #setDefinitions}.
+     * {@link GeneratedTypesRegistry}. Called eagerly from {@link #setDefinitions}.
      *
      * @param definitions all blueprint definitions (key → schema)
      */
@@ -276,11 +274,6 @@ public class FieldSpecProcessor {
      * @throws BlueprintGenerationException if title cannot be resolved or datum model creation fails
      */
     public void createDatumClass(String ns, String definitionKey, BlueprintSchema schema) {
-        if (!preScanDone && definitions != null) {
-            preScanInterfaces(definitions);
-            preScanDone = true;
-        }
-
         if (schema == null) {
             return;
         }

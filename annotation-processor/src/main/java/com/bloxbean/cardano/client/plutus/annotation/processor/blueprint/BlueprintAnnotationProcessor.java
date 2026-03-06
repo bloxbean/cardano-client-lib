@@ -112,7 +112,6 @@ public class BlueprintAnnotationProcessor extends AbstractProcessor {
             fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
             validatorProcessor = new ValidatorProcessor(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
 
-            // Pass definitions so pre-scan happens automatically on first createDatumClass call
             fieldSpecProcessor.setDefinitions(definitions);
 
             //Create Data classes
