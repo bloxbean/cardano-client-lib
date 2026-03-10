@@ -1,0 +1,22 @@
+# Docker Compose for devnet integration tests.
+# Spins up a yaci-devkit node with Store API (Blockfrost-compatible).
+#
+# Usage:
+#   docker compose --env-file .env.DevnetTest -f docker-compose-devnet-test.yaml up -d --wait --wait-timeout 120
+#   ./gradlew :annotation-processor:devnetTest -PskipSigning=true
+#   docker compose --env-file .env.DevnetTest -f docker-compose-devnet-test.yaml down
+
+services:
+  yaci-cli:
+    image: bloxbean/yaci-cli:${YACI_VERSION}
+    ports:
+      - "8080:8080"    # Store API (Blockfrost-compatible)
+      - "10000:10000"  # Cluster/Admin API
+    environment:
+      yaci_cli_mode: "native"
+      yaci_store_mode: "native"
+      conwayHardForkAtEpoch: 1
+      shiftStartTimeBehind: true
+      yaci_store_enabled: true
+      ogmios_enabled: false
+    entrypoint: ["/app/yaci-cli", "create-node", "-o", "--start"]

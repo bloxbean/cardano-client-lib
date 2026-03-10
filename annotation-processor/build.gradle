@@ -16,25 +16,39 @@ dependencies {
 
     testAnnotationProcessor project(':annotation-processor')
 
-    integrationTestImplementation libs.google.testing.compile
-    integrationTestImplementation libs.lombok
+    compilationTestImplementation libs.google.testing.compile
+    compilationTestImplementation libs.lombok
+    compilationTestAnnotationProcessor project(':annotation-processor')
+
+    integrationTestImplementation project(':it-support')
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation project(':quicktx')
+    integrationTestImplementation libs.scalus.bloxbean
+    integrationTestImplementation(libs.slf4j.reload4j)
     integrationTestAnnotationProcessor project(':annotation-processor')
+    integrationTestCompileOnly libs.lombok
+    integrationTestAnnotationProcessor libs.lombok
 }
 
-// Integration test without shared type registry
+// Ensure blueprint JSON is on the classpath during annotation processing
+tasks.named('compileIntegrationTestJava') {
+    classpath += files(sourceSets.integrationTest.resources.srcDirs)
+}
+
+// Compilation test without shared type registry
 // Verifies blueprint processing works when no BlueprintTypeRegistry is active
-tasks.register('compileIntegrationTestNoRegistryJava', JavaCompile) {
-    source = sourceSets.integrationTest.java
-    classpath = sourceSets.integrationTest.compileClasspath
-    destinationDirectory = layout.buildDirectory.dir('classes/java/integrationTestNoRegistry')
-    options.annotationProcessorPath = configurations.integrationTestAnnotationProcessor
+tasks.register('compileCompilationTestNoRegistryJava', JavaCompile) {
+    source = sourceSets.compilationTest.java
+    classpath = sourceSets.compilationTest.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('classes/java/compilationTestNoRegistry')
+    options.annotationProcessorPath = configurations.compilationTestAnnotationProcessor
     options.compilerArgs += ['-Acardano.registry.enable=false']
 }
 
-tasks.register('integrationTestNoRegistry') {
-    dependsOn 'compileIntegrationTestNoRegistryJava'
+tasks.register('compilationTestNoRegistry') {
+    dependsOn 'compileCompilationTestNoRegistryJava'
     group = 'verification'
-    description = 'Compile integration tests with shared type registry disabled'
+    description = 'Compile compilation tests with shared type registry disabled'
 }
 
 publishing {
