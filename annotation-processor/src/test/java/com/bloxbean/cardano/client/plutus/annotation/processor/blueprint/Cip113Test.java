@@ -44,12 +44,12 @@ public class Cip113Test {
     }
 
     @Nested
-    @DisplayName("Top-level variant structure for interface types")
-    class TopLevelVariantTests {
+    @DisplayName("Sub-package variant structure for interface types")
+    class SubPackageVariantTests {
 
         @Test
-        @DisplayName("GlobalStateSpendAction should be interface with variants as top-level classes")
-        void globalStateSpendActionVariantsAreTopLevel() throws Exception {
+        @DisplayName("GlobalStateSpendAction should be interface with variants in sub-package")
+        void globalStateSpendActionVariantsInSubPackage() throws Exception {
             assertThat(compilation).succeeded();
 
             // GlobalStateSpendAction has 3 variants: MintSecurity, PauseTransfers, ModifySecurityInfo
@@ -64,19 +64,20 @@ public class Cip113Test {
                     .as("GlobalStateSpendAction should be an interface")
                     .contains("public interface GlobalStateSpendAction");
 
+            String variantPkg = basePkg + ".globalstatespendaction";
             for (String variant : new String[]{"MintSecurity", "PauseTransfers", "ModifySecurityInfo"}) {
-                JavaFileObject variantFile = compilation.generatedSourceFile(basePkg + ".GlobalStateSpendAction" + variant)
-                        .orElseThrow(() -> new AssertionError("GlobalStateSpendAction" + variant + ".java not generated as top-level"));
+                JavaFileObject variantFile = compilation.generatedSourceFile(variantPkg + "." + variant)
+                        .orElseThrow(() -> new AssertionError(variant + ".java not generated in globalstatespendaction sub-package"));
                 String variantSource = variantFile.getCharContent(true).toString();
                 assertThat(variantSource)
-                        .as("GlobalStateSpendAction" + variant + " should implement Data and GlobalStateSpendAction")
-                        .contains("abstract class GlobalStateSpendAction" + variant + " implements Data<GlobalStateSpendAction" + variant + ">, GlobalStateSpendAction");
+                        .as(variant + " should implement Data and GlobalStateSpendAction")
+                        .contains("abstract class " + variant + " implements Data<" + variant + ">, GlobalStateSpendAction");
             }
         }
 
         @Test
-        @DisplayName("MintRedeemer should be interface with variants as top-level classes")
-        void mintRedeemerVariantsAreTopLevel() throws Exception {
+        @DisplayName("MintRedeemer should be interface with variants in sub-package")
+        void mintRedeemerVariantsInSubPackage() throws Exception {
             assertThat(compilation).succeeded();
 
             // power_users/MintRedeemer has 4 variants: Init, Deinit, AddPowerUser, RemovePowerUser
@@ -90,29 +91,29 @@ public class Cip113Test {
                     .as("MintRedeemer should be an interface")
                     .contains("public interface MintRedeemer");
 
+            String variantPkg = basePkg + ".mintredeemer";
             for (String variant : new String[]{"Init", "Deinit"}) {
-                JavaFileObject variantFile = compilation.generatedSourceFile(basePkg + ".MintRedeemer" + variant)
-                        .orElseThrow(() -> new AssertionError("MintRedeemer" + variant + ".java not generated as top-level"));
+                JavaFileObject variantFile = compilation.generatedSourceFile(variantPkg + "." + variant)
+                        .orElseThrow(() -> new AssertionError(variant + ".java not generated in mintredeemer sub-package"));
                 String variantSource = variantFile.getCharContent(true).toString();
                 assertThat(variantSource)
-                        .as("MintRedeemer" + variant + " should implement Data and MintRedeemer")
-                        .contains("abstract class MintRedeemer" + variant + " implements Data<MintRedeemer" + variant + ">, MintRedeemer");
+                        .as(variant + " should implement Data and MintRedeemer")
+                        .contains("abstract class " + variant + " implements Data<" + variant + ">, MintRedeemer");
             }
         }
 
         @Test
-        @DisplayName("MintRedeemer variants should be top-level with prefixed names")
-        void mintRedeemerVariantsArePrefixed() {
+        @DisplayName("MintRedeemer variants should be in mintredeemer sub-package")
+        void mintRedeemerVariantsInCorrectSubPackage() {
             assertThat(compilation).succeeded();
 
-            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.powerusers.model";
+            String variantPkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.cip113.types.powerusers.model.mintredeemer";
 
-            // Variants should exist as prefixed top-level files
-            assertThat(compilation.generatedSourceFile(basePkg + ".MintRedeemerInit"))
-                    .as("MintRedeemerInit should be a top-level file")
+            assertThat(compilation.generatedSourceFile(variantPkg + ".Init"))
+                    .as("Init should be in mintredeemer sub-package")
                     .isPresent();
-            assertThat(compilation.generatedSourceFile(basePkg + ".MintRedeemerDeinit"))
-                    .as("MintRedeemerDeinit should be a top-level file")
+            assertThat(compilation.generatedSourceFile(variantPkg + ".Deinit"))
+                    .as("Deinit should be in mintredeemer sub-package")
                     .isPresent();
         }
     }

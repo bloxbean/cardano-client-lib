@@ -64,8 +64,8 @@ public class SundaeSwapV3Test {
     }
 
     @Nested
-    @DisplayName("Inner class structure for interface types")
-    class InnerClassStructureTests {
+    @DisplayName("Sub-package variant structure for interface types")
+    class SubPackageVariantTests {
 
         @Test
         @DisplayName("Credential should be resolved as shared stdlib type, not generated")
@@ -95,8 +95,8 @@ public class SundaeSwapV3Test {
         }
 
         @Test
-        @DisplayName("Order should be an interface with 6 variants as top-level classes")
-        void orderVariantsAreTopLevel() throws Exception {
+        @DisplayName("Order should be an interface with 6 variants in order sub-package")
+        void orderVariantsInSubPackage() throws Exception {
             assertThat(compilation).succeeded();
 
             JavaFileObject file = compilation.generatedSourceFile(
@@ -108,15 +108,15 @@ public class SundaeSwapV3Test {
                     .as("Order should be an interface")
                     .contains("public interface Order");
 
-            // Variants should be separate top-level files with prefixed names
-            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.types.order.model";
+            // Variants should be in order sub-package
+            String variantPkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.types.order.model.order";
             for (String variant : new String[]{"Strategy", "Swap", "Deposit", "Withdrawal", "Donation", "Record"}) {
-                JavaFileObject variantFile = compilation.generatedSourceFile(basePkg + ".Order" + variant)
-                        .orElseThrow(() -> new AssertionError("Order" + variant + ".java not generated as top-level"));
+                JavaFileObject variantFile = compilation.generatedSourceFile(variantPkg + "." + variant)
+                        .orElseThrow(() -> new AssertionError(variant + ".java not generated in order sub-package"));
                 String variantSource = variantFile.getCharContent(true).toString();
                 assertThat(variantSource)
-                        .as("Order" + variant + " should implement Data and Order")
-                        .contains("abstract class Order" + variant + " implements Data<Order" + variant + ">, Order");
+                        .as(variant + " should implement Data and Order")
+                        .contains("abstract class " + variant + " implements Data<" + variant + ">, Order");
             }
         }
 
@@ -127,12 +127,12 @@ public class SundaeSwapV3Test {
 
             // Credential is resolved as a shared stdlib type, so no variants are generated at all
             assertThat(compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.CredentialVerificationKey"))
-                    .as("CredentialVerificationKey should not be generated (shared type)")
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.credential.VerificationKey"))
+                    .as("credential/VerificationKey should not be generated (shared type)")
                     .isEmpty();
             assertThat(compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.CredentialScript"))
-                    .as("CredentialScript should not be generated (shared type)")
+                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.sundaeswapv3.cardano.address.model.credential.Script"))
+                    .as("credential/Script should not be generated (shared type)")
                     .isEmpty();
         }
     }

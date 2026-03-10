@@ -736,11 +736,11 @@ class FieldSpecProcessorTest {
             TypeSpec result = fieldSpecProcessor.buildVariantTypeSpec("ns", "Credential", schema);
 
             assertThat(result).isNotNull();
-            // Should have 2 superinterfaces: Data<CredentialVerificationKey> and Credential
+            // Should have 2 superinterfaces: Data<VerificationKey> and Credential
             assertThat(result.superinterfaces).hasSize(2);
             String superinterfaces = result.superinterfaces.toString();
             assertThat(superinterfaces).contains("Data");
-            assertThat(superinterfaces).contains("CredentialVerificationKey");
+            assertThat(superinterfaces).contains("VerificationKey");
             assertThat(superinterfaces).contains("Credential");
         }
 
@@ -773,12 +773,12 @@ class FieldSpecProcessorTest {
             TypeSpec result = fieldSpecProcessor.buildVariantTypeSpec("ns", "MyInterface", schema);
 
             assertThat(result).isNotNull();
-            assertThat(result.name).isEqualTo("MyInterfaceUnit");
+            assertThat(result.name).isEqualTo("Unit");
             assertThat(result.fieldSpecs).isEmpty();
         }
 
         @Test
-        void shouldUsePrefixedVariantName() {
+        void shouldUseUnprefixedVariantName() {
             BlueprintSchema schema = new BlueprintSchema();
             schema.setDataType(BlueprintDatatype.constructor);
             schema.setTitle("VerificationKey");
@@ -787,7 +787,7 @@ class FieldSpecProcessorTest {
             TypeSpec result = fieldSpecProcessor.buildVariantTypeSpec("ns", "Credential", schema);
 
             assertThat(result).isNotNull();
-            assertThat(result.name).isEqualTo("CredentialVerificationKey");
+            assertThat(result.name).isEqualTo("VerificationKey");
         }
     }
 }

@@ -555,12 +555,12 @@ class BlueprintAnnotationProcessorTest {
      * <ul>
      *   <li>{@code test/Credential} — anyOf: VerificationKey (index 0), Script (index 1)</li>
      *   <li>{@code test/PaymentCredential} — anyOf: VerificationKey (index 0), Script (index 1)</li>
-     *   <li>{@code test/Address} — constructor with payment_credential ($ref PaymentCredential) and
+     *   <li>{@code test/Address} — constructor with paymentcredential ($ref PaymentCredential) and
      *       stake_credential ($ref Credential) fields</li>
      * </ul>
      */
     @Nested
-    @DisplayName("Pseudo-alias top-level variant compilation tests")
+    @DisplayName("Pseudo-alias sub-package variant compilation tests")
     class PseudoAliasCompilationTests {
 
         @Test
@@ -575,8 +575,8 @@ class BlueprintAnnotationProcessorTest {
         }
 
         @Test
-        @DisplayName("Credential variants should be top-level classes with prefixed names")
-        void credentialVariantsShouldBeTopLevel() throws Exception {
+        @DisplayName("Credential variants should be in credential sub-package")
+        void credentialVariantsShouldBeInSubPackage() throws Exception {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
@@ -592,21 +592,21 @@ class BlueprintAnnotationProcessorTest {
                     .as("Credential should be an interface")
                     .contains("public interface Credential");
 
-            // Variants are now separate top-level files with prefixed names
-            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.CredentialVerificationKey")
-                    .orElseThrow(() -> new AssertionError("CredentialVerificationKey.java not generated"));
+            // Variants are in sub-package named after the interface
+            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.credential.VerificationKey")
+                    .orElseThrow(() -> new AssertionError("credential/VerificationKey.java not generated"));
             String vkSource = vkFile.getCharContent(true).toString();
-            assertThat(vkSource).contains("abstract class CredentialVerificationKey");
+            assertThat(vkSource).contains("abstract class VerificationKey");
 
-            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.CredentialScript")
-                    .orElseThrow(() -> new AssertionError("CredentialScript.java not generated"));
+            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.credential.Script")
+                    .orElseThrow(() -> new AssertionError("credential/Script.java not generated"));
             String scriptSource = scriptFile.getCharContent(true).toString();
-            assertThat(scriptSource).contains("abstract class CredentialScript");
+            assertThat(scriptSource).contains("abstract class Script");
         }
 
         @Test
-        @DisplayName("PaymentCredential variants should be top-level classes with prefixed names")
-        void paymentCredentialVariantsShouldBeTopLevel() throws Exception {
+        @DisplayName("PaymentCredential variants should be in paymentcredential sub-package")
+        void paymentCredentialVariantsShouldBeInSubPackage() throws Exception {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
@@ -622,21 +622,21 @@ class BlueprintAnnotationProcessorTest {
                     .as("PaymentCredential should be an interface")
                     .contains("public interface PaymentCredential");
 
-            // Variants are now separate top-level files with prefixed names
-            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.PaymentCredentialVerificationKey")
-                    .orElseThrow(() -> new AssertionError("PaymentCredentialVerificationKey.java not generated"));
+            // Variants are in sub-package named after the interface
+            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.paymentcredential.VerificationKey")
+                    .orElseThrow(() -> new AssertionError("paymentcredential/VerificationKey.java not generated"));
             String vkSource = vkFile.getCharContent(true).toString();
-            assertThat(vkSource).contains("abstract class PaymentCredentialVerificationKey");
+            assertThat(vkSource).contains("abstract class VerificationKey");
 
-            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.PaymentCredentialScript")
-                    .orElseThrow(() -> new AssertionError("PaymentCredentialScript.java not generated"));
+            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.paymentcredential.Script")
+                    .orElseThrow(() -> new AssertionError("paymentcredential/Script.java not generated"));
             String scriptSource = scriptFile.getCharContent(true).toString();
-            assertThat(scriptSource).contains("abstract class PaymentCredentialScript");
+            assertThat(scriptSource).contains("abstract class Script");
         }
 
         @Test
-        @DisplayName("converters should be prefixed: CredentialVerificationKeyConverter, etc.")
-        void convertersShouldBePrefixed() {
+        @DisplayName("converters should be in correct packages")
+        void convertersShouldBeInCorrectPackages() {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
@@ -648,7 +648,7 @@ class BlueprintAnnotationProcessorTest {
                     .map(jfo -> jfo.getName())
                     .toList();
 
-            // Interface converters
+            // Interface converters (in root model.converter package)
             assertThat(generatedSources)
                     .as("CredentialConverter should be generated")
                     .anyMatch(name -> name.contains("CredentialConverter"));
@@ -656,13 +656,13 @@ class BlueprintAnnotationProcessorTest {
                     .as("PaymentCredentialConverter should be generated")
                     .anyMatch(name -> name.contains("PaymentCredentialConverter"));
 
-            // Variant converters with prefixed names
+            // Variant converters in sub-package (e.g., credential/converter/VerificationKeyConverter)
             assertThat(generatedSources)
-                    .as("CredentialVerificationKeyConverter should be generated")
-                    .anyMatch(name -> name.contains("CredentialVerificationKeyConverter"));
+                    .as("VerificationKeyConverter should be generated in credential sub-package")
+                    .anyMatch(name -> name.contains("/credential/converter/VerificationKeyConverter"));
             assertThat(generatedSources)
-                    .as("PaymentCredentialVerificationKeyConverter should be generated")
-                    .anyMatch(name -> name.contains("PaymentCredentialVerificationKeyConverter"));
+                    .as("VerificationKeyConverter should be generated in paymentcredential sub-package")
+                    .anyMatch(name -> name.contains("/paymentcredential/converter/VerificationKeyConverter"));
         }
 
         @Test

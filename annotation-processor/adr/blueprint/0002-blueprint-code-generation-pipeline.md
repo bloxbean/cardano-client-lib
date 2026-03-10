@@ -39,10 +39,9 @@ ENUM  INTERFACE         CLASS
   │     │                 │
   ▼     ▼                 ▼
 Java  Interface +      @Data class +
-enum  top-level        ConverterCodeGenerator
-      @Constr variant
-      classes (prefixed
-      names, ADR-0016)
+enum  variant classes   ConverterCodeGenerator
+      in sub-package
+      (ADR-0016)
 ```
 
 **Key classes:**
@@ -98,7 +97,7 @@ Before generating a class for a definition, `FieldSpecProcessor` checks `SharedT
 ## Rationale
 
 1. **Separation of concerns**: Definitions and validators have fundamentally different structures. Separate processors keep each focused.
-2. **Schema classification**: The three-way classification (ENUM/INTERFACE/CLASS) enables generating idiomatic Java for each pattern — enums for discriminated unions without data, interfaces with top-level prefixed variant classes for sum types (see ADR-0016), classes for product types.
+2. **Schema classification**: The three-way classification (ENUM/INTERFACE/CLASS) enables generating idiomatic Java for each pattern — enums for discriminated unions without data, interfaces with variant classes in sub-packages for sum types (see ADR-0016), classes for product types.
 3. **Shared type reuse**: Checking `SharedTypeLookup` first prevents generating redundant classes when existing types (e.g., from `plutus-aiken` module) already model the same data.
 4. **Consistent naming**: Both phases share `PackageResolver` and `NamingStrategy` (see ADR-0014), ensuring consistent package and class naming.
 

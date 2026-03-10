@@ -43,12 +43,12 @@ public class AftermarketTest {
     }
 
     @Nested
-    @DisplayName("Top-level variant structure for interface types")
-    class TopLevelVariantTests {
+    @DisplayName("Sub-package variant structure for interface types")
+    class SubPackageVariantTests {
 
         @Test
-        @DisplayName("MarketDatum should be interface with 5 variants as top-level classes")
-        void marketDatumVariantsAreTopLevel() throws Exception {
+        @DisplayName("MarketDatum should be interface with 5 variants in sub-package")
+        void marketDatumVariantsInSubPackage() throws Exception {
             assertThat(compilation).succeeded();
 
             // MarketDatum has 5 variants: SpotDatum, AuctionDatum, SpotBidDatum, ClaimBidDatum, AcceptedBidDatum
@@ -63,19 +63,20 @@ public class AftermarketTest {
                     .as("MarketDatum should be an interface")
                     .contains("public interface MarketDatum");
 
+            String variantPkg = basePkg + ".marketdatum";
             for (String variant : new String[]{"SpotDatum", "AuctionDatum", "SpotBidDatum", "ClaimBidDatum", "AcceptedBidDatum"}) {
-                JavaFileObject variantFile = compilation.generatedSourceFile(basePkg + ".MarketDatum" + variant)
-                        .orElseThrow(() -> new AssertionError("MarketDatum" + variant + ".java not generated as top-level"));
+                JavaFileObject variantFile = compilation.generatedSourceFile(variantPkg + "." + variant)
+                        .orElseThrow(() -> new AssertionError(variant + ".java not generated in marketdatum sub-package"));
                 String variantSource = variantFile.getCharContent(true).toString();
                 assertThat(variantSource)
-                        .as("MarketDatum" + variant + " should implement Data and MarketDatum")
-                        .contains("abstract class MarketDatum" + variant + " implements Data<MarketDatum" + variant + ">, MarketDatum");
+                        .as(variant + " should implement Data and MarketDatum")
+                        .contains("abstract class " + variant + " implements Data<" + variant + ">, MarketDatum");
             }
         }
 
         @Test
-        @DisplayName("MarketRedeemer should be interface with variants as top-level classes")
-        void marketRedeemerVariantsAreTopLevel() throws Exception {
+        @DisplayName("MarketRedeemer should be interface with variants in sub-package")
+        void marketRedeemerVariantsInSubPackage() throws Exception {
             assertThat(compilation).succeeded();
 
             String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.model.aftermarket.cardanoaftermarket.data.redeemers.model";
@@ -88,12 +89,13 @@ public class AftermarketTest {
                     .as("MarketRedeemer should be an interface")
                     .contains("public interface MarketRedeemer");
 
-            JavaFileObject variantFile = compilation.generatedSourceFile(basePkg + ".MarketRedeemerCloseOrUpdateSellerUTxO")
-                    .orElseThrow(() -> new AssertionError("MarketRedeemerCloseOrUpdateSellerUTxO.java not generated as top-level"));
+            String variantPkg = basePkg + ".marketredeemer";
+            JavaFileObject variantFile = compilation.generatedSourceFile(variantPkg + ".CloseOrUpdateSellerUTxO")
+                    .orElseThrow(() -> new AssertionError("CloseOrUpdateSellerUTxO.java not generated in marketredeemer sub-package"));
             String variantSource = variantFile.getCharContent(true).toString();
             assertThat(variantSource)
-                    .as("Should contain CloseOrUpdateSellerUTxO as top-level class")
-                    .contains("abstract class MarketRedeemerCloseOrUpdateSellerUTxO implements Data<MarketRedeemerCloseOrUpdateSellerUTxO>, MarketRedeemer");
+                    .as("Should contain CloseOrUpdateSellerUTxO in sub-package")
+                    .contains("abstract class CloseOrUpdateSellerUTxO implements Data<CloseOrUpdateSellerUTxO>, MarketRedeemer");
         }
     }
 }

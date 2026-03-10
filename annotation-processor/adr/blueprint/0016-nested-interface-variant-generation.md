@@ -1,106 +1,121 @@
-# ADR 0016: anyOf Interface Variants as Top-Level Classes with Prefixed Names
+# ADR 0016: anyOf Interface Variants in Sub-Packages
 
 - Status: Accepted
-- Date: 2026-03-06
+- Date: 2026-03-10
 - Owners: Cardano Client Lib maintainers
 - Related: ADR-0002 (Blueprint Code Generation Pipeline), ADR-0008 (Schema Classification Strategy)
 
 ## Context
 
-When the schema classifier (ADR-0008) identifies an `INTERFACE` classification — an `anyOf` schema with more than one variant — the processor generates a Java interface and one class per variant. The variants must avoid naming collisions: both `Credential` and `PaymentCredential` can have a `VerificationKey` variant in the same package.
+When the schema classifier (ADR-0008) identifies an `INTERFACE` classification — an `anyOf` schema with more than one variant — the processor generates a Java interface and one class per variant. The variants must avoid naming collisions: both `Credential` and `PaymentCredential` can have a `VerificationKey` variant.
 
-An earlier approach nested variants as static inner classes (e.g., `Credential.VerificationKey`). While this solved collisions, it created downstream complexity:
+Earlier approaches tried:
+1. **Nested inner classes** (e.g., `Credential.VerificationKey`) — created downstream complexity in converter FQN resolution and `ClassName` construction.
+2. **Top-level prefixed names** (e.g., `CredentialVerificationKey`) — simpler, but produced long concatenated names that are harder to read.
 
-1. **Converter FQN resolution**: `ClassDefinitionGenerator` needed enclosing-element inspection to prefix converter names (detecting that `VerificationKey` is inside `Credential` to produce `CredentialVerificationKeyConverter`).
-2. **Nested `ClassName` construction**: `buildVariantTypeSpec()` used `ClassName.get(pkg, interfaceClassName, variantName)` for nested references, and all downstream code (`ConverterCodeGenerator`, `DataImplGenerator`) needed `ClassName.bestGuess()` to parse dotted notation.
-3. **Converter placement complexity**: Placing converters for nested classes required special handling in the code generation pipeline.
-
-A simpler approach achieves the same collision avoidance: generate variants as **top-level classes** with the interface name prepended to the variant name.
+A cleaner approach: place variants in a **sub-package** named after the interface, keeping short, unprefixed variant names.
 
 ## Decision
 
-Generate each `anyOf` variant as a **top-level class** with a prefixed name (`InterfaceName` + `VariantName`). The interface itself is written as a standalone file with no inner types.
+Generate each `anyOf` variant in a **sub-package** named after the interface. The interface itself stays in the root model package. Sub-package names use the existing `toPackageNameFormat()` convention (lowercase, no special chars) for consistency with Aiken module path handling.
 
 ### Generated Structure
 
 ```
-Credential.java
-  public interface Credential {}
+com.example.model/
+  Credential.java
+    public interface Credential {}
 
-CredentialVerificationKey.java
-  public abstract class CredentialVerificationKey
-      implements Data<CredentialVerificationKey>, Credential { ... }
+com.example.model.credential/
+  VerificationKey.java
+    public abstract class VerificationKey
+        implements Data<VerificationKey>, Credential { ... }
 
-CredentialScript.java
-  public abstract class CredentialScript
-      implements Data<CredentialScript>, Credential { ... }
+  Script.java
+    public abstract class Script
+        implements Data<Script>, Credential { ... }
 ```
 
-Multiple files are emitted: one for the interface and one per variant.
+For multi-word interfaces, PascalCase is lowercased (same convention as Aiken module paths):
+```
+com.example.model/
+  PaymentCredential.java
+
+com.example.model.paymentcredential/
+  VerificationKey.java
+  Script.java
+```
+
+### Sub-Package Naming
+
+Reuses the existing `NamingStrategy.toPackageNameFormat()` — lowercase, stripped of special characters:
+- `Credential` → `credential`
+- `PaymentCredential` → `paymentcredential`
+- `GlobalStateSpendAction` → `globalstatespendaction`
+- `MarketDatum` → `marketdatum`
+
+This is the same convention used for Aiken module paths (`global_state` → `globalstate`), ensuring a single consistent package naming rule across the codebase.
 
 ### Key Implementation
 
 #### `FieldSpecProcessor` — Interface and Variant Generation
 
-- `buildInterfaceTypeSpecBuilder(String interfaceName)` — creates the interface `TypeSpec.Builder` with `@Constr` annotation and public modifier.
+- `buildInterfaceTypeSpecBuilder(String interfaceName)` — creates the interface `TypeSpec.Builder` with `@Constr` annotation and public modifier. Interface stays in root package.
 - `createDatumClass(DatumModel)` INTERFACE branch:
-  1. Writes the interface file first (standalone, no inner types).
-  2. Iterates over variants, calling `buildVariantTypeSpec()` for each.
-  3. Writes each variant as a separate file, registered with `GeneratedTypesRegistry`.
+  1. Writes the interface file in the root model package.
+  2. Computes variant sub-package: `pkg + "." + nameStrategy.toPackageNameFormat(className)`.
+  3. Iterates over variants, calling `buildVariantTypeSpec()` for each.
+  4. Writes each variant to the sub-package, registered with `GeneratedTypesRegistry`.
 
 - `buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema)`:
-  - Constructs the prefixed name: `nameStrategy.toClassName(interfaceName) + nameStrategy.toClassName(schema.getTitle())`.
-  - Uses `ClassName.get(pkg, prefixedName)` — a top-level reference, no nesting.
-  - Modifiers: `PUBLIC, ABSTRACT` (no `STATIC` since it's top-level).
-  - Parameterizes `Data<PrefixedName>` (e.g., `Data<CredentialVerificationKey>`).
-  - Still implements the parent interface (e.g., `Credential`).
-  - Applies `@Constr(alternative = X)` annotation with the correct constructor index.
-  - Processes fields directly from the variant schema (no recursive `collectAllFields`).
+  - Uses unprefixed variant name: `nameStrategy.toClassName(schema.getTitle())`.
+  - Computes sub-package: `pkg + "." + nameStrategy.toPackageNameFormat(interfaceClassName)`.
+  - Uses `ClassName.get(variantPkg, className)` for `Data<T>` parameterization.
+  - References parent interface via `ClassName.get(pkg, interfaceClassName)` (root package).
+  - Modifiers: `PUBLIC, ABSTRACT` (top-level class).
+  - Applies `@Constr(alternative = X)` annotation.
 
-#### `ClassDefinitionGenerator` — Simplified
+#### Converter Resolution — Automatic
 
-No enclosing-element inspection is needed. Since the class is already named `CredentialVerificationKey`, the converter name `CredentialVerificationKeyConverter` and impl name `CredentialVerificationKeyImpl` are derived naturally:
-
-```java
-String prefix = className;  // Already "CredentialVerificationKey"
-```
-
-`getConverterClassFromField()` continues to use `String.join("", fieldClass.simpleNames())` which works for top-level classes (single-element list).
+`ConstrAnnotationProcessor` reads the package from `TypeElement` at compile time. Since variants now live in sub-packages, converter packages auto-resolve:
+- Variant `com.example.model.credential.VerificationKey` → converter in `com.example.model.credential.converter`
+- Interface converter stays at `com.example.model.converter.CredentialConverter`
 
 ### What Does NOT Change
 
 - **`SchemaClassifier`** — still classifies `anyOf > 1` as INTERFACE.
-- **`ConstrAnnotationProcessor`** — interface detection via `getInterfaces()` still works (variants still implement the interface).
+- **`ConstrAnnotationProcessor`** — interface detection via `getInterfaces()` still works.
 - **`ConverterCodeGenerator` / `InterfaceConverterBuilder`** — dispatch converter generation unchanged.
-- **`DataImplGenerator`** — works with any class name.
-- **Converter location** — always `pkg.converter.XConverter` (standard path).
+- **`DataImplGenerator`** — works with any package/class combination.
+- **`getInnerDatumClass()`** — field references point to the interface type (root package), unchanged.
+- **`NamingStrategy`** — no new methods; reuses existing `toPackageNameFormat()`.
 
 ## Rationale
 
-1. **Simplicity**: No enclosing-element detection, no nested `ClassName` construction, no special converter placement logic. The prefixed name carries all necessary information.
-2. **Collision avoidance**: `CredentialVerificationKey` and `PaymentCredentialVerificationKey` are distinct names — same guarantee as nesting, without the complexity.
-3. **Predictable converter names**: `CredentialVerificationKeyConverter` is derived from the class name alone, with no need to inspect the type hierarchy.
-4. **Reduced downstream complexity**: Eliminates the need for `ClassName.bestGuess()` to parse dotted nested-class notation in converter and impl generators.
+1. **Readable names**: `credential.VerificationKey` is clearer than `CredentialVerificationKey`.
+2. **Collision avoidance**: `credential.VerificationKey` and `paymentcredential.VerificationKey` are in different packages.
+3. **IDE navigation**: Sub-packages group variants logically under their interface.
+4. **Automatic converter resolution**: No special handling — `ConstrAnnotationProcessor` derives converter package from the variant's `TypeElement`.
+5. **Consistent conventions**: Uses the same `toPackageNameFormat()` as Aiken module path conversion — one rule for all package naming.
 
 ## Consequences
 
 ### Positive
-- Naming collisions between same-named variants of different interfaces are eliminated.
-- Converter and impl class generation is simpler — no enclosing-element inspection needed.
-- Each variant is a self-contained file, easy to navigate in IDEs.
-- Downstream code (converter generators, impl generators) works with standard top-level class references.
+- Shorter, more readable variant class names.
+- Logical grouping in IDE file trees and package explorers.
+- Naming collisions eliminated via package scoping.
+- No changes needed to converter generation pipeline.
+- Unified package naming convention across the codebase.
 
 ### Negative
-- More generated files (one per variant instead of one per interface).
-  - **Mitigation**: IDE file trees and package structure keep them organized.
-- Variant class names are longer (e.g., `MarketDatumSpotDatum` instead of `SpotDatum`).
-  - **Mitigation**: These names are generated and rarely typed manually. The prefix provides useful context.
-- The short variant name (e.g., `VerificationKey`) is no longer directly visible as a class name.
-  - **Mitigation**: The interface still exists as a marker, and the prefix clearly indicates the relationship.
+- More packages generated (one sub-package per interface).
+  - **Mitigation**: IDE package trees handle this naturally.
+- Import paths are slightly longer (e.g., `import com.example.model.credential.VerificationKey`).
+  - **Mitigation**: IDEs auto-manage imports.
 
 ## References
 
-- `FieldSpecProcessor.buildInterfaceTypeSpecBuilder()`, `buildVariantTypeSpec()` — interface and variant generation
-- `ClassDefinitionGenerator` — simplified name prefixing (no enclosing-element detection)
+- `NamingStrategy.toPackageNameFormat()` — unified package name formatting
+- `FieldSpecProcessor.buildVariantTypeSpec()`, `createDatumClass()` — variant sub-package generation
 - ADR-0002: Blueprint Code Generation Pipeline (INTERFACE classification flow)
 - ADR-0008: Schema Classification Strategy (anyOf classification)

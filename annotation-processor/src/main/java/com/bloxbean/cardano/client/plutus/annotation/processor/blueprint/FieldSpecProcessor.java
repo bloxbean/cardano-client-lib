@@ -291,14 +291,15 @@ public class FieldSpecProcessor {
                 sourceWriter.write(pkg, interfaceBuilder.build(), className);
             }
 
-            // Write each variant as a separate top-level file with prefixed name
+            // Write each variant to a sub-package named after the interface
+            String variantPkg = pkg + "." + nameStrategy.toPackageNameFormat(className);
             for (BlueprintSchema innerSchema : allFields._2) {
                 if (interfaceName == null || interfaceName.isEmpty()) continue;
                 TypeSpec variantTypeSpec = buildVariantTypeSpec(datumModel.getNamespace(), interfaceName, innerSchema);
                 if (variantTypeSpec != null) {
                     String variantClassName = variantTypeSpec.name;
-                    if (generatedTypesRegistry.markGenerated(pkg, variantClassName)) {
-                        sourceWriter.write(pkg, variantTypeSpec, variantClassName);
+                    if (generatedTypesRegistry.markGenerated(variantPkg, variantClassName)) {
+                        sourceWriter.write(variantPkg, variantTypeSpec, variantClassName);
                     }
                 }
             }
@@ -435,8 +436,8 @@ public class FieldSpecProcessor {
     }
 
     /**
-     * Builds a TypeSpec for a variant class as a top-level class with a prefixed name.
-     * The variant is a public abstract class implementing Data&lt;InterfaceNameVariantName&gt;
+     * Builds a TypeSpec for a variant class in a sub-package named after the interface.
+     * The variant is a public abstract class implementing Data&lt;VariantName&gt;
      * and the parent interface.
      *
      * @param ns            namespace or package suffix
@@ -470,18 +471,18 @@ public class FieldSpecProcessor {
         String pkg = getPackageName(ns);
         String interfaceClassName = nameStrategy.toClassName(interfaceName);
 
-        // Top-level class with prefixed name: InterfaceName + VariantName
-        String prefixedName = interfaceClassName + className;
+        // Variant lives in sub-package: pkg.interfacename.VariantName
+        String variantPkg = pkg + "." + nameStrategy.toPackageNameFormat(interfaceClassName);
 
-        // Use top-level ClassName for correct Data<T> parameterization
-        ClassName datumClass = ClassName.get(pkg, prefixedName);
+        // Use sub-package ClassName for correct Data<T> parameterization
+        ClassName datumClass = ClassName.get(variantPkg, className);
         ClassName dataInterface = ClassName.get(Data.class);
         ParameterizedTypeName parameterizedInterface = ParameterizedTypeName.get(dataInterface, datumClass);
 
-        // Parent interface type
+        // Parent interface type (stays in root package)
         ClassName interfaceTypeName = ClassName.get(pkg, interfaceClassName);
 
-        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(prefixedName)
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .addFields(fields)
                 .addSuperinterface(parameterizedInterface)
@@ -490,9 +491,9 @@ public class FieldSpecProcessor {
                 .addAnnotation(constrAnnotation);
 
         log.debug("---------- Inside buildVariantTypeSpec ---------");
-        log.debug("Package: " + pkg);
+        log.debug("Package: " + variantPkg);
         log.debug("Interface: " + interfaceClassName);
-        log.debug("Variant: " + prefixedName);
+        log.debug("Variant: " + className);
 
         return classBuilder.build();
     }

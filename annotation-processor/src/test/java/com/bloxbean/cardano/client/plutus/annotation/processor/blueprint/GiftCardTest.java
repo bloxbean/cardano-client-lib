@@ -50,12 +50,12 @@ public class GiftCardTest {
     }
 
     @Nested
-    @DisplayName("Top-level variant structure for interface types")
-    class TopLevelVariantTests {
+    @DisplayName("Sub-package variant structure for interface types")
+    class SubPackageVariantTests {
 
         @Test
-        @DisplayName("Action interface should have Mint and Burn as top-level classes")
-        void actionVariantsAreTopLevel() throws Exception {
+        @DisplayName("Action interface should have Mint and Burn in action sub-package")
+        void actionVariantsInSubPackage() throws Exception {
             assertThat(compilation).succeeded();
 
             String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.giftcard.multi.model";
@@ -69,40 +69,41 @@ public class GiftCardTest {
                     .as("Action should be an interface")
                     .contains("public interface Action");
 
-            // Variants should be separate top-level files with prefixed names
-            JavaFileObject mintFile = compilation.generatedSourceFile(basePkg + ".ActionMint")
-                    .orElseThrow(() -> new AssertionError("ActionMint.java not generated as top-level"));
+            // Variants should be in action sub-package
+            String variantPkg = basePkg + ".action";
+            JavaFileObject mintFile = compilation.generatedSourceFile(variantPkg + ".Mint")
+                    .orElseThrow(() -> new AssertionError("Mint.java not generated in action sub-package"));
             String mintSource = mintFile.getCharContent(true).toString();
             assertThat(mintSource)
-                    .as("ActionMint should implement Data and Action")
-                    .contains("abstract class ActionMint implements Data<ActionMint>, Action");
+                    .as("Mint should implement Data and Action")
+                    .contains("abstract class Mint implements Data<Mint>, Action");
             assertThat(mintSource)
-                    .as("ActionMint variant should have @Constr(alternative = 0)")
-                    .contains("@Constr(\n    alternative = 0\n)\npublic abstract class ActionMint");
+                    .as("Mint variant should have @Constr(alternative = 0)")
+                    .contains("@Constr(\n    alternative = 0\n)\npublic abstract class Mint");
 
-            JavaFileObject burnFile = compilation.generatedSourceFile(basePkg + ".ActionBurn")
-                    .orElseThrow(() -> new AssertionError("ActionBurn.java not generated as top-level"));
+            JavaFileObject burnFile = compilation.generatedSourceFile(variantPkg + ".Burn")
+                    .orElseThrow(() -> new AssertionError("Burn.java not generated in action sub-package"));
             String burnSource = burnFile.getCharContent(true).toString();
             assertThat(burnSource)
-                    .as("ActionBurn should implement Data and Action")
-                    .contains("abstract class ActionBurn implements Data<ActionBurn>, Action");
+                    .as("Burn should implement Data and Action")
+                    .contains("abstract class Burn implements Data<Burn>, Action");
             assertThat(burnSource)
-                    .as("ActionBurn variant should have @Constr(alternative = 1)")
-                    .contains("@Constr(\n    alternative = 1\n)\npublic abstract class ActionBurn");
+                    .as("Burn variant should have @Constr(alternative = 1)")
+                    .contains("@Constr(\n    alternative = 1\n)\npublic abstract class Burn");
         }
 
         @Test
-        @DisplayName("Action variants should exist as prefixed top-level files")
-        void actionVariantsExistAsPrefixedFiles() {
+        @DisplayName("Action variants should exist in action sub-package")
+        void actionVariantsExistInSubPackage() {
             assertThat(compilation).succeeded();
 
-            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.giftcard.multi.model";
+            String variantPkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.giftcard.multi.model.action";
 
-            assertThat(compilation.generatedSourceFile(basePkg + ".ActionMint"))
-                    .as("ActionMint should be a top-level file")
+            assertThat(compilation.generatedSourceFile(variantPkg + ".Mint"))
+                    .as("Mint should be in action sub-package")
                     .isPresent();
-            assertThat(compilation.generatedSourceFile(basePkg + ".ActionBurn"))
-                    .as("ActionBurn should be a top-level file")
+            assertThat(compilation.generatedSourceFile(variantPkg + ".Burn"))
+                    .as("Burn should be in action sub-package")
                     .isPresent();
         }
     }
