@@ -1,0 +1,38 @@
+version: "1.0"
+flow:
+  id: two-step-chain
+  description: Two-step payment chain with UTXO dependency
+  steps:
+    - step:
+        id: step1
+        description: Sender to Receiver (3 ADA)
+        tx:
+          from_ref: account://sender
+          intents:
+            - type: payment
+              address: ${receiver_addr}
+              amounts:
+                - unit: lovelace
+                  quantity: '3000000'
+        context:
+          signers:
+            - ref: account://sender
+              scope: payment
+    - step:
+        id: step2
+        description: Receiver to Relay (1.5 ADA)
+        depends_on:
+          - from_step: step1
+            strategy: all
+        tx:
+          from_ref: account://receiver
+          intents:
+            - type: payment
+              address: ${relay_addr}
+              amounts:
+                - unit: lovelace
+                  quantity: '1500000'
+        context:
+          signers:
+            - ref: account://receiver
+              scope: payment

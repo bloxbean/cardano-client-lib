@@ -162,3 +162,5 @@ rust/jniLibs
 /backends/cardano-graphql/build/
 .gradle-user
 .gradle-user-home
+/.claude/
+/docs/public/_pagefind

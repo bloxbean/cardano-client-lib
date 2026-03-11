@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.plutus.aiken.blueprint.registry;
 
+import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.registry.LookupContext;
@@ -16,84 +17,211 @@ class AikenBlueprintTypeRegistryTest {
 
     private final AikenBlueprintTypeRegistry registry = new AikenBlueprintTypeRegistry();
 
+    private static final String STD = "com.bloxbean.cardano.client.plutus.aiken.blueprint.std";
+
+    private static LookupContext ctxV1() {
+        return LookupContext.EMPTY.withHint(AikenBlueprintTypeRegistry.HINT_STDLIB_VERSION, AikenStdlibVersion.V1.name());
+    }
+
+    private static LookupContext ctxV2() {
+        return LookupContext.EMPTY.withHint(AikenBlueprintTypeRegistry.HINT_STDLIB_VERSION, AikenStdlibVersion.V2.name());
+    }
+
+    private static LookupContext ctxV3() {
+        return LookupContext.EMPTY.withHint(AikenBlueprintTypeRegistry.HINT_STDLIB_VERSION, AikenStdlibVersion.V3.name());
+    }
+
+    // ── Bytes wrappers (version-independent) ────────────────────────────────
+
     @Test
-    void lookupTuplePairMapping() {
-        BlueprintSchema tupleSchema = new BlueprintSchema();
-        tupleSchema.setTitle("Tuple");
-        tupleSchema.setDataType(BlueprintDatatype.list);
-
-        BlueprintSchema leftRef = new BlueprintSchema();
-        leftRef.setRef("#/definitions/ByteArray");
-        BlueprintSchema rightRef = new BlueprintSchema();
-        rightRef.setRef("#/definitions/ByteArray");
-        tupleSchema.setItems(java.util.List.of(leftRef, rightRef));
-
-        SchemaSignature signature = new SchemaSignatureBuilder().build(tupleSchema);
-        Optional<RegisteredType> result = registry.lookup(signature, tupleSchema, LookupContext.EMPTY);
-
-        assertThat(result).isPresent();
-        assertThat(result.get().canonicalName()).isEqualTo("com.bloxbean.cardano.client.plutus.blueprint.type.Pair");
+    void lookupBytesWrappers() {
+        assertLookup(bytesSchema("VerificationKey"), ctxV3(), STD + ".VerificationKey");
+        assertLookup(bytesSchema("VerificationKeyHash"), ctxV3(), STD + ".VerificationKeyHash");
+        assertLookup(bytesSchema("Script"), ctxV3(), STD + ".Script");
+        assertLookup(bytesSchema("ScriptHash"), ctxV3(), STD + ".ScriptHash");
+        assertLookup(bytesSchema("Signature"), ctxV3(), STD + ".Signature");
+        assertLookup(bytesSchema("DataHash"), ctxV3(), STD + ".DataHash");
+        assertLookup(bytesSchema("Hash"), ctxV3(), STD + ".Hash");
+        assertLookup(bytesSchema("PolicyId"), ctxV3(), STD + ".PolicyId");
+        assertLookup(bytesSchema("AssetName"), ctxV3(), STD + ".AssetName");
     }
 
     @Test
-    void lookupCredentialMapping() {
-        BlueprintSchema credential = AikenBlueprintTypeRegistry.credentialSchema();
-        SchemaSignature signature = new SchemaSignatureBuilder().build(credential);
-        Optional<RegisteredType> result = registry.lookup(signature, credential, LookupContext.EMPTY);
+    void lookupIntervalBoundType() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.intervalBoundTypeSchema();
+        assertLookup(schema, ctxV3(), STD + ".IntervalBoundType");
+    }
 
-        assertThat(result).isPresent();
-        assertThat(result.get().canonicalName()).isEqualTo("com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Credential");
+    // ── Aiken stdlib v1 ─────────────────────────────────────────────────────
+
+    @Test
+    void lookupCredential_stdlibV1() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV1Schema();
+        assertLookup(schema, ctxV1(), STD + ".Credential");
     }
 
     @Test
-    void lookupReferencedCredentialMapping() {
-        BlueprintSchema referenced = AikenBlueprintTypeRegistry.referencedCredentialSchema();
-        SchemaSignature signature = new SchemaSignatureBuilder().build(referenced);
-        Optional<RegisteredType> result = registry.lookup(signature, referenced, LookupContext.EMPTY);
-
-        assertThat(result).isPresent();
-        assertThat(result.get().canonicalName()).isEqualTo("com.bloxbean.cardano.client.plutus.aiken.blueprint.std.ReferencedCredential");
+    void lookupReferencedCredential_stdlibV1() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.referencedV1Schema();
+        assertLookup(schema, ctxV1(), STD + ".ReferencedCredential");
     }
 
     @Test
-    void lookupAddressMapping() {
-        BlueprintSchema address = AikenBlueprintTypeRegistry.addressSchema();
-        SchemaSignature signature = new SchemaSignatureBuilder().build(address);
-        Optional<RegisteredType> result = registry.lookup(signature, address, LookupContext.EMPTY);
-
-        assertThat(result).isPresent();
-        assertThat(result.get().canonicalName()).isEqualTo("com.bloxbean.cardano.client.plutus.aiken.blueprint.std.Address");
+    void lookupAddress_stdlibV1() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.addressV1Schema();
+        assertLookup(schema, ctxV1(), STD + ".Address");
     }
 
     @Test
-    void lookupHashWrappers() {
-        assertThat(registry.lookup(new SchemaSignatureBuilder().build(bytesSchema("VerificationKey")),
-                bytesSchema("VerificationKey"), LookupContext.EMPTY))
-                .contains(new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "VerificationKey"));
+    void lookupOutputReference_stdlibV1() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.outputReferenceV1Schema();
+        assertLookup(schema, ctxV1(), STD + ".OutputReferenceV1");
+    }
 
-        assertThat(registry.lookup(new SchemaSignatureBuilder().build(bytesSchema("VerificationKeyHash")),
-                bytesSchema("VerificationKeyHash"), LookupContext.EMPTY))
-                .contains(new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "VerificationKeyHash"));
+    @Test
+    void lookupIntervalBound_stdlibV1() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.intervalBoundV1Schema();
+        assertLookup(schema, ctxV1(), STD + ".IntervalBound");
+    }
 
-        assertThat(registry.lookup(new SchemaSignatureBuilder().build(bytesSchema("Script")),
-                bytesSchema("Script"), LookupContext.EMPTY))
-                .contains(new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "Script"));
+    @Test
+    void lookupValidityRange_stdlibV1() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.validityRangeV1Schema();
+        assertLookup(schema, ctxV1(), STD + ".ValidityRange");
+    }
 
-        assertThat(registry.lookup(new SchemaSignatureBuilder().build(bytesSchema("ScriptHash")),
-                bytesSchema("ScriptHash"), LookupContext.EMPTY))
-                .contains(new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "ScriptHash"));
+    // ── Aiken stdlib v2 ─────────────────────────────────────────────────────
 
-        assertThat(registry.lookup(new SchemaSignatureBuilder().build(bytesSchema("Signature")),
-                bytesSchema("Signature"), LookupContext.EMPTY))
-                .contains(new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "Signature"));
+    @Test
+    void lookupCredential_stdlibV2() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV2Schema("Credential");
+        assertLookup(schema, ctxV2(), STD + ".PaymentCredential");
+    }
 
-        assertThat(registry.lookup(new SchemaSignatureBuilder().build(bytesSchema("DataHash")),
-                bytesSchema("DataHash"), LookupContext.EMPTY))
-                .contains(new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "DataHash"));
+    @Test
+    void lookupPaymentCredential_stdlibV2() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV2Schema("PaymentCredential");
+        assertLookup(schema, ctxV2(), STD + ".PaymentCredential");
+    }
 
-        assertThat(registry.lookup(new SchemaSignatureBuilder().build(bytesSchema("Hash")),
-                bytesSchema("Hash"), LookupContext.EMPTY))
-                .contains(new RegisteredType("com.bloxbean.cardano.client.plutus.aiken.blueprint.std", "Hash"));
+    @Test
+    void lookupStakeCredential_stdlibV2() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.stakeCredentialV2Schema();
+        assertLookup(schema, ctxV2(), STD + ".StakeCredential");
+    }
+
+    @Test
+    void lookupAddress_stdlibV2() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.addressV2Schema();
+        assertLookup(schema, ctxV2(), STD + ".Address");
+    }
+
+    @Test
+    void lookupOutputReference_stdlibV2() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.outputReferenceV2Schema();
+        assertLookup(schema, ctxV2(), STD + ".OutputReference");
+    }
+
+    // ── Aiken stdlib v3 ─────────────────────────────────────────────────────
+
+    @Test
+    void lookupCredential_stdlibV3() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV3Schema("Credential");
+        assertLookup(schema, ctxV3(), STD + ".PaymentCredential");
+    }
+
+    @Test
+    void lookupPaymentCredential_stdlibV3() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV3Schema("PaymentCredential");
+        assertLookup(schema, ctxV3(), STD + ".PaymentCredential");
+    }
+
+    @Test
+    void lookupAddress_stdlibV3() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.addressV3Schema();
+        assertLookup(schema, ctxV3(), STD + ".Address");
+    }
+
+    @Test
+    void lookupIntervalBound_stdlibV3() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.intervalBoundV3Schema();
+        assertLookup(schema, ctxV3(), STD + ".IntervalBound");
+    }
+
+    @Test
+    void lookupValidityRange_stdlibV3() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.validityRangeV3Schema();
+        assertLookup(schema, ctxV3(), STD + ".ValidityRange");
+    }
+
+    @Test
+    void lookupStakeCredential_stdlibV3() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.stakeCredentialV2Schema();
+        assertLookup(schema, ctxV3(), STD + ".StakeCredential");
+    }
+
+    @Test
+    void lookupOutputReference_stdlibV3() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.outputReferenceV2Schema();
+        assertLookup(schema, ctxV3(), STD + ".OutputReference");
+    }
+
+    // ── Version isolation ───────────────────────────────────────────────────
+
+    @Test
+    void v1TypeNotReturnedForV2Context() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV1Schema();
+        SchemaSignature signature = new SchemaSignatureBuilder().build(schema);
+        Optional<RegisteredType> result = registry.lookup(signature, schema, ctxV2());
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void v1TypeNotReturnedForV3Context() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV1Schema();
+        SchemaSignature signature = new SchemaSignatureBuilder().build(schema);
+        Optional<RegisteredType> result = registry.lookup(signature, schema, ctxV3());
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void v2TypeNotReturnedForV1Context() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.addressV2Schema();
+        SchemaSignature signature = new SchemaSignatureBuilder().build(schema);
+        Optional<RegisteredType> result = registry.lookup(signature, schema, ctxV1());
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void v3TypeNotReturnedForV1Context() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV3Schema("Credential");
+        SchemaSignature signature = new SchemaSignatureBuilder().build(schema);
+        Optional<RegisteredType> result = registry.lookup(signature, schema, ctxV1());
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void v3TypeNotReturnedForV2Context() {
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV3Schema("Credential");
+        SchemaSignature signature = new SchemaSignatureBuilder().build(schema);
+        Optional<RegisteredType> result = registry.lookup(signature, schema, ctxV2());
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void defaultContextUsesV3() {
+        // LookupContext.EMPTY has no hint → defaults to V3
+        BlueprintSchema schema = AikenBlueprintTypeRegistry.credentialV3Schema("Credential");
+        assertLookup(schema, LookupContext.EMPTY, STD + ".PaymentCredential");
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    private void assertLookup(BlueprintSchema schema, LookupContext context, String expectedCanonicalName) {
+        SchemaSignature signature = new SchemaSignatureBuilder().build(schema);
+        Optional<RegisteredType> result = registry.lookup(signature, schema, context);
+        assertThat(result).isPresent();
+        assertThat(result.get().canonicalName()).isEqualTo(expectedCanonicalName);
     }
 
     private BlueprintSchema bytesSchema(String title) {

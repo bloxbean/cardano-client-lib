@@ -1,6 +1,5 @@
 package com.bloxbean.cardano.client.quicktx.intent;
 
-import com.bloxbean.cardano.client.common.ADAConversionUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
@@ -79,7 +78,7 @@ public class PoolRetirementIntent implements TxIntent {
 
         return this;
     }
-    
+
     /**
      * Create a pool retirement intention.
      */
@@ -90,18 +89,6 @@ public class PoolRetirementIntent implements TxIntent {
             .build();
     }
 
-
-    @Override
-    public TxOutputBuilder outputBuilder(IntentContext ic) {
-        // Add a dummy output (1 ADA) to fromAddress to trigger input selection
-        final String from = ic.getFromAddress();
-        if (from == null || from.isBlank()) {
-            throw new TxBuildException("From address is required for pool retirement");
-        }
-
-        // Use helper to create smart dummy output that merges with existing outputs
-        return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
-    }
 
     @Override
     public TxBuilder preApply(IntentContext ic) {

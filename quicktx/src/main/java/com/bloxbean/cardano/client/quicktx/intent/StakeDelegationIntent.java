@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.quicktx.intent;
 
 import com.bloxbean.cardano.client.address.Address;
-import com.bloxbean.cardano.client.common.ADAConversionUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
@@ -127,18 +126,6 @@ public class StakeDelegationIntent implements TxIntent {
     }
 
     @Override
-    public TxOutputBuilder outputBuilder(IntentContext ic) {
-        // Add a dummy output (1 ADA) to fromAddress to trigger input selection
-        final String from = ic.getFromAddress();
-        if (from == null || from.isBlank()) {
-            throw new TxBuildException("From address is required for stake delegation");
-        }
-
-        // Use helper to create smart dummy output that merges with existing outputs
-        return DepositHelper.createDummyOutputBuilder(from, ADAConversionUtil.adaToLovelace(1));
-    }
-
-    @Override
     public TxBuilder preApply(IntentContext ic) {
         return (ctx, txn) -> {
             // Context-specific check only
@@ -198,5 +185,10 @@ public class StakeDelegationIntent implements TxIntent {
                 txn.getWitnessSet().getRedeemers().add(rd);
             }
         };
+    }
+
+    @Override
+    public boolean hasRedeemer() {
+        return redeemer != null || (redeemerHex != null && !redeemerHex.isEmpty());
     }
 }

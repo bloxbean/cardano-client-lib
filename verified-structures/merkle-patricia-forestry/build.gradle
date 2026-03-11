@@ -18,3 +18,14 @@ jmh {
     includes = ['.*Benchmark.*']
     jmhVersion = '1.36'
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Merkle Patricia Forestry'
+                description = 'Cardano Client Lib - Merkle Patricia Forestry'
+            }
+        }
+    }
+}

@@ -1,0 +1,133 @@
+---
+title: "Building Flows"
+description: "TxFlow and FlowStep builder API, step dependencies, and UTXO chaining"
+---
+
+# Building Flows
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+## TxFlow Builder
+
+```java
+TxFlow flow = TxFlow.builder("escrow-flow")       // Required: unique flow ID
+    .withDescription("Deposit and release escrow") // Optional: human-readable description
+    .addVariable("amount", 50_000_000L)            // Optional: flow-level variables
+    .addVariable("receiver", "addr_test1...")
+    .addStep(step1)                                // Required: at least one step
+    .addStep(step2)
+    .build();                                      // Validates and builds
+```
+
+## FlowStep Builder
+
+Each step needs either a `TxContext` factory (Java-first) or a `TxPlan` (YAML-first). They are mutually exclusive.
+
+### Java-First (TxContext)
+
+```java
+FlowStep step = FlowStep.builder("deposit")           // Required: unique step ID
+    .withDescription("Lock funds in escrow contract")  // Optional
+    .withTxContext(builder -> builder                   // Transaction definition
+        .compose(new Tx()
+            .payToContract(contractAddr, amount, datum)
+            .attachSpendingValidator(script)
+            .from(senderAddr))
+        .feePayer(feeAddr)
+        .collateralPayer(collateralAddr)
+        .withSigner(signer))
+    .dependsOn("previous-step")                        // Optional: UTXO dependency
+    .withRetryPolicy(RetryPolicy.defaults())           // Optional: step-level retry
+    .build();
+```
+
+### YAML-First (TxPlan)
+
+```java
+FlowStep yamlStep = FlowStep.builder("mint-token")
+    .withTxPlan(txPlan)
+    .build();
+```
+
+## Step Dependencies
+
+Steps can declare dependencies on outputs from previous steps. The executor resolves these by making the specified
+UTXOs available to the dependent step's UTXO supplier.
+
+### Selection Strategies
+
+| Strategy | Description | Factory Method |
+|----------|-------------|----------------|
+| `ALL` | All outputs from the previous step | `dependsOn("stepId")` |
+| `INDEX` | A specific output by index | `dependsOnIndex("stepId", 0)` |
+| `FILTER` | Outputs matching a predicate | `StepDependency.filter("stepId", predicate)` |
+
+### Examples
+
+```java
+// Use ALL outputs from "deposit"
+FlowStep.builder("release")
+    .dependsOn("deposit")
+    .withTxContext(...)
+    .build();
+
+// Use only output at index 0
+FlowStep.builder("release")
+    .dependsOnIndex("deposit", 0)
+    .withTxContext(...)
+    .build();
+
+// Use outputs matching a filter
+FlowStep.builder("collect")
+    .dependsOn(StepDependency.filter("deposit",
+        utxo -> utxo.getAmount().stream()
+            .anyMatch(a -> a.getQuantity().compareTo(BigInteger.valueOf(5_000_000)) > 0)))
+    .withTxContext(...)
+    .build();
+
+// Optional dependency (won't fail if step has no outputs)
+FlowStep.builder("optional-step")
+    .dependsOn(StepDependency.builder("maybe-step")
+        .withStrategy(SelectionStrategy.ALL)
+        .optional()
+        .build())
+    .withTxContext(...)
+    .build();
+```
+
+## How UTXO Resolution Works
+
+1. Step A executes and produces a transaction with outputs
+2. The executor captures those outputs as `List<Utxo>` in the execution context
+3. When Step B (which depends on A) executes, the executor resolves dependencies:
+   - Calls `StepDependency.resolveUtxos(context)` to get the selected UTXOs
+   - Makes them available through the UTXO supplier so the transaction builder can find them
+   - Filters out UTXOs already spent by previous steps
+4. Step B's transaction is built with access to both on-chain UTXOs and pending UTXOs from A
+
+## Flow Validation
+
+`TxFlow.validate()` checks for:
+
+- **Duplicate step IDs** — each step must have a unique ID
+- **Missing dependency references** — `dependsOn("X")` requires step `"X"` to exist
+- **Circular dependencies** — detected via DFS cycle detection
+- **Forward dependencies** — a step cannot depend on a later step
+
+```java
+TxFlow.ValidationResult validation = flow.validate();
+if (!validation.isValid()) {
+    System.err.println("Errors: " + validation.getErrors());
+}
+```
+
+Validation runs automatically before execution. Invalid flows throw `FlowExecutionException`.
+
+## YAML Serialization
+
+Flows can be serialized to/from YAML for storage or transfer:
+
+```java
+String yaml = flow.toYaml();
+TxFlow restored = TxFlow.fromYaml(yaml);
+```

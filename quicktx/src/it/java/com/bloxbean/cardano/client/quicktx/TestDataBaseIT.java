@@ -38,6 +38,15 @@ public class TestDataBaseIT extends QuickTxBaseIT {
         sender2Addr = sender2.baseAddress();
 
         if (backendType.equals(DEVKIT)) {
+            resetDevNet();
+            topUpFund(sender1Addr, 150000);
+            topUpFund(sender2Addr, 150000);
+        }
+    }
+
+    public void resetAndTopup() {
+        if (backendType.equals(DEVKIT)) {
+            resetDevNet();
             topUpFund(sender1Addr, 150000);
             topUpFund(sender2Addr, 150000);
         }

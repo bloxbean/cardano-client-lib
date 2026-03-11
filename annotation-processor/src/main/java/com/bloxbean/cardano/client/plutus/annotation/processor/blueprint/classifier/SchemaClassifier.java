@@ -38,8 +38,7 @@ public class SchemaClassifier {
             return SchemaClassificationResult.enumType(extractEnumValues(schema));
 
         if (isInterface(schema)) {
-            String interfaceName = nameStrategy.toClassName(schema.getTitle());
-            return SchemaClassificationResult.interfaceType(interfaceName);
+            return SchemaClassificationResult.interfaceType();
         }
 
         return SchemaClassificationResult.classType();
@@ -63,7 +62,10 @@ public class SchemaClassifier {
         if (title == null)
             return false;
 
-        boolean optionTitle = "Option".equals(title) || "Optional".equals(title);
+        boolean optionTitle = switch (title) {
+            case "Option", "Optional" -> true;
+            default -> false;
+        };
         if (!optionTitle)
             return false;
 

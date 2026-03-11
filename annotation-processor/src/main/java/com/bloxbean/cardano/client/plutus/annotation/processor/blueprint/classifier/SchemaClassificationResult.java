@@ -11,12 +11,9 @@ import java.util.Objects;
 public class SchemaClassificationResult {
     private final SchemaClassification classification;
     private final List<String> enumValues;
-    private final String interfaceName;
-
     private SchemaClassificationResult(Builder builder) {
         this.classification = builder.classification;
         this.enumValues = builder.enumValues != null ? List.copyOf(builder.enumValues) : List.of();
-        this.interfaceName = builder.interfaceName;
     }
 
     public SchemaClassification getClassification() {
@@ -25,10 +22,6 @@ public class SchemaClassificationResult {
 
     public List<String> getEnumValues() {
         return enumValues;
-    }
-
-    public String getInterfaceName() {
-        return interfaceName;
     }
 
     public boolean isSkippable() {
@@ -61,10 +54,9 @@ public class SchemaClassificationResult {
                 .build();
     }
 
-    public static SchemaClassificationResult interfaceType(String interfaceName) {
+    public static SchemaClassificationResult interfaceType() {
         return builder()
                 .classification(SchemaClassification.INTERFACE)
-                .interfaceName(interfaceName)
                 .build();
     }
 
@@ -79,7 +71,6 @@ public class SchemaClassificationResult {
     public static class Builder {
         private SchemaClassification classification = SchemaClassification.UNKNOWN;
         private List<String> enumValues = Collections.emptyList();
-        private String interfaceName;
 
         public Builder classification(SchemaClassification classification) {
             this.classification = classification;
@@ -88,11 +79,6 @@ public class SchemaClassificationResult {
 
         public Builder enumValues(List<String> enumValues) {
             this.enumValues = enumValues;
-            return this;
-        }
-
-        public Builder interfaceName(String interfaceName) {
-            this.interfaceName = interfaceName;
             return this;
         }
 

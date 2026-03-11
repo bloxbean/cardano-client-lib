@@ -8,6 +8,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatatype;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
+import com.bloxbean.cardano.client.plutus.blueprint.registry.LookupContext;
 import com.squareup.javapoet.FieldSpec;
 
 import java.util.ArrayList;
@@ -29,16 +30,27 @@ public class DataTypeProcessUtil {
     private final Map<BlueprintDatatype, DataTypeProcessor> processors;
     private final DataTypeProcessor plutusDataTypeProcessor;
     private final SharedTypeLookup sharedTypeLookup;
+    private final LookupContext lookupContext;
 
     public DataTypeProcessUtil(FieldSpecProcessor fieldSpecProcessor,
                                Blueprint annotation,
                                NamingStrategy nameStrategy,
                                PackageResolver packageResolver,
                                SharedTypeLookup sharedTypeLookup) {
+        this(fieldSpecProcessor, annotation, nameStrategy, packageResolver, sharedTypeLookup, LookupContext.EMPTY);
+    }
+
+    public DataTypeProcessUtil(FieldSpecProcessor fieldSpecProcessor,
+                               Blueprint annotation,
+                               NamingStrategy nameStrategy,
+                               PackageResolver packageResolver,
+                               SharedTypeLookup sharedTypeLookup,
+                               LookupContext lookupContext) {
         this.fieldSpecProcessor = fieldSpecProcessor;
         this.annotation = annotation;
         this.nameStrategy = nameStrategy;
         this.sharedTypeLookup = sharedTypeLookup;
+        this.lookupContext = lookupContext;
 
         SchemaTypeResolver typeResolver = new SchemaTypeResolver(fieldSpecProcessor);
         this.processors = new EnumMap<>(BlueprintDatatype.class);
@@ -84,8 +96,10 @@ public class DataTypeProcessUtil {
             resolvedAlternativeName = determineAlternativeName(schema, 0);
         }
 
-        var sharedType = sharedTypeLookup.lookup(namespace, schema);
+        var sharedType = sharedTypeLookup.lookup(namespace, schema, lookupContext);
         if (sharedType.isPresent()) {
+            fieldSpecProcessor.generateSharedTypeConverter(sharedType.get(), schema);
+
             FieldSpec.Builder builder = FieldSpec.builder(sharedType.get(), resolveFieldName(schema, resolvedAlternativeName))
                     .addModifiers(Modifier.PRIVATE);
             if (javaDoc != null && !javaDoc.isBlank())

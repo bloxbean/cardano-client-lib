@@ -224,6 +224,13 @@ public class QuickTxBuilder {
             }
         }
 
+        if (plan.getDepositPayer() != null) {
+            context.depositPayer(plan.getDepositPayer());
+        }
+        if (plan.getDepositMode() != null) {
+            context.depositMode(DepositMode.valueOf(plan.getDepositMode()));
+        }
+
         return context;
     }
 
@@ -260,7 +267,7 @@ public class QuickTxBuilder {
         private long validFrom;
         private long validTo;
 
-        private boolean mergeOutputs = true;
+        private boolean mergeOutputs = false;
 
         private TransactionEvaluator txnEvaluator;
         private UtxoSelectionStrategy utxoSelectionStrategy;
@@ -269,10 +276,14 @@ public class QuickTxBuilder {
 
         private List<PlutusScript> referenceScripts;
 
-        private boolean ignoreScriptCostEvaluationError = true;
+        private boolean ignoreScriptCostEvaluationError = false;
         private Era serializationEra;
         private boolean removeDuplicateScriptWitnesses = false;
         private boolean searchUtxoByAddressVkh = false;
+
+        // Deposit resolution configuration
+        private String depositPayer;
+        private DepositMode depositMode;
 
         // Optional per-context override for registry
         private SignerRegistry contextSignerRegistry;
@@ -323,6 +334,30 @@ public class QuickTxBuilder {
             // TODO feePayer is not used in this scenarios, but it must be set to avoid breaking other things.
             this.feePayer = this.feePayerWallet.getBaseAddress(0).getAddress();
 
+            return this;
+        }
+
+        /**
+         * Set an explicit deposit payer address. When not set, deposits are paid by the
+         * transaction's from() address (or feePayer as fallback).
+         *
+         * @param address deposit payer address
+         * @return TxContext
+         */
+        public TxContext depositPayer(String address) {
+            this.depositPayer = address;
+            return this;
+        }
+
+        /**
+         * Set the deposit resolution mode. Controls how Phase 4 finds funds to cover
+         * protocol deposits. Default is {@link DepositMode#AUTO}.
+         *
+         * @param mode the deposit mode
+         * @return TxContext
+         */
+        public TxContext depositMode(DepositMode mode) {
+            this.depositMode = mode;
             return this;
         }
 
@@ -575,20 +610,28 @@ public class QuickTxBuilder {
                         fromAddresses.add(tx.getFromAddress());
                 }
 
-                //For scriptTx, set fee payer as change address and from address by default.
-                if (tx.getChangeAddress() == null && tx instanceof ScriptTx) {
-                    ((ScriptTx) tx).withChangeAddress(feePayer);
+                //For scriptTx or Tx with script intents, set fee payer as change address and from address by default.
+                if (tx.getChangeAddress() == null && (tx instanceof ScriptTx || tx.hasScriptIntents())) {
+                    tx.withChangeAddress(feePayer);
                 }
-                if (tx.getFromAddress() == null && tx instanceof ScriptTx) {
+                if (tx.getFromAddress() == null && (tx instanceof ScriptTx || tx.hasScriptIntents())) {
                     if (feePayerWallet != null)
-                        ((ScriptTx) tx).from(feePayerWallet);
+                        tx.setDefaultFrom(feePayerWallet);
                     else
-                        ((ScriptTx) tx).from(feePayer);
+                        tx.setDefaultFrom(feePayer);
+                }
+
+                // Propagate deposit resolution configuration
+                if (depositPayer != null) {
+                    tx.setDepositPayer(depositPayer);
+                }
+                if (depositMode != null) {
+                    tx.setDepositMode(depositMode);
                 }
 
                 txBuilder = txBuilder.andThen(tx.complete());
 
-                if (tx instanceof ScriptTx)
+                if (tx instanceof ScriptTx || tx.hasScriptIntents())
                     containsScriptTx = true;
 
                 hasMultiAssetMint = hasMultiAssetMint || tx.hasMultiAssetMinting();
@@ -1044,7 +1087,7 @@ public class QuickTxBuilder {
 
         /**
          * Define if outputs with the same address should be merged into one output.
-         * Default is true
+         * Default is false
          *
          * @param merge
          * @return TxContext
@@ -1191,7 +1234,7 @@ public class QuickTxBuilder {
          * If set to false, the builder will throw an exception if the script cost evaluation fails and stop building the transaction.
          * </p>
          *
-         * Default is true
+         * Default is false
          *
          * @param flag
          * @return TxContext

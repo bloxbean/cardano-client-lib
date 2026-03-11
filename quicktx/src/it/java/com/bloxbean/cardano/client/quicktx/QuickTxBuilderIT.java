@@ -690,6 +690,7 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
 
         Result<String> result = quickTxBuilder.compose(tx1, tx2)
                 .feePayer(sender1.baseAddress())
+                .mergeOutputs(true)
                 .withSigner(SignerProviders.signerFrom(sender1)
                         .andThen(SignerProviders.signerFrom(sender2)))
                 .withSigner(SignerProviders.signerFrom(policy))
@@ -734,7 +735,9 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                     .additionalSignersCount(1)
                     .postBalanceTx((context, txn) -> { //Update tx output to fail the verifier
                         TransactionOutput txOut = txn.getBody().getOutputs()
-                                .stream().filter(output -> output.getAddress().equals(receiver2))
+                                .stream().filter(output -> output.getAddress().equals(receiver2)
+                                        && output.getValue().getMultiAssets() != null
+                                        && !output.getValue().getMultiAssets().isEmpty())
                                 .findFirst().get();
                         txOut.getValue().getMultiAssets().get(0).getAssets().get(0).setValue(BigInteger.valueOf(10000));
                     })
@@ -869,13 +872,17 @@ public class QuickTxBuilderIT extends QuickTxBaseIT {
                 .withSigner(SignerProviders.signerFrom(sender1))
                 .withSigner(SignerProviders.signerFrom(policy))
                 .withTxInspector(transaction -> {
-                    assertThat(transaction.getBody().getOutputs()).hasSize(2);
-                    assertThat(transaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(receiver1);
-                    assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin()).isGreaterThanOrEqualTo(adaToLovelace(1));
-                    assertThat(transaction.getBody().getOutputs().get(0).getValue().getMultiAssets()).hasSize(1);
+                    assertThat(transaction.getBody().getOutputs()).hasSize(3);
 
-                    assertThat(transaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(sender1Addr);
+                    assertThat(transaction.getBody().getOutputs().get(0).getAddress()).isEqualTo(sender1Addr);
+                    assertThat(transaction.getBody().getOutputs().get(0).getValue().getCoin()).isEqualTo(adaToLovelace(1));
+
+                    assertThat(transaction.getBody().getOutputs().get(1).getAddress()).isEqualTo(receiver1);
                     assertThat(transaction.getBody().getOutputs().get(1).getValue().getCoin()).isGreaterThanOrEqualTo(adaToLovelace(1));
+                    assertThat(transaction.getBody().getOutputs().get(1).getValue().getMultiAssets()).hasSize(1);
+
+                    assertThat(transaction.getBody().getOutputs().get(2).getAddress()).isEqualTo(sender1Addr);
+                    assertThat(transaction.getBody().getOutputs().get(2).getValue().getCoin()).isGreaterThanOrEqualTo(adaToLovelace(1));
                 })
                 .completeAndWait(System.out::println);
 

@@ -14,6 +14,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.exception.Bluepri
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.DefaultNamingStrategy;
 import com.bloxbean.cardano.client.plutus.blueprint.PlutusBlueprintUtil;
+import com.bloxbean.cardano.client.plutus.blueprint.registry.LookupContext;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintDatum;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.PlutusVersion;
@@ -32,8 +33,7 @@ import javax.lang.model.type.MirroredTypeException;
 import javax.lang.model.type.MirroredTypesException;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.CodeGenUtil.createMethodSpecsForGetterSetters;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
@@ -60,10 +60,19 @@ public class ValidatorProcessor {
                               ProcessingEnvironment processingEnv,
                               GeneratedTypesRegistry generatedTypesRegistry,
                               SharedTypeLookup sharedTypeLookup) {
+        this(annotation, extendWith, processingEnv, generatedTypesRegistry, sharedTypeLookup, LookupContext.EMPTY);
+    }
+
+    public ValidatorProcessor(Blueprint annotation,
+                              ExtendWith extendWith,
+                              ProcessingEnvironment processingEnv,
+                              GeneratedTypesRegistry generatedTypesRegistry,
+                              SharedTypeLookup sharedTypeLookup,
+                              LookupContext lookupContext) {
         this.annotation = annotation;
         this.extendWith = extendWith;
         this.processingEnv = processingEnv;
-        this.fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup);
+        this.fieldSpecProcessor = new FieldSpecProcessor(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup, lookupContext);
         this.packageResolver = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.PackageResolver();
         this.sourceWriter = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter(processingEnv);
         this.errorReporter = new com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.ErrorReporter(processingEnv);

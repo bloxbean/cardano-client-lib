@@ -1,0 +1,85 @@
+---
+title: "TxFlow Overview"
+description: "Multi-step Cardano transaction orchestration with UTXO chaining and rollback handling"
+---
+
+# TxFlow — Overview
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+## The Problem
+
+When a Cardano workflow requires multiple related transactions (e.g., deposit then release, mint then distribute),
+each subsequent transaction may depend on UTXOs produced by a previous one. Manually managing this involves:
+
+- Tracking which UTXOs were produced by each transaction
+- Waiting for confirmations before building the next transaction
+- Handling chain reorganizations that invalidate previous transactions
+- Implementing retry logic for transient network failures
+
+TxFlow automates all of this with a declarative builder API.
+
+## Core Concepts
+
+```
+TxFlow              Top-level container: ID, description, ordered list of steps
+  FlowStep          Single transaction step: ID, tx definition, dependencies
+    StepDependency  UTXO dependency on a previous step's outputs
+
+FlowExecutor        Orchestrates execution: builds, submits, confirms, retries
+  FlowHandle        Async monitoring: status, progress, cancellation
+  FlowResult        Aggregated result: status, tx hashes, duration, errors
+```
+
+## Dependency
+
+```gradle
+dependencies {
+    implementation 'com.bloxbean.cardano:txflow:0.8.0-preview1'
+
+    // Backend provider (choose one)
+    implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.8.0-preview1'
+}
+```
+
+The `txflow` module transitively includes `quicktx`, `core`, `function`, and `backend`.
+
+## Minimal Example
+
+```java
+// Define a two-step flow
+TxFlow flow = TxFlow.builder("simple-transfer")
+    .withDescription("Send ADA then send a token")
+    .addStep(FlowStep.builder("send-ada")
+        .withTxContext(builder -> builder
+            .compose(new Tx()
+                .payToAddress(receiver, Amount.ada(10))
+                .from(sender))
+            .withSigner(SignerProviders.signerFrom(account)))
+        .build())
+    .addStep(FlowStep.builder("send-token")
+        .dependsOn("send-ada")  // Uses UTXOs from step 1
+        .withTxContext(builder -> builder
+            .compose(new Tx()
+                .payToAddress(receiver, Amount.asset(policyId, assetName, 1))
+                .from(sender))
+            .withSigner(SignerProviders.signerFrom(account)))
+        .build())
+    .build();
+
+// Execute synchronously
+FlowExecutor executor = FlowExecutor.create(backendService);
+FlowResult result = executor.executeSync(flow);
+
+if (result.isSuccessful()) {
+    System.out.println("All tx hashes: " + result.getTransactionHashes());
+}
+```
+
+## What's Next
+
+- [Building Flows](/docs/preview/txflow/building-flows) — TxFlow/FlowStep builder API, step dependencies, UTXO chaining
+- [Chaining Modes](/docs/preview/txflow/chaining-modes) — SEQUENTIAL, PIPELINED, BATCH execution strategies
+- [Confirmation & Rollback](/docs/preview/txflow/confirmation-rollback) — Confirmation tracking and rollback strategies
+- [Retry, Execution & Results](/docs/preview/txflow/retry-execution-results) — RetryPolicy, FlowExecutor, FlowResult
+- [Advanced Topics](/docs/preview/txflow/advanced) — FlowListener, registry, persistence, Spring Boot, virtual threads

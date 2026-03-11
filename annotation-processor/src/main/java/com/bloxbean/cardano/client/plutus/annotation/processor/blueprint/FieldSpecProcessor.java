@@ -16,6 +16,7 @@ import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support
 import com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.support.SourceWriter;
 import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.blueprint.model.Data;
+import com.bloxbean.cardano.client.plutus.blueprint.registry.LookupContext;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.util.Tuple;
 import com.squareup.javapoet.*;
@@ -23,9 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Modifier;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isAbstractPlutusDataType;
 import static com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.util.BlueprintUtil.isBuiltInGenericContainer;
@@ -47,11 +46,21 @@ public class FieldSpecProcessor {
     private final SourceWriter sourceWriter;
     private final GeneratedTypesRegistry generatedTypesRegistry;
     private final SharedTypeLookup sharedTypeLookup;
+    private final SharedTypeConverterGenerator sharedTypeConverterGenerator;
+    private final LookupContext lookupContext;
 
     public FieldSpecProcessor(Blueprint annotation,
                               ProcessingEnvironment processingEnv,
                               GeneratedTypesRegistry generatedTypesRegistry,
                               SharedTypeLookup sharedTypeLookup) {
+        this(annotation, processingEnv, generatedTypesRegistry, sharedTypeLookup, LookupContext.EMPTY);
+    }
+
+    public FieldSpecProcessor(Blueprint annotation,
+                              ProcessingEnvironment processingEnv,
+                              GeneratedTypesRegistry generatedTypesRegistry,
+                              SharedTypeLookup sharedTypeLookup,
+                              LookupContext lookupContext) {
         this.annotation = annotation;
         this.processingEnv = processingEnv;
         this.nameStrategy = new DefaultNamingStrategy();
@@ -60,7 +69,9 @@ public class FieldSpecProcessor {
         this.sourceWriter = new SourceWriter(processingEnv);
         this.generatedTypesRegistry = generatedTypesRegistry;
         this.sharedTypeLookup = sharedTypeLookup;
-        this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver, sharedTypeLookup);
+        this.sharedTypeConverterGenerator = new SharedTypeConverterGenerator();
+        this.lookupContext = lookupContext;
+        this.dataTypeProcessUtil = new DataTypeProcessUtil(this, annotation, nameStrategy, packageResolver, sharedTypeLookup, lookupContext);
     }
 
     /**
@@ -121,7 +132,7 @@ public class FieldSpecProcessor {
      * @param key the definition key that may contain generic parameters
      * @return the base type without generic parameters
      */
-    private String extractBaseType(final String key) {
+    String extractBaseType(final String key) {
         if (key == null || key.isEmpty()) {
             return key;
         }
@@ -230,7 +241,9 @@ public class FieldSpecProcessor {
         // Set the resolved title on the schema for downstream processing
         schema.setTitle(title);
 
-        if (sharedTypeLookup.lookup(ns, schema).isPresent()) {
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema, lookupContext);
+        if (sharedType.isPresent()) {
+            generateSharedTypeConverter(sharedType.get(), schema);
             return;
         }
 
@@ -264,21 +277,39 @@ public class FieldSpecProcessor {
         }
 
         var schema = datumModel.getSchema();
-        String interfaceName = null;
-        if (classification.getClassification() == SchemaClassification.INTERFACE) {
-            log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
-            createDatumInterface(datumModel.getNamespace(), datumModel.getName(), schema);
-            interfaceName = datumModel.getName();
-        }
-
         Tuple<String, List<BlueprintSchema>> allFields = FieldSpecProcessor.collectAllFields(schema);
-        for (BlueprintSchema innerSchema : allFields._2) {
-            String outerClassName = datumModel.getName();
-            if (outerClassName == null || outerClassName.isEmpty()) {
-                continue;
+
+        if (classification.getClassification() == SchemaClassification.INTERFACE) {
+            // Build interface (standalone, no inner types) and separate top-level variant classes
+            log.debug("Create interface as size > 1 : " + schema.getTitle() + ", size: " + schema.getAnyOf().size());
+            String interfaceName = datumModel.getName();
+            TypeSpec.Builder interfaceBuilder = buildInterfaceTypeSpecBuilder(interfaceName);
+
+            String pkg = getPackageName(datumModel.getNamespace());
+            String className = nameStrategy.toClassName(interfaceName);
+            if (generatedTypesRegistry.markGenerated(pkg, className)) {
+                sourceWriter.write(pkg, interfaceBuilder.build(), className);
             }
 
-            createDatumFieldSpec(datumModel.getNamespace(), interfaceName, innerSchema, outerClassName);
+            // Write each variant to a sub-package named after the interface
+            String variantPkg = pkg + "." + nameStrategy.toPackageNameFormat(className);
+            for (BlueprintSchema innerSchema : allFields._2) {
+                if (interfaceName == null || interfaceName.isEmpty()) continue;
+                TypeSpec variantTypeSpec = buildVariantTypeSpec(datumModel.getNamespace(), interfaceName, innerSchema);
+                if (variantTypeSpec != null) {
+                    String variantClassName = variantTypeSpec.name;
+                    if (generatedTypesRegistry.markGenerated(variantPkg, variantClassName)) {
+                        sourceWriter.write(variantPkg, variantTypeSpec, variantClassName);
+                    }
+                }
+            }
+        } else {
+            // Non-interface: keep existing flat-class behavior (single anyOf or no anyOf)
+            for (BlueprintSchema innerSchema : allFields._2) {
+                String outerClassName = datumModel.getName();
+                if (outerClassName == null || outerClassName.isEmpty()) continue;
+                createDatumFieldSpec(datumModel.getNamespace(), null, innerSchema, outerClassName);
+            }
         }
     }
 
@@ -307,7 +338,7 @@ public class FieldSpecProcessor {
      * @return ClassName of the inner class
      */
     public ClassName getInnerDatumClass(String ns, BlueprintSchema schema) {
-        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema, lookupContext);
         if (sharedType.isPresent()) {
             return sharedType.get();
         }
@@ -388,30 +419,83 @@ public class FieldSpecProcessor {
     }
 
     /**
-     * Creates a Datum interface for a given schema. This is used when a schema has anyOf &gt; 1
+     * Builds a TypeSpec.Builder for a Datum interface. Does not write the file —
+     * the caller writes the interface and then writes variant classes to a sub-package.
      *
-     * @param ns            namespace or package suffix
      * @param dataClassName name of the interface
-     * @param schema        the blueprint schema to create an interface for
-     * @return ClassName of the interface
+     * @return TypeSpec.Builder for the interface
      */
-    public ClassName createDatumInterface(String ns, String dataClassName, BlueprintSchema schema) {
+    TypeSpec.Builder buildInterfaceTypeSpecBuilder(String dataClassName) {
         AnnotationSpec constrAnnotationBuilder = AnnotationSpec.builder(Constr.class).build();
 
         String className = nameStrategy.toClassName(dataClassName);
 
-        TypeSpec.Builder interfaceBuilder = TypeSpec.interfaceBuilder(className)
+        return TypeSpec.interfaceBuilder(className)
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(constrAnnotationBuilder);
+    }
 
-        TypeSpec build = interfaceBuilder.build();
-        String pkg = getPackageName(ns);
-
-        if (generatedTypesRegistry.markGenerated(pkg, className)) {
-            sourceWriter.write(pkg, build, className);
+    /**
+     * Builds a TypeSpec for a variant class in a sub-package named after the interface.
+     * The variant is a public abstract class implementing Data&lt;VariantName&gt;
+     * and the parent interface.
+     *
+     * @param ns            namespace or package suffix
+     * @param interfaceName the parent interface name
+     * @param schema        the variant schema
+     * @return TypeSpec for the variant, or null if schema has no dataType
+     */
+    TypeSpec buildVariantTypeSpec(String ns, String interfaceName, BlueprintSchema schema) {
+        if (schema.getDataType() == null) {
+            return null; // No dataType means no class generation needed
         }
 
-        return ClassName.get(pkg, className);
+        // Process the variant's actual fields directly (not via collectAllFields which would
+        // wrap the variant schema itself and create self-referential enum fields for empty variants)
+        List<FieldSpec> fields = new ArrayList<>();
+        if (schema.getFields() != null) {
+            for (BlueprintSchema field : schema.getFields()) {
+                if (field.getDataType() != null) {
+                    fields.addAll(createFieldSpecForDataTypes(ns, "AnyOf", field, "", field.getTitle()));
+                } else {
+                    Tuple<FieldSpec, ClassName> tuple = createDatumFieldSpec(ns, null, field, field.getTitle());
+                    fields.add(tuple._1);
+                }
+            }
+        }
+
+        AnnotationSpec constrAnnotation = AnnotationSpec.builder(Constr.class)
+                .addMember("alternative", "$L", schema.getIndex()).build();
+
+        String className = nameStrategy.toClassName(schema.getTitle());
+        String pkg = getPackageName(ns);
+        String interfaceClassName = nameStrategy.toClassName(interfaceName);
+
+        // Variant lives in sub-package: pkg.interfacename.VariantName
+        String variantPkg = pkg + "." + nameStrategy.toPackageNameFormat(interfaceClassName);
+
+        // Use sub-package ClassName for correct Data<T> parameterization
+        ClassName datumClass = ClassName.get(variantPkg, className);
+        ClassName dataInterface = ClassName.get(Data.class);
+        ParameterizedTypeName parameterizedInterface = ParameterizedTypeName.get(dataInterface, datumClass);
+
+        // Parent interface type (stays in root package)
+        ClassName interfaceTypeName = ClassName.get(pkg, interfaceClassName);
+
+        TypeSpec.Builder classBuilder = TypeSpec.classBuilder(className)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .addFields(fields)
+                .addSuperinterface(parameterizedInterface)
+                .addSuperinterface(interfaceTypeName)
+                .addMethods(createMethodSpecsForGetterSetters(fields, false))
+                .addAnnotation(constrAnnotation);
+
+        log.debug("---------- Inside buildVariantTypeSpec ---------");
+        log.debug("Package: " + variantPkg);
+        log.debug("Interface: " + interfaceClassName);
+        log.debug("Variant: " + className);
+
+        return classBuilder.build();
     }
 
     /**
@@ -424,9 +508,11 @@ public class FieldSpecProcessor {
      * @return Tuple of FieldSpec and ClassName of the field
      */
     public Tuple<FieldSpec, ClassName> createDatumFieldSpec(String ns, String interfaceName, BlueprintSchema schema, String title) {
-        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema);
+        Optional<ClassName> sharedType = sharedTypeLookup.lookup(ns, schema, lookupContext);
 
         if (sharedType.isPresent()) {
+            generateSharedTypeConverter(sharedType.get(), schema);
+
             String fieldName = nameStrategy.firstLowerCase(nameStrategy.toCamelCase(title));
 
             FieldSpec fieldSpec = FieldSpec.builder(sharedType.get(), fieldName)
@@ -481,7 +567,7 @@ public class FieldSpecProcessor {
             className = nameStrategy.toClassName(className);
         }
 
-        String finalNS = BlueprintUtil.getNamespaceFromReference(schema.getRef());;
+        String finalNS = BlueprintUtil.getNamespaceFromReference(schema.getRef());
         String pkg = getPackageName(finalNS);
 
         ClassName classNameType = ClassName.get(pkg, className);
@@ -557,6 +643,27 @@ public class FieldSpecProcessor {
 
     public List<FieldSpec> createFieldSpecForDataTypes(String ns, String javaDoc, BlueprintSchema schema, String className, String alternativeName) {
         return dataTypeProcessUtil.generateFieldSpecs(ns, javaDoc, schema, className, alternativeName);
+    }
+
+    /**
+     * Generates a thin converter wrapper for a shared/registered type so that generated
+     * code can reference {@code XConverter} even though the model class was not generated.
+     */
+    void generateSharedTypeConverter(ClassName sharedType, BlueprintSchema schema) {
+        SharedTypeConverterGenerator.SharedTypeKind kind = SharedTypeConverterGenerator.kindOf(schema);
+
+        String converterPkg = sharedType.packageName() + ".converter";
+        String converterName = sharedType.simpleName() + "Converter";
+
+        if (!generatedTypesRegistry.markGenerated(converterPkg, converterName)) {
+            // Already generated — skip
+            return;
+        }
+
+        TypeSpec converterSpec = sharedTypeConverterGenerator.generate(sharedType, kind);
+        sourceWriter.write(converterPkg, converterSpec, converterName);
+
+        log.debug("Generated shared type converter: {}.{}", converterPkg, converterName);
     }
 
     private String getPackageName(String ns) {

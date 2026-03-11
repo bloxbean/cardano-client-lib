@@ -5,7 +5,6 @@ import com.bloxbean.cardano.client.api.util.AssetUtil;
 import com.bloxbean.cardano.client.function.TxBuilder;
 import com.bloxbean.cardano.client.function.TxOutputBuilder;
 import com.bloxbean.cardano.client.function.exception.TxBuildException;
-import com.bloxbean.cardano.client.function.helper.MintUtil;
 import com.bloxbean.cardano.client.function.helper.OutputBuilders;
 import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.IntentContext;
@@ -284,10 +283,6 @@ public class ScriptMintingIntent implements TxIntent {
     public TxBuilder apply(IntentContext ic) {
         return (ctx, txn) -> {
             try {
-                //TODO:- Sort may happen multiple times based on no of minting policies
-                List<MultiAsset> multiAssets = MintUtil.getSortedMultiAssets(txn.getBody().getMint());
-                txn.getBody().setMint(multiAssets);
-
                 // Add mint redeemer
                 PlutusData resolvedRedeemer = resolveRedeemer();
                 if (resolvedRedeemer != null) {
@@ -341,6 +336,11 @@ public class ScriptMintingIntent implements TxIntent {
             }
         }
         return vb.build();
+    }
+
+    @Override
+    public boolean hasRedeemer() {
+        return redeemer != null || (redeemerHex != null && !redeemerHex.isEmpty()) || redeemerStructured != null;
     }
 
     // Factory helpers

@@ -1,0 +1,145 @@
+---
+title: "Confirmation & Rollback"
+description: "Confirmation tracking, status lifecycle, and rollback strategies"
+---
+
+# Confirmation & Rollback
+
+> **Preview — 0.8.0-preview1**: APIs may change before stable release.
+
+## Confirmation Status Lifecycle
+
+```
+SUBMITTED -> IN_BLOCK -> CONFIRMED
+                |
+           ROLLED_BACK
+```
+
+| Status | Meaning | Depth Criteria |
+|--------|---------|----------------|
+| `SUBMITTED` | In mempool, not yet in a block | Not found in block |
+| `IN_BLOCK` | Included in a block, waiting for depth | `0 <= depth < minConfirmations` |
+| `CONFIRMED` | Reached safety threshold | `depth >= minConfirmations` |
+| `ROLLED_BACK` | Was in chain but disappeared (reorg) | Previously tracked, now not found |
+
+## ConfirmationConfig
+
+```java
+ConfirmationConfig config = ConfirmationConfig.builder()
+    .minConfirmations(10)                          // Blocks for CONFIRMED (default: 10)
+    .checkInterval(Duration.ofSeconds(5))          // Polling interval (default: 5s)
+    .timeout(Duration.ofMinutes(30))               // Max wait time (default: 30min)
+    .maxRollbackRetries(3)                         // Max rebuild/restart attempts (default: 3)
+    .waitForBackendAfterRollback(false)            // Wait for node after rollback (default: false)
+    .postRollbackWaitAttempts(5)                   // Backend readiness checks (default: 5)
+    .postRollbackUtxoSyncDelay(Duration.ZERO)      // Extra delay for UTXO indexer (default: 0)
+    .build();
+```
+
+### Presets
+
+| Preset | minConfirmations | checkInterval | timeout |
+|--------|-----------------|---------------|---------|
+| `defaults()` | 10 | 5s | 30min |
+| `devnet()` | 3 | 1s | 5min |
+| `testnet()` | 6 | 3s | 10min |
+| `quick()` | 1 | 1s | 2min |
+
+The `devnet()` and `quick()` presets also enable `waitForBackendAfterRollback` with `postRollbackWaitAttempts=30`
+and `postRollbackUtxoSyncDelay=3s`, for test environments that may restart nodes during rollback simulation.
+
+### Enabling Confirmation Tracking
+
+```java
+FlowExecutor executor = FlowExecutor.create(backendService)
+    .withConfirmationConfig(ConfirmationConfig.devnet());
+```
+
+Without `withConfirmationConfig`, the executor uses simple polling — a transaction is considered confirmed as soon
+as it appears on-chain, with no depth tracking and no rollback detection.
+
+## Rollback Strategies
+
+Chain reorganizations (rollbacks/reorgs) occur when the network switches to a longer competing chain, removing
+previously included transactions. Rollback strategies determine how the executor responds.
+
+### FAIL_IMMEDIATELY (Default)
+
+```
+Rollback detected
+  -> onTransactionRolledBack callback
+  -> Step fails with rollback error
+  -> Flow fails
+```
+
+The safest option. The application decides how to handle the failure externally.
+
+### NOTIFY_ONLY
+
+```
+Rollback detected
+  -> onTransactionRolledBack callback
+  -> Continue monitoring (re-enter polling)
+  -> If re-included: monitoring continues normally
+  -> If not re-included: eventually times out
+```
+
+Useful when you expect shallow reorgs where the transaction may be re-included.
+
+### REBUILD_FROM_FAILED
+
+```
+Rollback detected
+  -> onTransactionRolledBack callback
+  -> onStepRebuilding callback
+  -> Clear step result
+  -> Rebuild with fresh UTXOs
+  -> Submit and monitor rebuilt transaction
+```
+
+**Auto-escalation:** If the rolled-back step has downstream dependents (other steps depend on its outputs),
+`REBUILD_FROM_FAILED` automatically escalates to a full flow restart, since downstream steps would reference
+invalid UTXOs.
+
+In PIPELINED and BATCH modes, `REBUILD_FROM_FAILED` behaves identically to `REBUILD_ENTIRE_FLOW`.
+
+### REBUILD_ENTIRE_FLOW
+
+```
+Rollback detected
+  -> onTransactionRolledBack callback
+  -> onFlowRestarting callback
+  -> Clear all step results
+  -> Re-execute entire flow from step 1
+```
+
+In PIPELINED and BATCH modes, the executor checks which transactions are still confirmed on-chain and skips those
+steps during re-execution.
+
+### maxRollbackRetries
+
+Controls how many times rebuild/restart is attempted before failing:
+- **REBUILD_FROM_FAILED:** max times a single step can be rebuilt
+- **REBUILD_ENTIRE_FLOW:** max times the entire flow can be restarted
+
+Configured via `ConfirmationConfig.builder().maxRollbackRetries(3)`.
+
+## Decision Guide
+
+| Scenario | Recommended Strategy |
+|----------|---------------------|
+| Production, high-value transactions | `FAIL_IMMEDIATELY` |
+| Simple flows, independent steps | `REBUILD_FROM_FAILED` |
+| Complex flows with UTXO dependencies | `REBUILD_ENTIRE_FLOW` |
+| Custom rollback logic / external coordination | `NOTIFY_ONLY` |
+| Development / testing | `REBUILD_ENTIRE_FLOW` |
+
+## Usage
+
+```java
+FlowExecutor executor = FlowExecutor.create(backendService)
+    .withConfirmationConfig(ConfirmationConfig.devnet())
+    .withRollbackStrategy(RollbackStrategy.REBUILD_ENTIRE_FLOW);
+```
+
+Rollback strategies only take effect when confirmation tracking is enabled via `withConfirmationConfig()`.

@@ -166,20 +166,22 @@ class UnifiedYamlSerializationTest {
     @Test
     void testVariableResolutionInDeserialization() {
         // Given - YAML with variables
-        String yamlWithVariables = "version: 1.0\n" +
-            "variables:\n" +
-            "  treasury: addr1_treasury_resolved\n" +
-            "  alice: addr1_alice_resolved\n" +
-            "transaction:\n" +
-            "- tx:\n" +
-            "    from: ${treasury}\n" +
-            "    change_address: ${treasury}\n" +
-            "    intents:\n" +
-            "    - type: payment\n" +
-            "      address: ${alice}\n" +
-            "      amounts:\n" +
-            "      - unit: lovelace\n" +
-            "        quantity: '10000000'\n";
+        String yamlWithVariables = """
+                version: 1.0
+                variables:
+                  treasury: addr1_treasury_resolved
+                  alice: addr1_alice_resolved
+                transaction:
+                - tx:
+                    from: ${treasury}
+                    change_address: ${treasury}
+                    intents:
+                    - type: payment
+                      address: ${alice}
+                      amounts:
+                      - unit: lovelace
+                        quantity: '10000000'
+                """;
 
         // When
         List<AbstractTx<?>> restored = TxPlan.getTxs(yamlWithVariables);
@@ -297,5 +299,92 @@ class UnifiedYamlSerializationTest {
         assertThat(paymentIntent).containsKey("address");
         assertThat(paymentIntent).containsKey("amounts");
         assertThat(paymentIntent.get("type")).isEqualTo("payment");
+    }
+
+    @Test
+    void testDepositPayerAndDepositModeRoundTrip() {
+        // Given
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(10));
+
+        TxPlan plan = new TxPlan()
+            .addTransaction(tx)
+            .feePayer("addr1_fee_payer")
+            .depositPayer("addr1_deposit_payer")
+            .depositMode("CHANGE_OUTPUT");
+
+        // When - serialize
+        String yaml = plan.toYaml();
+        System.out.println("Deposit payer/mode YAML:");
+        System.out.println(yaml);
+
+        // Then - YAML contains deposit fields
+        assertThat(yaml).contains("deposit_payer: addr1_deposit_payer");
+        assertThat(yaml).contains("deposit_mode: CHANGE_OUTPUT");
+
+        // When - deserialize
+        TxPlan restored = TxPlan.from(yaml);
+
+        // Then - values match
+        assertThat(restored.getDepositPayer()).isEqualTo("addr1_deposit_payer");
+        assertThat(restored.getDepositMode()).isEqualTo("CHANGE_OUTPUT");
+        assertThat(restored.getFeePayer()).isEqualTo("addr1_fee_payer");
+        assertThat(restored.getTxs()).hasSize(1);
+    }
+
+    @Test
+    void testDepositPayerWithVariableResolution() {
+        // Given - YAML with variable in deposit_payer
+        String yaml = """
+                version: 1.0
+                variables:
+                  deposit_addr: addr1_deposit_resolved
+                context:
+                  deposit_payer: ${deposit_addr}
+                  deposit_mode: NEW_UTXO_SELECTION
+                transaction:
+                - tx:
+                    from: addr1_sender
+                    intents:
+                    - type: payment
+                      address: addr1_receiver
+                      amounts:
+                      - unit: lovelace
+                        quantity: '10000000'
+                """;
+
+        // When
+        TxPlan plan = TxPlan.from(yaml);
+
+        // Then - variable is resolved during YAML deserialization (whole-document substitution)
+        assertThat(plan.getDepositPayer()).isEqualTo("addr1_deposit_resolved");
+        assertThat(plan.getDepositMode()).isEqualTo("NEW_UTXO_SELECTION");
+    }
+
+    @Test
+    void testDepositModeOnlyWithoutDepositPayer() {
+        // Given
+        Tx tx = new Tx()
+            .from("addr1_sender")
+            .payToAddress("addr1_receiver", Amount.ada(10));
+
+        TxPlan plan = new TxPlan()
+            .addTransaction(tx)
+            .depositMode("AUTO");
+
+        // When - serialize
+        String yaml = plan.toYaml();
+
+        // Then - context should be present with only deposit_mode
+        assertThat(yaml).contains("deposit_mode: AUTO");
+        assertThat(yaml).doesNotContain("deposit_payer:");
+
+        // When - deserialize
+        TxPlan restored = TxPlan.from(yaml);
+
+        // Then
+        assertThat(restored.getDepositPayer()).isNull();
+        assertThat(restored.getDepositMode()).isEqualTo("AUTO");
     }
 }

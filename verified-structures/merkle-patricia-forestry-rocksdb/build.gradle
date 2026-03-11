@@ -10,3 +10,14 @@ dependencies {
 
     testImplementation(libs.slf4j.reload4j)
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Merkle Patricia Forestry RocksDB'
+                description = 'Cardano Client Lib - Merkle Patricia Forestry RocksDB Backend'
+            }
+        }
+    }
+}

@@ -66,19 +66,21 @@ class TxPlanRealQuickTxBuilderTest {
     @Test
     void yaml_to_quicktxbuilder_pipeline_works() {
         // Given
-        String yaml = "version: 1.0\n" +
-                "context:\n" +
-                "  fee_payer: addr1_fee_payer\n" +
-                "  valid_to_slot: 2000\n" +
-                "transaction:\n" +
-                "  - tx:\n" +
-                "      from: addr1_sender\n" +
-                "      intents:\n" +
-                "        - type: payment\n" +
-                "          to: addr1_receiver\n" +
-                "          amount:\n" +
-                "            unit: lovelace\n" +
-                "            quantity: 5000000\n";
+        String yaml = """
+                version: 1.0
+                context:
+                  fee_payer: addr1_fee_payer
+                  valid_to_slot: 2000
+                transaction:
+                  - tx:
+                      from: addr1_sender
+                      intents:
+                        - type: payment
+                          to: addr1_receiver
+                          amount:
+                            unit: lovelace
+                            quantity: 5000000
+                """;
 
         BackendService mockBackend = Mockito.mock(BackendService.class);
         QuickTxBuilder builder = new QuickTxBuilder(mockBackend);

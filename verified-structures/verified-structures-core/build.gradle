@@ -14,3 +14,14 @@ dependencies {
 test {
     useJUnitPlatform()
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Verified Structures Core'
+                description = 'Cardano Client Lib - Verified Data Structures Core'
+            }
+        }
+    }
+}

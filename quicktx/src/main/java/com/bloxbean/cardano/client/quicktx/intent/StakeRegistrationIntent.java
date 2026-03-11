@@ -81,15 +81,7 @@ public class StakeRegistrationIntent implements TxIntent {
 
     @Override
     public TxOutputBuilder outputBuilder(IntentContext ic) {
-        // Add a dummy output to fromAddress equal to keyDeposit to drive input selection
-        final String from = ic.getFromAddress();
-        if (from == null || from.isBlank()) {
-            throw new TxBuildException("From address is required for stake registration");
-        }
-
-        // Use the deposit helper to create the output builder
-        return DepositHelper.createDepositOutputBuilder(from,
-            DepositHelper.DepositType.STAKE_KEY_REGISTRATION);
+        return null; // Deposits resolved in Phase 4
     }
 
     @Override
@@ -126,11 +118,6 @@ public class StakeRegistrationIntent implements TxIntent {
                     txn.getBody().setCerts(new ArrayList<Certificate>());
                 }
                 txn.getBody().getCerts().add(new StakeRegistration(stakeCredential));
-
-                // Use the deposit helper to deduct the deposit
-                BigInteger keyDeposit = DepositHelper.getDepositAmount(
-                    ctx.getProtocolParams(), DepositHelper.DepositType.STAKE_KEY_REGISTRATION);
-                DepositHelper.deductDepositFromOutputs(txn, from, keyDeposit);
             } catch (Exception e) {
                 throw new TxBuildException("Failed to apply StakeRegistrationIntention: " + e.getMessage(), e);
             }

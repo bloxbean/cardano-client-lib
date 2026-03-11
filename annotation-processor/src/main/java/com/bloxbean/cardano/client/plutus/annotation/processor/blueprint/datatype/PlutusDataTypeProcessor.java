@@ -1,7 +1,6 @@
 package com.bloxbean.cardano.client.plutus.annotation.processor.blueprint.datatype;
 
 import com.bloxbean.cardano.client.plutus.annotation.processor.util.naming.NamingStrategy;
-import com.bloxbean.cardano.client.plutus.blueprint.model.BlueprintSchema;
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.squareup.javapoet.FieldSpec;
 
@@ -23,7 +22,6 @@ public class PlutusDataTypeProcessor extends AbstractDataTypeProcessor {
 
     @Override
     public List<FieldSpec> process(DataTypeProcessingContext context) {
-        BlueprintSchema schema = context.getSchema();
         String fieldName = resolveFieldName(context);
         FieldSpec fieldSpec = FieldSpec.builder(PlutusData.class, fieldName)
                 .addModifiers(Modifier.PRIVATE)

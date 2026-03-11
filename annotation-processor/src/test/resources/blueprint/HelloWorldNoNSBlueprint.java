@@ -1,10 +1,13 @@
 package com.demo.helloblueprint;
 
 import com.bloxbean.cardano.client.plutus.annotation.Blueprint;
+import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlib;
+import com.bloxbean.cardano.client.plutus.aiken.annotation.AikenStdlibVersion;
 import com.bloxbean.cardano.client.plutus.annotation.ExtendWith;
 import com.bloxbean.cardano.client.quicktx.blueprint.extender.LockUnlockValidatorExtender;
 
 @Blueprint(fileInResources = "blueprint/HelloWorldNoNS_aiken_v1_0_21_alpha_4b04517.json", packageName = "com.test.hellons")
 @ExtendWith(LockUnlockValidatorExtender.class)
+@AikenStdlib(AikenStdlibVersion.V1)
 public interface HelloWorldNoNSBlueprint {
 }

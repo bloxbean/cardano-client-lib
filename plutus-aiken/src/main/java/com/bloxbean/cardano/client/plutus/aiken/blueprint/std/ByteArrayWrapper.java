@@ -1,9 +1,13 @@
 package com.bloxbean.cardano.client.plutus.aiken.blueprint.std;
 
+import com.bloxbean.cardano.client.plutus.blueprint.model.RawData;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+
 import java.util.Arrays;
 import java.util.Objects;
 
-abstract class ByteArrayWrapper {
+abstract class ByteArrayWrapper implements RawData {
 
     private final byte[] value;
 
@@ -11,12 +15,12 @@ abstract class ByteArrayWrapper {
         this.value = Objects.requireNonNull(value, "value cannot be null").clone();
     }
 
-    protected byte[] bytesInternal() {
-        return value;
-    }
-
     public byte[] bytes() {
         return value.clone();
+    }
+
+    public PlutusData toPlutusData() {
+        return BytesPlutusData.of(value);
     }
 
     @Override

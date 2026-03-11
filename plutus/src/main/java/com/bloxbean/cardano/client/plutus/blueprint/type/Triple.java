@@ -2,27 +2,33 @@ package com.bloxbean.cardano.client.plutus.blueprint.type;
 
 import java.util.Objects;
 
-//NOTE: This class is not used currently. It is here for future implementation
-class Triple<T, Z, Y> {
-    public T first;
-    public Z second;
-    public Y third;
+/**
+ * A generic class representing a triple of three related objects.
+ *
+ * @param <T1> the type of the first element in the triple
+ * @param <T2> the type of the second element in the triple
+ * @param <T3> the type of the third element in the triple
+ */
+public class Triple<T1, T2, T3> {
+    private T1 first;
+    private T2 second;
+    private T3 third;
 
-    public Triple(T first, Z second, Y third) {
+    public Triple(T1 first, T2 second, T3 third) {
         this.first = first;
         this.second = second;
         this.third = third;
     }
 
-    public T getFirst() {
+    public T1 getFirst() {
         return first;
     }
 
-    public Z getSecond() {
+    public T2 getSecond() {
         return second;
     }
 
-    public Y getThird() {
+    public T3 getThird() {
         return third;
     }
 

@@ -13,6 +13,22 @@ import java.util.Objects;
  */
 public interface ReferencedCredential extends Data<ReferencedCredential> {
 
+    /**
+     * Deserializes a {@link ConstrPlutusData} back into a {@link ReferencedCredential}.
+     * Alternative 0 → {@link Inline}, alternative 1 → {@link Pointer}.
+     */
+    static ReferencedCredential fromPlutusData(ConstrPlutusData constr) {
+        return switch ((int) constr.getAlternative()) {
+            case 0 -> new Inline(Credential.fromPlutusData((ConstrPlutusData) constr.getData().getPlutusDataList().get(0)));
+            case 1 -> new Pointer(
+                    ((BigIntPlutusData) constr.getData().getPlutusDataList().get(0)).getValue(),
+                    ((BigIntPlutusData) constr.getData().getPlutusDataList().get(1)).getValue(),
+                    ((BigIntPlutusData) constr.getData().getPlutusDataList().get(2)).getValue()
+            );
+            default -> throw new IllegalArgumentException("Invalid ReferencedCredential alternative: " + constr.getAlternative());
+        };
+    }
+
     /** Inline form referencing the credential directly. */
     final class Inline implements ReferencedCredential {
         private final Credential credential;
@@ -33,8 +49,7 @@ public interface ReferencedCredential extends Data<ReferencedCredential> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Inline)) return false;
-            Inline inline = (Inline) o;
+            if (!(o instanceof Inline inline)) return false;
             return credential.equals(inline.credential);
         }
 
@@ -85,8 +100,7 @@ public interface ReferencedCredential extends Data<ReferencedCredential> {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof Pointer)) return false;
-            Pointer pointer = (Pointer) o;
+            if (!(o instanceof Pointer pointer)) return false;
             return slotNumber.equals(pointer.slotNumber)
                     && transactionIndex.equals(pointer.transactionIndex)
                     && certificateIndex.equals(pointer.certificateIndex);

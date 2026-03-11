@@ -1,5 +1,8 @@
 package com.bloxbean.cardano.client.plutus.aiken.blueprint.std;
 
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.bloxbean.cardano.client.plutus.spec.PlutusData;
+
 import java.util.Optional;
 
 /** Generic hash wrapper carrying raw bytes and an optional algorithm hint. */
@@ -26,5 +29,9 @@ public class Hash extends ByteArrayWrapper {
 
     public Optional<String> algorithm() {
         return Optional.ofNullable(algorithm);
+    }
+
+    public static Hash fromPlutusData(PlutusData data) {
+        return new Hash(((BytesPlutusData) data).getValue());
     }
 }

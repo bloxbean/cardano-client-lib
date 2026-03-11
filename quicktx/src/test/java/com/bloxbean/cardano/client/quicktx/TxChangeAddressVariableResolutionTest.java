@@ -11,13 +11,15 @@ class TxChangeAddressVariableResolutionTest {
     void resolves_variable_for_change_address_in_tx() {
         String addrVar = "addr_test1vqarstuvw";
 
-        String yaml = "version: '1.0'\n" +
-                "variables:\n" +
-                "  ca: " + addrVar + "\n" +
-                "transaction:\n" +
-                "  - tx:\n" +
-                "      change_address: ${ca}\n" +
-                "      intents: []\n";
+        String yaml = """
+                version: '1.0'
+                variables:
+                  ca: %s
+                transaction:
+                  - tx:
+                      change_address: ${ca}
+                      intents: []
+                """.formatted(addrVar);
 
         Tx tx = (Tx) TxPlan.getTxs(yaml).get(0);
         assertThat(tx.getPublicChangeAddress()).isEqualTo(addrVar);

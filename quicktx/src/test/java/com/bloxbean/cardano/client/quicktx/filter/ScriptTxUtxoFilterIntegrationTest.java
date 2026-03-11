@@ -2,7 +2,7 @@ package com.bloxbean.cardano.client.quicktx.filter;
 
 import com.bloxbean.cardano.client.plutus.spec.PlutusData;
 import com.bloxbean.cardano.client.quicktx.AbstractTx;
-import com.bloxbean.cardano.client.quicktx.ScriptTx;
+import com.bloxbean.cardano.client.quicktx.Tx;
 import com.bloxbean.cardano.client.quicktx.intent.ScriptCollectFromIntent;
 import com.bloxbean.cardano.client.quicktx.intent.TxIntent;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests verifying that UtxoFilterSpec serializes and deserializes correctly
- * when used with ScriptTx in YAML round-trips through TxPlan.
+ * when used with Tx in YAML round-trips through TxPlan.
  *
  * These tests ensure the critical serialization path works end-to-end.
  */
@@ -33,7 +33,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 lovelace().gte(2_000_000)
         ).limit(5).build();
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(tx);
@@ -53,7 +53,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 )
         ).build();
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(tx);
@@ -75,16 +75,16 @@ class ScriptTxUtxoFilterIntegrationTest {
                 )
         ).orderBy(lovelaceDesc()).limit(2).build();
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(tx);
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
 
         assertEquals(1, restored.size());
-        assertTrue(restored.get(0) instanceof ScriptTx);
+        assertTrue(restored.get(0) instanceof Tx);
 
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
         assertNotNull(restoredTx.getIntentions());
         assertTrue(restoredTx.getIntentions().stream()
                 .anyMatch(i -> i instanceof ScriptCollectFromIntent));
@@ -96,14 +96,14 @@ class ScriptTxUtxoFilterIntegrationTest {
                 txHash().eq("abc123")
         ).build();
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(tx);
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
 
         assertEquals(1, restored.size());
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
         assertNotNull(restoredTx.getIntentions());
     }
 
@@ -118,14 +118,14 @@ class ScriptTxUtxoFilterIntegrationTest {
                 )
         ).build();
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(original);
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
 
         // Verify structure preserved
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
         assertNotNull(restoredTx.getIntentions());
         assertEquals(1, restoredTx.getIntentions().size());
 
@@ -140,7 +140,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 lovelace().gte(1_000_000)
         ).orderBy(lovelaceDesc(), outputIndexAsc()).limit(3).build();
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(original);
@@ -152,7 +152,7 @@ class ScriptTxUtxoFilterIntegrationTest {
         assertTrue(yaml.contains("limit: 3"));
 
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
         assertNotNull(restoredTx.getIntentions());
     }
 
@@ -166,7 +166,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 )
         ).build();
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(original);
@@ -176,7 +176,7 @@ class ScriptTxUtxoFilterIntegrationTest {
         assertTrue(yaml.contains("outputIndex: 1"));
 
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
         assertNotNull(restoredTx.getIntentions());
     }
 
@@ -195,7 +195,7 @@ class ScriptTxUtxoFilterIntegrationTest {
         String scriptAddr1 = "addr_test1wqag3rt979nep9g2wtdwu8mr4gz6m4kjdpp37wx8pnh8dqq9pqm7e";
         String scriptAddr2 = "addr_test1wqag3rt979nep9g2wtdwu8mr4gz6m4kjdpp37wx8pnh8dqqyyyyyy";
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .collectFrom(scriptAddr1, filter1, REDEEMER, DATUM)
                 .collectFrom(scriptAddr2, filter2, REDEEMER, DATUM);
 
@@ -206,7 +206,7 @@ class ScriptTxUtxoFilterIntegrationTest {
         assertTrue(yaml.contains("lovelace"));
 
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
 
         // Should have 2 ScriptCollectFromIntent instances
         long collectFromCount = restoredTx.getIntentions().stream()
@@ -229,7 +229,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 .limit(10)
                 .build();
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(original);
@@ -242,7 +242,7 @@ class ScriptTxUtxoFilterIntegrationTest {
         assertTrue(yaml.contains("limit: 10"));
 
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
         assertNotNull(restoredTx.getIntentions());
         assertEquals(1, restoredTx.getIntentions().size());
     }
@@ -253,7 +253,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 referenceScriptHash().notNull()
         ).build();
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         // Use TxPlan with context
@@ -283,7 +283,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 lovelace().gte(0) // Always true
         ).limit(1).build();
 
-        ScriptTx tx = new ScriptTx()
+        Tx tx = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(tx);
@@ -302,13 +302,13 @@ class ScriptTxUtxoFilterIntegrationTest {
                 )
         ).build();
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(original);
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
 
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
         assertNotNull(restoredTx.getIntentions());
     }
 
@@ -322,7 +322,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 )
         ).build();
 
-        ScriptTx original = new ScriptTx()
+        Tx original = new Tx()
                 .collectFrom(SCRIPT_ADDRESS, filter, REDEEMER, DATUM);
 
         String yaml = TxPlan.toYaml(original);
@@ -332,7 +332,7 @@ class ScriptTxUtxoFilterIntegrationTest {
                 yaml.contains("referenceScriptHash:\n"));
 
         List<AbstractTx<?>> restored = TxPlan.getTxs(yaml);
-        ScriptTx restoredTx = (ScriptTx) restored.get(0);
+        Tx restoredTx = (Tx) restored.get(0);
         assertNotNull(restoredTx.getIntentions());
     }
 }

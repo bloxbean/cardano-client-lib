@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.api.exception.ApiException;
 import com.bloxbean.cardano.client.api.model.Amount;
 import com.bloxbean.cardano.client.api.model.Result;
 import com.bloxbean.cardano.client.api.model.Utxo;
+import com.bloxbean.cardano.client.backend.model.TxContentRedeemers;
 import com.bloxbean.cardano.client.common.model.Networks;
 import com.bloxbean.cardano.client.exception.CborDeserializationException;
 import com.bloxbean.cardano.client.function.helper.ScriptUtxoFinders;
@@ -14,6 +15,7 @@ import com.bloxbean.cardano.client.plutus.spec.*;
 import com.bloxbean.cardano.client.quicktx.filter.ast.FilterNode;
 import com.bloxbean.cardano.client.quicktx.filter.dsl.Spec;
 import com.bloxbean.cardano.client.quicktx.serialization.TxPlan;
+import com.bloxbean.cardano.client.spec.Era;
 import com.bloxbean.cardano.client.transaction.spec.TransactionInput;
 import com.bloxbean.cardano.client.util.HexUtil;
 import com.bloxbean.cardano.client.util.JsonUtil;
@@ -33,6 +35,183 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ScriptTxV3IT extends TestDataBaseIT {
 
     private boolean aikenEvaluation = false;
+
+    @Test
+    void alwaysTrueScript_plutusV3_datumHash() throws ApiException {
+        PlutusV3Script plutusScript3 = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript3, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        Random rand = new Random();
+        int randInt = rand.nextInt();
+        BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData.getDatumHash())
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        Optional<Utxo> optionalUtxo  = ScriptUtxoFinders.findFirstByDatumHash(utxoSupplier, scriptAddress, plutusData.getDatumHash());
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(optionalUtxo.get(), plutusData, plutusData)
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .attachSpendingValidator(plutusScript3)
+                .withChangeAddress(scriptAddress, plutusData);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withRequiredSigners(sender1.getBaseAddress())
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), receiver1);
+
+        // Example of getting the redeemer datum hash and then getting the datum values.
+        List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
+                .getTransactionRedeemers(result1.getValue()).getValue();
+
+        int gottenValue = getBackendService().getScriptService()
+                .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
+                .getValue().getJsonValue().get("int").asInt();
+        assertThat(randInt).isEqualTo(gottenValue);
+    }
+
+    @Test
+    void alwaysTrueScript_plutusV3_datumHash_withBabbageEraFormat() throws ApiException {
+        PlutusV3Script plutusScript3 = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress = AddressProvider.getEntAddress(plutusScript3, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        Random rand = new Random();
+        int randInt = rand.nextInt();
+        BigIntPlutusData plutusData =  new BigIntPlutusData(BigInteger.valueOf(randInt)); //any random number
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress, Amount.lovelace(scriptAmt), plutusData.getDatumHash())
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress);
+
+        Optional<Utxo> optionalUtxo  = ScriptUtxoFinders.findFirstByDatumHash(utxoSupplier, scriptAddress, plutusData.getDatumHash());
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(optionalUtxo.get(), plutusData, plutusData)
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .attachSpendingValidator(plutusScript3)
+                .withChangeAddress(scriptAddress, plutusData);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withRequiredSigners(sender1.getBaseAddress())
+                .withSerializationEra(Era.Babbage)
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), receiver1);
+
+        // Example of getting the redeemer datum hash and then getting the datum values.
+        List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
+                .getTransactionRedeemers(result1.getValue()).getValue();
+
+        int gottenValue = getBackendService().getScriptService()
+                .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
+                .getValue().getJsonValue().get("int").asInt();
+        assertThat(randInt).isEqualTo(gottenValue);
+    }
+
+    @Test
+    void alwaysTrueScript_plutusV3_plutusV2_datumHash() throws ApiException {
+        PlutusV2Script plutusScript2 = PlutusV2Script.builder()
+                .type("PlutusScriptV2")
+                .cborHex("4e4d01000033222220051200120011")
+                .build();
+
+        PlutusV3Script plutusScript3 = PlutusV3Script.builder()
+                .type("PlutusScriptV3")
+                .cborHex("46450101002499")
+                .build();
+
+        String scriptAddress2 = AddressProvider.getEntAddress(plutusScript2, Networks.testnet()).toBech32();
+        String scriptAddress3 = AddressProvider.getEntAddress(plutusScript3, Networks.testnet()).toBech32();
+        BigInteger scriptAmt = new BigInteger("2479280");
+
+        Random rand = new Random();
+        int randInt3 = rand.nextInt();
+        BigIntPlutusData plutusData3 =  new BigIntPlutusData(BigInteger.valueOf(randInt3)); //any random number
+
+        int randInt1 = rand.nextInt();
+        BigIntPlutusData plutusData1 =  new BigIntPlutusData(BigInteger.valueOf(randInt1));
+
+        Tx tx = new Tx();
+        tx.payToContract(scriptAddress3, Amount.lovelace(scriptAmt), plutusData3.getDatumHash())
+                .payToContract(scriptAddress2, Amount.lovelace(scriptAmt), plutusData1.getDatumHash())
+                .from(sender2Addr);
+
+        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(sender2))
+                .completeAndWait(System.out::println);
+
+        System.out.println(result.getResponse());
+        checkIfUtxoAvailable(result.getValue(), scriptAddress3);
+        checkIfUtxoAvailable(result.getValue(), scriptAddress2);
+
+        Optional<Utxo> optionalUtxo3  = ScriptUtxoFinders.findFirstByDatumHash(utxoSupplier, scriptAddress3, plutusData3.getDatumHash());
+        Optional<Utxo> optionalUtxo1  = ScriptUtxoFinders.findFirstByDatumHash(utxoSupplier, scriptAddress2, plutusData1.getDatumHash());
+        ScriptTx scriptTx = new ScriptTx()
+                .collectFrom(optionalUtxo3.get(), plutusData3, plutusData3)
+                .collectFrom(optionalUtxo1.get(), plutusData1, plutusData1)
+                .payToAddress(receiver1, Amount.lovelace(scriptAmt))
+                .attachSpendingValidator(plutusScript3)
+                .attachSpendingValidator(plutusScript2)
+                .withChangeAddress(scriptAddress3, plutusData3);
+
+        Result<String> result1 = quickTxBuilder.compose(scriptTx)
+                .feePayer(sender1Addr)
+                .withSigner(SignerProviders.signerFrom(sender1))
+                .withRequiredSigners(sender1.getBaseAddress())
+                .completeAndWait(System.out::println);
+
+        System.out.println(result1.getResponse());
+        assertTrue(result1.isSuccessful());
+
+        checkIfUtxoAvailable(result1.getValue(), receiver1);
+
+        // Example of getting the redeemer datum hash and then getting the datum values.
+        List<TxContentRedeemers> redeemers = getBackendService().getTransactionService()
+                .getTransactionRedeemers(result1.getValue()).getValue();
+
+        int gottenValue = getBackendService().getScriptService()
+                .getScriptDatum(redeemers.get(0).getRedeemerDataHash())
+                .getValue().getJsonValue().get("int").asInt();
+        assertThat(randInt3).isEqualTo(gottenValue);
+    }
 
     @Test
     void alwaysTrueScript() throws ApiException, CborDeserializationException {
@@ -158,6 +337,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
     @Test
     void referenceInputUtxo_guessSumScript() throws ApiException, InterruptedException {
+        resetAndTopup();
         //Sum Script
         PlutusV3Script sumScript =
                 PlutusV3Script.builder()
@@ -602,6 +782,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
     @Test
     void alwaysTrueScript_withCompleteAsync_withListPredicate() throws ApiException, ExecutionException, InterruptedException {
+        resetAndTopup();
         PlutusV3Script plutusScript = PlutusV3Script.builder()
                 .type("PlutusScriptV3")
                 .cborHex("46450101002499")
@@ -697,7 +878,7 @@ public class ScriptTxV3IT extends TestDataBaseIT {
 
         var filterSpec = Spec.of(filter).limitAll().build();
 
-        ScriptTx scriptTx = new ScriptTx()
+        Tx scriptTx = new Tx()
                 .collectFrom(
                         scriptAddress,
                         filterSpec,

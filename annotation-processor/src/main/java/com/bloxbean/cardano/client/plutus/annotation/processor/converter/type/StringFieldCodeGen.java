@@ -1,0 +1,47 @@
+package com.bloxbean.cardano.client.plutus.annotation.processor.converter.type;
+
+import com.bloxbean.cardano.client.plutus.annotation.processor.converter.FieldAccessor;
+import com.bloxbean.cardano.client.plutus.annotation.processor.converter.FieldCodeGenerator;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.Field;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.FieldType;
+import com.bloxbean.cardano.client.plutus.annotation.processor.model.Type;
+import com.bloxbean.cardano.client.plutus.spec.BytesPlutusData;
+import com.squareup.javapoet.CodeBlock;
+
+public class StringFieldCodeGen implements FieldCodeGenerator {
+
+    @Override
+    public Type supportedType() { return Type.STRING; }
+
+    @Override
+    public CodeBlock generateSerialization(Field field, FieldAccessor accessor) {
+        return CodeBlock.builder()
+                .add("//Field $L\n", field.getName())
+                .add(accessor.nullCheck(field))
+                .addStatement("constr.getData().add(toPlutusData(obj.$L))", accessor.fieldOrGetter(field))
+                .add("\n")
+                .build();
+    }
+
+    @Override
+    public CodeBlock generateDeserialization(Field field) {
+        return CodeBlock.builder()
+                .add("//Field $L\n", field.getName())
+                .addStatement("var $L = deserializeBytesToString((($T)constrData.getPlutusDataList().get($L)).getValue(), $S)",
+                        field.getName(), BytesPlutusData.class, field.getIndex(), field.getFieldType().getEncoding())
+                .build();
+    }
+
+    @Override
+    public String toPlutusDataExpression(FieldType type, String expression) {
+        return "toPlutusData(" + expression + ")";
+    }
+
+    @Override
+    public String fromPlutusDataExpression(FieldType type, String pdExpression) {
+        if (type.getEncoding() == null)
+            return String.format("plutusDataToString(%s, null)", pdExpression);
+        else
+            return String.format("plutusDataToString(%s, \"%s\")", pdExpression, type.getEncoding());
+    }
+}

@@ -72,12 +72,6 @@ public class Transaction {
     }
 
     public byte[] serialize() throws CborSerializationException {
-        if (era == null && this.getWitnessSet() != null
-                && this.getWitnessSet().getPlutusV1Scripts() != null && this.getWitnessSet().getPlutusV1Scripts().size() > 0) {
-            log.info("PlutusV1 scripts are used. Setting serialization era to Babbage");
-            this.setEra(Era.Babbage);
-        }
-
         return serialize(era != null? era : EraSerializationConfig.INSTANCE.getEra());
     }
 
