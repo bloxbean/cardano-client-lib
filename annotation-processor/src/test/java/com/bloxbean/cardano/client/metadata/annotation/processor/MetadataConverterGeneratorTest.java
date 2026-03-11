@@ -15,11 +15,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Unit tests for {@link MetadataConverterGenerator}.
  * Tests inspect the generated Java source text to assert correct code structure.
  *
- * Organised by concern:
- * - ClassStructure   : generated class/method shape
- * - ToMetadataMap    : serialisation per field type, null-checks, key mapping, direct-field access
- * - FromMetadataMap  : deserialisation per field type, MetadataList reassembly, key mapping, direct-field access
- * - MultipleFields   : all fields together
+ * Organised per-type: each scalar type has ONE home containing serialisation,
+ * deserialisation, and encoding-variant tests. Cross-cutting concerns
+ * (KeyMapping, DirectFieldAccess) are consolidated at the end.
  */
 public class MetadataConverterGeneratorTest {
 
@@ -166,371 +164,292 @@ public class MetadataConverterGeneratorTest {
     }
 
     // =========================================================================
-    // toMetadataMap
+    // String fields
     // =========================================================================
 
     @Nested
-    class ToMetadataMap {
-
-        @Nested
-        class StringFields {
-
-            @Test
-            void shortString_storedDirectlyInMap() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                // else branch — direct put without wrapping
-                assertTrue(src.contains("map.put(\"note\", order.getNote())"));
-            }
-
-            @Test
-            void longString_byteCountCheckedAgainst64() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                assertTrue(src.contains("getBytes("));
-                assertTrue(src.contains("UTF_8"));
-                assertTrue(src.contains("> 64"));
-            }
-
-            @Test
-            void longString_splitWithStringUtils() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                assertTrue(src.contains("splitStringEveryNCharacters"));
-                assertTrue(src.contains("splitStringEveryNCharacters(order.getNote(), 64)"));
-            }
-
-            @Test
-            void longString_chunksStoredAsMetadataList() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                assertTrue(src.contains("MetadataList _chunks = MetadataBuilder.createList()"));
-                assertTrue(src.contains("_chunks.add(_part)"));
-                assertTrue(src.contains("map.put(\"note\", _chunks)"));
-            }
-
-            @Test
-            void stringField_hasNullGuard() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                assertTrue(src.contains("if (order.getNote() != null)"));
-            }
-        }
-
-        @Nested
-        class NumericFields {
-
-            @Test
-            void bigIntegerField_storedDirectly() {
-                String src = generate(List.of(field("amount", "java.math.BigInteger")));
-                assertTrue(src.contains("map.put(\"amount\", order.getAmount())"));
-            }
-
-            @Test
-            void bigIntegerField_hasNullGuard() {
-                String src = generate(List.of(field("amount", "java.math.BigInteger")));
-                assertTrue(src.contains("if (order.getAmount() != null)"));
-            }
-
-            @Test
-            void longBoxed_wrappedInBigIntegerValueOf() {
-                String src = generate(List.of(field("ts", "java.lang.Long")));
-                assertTrue(src.contains("BigInteger.valueOf(order.getTs())"));
-            }
-
-            @Test
-            void longBoxed_hasNullGuard() {
-                String src = generate(List.of(field("ts", "java.lang.Long")));
-                assertTrue(src.contains("if (order.getTs() != null)"));
-            }
-
-            @Test
-            void longPrimitive_wrappedInBigIntegerValueOf() {
-                String src = generate(List.of(field("ts", "long")));
-                assertTrue(src.contains("BigInteger.valueOf(order.getTs())"));
-            }
-
-            @Test
-            void longPrimitive_noNullGuard() {
-                String src = generate(List.of(field("ts", "long")));
-                assertFalse(src.contains("if (order.getTs() != null)"));
-            }
-
-            @Test
-            void integerBoxed_castToLongThenWrapped() {
-                String src = generate(List.of(field("qty", "java.lang.Integer")));
-                assertTrue(src.contains("BigInteger.valueOf((long) order.getQty())"));
-            }
-
-            @Test
-            void integerBoxed_hasNullGuard() {
-                String src = generate(List.of(field("qty", "java.lang.Integer")));
-                assertTrue(src.contains("if (order.getQty() != null)"));
-            }
-
-            @Test
-            void intPrimitive_castToLongThenWrapped() {
-                String src = generate(List.of(field("qty", "int")));
-                assertTrue(src.contains("BigInteger.valueOf((long) order.getQty())"));
-            }
-
-            @Test
-            void intPrimitive_noNullGuard() {
-                String src = generate(List.of(field("qty", "int")));
-                assertFalse(src.contains("if (order.getQty() != null)"));
-            }
-        }
-
-        @Nested
-        class ByteArrayFields {
-
-            @Test
-            void byteArrayField_storedDirectly() {
-                String src = generate(List.of(field("sig", "byte[]")));
-                assertTrue(src.contains("map.put(\"sig\", order.getSig())"));
-            }
-
-            @Test
-            void byteArrayField_hasNullGuard() {
-                String src = generate(List.of(field("sig", "byte[]")));
-                assertTrue(src.contains("if (order.getSig() != null)"));
-            }
-
-            @Test
-            void byteArrayField_doesNotEmitStringSplitLogic() {
-                String src = generate(List.of(field("sig", "byte[]")));
-                assertFalse(src.contains("splitStringEveryNCharacters"));
-                assertFalse(src.contains("getBytes("));
-            }
-        }
-
-        @Nested
-        class KeyMapping {
-
-            @Test
-            void defaultKey_usesFieldName() {
-                String src = generate(List.of(field("recipient", "java.lang.String")));
-                assertTrue(src.contains("map.put(\"recipient\""));
-            }
-
-            @Test
-            void customKey_usesMetadataKeyInsteadOfFieldName() {
-                String src = generate(List.of(field("referenceId", "ref_id", "java.lang.String")));
-                assertTrue(src.contains("map.put(\"ref_id\""));
-                assertFalse(src.contains("map.put(\"referenceId\""));
-            }
-        }
-
-        @Nested
-        class DirectFieldAccess {
-
-            @Test
-            void stringField_readsPublicFieldDirectly() {
-                String src = generate(List.of(directField("note", "java.lang.String")));
-                assertTrue(src.contains("order.note"));
-                assertFalse(src.contains("order.getNote()"));
-            }
-
-            @Test
-            void bigIntegerField_readsPublicFieldDirectly() {
-                String src = generate(List.of(directField("amount", "java.math.BigInteger")));
-                assertTrue(src.contains("order.amount"));
-                assertFalse(src.contains("order.getAmount()"));
-            }
-        }
-    }
-
-    // =========================================================================
-    // fromMetadataMap
-    // =========================================================================
-
-    @Nested
-    class FromMetadataMap {
-
-        @Nested
-        class StringFields {
-
-            @Test
-            void plainString_assignedDirectly() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                assertTrue(src.contains("if (v instanceof String)"));
-                assertTrue(src.contains("obj.setNote((String) v)"));
-            }
-
-            @Test
-            void chunkedString_metadataListBranchPresent() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                assertTrue(src.contains("else if (v instanceof MetadataList)"));
-            }
-
-            @Test
-            void chunkedString_chunksReassembledWithStringBuilder() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                assertTrue(src.contains("StringBuilder _sb = new StringBuilder()"));
-                assertTrue(src.contains("MetadataList _list = (MetadataList) v"));
-                assertTrue(src.contains("_list.size()"));
-                assertTrue(src.contains("_list.getValueAt(_i)"));
-                assertTrue(src.contains("_sb.append((String) _chunk)"));
-                assertTrue(src.contains("obj.setNote(_sb.toString())"));
-            }
-
-            @Test
-            void stringField_doesNotEmitBigIntegerCast() {
-                String src = generate(List.of(field("note", "java.lang.String")));
-                assertFalse(src.contains("longValue()"));
-                assertFalse(src.contains("intValue()"));
-            }
-        }
-
-        @Nested
-        class NumericFields {
-
-            @Test
-            void bigIntegerField_castFromBigIntegerDirectly() {
-                String src = generate(List.of(field("amount", "java.math.BigInteger")));
-                assertTrue(src.contains("if (v instanceof BigInteger)"));
-                assertTrue(src.contains("obj.setAmount((BigInteger) v)"));
-            }
-
-            @Test
-            void longBoxed_extractedFromBigIntegerViaLongValue() {
-                String src = generate(List.of(field("ts", "java.lang.Long")));
-                assertTrue(src.contains("if (v instanceof BigInteger)"));
-                assertTrue(src.contains("obj.setTs(((BigInteger) v).longValue())"));
-            }
-
-            @Test
-            void longPrimitive_extractedFromBigIntegerViaLongValue() {
-                String src = generate(List.of(field("ts", "long")));
-                assertTrue(src.contains("obj.setTs(((BigInteger) v).longValue())"));
-            }
-
-            @Test
-            void integerBoxed_extractedFromBigIntegerViaIntValue() {
-                String src = generate(List.of(field("qty", "java.lang.Integer")));
-                assertTrue(src.contains("if (v instanceof BigInteger)"));
-                assertTrue(src.contains("obj.setQty(((BigInteger) v).intValue())"));
-            }
-
-            @Test
-            void intPrimitive_extractedFromBigIntegerViaIntValue() {
-                String src = generate(List.of(field("qty", "int")));
-                assertTrue(src.contains("obj.setQty(((BigInteger) v).intValue())"));
-            }
-
-            @Test
-            void numericField_doesNotEmitStringBuilder() {
-                String src = generate(List.of(field("amount", "java.math.BigInteger")));
-                assertFalse(src.contains("StringBuilder"));
-            }
-        }
-
-        @Nested
-        class ByteArrayFields {
-
-            @Test
-            void byteArrayField_castFromByteArray() {
-                String src = generate(List.of(field("sig", "byte[]")));
-                assertTrue(src.contains("if (v instanceof byte[])"));
-                assertTrue(src.contains("obj.setSig((byte[]) v)"));
-            }
-
-            @Test
-            void byteArrayField_doesNotEmitStringBuilder() {
-                String src = generate(List.of(field("sig", "byte[]")));
-                assertFalse(src.contains("StringBuilder"));
-            }
-        }
-
-        @Nested
-        class KeyMapping {
-
-            @Test
-            void defaultKey_readsFromFieldName() {
-                String src = generate(List.of(field("recipient", "java.lang.String")));
-                assertTrue(src.contains("map.get(\"recipient\")"));
-            }
-
-            @Test
-            void customKey_readsFromMetadataKey() {
-                String src = generate(List.of(field("referenceId", "ref_id", "java.lang.String")));
-                assertTrue(src.contains("map.get(\"ref_id\")"));
-                assertFalse(src.contains("map.get(\"referenceId\")"));
-            }
-        }
-
-        @Nested
-        class DirectFieldAccess {
-
-            @Test
-            void stringField_assignsPublicFieldDirectly() {
-                String src = generate(List.of(directField("note", "java.lang.String")));
-                assertTrue(src.contains("obj.note = (String) v"));
-                assertFalse(src.contains("obj.setNote("));
-            }
-
-            @Test
-            void bigIntegerField_assignsPublicFieldDirectly() {
-                String src = generate(List.of(directField("amount", "java.math.BigInteger")));
-                assertTrue(src.contains("obj.amount = (BigInteger) v"));
-                assertFalse(src.contains("obj.setAmount("));
-            }
-        }
-    }
-
-    // =========================================================================
-    // Multiple fields
-    // =========================================================================
-
-    @Nested
-    class MultipleFields {
-
-        private final List<MetadataFieldInfo> FIELDS = List.of(
-                field("recipient", "java.lang.String"),
-                field("amount",    "java.math.BigInteger"),
-                field("timestamp", "java.lang.Long"),
-                field("quantity",  "int"),
-                field("sig",       "byte[]")
-        );
+    class StringFields {
 
         @Test
-        void toMetadataMap_allFieldsHavePutStatements() {
-            String src = generate(FIELDS);
-            assertTrue(src.contains("map.put(\"recipient\""));
-            assertTrue(src.contains("map.put(\"amount\","));
-            assertTrue(src.contains("map.put(\"timestamp\","));
-            assertTrue(src.contains("map.put(\"quantity\","));
-            assertTrue(src.contains("map.put(\"sig\","));
+        void toMetadataMap_shortString_storedDirectlyInMap() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            // else branch — direct put without wrapping
+            assertTrue(src.contains("map.put(\"note\", order.getNote())"));
         }
 
         @Test
-        void fromMetadataMap_allFieldsHaveGetStatements() {
-            String src = generate(FIELDS);
-            assertTrue(src.contains("map.get(\"recipient\")"));
-            assertTrue(src.contains("map.get(\"amount\")"));
-            assertTrue(src.contains("map.get(\"timestamp\")"));
-            assertTrue(src.contains("map.get(\"quantity\")"));
-            assertTrue(src.contains("map.get(\"sig\")"));
+        void toMetadataMap_longString_byteCountCheckedAgainst64() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            assertTrue(src.contains("getBytes("));
+            assertTrue(src.contains("UTF_8"));
+            assertTrue(src.contains("> 64"));
         }
 
         @Test
-        void multipleStringFields_eachGetsOwnSplitBlock() {
-            List<MetadataFieldInfo> twoStrings = List.of(
-                    field("name", "java.lang.String"),
-                    field("note", "java.lang.String")
-            );
-            String src = generate(twoStrings);
-            // Both fields should have their own splitting checks
-            assertTrue(src.contains("splitStringEveryNCharacters(order.getName(), 64)"));
+        void toMetadataMap_longString_splitWithStringUtils() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            assertTrue(src.contains("splitStringEveryNCharacters"));
             assertTrue(src.contains("splitStringEveryNCharacters(order.getNote(), 64)"));
         }
 
         @Test
-        void multipleStringFields_eachGetsOwnMetadataListReassembly() {
-            List<MetadataFieldInfo> twoStrings = List.of(
-                    field("name", "java.lang.String"),
-                    field("note", "java.lang.String")
-            );
-            String src = generate(twoStrings);
-            assertTrue(src.contains("map.get(\"name\")"));
-            assertTrue(src.contains("map.get(\"note\")"));
-            assertTrue(src.contains("obj.setName(_sb.toString())"));
+        void toMetadataMap_longString_chunksStoredAsMetadataList() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            assertTrue(src.contains("MetadataList _chunks = MetadataBuilder.createList()"));
+            assertTrue(src.contains("_chunks.add(_part)"));
+            assertTrue(src.contains("map.put(\"note\", _chunks)"));
+        }
+
+        @Test
+        void toMetadataMap_stringField_hasNullGuard() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            assertTrue(src.contains("if (order.getNote() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_plainString_assignedDirectly() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            assertTrue(src.contains("if (v instanceof String)"));
+            assertTrue(src.contains("obj.setNote((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_chunkedString_metadataListBranchPresent() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            assertTrue(src.contains("else if (v instanceof MetadataList)"));
+        }
+
+        @Test
+        void fromMetadataMap_chunkedString_chunksReassembledWithStringBuilder() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            assertTrue(src.contains("StringBuilder _sb = new StringBuilder()"));
+            assertTrue(src.contains("MetadataList _list = (MetadataList) v"));
+            assertTrue(src.contains("_list.size()"));
+            assertTrue(src.contains("_list.getValueAt(_i)"));
+            assertTrue(src.contains("_sb.append((String) _chunk)"));
             assertTrue(src.contains("obj.setNote(_sb.toString())"));
+        }
+
+        @Test
+        void fromMetadataMap_stringField_doesNotEmitBigIntegerCast() {
+            String src = generate(List.of(field("note", "java.lang.String")));
+            assertFalse(src.contains("longValue()"));
+            assertFalse(src.contains("intValue()"));
+        }
+
+        @Test
+        void stringField_asString_stillUses64ByteSplitLogic() {
+            String src = generate(List.of(fieldEnc("note", "java.lang.String", MetadataFieldType.STRING)));
+            assertTrue(src.contains("splitStringEveryNCharacters"));
+            assertTrue(src.contains("UTF_8"));
+        }
+    }
+
+    // =========================================================================
+    // BigInteger fields
+    // =========================================================================
+
+    @Nested
+    class BigIntegerFields {
+
+        @Test
+        void toMetadataMap_bigIntegerField_storedDirectly() {
+            String src = generate(List.of(field("amount", "java.math.BigInteger")));
+            assertTrue(src.contains("map.put(\"amount\", order.getAmount())"));
+        }
+
+        @Test
+        void toMetadataMap_bigIntegerField_hasNullGuard() {
+            String src = generate(List.of(field("amount", "java.math.BigInteger")));
+            assertTrue(src.contains("if (order.getAmount() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_bigIntegerField_castFromBigIntegerDirectly() {
+            String src = generate(List.of(field("amount", "java.math.BigInteger")));
+            assertTrue(src.contains("if (v instanceof BigInteger)"));
+            assertTrue(src.contains("obj.setAmount((BigInteger) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_numericField_doesNotEmitStringBuilder() {
+            String src = generate(List.of(field("amount", "java.math.BigInteger")));
+            assertFalse(src.contains("StringBuilder"));
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_bigIntegerField_serializedViaToString() {
+                String src = generate(List.of(fieldEnc("amount", "java.math.BigInteger", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"amount\", order.getAmount().toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_bigIntegerField_parsedViaNewBigInteger() {
+                String src = generate(List.of(fieldEnc("amount", "java.math.BigInteger", MetadataFieldType.STRING)));
+                assertTrue(src.contains("new BigInteger((String) v)"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // Integer / int fields
+    // =========================================================================
+
+    @Nested
+    class IntegerFields {
+
+        @Test
+        void toMetadataMap_integerBoxed_castToLongThenWrapped() {
+            String src = generate(List.of(field("qty", "java.lang.Integer")));
+            assertTrue(src.contains("BigInteger.valueOf((long) order.getQty())"));
+        }
+
+        @Test
+        void toMetadataMap_integerBoxed_hasNullGuard() {
+            String src = generate(List.of(field("qty", "java.lang.Integer")));
+            assertTrue(src.contains("if (order.getQty() != null)"));
+        }
+
+        @Test
+        void toMetadataMap_intPrimitive_castToLongThenWrapped() {
+            String src = generate(List.of(field("qty", "int")));
+            assertTrue(src.contains("BigInteger.valueOf((long) order.getQty())"));
+        }
+
+        @Test
+        void toMetadataMap_intPrimitive_noNullGuard() {
+            String src = generate(List.of(field("qty", "int")));
+            assertFalse(src.contains("if (order.getQty() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_integerBoxed_extractedFromBigIntegerViaIntValue() {
+            String src = generate(List.of(field("qty", "java.lang.Integer")));
+            assertTrue(src.contains("if (v instanceof BigInteger)"));
+            assertTrue(src.contains("obj.setQty(((BigInteger) v).intValue())"));
+        }
+
+        @Test
+        void fromMetadataMap_intPrimitive_extractedFromBigIntegerViaIntValue() {
+            String src = generate(List.of(field("qty", "int")));
+            assertTrue(src.contains("obj.setQty(((BigInteger) v).intValue())"));
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_intField_serializedAsStringValueOf() {
+                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
+            }
+
+            @Test
+            void toMetadataMap_integerBoxedField_serializedAsStringValueOf() {
+                String src = generate(List.of(fieldEnc("code", "java.lang.Integer", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
+            }
+
+            @Test
+            void toMetadataMap_intField_asString_doesNotEmitBigIntegerValueOf() {
+                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
+                assertFalse(src.contains("BigInteger.valueOf"));
+            }
+
+            @Test
+            void fromMetadataMap_intField_parsedViaIntegerParseInt() {
+                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (v instanceof String)"));
+                assertTrue(src.contains("Integer.parseInt((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_integerBoxedField_parsedViaIntegerParseInt() {
+                String src = generate(List.of(fieldEnc("code", "java.lang.Integer", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Integer.parseInt((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_intField_asString_doesNotEmitBigIntegerInstanceofCheck() {
+                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
+                assertFalse(src.contains("instanceof BigInteger"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // Long / long fields
+    // =========================================================================
+
+    @Nested
+    class LongFields {
+
+        @Test
+        void toMetadataMap_longBoxed_wrappedInBigIntegerValueOf() {
+            String src = generate(List.of(field("ts", "java.lang.Long")));
+            assertTrue(src.contains("BigInteger.valueOf(order.getTs())"));
+        }
+
+        @Test
+        void toMetadataMap_longBoxed_hasNullGuard() {
+            String src = generate(List.of(field("ts", "java.lang.Long")));
+            assertTrue(src.contains("if (order.getTs() != null)"));
+        }
+
+        @Test
+        void toMetadataMap_longPrimitive_wrappedInBigIntegerValueOf() {
+            String src = generate(List.of(field("ts", "long")));
+            assertTrue(src.contains("BigInteger.valueOf(order.getTs())"));
+        }
+
+        @Test
+        void toMetadataMap_longPrimitive_noNullGuard() {
+            String src = generate(List.of(field("ts", "long")));
+            assertFalse(src.contains("if (order.getTs() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_longBoxed_extractedFromBigIntegerViaLongValue() {
+            String src = generate(List.of(field("ts", "java.lang.Long")));
+            assertTrue(src.contains("if (v instanceof BigInteger)"));
+            assertTrue(src.contains("obj.setTs(((BigInteger) v).longValue())"));
+        }
+
+        @Test
+        void fromMetadataMap_longPrimitive_extractedFromBigIntegerViaLongValue() {
+            String src = generate(List.of(field("ts", "long")));
+            assertTrue(src.contains("obj.setTs(((BigInteger) v).longValue())"));
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_longField_serializedAsStringValueOf() {
+                String src = generate(List.of(fieldEnc("ts", "long", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"ts\", String.valueOf(order.getTs()))"));
+            }
+
+            @Test
+            void toMetadataMap_longBoxedField_serializedAsStringValueOf() {
+                String src = generate(List.of(fieldEnc("ts", "java.lang.Long", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"ts\", String.valueOf(order.getTs()))"));
+            }
+
+            @Test
+            void fromMetadataMap_longField_parsedViaLongParseLong() {
+                String src = generate(List.of(fieldEnc("ts", "long", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Long.parseLong((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_longBoxedField_parsedViaLongParseLong() {
+                String src = generate(List.of(fieldEnc("ts", "java.lang.Long", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Long.parseLong((String) v)"));
+            }
         }
     }
 
@@ -539,7 +458,7 @@ public class MetadataConverterGeneratorTest {
     // =========================================================================
 
     @Nested
-    class ShortFieldsDefault {
+    class ShortFields {
 
         @Test
         void toMetadataMap_primitive_emitsBigIntegerValueOf() {
@@ -566,16 +485,20 @@ public class MetadataConverterGeneratorTest {
             assertTrue(src.contains("((BigInteger) v).shortValue()"));
         }
 
-        @Test
-        void asString_toMetadataMap_emitsStringValueOf() {
-            String src = generate(List.of(fieldEnc("count", "short", MetadataFieldType.STRING)));
-            assertTrue(src.contains("map.put(\"count\", String.valueOf(order.getCount()))"));
-        }
+        @Nested
+        class StringEncoding {
 
-        @Test
-        void asString_fromMetadataMap_parsesShort() {
-            String src = generate(List.of(fieldEnc("count", "short", MetadataFieldType.STRING)));
-            assertTrue(src.contains("Short.parseShort((String) v)"));
+            @Test
+            void toMetadataMap_emitsStringValueOf() {
+                String src = generate(List.of(fieldEnc("count", "short", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"count\", String.valueOf(order.getCount()))"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesShort() {
+                String src = generate(List.of(fieldEnc("count", "short", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Short.parseShort((String) v)"));
+            }
         }
     }
 
@@ -584,7 +507,7 @@ public class MetadataConverterGeneratorTest {
     // =========================================================================
 
     @Nested
-    class ByteFieldsDefault {
+    class ByteFields {
 
         @Test
         void toMetadataMap_primitive_emitsBigIntegerValueOf() {
@@ -610,16 +533,20 @@ public class MetadataConverterGeneratorTest {
             assertTrue(src.contains("((BigInteger) v).byteValue()"));
         }
 
-        @Test
-        void asString_toMetadataMap_emitsStringValueOf() {
-            String src = generate(List.of(fieldEnc("b", "byte", MetadataFieldType.STRING)));
-            assertTrue(src.contains("map.put(\"b\", String.valueOf(order.getB()))"));
-        }
+        @Nested
+        class StringEncoding {
 
-        @Test
-        void asString_fromMetadataMap_parsesByte() {
-            String src = generate(List.of(fieldEnc("b", "byte", MetadataFieldType.STRING)));
-            assertTrue(src.contains("Byte.parseByte((String) v)"));
+            @Test
+            void toMetadataMap_emitsStringValueOf() {
+                String src = generate(List.of(fieldEnc("b", "byte", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"b\", String.valueOf(order.getB()))"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesByte() {
+                String src = generate(List.of(fieldEnc("b", "byte", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Byte.parseByte((String) v)"));
+            }
         }
     }
 
@@ -654,22 +581,64 @@ public class MetadataConverterGeneratorTest {
             assertTrue(src.contains("BigInteger.ONE.equals(v)"));
         }
 
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_emitsStringValueOf() {
+                String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"active\", String.valueOf(order.isActive()))"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesBoolean() {
+                String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Boolean.parseBoolean((String) v)"));
+            }
+
+            @Test
+            void doesNotEmitBigIntegerCheck() {
+                String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
+                assertFalse(src.contains("BigInteger.ONE.equals"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // char / Character
+    // =========================================================================
+
+    @Nested
+    class CharFields {
+
         @Test
-        void asString_toMetadataMap_emitsStringValueOf() {
-            String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
-            assertTrue(src.contains("map.put(\"active\", String.valueOf(order.isActive()))"));
+        void toMetadataMap_primitive_emitsStringValueOf() {
+            String src = generate(List.of(field("code", "char")));
+            assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
         }
 
         @Test
-        void asString_fromMetadataMap_parsesBoolean() {
-            String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
-            assertTrue(src.contains("Boolean.parseBoolean((String) v)"));
+        void toMetadataMap_primitive_noNullGuard() {
+            String src = generate(List.of(field("code", "char")));
+            assertFalse(src.contains("if (order.getCode() != null)"));
         }
 
         @Test
-        void asString_doesNotEmitBigIntegerCheck() {
-            String src = generate(List.of(boolFieldEnc("active", "boolean", MetadataFieldType.STRING)));
-            assertFalse(src.contains("BigInteger.ONE.equals"));
+        void toMetadataMap_boxed_hasNullGuard() {
+            String src = generate(List.of(field("code", "java.lang.Character")));
+            assertTrue(src.contains("if (order.getCode() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_extractsCharAtZero() {
+            String src = generate(List.of(field("code", "char")));
+            assertTrue(src.contains("((String) v).charAt(0)"));
+        }
+
+        @Test
+        void fromMetadataMap_doesNotEmitBigIntegerCheck() {
+            String src = generate(List.of(field("code", "char")));
+            assertFalse(src.contains("instanceof BigInteger"));
         }
     }
 
@@ -738,44 +707,6 @@ public class MetadataConverterGeneratorTest {
     }
 
     // =========================================================================
-    // char / Character
-    // =========================================================================
-
-    @Nested
-    class CharFields {
-
-        @Test
-        void toMetadataMap_primitive_emitsStringValueOf() {
-            String src = generate(List.of(field("code", "char")));
-            assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
-        }
-
-        @Test
-        void toMetadataMap_primitive_noNullGuard() {
-            String src = generate(List.of(field("code", "char")));
-            assertFalse(src.contains("if (order.getCode() != null)"));
-        }
-
-        @Test
-        void toMetadataMap_boxed_hasNullGuard() {
-            String src = generate(List.of(field("code", "java.lang.Character")));
-            assertTrue(src.contains("if (order.getCode() != null)"));
-        }
-
-        @Test
-        void fromMetadataMap_extractsCharAtZero() {
-            String src = generate(List.of(field("code", "char")));
-            assertTrue(src.contains("((String) v).charAt(0)"));
-        }
-
-        @Test
-        void fromMetadataMap_doesNotEmitBigIntegerCheck() {
-            String src = generate(List.of(field("code", "char")));
-            assertFalse(src.contains("instanceof BigInteger"));
-        }
-    }
-
-    // =========================================================================
     // BigDecimal  (→ Cardano text via toPlainString)
     // =========================================================================
 
@@ -824,176 +755,692 @@ public class MetadataConverterGeneratorTest {
     }
 
     // =========================================================================
-    // as = STRING  (force numeric/BigInteger/String → String on chain)
+    // byte[] fields
     // =========================================================================
 
     @Nested
-    class AsString {
-
-        @Nested
-        class ToMetadataMap {
-
-            @Test
-            void intField_serializedAsStringValueOf() {
-                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
-                assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
-            }
-
-            @Test
-            void integerBoxedField_serializedAsStringValueOf() {
-                String src = generate(List.of(fieldEnc("code", "java.lang.Integer", MetadataFieldType.STRING)));
-                assertTrue(src.contains("map.put(\"code\", String.valueOf(order.getCode()))"));
-            }
-
-            @Test
-            void longField_serializedAsStringValueOf() {
-                String src = generate(List.of(fieldEnc("ts", "long", MetadataFieldType.STRING)));
-                assertTrue(src.contains("map.put(\"ts\", String.valueOf(order.getTs()))"));
-            }
-
-            @Test
-            void longBoxedField_serializedAsStringValueOf() {
-                String src = generate(List.of(fieldEnc("ts", "java.lang.Long", MetadataFieldType.STRING)));
-                assertTrue(src.contains("map.put(\"ts\", String.valueOf(order.getTs()))"));
-            }
-
-            @Test
-            void bigIntegerField_serializedViaToString() {
-                String src = generate(List.of(fieldEnc("amount", "java.math.BigInteger", MetadataFieldType.STRING)));
-                assertTrue(src.contains("map.put(\"amount\", order.getAmount().toString())"));
-            }
-
-            @Test
-            void stringField_asString_stillUses64ByteSplitLogic() {
-                String src = generate(List.of(fieldEnc("note", "java.lang.String", MetadataFieldType.STRING)));
-                assertTrue(src.contains("splitStringEveryNCharacters"));
-                assertTrue(src.contains("UTF_8"));
-            }
-
-            @Test
-            void intField_asString_doesNotEmitBigIntegerValueOf() {
-                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
-                assertFalse(src.contains("BigInteger.valueOf"));
-            }
-        }
-
-        @Nested
-        class FromMetadataMap {
-
-            @Test
-            void intField_parsedViaIntegerParseInt() {
-                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
-                assertTrue(src.contains("if (v instanceof String)"));
-                assertTrue(src.contains("Integer.parseInt((String) v)"));
-            }
-
-            @Test
-            void integerBoxedField_parsedViaIntegerParseInt() {
-                String src = generate(List.of(fieldEnc("code", "java.lang.Integer", MetadataFieldType.STRING)));
-                assertTrue(src.contains("Integer.parseInt((String) v)"));
-            }
-
-            @Test
-            void longField_parsedViaLongParseLong() {
-                String src = generate(List.of(fieldEnc("ts", "long", MetadataFieldType.STRING)));
-                assertTrue(src.contains("Long.parseLong((String) v)"));
-            }
-
-            @Test
-            void longBoxedField_parsedViaLongParseLong() {
-                String src = generate(List.of(fieldEnc("ts", "java.lang.Long", MetadataFieldType.STRING)));
-                assertTrue(src.contains("Long.parseLong((String) v)"));
-            }
-
-            @Test
-            void bigIntegerField_parsedViaNewBigInteger() {
-                String src = generate(List.of(fieldEnc("amount", "java.math.BigInteger", MetadataFieldType.STRING)));
-                assertTrue(src.contains("new BigInteger((String) v)"));
-            }
-
-            @Test
-            void intField_asString_doesNotEmitBigIntegerInstanceofCheck() {
-                String src = generate(List.of(fieldEnc("code", "int", MetadataFieldType.STRING)));
-                assertFalse(src.contains("instanceof BigInteger"));
-            }
-        }
-    }
-
-    // =========================================================================
-    // as = STRING_HEX  (byte[] ↔ hex String)
-    // =========================================================================
-
-    @Nested
-    class AsStringHex {
+    class ByteArrayFields {
 
         @Test
-        void toMetadataMap_byteArray_encodedWithHexUtil() {
-            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
-            assertTrue(src.contains("HexUtil.encodeHexString(order.getData())"));
+        void toMetadataMap_byteArrayField_storedDirectly() {
+            String src = generate(List.of(field("sig", "byte[]")));
+            assertTrue(src.contains("map.put(\"sig\", order.getSig())"));
         }
 
         @Test
-        void toMetadataMap_byteArray_storedUnderCorrectKey() {
-            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
-            assertTrue(src.contains("map.put(\"data\","));
-        }
-
-        @Test
-        void toMetadataMap_byteArray_hasNullGuard() {
-            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
-            assertTrue(src.contains("if (order.getData() != null)"));
-        }
-
-        @Test
-        void fromMetadataMap_hexString_decodedWithHexUtil() {
-            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
-            assertTrue(src.contains("if (v instanceof String)"));
-            assertTrue(src.contains("HexUtil.decodeHexString((String) v)"));
-        }
-
-        @Test
-        void fromMetadataMap_doesNotEmitByteArrayInstanceofCheck() {
-            String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
-            assertFalse(src.contains("instanceof byte[]"));
-        }
-    }
-
-    // =========================================================================
-    // as = STRING_BASE64  (byte[] ↔ Base64 String)
-    // =========================================================================
-
-    @Nested
-    class AsStringBase64 {
-
-        @Test
-        void toMetadataMap_byteArray_encodedWithBase64() {
-            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
-            assertTrue(src.contains("Base64.getEncoder().encodeToString(order.getSig())"));
-        }
-
-        @Test
-        void toMetadataMap_byteArray_storedUnderCorrectKey() {
-            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
-            assertTrue(src.contains("map.put(\"sig\","));
-        }
-
-        @Test
-        void toMetadataMap_byteArray_hasNullGuard() {
-            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+        void toMetadataMap_byteArrayField_hasNullGuard() {
+            String src = generate(List.of(field("sig", "byte[]")));
             assertTrue(src.contains("if (order.getSig() != null)"));
         }
 
         @Test
-        void fromMetadataMap_base64String_decodedWithBase64() {
-            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
-            assertTrue(src.contains("if (v instanceof String)"));
-            assertTrue(src.contains("Base64.getDecoder().decode((String) v)"));
+        void toMetadataMap_byteArrayField_doesNotEmitStringSplitLogic() {
+            String src = generate(List.of(field("sig", "byte[]")));
+            assertFalse(src.contains("splitStringEveryNCharacters"));
+            assertFalse(src.contains("getBytes("));
         }
 
         @Test
-        void fromMetadataMap_doesNotEmitByteArrayInstanceofCheck() {
-            String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
-            assertFalse(src.contains("instanceof byte[]"));
+        void fromMetadataMap_byteArrayField_castFromByteArray() {
+            String src = generate(List.of(field("sig", "byte[]")));
+            assertTrue(src.contains("if (v instanceof byte[])"));
+            assertTrue(src.contains("obj.setSig((byte[]) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_byteArrayField_doesNotEmitStringBuilder() {
+            String src = generate(List.of(field("sig", "byte[]")));
+            assertFalse(src.contains("StringBuilder"));
+        }
+
+        @Nested
+        class HexEncoding {
+
+            @Test
+            void toMetadataMap_byteArray_encodedWithHexUtil() {
+                String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
+                assertTrue(src.contains("HexUtil.encodeHexString(order.getData())"));
+            }
+
+            @Test
+            void toMetadataMap_byteArray_storedUnderCorrectKey() {
+                String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
+                assertTrue(src.contains("map.put(\"data\","));
+            }
+
+            @Test
+            void toMetadataMap_byteArray_hasNullGuard() {
+                String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
+                assertTrue(src.contains("if (order.getData() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_hexString_decodedWithHexUtil() {
+                String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
+                assertTrue(src.contains("if (v instanceof String)"));
+                assertTrue(src.contains("HexUtil.decodeHexString((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_doesNotEmitByteArrayInstanceofCheck() {
+                String src = generate(List.of(fieldEnc("data", "byte[]", MetadataFieldType.STRING_HEX)));
+                assertFalse(src.contains("instanceof byte[]"));
+            }
+        }
+
+        @Nested
+        class Base64Encoding {
+
+            @Test
+            void toMetadataMap_byteArray_encodedWithBase64() {
+                String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+                assertTrue(src.contains("Base64.getEncoder().encodeToString(order.getSig())"));
+            }
+
+            @Test
+            void toMetadataMap_byteArray_storedUnderCorrectKey() {
+                String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+                assertTrue(src.contains("map.put(\"sig\","));
+            }
+
+            @Test
+            void toMetadataMap_byteArray_hasNullGuard() {
+                String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+                assertTrue(src.contains("if (order.getSig() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_base64String_decodedWithBase64() {
+                String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+                assertTrue(src.contains("if (v instanceof String)"));
+                assertTrue(src.contains("Base64.getDecoder().decode((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_doesNotEmitByteArrayInstanceofCheck() {
+                String src = generate(List.of(fieldEnc("sig", "byte[]", MetadataFieldType.STRING_BASE64)));
+                assertFalse(src.contains("instanceof byte[]"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // URI fields
+    // =========================================================================
+
+    @Nested
+    class UriFields {
+
+        @Test
+        void toMetadataMap_storedViaToString() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("map.put(\"website\", order.getWebsite().toString())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("if (order.getWebsite() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_uriCreate() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("URI.create((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("website", "java.net.URI")));
+            assertTrue(src.contains("obj.setWebsite(URI.create((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("website", "url", "java.net.URI")));
+            assertTrue(src.contains("map.put(\"url\", order.getWebsite().toString())"));
+        }
+    }
+
+    // =========================================================================
+    // URL fields
+    // =========================================================================
+
+    @Nested
+    class UrlFields {
+
+        @Test
+        void toMetadataMap_storedViaToString() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("map.put(\"website\", order.getWebsite().toString())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("if (order.getWebsite() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_newUrlCalled() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("new URL((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_malformedUrlExceptionCaught() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("catch (MalformedURLException _e)"));
+            assertTrue(src.contains("throw new IllegalArgumentException(\"Malformed URL: \" + v, _e)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("website", "java.net.URL")));
+            assertTrue(src.contains("obj.setWebsite(new URL((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("website", "url", "java.net.URL")));
+            assertTrue(src.contains("map.put(\"url\", order.getWebsite().toString())"));
+        }
+    }
+
+    // =========================================================================
+    // UUID fields
+    // =========================================================================
+
+    @Nested
+    class UuidFields {
+
+        @Test
+        void toMetadataMap_storedViaToString() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("map.put(\"id\", order.getId().toString())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("if (order.getId() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_uuidFromString() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("UUID.fromString((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("id", "java.util.UUID")));
+            assertTrue(src.contains("obj.setId(UUID.fromString((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("id", "txId", "java.util.UUID")));
+            assertTrue(src.contains("map.put(\"txId\", order.getId().toString())"));
+        }
+    }
+
+    // =========================================================================
+    // Currency fields
+    // =========================================================================
+
+    @Nested
+    class CurrencyFields {
+
+        @Test
+        void toMetadataMap_storedViaCurrencyCode() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("map.put(\"currency\", order.getCurrency().getCurrencyCode())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("if (order.getCurrency() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_currencyGetInstance() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("Currency.getInstance((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("currency", "java.util.Currency")));
+            assertTrue(src.contains("obj.setCurrency(Currency.getInstance((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("currency", "ccy", "java.util.Currency")));
+            assertTrue(src.contains("map.put(\"ccy\", order.getCurrency().getCurrencyCode())"));
+        }
+    }
+
+    // =========================================================================
+    // Locale fields
+    // =========================================================================
+
+    @Nested
+    class LocaleFields {
+
+        @Test
+        void toMetadataMap_storedViaLanguageTag() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("map.put(\"locale\", order.getLocale().toLanguageTag())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("if (order.getLocale() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_forLanguageTag() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("Locale.forLanguageTag((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(field("locale", "java.util.Locale")));
+            assertTrue(src.contains("obj.setLocale(Locale.forLanguageTag((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            String src = generate(List.of(field("locale", "lang", "java.util.Locale")));
+            assertTrue(src.contains("map.put(\"lang\", order.getLocale().toLanguageTag())"));
+        }
+    }
+
+    // =========================================================================
+    // Enum fields
+    // =========================================================================
+
+    @Nested
+    class EnumFields {
+
+        /** Creates a field info representing an enum type. */
+        private MetadataFieldInfo enumField(String name, String enumFqn) {
+            MetadataFieldInfo f = field(name, enumFqn);
+            f.setEnumType(true);
+            return f;
+        }
+
+        @Test
+        void toMetadataMap_storedViaName() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("map.put(\"status\", order.getStatus().name())"));
+        }
+
+        @Test
+        void toMetadataMap_nullChecked() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("if (order.getStatus() != null)"));
+        }
+
+        @Test
+        void fromMetadataMap_instanceofStringGuard() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("if (v instanceof String)"));
+        }
+
+        @Test
+        void fromMetadataMap_valueOfCalled() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("Status.valueOf((String) v)"));
+        }
+
+        @Test
+        void fromMetadataMap_setterCalled() {
+            String src = generate(List.of(enumField("status", "com.example.Status")));
+            assertTrue(src.contains("obj.setStatus(Status.valueOf((String) v))"));
+        }
+
+        @Test
+        void toMetadataMap_customKey() {
+            MetadataFieldInfo f = enumField("status", "com.example.Status");
+            f.setMetadataKey("st");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("map.put(\"st\", order.getStatus().name())"));
+        }
+    }
+
+    // =========================================================================
+    // Instant fields
+    // =========================================================================
+
+    @Nested
+    class InstantFields {
+
+        // --- DEFAULT (epoch seconds) ---
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesEpochSeconds() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getCreatedAt().getEpochSecond())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("if (order.getCreatedAt() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigIntegerGuard() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("if (v instanceof BigInteger)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaOfEpochSecond() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("Instant.ofEpochSecond(((BigInteger) v).longValue())"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(field("createdAt", "java.time.Instant")));
+                assertTrue(src.contains("obj.setCreatedAt(Instant.ofEpochSecond(((BigInteger) v).longValue()))"));
+            }
+        }
+
+        // --- STRING (ISO-8601) ---
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"createdAt\", order.getCreatedAt().toString())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (order.getCreatedAt() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfStringGuard() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaInstantParse() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Instant.parse((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertTrue(src.contains("obj.setCreatedAt(Instant.parse((String) v))"));
+            }
+
+            @Test
+            void toMetadataMap_noChunkingApplied() {
+                // ISO-8601 instant strings are always < 64 bytes — no splitStringEveryNCharacters
+                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
+                assertFalse(src.contains("splitStringEveryNCharacters"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // LocalDate fields
+    // =========================================================================
+
+    @Nested
+    class LocalDateFields {
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesEpochDay() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getDate().toEpochDay())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("if (order.getDate() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigIntegerGuard() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("if (v instanceof BigInteger)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaOfEpochDay() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("LocalDate.ofEpochDay(((BigInteger) v).longValue())"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(field("date", "java.time.LocalDate")));
+                assertTrue(src.contains("obj.setDate(LocalDate.ofEpochDay(((BigInteger) v).longValue()))"));
+            }
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertTrue(src.contains("map.put(\"date\", order.getDate().toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfStringGuard() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaLocalDateParse() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertTrue(src.contains("LocalDate.parse((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertTrue(src.contains("obj.setDate(LocalDate.parse((String) v))"));
+            }
+
+            @Test
+            void toMetadataMap_noChunkingApplied() {
+                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
+                assertFalse(src.contains("splitStringEveryNCharacters"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // LocalDateTime fields
+    // =========================================================================
+
+    @Nested
+    class LocalDateTimeFields {
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("map.put(\"ts\", order.getTs().toString())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("if (order.getTs() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfStringGuard() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaLocalDateTimeParse() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("LocalDateTime.parse((String) v)"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertTrue(src.contains("obj.setTs(LocalDateTime.parse((String) v))"));
+            }
+
+            @Test
+            void toMetadataMap_noChunkingApplied() {
+                // ISO-8601 datetime strings are always < 64 bytes
+                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                assertFalse(src.contains("splitStringEveryNCharacters"));
+            }
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_stringIsNoopSameAsDefault() {
+                // enc=STRING on LocalDateTime is identical to DEFAULT — both store ISO-8601
+                String srcDefault = generate(List.of(field("ts", "java.time.LocalDateTime")));
+                String srcString  = generate(List.of(fieldEnc("ts", "java.time.LocalDateTime", MetadataFieldType.STRING)));
+                assertEquals(srcDefault, srcString);
+            }
+        }
+    }
+
+    // =========================================================================
+    // java.util.Date fields
+    // =========================================================================
+
+    @Nested
+    class DateFields {
+
+        @Nested
+        class DefaultEncoding {
+
+            @Test
+            void toMetadataMap_storesEpochMillis() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getUpdatedAt().getTime())"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("if (order.getUpdatedAt() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfBigIntegerGuard() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("if (v instanceof BigInteger)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaNewDate() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("new Date(((BigInteger) v).longValue())"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(field("updatedAt", "java.util.Date")));
+                assertTrue(src.contains("obj.setUpdatedAt(new Date(((BigInteger) v).longValue()))"));
+            }
+        }
+
+        @Nested
+        class StringEncoding {
+
+            @Test
+            void toMetadataMap_storesIso8601ViaInstant() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("order.getUpdatedAt().toInstant().toString()"));
+            }
+
+            @Test
+            void toMetadataMap_nullChecked() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (order.getUpdatedAt() != null)"));
+            }
+
+            @Test
+            void fromMetadataMap_instanceOfStringGuard() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("if (v instanceof String)"));
+            }
+
+            @Test
+            void fromMetadataMap_restoredViaDateFrom() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("Date.from(Instant.parse((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_setterCalled() {
+                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
+                assertTrue(src.contains("obj.setUpdatedAt(Date.from(Instant.parse((String) v)))"));
+            }
         }
     }
 
@@ -1233,6 +1680,199 @@ public class MetadataConverterGeneratorTest {
                 String src = generate(List.of(listField("payloads", "byte[]")));
                 assertTrue(src.contains("if (_el instanceof byte[])"));
                 assertTrue(src.contains("_result.add((byte[]) _el)"));
+            }
+        }
+
+        @Nested
+        class ShortElements {
+
+            @Test
+            void toMetadataMap_wrapsInBigIntegerValueOf() {
+                String src = generate(List.of(listField("counts", "java.lang.Short")));
+                assertTrue(src.contains("_list.add(BigInteger.valueOf((long) _el))"));
+            }
+
+            @Test
+            void fromMetadataMap_extractsShortValue() {
+                String src = generate(List.of(listField("counts", "java.lang.Short")));
+                assertTrue(src.contains("_result.add(((BigInteger) _el).shortValue())"));
+            }
+        }
+
+        @Nested
+        class ByteElements {
+
+            @Test
+            void toMetadataMap_wrapsInBigIntegerValueOf() {
+                String src = generate(List.of(listField("bytes", "java.lang.Byte")));
+                assertTrue(src.contains("_list.add(BigInteger.valueOf((long) _el))"));
+            }
+
+            @Test
+            void fromMetadataMap_extractsByteValue() {
+                String src = generate(List.of(listField("bytes", "java.lang.Byte")));
+                assertTrue(src.contains("_result.add(((BigInteger) _el).byteValue())"));
+            }
+        }
+
+        @Nested
+        class CharacterElements {
+
+            @Test
+            void toMetadataMap_encodesAsStringValueOf() {
+                String src = generate(List.of(listField("chars", "java.lang.Character")));
+                assertTrue(src.contains("_list.add(String.valueOf(_el))"));
+            }
+
+            @Test
+            void fromMetadataMap_extractsCharAtZero() {
+                String src = generate(List.of(listField("chars", "java.lang.Character")));
+                assertTrue(src.contains("_result.add(((String) _el).charAt(0))"));
+            }
+        }
+
+        @Nested
+        class UriElements {
+
+            @Test
+            void toMetadataMap_encodesViaToString() {
+                String src = generate(List.of(listField("links", "java.net.URI")));
+                assertTrue(src.contains("_list.add(_el.toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_createsViaUriCreate() {
+                String src = generate(List.of(listField("links", "java.net.URI")));
+                assertTrue(src.contains("_result.add(URI.create((String) _el))"));
+            }
+        }
+
+        @Nested
+        class UrlElements {
+
+            @Test
+            void toMetadataMap_encodesViaToString() {
+                String src = generate(List.of(listField("links", "java.net.URL")));
+                assertTrue(src.contains("_list.add(_el.toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_createsViaNewUrl() {
+                String src = generate(List.of(listField("links", "java.net.URL")));
+                assertTrue(src.contains("_result.add(new URL((String) _el))"));
+                assertTrue(src.contains("catch (MalformedURLException _e)"));
+            }
+        }
+
+        @Nested
+        class UuidElements {
+
+            @Test
+            void toMetadataMap_encodesViaToString() {
+                String src = generate(List.of(listField("ids", "java.util.UUID")));
+                assertTrue(src.contains("_list.add(_el.toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesViaFromString() {
+                String src = generate(List.of(listField("ids", "java.util.UUID")));
+                assertTrue(src.contains("_result.add(UUID.fromString((String) _el))"));
+            }
+        }
+
+        @Nested
+        class CurrencyElements {
+
+            @Test
+            void toMetadataMap_encodesViaCurrencyCode() {
+                String src = generate(List.of(listField("currencies", "java.util.Currency")));
+                assertTrue(src.contains("_list.add(_el.getCurrencyCode())"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesViaGetInstance() {
+                String src = generate(List.of(listField("currencies", "java.util.Currency")));
+                assertTrue(src.contains("_result.add(Currency.getInstance((String) _el))"));
+            }
+        }
+
+        @Nested
+        class LocaleElements {
+
+            @Test
+            void toMetadataMap_encodesViaLanguageTag() {
+                String src = generate(List.of(listField("locales", "java.util.Locale")));
+                assertTrue(src.contains("_list.add(_el.toLanguageTag())"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesViaForLanguageTag() {
+                String src = generate(List.of(listField("locales", "java.util.Locale")));
+                assertTrue(src.contains("_result.add(Locale.forLanguageTag((String) _el))"));
+            }
+        }
+
+        @Nested
+        class InstantElements {
+
+            @Test
+            void toMetadataMap_encodesAsEpochSeconds() {
+                String src = generate(List.of(listField("times", "java.time.Instant")));
+                assertTrue(src.contains("_list.add(BigInteger.valueOf(_el.getEpochSecond()))"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaOfEpochSecond() {
+                String src = generate(List.of(listField("times", "java.time.Instant")));
+                assertTrue(src.contains("_result.add(Instant.ofEpochSecond(((BigInteger) _el).longValue()))"));
+            }
+        }
+
+        @Nested
+        class LocalDateElements {
+
+            @Test
+            void toMetadataMap_encodesAsEpochDay() {
+                String src = generate(List.of(listField("dates", "java.time.LocalDate")));
+                assertTrue(src.contains("_list.add(BigInteger.valueOf(_el.toEpochDay()))"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaOfEpochDay() {
+                String src = generate(List.of(listField("dates", "java.time.LocalDate")));
+                assertTrue(src.contains("_result.add(LocalDate.ofEpochDay(((BigInteger) _el).longValue()))"));
+            }
+        }
+
+        @Nested
+        class LocalDateTimeElements {
+
+            @Test
+            void toMetadataMap_encodesViaToString() {
+                String src = generate(List.of(listField("timestamps", "java.time.LocalDateTime")));
+                assertTrue(src.contains("_list.add(_el.toString())"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaParse() {
+                String src = generate(List.of(listField("timestamps", "java.time.LocalDateTime")));
+                assertTrue(src.contains("_result.add(LocalDateTime.parse((String) _el))"));
+            }
+        }
+
+        @Nested
+        class DateElements {
+
+            @Test
+            void toMetadataMap_encodesAsEpochMillis() {
+                String src = generate(List.of(listField("dates", "java.util.Date")));
+                assertTrue(src.contains("_list.add(BigInteger.valueOf(_el.getTime()))"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaNewDate() {
+                String src = generate(List.of(listField("dates", "java.util.Date")));
+                assertTrue(src.contains("_result.add(new Date(((BigInteger) _el).longValue()))"));
             }
         }
 
@@ -1787,606 +2427,335 @@ public class MetadataConverterGeneratorTest {
                 assertTrue(src.contains("obj.setSig(Optional.empty())"));
             }
         }
-    }
-
-    // =========================================================================
-    // URI fields
-    // =========================================================================
-
-    @Nested
-    class UriFields {
-
-        @Test
-        void toMetadataMap_storedViaToString() {
-            String src = generate(List.of(field("website", "java.net.URI")));
-            assertTrue(src.contains("map.put(\"website\", order.getWebsite().toString())"));
-        }
-
-        @Test
-        void toMetadataMap_nullChecked() {
-            String src = generate(List.of(field("website", "java.net.URI")));
-            assertTrue(src.contains("if (order.getWebsite() != null)"));
-        }
-
-        @Test
-        void fromMetadataMap_instanceofStringGuard() {
-            String src = generate(List.of(field("website", "java.net.URI")));
-            assertTrue(src.contains("if (v instanceof String)"));
-        }
-
-        @Test
-        void fromMetadataMap_uriCreate() {
-            String src = generate(List.of(field("website", "java.net.URI")));
-            assertTrue(src.contains("URI.create((String) v)"));
-        }
-
-        @Test
-        void fromMetadataMap_setterCalled() {
-            String src = generate(List.of(field("website", "java.net.URI")));
-            assertTrue(src.contains("obj.setWebsite(URI.create((String) v))"));
-        }
-
-        @Test
-        void toMetadataMap_customKey() {
-            String src = generate(List.of(field("website", "url", "java.net.URI")));
-            assertTrue(src.contains("map.put(\"url\", order.getWebsite().toString())"));
-        }
-    }
-
-    // =========================================================================
-    // UUID fields
-    // =========================================================================
-
-    @Nested
-    class UuidFields {
-
-        @Test
-        void toMetadataMap_storedViaToString() {
-            String src = generate(List.of(field("id", "java.util.UUID")));
-            assertTrue(src.contains("map.put(\"id\", order.getId().toString())"));
-        }
-
-        @Test
-        void toMetadataMap_nullChecked() {
-            String src = generate(List.of(field("id", "java.util.UUID")));
-            assertTrue(src.contains("if (order.getId() != null)"));
-        }
-
-        @Test
-        void fromMetadataMap_instanceofStringGuard() {
-            String src = generate(List.of(field("id", "java.util.UUID")));
-            assertTrue(src.contains("if (v instanceof String)"));
-        }
-
-        @Test
-        void fromMetadataMap_uuidFromString() {
-            String src = generate(List.of(field("id", "java.util.UUID")));
-            assertTrue(src.contains("UUID.fromString((String) v)"));
-        }
-
-        @Test
-        void fromMetadataMap_setterCalled() {
-            String src = generate(List.of(field("id", "java.util.UUID")));
-            assertTrue(src.contains("obj.setId(UUID.fromString((String) v))"));
-        }
-
-        @Test
-        void toMetadataMap_customKey() {
-            String src = generate(List.of(field("id", "txId", "java.util.UUID")));
-            assertTrue(src.contains("map.put(\"txId\", order.getId().toString())"));
-        }
-    }
-
-    // =========================================================================
-    // Enum fields
-    // =========================================================================
-
-    @Nested
-    class EnumFields {
-
-        /** Creates a field info representing an enum type. */
-        private MetadataFieldInfo enumField(String name, String enumFqn) {
-            MetadataFieldInfo f = field(name, enumFqn);
-            f.setEnumType(true);
-            return f;
-        }
-
-        @Test
-        void toMetadataMap_storedViaName() {
-            String src = generate(List.of(enumField("status", "com.example.Status")));
-            assertTrue(src.contains("map.put(\"status\", order.getStatus().name())"));
-        }
-
-        @Test
-        void toMetadataMap_nullChecked() {
-            String src = generate(List.of(enumField("status", "com.example.Status")));
-            assertTrue(src.contains("if (order.getStatus() != null)"));
-        }
-
-        @Test
-        void fromMetadataMap_instanceofStringGuard() {
-            String src = generate(List.of(enumField("status", "com.example.Status")));
-            assertTrue(src.contains("if (v instanceof String)"));
-        }
-
-        @Test
-        void fromMetadataMap_valueOfCalled() {
-            String src = generate(List.of(enumField("status", "com.example.Status")));
-            assertTrue(src.contains("Status.valueOf((String) v)"));
-        }
-
-        @Test
-        void fromMetadataMap_setterCalled() {
-            String src = generate(List.of(enumField("status", "com.example.Status")));
-            assertTrue(src.contains("obj.setStatus(Status.valueOf((String) v))"));
-        }
-
-        @Test
-        void toMetadataMap_customKey() {
-            MetadataFieldInfo f = enumField("status", "com.example.Status");
-            f.setMetadataKey("st");
-            String src = generate(List.of(f));
-            assertTrue(src.contains("map.put(\"st\", order.getStatus().name())"));
-        }
-
-        @Test
-        void toMetadataMap_directField_noGetter() {
-            MetadataFieldInfo f = new MetadataFieldInfo();
-            f.setJavaFieldName("status");
-            f.setMetadataKey("status");
-            f.setJavaTypeName("com.example.Status");
-            f.setEnumType(true);
-            String src = generate(List.of(f));
-            assertTrue(src.contains("map.put(\"status\", order.status.name())"));
-        }
-
-        @Test
-        void fromMetadataMap_directField_noSetter() {
-            MetadataFieldInfo f = new MetadataFieldInfo();
-            f.setJavaFieldName("status");
-            f.setMetadataKey("status");
-            f.setJavaTypeName("com.example.Status");
-            f.setEnumType(true);
-            String src = generate(List.of(f));
-            assertTrue(src.contains("obj.status = Status.valueOf((String) v)"));
-        }
-    }
-
-    // =========================================================================
-    // URL fields
-    // =========================================================================
-
-    @Nested
-    class UrlFields {
-
-        @Test
-        void toMetadataMap_storedViaToString() {
-            String src = generate(List.of(field("website", "java.net.URL")));
-            assertTrue(src.contains("map.put(\"website\", order.getWebsite().toString())"));
-        }
-
-        @Test
-        void toMetadataMap_nullChecked() {
-            String src = generate(List.of(field("website", "java.net.URL")));
-            assertTrue(src.contains("if (order.getWebsite() != null)"));
-        }
-
-        @Test
-        void fromMetadataMap_instanceofStringGuard() {
-            String src = generate(List.of(field("website", "java.net.URL")));
-            assertTrue(src.contains("if (v instanceof String)"));
-        }
-
-        @Test
-        void fromMetadataMap_newUrlCalled() {
-            String src = generate(List.of(field("website", "java.net.URL")));
-            assertTrue(src.contains("new URL((String) v)"));
-        }
-
-        @Test
-        void fromMetadataMap_malformedUrlExceptionCaught() {
-            String src = generate(List.of(field("website", "java.net.URL")));
-            assertTrue(src.contains("catch (MalformedURLException _e)"));
-            assertTrue(src.contains("throw new IllegalArgumentException(\"Malformed URL: \" + v, _e)"));
-        }
-
-        @Test
-        void fromMetadataMap_setterCalled() {
-            String src = generate(List.of(field("website", "java.net.URL")));
-            assertTrue(src.contains("obj.setWebsite(new URL((String) v))"));
-        }
-
-        @Test
-        void toMetadataMap_customKey() {
-            String src = generate(List.of(field("website", "url", "java.net.URL")));
-            assertTrue(src.contains("map.put(\"url\", order.getWebsite().toString())"));
-        }
-    }
-
-    // =========================================================================
-    // Currency fields
-    // =========================================================================
-
-    @Nested
-    class CurrencyFields {
-
-        @Test
-        void toMetadataMap_storedViaCurrencyCode() {
-            String src = generate(List.of(field("currency", "java.util.Currency")));
-            assertTrue(src.contains("map.put(\"currency\", order.getCurrency().getCurrencyCode())"));
-        }
-
-        @Test
-        void toMetadataMap_nullChecked() {
-            String src = generate(List.of(field("currency", "java.util.Currency")));
-            assertTrue(src.contains("if (order.getCurrency() != null)"));
-        }
-
-        @Test
-        void fromMetadataMap_instanceofStringGuard() {
-            String src = generate(List.of(field("currency", "java.util.Currency")));
-            assertTrue(src.contains("if (v instanceof String)"));
-        }
-
-        @Test
-        void fromMetadataMap_currencyGetInstance() {
-            String src = generate(List.of(field("currency", "java.util.Currency")));
-            assertTrue(src.contains("Currency.getInstance((String) v)"));
-        }
-
-        @Test
-        void fromMetadataMap_setterCalled() {
-            String src = generate(List.of(field("currency", "java.util.Currency")));
-            assertTrue(src.contains("obj.setCurrency(Currency.getInstance((String) v))"));
-        }
-
-        @Test
-        void toMetadataMap_customKey() {
-            String src = generate(List.of(field("currency", "ccy", "java.util.Currency")));
-            assertTrue(src.contains("map.put(\"ccy\", order.getCurrency().getCurrencyCode())"));
-        }
-    }
-
-    // =========================================================================
-    // Locale fields
-    // =========================================================================
-
-    @Nested
-    class LocaleFields {
-
-        @Test
-        void toMetadataMap_storedViaLanguageTag() {
-            String src = generate(List.of(field("locale", "java.util.Locale")));
-            assertTrue(src.contains("map.put(\"locale\", order.getLocale().toLanguageTag())"));
-        }
-
-        @Test
-        void toMetadataMap_nullChecked() {
-            String src = generate(List.of(field("locale", "java.util.Locale")));
-            assertTrue(src.contains("if (order.getLocale() != null)"));
-        }
-
-        @Test
-        void fromMetadataMap_instanceofStringGuard() {
-            String src = generate(List.of(field("locale", "java.util.Locale")));
-            assertTrue(src.contains("if (v instanceof String)"));
-        }
-
-        @Test
-        void fromMetadataMap_forLanguageTag() {
-            String src = generate(List.of(field("locale", "java.util.Locale")));
-            assertTrue(src.contains("Locale.forLanguageTag((String) v)"));
-        }
-
-        @Test
-        void fromMetadataMap_setterCalled() {
-            String src = generate(List.of(field("locale", "java.util.Locale")));
-            assertTrue(src.contains("obj.setLocale(Locale.forLanguageTag((String) v))"));
-        }
-
-        @Test
-        void toMetadataMap_customKey() {
-            String src = generate(List.of(field("locale", "lang", "java.util.Locale")));
-            assertTrue(src.contains("map.put(\"lang\", order.getLocale().toLanguageTag())"));
-        }
-    }
-
-    // =========================================================================
-    // Instant fields
-    // =========================================================================
-
-    @Nested
-    class InstantFields {
-
-        // --- DEFAULT (epoch seconds) ---
 
         @Nested
-        class DefaultEncoding {
+        class LongElements {
 
             @Test
-            void toMetadataMap_storesEpochSeconds() {
-                String src = generate(List.of(field("createdAt", "java.time.Instant")));
-                assertTrue(src.contains("BigInteger.valueOf(order.getCreatedAt().getEpochSecond())"));
+            void toMetadataMap_wrapsInBigIntegerValueOf() {
+                String src = generate(List.of(optionalField("x", "java.lang.Long")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getX().get())"));
             }
 
             @Test
-            void toMetadataMap_nullChecked() {
-                String src = generate(List.of(field("createdAt", "java.time.Instant")));
-                assertTrue(src.contains("if (order.getCreatedAt() != null)"));
+            void fromMetadataMap_extractsLongValue() {
+                String src = generate(List.of(optionalField("x", "java.lang.Long")));
+                assertTrue(src.contains("Optional.of(((BigInteger) v).longValue())"));
             }
 
             @Test
-            void fromMetadataMap_instanceOfBigIntegerGuard() {
-                String src = generate(List.of(field("createdAt", "java.time.Instant")));
-                assertTrue(src.contains("if (v instanceof BigInteger)"));
-            }
-
-            @Test
-            void fromMetadataMap_restoredViaOfEpochSecond() {
-                String src = generate(List.of(field("createdAt", "java.time.Instant")));
-                assertTrue(src.contains("Instant.ofEpochSecond(((BigInteger) v).longValue())"));
-            }
-
-            @Test
-            void fromMetadataMap_setterCalled() {
-                String src = generate(List.of(field("createdAt", "java.time.Instant")));
-                assertTrue(src.contains("obj.setCreatedAt(Instant.ofEpochSecond(((BigInteger) v).longValue()))"));
-            }
-        }
-
-        // --- STRING (ISO-8601) ---
-
-        @Nested
-        class StringEncoding {
-
-            @Test
-            void toMetadataMap_storesIso8601() {
-                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
-                assertTrue(src.contains("map.put(\"createdAt\", order.getCreatedAt().toString())"));
-            }
-
-            @Test
-            void toMetadataMap_nullChecked() {
-                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
-                assertTrue(src.contains("if (order.getCreatedAt() != null)"));
-            }
-
-            @Test
-            void fromMetadataMap_instanceOfStringGuard() {
-                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
-                assertTrue(src.contains("if (v instanceof String)"));
-            }
-
-            @Test
-            void fromMetadataMap_restoredViaInstantParse() {
-                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
-                assertTrue(src.contains("Instant.parse((String) v)"));
-            }
-
-            @Test
-            void fromMetadataMap_setterCalled() {
-                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
-                assertTrue(src.contains("obj.setCreatedAt(Instant.parse((String) v))"));
-            }
-
-            @Test
-            void toMetadataMap_noChunkingApplied() {
-                // ISO-8601 instant strings are always < 64 bytes — no splitStringEveryNCharacters
-                String src = generate(List.of(fieldEnc("createdAt", "java.time.Instant", MetadataFieldType.STRING)));
-                assertFalse(src.contains("splitStringEveryNCharacters"));
-            }
-        }
-    }
-
-    // =========================================================================
-    // LocalDate fields
-    // =========================================================================
-
-    @Nested
-    class LocalDateFields {
-
-        @Nested
-        class DefaultEncoding {
-
-            @Test
-            void toMetadataMap_storesEpochDay() {
-                String src = generate(List.of(field("date", "java.time.LocalDate")));
-                assertTrue(src.contains("BigInteger.valueOf(order.getDate().toEpochDay())"));
-            }
-
-            @Test
-            void toMetadataMap_nullChecked() {
-                String src = generate(List.of(field("date", "java.time.LocalDate")));
-                assertTrue(src.contains("if (order.getDate() != null)"));
-            }
-
-            @Test
-            void fromMetadataMap_instanceOfBigIntegerGuard() {
-                String src = generate(List.of(field("date", "java.time.LocalDate")));
-                assertTrue(src.contains("if (v instanceof BigInteger)"));
-            }
-
-            @Test
-            void fromMetadataMap_restoredViaOfEpochDay() {
-                String src = generate(List.of(field("date", "java.time.LocalDate")));
-                assertTrue(src.contains("LocalDate.ofEpochDay(((BigInteger) v).longValue())"));
-            }
-
-            @Test
-            void fromMetadataMap_setterCalled() {
-                String src = generate(List.of(field("date", "java.time.LocalDate")));
-                assertTrue(src.contains("obj.setDate(LocalDate.ofEpochDay(((BigInteger) v).longValue()))"));
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.lang.Long")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
             }
         }
 
         @Nested
-        class StringEncoding {
+        class ShortElements {
 
             @Test
-            void toMetadataMap_storesIso8601() {
-                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
-                assertTrue(src.contains("map.put(\"date\", order.getDate().toString())"));
+            void toMetadataMap_wrapsInBigIntegerValueOf() {
+                String src = generate(List.of(optionalField("x", "java.lang.Short")));
+                assertTrue(src.contains("BigInteger.valueOf((long) order.getX().get())"));
             }
 
             @Test
-            void fromMetadataMap_instanceOfStringGuard() {
-                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
-                assertTrue(src.contains("if (v instanceof String)"));
+            void fromMetadataMap_extractsShortValue() {
+                String src = generate(List.of(optionalField("x", "java.lang.Short")));
+                assertTrue(src.contains("Optional.of(((BigInteger) v).shortValue())"));
             }
 
             @Test
-            void fromMetadataMap_restoredViaLocalDateParse() {
-                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
-                assertTrue(src.contains("LocalDate.parse((String) v)"));
-            }
-
-            @Test
-            void fromMetadataMap_setterCalled() {
-                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
-                assertTrue(src.contains("obj.setDate(LocalDate.parse((String) v))"));
-            }
-
-            @Test
-            void toMetadataMap_noChunkingApplied() {
-                String src = generate(List.of(fieldEnc("date", "java.time.LocalDate", MetadataFieldType.STRING)));
-                assertFalse(src.contains("splitStringEveryNCharacters"));
-            }
-        }
-    }
-
-    // =========================================================================
-    // LocalDateTime fields
-    // =========================================================================
-
-    @Nested
-    class LocalDateTimeFields {
-
-        @Nested
-        class DefaultEncoding {
-
-            @Test
-            void toMetadataMap_storesIso8601() {
-                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
-                assertTrue(src.contains("map.put(\"ts\", order.getTs().toString())"));
-            }
-
-            @Test
-            void toMetadataMap_nullChecked() {
-                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
-                assertTrue(src.contains("if (order.getTs() != null)"));
-            }
-
-            @Test
-            void fromMetadataMap_instanceOfStringGuard() {
-                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
-                assertTrue(src.contains("if (v instanceof String)"));
-            }
-
-            @Test
-            void fromMetadataMap_restoredViaLocalDateTimeParse() {
-                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
-                assertTrue(src.contains("LocalDateTime.parse((String) v)"));
-            }
-
-            @Test
-            void fromMetadataMap_setterCalled() {
-                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
-                assertTrue(src.contains("obj.setTs(LocalDateTime.parse((String) v))"));
-            }
-
-            @Test
-            void toMetadataMap_noChunkingApplied() {
-                // ISO-8601 datetime strings are always < 64 bytes
-                String src = generate(List.of(field("ts", "java.time.LocalDateTime")));
-                assertFalse(src.contains("splitStringEveryNCharacters"));
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.lang.Short")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
             }
         }
 
         @Nested
-        class StringEncoding {
+        class ByteElements {
 
             @Test
-            void toMetadataMap_stringIsNoopSameAsDefault() {
-                // enc=STRING on LocalDateTime is identical to DEFAULT — both store ISO-8601
-                String srcDefault = generate(List.of(field("ts", "java.time.LocalDateTime")));
-                String srcString  = generate(List.of(fieldEnc("ts", "java.time.LocalDateTime", MetadataFieldType.STRING)));
-                assertEquals(srcDefault, srcString);
-            }
-        }
-    }
-
-    // =========================================================================
-    // java.util.Date fields
-    // =========================================================================
-
-    @Nested
-    class DateFields {
-
-        @Nested
-        class DefaultEncoding {
-
-            @Test
-            void toMetadataMap_storesEpochMillis() {
-                String src = generate(List.of(field("updatedAt", "java.util.Date")));
-                assertTrue(src.contains("BigInteger.valueOf(order.getUpdatedAt().getTime())"));
+            void toMetadataMap_wrapsInBigIntegerValueOf() {
+                String src = generate(List.of(optionalField("x", "java.lang.Byte")));
+                assertTrue(src.contains("BigInteger.valueOf((long) order.getX().get())"));
             }
 
             @Test
-            void toMetadataMap_nullChecked() {
-                String src = generate(List.of(field("updatedAt", "java.util.Date")));
-                assertTrue(src.contains("if (order.getUpdatedAt() != null)"));
+            void fromMetadataMap_extractsByteValue() {
+                String src = generate(List.of(optionalField("x", "java.lang.Byte")));
+                assertTrue(src.contains("Optional.of(((BigInteger) v).byteValue())"));
             }
 
             @Test
-            void fromMetadataMap_instanceOfBigIntegerGuard() {
-                String src = generate(List.of(field("updatedAt", "java.util.Date")));
-                assertTrue(src.contains("if (v instanceof BigInteger)"));
-            }
-
-            @Test
-            void fromMetadataMap_restoredViaNewDate() {
-                String src = generate(List.of(field("updatedAt", "java.util.Date")));
-                assertTrue(src.contains("new Date(((BigInteger) v).longValue())"));
-            }
-
-            @Test
-            void fromMetadataMap_setterCalled() {
-                String src = generate(List.of(field("updatedAt", "java.util.Date")));
-                assertTrue(src.contains("obj.setUpdatedAt(new Date(((BigInteger) v).longValue()))"));
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.lang.Byte")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
             }
         }
 
         @Nested
-        class StringEncoding {
+        class CharacterElements {
 
             @Test
-            void toMetadataMap_storesIso8601ViaInstant() {
-                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
-                assertTrue(src.contains("order.getUpdatedAt().toInstant().toString()"));
+            void toMetadataMap_encodesAsStringValueOf() {
+                String src = generate(List.of(optionalField("x", "java.lang.Character")));
+                assertTrue(src.contains("String.valueOf(order.getX().get())"));
             }
 
             @Test
-            void toMetadataMap_nullChecked() {
-                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
-                assertTrue(src.contains("if (order.getUpdatedAt() != null)"));
+            void fromMetadataMap_extractsCharAtZero() {
+                String src = generate(List.of(optionalField("x", "java.lang.Character")));
+                assertTrue(src.contains("Optional.of(((String) v).charAt(0))"));
             }
 
             @Test
-            void fromMetadataMap_instanceOfStringGuard() {
-                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
-                assertTrue(src.contains("if (v instanceof String)"));
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.lang.Character")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class DoubleElements {
+
+            @Test
+            void toMetadataMap_encodesAsStringValueOf() {
+                String src = generate(List.of(optionalField("x", "java.lang.Double")));
+                assertTrue(src.contains("String.valueOf(order.getX().get())"));
             }
 
             @Test
-            void fromMetadataMap_restoredViaDateFrom() {
-                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
-                assertTrue(src.contains("Date.from(Instant.parse((String) v))"));
+            void fromMetadataMap_parsesDouble() {
+                String src = generate(List.of(optionalField("x", "java.lang.Double")));
+                assertTrue(src.contains("Optional.of(Double.parseDouble((String) v))"));
             }
 
             @Test
-            void fromMetadataMap_setterCalled() {
-                String src = generate(List.of(fieldEnc("updatedAt", "java.util.Date", MetadataFieldType.STRING)));
-                assertTrue(src.contains("obj.setUpdatedAt(Date.from(Instant.parse((String) v)))"));
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.lang.Double")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class FloatElements {
+
+            @Test
+            void toMetadataMap_encodesAsStringValueOf() {
+                String src = generate(List.of(optionalField("x", "java.lang.Float")));
+                assertTrue(src.contains("String.valueOf(order.getX().get())"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesFloat() {
+                String src = generate(List.of(optionalField("x", "java.lang.Float")));
+                assertTrue(src.contains("Optional.of(Float.parseFloat((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.lang.Float")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class UriElements {
+
+            @Test
+            void toMetadataMap_encodesViaToString() {
+                String src = generate(List.of(optionalField("x", "java.net.URI")));
+                assertTrue(src.contains("order.getX().get().toString()"));
+            }
+
+            @Test
+            void fromMetadataMap_createsViaUriCreate() {
+                String src = generate(List.of(optionalField("x", "java.net.URI")));
+                assertTrue(src.contains("Optional.of(URI.create((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.net.URI")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class UrlElements {
+
+            @Test
+            void toMetadataMap_encodesViaToString() {
+                String src = generate(List.of(optionalField("x", "java.net.URL")));
+                assertTrue(src.contains("order.getX().get().toString()"));
+            }
+
+            @Test
+            void fromMetadataMap_createsViaNewUrl() {
+                String src = generate(List.of(optionalField("x", "java.net.URL")));
+                assertTrue(src.contains("Optional.of(new URL((String) v))"));
+                assertTrue(src.contains("catch (MalformedURLException _e)"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.net.URL")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class UuidElements {
+
+            @Test
+            void toMetadataMap_encodesViaToString() {
+                String src = generate(List.of(optionalField("x", "java.util.UUID")));
+                assertTrue(src.contains("order.getX().get().toString()"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesViaFromString() {
+                String src = generate(List.of(optionalField("x", "java.util.UUID")));
+                assertTrue(src.contains("Optional.of(UUID.fromString((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.util.UUID")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class CurrencyElements {
+
+            @Test
+            void toMetadataMap_encodesViaCurrencyCode() {
+                String src = generate(List.of(optionalField("x", "java.util.Currency")));
+                assertTrue(src.contains("order.getX().get().getCurrencyCode()"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesViaGetInstance() {
+                String src = generate(List.of(optionalField("x", "java.util.Currency")));
+                assertTrue(src.contains("Optional.of(Currency.getInstance((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.util.Currency")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class LocaleElements {
+
+            @Test
+            void toMetadataMap_encodesViaLanguageTag() {
+                String src = generate(List.of(optionalField("x", "java.util.Locale")));
+                assertTrue(src.contains("order.getX().get().toLanguageTag()"));
+            }
+
+            @Test
+            void fromMetadataMap_parsesViaForLanguageTag() {
+                String src = generate(List.of(optionalField("x", "java.util.Locale")));
+                assertTrue(src.contains("Optional.of(Locale.forLanguageTag((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.util.Locale")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class InstantElements {
+
+            @Test
+            void toMetadataMap_encodesAsEpochSeconds() {
+                String src = generate(List.of(optionalField("x", "java.time.Instant")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getX().get().getEpochSecond())"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaOfEpochSecond() {
+                String src = generate(List.of(optionalField("x", "java.time.Instant")));
+                assertTrue(src.contains("Optional.of(Instant.ofEpochSecond(((BigInteger) v).longValue()))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.time.Instant")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class LocalDateElements {
+
+            @Test
+            void toMetadataMap_encodesAsEpochDay() {
+                String src = generate(List.of(optionalField("x", "java.time.LocalDate")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getX().get().toEpochDay())"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaOfEpochDay() {
+                String src = generate(List.of(optionalField("x", "java.time.LocalDate")));
+                assertTrue(src.contains("Optional.of(LocalDate.ofEpochDay(((BigInteger) v).longValue()))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.time.LocalDate")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class LocalDateTimeElements {
+
+            @Test
+            void toMetadataMap_encodesViaToString() {
+                String src = generate(List.of(optionalField("x", "java.time.LocalDateTime")));
+                assertTrue(src.contains("order.getX().get().toString()"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaParse() {
+                String src = generate(List.of(optionalField("x", "java.time.LocalDateTime")));
+                assertTrue(src.contains("Optional.of(LocalDateTime.parse((String) v))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.time.LocalDateTime")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
+            }
+        }
+
+        @Nested
+        class DateElements {
+
+            @Test
+            void toMetadataMap_encodesAsEpochMillis() {
+                String src = generate(List.of(optionalField("x", "java.util.Date")));
+                assertTrue(src.contains("BigInteger.valueOf(order.getX().get().getTime())"));
+            }
+
+            @Test
+            void fromMetadataMap_restoresViaNewDate() {
+                String src = generate(List.of(optionalField("x", "java.util.Date")));
+                assertTrue(src.contains("Optional.of(new Date(((BigInteger) v).longValue()))"));
+            }
+
+            @Test
+            void fromMetadataMap_elseBranch_setsOptionalEmpty() {
+                String src = generate(List.of(optionalField("x", "java.util.Date")));
+                assertTrue(src.contains("obj.setX(Optional.empty())"));
             }
         }
     }
@@ -2512,6 +2881,253 @@ public class MetadataConverterGeneratorTest {
                 String src = generate(List.of(asEnumElement(optionalField("status", ENUM_FQN))));
                 assertTrue(src.contains("obj.setStatus("));
             }
+        }
+    }
+
+    // =========================================================================
+    // Key mapping
+    // =========================================================================
+
+    @Nested
+    class KeyMapping {
+
+        @Test
+        void toMetadataMap_defaultKey_usesFieldName() {
+            String src = generate(List.of(field("recipient", "java.lang.String")));
+            assertTrue(src.contains("map.put(\"recipient\""));
+        }
+
+        @Test
+        void toMetadataMap_customKey_usesMetadataKeyInsteadOfFieldName() {
+            String src = generate(List.of(field("referenceId", "ref_id", "java.lang.String")));
+            assertTrue(src.contains("map.put(\"ref_id\""));
+            assertFalse(src.contains("map.put(\"referenceId\""));
+        }
+
+        @Test
+        void fromMetadataMap_defaultKey_readsFromFieldName() {
+            String src = generate(List.of(field("recipient", "java.lang.String")));
+            assertTrue(src.contains("map.get(\"recipient\")"));
+        }
+
+        @Test
+        void fromMetadataMap_customKey_readsFromMetadataKey() {
+            String src = generate(List.of(field("referenceId", "ref_id", "java.lang.String")));
+            assertTrue(src.contains("map.get(\"ref_id\")"));
+            assertFalse(src.contains("map.get(\"referenceId\")"));
+        }
+    }
+
+    // =========================================================================
+    // Direct-field access
+    // =========================================================================
+
+    @Nested
+    class DirectFieldAccess {
+
+        @Nested
+        class ScalarFields {
+
+            @Test
+            void toMetadataMap_stringField_readsPublicFieldDirectly() {
+                String src = generate(List.of(directField("note", "java.lang.String")));
+                assertTrue(src.contains("order.note"));
+                assertFalse(src.contains("order.getNote()"));
+            }
+
+            @Test
+            void toMetadataMap_bigIntegerField_readsPublicFieldDirectly() {
+                String src = generate(List.of(directField("amount", "java.math.BigInteger")));
+                assertTrue(src.contains("order.amount"));
+                assertFalse(src.contains("order.getAmount()"));
+            }
+
+            @Test
+            void fromMetadataMap_stringField_assignsPublicFieldDirectly() {
+                String src = generate(List.of(directField("note", "java.lang.String")));
+                assertTrue(src.contains("obj.note = (String) v"));
+                assertFalse(src.contains("obj.setNote("));
+            }
+
+            @Test
+            void fromMetadataMap_bigIntegerField_assignsPublicFieldDirectly() {
+                String src = generate(List.of(directField("amount", "java.math.BigInteger")));
+                assertTrue(src.contains("obj.amount = (BigInteger) v"));
+                assertFalse(src.contains("obj.setAmount("));
+            }
+        }
+
+        @Nested
+        class OptionalFields {
+
+            /** Optional field with no getter/setter — direct public field access. */
+            private MetadataFieldInfo directOptionalField(String name, String elementType) {
+                MetadataFieldInfo f = new MetadataFieldInfo();
+                f.setJavaFieldName(name);
+                f.setMetadataKey(name);
+                f.setJavaTypeName("java.util.Optional<" + elementType + ">");
+                f.setElementTypeName(elementType);
+                return f;
+            }
+
+            @Nested
+            class StringElements {
+
+                @Test
+                void toMetadataMap_readsDirectField() {
+                    String src = generate(List.of(directOptionalField("tags", "java.lang.String")));
+                    assertTrue(src.contains("order.tags.get()"));
+                    assertFalse(src.contains("order.getTags()"));
+                }
+
+                @Test
+                void fromMetadataMap_assignsDirectField() {
+                    String src = generate(List.of(directOptionalField("tags", "java.lang.String")));
+                    assertTrue(src.contains("obj.tags = Optional.of("));
+                    assertFalse(src.contains("obj.setTags("));
+                }
+
+                @Test
+                void fromMetadataMap_assignsOptionalEmpty() {
+                    String src = generate(List.of(directOptionalField("tags", "java.lang.String")));
+                    assertTrue(src.contains("obj.tags = Optional.empty()"));
+                }
+            }
+
+            @Nested
+            class BigIntegerElements {
+
+                @Test
+                void toMetadataMap_readsDirectField() {
+                    String src = generate(List.of(directOptionalField("amount", "java.math.BigInteger")));
+                    assertTrue(src.contains("order.amount.get()"));
+                    assertFalse(src.contains("order.getAmount()"));
+                }
+
+                @Test
+                void fromMetadataMap_assignsDirectField() {
+                    String src = generate(List.of(directOptionalField("amount", "java.math.BigInteger")));
+                    assertTrue(src.contains("obj.amount = Optional.of("));
+                    assertFalse(src.contains("obj.setAmount("));
+                }
+
+                @Test
+                void fromMetadataMap_assignsOptionalEmpty() {
+                    String src = generate(List.of(directOptionalField("amount", "java.math.BigInteger")));
+                    assertTrue(src.contains("obj.amount = Optional.empty()"));
+                }
+            }
+
+            @Nested
+            class IntegerElements {
+
+                @Test
+                void toMetadataMap_readsDirectField() {
+                    String src = generate(List.of(directOptionalField("qty", "java.lang.Integer")));
+                    assertTrue(src.contains("order.qty.get()"));
+                    assertFalse(src.contains("order.getQty()"));
+                }
+
+                @Test
+                void fromMetadataMap_assignsDirectField() {
+                    String src = generate(List.of(directOptionalField("qty", "java.lang.Integer")));
+                    assertTrue(src.contains("obj.qty = Optional.of("));
+                    assertFalse(src.contains("obj.setQty("));
+                }
+
+                @Test
+                void fromMetadataMap_assignsOptionalEmpty() {
+                    String src = generate(List.of(directOptionalField("qty", "java.lang.Integer")));
+                    assertTrue(src.contains("obj.qty = Optional.empty()"));
+                }
+            }
+        }
+
+        @Nested
+        class EnumFields {
+
+            @Test
+            void toMetadataMap_directField_noGetter() {
+                MetadataFieldInfo f = new MetadataFieldInfo();
+                f.setJavaFieldName("status");
+                f.setMetadataKey("status");
+                f.setJavaTypeName("com.example.Status");
+                f.setEnumType(true);
+                String src = generate(List.of(f));
+                assertTrue(src.contains("map.put(\"status\", order.status.name())"));
+            }
+
+            @Test
+            void fromMetadataMap_directField_noSetter() {
+                MetadataFieldInfo f = new MetadataFieldInfo();
+                f.setJavaFieldName("status");
+                f.setMetadataKey("status");
+                f.setJavaTypeName("com.example.Status");
+                f.setEnumType(true);
+                String src = generate(List.of(f));
+                assertTrue(src.contains("obj.status = Status.valueOf((String) v)"));
+            }
+        }
+    }
+
+    // =========================================================================
+    // Multiple fields
+    // =========================================================================
+
+    @Nested
+    class MultipleFields {
+
+        private final List<MetadataFieldInfo> FIELDS = List.of(
+                field("recipient", "java.lang.String"),
+                field("amount",    "java.math.BigInteger"),
+                field("timestamp", "java.lang.Long"),
+                field("quantity",  "int"),
+                field("sig",       "byte[]")
+        );
+
+        @Test
+        void toMetadataMap_allFieldsHavePutStatements() {
+            String src = generate(FIELDS);
+            assertTrue(src.contains("map.put(\"recipient\""));
+            assertTrue(src.contains("map.put(\"amount\","));
+            assertTrue(src.contains("map.put(\"timestamp\","));
+            assertTrue(src.contains("map.put(\"quantity\","));
+            assertTrue(src.contains("map.put(\"sig\","));
+        }
+
+        @Test
+        void fromMetadataMap_allFieldsHaveGetStatements() {
+            String src = generate(FIELDS);
+            assertTrue(src.contains("map.get(\"recipient\")"));
+            assertTrue(src.contains("map.get(\"amount\")"));
+            assertTrue(src.contains("map.get(\"timestamp\")"));
+            assertTrue(src.contains("map.get(\"quantity\")"));
+            assertTrue(src.contains("map.get(\"sig\")"));
+        }
+
+        @Test
+        void multipleStringFields_eachGetsOwnSplitBlock() {
+            List<MetadataFieldInfo> twoStrings = List.of(
+                    field("name", "java.lang.String"),
+                    field("note", "java.lang.String")
+            );
+            String src = generate(twoStrings);
+            // Both fields should have their own splitting checks
+            assertTrue(src.contains("splitStringEveryNCharacters(order.getName(), 64)"));
+            assertTrue(src.contains("splitStringEveryNCharacters(order.getNote(), 64)"));
+        }
+
+        @Test
+        void multipleStringFields_eachGetsOwnMetadataListReassembly() {
+            List<MetadataFieldInfo> twoStrings = List.of(
+                    field("name", "java.lang.String"),
+                    field("note", "java.lang.String")
+            );
+            String src = generate(twoStrings);
+            assertTrue(src.contains("map.get(\"name\")"));
+            assertTrue(src.contains("map.get(\"note\")"));
+            assertTrue(src.contains("obj.setName(_sb.toString())"));
+            assertTrue(src.contains("obj.setNote(_sb.toString())"));
         }
     }
 }
