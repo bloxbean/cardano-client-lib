@@ -1,7 +1,7 @@
 {
   "preamble": {
-    "title": "pseudo_alias_test",
-    "description": "Test blueprint for pseudo-alias anyOf types: Credential and PaymentCredential have the same variant names (VerificationKey, Script) but generate separate inner classes per interface.",
+    "title": "interface_variant_subpackage_test",
+    "description": "Test blueprint for interface variant sub-package generation: Credential and PaymentCredential share the same variant names (VerificationKey, Script) and generate separate variant classes in sub-packages per interface.",
     "version": "0.0.0",
     "plutusVersion": "v3",
     "compiler": {
@@ -11,7 +11,7 @@
   },
   "validators": [
     {
-      "title": "pseudo_alias.spend",
+      "title": "interface_variant_subpackage.spend",
       "redeemer": {
         "title": "redeemer",
         "schema": {

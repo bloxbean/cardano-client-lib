@@ -43,18 +43,19 @@ public class AftermarketTest {
     }
 
     @Nested
-    @DisplayName("Inner class structure for interface types")
-    class InnerClassStructureTests {
+    @DisplayName("Sub-package variant structure for interface types")
+    class SubPackageVariantTests {
 
         @Test
-        @DisplayName("MarketDatum should contain 5 variants as inner classes")
-        void marketDatumInnerClasses() throws Exception {
+        @DisplayName("MarketDatum should be interface with 5 variants in sub-package")
+        void marketDatumVariantsInSubPackage() throws Exception {
             assertThat(compilation).succeeded();
 
             // MarketDatum has 5 variants: SpotDatum, AuctionDatum, SpotBidDatum, ClaimBidDatum, AcceptedBidDatum
             // Namespace: cardano_aftermarket/data/datums → package segment: cardanoaftermarket.data.datums
-            JavaFileObject file = compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.model.aftermarket.cardanoaftermarket.data.datums.model.MarketDatum")
+            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.model.aftermarket.cardanoaftermarket.data.datums.model";
+
+            JavaFileObject file = compilation.generatedSourceFile(basePkg + ".MarketDatum")
                     .orElseThrow(() -> new AssertionError("MarketDatum.java not generated"));
             String source = file.getCharContent(true).toString();
 
@@ -62,38 +63,38 @@ public class AftermarketTest {
                     .as("MarketDatum should be an interface")
                     .contains("public interface MarketDatum");
 
-            assertThat(source)
-                    .as("Should contain SpotDatum inner class")
-                    .contains("abstract class SpotDatum implements Data<SpotDatum>, MarketDatum");
-            assertThat(source)
-                    .as("Should contain AuctionDatum inner class")
-                    .contains("abstract class AuctionDatum implements Data<AuctionDatum>, MarketDatum");
-            assertThat(source)
-                    .as("Should contain SpotBidDatum inner class")
-                    .contains("abstract class SpotBidDatum implements Data<SpotBidDatum>, MarketDatum");
-            assertThat(source)
-                    .as("Should contain ClaimBidDatum inner class")
-                    .contains("abstract class ClaimBidDatum implements Data<ClaimBidDatum>, MarketDatum");
-            assertThat(source)
-                    .as("Should contain AcceptedBidDatum inner class")
-                    .contains("abstract class AcceptedBidDatum implements Data<AcceptedBidDatum>, MarketDatum");
+            String variantPkg = basePkg + ".marketdatum";
+            for (String variant : new String[]{"SpotDatum", "AuctionDatum", "SpotBidDatum", "ClaimBidDatum", "AcceptedBidDatum"}) {
+                JavaFileObject variantFile = compilation.generatedSourceFile(variantPkg + "." + variant)
+                        .orElseThrow(() -> new AssertionError(variant + ".java not generated in marketdatum sub-package"));
+                String variantSource = variantFile.getCharContent(true).toString();
+                assertThat(variantSource)
+                        .as(variant + " should implement Data and MarketDatum")
+                        .contains("abstract class " + variant + " implements Data<" + variant + ">, MarketDatum");
+            }
         }
 
         @Test
-        @DisplayName("MarketRedeemer should contain variants as inner classes")
-        void marketRedeemerInnerClasses() throws Exception {
+        @DisplayName("MarketRedeemer should be interface with variants in sub-package")
+        void marketRedeemerVariantsInSubPackage() throws Exception {
             assertThat(compilation).succeeded();
 
-            JavaFileObject file = compilation.generatedSourceFile(
-                    "com.bloxbean.cardano.client.plutus.annotation.blueprint.model.aftermarket.cardanoaftermarket.data.redeemers.model.MarketRedeemer")
+            String basePkg = "com.bloxbean.cardano.client.plutus.annotation.blueprint.model.aftermarket.cardanoaftermarket.data.redeemers.model";
+
+            JavaFileObject file = compilation.generatedSourceFile(basePkg + ".MarketRedeemer")
                     .orElseThrow(() -> new AssertionError("MarketRedeemer.java not generated"));
             String source = file.getCharContent(true).toString();
 
             assertThat(source)
                     .as("MarketRedeemer should be an interface")
                     .contains("public interface MarketRedeemer");
-            assertThat(source)
-                    .as("Should contain CloseOrUpdateSellerUTxO inner class")
+
+            String variantPkg = basePkg + ".marketredeemer";
+            JavaFileObject variantFile = compilation.generatedSourceFile(variantPkg + ".CloseOrUpdateSellerUTxO")
+                    .orElseThrow(() -> new AssertionError("CloseOrUpdateSellerUTxO.java not generated in marketredeemer sub-package"));
+            String variantSource = variantFile.getCharContent(true).toString();
+            assertThat(variantSource)
+                    .as("Should contain CloseOrUpdateSellerUTxO in sub-package")
                     .contains("abstract class CloseOrUpdateSellerUTxO implements Data<CloseOrUpdateSellerUTxO>, MarketRedeemer");
         }
     }

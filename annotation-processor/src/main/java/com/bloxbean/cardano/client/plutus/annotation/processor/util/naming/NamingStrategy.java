@@ -72,4 +72,5 @@ public interface NamingStrategy {
      * @return a valid Java package name
      */
     String toPackageNameFormat(String packageName);
+
 }

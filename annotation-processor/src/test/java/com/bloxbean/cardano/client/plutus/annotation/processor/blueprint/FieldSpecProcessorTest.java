@@ -694,9 +694,8 @@ class FieldSpecProcessorTest {
     /**
      * Tests for buildVariantTypeSpec() method.
      *
-     * <p>Builds a TypeSpec for a variant class nested inside an interface.
-     * The variant is a static abstract class implementing Data&lt;InterfaceName.VariantName&gt;
-     * and the parent interface.</p>
+     * <p>Builds a TypeSpec for a variant class in a sub-package named after the interface,
+     * implementing Data&lt;VariantName&gt; and the parent interface.</p>
      */
     @Nested
     class BuildVariantTypeSpecTests {
@@ -712,7 +711,7 @@ class FieldSpecProcessorTest {
         }
 
         @Test
-        void shouldCreateStaticAbstractClass() {
+        void shouldCreatePublicAbstractClass() {
             BlueprintSchema schema = new BlueprintSchema();
             schema.setDataType(BlueprintDatatype.constructor);
             schema.setTitle("VerificationKey");
@@ -721,7 +720,8 @@ class FieldSpecProcessorTest {
             TypeSpec result = fieldSpecProcessor.buildVariantTypeSpec("ns", "Credential", schema);
 
             assertThat(result).isNotNull();
-            assertThat(result.modifiers).contains(Modifier.PUBLIC, Modifier.STATIC, Modifier.ABSTRACT);
+            assertThat(result.modifiers).contains(Modifier.PUBLIC, Modifier.ABSTRACT);
+            assertThat(result.modifiers).doesNotContain(Modifier.STATIC);
             assertThat(result.kind).isEqualTo(TypeSpec.Kind.CLASS);
         }
 
@@ -735,10 +735,11 @@ class FieldSpecProcessorTest {
             TypeSpec result = fieldSpecProcessor.buildVariantTypeSpec("ns", "Credential", schema);
 
             assertThat(result).isNotNull();
-            // Should have 2 superinterfaces: Data<Credential.VerificationKey> and Credential
+            // Should have 2 superinterfaces: Data<VerificationKey> and Credential
             assertThat(result.superinterfaces).hasSize(2);
             String superinterfaces = result.superinterfaces.toString();
             assertThat(superinterfaces).contains("Data");
+            assertThat(superinterfaces).contains("VerificationKey");
             assertThat(superinterfaces).contains("Credential");
         }
 
@@ -776,7 +777,7 @@ class FieldSpecProcessorTest {
         }
 
         @Test
-        void shouldUseCorrectVariantName() {
+        void shouldUseUnprefixedVariantName() {
             BlueprintSchema schema = new BlueprintSchema();
             schema.setDataType(BlueprintDatatype.constructor);
             schema.setTitle("VerificationKey");

@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-02-26
 - Owners: Cardano Client Lib maintainers
-- Related: ADR-0001 (Processor Architecture), ADR-0005 (Definition Keys), ADR-0008 (Schema Classification), ADR-0016 (Nested Interface Variants), CIP-57
+- Related: ADR-0001 (Processor Architecture), ADR-0005 (Definition Keys), ADR-0008 (Schema Classification), ADR-0016 (Interface Variants), CIP-57
 
 ## Context
 
@@ -39,10 +39,9 @@ ENUM  INTERFACE         CLASS
   │     │                 │
   ▼     ▼                 ▼
 Java  Interface +      @Data class +
-enum  nested @Constr   ConverterCodeGenerator
-      variants (static
-      inner classes,
-      see ADR-0016)
+enum  variant classes   ConverterCodeGenerator
+      in sub-package
+      (ADR-0016)
 ```
 
 **Key classes:**
@@ -98,7 +97,7 @@ Before generating a class for a definition, `FieldSpecProcessor` checks `SharedT
 ## Rationale
 
 1. **Separation of concerns**: Definitions and validators have fundamentally different structures. Separate processors keep each focused.
-2. **Schema classification**: The three-way classification (ENUM/INTERFACE/CLASS) enables generating idiomatic Java for each pattern — enums for discriminated unions without data, interfaces with nested variant classes for sum types (see ADR-0016), classes for product types.
+2. **Schema classification**: The three-way classification (ENUM/INTERFACE/CLASS) enables generating idiomatic Java for each pattern — enums for discriminated unions without data, interfaces with variant classes in sub-packages for sum types (see ADR-0016), classes for product types.
 3. **Shared type reuse**: Checking `SharedTypeLookup` first prevents generating redundant classes when existing types (e.g., from `plutus-aiken` module) already model the same data.
 4. **Consistent naming**: Both phases share `PackageResolver` and `NamingStrategy` (see ADR-0014), ensuring consistent package and class naming.
 
@@ -126,4 +125,4 @@ Before generating a class for a definition, `FieldSpecProcessor` checks `SharedT
 - ADR-0005: Definition Keys as Source of Truth
 - ADR-0008: Schema Classification Strategy
 - ADR-0015: DataType Processor Strategy Pattern
-- ADR-0016: Nested Interface Variant Generation
+- ADR-0016: Interface Variant Generation
