@@ -543,33 +543,33 @@ class BlueprintAnnotationProcessorTest {
     }
 
     /**
-     * Compilation tests for pseudo-alias anyOf types (top-level variant generation).
+     * Compilation tests for interface variant sub-package generation.
      *
      * <p><b>What this tests:</b> End-to-end verification that when a blueprint defines
      * interface types (anyOf > 1) like Credential and PaymentCredential, each generates
-     * its variants as top-level classes with prefixed names (e.g., CredentialVerificationKey,
-     * PaymentCredentialVerificationKey). This avoids naming collisions between variants
+     * its variants in a sub-package named after the interface (e.g., credential.VerificationKey,
+     * paymentcredential.VerificationKey). This avoids naming collisions between variants
      * of different interfaces that share the same variant name.</p>
      *
-     * <p><b>Blueprint used:</b> {@code pseudo-alias-test.json} which defines:</p>
+     * <p><b>Blueprint used:</b> {@code interface-variant-subpackage-test.json} which defines:</p>
      * <ul>
      *   <li>{@code test/Credential} — anyOf: VerificationKey (index 0), Script (index 1)</li>
      *   <li>{@code test/PaymentCredential} — anyOf: VerificationKey (index 0), Script (index 1)</li>
-     *   <li>{@code test/Address} — constructor with paymentcredential ($ref PaymentCredential) and
+     *   <li>{@code test/Address} — constructor with payment_credential ($ref PaymentCredential) and
      *       stake_credential ($ref Credential) fields</li>
      * </ul>
      */
     @Nested
-    @DisplayName("Pseudo-alias sub-package variant compilation tests")
-    class PseudoAliasCompilationTests {
+    @DisplayName("Interface variant sub-package compilation tests")
+    class InterfaceVariantSubpackageCompilationTests {
 
         @Test
-        @DisplayName("should compile successfully with variants as inner classes")
-        void shouldCompileWithVariantsAsInnerClasses() {
+        @DisplayName("should compile successfully with variants in sub-packages")
+        void shouldCompileWithVariantsInSubPackages() {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+                    .compile(JavaFileObjects.forResource("blueprint/InterfaceVariantSubpackageTest.java"));
 
             assertThat(compilation).succeeded();
         }
@@ -580,11 +580,11 @@ class BlueprintAnnotationProcessorTest {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+                    .compile(JavaFileObjects.forResource("blueprint/InterfaceVariantSubpackageTest.java"));
 
             assertThat(compilation).succeeded();
 
-            JavaFileObject credFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.Credential")
+            JavaFileObject credFile = compilation.generatedSourceFile("com.test.variantsubpackage.test.model.Credential")
                     .orElseThrow(() -> new AssertionError("Credential.java not generated"));
             String credSource = credFile.getCharContent(true).toString();
 
@@ -593,12 +593,12 @@ class BlueprintAnnotationProcessorTest {
                     .contains("public interface Credential");
 
             // Variants are in sub-package named after the interface
-            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.credential.VerificationKey")
+            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.variantsubpackage.test.model.credential.VerificationKey")
                     .orElseThrow(() -> new AssertionError("credential/VerificationKey.java not generated"));
             String vkSource = vkFile.getCharContent(true).toString();
             assertThat(vkSource).contains("abstract class VerificationKey");
 
-            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.credential.Script")
+            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.variantsubpackage.test.model.credential.Script")
                     .orElseThrow(() -> new AssertionError("credential/Script.java not generated"));
             String scriptSource = scriptFile.getCharContent(true).toString();
             assertThat(scriptSource).contains("abstract class Script");
@@ -610,11 +610,11 @@ class BlueprintAnnotationProcessorTest {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+                    .compile(JavaFileObjects.forResource("blueprint/InterfaceVariantSubpackageTest.java"));
 
             assertThat(compilation).succeeded();
 
-            JavaFileObject pcFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.PaymentCredential")
+            JavaFileObject pcFile = compilation.generatedSourceFile("com.test.variantsubpackage.test.model.PaymentCredential")
                     .orElseThrow(() -> new AssertionError("PaymentCredential.java not generated"));
             String pcSource = pcFile.getCharContent(true).toString();
 
@@ -623,12 +623,12 @@ class BlueprintAnnotationProcessorTest {
                     .contains("public interface PaymentCredential");
 
             // Variants are in sub-package named after the interface
-            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.paymentcredential.VerificationKey")
+            JavaFileObject vkFile = compilation.generatedSourceFile("com.test.variantsubpackage.test.model.paymentcredential.VerificationKey")
                     .orElseThrow(() -> new AssertionError("paymentcredential/VerificationKey.java not generated"));
             String vkSource = vkFile.getCharContent(true).toString();
             assertThat(vkSource).contains("abstract class VerificationKey");
 
-            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.paymentcredential.Script")
+            JavaFileObject scriptFile = compilation.generatedSourceFile("com.test.variantsubpackage.test.model.paymentcredential.Script")
                     .orElseThrow(() -> new AssertionError("paymentcredential/Script.java not generated"));
             String scriptSource = scriptFile.getCharContent(true).toString();
             assertThat(scriptSource).contains("abstract class Script");
@@ -640,7 +640,7 @@ class BlueprintAnnotationProcessorTest {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+                    .compile(JavaFileObjects.forResource("blueprint/InterfaceVariantSubpackageTest.java"));
 
             assertThat(compilation).succeeded();
 
@@ -671,16 +671,16 @@ class BlueprintAnnotationProcessorTest {
             Compilation compilation = Compiler.javac()
                     .withProcessors(new BlueprintAnnotationProcessor(), new ConstrAnnotationProcessor())
                     .withClasspathFrom(ClassLoader.getSystemClassLoader())
-                    .compile(JavaFileObjects.forResource("blueprint/PseudoAliasTest.java"));
+                    .compile(JavaFileObjects.forResource("blueprint/InterfaceVariantSubpackageTest.java"));
 
             assertThat(compilation).succeeded();
 
             // Verify Address model class was generated
-            JavaFileObject addressFile = compilation.generatedSourceFile("com.test.pseudoalias.test.model.Address")
+            JavaFileObject addressFile = compilation.generatedSourceFile("com.test.variantsubpackage.test.model.Address")
                     .orElseThrow(() -> new AssertionError("Address.java not generated"));
             String addressSource = addressFile.getCharContent(true).toString();
 
-            assertThat(addressSource).contains("package com.test.pseudoalias.test.model;");
+            assertThat(addressSource).contains("package com.test.variantsubpackage.test.model;");
         }
     }
 

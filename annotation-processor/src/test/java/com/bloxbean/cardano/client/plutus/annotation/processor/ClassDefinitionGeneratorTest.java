@@ -246,7 +246,7 @@ public class ClassDefinitionGeneratorTest {
      *
      * <p>This static method generates converter class names from field types.
      * Uses {@code String.join("", fieldClass.simpleNames())} to handle class names.
-     * Blueprint variants are now top-level with prefixed names (e.g., CredentialVerificationKey),
+     * Blueprint variants now live in sub-packages (e.g., credential.VerificationKey),
      * but this method still supports nested classes for general use cases.</p>
      */
     @Nested

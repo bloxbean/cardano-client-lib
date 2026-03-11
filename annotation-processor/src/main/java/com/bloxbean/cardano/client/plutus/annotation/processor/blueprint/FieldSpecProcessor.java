@@ -420,7 +420,7 @@ public class FieldSpecProcessor {
 
     /**
      * Builds a TypeSpec.Builder for a Datum interface. Does not write the file —
-     * the caller adds nested variant classes and then writes.
+     * the caller writes the interface and then writes variant classes to a sub-package.
      *
      * @param dataClassName name of the interface
      * @return TypeSpec.Builder for the interface

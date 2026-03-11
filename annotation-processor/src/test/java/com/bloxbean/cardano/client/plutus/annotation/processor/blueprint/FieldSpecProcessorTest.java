@@ -694,9 +694,8 @@ class FieldSpecProcessorTest {
     /**
      * Tests for buildVariantTypeSpec() method.
      *
-     * <p>Builds a TypeSpec for a top-level variant class with prefixed name
-     * (InterfaceName + VariantName), implementing Data&lt;PrefixedName&gt;
-     * and the parent interface.</p>
+     * <p>Builds a TypeSpec for a variant class in a sub-package named after the interface,
+     * implementing Data&lt;VariantName&gt; and the parent interface.</p>
      */
     @Nested
     class BuildVariantTypeSpecTests {
