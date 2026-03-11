@@ -156,7 +156,7 @@ validator.unlockToContract(datum, redeemer, scriptAddress, rawDatum);
 
 ## Error Handling
 
-Transaction operations return `Result<String>`:
+Transaction operations return `TxResult` (which extends `Result<String>`):
 
 ```java
 var result = validator.lock(address, amount, datum)

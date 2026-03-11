@@ -271,7 +271,7 @@ var mintResult = validator.mintToContract(
             ActionData.of(Action.Mint),
             List.of(asset1, asset2),
             scriptAddress,
-            () -> ConstrPlutusData.of(3))   // datum supplier
+            () -> ConstrPlutusData.of(3))   // Data lambda as inline datum
         .feePayer(account.baseAddress())
         .withSigner(SignerProviders.signerFrom(account))
         .completeAndWait(System.out::println);
