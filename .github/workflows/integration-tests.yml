@@ -13,7 +13,7 @@ on:
 
 jobs:
   integration-tests:
-    name: Integration Tests (Devnet)
+    name: Integration Tests (Cardano Dev-Net)
     runs-on: ubuntu-latest
 
     steps:
@@ -30,25 +30,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # Required for docker compose to work on the runner
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # Node.js required for npm-based yaci-devkit
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.8.0'
+
+      # Install yaci-devkit CLI via npm
+      - name: Install Yaci DevKit
+        run: npm install -g @bloxbean/yaci-devkit
 
       # Start a local Cardano devnet using yaci-devkit.
       # Exposes Store API on :8080 (Blockfrost-compatible) and Admin API on :10000 (topup, reset).
-      - name: Start yaci-devkit
-        run: |
-          docker compose --env-file .env.DevnetTest \
-            -f docker-compose-devnet-test.yaml \
-            up -d --wait --wait-timeout 120
+      - name: Start Yaci DevKit
+        run: nohup yaci-devkit up --enable-yaci-store &
 
-      # The container may be running but the Store API needs time to index genesis blocks.
-      # Poll the epochs endpoint until it responds (up to ~2.5 min).
+      # Wait for the Store API to be ready (up to ~2.5 min).
       - name: Wait for devnet to be ready
         run: |
           echo "Waiting for Store API to be ready..."
           for i in $(seq 1 30); do
-            if curl -s http://localhost:8080/api/v1/epochs/latest > /dev/null 2>&1; then
+            if nc -z localhost 8080 2>/dev/null; then
               echo "Store API is ready!"
               break
             fi
@@ -65,13 +67,6 @@ jobs:
       - name: Run integration tests
         run: ./gradlew :annotation-processor:integrationTest -PskipSigning=true --info --stacktrace
 
-      # Print yaci-devkit container logs for debugging (runs even if tests fail)
-      - name: Docker logs
-        if: always()
-        run: |
-          docker compose --env-file .env.DevnetTest \
-            -f docker-compose-devnet-test.yaml logs
-
       # Upload Gradle HTML test report and JUnit XML results as artifacts
       # so full stack traces are available even when the job fails
       - name: Upload test reports
@@ -82,10 +77,3 @@ jobs:
           path: |
             annotation-processor/build/reports/tests/integrationTest/
             annotation-processor/build/test-results/integrationTest/
-
-      # Stop and remove the yaci-devkit container (runs even if tests fail)
-      - name: Tear down environment
-        if: always()
-        run: |
-          docker compose --env-file .env.DevnetTest \
-            -f docker-compose-devnet-test.yaml down
