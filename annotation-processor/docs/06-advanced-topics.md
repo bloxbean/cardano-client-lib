@@ -123,15 +123,16 @@ Use `fileInResources` for files in `src/main/resources` (recommended) or `file` 
 
 The validator class name is derived from the validator title in the blueprint JSON:
 
-| Blueprint Title | Generated Class |
-|---|---|
-| `helloworld.hello_world` | `HelloWorldValidator` |
-| `mint_validator.mint` | `MintValidator` |
-| `my_module.my_validator` | `MyValidatorValidator` |
+| Blueprint Title | Tokens | Base Name | Generated Class |
+|---|---|---|---|
+| `helloworld.hello_world` | `helloworld`, `hello_world` | `hello_world` | `HelloWorldValidator` |
+| `mint_validator.mint` | `mint_validator`, `mint` | `mint` | `MintValidator` |
+| `lock.lock.spend` | `lock`, `lock`, `spend` | `lock_spend` | `LockSpendValidator` |
+| `my_module.my_validator` | `my_module`, `my_validator` | `my_validator` | `MyValidatorValidator` |
 
 The naming strategy:
 1. Splits the title by `.`
-2. Uses the last segment as the base name (skipping the module prefix if it would create a stutter)
+2. Drops the first token (the module name) and joins the remaining tokens with `_` to form the base name
 3. Applies PascalCase
 4. Appends `Validator` suffix
 

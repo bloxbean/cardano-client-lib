@@ -11,9 +11,9 @@ var validator = new HelloWorldValidator(Networks.testnet())
         .withBackendService(backendService);
 ```
 
-The `withBackendService()` call configures the UTXO supplier, protocol parameters supplier, transaction processor, and transaction evaluator — all from a single `BackendService` instance.
+The `withBackendService()` call configures the UTXO supplier, protocol parameters supplier, and transaction processor from a single `BackendService` instance. It also sets the transaction evaluator if the backend provides one.
 
-You can also configure individual suppliers:
+You can also configure individual suppliers, or override specific ones after calling `withBackendService()`:
 
 ```java
 var validator = new HelloWorldValidator(Networks.testnet())
@@ -21,6 +21,14 @@ var validator = new HelloWorldValidator(Networks.testnet())
         .withProtocolParamsSupplier(protocolParamsSupplier)
         .withTransactionProcessor(transactionProcessor)
         .withTransactionEvaluator(transactionEvaluator);
+```
+
+For example, to use a custom transaction evaluator (such as Scalus for local script evaluation) while keeping the rest from the backend service:
+
+```java
+var validator = new HelloWorldValidator(Networks.testnet())
+        .withBackendService(backendService)
+        .withTransactionEvaluator(customEvaluator);
 ```
 
 ## The `@ExtendWith` Annotation
@@ -299,9 +307,9 @@ var result = new QuickTxBuilder(backendService)
 
 > **Note:** When using `*Tx` methods without a reference input, you may need to attach the script as a reference script via `withReferenceScripts()`.
 
-## Utility Methods
+## Utility Methods and Static Fields
 
-All generated validators provide:
+All generated validators provide these instance methods:
 
 ```java
 // Get the script address (derived from the compiled code hash)
@@ -310,6 +318,18 @@ String scriptAddress = validator.getScriptAddress();
 // Get the Plutus script object
 PlutusScript plutusScript = validator.getPlutusScript();
 ```
+
+And these static constants:
+
+```java
+// The script hash (hex string)
+String hash = HelloWorldValidator.HASH;
+
+// The compiled script code (CBOR hex string)
+String code = HelloWorldValidator.COMPILED_CODE;
+```
+
+The `HASH` constant is useful when registering scripts with custom evaluators or looking up script references.
 
 ## Next Steps
 
