@@ -65,7 +65,7 @@ jobs:
       # 1. Annotation processor generates validator classes from blueprint JSON (plutus.json)
       # 2. Tests deploy the Plutus V3 script, lock ADA, and unlock ADA against the live devnet
       - name: Run integration tests
-        run: ./gradlew :annotation-processor:integrationTest -PskipSigning=true --info --stacktrace
+        run: ./gradlew :annotation-processor:integrationTest :annotation-processor:integrationTestNoRegistry -PskipSigning=true --info --stacktrace
 
       # Upload Gradle HTML test report and JUnit XML results as artifacts
       # so full stack traces are available even when the job fails
@@ -77,3 +77,12 @@ jobs:
           path: |
             annotation-processor/build/reports/tests/integrationTest/
             annotation-processor/build/test-results/integrationTest/
+
+      - name: Upload no-registry test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-no-registry
+          path: |
+            annotation-processor/build/reports/tests/integrationTestNoRegistry/
+            annotation-processor/build/test-results/integrationTestNoRegistry/

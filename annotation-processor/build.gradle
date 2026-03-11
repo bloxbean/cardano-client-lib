@@ -51,6 +51,25 @@ tasks.register('compilationTestNoRegistry') {
     description = 'Compile compilation tests with shared type registry disabled'
 }
 
+// Integration test without shared type registry
+// Recompiles integration test sources with registry disabled, then runs them against the devnet
+tasks.register('compileIntegrationTestNoRegistryJava', JavaCompile) {
+    source = sourceSets.integrationTest.java
+    classpath = sourceSets.integrationTest.compileClasspath + files(sourceSets.integrationTest.resources.srcDirs)
+    destinationDirectory = layout.buildDirectory.dir('classes/java/integrationTestNoRegistry')
+    options.annotationProcessorPath = configurations.integrationTestAnnotationProcessor
+    options.compilerArgs += ['-Acardano.registry.enable=false']
+}
+
+tasks.register('integrationTestNoRegistry', Test) {
+    dependsOn 'compileIntegrationTestNoRegistryJava', 'processIntegrationTestResources'
+    testClassesDirs = files(layout.buildDirectory.dir('classes/java/integrationTestNoRegistry'))
+    classpath = files(layout.buildDirectory.dir('classes/java/integrationTestNoRegistry')) + sourceSets.integrationTest.runtimeClasspath
+    useJUnitPlatform()
+    group = 'verification'
+    description = 'Run integration tests with shared type registry disabled'
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
