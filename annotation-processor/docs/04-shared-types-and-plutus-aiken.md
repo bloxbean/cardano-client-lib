@@ -21,8 +21,8 @@ Add the `plutus-aiken` dependency and the annotation processor will automaticall
 
 ```groovy
 dependencies {
-    implementation 'com.bloxbean.cardano:cardano-client-lib-plutus-aiken:0.8.0'
-    annotationProcessor 'com.bloxbean.cardano:cardano-client-lib-plutus-aiken:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-lib-plutus-aiken:${ccl.version}'
+    annotationProcessor 'com.bloxbean.cardano:cardano-client-lib-plutus-aiken:${ccl.version}'
 }
 ```
 

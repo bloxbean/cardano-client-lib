@@ -10,24 +10,24 @@ The Cardano Client Library (CCL) includes an annotation processor that generates
 
 ## Adding Dependencies
 
-> **Note:** Replace `0.8.0` with the latest version from [Maven Central](https://central.sonatype.com/search?q=com.bloxbean.cardano).
+> **Note:** Replace `${ccl.version}` with the latest version from [Maven Central](https://central.sonatype.com/search?q=com.bloxbean.cardano).
 
 ### Gradle
 
 ```groovy
 dependencies {
     // Annotation processor (compile-time only)
-    annotationProcessor 'com.bloxbean.cardano:cardano-client-lib-annotation-processor:0.8.0'
+    annotationProcessor 'com.bloxbean.cardano:cardano-client-lib-annotation-processor:${ccl.version}'
 
     // Runtime dependencies
-    implementation 'com.bloxbean.cardano:cardano-client-lib-plutus:0.8.0'
-    implementation 'com.bloxbean.cardano:cardano-client-lib-quicktx:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-lib-plutus:${ccl.version}'
+    implementation 'com.bloxbean.cardano:cardano-client-lib-quicktx:${ccl.version}'
 
     // Optional: pre-built Aiken stdlib types (recommended for Aiken contracts)
-    implementation 'com.bloxbean.cardano:cardano-client-lib-plutus-aiken:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-lib-plutus-aiken:${ccl.version}'
 
     // A backend provider (pick one)
-    implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:0.8.0'
+    implementation 'com.bloxbean.cardano:cardano-client-backend-blockfrost:${ccl.version}'
 }
 ```
 
@@ -36,17 +36,17 @@ dependencies {
 ```kotlin
 dependencies {
     // Annotation processor (compile-time only)
-    annotationProcessor("com.bloxbean.cardano:cardano-client-lib-annotation-processor:0.8.0")
+    annotationProcessor("com.bloxbean.cardano:cardano-client-lib-annotation-processor:${ccl.version}")
 
     // Runtime dependencies
-    implementation("com.bloxbean.cardano:cardano-client-lib-plutus:0.8.0")
-    implementation("com.bloxbean.cardano:cardano-client-lib-quicktx:0.8.0")
+    implementation("com.bloxbean.cardano:cardano-client-lib-plutus:${ccl.version}")
+    implementation("com.bloxbean.cardano:cardano-client-lib-quicktx:${ccl.version}")
 
     // Optional: pre-built Aiken stdlib types (recommended for Aiken contracts)
-    implementation("com.bloxbean.cardano:cardano-client-lib-plutus-aiken:0.8.0")
+    implementation("com.bloxbean.cardano:cardano-client-lib-plutus-aiken:${ccl.version}")
 
     // A backend provider (pick one)
-    implementation("com.bloxbean.cardano:cardano-client-backend-blockfrost:0.8.0")
+    implementation("com.bloxbean.cardano:cardano-client-backend-blockfrost:${ccl.version}")
 }
 ```
 
@@ -58,26 +58,26 @@ dependencies {
     <dependency>
         <groupId>com.bloxbean.cardano</groupId>
         <artifactId>cardano-client-lib-plutus</artifactId>
-        <version>0.8.0</version>
+        <version>${ccl.version}</version>
     </dependency>
     <dependency>
         <groupId>com.bloxbean.cardano</groupId>
         <artifactId>cardano-client-lib-quicktx</artifactId>
-        <version>0.8.0</version>
+        <version>${ccl.version}</version>
     </dependency>
 
     <!-- Optional: pre-built Aiken stdlib types (recommended for Aiken contracts) -->
     <dependency>
         <groupId>com.bloxbean.cardano</groupId>
         <artifactId>cardano-client-lib-plutus-aiken</artifactId>
-        <version>0.8.0</version>
+        <version>${ccl.version}</version>
     </dependency>
 
     <!-- A backend provider (pick one) -->
     <dependency>
         <groupId>com.bloxbean.cardano</groupId>
         <artifactId>cardano-client-backend-blockfrost</artifactId>
-        <version>0.8.0</version>
+        <version>${ccl.version}</version>
     </dependency>
 </dependencies>
 
@@ -91,13 +91,13 @@ dependencies {
                     <path>
                         <groupId>com.bloxbean.cardano</groupId>
                         <artifactId>cardano-client-lib-annotation-processor</artifactId>
-                        <version>0.8.0</version>
+                        <version>${ccl.version}</version>
                     </path>
                     <!-- Include if using plutus-aiken shared types -->
                     <path>
                         <groupId>com.bloxbean.cardano</groupId>
                         <artifactId>cardano-client-lib-plutus-aiken</artifactId>
-                        <version>0.8.0</version>
+                        <version>${ccl.version}</version>
                     </path>
                 </annotationProcessorPaths>
             </configuration>
