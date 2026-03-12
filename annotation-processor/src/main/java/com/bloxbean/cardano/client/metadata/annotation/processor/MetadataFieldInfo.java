@@ -101,4 +101,78 @@ public class MetadataFieldInfo {
 
     /** Fully qualified converter class name for nested Map values. */
     private String mapValueConverterFqn;
+
+    // ── Composite: Map value is a collection (Map<String, List<T>>) ────
+
+    /** {@code true} when the Map value type is a collection (List/Set/SortedSet). */
+    private boolean mapValueCollectionType;
+
+    /** Collection kind FQN for composite map values (e.g. "java.util.List"). */
+    private String mapValueCollectionKind;
+
+    /** Element type inside the collection value (the T in List&lt;T&gt;). */
+    private String mapValueElementTypeName;
+
+    /** {@code true} when the element of the collection value is an enum. */
+    private boolean mapValueElementEnumType;
+
+    /** {@code true} when the element of the collection value is a {@code @MetadataType}. */
+    private boolean mapValueElementNestedType;
+
+    /** Converter FQN for nested elements inside the collection value. */
+    private String mapValueElementConverterFqn;
+
+    // ── Composite: Map value is a map (Map<String, Map<String, V>>) ───
+
+    /** {@code true} when the Map value type is itself a Map. */
+    private boolean mapValueMapType;
+
+    /** Value type of the inner map (the V in Map&lt;String, V&gt;). */
+    private String mapValueMapValueTypeName;
+
+    /** {@code true} when the inner map value type is an enum. */
+    private boolean mapValueMapValueEnumType;
+
+    /** {@code true} when the inner map value type is a {@code @MetadataType}. */
+    private boolean mapValueMapValueNestedType;
+
+    /** Converter FQN for nested inner map values. */
+    private String mapValueMapValueConverterFqn;
+
+    // ── Composite: Collection element is a collection (List<List<T>>) ─
+
+    /** {@code true} when the collection element type is itself a collection. */
+    private boolean elementCollectionType;
+
+    /** Collection kind FQN for the inner collection (e.g. "java.util.List"). */
+    private String elementCollectionKind;
+
+    /** Element type inside the inner collection (the T in List&lt;T&gt;). */
+    private String elementElementTypeName;
+
+    /** {@code true} when the inner collection element is an enum. */
+    private boolean elementElementEnumType;
+
+    /** {@code true} when the inner collection element is a {@code @MetadataType}. */
+    private boolean elementElementNestedType;
+
+    /** Converter FQN for nested elements inside the inner collection. */
+    private String elementElementConverterFqn;
+
+    // ── Composite: Collection element is a map (List<Map<String, V>>) ─
+
+    /** {@code true} when the collection element type is a Map. */
+    private boolean elementMapType;
+
+    /** Value type of the element map (the V in Map&lt;String, V&gt;). */
+    private String elementMapValueTypeName;
+
+    /** {@code true} when the element map value is an enum. */
+    private boolean elementMapValueEnumType;
+
+    /** {@code true} when the element map value is a {@code @MetadataType}. */
+    private boolean elementMapValueNestedType;
+
+    /** Converter FQN for nested element map values. */
+    private String elementMapValueConverterFqn;
 }

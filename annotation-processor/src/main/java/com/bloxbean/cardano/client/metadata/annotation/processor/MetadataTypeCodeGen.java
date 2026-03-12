@@ -107,4 +107,45 @@ public interface MetadataTypeCodeGen {
      * @param javaType value type
      */
     void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType);
+
+    // --- Composite support: variable-name-parameterized methods ---
+
+    /**
+     * Emit {@code listVar.add(serializeExpr)} for a single element.
+     * Used by composite codegen where the list variable is not necessarily {@code _list}.
+     */
+    default void emitSerializeToListVar(MethodSpec.Builder builder, String listVar, String javaType) {
+        throw new UnsupportedOperationException(
+                "emitSerializeToListVar must be overridden for composite support (type: " + javaType + ")");
+    }
+
+    /**
+     * Emit {@code mapVar.put(keyExpr, serializeExpr)} for a map entry.
+     * Used by composite codegen where the map variable and key expression are parameterized.
+     */
+    default void emitSerializeMapValueVar(MethodSpec.Builder builder, String mapVar,
+                                           String keyExpr, String javaType) {
+        throw new UnsupportedOperationException(
+                "emitSerializeMapValueVar must be overridden for composite support (type: " + javaType + ")");
+    }
+
+    /**
+     * Emit deserialization of a raw value into a collection variable.
+     * Checks {@code rawVar instanceof OnChainType} and calls {@code resultVar.add(...)}.
+     */
+    default void emitDeserializeToCollectionVar(MethodSpec.Builder builder, String resultVar,
+                                                 String rawVar, String javaType) {
+        throw new UnsupportedOperationException(
+                "emitDeserializeToCollectionVar must be overridden for composite support (type: " + javaType + ")");
+    }
+
+    /**
+     * Emit deserialization of a raw value into a map variable.
+     * Checks {@code rawVar instanceof OnChainType} and calls {@code resultVar.put(keyExpr, ...)}.
+     */
+    default void emitDeserializeToMapVar(MethodSpec.Builder builder, String resultVar,
+                                          String keyExpr, String rawVar, String javaType) {
+        throw new UnsupportedOperationException(
+                "emitDeserializeToMapVar must be overridden for composite support (type: " + javaType + ")");
+    }
 }

@@ -54,6 +54,7 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
                 processType(typeElement);
             }
         }
+
         return true;
     }
 

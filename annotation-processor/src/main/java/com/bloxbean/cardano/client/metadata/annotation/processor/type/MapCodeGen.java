@@ -1,6 +1,7 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
+import com.bloxbean.cardano.client.metadata.MetadataList;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
@@ -11,19 +12,12 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.net.URI;
-import java.net.URL;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
 
 /**
  * Code generation for {@code Map<String, V>} fields.
  * Generates MetadataMap serialization/deserialization with delegation to
- * the appropriate value type strategy (scalar, enum, or nested).
+ * the appropriate value type strategy (scalar, enum, nested, or composite).
  */
 public class MapCodeGen {
 
@@ -44,6 +38,19 @@ public class MapCodeGen {
 
     public void emitSerializeToMap(MethodSpec.Builder builder, MetadataFieldInfo field, String getExpr) {
         String key = field.getMetadataKey();
+
+        // Composite: Map<String, List<T>>
+        if (field.isMapValueCollectionType()) {
+            emitSerializeMapWithCollectionValue(builder, field, getExpr, key);
+            return;
+        }
+
+        // Composite: Map<String, Map<String, V>>
+        if (field.isMapValueMapType()) {
+            emitSerializeMapWithMapValue(builder, field, getExpr, key);
+            return;
+        }
+
         TypeName valueTypeName = resolveValueTypeName(field);
 
         builder.addStatement("$T _map$L = $T.createMap()", MetadataMap.class, key, MetadataBuilder.class);
@@ -67,9 +74,82 @@ public class MapCodeGen {
         builder.addStatement("map.put($S, _map$L)", key, key);
     }
 
+    private void emitSerializeMapWithCollectionValue(MethodSpec.Builder builder, MetadataFieldInfo field,
+                                                      String getExpr, String key) {
+        TypeName innerElemTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getMapValueElementTypeName(),
+                field.isMapValueElementEnumType(), field.isMapValueElementNestedType());
+        TypeName collectionTypeName = ParameterizedTypeName.get(
+                ClassName.bestGuess(field.getMapValueCollectionKind()), innerElemTypeName);
+
+        builder.addStatement("$T _map$L = $T.createMap()", MetadataMap.class, key, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T<$T, $T> _entry : $L.entrySet())",
+                Map.Entry.class, String.class, collectionTypeName, getExpr);
+        builder.beginControlFlow("if (_entry.getValue() != null)");
+
+        builder.addStatement("$T _innerList$L = $T.createList()", MetadataList.class, key, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T _innerEl : _entry.getValue())", innerElemTypeName);
+        builder.beginControlFlow("if (_innerEl != null)");
+
+        CompositeCodeGenHelper.emitAddToList(builder, registry, "_innerList" + key, "_innerEl",
+                field.getMapValueElementTypeName(),
+                field.isMapValueElementEnumType(), field.isMapValueElementNestedType(),
+                field.getMapValueElementConverterFqn());
+
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // inner for
+        builder.addStatement("_map$L.put(_entry.getKey(), _innerList$L)", key, key);
+
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // outer for
+        builder.addStatement("map.put($S, _map$L)", key, key);
+    }
+
+    private void emitSerializeMapWithMapValue(MethodSpec.Builder builder, MetadataFieldInfo field,
+                                               String getExpr, String key) {
+        TypeName innerValTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getMapValueMapValueTypeName(),
+                field.isMapValueMapValueEnumType(), field.isMapValueMapValueNestedType());
+        ParameterizedTypeName innerMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class), TypeName.get(String.class), innerValTypeName);
+
+        builder.addStatement("$T _map$L = $T.createMap()", MetadataMap.class, key, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T<$T, $T> _entry : $L.entrySet())",
+                Map.Entry.class, String.class, innerMapType, getExpr);
+        builder.beginControlFlow("if (_entry.getValue() != null)");
+
+        builder.addStatement("$T _innerMap$L = $T.createMap()", MetadataMap.class, key, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T<$T, $T> _innerEntry : _entry.getValue().entrySet())",
+                Map.Entry.class, String.class, innerValTypeName);
+        builder.beginControlFlow("if (_innerEntry.getValue() != null)");
+
+        CompositeCodeGenHelper.emitPutToMap(builder, registry, "_innerMap" + key, "_innerEntry.getKey()", "_innerEntry.getValue()",
+                field.getMapValueMapValueTypeName(),
+                field.isMapValueMapValueEnumType(), field.isMapValueMapValueNestedType(),
+                field.getMapValueMapValueConverterFqn());
+
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // inner for
+        builder.addStatement("_map$L.put(_entry.getKey(), _innerMap$L)", key, key);
+
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // outer for
+        builder.addStatement("map.put($S, _map$L)", key, key);
+    }
+
     // --- Deserialization ---
 
     public void emitDeserializeFromMap(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        // Composite: Map<String, List<T>>
+        if (field.isMapValueCollectionType()) {
+            emitDeserializeMapWithCollectionValue(builder, field);
+            return;
+        }
+
+        // Composite: Map<String, Map<String, V>>
+        if (field.isMapValueMapType()) {
+            emitDeserializeMapWithMapValue(builder, field);
+            return;
+        }
+
         TypeName valueTypeName = resolveValueTypeName(field);
         ParameterizedTypeName mapType = ParameterizedTypeName.get(
                 ClassName.get(Map.class), TypeName.get(String.class), valueTypeName);
@@ -104,37 +184,90 @@ public class MapCodeGen {
         builder.endControlFlow(); // instanceof MetadataMap
     }
 
+    private void emitDeserializeMapWithCollectionValue(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        TypeName innerElemTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getMapValueElementTypeName(),
+                field.isMapValueElementEnumType(), field.isMapValueElementNestedType());
+
+        String collKind = field.getMapValueCollectionKind();
+        ClassName collInterface = ClassName.bestGuess(collKind);
+        ClassName collImpl = CompositeCodeGenHelper.collectionImplClass(collKind);
+
+        ParameterizedTypeName innerCollType = ParameterizedTypeName.get(collInterface, innerElemTypeName);
+        ParameterizedTypeName mapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class), TypeName.get(String.class), innerCollType);
+
+        builder.beginControlFlow("if (v instanceof $T)", MetadataMap.class);
+        builder.addStatement("$T _rawMap = ($T) v", MetadataMap.class, MetadataMap.class);
+        builder.addStatement("$T _result = new $T<>()", mapType, LinkedHashMap.class);
+        builder.beginControlFlow("for ($T _k : _rawMap.keys())", Object.class);
+        builder.beginControlFlow("if (_k instanceof $T)", String.class);
+        builder.addStatement("$T _val = _rawMap.get(($T) _k)", Object.class, String.class);
+
+        builder.beginControlFlow("if (_val instanceof $T)", MetadataList.class);
+        builder.addStatement("$T _innerRawList = ($T) _val", MetadataList.class, MetadataList.class);
+        builder.addStatement("$T _innerResult = new $T<>()", innerCollType, collImpl);
+        builder.beginControlFlow("for (int _j = 0; _j < _innerRawList.size(); _j++)");
+        builder.addStatement("$T _innerEl = _innerRawList.getValueAt(_j)", Object.class);
+
+        CompositeCodeGenHelper.emitDeserializeLeafFromRaw(builder, registry, "_innerResult", "_innerEl",
+                field.getMapValueElementTypeName(),
+                field.isMapValueElementEnumType(), field.isMapValueElementNestedType(),
+                field.getMapValueElementConverterFqn());
+
+        builder.endControlFlow(); // for _j
+        builder.addStatement("_result.put(($T) _k, _innerResult)", String.class);
+        builder.endControlFlow(); // if MetadataList
+
+        builder.endControlFlow(); // if key instanceof String
+        builder.endControlFlow(); // for _k
+        accessor.emitSetRaw(builder, field, "_result");
+        builder.endControlFlow(); // instanceof MetadataMap
+    }
+
+    private void emitDeserializeMapWithMapValue(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        TypeName innerValTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getMapValueMapValueTypeName(),
+                field.isMapValueMapValueEnumType(), field.isMapValueMapValueNestedType());
+        ParameterizedTypeName innerMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class), TypeName.get(String.class), innerValTypeName);
+        ParameterizedTypeName outerMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class), TypeName.get(String.class), innerMapType);
+
+        builder.beginControlFlow("if (v instanceof $T)", MetadataMap.class);
+        builder.addStatement("$T _rawMap = ($T) v", MetadataMap.class, MetadataMap.class);
+        builder.addStatement("$T _result = new $T<>()", outerMapType, LinkedHashMap.class);
+        builder.beginControlFlow("for ($T _k : _rawMap.keys())", Object.class);
+        builder.beginControlFlow("if (_k instanceof $T)", String.class);
+        builder.addStatement("$T _val = _rawMap.get(($T) _k)", Object.class, String.class);
+
+        builder.beginControlFlow("if (_val instanceof $T)", MetadataMap.class);
+        builder.addStatement("$T _innerRawMap = ($T) _val", MetadataMap.class, MetadataMap.class);
+        builder.addStatement("$T _innerResult = new $T<>()", innerMapType, LinkedHashMap.class);
+        builder.beginControlFlow("for ($T _innerK : _innerRawMap.keys())", Object.class);
+        builder.beginControlFlow("if (_innerK instanceof $T)", String.class);
+        builder.addStatement("$T _innerVal = _innerRawMap.get(($T) _innerK)", Object.class, String.class);
+
+        CompositeCodeGenHelper.emitDeserializeLeafFromRawToMap(builder, registry, "_innerResult", "_innerK", "_innerVal",
+                field.getMapValueMapValueTypeName(),
+                field.isMapValueMapValueEnumType(), field.isMapValueMapValueNestedType(),
+                field.getMapValueMapValueConverterFqn());
+
+        builder.endControlFlow(); // if _innerK instanceof String
+        builder.endControlFlow(); // for _innerK
+        builder.addStatement("_result.put(($T) _k, _innerResult)", String.class);
+        builder.endControlFlow(); // if MetadataMap
+
+        builder.endControlFlow(); // if key instanceof String
+        builder.endControlFlow(); // for _k
+        accessor.emitSetRaw(builder, field, "_result");
+        builder.endControlFlow(); // instanceof MetadataMap
+    }
+
+    // --- Type name resolution ---
+
     private TypeName resolveValueTypeName(MetadataFieldInfo field) {
         if (field.isMapValueEnumType() || field.isMapValueNestedType()) {
             return ClassName.bestGuess(field.getMapValueTypeName());
         }
-        return scalarTypeName(field.getMapValueTypeName());
-    }
-
-    private TypeName scalarTypeName(String typeName) {
-        return switch (typeName) {
-            case "java.lang.String"         -> TypeName.get(String.class);
-            case "java.math.BigInteger"     -> TypeName.get(BigInteger.class);
-            case "java.math.BigDecimal"     -> TypeName.get(BigDecimal.class);
-            case "java.lang.Long"           -> TypeName.get(Long.class);
-            case "java.lang.Integer"        -> TypeName.get(Integer.class);
-            case "java.lang.Short"          -> TypeName.get(Short.class);
-            case "java.lang.Byte"           -> TypeName.get(Byte.class);
-            case "java.lang.Boolean"        -> TypeName.get(Boolean.class);
-            case "java.lang.Double"         -> TypeName.get(Double.class);
-            case "java.lang.Float"          -> TypeName.get(Float.class);
-            case "java.lang.Character"      -> TypeName.get(Character.class);
-            case "byte[]"                   -> TypeName.get(byte[].class);
-            case "java.net.URI"             -> TypeName.get(URI.class);
-            case "java.net.URL"             -> TypeName.get(URL.class);
-            case "java.util.UUID"           -> TypeName.get(UUID.class);
-            case "java.util.Currency"       -> TypeName.get(Currency.class);
-            case "java.util.Locale"         -> TypeName.get(Locale.class);
-            case "java.time.Instant"        -> TypeName.get(Instant.class);
-            case "java.time.LocalDate"      -> TypeName.get(LocalDate.class);
-            case "java.time.LocalDateTime"  -> TypeName.get(LocalDateTime.class);
-            case "java.util.Date"           -> TypeName.get(Date.class);
-            default -> throw new IllegalArgumentException("Unsupported map value type: " + typeName);
-        };
+        return CompositeCodeGenHelper.scalarTypeName(field.getMapValueTypeName());
     }
 }

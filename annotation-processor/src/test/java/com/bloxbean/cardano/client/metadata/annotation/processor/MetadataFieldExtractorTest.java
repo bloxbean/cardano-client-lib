@@ -966,4 +966,244 @@ public class MetadataFieldExtractorTest {
             """);
         }
     }
+
+    // ── Composite type fields ─────────────────────────────────────────
+
+    @Nested
+    class CompositeFields {
+
+        @Test
+        void detectsMapStringListString() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isMapType());
+                assertTrue(f.isMapValueCollectionType());
+                assertEquals("java.util.List", f.getMapValueCollectionKind());
+                assertEquals("java.lang.String", f.getMapValueElementTypeName());
+                assertFalse(f.isMapValueElementEnumType());
+                assertFalse(f.isMapValueElementNestedType());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.Map;
+                import java.util.List;
+                @MetadataType
+                public class TestClass {
+                    private Map<String, List<String>> tagsByCategory;
+                    public Map<String, List<String>> getTagsByCategory() { return tagsByCategory; }
+                    public void setTagsByCategory(Map<String, List<String>> tagsByCategory) { this.tagsByCategory = tagsByCategory; }
+                }
+            """);
+        }
+
+        @Test
+        void detectsMapStringMapStringInteger() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isMapType());
+                assertTrue(f.isMapValueMapType());
+                assertEquals("java.lang.Integer", f.getMapValueMapValueTypeName());
+                assertFalse(f.isMapValueMapValueEnumType());
+                assertFalse(f.isMapValueMapValueNestedType());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.Map;
+                @MetadataType
+                public class TestClass {
+                    private Map<String, Map<String, Integer>> nestedScores;
+                    public Map<String, Map<String, Integer>> getNestedScores() { return nestedScores; }
+                    public void setNestedScores(Map<String, Map<String, Integer>> nestedScores) { this.nestedScores = nestedScores; }
+                }
+            """);
+        }
+
+        @Test
+        void detectsListListString() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isElementCollectionType());
+                assertEquals("java.util.List", f.getElementCollectionKind());
+                assertEquals("java.lang.String", f.getElementElementTypeName());
+                assertFalse(f.isElementElementEnumType());
+                assertFalse(f.isElementElementNestedType());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.List;
+                @MetadataType
+                public class TestClass {
+                    private List<List<String>> matrix;
+                    public List<List<String>> getMatrix() { return matrix; }
+                    public void setMatrix(List<List<String>> matrix) { this.matrix = matrix; }
+                }
+            """);
+        }
+
+        @Test
+        void detectsListMapStringString() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isElementMapType());
+                assertEquals("java.lang.String", f.getElementMapValueTypeName());
+                assertFalse(f.isElementMapValueEnumType());
+                assertFalse(f.isElementMapValueNestedType());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.List;
+                import java.util.Map;
+                @MetadataType
+                public class TestClass {
+                    private List<Map<String, String>> records;
+                    public List<Map<String, String>> getRecords() { return records; }
+                    public void setRecords(List<Map<String, String>> records) { this.records = records; }
+                }
+            """);
+        }
+
+        @Test
+        void detectsMapStringListEnum() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                MetadataFieldInfo f = r.fields.stream()
+                        .filter(fi -> fi.getJavaFieldName().equals("statusesByGroup"))
+                        .findFirst().orElseThrow();
+                assertTrue(f.isMapValueCollectionType());
+                assertTrue(f.isMapValueElementEnumType());
+                assertEquals("com.test.Priority", f.getMapValueElementTypeName());
+            },
+                JavaFileObjects.forSourceString("com.test.Priority", """
+                    package com.test;
+                    public enum Priority { LOW, MEDIUM, HIGH }
+                """),
+                JavaFileObjects.forSourceString("com.test.TestClass", """
+                    package com.test;
+                    import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                    import java.util.Map;
+                    import java.util.List;
+                    @MetadataType
+                    public class TestClass {
+                        private Map<String, List<Priority>> statusesByGroup;
+                        public Map<String, List<Priority>> getStatusesByGroup() { return statusesByGroup; }
+                        public void setStatusesByGroup(Map<String, List<Priority>> statusesByGroup) { this.statusesByGroup = statusesByGroup; }
+                    }
+                """)
+            );
+        }
+
+        @Test
+        void detectsMapStringListNested() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                MetadataFieldInfo f = r.fields.stream()
+                        .filter(fi -> fi.getJavaFieldName().equals("addressesByType"))
+                        .findFirst().orElseThrow();
+                assertTrue(f.isMapValueCollectionType());
+                assertTrue(f.isMapValueElementNestedType());
+                assertEquals("com.test.AddressMetadataConverter", f.getMapValueElementConverterFqn());
+            },
+                JavaFileObjects.forSourceString("com.test.Address", """
+                    package com.test;
+                    import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                    @MetadataType
+                    public class Address {
+                        public String street;
+                    }
+                """),
+                JavaFileObjects.forSourceString("com.test.TestClass", """
+                    package com.test;
+                    import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                    import java.util.Map;
+                    import java.util.List;
+                    @MetadataType
+                    public class TestClass {
+                        private Map<String, List<Address>> addressesByType;
+                        public Map<String, List<Address>> getAddressesByType() { return addressesByType; }
+                        public void setAddressesByType(Map<String, List<Address>> addressesByType) { this.addressesByType = addressesByType; }
+                    }
+                """)
+            );
+        }
+
+        @Test
+        void detectsListMapStringNested() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                MetadataFieldInfo f = r.fields.stream()
+                        .filter(fi -> fi.getJavaFieldName().equals("addressRecords"))
+                        .findFirst().orElseThrow();
+                assertTrue(f.isElementMapType());
+                assertTrue(f.isElementMapValueNestedType());
+                assertEquals("com.test.AddressMetadataConverter", f.getElementMapValueConverterFqn());
+            },
+                JavaFileObjects.forSourceString("com.test.Address", """
+                    package com.test;
+                    import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                    @MetadataType
+                    public class Address {
+                        public String street;
+                    }
+                """),
+                JavaFileObjects.forSourceString("com.test.TestClass", """
+                    package com.test;
+                    import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                    import java.util.List;
+                    import java.util.Map;
+                    @MetadataType
+                    public class TestClass {
+                        private List<Map<String, Address>> addressRecords;
+                        public List<Map<String, Address>> getAddressRecords() { return addressRecords; }
+                        public void setAddressRecords(List<Map<String, Address>> addressRecords) { this.addressRecords = addressRecords; }
+                    }
+                """)
+            );
+        }
+
+        @Test
+        void rejectsDoubleNesting() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertThat(r.compilation).hadWarningContaining("double-nested");
+                assertEquals(0, r.fields.size());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.Map;
+                import java.util.List;
+                @MetadataType
+                public class TestClass {
+                    private Map<String, List<List<String>>> deep;
+                    public Map<String, List<List<String>>> getDeep() { return deep; }
+                    public void setDeep(Map<String, List<List<String>>> deep) { this.deep = deep; }
+                }
+            """);
+        }
+
+        @Test
+        void rejectsInnerMapNonStringKey() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).failed();
+                assertThat(r.compilation).hadErrorContaining("inner Map key type must be java.lang.String");
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.Map;
+                @MetadataType
+                public class TestClass {
+                    private Map<String, Map<Integer, String>> badInner;
+                    public Map<String, Map<Integer, String>> getBadInner() { return badInner; }
+                    public void setBadInner(Map<String, Map<Integer, String>> badInner) { this.badInner = badInner; }
+                }
+            """);
+        }
+    }
 }

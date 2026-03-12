@@ -172,6 +172,78 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
         builder.endControlFlow();
     }
 
+    // --- Composite support: variable-name-parameterized methods ---
+
+    @Override
+    public void emitSerializeToListVar(MethodSpec.Builder builder, String listVar, String javaType) {
+        Object[] ser = serializeExpression("_innerEl", javaType);
+        String fmt = (String) ser[0];
+        if (ser.length == 1) {
+            builder.addStatement(listVar + ".add(" + fmt + ")");
+        } else {
+            Object[] args = new Object[ser.length - 1];
+            System.arraycopy(ser, 1, args, 0, args.length);
+            builder.addStatement(listVar + ".add(" + fmt + ")", args);
+        }
+    }
+
+    @Override
+    public void emitSerializeMapValueVar(MethodSpec.Builder builder, String mapVar,
+                                          String keyExpr, String javaType) {
+        Object[] ser = serializeExpression("_innerEntry.getValue()", javaType);
+        String fmt = (String) ser[0];
+        if (ser.length == 1) {
+            builder.addStatement(mapVar + ".put(" + keyExpr + ", " + fmt + ")");
+        } else {
+            Object[] args = new Object[ser.length - 1];
+            System.arraycopy(ser, 1, args, 0, args.length);
+            builder.addStatement(mapVar + ".put(" + keyExpr + ", " + fmt + ")", args);
+        }
+    }
+
+    @Override
+    public void emitDeserializeToCollectionVar(MethodSpec.Builder builder, String resultVar,
+                                                String rawVar, String javaType) {
+        Class<?> chain = onChainType(javaType);
+        if (chain == byte[].class) {
+            builder.beginControlFlow("if ($L instanceof byte[])", rawVar);
+        } else {
+            builder.beginControlFlow("if ($L instanceof $T)", rawVar, chain);
+        }
+        Object[] deser = deserializeExpression(rawVar, javaType);
+        String fmt = (String) deser[0];
+        if (deser.length == 1) {
+            builder.addStatement(resultVar + ".add(" + fmt + ")");
+        } else {
+            Object[] args = new Object[deser.length - 1];
+            System.arraycopy(deser, 1, args, 0, args.length);
+            builder.addStatement(resultVar + ".add(" + fmt + ")", args);
+        }
+        builder.endControlFlow();
+    }
+
+    @Override
+    public void emitDeserializeToMapVar(MethodSpec.Builder builder, String resultVar,
+                                         String keyExpr, String rawVar, String javaType) {
+        Class<?> chain = onChainType(javaType);
+        if (chain == byte[].class) {
+            builder.beginControlFlow("if ($L instanceof byte[])", rawVar);
+        } else {
+            builder.beginControlFlow("if ($L instanceof $T)", rawVar, chain);
+        }
+        Object[] deser = deserializeExpression(rawVar, javaType);
+        String fmt = (String) deser[0];
+        if (deser.length == 1) {
+            builder.addStatement(resultVar + ".put(($T) " + keyExpr + ", " + fmt + ")", String.class);
+        } else {
+            Object[] args = new Object[deser.length];
+            args[0] = String.class;
+            System.arraycopy(deser, 1, args, 1, deser.length - 1);
+            builder.addStatement(resultVar + ".put(($T) " + keyExpr + ", " + fmt + ")", args);
+        }
+        builder.endControlFlow();
+    }
+
     // --- Internal helpers ---
 
     /**

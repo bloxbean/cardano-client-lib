@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.metadata.MetadataList;
+import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGen;
@@ -11,17 +12,7 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.net.URI;
-import java.net.URL;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.Currency;
-import java.util.Date;
-import java.util.Locale;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Code generation for {@code List<T>}, {@code Set<T>}, and {@code SortedSet<T>} fields.
@@ -51,6 +42,19 @@ public class CollectionCodeGen {
     public void emitSerializeToMap(MethodSpec.Builder builder, MetadataFieldInfo field,
                                    String getExpr) {
         String key = field.getMetadataKey();
+
+        // Composite: List<List<T>>
+        if (field.isElementCollectionType()) {
+            emitSerializeCollectionOfCollection(builder, field, getExpr, key);
+            return;
+        }
+
+        // Composite: List<Map<String, V>>
+        if (field.isElementMapType()) {
+            emitSerializeCollectionOfMap(builder, field, getExpr, key);
+            return;
+        }
+
         TypeName elemTypeName = elementTypeName(field);
 
         builder.addStatement("$T _list = $T.createList()", MetadataList.class, MetadataBuilder.class);
@@ -71,31 +75,92 @@ public class CollectionCodeGen {
         builder.addStatement("map.put($S, _list)", key);
     }
 
+    private void emitSerializeCollectionOfCollection(MethodSpec.Builder builder, MetadataFieldInfo field,
+                                                      String getExpr, String key) {
+        TypeName innerElemTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getElementElementTypeName(),
+                field.isElementElementEnumType(), field.isElementElementNestedType());
+
+        String innerCollKind = field.getElementCollectionKind();
+        ClassName innerCollInterface = ClassName.bestGuess(innerCollKind);
+        ParameterizedTypeName innerCollType = ParameterizedTypeName.get(innerCollInterface, innerElemTypeName);
+
+        builder.addStatement("$T _list = $T.createList()", MetadataList.class, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T _el : $L)", innerCollType, getExpr);
+        builder.beginControlFlow("if (_el != null)");
+
+        builder.addStatement("$T _innerList = $T.createList()", MetadataList.class, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T _innerEl : _el)", innerElemTypeName);
+        builder.beginControlFlow("if (_innerEl != null)");
+
+        CompositeCodeGenHelper.emitAddToList(builder, registry, "_innerList", "_innerEl",
+                field.getElementElementTypeName(),
+                field.isElementElementEnumType(), field.isElementElementNestedType(),
+                field.getElementElementConverterFqn());
+
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // inner for
+        builder.addStatement("_list.add(_innerList)");
+
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // outer for
+        builder.addStatement("map.put($S, _list)", key);
+    }
+
+    private void emitSerializeCollectionOfMap(MethodSpec.Builder builder, MetadataFieldInfo field,
+                                               String getExpr, String key) {
+        TypeName innerValTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getElementMapValueTypeName(),
+                field.isElementMapValueEnumType(), field.isElementMapValueNestedType());
+        ParameterizedTypeName innerMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class), TypeName.get(String.class), innerValTypeName);
+
+        builder.addStatement("$T _list = $T.createList()", MetadataList.class, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T _el : $L)", innerMapType, getExpr);
+        builder.beginControlFlow("if (_el != null)");
+
+        builder.addStatement("$T _innerMap = $T.createMap()", MetadataMap.class, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T<$T, $T> _innerEntry : _el.entrySet())",
+                Map.Entry.class, String.class, innerValTypeName);
+        builder.beginControlFlow("if (_innerEntry.getValue() != null)");
+
+        CompositeCodeGenHelper.emitPutToMap(builder, registry, "_innerMap", "_innerEntry.getKey()", "_innerEntry.getValue()",
+                field.getElementMapValueTypeName(),
+                field.isElementMapValueEnumType(), field.isElementMapValueNestedType(),
+                field.getElementMapValueConverterFqn());
+
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // inner for
+        builder.addStatement("_list.add(_innerMap)");
+
+        builder.endControlFlow(); // if not null
+        builder.endControlFlow(); // outer for
+        builder.addStatement("map.put($S, _list)", key);
+    }
+
     // --- Deserialization ---
 
     public void emitDeserializeFromMap(MethodSpec.Builder builder, MetadataFieldInfo field) {
-        String javaType = field.getJavaTypeName();
-        ClassName interfaceClass;
-        ClassName implClass;
-
-        if (javaType.startsWith("java.util.List<")) {
-            interfaceClass = ClassName.get("java.util", "List");
-            implClass = ClassName.get("java.util", "ArrayList");
-        } else if (javaType.startsWith("java.util.Set<")) {
-            interfaceClass = ClassName.get("java.util", "Set");
-            implClass = ClassName.get("java.util", "LinkedHashSet");
-        } else {
-            interfaceClass = ClassName.get("java.util", "SortedSet");
-            implClass = ClassName.get("java.util", "TreeSet");
+        // Composite: List<List<T>>
+        if (field.isElementCollectionType()) {
+            emitDeserializeCollectionOfCollection(builder, field);
+            return;
         }
+
+        // Composite: List<Map<String, V>>
+        if (field.isElementMapType()) {
+            emitDeserializeCollectionOfMap(builder, field);
+            return;
+        }
+
+        String javaType = field.getJavaTypeName();
+        CollectionTypeInfo typeInfo = resolveCollectionTypeInfo(javaType);
 
         TypeName elemTypeName = elementTypeName(field);
         ParameterizedTypeName collectionType =
-                ParameterizedTypeName.get(interfaceClass, elemTypeName);
+                ParameterizedTypeName.get(typeInfo.interfaceClass, elemTypeName);
 
         builder.beginControlFlow("if (v instanceof $T)", MetadataList.class);
         builder.addStatement("$T _rawList = ($T) v", MetadataList.class, MetadataList.class);
-        builder.addStatement("$T _result = new $T<>()", collectionType, implClass);
+        builder.addStatement("$T _result = new $T<>()", collectionType, typeInfo.implClass);
         builder.beginControlFlow("for (int _i = 0; _i < _rawList.size(); _i++)");
         builder.addStatement("$T _el = _rawList.getValueAt(_i)", Object.class);
 
@@ -113,36 +178,108 @@ public class CollectionCodeGen {
         builder.endControlFlow(); // instanceof MetadataList
     }
 
-    // --- Helper ---
+    private void emitDeserializeCollectionOfCollection(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        String javaType = field.getJavaTypeName();
+        CollectionTypeInfo outer = resolveCollectionTypeInfo(javaType);
+
+        TypeName innerElemTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getElementElementTypeName(),
+                field.isElementElementEnumType(), field.isElementElementNestedType());
+
+        String innerCollKind = field.getElementCollectionKind();
+        ClassName innerCollInterface = ClassName.bestGuess(innerCollKind);
+        ClassName innerCollImpl = CompositeCodeGenHelper.collectionImplClass(innerCollKind);
+        ParameterizedTypeName innerCollType = ParameterizedTypeName.get(innerCollInterface, innerElemTypeName);
+
+        ParameterizedTypeName outerCollType = ParameterizedTypeName.get(outer.interfaceClass, innerCollType);
+
+        builder.beginControlFlow("if (v instanceof $T)", MetadataList.class);
+        builder.addStatement("$T _rawList = ($T) v", MetadataList.class, MetadataList.class);
+        builder.addStatement("$T _result = new $T<>()", outerCollType, outer.implClass);
+        builder.beginControlFlow("for (int _i = 0; _i < _rawList.size(); _i++)");
+        builder.addStatement("$T _el = _rawList.getValueAt(_i)", Object.class);
+
+        builder.beginControlFlow("if (_el instanceof $T)", MetadataList.class);
+        builder.addStatement("$T _innerRawList = ($T) _el", MetadataList.class, MetadataList.class);
+        builder.addStatement("$T _innerResult = new $T<>()", innerCollType, innerCollImpl);
+        builder.beginControlFlow("for (int _j = 0; _j < _innerRawList.size(); _j++)");
+        builder.addStatement("$T _innerEl = _innerRawList.getValueAt(_j)", Object.class);
+
+        CompositeCodeGenHelper.emitDeserializeLeafFromRaw(builder, registry, "_innerResult", "_innerEl",
+                field.getElementElementTypeName(),
+                field.isElementElementEnumType(), field.isElementElementNestedType(),
+                field.getElementElementConverterFqn());
+
+        builder.endControlFlow(); // for _j
+        builder.addStatement("_result.add(_innerResult)");
+        builder.endControlFlow(); // if MetadataList
+
+        builder.endControlFlow(); // for _i
+        accessor.emitSetRaw(builder, field, "_result");
+        builder.endControlFlow(); // instanceof MetadataList
+    }
+
+    private void emitDeserializeCollectionOfMap(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        String javaType = field.getJavaTypeName();
+        CollectionTypeInfo outer = resolveCollectionTypeInfo(javaType);
+
+        TypeName innerValTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getElementMapValueTypeName(),
+                field.isElementMapValueEnumType(), field.isElementMapValueNestedType());
+        ParameterizedTypeName innerMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class), TypeName.get(String.class), innerValTypeName);
+        ParameterizedTypeName outerCollType = ParameterizedTypeName.get(outer.interfaceClass, innerMapType);
+
+        builder.beginControlFlow("if (v instanceof $T)", MetadataList.class);
+        builder.addStatement("$T _rawList = ($T) v", MetadataList.class, MetadataList.class);
+        builder.addStatement("$T _result = new $T<>()", outerCollType, outer.implClass);
+        builder.beginControlFlow("for (int _i = 0; _i < _rawList.size(); _i++)");
+        builder.addStatement("$T _el = _rawList.getValueAt(_i)", Object.class);
+
+        builder.beginControlFlow("if (_el instanceof $T)", MetadataMap.class);
+        builder.addStatement("$T _innerRawMap = ($T) _el", MetadataMap.class, MetadataMap.class);
+        builder.addStatement("$T _innerResult = new $T<>()", innerMapType, LinkedHashMap.class);
+        builder.beginControlFlow("for ($T _innerK : _innerRawMap.keys())", Object.class);
+        builder.beginControlFlow("if (_innerK instanceof $T)", String.class);
+        builder.addStatement("$T _innerVal = _innerRawMap.get(($T) _innerK)", Object.class, String.class);
+
+        CompositeCodeGenHelper.emitDeserializeLeafFromRawToMap(builder, registry, "_innerResult", "_innerK", "_innerVal",
+                field.getElementMapValueTypeName(),
+                field.isElementMapValueEnumType(), field.isElementMapValueNestedType(),
+                field.getElementMapValueConverterFqn());
+
+        builder.endControlFlow(); // if _innerK instanceof String
+        builder.endControlFlow(); // for _innerK
+        builder.addStatement("_result.add(_innerResult)");
+        builder.endControlFlow(); // if MetadataMap
+
+        builder.endControlFlow(); // for _i
+        accessor.emitSetRaw(builder, field, "_result");
+        builder.endControlFlow(); // instanceof MetadataList
+    }
+
+    // --- Type helpers ---
+
+    private record CollectionTypeInfo(ClassName interfaceClass, ClassName implClass) {}
+
+    private CollectionTypeInfo resolveCollectionTypeInfo(String javaType) {
+        if (javaType.startsWith("java.util.List<")) {
+            return new CollectionTypeInfo(
+                    ClassName.get("java.util", "List"),
+                    ClassName.get("java.util", "ArrayList"));
+        } else if (javaType.startsWith("java.util.Set<")) {
+            return new CollectionTypeInfo(
+                    ClassName.get("java.util", "Set"),
+                    ClassName.get("java.util", "LinkedHashSet"));
+        } else {
+            return new CollectionTypeInfo(
+                    ClassName.get("java.util", "SortedSet"),
+                    ClassName.get("java.util", "TreeSet"));
+        }
+    }
 
     private TypeName elementTypeName(MetadataFieldInfo field) {
         if (field.isElementEnumType() || field.isElementNestedType()) {
             return ClassName.bestGuess(field.getElementTypeName());
         }
-        return switch (field.getElementTypeName()) {
-            case "java.lang.String"         -> TypeName.get(String.class);
-            case "java.math.BigInteger"     -> TypeName.get(BigInteger.class);
-            case "java.math.BigDecimal"     -> TypeName.get(BigDecimal.class);
-            case "java.lang.Long"           -> TypeName.get(Long.class);
-            case "java.lang.Integer"        -> TypeName.get(Integer.class);
-            case "java.lang.Short"          -> TypeName.get(Short.class);
-            case "java.lang.Byte"           -> TypeName.get(Byte.class);
-            case "java.lang.Boolean"        -> TypeName.get(Boolean.class);
-            case "java.lang.Double"         -> TypeName.get(Double.class);
-            case "java.lang.Float"          -> TypeName.get(Float.class);
-            case "java.lang.Character"      -> TypeName.get(Character.class);
-            case "byte[]"                   -> TypeName.get(byte[].class);
-            case "java.net.URI"             -> TypeName.get(URI.class);
-            case "java.net.URL"             -> TypeName.get(URL.class);
-            case "java.util.UUID"           -> TypeName.get(UUID.class);
-            case "java.util.Currency"       -> TypeName.get(Currency.class);
-            case "java.util.Locale"         -> TypeName.get(Locale.class);
-            case "java.time.Instant"        -> TypeName.get(Instant.class);
-            case "java.time.LocalDate"      -> TypeName.get(LocalDate.class);
-            case "java.time.LocalDateTime"  -> TypeName.get(LocalDateTime.class);
-            case "java.util.Date"           -> TypeName.get(Date.class);
-            default -> throw new IllegalArgumentException(
-                    "Unsupported collection element type: " + field.getElementTypeName());
-        };
+        return CompositeCodeGenHelper.scalarTypeName(field.getElementTypeName());
     }
 }

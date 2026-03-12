@@ -146,6 +146,7 @@ public class MetadataConverterGenerator {
             } else {
                 optionalCodeGen.emitSerializeToMap(builder, field, getExpr);
             }
+
             return;
         }
 
@@ -163,14 +164,14 @@ public class MetadataConverterGenerator {
 
         // byte[] encoding variants
         switch (enc) {
-            case STRING_HEX:
+            case STRING_HEX -> {
                 registry.getByteArrayCodeGen().emitSerializeHex(builder, key, getExpr);
                 return;
-            case STRING_BASE64:
+            }
+            case STRING_BASE64 -> {
                 registry.getByteArrayCodeGen().emitSerializeBase64(builder, key, getExpr);
                 return;
-            default:
-                break;
+            }
         }
 
         // Scalar dispatch

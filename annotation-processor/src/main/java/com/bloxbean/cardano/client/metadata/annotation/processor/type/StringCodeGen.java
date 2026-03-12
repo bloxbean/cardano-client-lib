@@ -150,6 +150,73 @@ public class StringCodeGen implements MetadataTypeCodeGen {
         builder.endControlFlow();
     }
 
+    // --- Composite support ---
+
+    @Override
+    public void emitSerializeToListVar(MethodSpec.Builder builder, String listVar, String javaType) {
+        builder.beginControlFlow("if (_innerEl.getBytes($T.UTF_8).length > 64)", StandardCharsets.class);
+        builder.addStatement("$T _elChunks = $T.createList()", MetadataList.class, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T _part : $T.splitStringEveryNCharacters(_innerEl, 64))",
+                String.class, STRING_UTILS);
+        builder.addStatement("_elChunks.add(_part)");
+        builder.endControlFlow();
+        builder.addStatement(listVar + ".add(_elChunks)");
+        builder.nextControlFlow("else");
+        builder.addStatement(listVar + ".add(_innerEl)");
+        builder.endControlFlow();
+    }
+
+    @Override
+    public void emitSerializeMapValueVar(MethodSpec.Builder builder, String mapVar,
+                                          String keyExpr, String javaType) {
+        builder.beginControlFlow("if (_innerEntry.getValue().getBytes($T.UTF_8).length > 64)", StandardCharsets.class);
+        builder.addStatement("$T _valChunks = $T.createList()", MetadataList.class, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T _part : $T.splitStringEveryNCharacters(_innerEntry.getValue(), 64))",
+                String.class, STRING_UTILS);
+        builder.addStatement("_valChunks.add(_part)");
+        builder.endControlFlow();
+        builder.addStatement(mapVar + ".put(" + keyExpr + ", _valChunks)");
+        builder.nextControlFlow("else");
+        builder.addStatement(mapVar + ".put(" + keyExpr + ", _innerEntry.getValue())");
+        builder.endControlFlow();
+    }
+
+    @Override
+    public void emitDeserializeToCollectionVar(MethodSpec.Builder builder, String resultVar,
+                                                String rawVar, String javaType) {
+        builder.beginControlFlow("if ($L instanceof $T)", rawVar, String.class);
+        builder.addStatement("$L.add(($T) $L)", resultVar, String.class, rawVar);
+        builder.nextControlFlow("else if ($L instanceof $T)", rawVar, MetadataList.class);
+        builder.addStatement("$T _sb = new $T()", StringBuilder.class, StringBuilder.class);
+        builder.addStatement("$T _chunkList = ($T) $L", MetadataList.class, MetadataList.class, rawVar);
+        builder.beginControlFlow("for (int _ci = 0; _ci < _chunkList.size(); _ci++)");
+        builder.addStatement("$T _chunk = _chunkList.getValueAt(_ci)", Object.class);
+        builder.beginControlFlow("if (_chunk instanceof $T)", String.class);
+        builder.addStatement("_sb.append(($T) _chunk)", String.class);
+        builder.endControlFlow();
+        builder.endControlFlow();
+        builder.addStatement("$L.add(_sb.toString())", resultVar);
+        builder.endControlFlow();
+    }
+
+    @Override
+    public void emitDeserializeToMapVar(MethodSpec.Builder builder, String resultVar,
+                                         String keyExpr, String rawVar, String javaType) {
+        builder.beginControlFlow("if ($L instanceof $T)", rawVar, String.class);
+        builder.addStatement("$L.put(($T) $L, ($T) $L)", resultVar, String.class, keyExpr, String.class, rawVar);
+        builder.nextControlFlow("else if ($L instanceof $T)", rawVar, MetadataList.class);
+        builder.addStatement("$T _sb = new $T()", StringBuilder.class, StringBuilder.class);
+        builder.addStatement("$T _chunkList = ($T) $L", MetadataList.class, MetadataList.class, rawVar);
+        builder.beginControlFlow("for (int _ci = 0; _ci < _chunkList.size(); _ci++)");
+        builder.addStatement("$T _chunk = _chunkList.getValueAt(_ci)", Object.class);
+        builder.beginControlFlow("if (_chunk instanceof $T)", String.class);
+        builder.addStatement("_sb.append(($T) _chunk)", String.class);
+        builder.endControlFlow();
+        builder.endControlFlow();
+        builder.addStatement("$L.put(($T) $L, _sb.toString())", resultVar, String.class, keyExpr);
+        builder.endControlFlow();
+    }
+
     // --- Internal helpers ---
 
     private void emitStringToMap(MethodSpec.Builder builder, String key, String getExpr) {
