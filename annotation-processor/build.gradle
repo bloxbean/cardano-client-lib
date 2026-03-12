@@ -17,25 +17,60 @@ dependencies {
 
     testAnnotationProcessor project(':annotation-processor')
 
-    integrationTestImplementation libs.google.testing.compile
-    integrationTestImplementation libs.lombok
+    codegenTestImplementation libs.google.testing.compile
+    codegenTestImplementation libs.lombok
+    codegenTestAnnotationProcessor project(':annotation-processor')
+
+    integrationTestImplementation project(':it-support')
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation project(':quicktx')
+    integrationTestImplementation(libs.scalus.bloxbean) {
+        exclude group: 'com.bloxbean.cardano'
+    }
+    integrationTestImplementation(libs.slf4j.reload4j)
     integrationTestAnnotationProcessor project(':annotation-processor')
+    integrationTestCompileOnly libs.lombok
+    integrationTestAnnotationProcessor libs.lombok
+}
+
+// Ensure blueprint JSON is on the classpath during annotation processing
+tasks.named('compileIntegrationTestJava') {
+    classpath += files(sourceSets.integrationTest.resources.srcDirs)
+}
+
+// Codegen test without shared type registry
+// Verifies blueprint processing works when no BlueprintTypeRegistry is active
+tasks.register('compileCodegenTestNoRegistryJava', JavaCompile) {
+    source = sourceSets.codegenTest.java
+    classpath = sourceSets.codegenTest.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('classes/java/codegenTestNoRegistry')
+    options.annotationProcessorPath = configurations.codegenTestAnnotationProcessor
+    options.compilerArgs += ['-Acardano.registry.enable=false']
+}
+
+tasks.register('codegenTestNoRegistry') {
+    dependsOn 'compileCodegenTestNoRegistryJava'
+    group = 'verification'
+    description = 'Compile codegen tests with shared type registry disabled'
 }
 
 // Integration test without shared type registry
-// Verifies blueprint processing works when no BlueprintTypeRegistry is active
+// Recompiles integration test sources with registry disabled, then runs them against the devnet
 tasks.register('compileIntegrationTestNoRegistryJava', JavaCompile) {
     source = sourceSets.integrationTest.java
-    classpath = sourceSets.integrationTest.compileClasspath
+    classpath = sourceSets.integrationTest.compileClasspath + files(sourceSets.integrationTest.resources.srcDirs)
     destinationDirectory = layout.buildDirectory.dir('classes/java/integrationTestNoRegistry')
     options.annotationProcessorPath = configurations.integrationTestAnnotationProcessor
     options.compilerArgs += ['-Acardano.registry.enable=false']
 }
 
-tasks.register('integrationTestNoRegistry') {
-    dependsOn 'compileIntegrationTestNoRegistryJava'
+tasks.register('integrationTestNoRegistry', Test) {
+    dependsOn 'compileIntegrationTestNoRegistryJava', 'processIntegrationTestResources'
+    testClassesDirs = files(layout.buildDirectory.dir('classes/java/integrationTestNoRegistry'))
+    classpath = files(layout.buildDirectory.dir('classes/java/integrationTestNoRegistry')) + sourceSets.integrationTest.runtimeClasspath
+    useJUnitPlatform()
     group = 'verification'
-    description = 'Compile integration tests with shared type registry disabled'
+    description = 'Run integration tests with shared type registry disabled'
 }
 
 publishing {

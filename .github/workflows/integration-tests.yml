@@ -1,46 +1,88 @@
-name: Integration Tests
+name: Integration Tests (Devnet)
 
-# Runs integration tests for modules that are self-contained (no external services required).
-# We will add more modules here as they become eligible (e.g. when Yaci DevKit or other
-# services can be spun up as GitHub Actions services).
-#
-# Modules currently EXCLUDED and why:
-#
-#   hd-wallet                - requires Yaci DevKit (local Cardano devnet, localhost:8080)
-#   quicktx                  - requires Yaci DevKit (localhost:8080)
-#   txflow                   - requires Yaci DevKit (localhost:8080 + admin API localhost:10000)
-#   backend-modules/ogmios   - requires Ogmios (localhost:1337) and Kupo (localhost:1442)
-#   supplier/ogmios-supplier - requires Ogmios (localhost:1337)
-#   integration-test         - requires Blockfrost API key (BF_PROJECT_ID)
-#   backend-modules/koios    - hits live Koios preprod network (public API, no auth, but flaky in CI)
-#   backend-modules/cardano-graphql - requires a running CardanoGraphQL server
+# Runs integration tests that require a local Cardano devnet (yaci-devkit).
+# These tests generate code from blueprint JSON via annotation processor,
+# then deploy, lock, and unlock funds against a real Cardano devnet.
 
 on:
   push:
   pull_request:
     branches:
       - master
+  workflow_dispatch:
 
 jobs:
   integration-tests:
+    name: Integration Tests (Cardano Dev-Net)
     runs-on: ubuntu-latest
+
     steps:
+      # Clone the repo including any git submodules (e.g. verified-structures)
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: 'true'
+
+      # Gradle build requires JDK 17
       - name: Set up JDK 17
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      # Node.js required for npm-based yaci-devkit
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.8.0'
+
+      # Install yaci-devkit CLI via npm
+      - name: Install Yaci DevKit
+        run: npm install -g @bloxbean/yaci-devkit
+
+      # Start a local Cardano devnet using yaci-devkit.
+      # Exposes Store API on :8080 (Blockfrost-compatible) and Admin API on :10000 (topup, reset).
+      - name: Start Yaci DevKit
+        run: nohup yaci-devkit up --enable-yaci-store &
+
+      # Wait for the Store API to be ready (up to ~2.5 min).
+      - name: Wait for devnet to be ready
+        run: |
+          echo "Waiting for Store API to be ready..."
+          for i in $(seq 1 30); do
+            if nc -z localhost 8080 2>/dev/null; then
+              echo "Store API is ready!"
+              break
+            fi
+            echo "Attempt $i/30 - Store API not ready yet, waiting..."
+            sleep 5
+          done
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # annotation-processor: self-contained — runs the annotation processor on blueprint POJOs
-      # during compilation and verifies the generated converter classes. No network calls.
-      - name: Run annotation-processor integration tests (with shared type registry)
-        run: ./gradlew :annotation-processor:integrationTest -PskipSigning=true --stacktrace
+      # Runs the annotation-processor integration tests:
+      # 1. Annotation processor generates validator classes from blueprint JSON (plutus.json)
+      # 2. Tests deploy the Plutus V3 script, lock ADA, and unlock ADA against the live devnet
+      - name: Run integration tests
+        run: ./gradlew :annotation-processor:integrationTest :annotation-processor:integrationTestNoRegistry -PskipSigning=true --info --stacktrace
 
-      - name: Run annotation-processor integration tests (without shared type registry)
-        run: ./gradlew :annotation-processor:integrationTestNoRegistry -PskipSigning=true --stacktrace
+      # Upload Gradle HTML test report and JUnit XML results as artifacts
+      # so full stack traces are available even when the job fails
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            annotation-processor/build/reports/tests/integrationTest/
+            annotation-processor/build/test-results/integrationTest/
+
+      - name: Upload no-registry test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-no-registry
+          path: |
+            annotation-processor/build/reports/tests/integrationTestNoRegistry/
+            annotation-processor/build/test-results/integrationTestNoRegistry/
