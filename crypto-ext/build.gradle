@@ -1,0 +1,17 @@
+dependencies {
+    api project(':crypto')
+    implementation project(':common')
+    implementation(libs.i2p.crypto.eddsa)
+    implementation(libs.bouncycastle.bcprov)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Crypto Extensions'
+                description = 'Cardano Client Lib - KES and VRF Crypto Primitives'
+            }
+        }
+    }
+}
