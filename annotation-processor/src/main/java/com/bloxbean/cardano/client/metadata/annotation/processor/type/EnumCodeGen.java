@@ -26,7 +26,7 @@ public class EnumCodeGen {
         builder.addStatement("map.put($S, $L.name())", field.getMetadataKey(), getExpr);
     }
 
-    /** Serialize Optional<EnumType> to map. */
+    /** Serialize {@code Optional<EnumType>} to map. */
     public void emitSerializeOptionalToMap(MethodSpec.Builder builder, MetadataFieldInfo field,
                                            String getExpr) {
         builder.beginControlFlow("if ($L.isPresent())", getExpr);
