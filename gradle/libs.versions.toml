@@ -44,3 +44,8 @@ hikaricp = "com.zaxxer:HikariCP:7.0.2"
 postgresql = "org.postgresql:postgresql:42.7.10"
 h2database = "com.h2database:h2:2.4.240"
 sqlite-jdbc = "org.xerial:sqlite-jdbc:3.51.2.0"
+
+# Scala / Scalus
+scala3-library = "org.scala-lang:scala3-library_3:3.3.4"
+scalus-bloxbean-cardano-client-lib = "org.scalus:scalus-bloxbean-cardano-client-lib_3:0.16.0"
+scalus-cardano-ledger = "org.scalus:scalus-cardano-ledger_3:0.16.0"

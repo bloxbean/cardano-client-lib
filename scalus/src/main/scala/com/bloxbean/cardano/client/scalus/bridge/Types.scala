@@ -23,6 +23,12 @@ class SubmitResult(
 )
 
 /**
+ * Result of script evaluation with computed ExUnits.
+ * Java-facing — no Scala types exposed.
+ */
+class EvaluationEntry(val tag: String, val index: Int, val memory: Long, val steps: Long)
+
+/**
  * Opaque handle wrapping Scalus SlotConfig.
  * Java code treats this as an opaque token.
  */

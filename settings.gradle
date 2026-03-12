@@ -16,6 +16,7 @@ include 'txflow'
 include 'annotation-processor'
 include 'hd-wallet'
 include 'governance'
+include 'ledger'
 
 //CIPs
 include 'cip'

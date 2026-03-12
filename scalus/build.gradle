@@ -3,9 +3,13 @@ apply plugin: 'scala'
 dependencies {
     api project(':core-api')
 
-    implementation 'org.scala-lang:scala3-library_3:3.3.4'
-    implementation 'org.scalus:scalus-bloxbean-cardano-client-lib_3:0.15.0'
-    implementation 'org.scalus:scalus-cardano-ledger_3:0.15.0'
+    implementation libs.scala3.library
+    implementation(libs.scalus.bloxbean.cardano.client.lib) {
+        exclude group: 'com.bloxbean.cardano'
+    }
+    implementation(libs.scalus.cardano.ledger) {
+        exclude group: 'com.bloxbean.cardano'
+    }
 
     implementation project(':backend')
     implementation project(':quicktx')

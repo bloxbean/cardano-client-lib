@@ -1,0 +1,22 @@
+dependencies {
+    api project(':core-api')
+    implementation project(':address')
+    implementation project(':crypto')
+
+    integrationTestImplementation project(':it-support')
+    integrationTestImplementation project(':core')
+    integrationTestImplementation project(':quicktx')
+    integrationTestImplementation project(':backend-modules:blockfrost')
+    integrationTestImplementation(libs.slf4j.reload4j)
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            pom {
+                name = 'Cardano Client Ledger module'
+                description = 'Cardano Client Lib - Ledger Rule Validation Module'
+            }
+        }
+    }
+}
