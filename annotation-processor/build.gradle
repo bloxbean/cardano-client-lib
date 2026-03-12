@@ -23,7 +23,9 @@ dependencies {
     integrationTestImplementation project(':it-support')
     integrationTestImplementation project(':backend-modules:blockfrost')
     integrationTestImplementation project(':quicktx')
-    integrationTestImplementation libs.scalus.bloxbean
+    integrationTestImplementation(libs.scalus.bloxbean) {
+        exclude group: 'com.bloxbean.cardano'
+    }
     integrationTestImplementation(libs.slf4j.reload4j)
     integrationTestAnnotationProcessor project(':annotation-processor')
     integrationTestCompileOnly libs.lombok
