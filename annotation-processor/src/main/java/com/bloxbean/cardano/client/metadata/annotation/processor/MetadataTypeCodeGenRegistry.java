@@ -31,8 +31,15 @@ public class MetadataTypeCodeGenRegistry {
         register(new BooleanCodeGen());
         register(new FloatingPointCodeGen());
         register(new CharCodeGen());
-        register(new StringCoercibleCodeGen());
-        register(new TemporalCodeGen());
+        register(new UriCodeGen());
+        register(new UrlCodeGen());
+        register(new UuidCodeGen());
+        register(new CurrencyCodeGen());
+        register(new LocaleCodeGen());
+        register(new InstantCodeGen());
+        register(new LocalDateCodeGen());
+        register(new LocalDateTimeCodeGen());
+        register(new DateCodeGen());
     }
 
     private void register(MetadataTypeCodeGen codeGen) {
