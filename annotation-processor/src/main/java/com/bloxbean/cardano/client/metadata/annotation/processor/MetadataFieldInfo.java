@@ -1,13 +1,19 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor;
 
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 /**
  * Holds metadata about a single field in a {@code @MetadataType} annotated class,
  * used by the code generator to produce converter methods.
  */
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class MetadataFieldInfo {
 
     /** Java field name */
@@ -27,6 +33,7 @@ public class MetadataFieldInfo {
      * How this field should be stored in / read from Cardano metadata.
      * Defaults to {@link MetadataFieldType#DEFAULT}.
      */
+    @Builder.Default
     private MetadataFieldType enc = MetadataFieldType.DEFAULT;
 
     /**
