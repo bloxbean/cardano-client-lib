@@ -1,5 +1,6 @@
-package com.bloxbean.cardano.client.metadata.annotation.processor;
+package com.bloxbean.cardano.client.metadata.annotation.processor.it;
 
+import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataAnnotationProcessor;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.JavaFileObjects;
 import org.junit.jupiter.api.Test;
@@ -10,7 +11,7 @@ import static com.google.testing.compile.CompilationSubject.assertThat;
 import static com.google.testing.compile.Compiler.javac;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class MetadataAnnotationProcessorTest {
+class MetadataAnnotationProcessorTest {
 
     @Test
     void testCompile_sampleOrder() throws IOException {
