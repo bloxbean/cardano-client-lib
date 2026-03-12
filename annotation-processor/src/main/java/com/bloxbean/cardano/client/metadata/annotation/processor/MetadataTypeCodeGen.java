@@ -87,4 +87,24 @@ public interface MetadataTypeCodeGen {
      */
     void emitDeserializeOptional(MethodSpec.Builder builder, MetadataFieldInfo field,
                                  MetadataFieldAccessor accessor);
+
+    // --- Map value support ---
+
+    /**
+     * Emit {@code _mapSuffix.put(_entry.getKey(), ...)} for a Map value serialization.
+     *
+     * @param builder   method builder
+     * @param mapVarSuffix the suffix for the map variable (e.g. "settings" → "_mapsettings")
+     * @param javaType  value type
+     */
+    void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix, String javaType);
+
+    /**
+     * Emit deserialization for a Map value from {@code _val} into {@code _result}.
+     * Should check {@code _val instanceof OnChainType} and put into {@code _result}.
+     *
+     * @param builder  method builder
+     * @param javaType value type
+     */
+    void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType);
 }

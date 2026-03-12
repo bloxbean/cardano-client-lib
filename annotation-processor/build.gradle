@@ -18,8 +18,9 @@ dependencies {
     testAnnotationProcessor project(':annotation-processor')
 
     codegenTestImplementation libs.google.testing.compile
-    codegenTestImplementation libs.lombok
+    codegenTestCompileOnly libs.lombok
     codegenTestAnnotationProcessor project(':annotation-processor')
+    codegenTestAnnotationProcessor libs.lombok
 
     integrationTestImplementation project(':it-support')
     integrationTestImplementation project(':backend-modules:blockfrost')

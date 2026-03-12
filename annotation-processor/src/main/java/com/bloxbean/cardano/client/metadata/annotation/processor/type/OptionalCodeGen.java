@@ -4,6 +4,7 @@ import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAc
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGen;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGenRegistry;
+import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 
 /**
@@ -16,6 +17,7 @@ public class OptionalCodeGen {
     private final MetadataTypeCodeGenRegistry registry;
     private final MetadataFieldAccessor accessor;
     private final EnumCodeGen enumCodeGen;
+    private NestedTypeCodeGen nestedCodeGen;
 
     public OptionalCodeGen(MetadataTypeCodeGenRegistry registry, MetadataFieldAccessor accessor,
                            EnumCodeGen enumCodeGen) {
@@ -24,12 +26,20 @@ public class OptionalCodeGen {
         this.enumCodeGen = enumCodeGen;
     }
 
+    public void setNestedCodeGen(NestedTypeCodeGen nestedCodeGen) {
+        this.nestedCodeGen = nestedCodeGen;
+    }
+
     // --- Serialization ---
 
     public void emitSerializeToMap(MethodSpec.Builder builder, MetadataFieldInfo field,
                                    String getExpr) {
         builder.beginControlFlow("if ($L.isPresent())", getExpr);
-        if (field.isElementEnumType()) {
+        if (field.isElementNestedType()) {
+            ClassName converterClass = ClassName.bestGuess(field.getNestedConverterFqn());
+            builder.addStatement("map.put($S, new $T().toMetadataMap($L.get()))",
+                    field.getMetadataKey(), converterClass, getExpr);
+        } else if (field.isElementEnumType()) {
             builder.addStatement("map.put($S, $L.get().name())", field.getMetadataKey(), getExpr);
         } else {
             MetadataTypeCodeGen codeGen = registry.get(field.getElementTypeName());
@@ -42,7 +52,9 @@ public class OptionalCodeGen {
     // --- Deserialization ---
 
     public void emitDeserializeFromMap(MethodSpec.Builder builder, MetadataFieldInfo field) {
-        if (field.isElementEnumType()) {
+        if (field.isElementNestedType()) {
+            nestedCodeGen.emitDeserializeOptional(builder, field);
+        } else if (field.isElementEnumType()) {
             enumCodeGen.emitDeserializeOptional(builder, field);
         } else {
             MetadataTypeCodeGen codeGen = registry.get(field.getElementTypeName());

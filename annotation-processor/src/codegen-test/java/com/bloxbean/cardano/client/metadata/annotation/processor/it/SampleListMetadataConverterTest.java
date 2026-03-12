@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * from {@link SampleList}. These tests verify actual runtime round-trip behaviour
  * for all supported {@code List<T>} element types.
  */
-class SampleListMetadataConverterIT {
+class SampleListMetadataConverterTest {
 
     SampleListMetadataConverter converter;
 

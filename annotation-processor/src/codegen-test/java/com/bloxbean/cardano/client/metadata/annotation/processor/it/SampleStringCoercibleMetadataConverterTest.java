@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration tests for the generated {@code SampleStringCoercibleMetadataConverter}.
  */
-class SampleStringCoercibleMetadataConverterIT {
+class SampleStringCoercibleMetadataConverterTest {
 
     SampleStringCoercibleMetadataConverter converter;
 

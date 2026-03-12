@@ -33,12 +33,17 @@ public class CollectionCodeGen {
     private final MetadataTypeCodeGenRegistry registry;
     private final MetadataFieldAccessor accessor;
     private final EnumCodeGen enumCodeGen;
+    private NestedTypeCodeGen nestedCodeGen;
 
     public CollectionCodeGen(MetadataTypeCodeGenRegistry registry, MetadataFieldAccessor accessor,
                              EnumCodeGen enumCodeGen) {
         this.registry = registry;
         this.accessor = accessor;
         this.enumCodeGen = enumCodeGen;
+    }
+
+    public void setNestedCodeGen(NestedTypeCodeGen nestedCodeGen) {
+        this.nestedCodeGen = nestedCodeGen;
     }
 
     // --- Serialization ---
@@ -52,7 +57,9 @@ public class CollectionCodeGen {
         builder.beginControlFlow("for ($T _el : $L)", elemTypeName, getExpr);
         builder.beginControlFlow("if (_el != null)");
 
-        if (field.isElementEnumType()) {
+        if (field.isElementNestedType()) {
+            nestedCodeGen.emitSerializeToList(builder, field);
+        } else if (field.isElementEnumType()) {
             enumCodeGen.emitSerializeToList(builder);
         } else {
             MetadataTypeCodeGen codeGen = registry.get(field.getElementTypeName());
@@ -92,7 +99,9 @@ public class CollectionCodeGen {
         builder.beginControlFlow("for (int _i = 0; _i < _rawList.size(); _i++)");
         builder.addStatement("$T _el = _rawList.getValueAt(_i)", Object.class);
 
-        if (field.isElementEnumType()) {
+        if (field.isElementNestedType()) {
+            nestedCodeGen.emitDeserializeElement(builder, field);
+        } else if (field.isElementEnumType()) {
             enumCodeGen.emitDeserializeElement(builder, field);
         } else {
             MetadataTypeCodeGen codeGen = registry.get(field.getElementTypeName());
@@ -107,7 +116,7 @@ public class CollectionCodeGen {
     // --- Helper ---
 
     private TypeName elementTypeName(MetadataFieldInfo field) {
-        if (field.isElementEnumType()) {
+        if (field.isElementEnumType() || field.isElementNestedType()) {
             return ClassName.bestGuess(field.getElementTypeName());
         }
         return switch (field.getElementTypeName()) {

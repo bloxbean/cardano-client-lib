@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>The converter is generated at compile time by {@code MetadataAnnotationProcessor}
  * from {@link SampleEnum}. Tests verify actual runtime round-trip behaviour for enum fields.
  */
-class SampleEnumMetadataConverterIT {
+class SampleEnumMetadataConverterTest {
 
     SampleEnumMetadataConverter converter;
 

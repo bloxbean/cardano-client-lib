@@ -1,16 +1,20 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor;
 
+import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.CollectionCodeGen;
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.EnumCodeGen;
+import com.bloxbean.cardano.client.metadata.annotation.processor.type.MapCodeGen;
+import com.bloxbean.cardano.client.metadata.annotation.processor.type.NestedTypeCodeGen;
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.OptionalCodeGen;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
+import java.math.BigInteger;
 import java.util.List;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
@@ -21,6 +25,8 @@ import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Const
  * <ul>
  *   <li>{@code toMetadataMap(T obj) -> MetadataMap}</li>
  *   <li>{@code fromMetadataMap(MetadataMap map) -> T}</li>
+ *   <li>Optionally: {@code toMetadata(T obj) -> Metadata} and {@code fromMetadata(Metadata) -> T}
+ *       when {@code @MetadataType(label=N)} is specified.</li>
  * </ul>
  *
  * <p>This is a slim facade that delegates type-specific code generation to
@@ -33,18 +39,32 @@ public class MetadataConverterGenerator {
     private final MetadataTypeCodeGenRegistry registry;
     private final MetadataFieldAccessor accessor;
     private final EnumCodeGen enumCodeGen;
+    private final NestedTypeCodeGen nestedCodeGen;
     private final CollectionCodeGen collectionCodeGen;
     private final OptionalCodeGen optionalCodeGen;
+    private final MapCodeGen mapCodeGen;
 
     public MetadataConverterGenerator() {
         this.registry = new MetadataTypeCodeGenRegistry();
         this.accessor = new MetadataFieldAccessor();
         this.enumCodeGen = new EnumCodeGen(accessor);
+        this.nestedCodeGen = new NestedTypeCodeGen(accessor);
         this.collectionCodeGen = new CollectionCodeGen(registry, accessor, enumCodeGen);
+        this.collectionCodeGen.setNestedCodeGen(nestedCodeGen);
         this.optionalCodeGen = new OptionalCodeGen(registry, accessor, enumCodeGen);
+        this.optionalCodeGen.setNestedCodeGen(nestedCodeGen);
+        this.mapCodeGen = new MapCodeGen(registry, accessor, enumCodeGen, nestedCodeGen);
     }
 
+    /**
+     * @deprecated Use {@link #generate(String, String, List, long)} instead.
+     */
+    @Deprecated
     public TypeSpec generate(String packageName, String simpleClassName, List<MetadataFieldInfo> fields) {
+        return generate(packageName, simpleClassName, fields, -1);
+    }
+
+    public TypeSpec generate(String packageName, String simpleClassName, List<MetadataFieldInfo> fields, long label) {
         ClassName targetClass = ClassName.get(packageName, simpleClassName);
         String converterClassName = simpleClassName + CONVERTER_SUFFIX;
 
@@ -54,6 +74,12 @@ public class MetadataConverterGenerator {
 
         classBuilder.addMethod(buildToMetadataMapMethod(targetClass, simpleClassName, fields));
         classBuilder.addMethod(buildFromMetadataMapMethod(targetClass, simpleClassName, fields));
+
+        // Feature 3: Label — generate toMetadata / fromMetadata if label >= 0
+        if (label >= 0) {
+            classBuilder.addMethod(buildToMetadataMethod(targetClass, simpleClassName, label));
+            classBuilder.addMethod(buildFromMetadataMethod(targetClass, simpleClassName, label));
+        }
 
         return classBuilder.build();
     }
@@ -98,6 +124,12 @@ public class MetadataConverterGenerator {
         String javaType = field.getJavaTypeName();
         MetadataFieldType enc = field.getEnc();
 
+        // Map<String, V>
+        if (field.isMapType()) {
+            mapCodeGen.emitSerializeToMap(builder, field, getExpr);
+            return;
+        }
+
         // Collections
         if (javaType.startsWith("java.util.List<") || javaType.startsWith("java.util.Set<")
                 || javaType.startsWith("java.util.SortedSet<")) {
@@ -107,11 +139,19 @@ public class MetadataConverterGenerator {
 
         // Optional
         if (javaType.startsWith("java.util.Optional<")) {
-            if (field.isElementEnumType()) {
+            if (field.isElementNestedType()) {
+                optionalCodeGen.emitSerializeToMap(builder, field, getExpr);
+            } else if (field.isElementEnumType()) {
                 enumCodeGen.emitSerializeOptionalToMap(builder, field, getExpr);
             } else {
                 optionalCodeGen.emitSerializeToMap(builder, field, getExpr);
             }
+            return;
+        }
+
+        // Nested @MetadataType
+        if (field.isNestedType()) {
+            nestedCodeGen.emitSerializeToMap(builder, field, getExpr);
             return;
         }
 
@@ -169,6 +209,12 @@ public class MetadataConverterGenerator {
         String javaType = field.getJavaTypeName();
         MetadataFieldType enc = field.getEnc();
 
+        // Map<String, V>
+        if (field.isMapType()) {
+            mapCodeGen.emitDeserializeFromMap(builder, field);
+            return;
+        }
+
         // Collections
         if (javaType.startsWith("java.util.List<") || javaType.startsWith("java.util.Set<")
                 || javaType.startsWith("java.util.SortedSet<")) {
@@ -179,6 +225,12 @@ public class MetadataConverterGenerator {
         // Optional
         if (javaType.startsWith("java.util.Optional<")) {
             optionalCodeGen.emitDeserializeFromMap(builder, field);
+            return;
+        }
+
+        // Nested @MetadataType
+        if (field.isNestedType()) {
+            nestedCodeGen.emitDeserializeScalar(builder, field);
             return;
         }
 
@@ -210,6 +262,39 @@ public class MetadataConverterGenerator {
     }
 
     // -------------------------------------------------------------------------
+    // toMetadata / fromMetadata (Feature 3: Label)
+    // -------------------------------------------------------------------------
+
+    private MethodSpec buildToMetadataMethod(ClassName targetClass, String simpleClassName, long label) {
+        String paramName = firstLowerCase(simpleClassName);
+
+        return MethodSpec.methodBuilder("toMetadata")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(Metadata.class)
+                .addParameter(targetClass, paramName)
+                .addStatement("$T metadata = $T.createMetadata()", Metadata.class, MetadataBuilder.class)
+                .addStatement("metadata.put($T.valueOf($LL), toMetadataMap($L))",
+                        BigInteger.class, label, paramName)
+                .addStatement("return metadata")
+                .build();
+    }
+
+    private MethodSpec buildFromMetadataMethod(ClassName targetClass, String simpleClassName, long label) {
+        return MethodSpec.methodBuilder("fromMetadata")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(targetClass)
+                .addParameter(Metadata.class, "metadata")
+                .addStatement("$T raw = metadata.get($T.valueOf($LL))",
+                        Object.class, BigInteger.class, label)
+                .beginControlFlow("if (raw instanceof $T)", MetadataMap.class)
+                .addStatement("return fromMetadataMap(($T) raw)", MetadataMap.class)
+                .endControlFlow()
+                .addStatement("throw new $T($S + $L)",
+                        IllegalArgumentException.class, "Expected MetadataMap at label ", label)
+                .build();
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
@@ -222,9 +307,10 @@ public class MetadataConverterGenerator {
     }
 
     private boolean needsNullCheck(String javaType, MetadataFieldInfo field) {
-        if (field.isEnumType()) return true;
+        if (field.isEnumType() || field.isNestedType() || field.isMapType()) return true;
         if (!isScalar(javaType)) return true;
         MetadataTypeCodeGen codeGen = registry.get(javaType);
+
         return codeGen.needsNullCheck(javaType);
     }
 
@@ -232,11 +318,14 @@ public class MetadataConverterGenerator {
         return !javaType.startsWith("java.util.List<")
                 && !javaType.startsWith("java.util.Set<")
                 && !javaType.startsWith("java.util.SortedSet<")
-                && !javaType.startsWith("java.util.Optional<");
+                && !javaType.startsWith("java.util.Optional<")
+                && !javaType.startsWith("java.util.Map<");
     }
 
     private String firstLowerCase(String s) {
         if (s == null || s.isEmpty()) return s;
+
         return Character.toLowerCase(s.charAt(0)) + s.substring(1);
     }
+
 }

@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration tests for the generated {@code SampleEnumCollectionsMetadataConverter}.
  */
-class SampleEnumCollectionsMetadataConverterIT {
+class SampleEnumCollectionsMetadataConverterTest {
 
     SampleEnumCollectionsMetadataConverter converter;
 

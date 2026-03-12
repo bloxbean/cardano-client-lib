@@ -117,6 +117,39 @@ public class StringCodeGen implements MetadataTypeCodeGen {
         builder.endControlFlow();
     }
 
+    // --- Map value support ---
+
+    @Override
+    public void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix, String javaType) {
+        builder.beginControlFlow("if (_entry.getValue().getBytes($T.UTF_8).length > 64)", StandardCharsets.class);
+        builder.addStatement("$T _valChunks = $T.createList()", MetadataList.class, MetadataBuilder.class);
+        builder.beginControlFlow("for ($T _part : $T.splitStringEveryNCharacters(_entry.getValue(), 64))",
+                String.class, STRING_UTILS);
+        builder.addStatement("_valChunks.add(_part)");
+        builder.endControlFlow();
+        builder.addStatement("_map" + mapVarSuffix + ".put(_entry.getKey(), _valChunks)");
+        builder.nextControlFlow("else");
+        builder.addStatement("_map" + mapVarSuffix + ".put(_entry.getKey(), _entry.getValue())");
+        builder.endControlFlow();
+    }
+
+    @Override
+    public void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType) {
+        builder.beginControlFlow("if (_val instanceof $T)", String.class);
+        builder.addStatement("_result.put(($T) _k, ($T) _val)", String.class, String.class);
+        builder.nextControlFlow("else if (_val instanceof $T)", MetadataList.class);
+        builder.addStatement("$T _sb = new $T()", StringBuilder.class, StringBuilder.class);
+        builder.addStatement("$T _valList = ($T) _val", MetadataList.class, MetadataList.class);
+        builder.beginControlFlow("for (int _j = 0; _j < _valList.size(); _j++)");
+        builder.addStatement("$T _chunk = _valList.getValueAt(_j)", Object.class);
+        builder.beginControlFlow("if (_chunk instanceof $T)", String.class);
+        builder.addStatement("_sb.append(($T) _chunk)", String.class);
+        builder.endControlFlow();
+        builder.endControlFlow();
+        builder.addStatement("_result.put(($T) _k, _sb.toString())", String.class);
+        builder.endControlFlow();
+    }
+
     // --- Internal helpers ---
 
     private void emitStringToMap(MethodSpec.Builder builder, String key, String getExpr) {

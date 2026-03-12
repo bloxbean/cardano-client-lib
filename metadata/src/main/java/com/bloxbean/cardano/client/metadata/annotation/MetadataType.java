@@ -13,4 +13,15 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.SOURCE)
 public @interface MetadataType {
+
+    /**
+     * Optional metadata label (top-level key in the transaction metadata map).
+     * When set to a non-negative value, the generated converter will include
+     * {@code toMetadata(T)} and {@code fromMetadata(Metadata)} convenience methods
+     * that wrap/unwrap the MetadataMap under this label.
+     *
+     * <p>Default is {@code -1} (no label — only {@code toMetadataMap}/{@code fromMetadataMap}
+     * are generated).
+     */
+    long label() default -1;
 }

@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration tests for the generated {@code SampleSetMetadataConverter}.
  */
-class SampleSetMetadataConverterIT {
+class SampleSetMetadataConverterTest {
 
     SampleSetMetadataConverter converter;
 

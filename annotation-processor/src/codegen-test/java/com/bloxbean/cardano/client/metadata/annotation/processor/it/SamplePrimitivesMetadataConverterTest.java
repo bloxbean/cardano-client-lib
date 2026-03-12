@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * from {@link SamplePrimitives}. These tests verify actual runtime round-trip behaviour
  * for all newly supported primitive and boxed types.
  */
-class SamplePrimitivesMetadataConverterIT {
+class SamplePrimitivesMetadataConverterTest {
 
     SamplePrimitivesMetadataConverter converter;
 

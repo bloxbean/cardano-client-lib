@@ -136,6 +136,42 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
         builder.endControlFlow();
     }
 
+    // --- Map value support ---
+
+    @Override
+    public void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix, String javaType) {
+        Object[] ser = serializeExpression("_entry.getValue()", javaType);
+        String fmt = (String) ser[0];
+        if (ser.length == 1) {
+            builder.addStatement("_map" + mapVarSuffix + ".put(_entry.getKey(), " + fmt + ")");
+        } else {
+            Object[] args = new Object[ser.length - 1];
+            System.arraycopy(ser, 1, args, 0, args.length);
+            builder.addStatement("_map" + mapVarSuffix + ".put(_entry.getKey(), " + fmt + ")", args);
+        }
+    }
+
+    @Override
+    public void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType) {
+        Class<?> chain = onChainType(javaType);
+        if (chain == byte[].class) {
+            builder.beginControlFlow("if (_val instanceof byte[])");
+        } else {
+            builder.beginControlFlow("if (_val instanceof $T)", chain);
+        }
+        Object[] deser = deserializeExpression("_val", javaType);
+        String fmt = (String) deser[0];
+        if (deser.length == 1) {
+            builder.addStatement("_result.put(($T) _k, " + fmt + ")", String.class);
+        } else {
+            Object[] args = new Object[deser.length];
+            args[0] = String.class;
+            System.arraycopy(deser, 1, args, 1, deser.length - 1);
+            builder.addStatement("_result.put(($T) _k, " + fmt + ")", args);
+        }
+        builder.endControlFlow();
+    }
+
     // --- Internal helpers ---
 
     /**

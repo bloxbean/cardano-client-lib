@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *   <li>STRING_BASE64 — Base64-encoded text string</li>
  * </ul>
  */
-class SampleByteEncodingMetadataConverterIT {
+class SampleByteEncodingMetadataConverterTest {
 
     SampleByteEncodingMetadataConverter converter;
 

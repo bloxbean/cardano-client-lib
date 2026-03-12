@@ -56,4 +56,42 @@ public class MetadataFieldInfo {
      * The concrete enum class name is stored in {@link #elementTypeName}.
      */
     private boolean elementEnumType;
+
+    /**
+     * {@code true} when the field type is another {@code @MetadataType} annotated class.
+     * The converter class FQN is stored in {@link #nestedConverterFqn}.
+     */
+    private boolean nestedType;
+
+    /**
+     * {@code true} when the element type of a collection or Optional field is a
+     * {@code @MetadataType} annotated class.
+     */
+    private boolean elementNestedType;
+
+    /**
+     * Fully qualified name of the nested converter class
+     * (e.g. {@code "com.example.CustomerMetadataConverter"}).
+     */
+    private String nestedConverterFqn;
+
+    /**
+     * {@code true} when the field type is {@code Map<String, V>}.
+     */
+    private boolean mapType;
+
+    /** Fully qualified key type for Map fields (currently only {@code "java.lang.String"}). */
+    private String mapKeyTypeName;
+
+    /** Fully qualified value type for Map fields. */
+    private String mapValueTypeName;
+
+    /** {@code true} when the Map value type is an enum. */
+    private boolean mapValueEnumType;
+
+    /** {@code true} when the Map value type is a {@code @MetadataType} annotated class. */
+    private boolean mapValueNestedType;
+
+    /** Fully qualified converter class name for nested Map values. */
+    private String mapValueConverterFqn;
 }
