@@ -16,9 +16,9 @@ dependencies {
 
     testAnnotationProcessor project(':annotation-processor')
 
-    compilationTestImplementation libs.google.testing.compile
-    compilationTestImplementation libs.lombok
-    compilationTestAnnotationProcessor project(':annotation-processor')
+    codegenTestImplementation libs.google.testing.compile
+    codegenTestImplementation libs.lombok
+    codegenTestAnnotationProcessor project(':annotation-processor')
 
     integrationTestImplementation project(':it-support')
     integrationTestImplementation project(':backend-modules:blockfrost')
@@ -35,20 +35,20 @@ tasks.named('compileIntegrationTestJava') {
     classpath += files(sourceSets.integrationTest.resources.srcDirs)
 }
 
-// Compilation test without shared type registry
+// Codegen test without shared type registry
 // Verifies blueprint processing works when no BlueprintTypeRegistry is active
-tasks.register('compileCompilationTestNoRegistryJava', JavaCompile) {
-    source = sourceSets.compilationTest.java
-    classpath = sourceSets.compilationTest.compileClasspath
-    destinationDirectory = layout.buildDirectory.dir('classes/java/compilationTestNoRegistry')
-    options.annotationProcessorPath = configurations.compilationTestAnnotationProcessor
+tasks.register('compileCodegenTestNoRegistryJava', JavaCompile) {
+    source = sourceSets.codegenTest.java
+    classpath = sourceSets.codegenTest.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('classes/java/codegenTestNoRegistry')
+    options.annotationProcessorPath = configurations.codegenTestAnnotationProcessor
     options.compilerArgs += ['-Acardano.registry.enable=false']
 }
 
-tasks.register('compilationTestNoRegistry') {
-    dependsOn 'compileCompilationTestNoRegistryJava'
+tasks.register('codegenTestNoRegistry') {
+    dependsOn 'compileCodegenTestNoRegistryJava'
     group = 'verification'
-    description = 'Compile compilation tests with shared type registry disabled'
+    description = 'Compile codegen tests with shared type registry disabled'
 }
 
 // Integration test without shared type registry

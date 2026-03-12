@@ -1,6 +1,6 @@
-name: Compilation Tests
+name: Codegen Tests
 
-# Runs compilation tests for the annotation-processor module.
+# Runs codegen tests for the annotation-processor module.
 # These are self-contained — they run the annotation processor on blueprint POJOs
 # during compilation and verify the generated converter classes compile correctly.
 # No network calls or external services required.
@@ -12,7 +12,7 @@ on:
       - master
 
 jobs:
-  compilation-tests:
+  codegen-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,8 +29,8 @@ jobs:
 
       # annotation-processor: self-contained — runs the annotation processor on blueprint POJOs
       # during compilation and verifies the generated converter classes. No network calls.
-      - name: Run annotation-processor compilation tests (with shared type registry)
-        run: ./gradlew :annotation-processor:compilationTest -PskipSigning=true --stacktrace
+      - name: Run annotation-processor codegen tests (with shared type registry)
+        run: ./gradlew :annotation-processor:codegenTest -PskipSigning=true --stacktrace
 
-      - name: Run annotation-processor compilation tests (without shared type registry)
-        run: ./gradlew :annotation-processor:compilationTestNoRegistry -PskipSigning=true --stacktrace
+      - name: Run annotation-processor codegen tests (without shared type registry)
+        run: ./gradlew :annotation-processor:codegenTestNoRegistry -PskipSigning=true --stacktrace
