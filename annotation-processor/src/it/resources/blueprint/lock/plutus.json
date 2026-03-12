@@ -1,0 +1,77 @@
+{
+  "preamble": {
+    "title": "ccl/lock",
+    "description": "Lock validator for integration testing",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "lock.lock.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/lock~1Owner"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/lock~1Redeemer"
+        }
+      },
+      "compiledCode": "59010601010029800aba2aba1aab9faab9eaab9dab9a48888896600264646644b30013370e900118031baa00189919912cc004cdc3a400060126ea801626464b3001300f0028acc004cdc3a400060166ea800e2b30013371e6eb8c038c030dd5003a450d48656c6c6f2c20576f726c642100899199119801001000912cc00400629422b30013371e6eb8c04400400e2946266004004602400280690101bac300f30103010301030103010301030103010300d3754601e0146eb8c038c030dd5180718061baa0038a5040291640291640346eb8c034004c028dd5002c5900818050009805180580098039baa0018b200a30070013007300800130070013003375400f149a26cac80081",
+      "hash": "2499e3a64ae4228a1e63ce6f131b279487d9780f132a0698e8b1f0f2"
+    },
+    {
+      "title": "lock.lock.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "compiledCode": "59010601010029800aba2aba1aab9faab9eaab9dab9a48888896600264646644b30013370e900118031baa00189919912cc004cdc3a400060126ea801626464b3001300f0028acc004cdc3a400060166ea800e2b30013371e6eb8c038c030dd5003a450d48656c6c6f2c20576f726c642100899199119801001000912cc00400629422b30013371e6eb8c04400400e2946266004004602400280690101bac300f30103010301030103010301030103010300d3754601e0146eb8c038c030dd5180718061baa0038a5040291640291640346eb8c034004c028dd5002c5900818050009805180580098039baa0018b200a30070013007300800130070013003375400f149a26cac80081",
+      "hash": "2499e3a64ae4228a1e63ce6f131b279487d9780f132a0698e8b1f0f2"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "lock/Owner": {
+      "title": "Owner",
+      "anyOf": [
+        {
+          "title": "Owner",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    },
+    "lock/Redeemer": {
+      "title": "Redeemer",
+      "anyOf": [
+        {
+          "title": "Redeemer",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "msg",
+              "$ref": "#/definitions/ByteArray"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

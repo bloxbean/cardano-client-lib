@@ -198,12 +198,36 @@ subprojects {
                     }
                 }
             }
+
+            codegenTest(JvmTestSuite) {
+                sources {
+                    java {
+                        srcDirs = ['src/codegen-test/java']
+                    }
+                    resources {
+                        srcDirs = ['src/codegen-test/resources']
+                    }
+
+                    compileClasspath += sourceSets.main.output + sourceSets.test.output
+                    runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+                }
+
+                tasks.named('processCodegenTestResources') {
+                    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+                }
+
+                dependencies {
+                    implementation project
+                }
+            }
         }
     }
 
     configurations {
         integrationTestImplementation.extendsFrom testImplementation
         integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+        codegenTestImplementation.extendsFrom testImplementation
+        codegenTestRuntimeOnly.extendsFrom testRuntimeOnly
     }
 
     if (!name.equalsIgnoreCase("integration-test")) {
