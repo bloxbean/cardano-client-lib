@@ -28,8 +28,13 @@ import static org.junit.jupiter.api.Assertions.*;
 public class Cip25NftMetadataDevnetTest extends BaseIT {
 
     private BackendService backendService;
+    private QuickTxBuilder quickTxBuilder;
+    private Cip25NftMetadataMetadataConverter converter;
+
     private Cip25NftMetadata original;
     private Cip25NftMetadata restored;
+    private Cip25NftMetadata originalAbsent;
+    private Cip25NftMetadata restoredAbsent;
 
     @SneakyThrows
     @BeforeAll
@@ -38,32 +43,14 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
         backendService = getBackendService();
         topupAllTestAccounts();
 
+        quickTxBuilder = new QuickTxBuilder(backendService);
+        converter = new Cip25NftMetadataMetadataConverter();
+
         original = buildOriginal();
+        restored = submitAndRetrieve(original);
 
-        var converter = new Cip25NftMetadataMetadataConverter();
-        Metadata metadata = converter.toMetadata(original);
-
-        QuickTxBuilder quickTxBuilder = new QuickTxBuilder(backendService);
-        Tx tx = new Tx()
-                .payToAddress(address2, Amount.ada(1.5))
-                .attachMetadata(metadata)
-                .from(address1);
-
-        Result<String> result = quickTxBuilder.compose(tx)
-                .withSigner(SignerProviders.signerFrom(account1))
-                .completeAndWait(System.out::println);
-
-        assertTrue(result.isSuccessful(), "Transaction should succeed: " + result);
-        String txHash = result.getValue();
-
-        waitForTransaction(result);
-
-        // Retrieve CBOR metadata from chain
-        var cborResult = backendService.getMetadataService().getCBORMetadataByTxnHash(txHash);
-        assertTrue(cborResult.isSuccessful(), "Metadata retrieval should succeed");
-
-        MetadataMap chainMap = extractMetadataMap(cborResult.getValue(), "721");
-        restored = converter.fromMetadataMap(chainMap);
+        originalAbsent = buildOriginalWithOptionalAbsent();
+        restoredAbsent = submitAndRetrieve(originalAbsent);
     }
 
     @Test
@@ -123,6 +110,12 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
     }
 
     @Test
+    void optionalAbsent() {
+        assertTrue(restoredAbsent.getDescription().isEmpty(),
+                "Optional.empty() should survive chain round-trip as empty");
+    }
+
+    @Test
     void defaultValue_mediaType() {
         assertEquals(original.getMediaType(), restored.getMediaType());
     }
@@ -143,24 +136,68 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
         assertEquals(original.getAttributes(), restored.getAttributes());
     }
 
-    private Cip25NftMetadata buildOriginal() {
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    @SneakyThrows
+    private Cip25NftMetadata submitAndRetrieve(Cip25NftMetadata nft) {
+        Metadata metadata = converter.toMetadata(nft);
+
+        Tx tx = new Tx()
+                .payToAddress(address2, Amount.ada(1.5))
+                .attachMetadata(metadata)
+                .from(address1);
+
+        Result<String> result = quickTxBuilder.compose(tx)
+                .withSigner(SignerProviders.signerFrom(account1))
+                .completeAndWait(System.out::println);
+
+        assertTrue(result.isSuccessful(), "Transaction should succeed: " + result);
+
+        waitForTransaction(result);
+
+        var cborResult = backendService.getMetadataService().getCBORMetadataByTxnHash(result.getValue());
+        assertTrue(cborResult.isSuccessful(), "Metadata retrieval should succeed");
+
+        MetadataMap chainMap = extractMetadataMap(cborResult.getValue(), "721");
+        return converter.fromMetadataMap(chainMap);
+    }
+
+    private Cip25NftMetadata buildBase() {
         Cip25NftMetadata nft = new Cip25NftMetadata();
         nft.setVersion("1.0");
         nft.setAuthor("integration-test");
+        nft.setMediaType("image/png");
+        nft.setPolicyId(HexUtil.decodeHexString("aabbccdd11223344aabbccdd11223344aabbccdd11223344aabbccdd"));
+        return nft;
+    }
+
+    private Cip25NftMetadata buildOriginal() {
+        Cip25NftMetadata nft = buildBase();
         nft.setName("DevnetNFT#001");
         nft.setImage("ipfs://QmXyZ123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789end");
-        nft.setMediaType("image/png");
         nft.setDescription(Optional.of("A test NFT for devnet integration"));
         nft.setFiles(List.of(
                 new NftFileDetail("thumbnail.png", "ipfs://QmThumb1", "image/png"),
                 new NftFileDetail("high-res.png", "ipfs://QmHighRes1", "image/png")
         ));
         nft.setDisplayMedia(new ImageContent("ipfs://QmDisplay1", 1920, 1080));
-        nft.setPolicyId(HexUtil.decodeHexString("aabbccdd11223344aabbccdd11223344aabbccdd11223344aabbccdd"));
         nft.setRarity(NftRarity.RARE);
         nft.setMintedAt(Instant.ofEpochSecond(1700000000L));
         nft.setAttributes(Map.of("background", "blue", "eyes", "green"));
         nft.setInternalTrackingId("should-be-ignored");
+        return nft;
+    }
+
+    private Cip25NftMetadata buildOriginalWithOptionalAbsent() {
+        Cip25NftMetadata nft = buildBase();
+        nft.setName("DevnetNFT#002-absent");
+        nft.setImage("ipfs://QmShortImage");
+        nft.setDescription(Optional.empty());
+        nft.setFiles(List.of());
+        nft.setDisplayMedia(new ImageContent("ipfs://QmDisplay2", 800, 600));
+        nft.setRarity(NftRarity.COMMON);
+        nft.setMintedAt(Instant.ofEpochSecond(1700000100L));
+        nft.setAttributes(Map.of());
         return nft;
     }
 

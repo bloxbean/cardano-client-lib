@@ -921,10 +921,10 @@ public class MetadataFieldExtractorTest {
         }
 
         @Test
-        void warningWithoutNoArgConstructor() {
+        void errorWithoutNoArgConstructor() {
             extractAndAssert(r -> {
-                assertThat(r.compilation).succeeded();
-                assertThat(r.compilation).hadWarningContaining("No public no-arg constructor");
+                assertThat(r.compilation).failed();
+                assertThat(r.compilation).hadErrorContaining("No public no-arg constructor");
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;

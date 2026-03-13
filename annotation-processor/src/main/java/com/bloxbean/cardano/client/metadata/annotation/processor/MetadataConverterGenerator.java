@@ -4,6 +4,8 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.metadata.MetadataList;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
+import com.bloxbean.cardano.client.metadata.annotation.LabeledMetadataConverter;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataConverter;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.CollectionCodeGen;
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.EnumCodeGen;
@@ -12,6 +14,7 @@ import com.bloxbean.cardano.client.metadata.annotation.processor.type.NestedType
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.OptionalCodeGen;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
@@ -85,6 +88,15 @@ public class MetadataConverterGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .addJavadoc(GENERATED_CODE);
 
+        // Implement MetadataConverter<T> always; LabeledMetadataConverter<T> when label >= 0
+        if (label >= 0) {
+            classBuilder.addSuperinterface(
+                    ParameterizedTypeName.get(ClassName.get(LabeledMetadataConverter.class), targetClass));
+        } else {
+            classBuilder.addSuperinterface(
+                    ParameterizedTypeName.get(ClassName.get(MetadataConverter.class), targetClass));
+        }
+
         // Static adapter instances (one per distinct adapter class)
         addAdapterFields(classBuilder, fields);
 
@@ -115,6 +127,7 @@ public class MetadataConverterGenerator {
         String paramName = firstLowerCase(simpleClassName);
 
         MethodSpec.Builder builder = MethodSpec.methodBuilder("toMetadataMap")
+                .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(MetadataMap.class)
                 .addParameter(targetClass, paramName);
@@ -225,6 +238,7 @@ public class MetadataConverterGenerator {
     private MethodSpec buildFromMetadataMapMethod(ClassName targetClass, List<MetadataFieldInfo> fields,
                                                   boolean isRecord, List<RecordComponentInfo> allComponents) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("fromMetadataMap")
+                .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(targetClass)
                 .addParameter(MetadataMap.class, "map");
@@ -295,42 +309,6 @@ public class MetadataConverterGenerator {
             case "char" -> "'\\0'";
             default -> "null";
         };
-    }
-
-    /**
-     * Simplifies fully-qualified type names to simple names for use in local variable declarations.
-     * Handles generic types like {@code java.util.List<java.lang.String>}.
-     */
-    private String simplifyTypeName(String fqn) {
-        StringBuilder sb = new StringBuilder();
-        int i = 0;
-        while (i < fqn.length()) {
-            // Find the next segment (class name part before < , > or end)
-            int angleOpen = fqn.indexOf('<', i);
-            int angleClose = fqn.indexOf('>', i);
-            int comma = fqn.indexOf(',', i);
-
-            // Find the nearest delimiter
-            int next = fqn.length();
-            if (angleOpen >= 0 && angleOpen < next) next = angleOpen;
-            if (angleClose >= 0 && angleClose < next) next = angleClose;
-            if (comma >= 0 && comma < next) next = comma;
-
-            String segment = fqn.substring(i, next).trim();
-            if (!segment.isEmpty()) {
-                // Extract simple name from FQN segment
-                int lastDot = segment.lastIndexOf('.');
-                sb.append(lastDot >= 0 ? segment.substring(lastDot + 1) : segment);
-            }
-
-            if (next < fqn.length()) {
-                sb.append(fqn.charAt(next));
-                i = next + 1;
-            } else {
-                break;
-            }
-        }
-        return sb.toString();
     }
 
     /**
@@ -450,6 +428,7 @@ public class MetadataConverterGenerator {
         String paramName = firstLowerCase(simpleClassName);
 
         return MethodSpec.methodBuilder("toMetadata")
+                .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(Metadata.class)
                 .addParameter(targetClass, paramName)
@@ -462,6 +441,7 @@ public class MetadataConverterGenerator {
 
     private MethodSpec buildFromMetadataMethod(ClassName targetClass, long label) {
         return MethodSpec.methodBuilder("fromMetadata")
+                .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(targetClass)
                 .addParameter(Metadata.class, "metadata")

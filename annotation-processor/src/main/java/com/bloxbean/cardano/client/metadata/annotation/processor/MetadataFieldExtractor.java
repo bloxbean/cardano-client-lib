@@ -165,7 +165,7 @@ public class MetadataFieldExtractor {
             }
         }
         if (!hasLombok) {
-            messager.printMessage(Diagnostic.Kind.WARNING,
+            messager.printMessage(Diagnostic.Kind.ERROR,
                     "No public no-arg constructor found on '" + typeElement.getSimpleName() + "'. " +
                     "The generated fromMetadataMap() calls new " + typeElement.getSimpleName() + "(). " +
                     "Add a public no-arg constructor or use @lombok.NoArgsConstructor.", typeElement);

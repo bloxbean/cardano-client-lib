@@ -172,6 +172,21 @@ class MetadataConverterGeneratorTest {
         }
 
         @Test
+        void implementsMetadataConverterInterface() {
+            String src = generate(List.of());
+            assertTrue(src.contains("implements MetadataConverter<Order>"),
+                    "Should implement MetadataConverter<Order>: " + src);
+        }
+
+        @Test
+        void implementsLabeledMetadataConverterWhenLabelSet() {
+            TypeSpec typeSpec = generator.generate("com.test", "Order", List.of(), 721);
+            String src = JavaFile.builder("com.test", typeSpec).build().toString();
+            assertTrue(src.contains("implements LabeledMetadataConverter<Order>"),
+                    "Should implement LabeledMetadataConverter<Order> when label >= 0: " + src);
+        }
+
+        @Test
         void containsToMetadataMapMethod() {
             String src = generate(List.of());
             assertTrue(src.contains("public MetadataMap toMetadataMap(Order order)"));
@@ -184,6 +199,12 @@ class MetadataConverterGeneratorTest {
         }
 
         @Test
+        void methodsHaveOverrideAnnotation() {
+            String src = generate(List.of());
+            assertTrue(src.contains("@Override"), "Generated methods should have @Override: " + src);
+        }
+
+        @Test
         void emptyFieldList_stillGeneratesValidClass() {
             String src = generate(List.of());
             assertTrue(src.contains("MetadataMap map = MetadataBuilder.createMap()"));
@@ -191,6 +212,7 @@ class MetadataConverterGeneratorTest {
             assertTrue(src.contains("Order obj = new Order()"));
             assertTrue(src.contains("return obj"));
         }
+
     }
 
     // =========================================================================
