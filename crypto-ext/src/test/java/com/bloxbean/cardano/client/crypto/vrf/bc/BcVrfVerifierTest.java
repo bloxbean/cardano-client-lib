@@ -142,6 +142,34 @@ class BcVrfVerifierTest {
         assertThrows(VrfException.class, () -> verifier.verify(new byte[16], new byte[80], new byte[0]));
     }
 
+    // --- Small-order public key rejection ---
+    @Test
+    void testSmallOrderPublicKey_rejected() {
+        // Known small-order points on Ed25519 (order divides 8, so 8*P = identity):
+        // 1) The identity point (0,1) encoded as 0100...00
+        byte[] identityPk = new byte[32];
+        identityPk[0] = 0x01;
+
+        // 2) Point of order 2: (0, -1) encoded as ecffffff...7f
+        // This is the point (0, p-1) which has order 2
+        byte[] order2Pk = hexToBytes("ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f");
+
+        // 3) Known small-order point c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa
+        byte[] smallOrderPk = hexToBytes("c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa");
+
+        // Use a valid proof structure (content doesn't matter, rejection should happen before verification)
+        byte[] dummyProof = new byte[80];
+        byte[] alpha = new byte[0];
+
+        // Identity point: 8*(0,1) = (0,1) = neutral → must be rejected
+        VrfResult result1 = verifier.verify(identityPk, dummyProof, alpha);
+        assertFalse(result1.isValid(), "Identity public key should be rejected as small-order");
+
+        // Small-order point: 8*P = neutral → must be rejected
+        VrfResult result3 = verifier.verify(smallOrderPk, dummyProof, alpha);
+        assertFalse(result3.isValid(), "Small-order public key should be rejected");
+    }
+
     // --- Cross-validation against i2p-based EcVrfVerifier ---
     @Test
     void crossValidate_allVectors_matchEcVrfVerifier() {

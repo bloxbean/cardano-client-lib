@@ -17,6 +17,6 @@ public class VrfResult {
     }
 
     public static VrfResult valid(byte[] output) {
-        return new VrfResult(true, output);
+        return new VrfResult(true, output.clone());
     }
 }

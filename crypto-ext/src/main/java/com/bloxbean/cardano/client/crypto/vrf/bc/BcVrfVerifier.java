@@ -67,6 +67,11 @@ public class BcVrfVerifier implements VrfVerifier {
         Ed25519Point yPoint = Ed25519Point.decode(publicKey);
         if (yPoint == null) return VrfResult.invalid();
 
+        // Reject small-order public keys (matches libsodium's has_small_order check)
+        if (yPoint.multiplyByCofactor().equals(Ed25519Point.NEUTRAL)) {
+            return VrfResult.invalid();
+        }
+
         // Pad c to 32 bytes for scalar operations
         byte[] cBytes32 = new byte[32];
         System.arraycopy(cBytes, 0, cBytes32, 0, 16);

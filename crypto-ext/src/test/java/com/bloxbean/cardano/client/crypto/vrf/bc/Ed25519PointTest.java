@@ -141,6 +141,21 @@ class Ed25519PointTest {
     }
 
     @Test
+    void decode_nonCanonicalY_returnsNull() {
+        // y = p = 2^255 - 19, encoded as little-endian with high bit clear:
+        // p in LE = edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f
+        // This is y >= p, so the canonical check (round-trip) must reject it.
+        byte[] nonCanonical = hexToBytes("edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f");
+        assertNull(Ed25519Point.decode(nonCanonical),
+                "Non-canonical y (y == p) should be rejected");
+
+        // y = p + 1 (also non-canonical)
+        byte[] nonCanonical2 = hexToBytes("eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f");
+        assertNull(Ed25519Point.decode(nonCanonical2),
+                "Non-canonical y (y == p+1) should be rejected");
+    }
+
+    @Test
     void decode_nullOrWrongSize_returnsNull() {
         assertNull(Ed25519Point.decode(null));
         assertNull(Ed25519Point.decode(new byte[31]));

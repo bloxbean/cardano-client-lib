@@ -68,10 +68,10 @@ public class Ed25519Point {
         }
     }
 
-    final int[] X;
-    final int[] Y;
-    final int[] Z;
-    final int[] T;
+    private final int[] X;
+    private final int[] Y;
+    private final int[] Z;
+    private final int[] T;
 
     Ed25519Point(int[] X, int[] Y, int[] Z, int[] T) {
         this.X = X;
@@ -93,6 +93,17 @@ public class Ed25519Point {
         // Decode y coordinate (clear high bit)
         byte[] yBytes = encoded.clone();
         yBytes[31] &= 0x7F;
+
+        // Canonical check: reject if y >= p (2^255 - 19)
+        // Round-trip decode→normalize→encode and compare to input.
+        // Matches cardano_ge25519_is_canonical() in libsodium reference.
+        int[] yCheck = X25519Field.create();
+        X25519Field.decode(yBytes, 0, yCheck);
+        X25519Field.normalize(yCheck);
+        byte[] reEncoded = new byte[32];
+        X25519Field.encode(yCheck, reEncoded, 0);
+        if (!Arrays.equals(yBytes, reEncoded)) return null;
+
         int[] y = X25519Field.create();
         X25519Field.decode(yBytes, 0, y);
 
@@ -130,7 +141,7 @@ public class Ed25519Point {
         int[] t = X25519Field.create();
         X25519Field.mul(x, y, t);
 
-        return new Ed25519Point(x, y.clone(), z, t);
+        return new Ed25519Point(x, y, z, t);
     }
 
     /**
@@ -294,6 +305,9 @@ public class Ed25519Point {
     /**
      * Scalar multiplication using right-to-left double-and-add.
      * Scalar is in little-endian byte order (standard Ed25519 convention).
+     * <p>
+     * WARNING: This is a variable-time implementation. Do NOT use with secret scalars.
+     * Safe for VRF verification where scalars (c, s) are public proof components.
      */
     public Ed25519Point scalarMultiply(byte[] scalar) {
         Ed25519Point result = NEUTRAL;

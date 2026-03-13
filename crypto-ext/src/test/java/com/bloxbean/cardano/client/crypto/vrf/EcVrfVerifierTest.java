@@ -100,6 +100,30 @@ class EcVrfVerifierTest {
         assertArrayEquals(expectedH, h.toP3().toByteArray(), "H should match intermediate value");
     }
 
+    // --- Small-order public key rejection ---
+    @Test
+    void testSmallOrderPublicKey_rejected() {
+        // Known small-order points on Ed25519 (order divides 8, so 8*P = identity):
+        // 1) The identity point (0,1) encoded as 0100...00
+        byte[] identityPk = new byte[32];
+        identityPk[0] = 0x01;
+
+        // 2) Known small-order point c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa
+        byte[] smallOrderPk = hexToBytes("c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa");
+
+        // Use a valid proof structure (content doesn't matter, rejection should happen before verification)
+        byte[] dummyProof = new byte[80];
+        byte[] alpha = new byte[0];
+
+        // Identity point: 8*(0,1) = (0,1) = neutral → must be rejected
+        VrfResult result1 = verifier.verify(identityPk, dummyProof, alpha);
+        assertFalse(result1.isValid(), "Identity public key should be rejected as small-order");
+
+        // Small-order point: 8*P = neutral → must be rejected
+        VrfResult result2 = verifier.verify(smallOrderPk, dummyProof, alpha);
+        assertFalse(result2.isValid(), "Small-order public key should be rejected");
+    }
+
     // --- Negative tests ---
     @Test
     void testInvalidProof_bitFlip() {

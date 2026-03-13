@@ -80,6 +80,16 @@ public class EcVrfVerifier implements VrfVerifier {
         GroupElement yPoint = decodePoint(publicKey);
         if (yPoint == null) return VrfResult.invalid();
 
+        // Reject small-order public keys (matches libsodium's has_small_order check)
+        GroupElement cofactorY = precompute(yPoint).scalarMultiply(COFACTOR_SCALAR);
+        byte[] cofactorEncoded = cofactorY.toP3().toByteArray();
+        // Neutral point (0,1) encodes as {0x01, 0x00, ..., 0x00} in Ed25519 compressed form
+        byte[] neutralEncoded = new byte[32];
+        neutralEncoded[0] = 1;
+        if (Arrays.equals(cofactorEncoded, neutralEncoded)) {
+            return VrfResult.invalid();
+        }
+
         // Pad c to 32 bytes for scalar operations
         byte[] cBytes32 = new byte[32];
         System.arraycopy(cBytes, 0, cBytes32, 0, 16);
