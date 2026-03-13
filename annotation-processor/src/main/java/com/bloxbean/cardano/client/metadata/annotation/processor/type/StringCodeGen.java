@@ -22,6 +22,7 @@ import java.util.Set;
  *   <li>DEFAULT and STRING encoding are identical for String fields</li>
  * </ul>
  */
+@SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across similar codegen methods
 public class StringCodeGen implements MetadataTypeCodeGen {
 
     private static final ClassName STRING_UTILS =

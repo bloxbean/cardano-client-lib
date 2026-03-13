@@ -20,6 +20,10 @@ import java.util.*;
  * Extracts {@link MetadataFieldInfo} from {@code @MetadataType}-annotated classes.
  * Handles type detection, validation, accessor resolution, and hierarchy walking.
  */
+@SuppressWarnings({
+        "java:S1192", // Repeated warning message prefixes are clearer inline than as constants
+        "java:S6541"  // detectFieldType is a dispatch method; complexity is inherent to the FieldTypeResult structure
+})
 public class MetadataFieldExtractor {
 
     private static final Set<String> COLLECTION_PREFIXES = Set.of(
@@ -39,6 +43,7 @@ public class MetadataFieldExtractor {
      * Extracts fields from the type and all its superclasses (inheritance).
      * Fields are collected bottom-up; shadowed names (child overrides parent) are skipped.
      */
+    @SuppressWarnings("java:S135") // Multiple breaks for early-exit on hierarchy traversal is cleaner than alternatives
     public List<MetadataFieldInfo> extractFields(TypeElement typeElement, boolean hasLombok) {
         List<MetadataFieldInfo> fields = new ArrayList<>();
         Set<String> seenFieldNames = new LinkedHashSet<>();
@@ -92,6 +97,7 @@ public class MetadataFieldExtractor {
 
     // ── Per-class field extraction ──────────────────────────────────────
 
+    @SuppressWarnings("java:S135") // Multiple continues for early-skip patterns is cleaner than deep nesting
     private List<MetadataFieldInfo> extractFieldsForType(TypeElement typeElement, TypeElement leafTypeElement,
                                                           boolean hasLombok, Set<String> seenFieldNames) {
         List<MetadataFieldInfo> fields = new ArrayList<>();
@@ -201,8 +207,66 @@ public class MetadataFieldExtractor {
             mapValueMapValueConverterFqn = mapResult.valueMapValueConverterFqn;
         }
 
-        // Collection/Optional element type
-        String elementTypeName = null;
+        // Collection/Optional element detection
+        ElementDetectionResult elemResult = detectElementType(ve, fieldName, isMapType, declaredType, rawType);
+        if (elemResult != null) {
+            isCollectionType = elemResult.isCollectionType;
+            isOptionalType = elemResult.isOptionalType;
+            collectionKind = elemResult.collectionKind;
+        }
+
+        // Validate supported type
+        if (!isEnum && !isNestedType && !isMapType && !isSupportedType(ve.asType())
+                && (elemResult == null || !elemResult.hasRecognizedElement())) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Field '" + fieldName + "' has unsupported type '" + typeName + "' and will be skipped.", ve);
+            return null;
+        }
+
+        return new FieldTypeResult(isEnum, isNestedType, nestedConverterFqn,
+                isCollectionType, isOptionalType, collectionKind,
+                isMapType, mapKeyTypeName, mapValueTypeName, mapValueEnumType, mapValueNestedType, mapValueConverterFqn,
+                mapValueCollectionType, mapValueCollectionKind, mapValueElementTypeName,
+                mapValueElementEnumType, mapValueElementNestedType, mapValueElementConverterFqn,
+                mapValueMapType, mapValueMapKeyTypeName, mapValueMapValueTypeName,
+                mapValueMapValueEnumType, mapValueMapValueNestedType, mapValueMapValueConverterFqn,
+                elemResult != null ? elemResult.elementTypeName : null,
+                elemResult != null && elemResult.elementEnumType,
+                elemResult != null && elemResult.elementNestedType,
+                elemResult != null ? elemResult.elementNestedConverterFqn : null,
+                elemResult != null && elemResult.elementCollectionType,
+                elemResult != null ? elemResult.elementCollectionKind : null,
+                elemResult != null ? elemResult.elementElementTypeName : null,
+                elemResult != null && elemResult.elementElementEnumType,
+                elemResult != null && elemResult.elementElementNestedType,
+                elemResult != null ? elemResult.elementElementConverterFqn : null,
+                elemResult != null && elemResult.elementMapType,
+                elemResult != null ? elemResult.elementMapKeyTypeName : null,
+                elemResult != null ? elemResult.elementMapValueTypeName : null,
+                elemResult != null && elemResult.elementMapValueEnumType,
+                elemResult != null && elemResult.elementMapValueNestedType,
+                elemResult != null ? elemResult.elementMapValueConverterFqn : null);
+    }
+
+    /**
+     * Detects collection/Optional element types including composite elements and enum/nested classification.
+     * Returns null if the field is not a collection or Optional.
+     */
+    private ElementDetectionResult detectElementType(VariableElement ve, String fieldName,
+                                                       boolean isMapType, DeclaredType declaredType, String rawType) {
+        boolean isCollectionRawType = rawType != null && COLLECTION_PREFIXES.contains(rawType);
+        if (isMapType || declaredType == null
+                || (!isCollectionRawType && !OPTIONAL.equals(rawType))
+                || declaredType.getTypeArguments().size() != 1) {
+            return null;
+        }
+
+        String elementTypeName = declaredType.getTypeArguments().get(0).toString();
+        boolean isCollectionType = isCollectionRawType;
+        boolean isOptionalType = !isCollectionRawType;
+        String collectionKind = isCollectionType ? rawType : null;
+
+        // Composite element detection (not for Optional)
         boolean elementCollectionType = false;
         String elementCollectionKind = null;
         String elementElementTypeName = null;
@@ -216,72 +280,39 @@ public class MetadataFieldExtractor {
         boolean elementMapValueNestedType = false;
         String elementMapValueConverterFqn = null;
 
-        boolean isCollectionRawType = rawType != null && COLLECTION_PREFIXES.contains(rawType);
-        if (!isMapType && declaredType != null
-                && (isCollectionRawType || OPTIONAL.equals(rawType))
-                && declaredType.getTypeArguments().size() == 1) {
-            elementTypeName = declaredType.getTypeArguments().get(0).toString();
-
-            if (isCollectionRawType) {
-                isCollectionType = true;
-                collectionKind = rawType;
-            } else {
-                isOptionalType = true;
-            }
-
-            // Check for composite element types (not for Optional)
-            if (!isOptionalType && !isSupportedScalarType(elementTypeName)) {
-                CompositeElementResult compositeResult = detectCompositeElement(ve, fieldName);
-                if (compositeResult != null) {
-                    if (compositeResult.isCollection) {
-                        elementCollectionType = true;
-                        elementCollectionKind = compositeResult.containerKind;
-                        elementElementTypeName = compositeResult.leafTypeName;
-                        elementElementEnumType = compositeResult.leafEnumType;
-                        elementElementNestedType = compositeResult.leafNestedType;
-                        elementElementConverterFqn = compositeResult.leafConverterFqn;
-                    } else if (compositeResult.isMap) {
-                        elementMapType = true;
-                        elementMapKeyTypeName = compositeResult.mapKeyTypeName;
-                        elementMapValueTypeName = compositeResult.leafTypeName;
-                        elementMapValueEnumType = compositeResult.leafEnumType;
-                        elementMapValueNestedType = compositeResult.leafNestedType;
-                        elementMapValueConverterFqn = compositeResult.leafConverterFqn;
-                    }
-                }
+        if (!isOptionalType && !isSupportedScalarType(elementTypeName)) {
+            CompositeElementResult compositeResult = detectCompositeElement(ve, fieldName);
+            if (compositeResult != null && compositeResult.isCollection) {
+                elementCollectionType = true;
+                elementCollectionKind = compositeResult.containerKind;
+                elementElementTypeName = compositeResult.leafTypeName;
+                elementElementEnumType = compositeResult.leafEnumType;
+                elementElementNestedType = compositeResult.leafNestedType;
+                elementElementConverterFqn = compositeResult.leafConverterFqn;
+            } else if (compositeResult != null && compositeResult.isMap) {
+                elementMapType = true;
+                elementMapKeyTypeName = compositeResult.mapKeyTypeName;
+                elementMapValueTypeName = compositeResult.leafTypeName;
+                elementMapValueEnumType = compositeResult.leafEnumType;
+                elementMapValueNestedType = compositeResult.leafNestedType;
+                elementMapValueConverterFqn = compositeResult.leafConverterFqn;
             }
         }
 
-        // Detect enum/nested element type for collection/Optional (only if not composite)
+        // Classify enum/nested element (only if not composite)
         boolean elementEnumType = false;
         boolean elementNestedType = false;
         String elementNestedConverterFqn = null;
-        if (elementTypeName != null && !elementCollectionType && !elementMapType && !isSupportedScalarType(elementTypeName)) {
+        if (!elementCollectionType && !elementMapType && !isSupportedScalarType(elementTypeName)) {
             LeafTypeClassification leafClass = classifyLeafType(elementTypeName);
-            if (leafClass.isEnum) {
-                elementEnumType = true;
-            } else if (leafClass.isNested) {
+            elementEnumType = leafClass.isEnum;
+            if (leafClass.isNested) {
                 elementNestedType = true;
                 elementNestedConverterFqn = leafClass.converterFqn;
             }
         }
 
-        // Validate supported type
-        boolean isCompositeElement = elementCollectionType || elementMapType;
-        if (!isEnum && !isNestedType && !isMapType && !isSupportedType(ve.asType())
-                && !elementEnumType && !elementNestedType && !isCompositeElement) {
-            messager.printMessage(Diagnostic.Kind.WARNING,
-                    "Field '" + fieldName + "' has unsupported type '" + typeName + "' and will be skipped.", ve);
-            return null;
-        }
-
-        return new FieldTypeResult(isEnum, isNestedType, nestedConverterFqn,
-                isCollectionType, isOptionalType, collectionKind,
-                isMapType, mapKeyTypeName, mapValueTypeName, mapValueEnumType, mapValueNestedType, mapValueConverterFqn,
-                mapValueCollectionType, mapValueCollectionKind, mapValueElementTypeName,
-                mapValueElementEnumType, mapValueElementNestedType, mapValueElementConverterFqn,
-                mapValueMapType, mapValueMapKeyTypeName, mapValueMapValueTypeName,
-                mapValueMapValueEnumType, mapValueMapValueNestedType, mapValueMapValueConverterFqn,
+        return new ElementDetectionResult(isCollectionType, isOptionalType, collectionKind,
                 elementTypeName, elementEnumType, elementNestedType, elementNestedConverterFqn,
                 elementCollectionType, elementCollectionKind, elementElementTypeName,
                 elementElementEnumType, elementElementNestedType, elementElementConverterFqn,
@@ -827,6 +858,19 @@ public class MetadataFieldExtractor {
             boolean isCollection, boolean isMap, String containerKind,
             String mapKeyTypeName,
             String leafTypeName, boolean leafEnumType, boolean leafNestedType, String leafConverterFqn) {}
+
+    private record ElementDetectionResult(
+            boolean isCollectionType, boolean isOptionalType, String collectionKind,
+            String elementTypeName, boolean elementEnumType, boolean elementNestedType, String elementNestedConverterFqn,
+            boolean elementCollectionType, String elementCollectionKind, String elementElementTypeName,
+            boolean elementElementEnumType, boolean elementElementNestedType, String elementElementConverterFqn,
+            boolean elementMapType, String elementMapKeyTypeName, String elementMapValueTypeName,
+            boolean elementMapValueEnumType, boolean elementMapValueNestedType, String elementMapValueConverterFqn) {
+
+        boolean hasRecognizedElement() {
+            return elementEnumType || elementNestedType || elementCollectionType || elementMapType;
+        }
+    }
 
     private record MetadataKeyAndEncoding(String metadataKey, MetadataFieldType enc) {}
 

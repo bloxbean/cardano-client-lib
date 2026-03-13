@@ -21,6 +21,7 @@ import java.util.*;
  * Provides the fixed skeleton (MetadataList creation, for-loop, null-check) and delegates
  * element-level serialization/deserialization to the registry.
  */
+@SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across similar codegen methods
 public class CollectionCodeGen {
 
     private final MetadataTypeCodeGenRegistry registry;

@@ -16,6 +16,7 @@ import java.util.Set;
  * <p>Always stored as String on-chain (DEFAULT == STRING).
  * Deserialization requires try-catch for {@link MalformedURLException}.
  */
+@SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across similar codegen methods
 public class UrlCodeGen extends AbstractMetadataTypeCodeGen {
 
     @Override

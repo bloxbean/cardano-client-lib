@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * deserialisation, and encoding-variant tests. Cross-cutting concerns
  * (KeyMapping, DirectFieldAccess) are consolidated at the end.
  */
-public class MetadataConverterGeneratorTest {
+class MetadataConverterGeneratorTest {
 
     private MetadataConverterGenerator generator;
 
@@ -3095,7 +3095,7 @@ public class MetadataConverterGeneratorTest {
     @Nested
     class MultipleFields {
 
-        private final List<MetadataFieldInfo> FIELDS = List.of(
+        private final List<MetadataFieldInfo> fields = List.of(
                 field("recipient", "java.lang.String"),
                 field("amount",    "java.math.BigInteger"),
                 field("timestamp", "java.lang.Long"),
@@ -3105,7 +3105,7 @@ public class MetadataConverterGeneratorTest {
 
         @Test
         void toMetadataMap_allFieldsHavePutStatements() {
-            String src = generate(FIELDS);
+            String src = generate(fields);
             assertTrue(src.contains("map.put(\"recipient\""));
             assertTrue(src.contains("map.put(\"amount\","));
             assertTrue(src.contains("map.put(\"timestamp\","));
@@ -3115,7 +3115,7 @@ public class MetadataConverterGeneratorTest {
 
         @Test
         void fromMetadataMap_allFieldsHaveGetStatements() {
-            String src = generate(FIELDS);
+            String src = generate(fields);
             assertTrue(src.contains("map.get(\"recipient\")"));
             assertTrue(src.contains("map.get(\"amount\")"));
             assertTrue(src.contains("map.get(\"timestamp\")"));

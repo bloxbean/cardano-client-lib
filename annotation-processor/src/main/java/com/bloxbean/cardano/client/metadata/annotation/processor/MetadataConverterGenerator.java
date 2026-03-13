@@ -69,12 +69,12 @@ public class MetadataConverterGenerator {
                 .addJavadoc(GENERATED_CODE);
 
         classBuilder.addMethod(buildToMetadataMapMethod(targetClass, simpleClassName, fields));
-        classBuilder.addMethod(buildFromMetadataMapMethod(targetClass, simpleClassName, fields));
+        classBuilder.addMethod(buildFromMetadataMapMethod(targetClass, fields));
 
         // Feature 3: Label — generate toMetadata / fromMetadata if label >= 0
         if (label >= 0) {
             classBuilder.addMethod(buildToMetadataMethod(targetClass, simpleClassName, label));
-            classBuilder.addMethod(buildFromMetadataMethod(targetClass, simpleClassName, label));
+            classBuilder.addMethod(buildFromMetadataMethod(targetClass, label));
         }
 
         return classBuilder.build();
@@ -183,8 +183,7 @@ public class MetadataConverterGenerator {
     // fromMetadataMap
     // -------------------------------------------------------------------------
 
-    private MethodSpec buildFromMetadataMapMethod(ClassName targetClass, String simpleClassName,
-                                                  List<MetadataFieldInfo> fields) {
+    private MethodSpec buildFromMetadataMapMethod(ClassName targetClass, List<MetadataFieldInfo> fields) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("fromMetadataMap")
                 .addModifiers(Modifier.PUBLIC)
                 .returns(targetClass)
@@ -275,7 +274,7 @@ public class MetadataConverterGenerator {
                 .build();
     }
 
-    private MethodSpec buildFromMetadataMethod(ClassName targetClass, String simpleClassName, long label) {
+    private MethodSpec buildFromMetadataMethod(ClassName targetClass, long label) {
         return MethodSpec.methodBuilder("fromMetadata")
                 .addModifiers(Modifier.PUBLIC)
                 .returns(targetClass)

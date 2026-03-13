@@ -22,6 +22,7 @@ import java.util.*;
  * Generates MetadataMap serialization/deserialization with delegation to
  * the appropriate value type strategy (scalar, enum, nested, or composite).
  */
+@SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across similar codegen methods
 public class MapCodeGen {
 
     private final MetadataTypeCodeGenRegistry registry;

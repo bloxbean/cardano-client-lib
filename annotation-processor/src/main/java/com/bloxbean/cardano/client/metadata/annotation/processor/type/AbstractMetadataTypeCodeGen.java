@@ -19,6 +19,7 @@ import java.util.Optional;
  * Subclasses provide the variable parts via abstract hooks. Types that don't follow
  * this pattern (String, URL, byte[]) override the interface methods directly.
  */
+@SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across similar codegen methods
 public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen {
 
     /**

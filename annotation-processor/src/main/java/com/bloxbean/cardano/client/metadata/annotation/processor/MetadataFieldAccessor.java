@@ -8,6 +8,7 @@ import java.util.Optional;
  * Consolidates the accessor patterns (setter / direct-field-assignment) used
  * throughout generated metadata converter code.
  */
+@SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across setter/field-access variants
 public class MetadataFieldAccessor {
 
     /**

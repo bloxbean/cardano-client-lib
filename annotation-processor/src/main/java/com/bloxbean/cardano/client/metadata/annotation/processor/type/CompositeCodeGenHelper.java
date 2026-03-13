@@ -22,6 +22,7 @@ import java.util.*;
  * Shared helper methods for composite codegen used by both {@link MapCodeGen} and {@link CollectionCodeGen}.
  * Eliminates duplication of leaf-level serialize/deserialize dispatch and type resolution.
  */
+@SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across similar codegen methods
 final class CompositeCodeGenHelper {
 
     private CompositeCodeGenHelper() {}

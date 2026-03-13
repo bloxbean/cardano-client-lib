@@ -53,11 +53,10 @@ public class FloatingPointCodeGen extends AbstractMetadataTypeCodeGen {
     @Override
     public void emitDeserializeElement(MethodSpec.Builder builder, String javaType) {
         builder.beginControlFlow("if (_el instanceof $T)", String.class);
-        switch (javaType) {
-            case DOUBLE ->
-                    builder.addStatement("_result.add($T.parseDouble(($T) _el))", Double.class, String.class);
-            case FLOAT ->
-                    builder.addStatement("_result.add($T.parseFloat(($T) _el))", Float.class, String.class);
+        if (DOUBLE.equals(javaType) || PRIM_DOUBLE.equals(javaType)) {
+            builder.addStatement("_result.add($T.parseDouble(($T) _el))", Double.class, String.class);
+        } else {
+            builder.addStatement("_result.add($T.parseFloat(($T) _el))", Float.class, String.class);
         }
         builder.endControlFlow();
     }
@@ -67,11 +66,10 @@ public class FloatingPointCodeGen extends AbstractMetadataTypeCodeGen {
                                         MetadataFieldAccessor accessor) {
         String elementType = field.getElementTypeName();
         builder.beginControlFlow("if (v instanceof $T)", String.class);
-        switch (elementType) {
-            case DOUBLE -> accessor.emitOptionalOfSet(builder, field,
-                    "$T.parseDouble((String) v)", Double.class);
-            case FLOAT -> accessor.emitOptionalOfSet(builder, field,
-                    "$T.parseFloat((String) v)", Float.class);
+        if (DOUBLE.equals(elementType) || PRIM_DOUBLE.equals(elementType)) {
+            accessor.emitOptionalOfSet(builder, field, "$T.parseDouble((String) v)", Double.class);
+        } else {
+            accessor.emitOptionalOfSet(builder, field, "$T.parseFloat((String) v)", Float.class);
         }
         builder.nextControlFlow("else");
         accessor.emitOptionalEmpty(builder, field);
