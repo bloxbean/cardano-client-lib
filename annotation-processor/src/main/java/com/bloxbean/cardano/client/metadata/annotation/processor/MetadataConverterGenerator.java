@@ -244,7 +244,7 @@ public class MetadataConverterGenerator {
             for (RecordComponentInfo comp : components) {
                 String localName = "_" + comp.name();
                 String defaultVal = defaultForType(comp.javaTypeName());
-                builder.addStatement("$L $L = $L", simplifyTypeName(comp.javaTypeName()), localName, defaultVal);
+                builder.addStatement("$L $L = $L", qualifiedTypeName(comp.javaTypeName()), localName, defaultVal);
             }
 
             builder.addStatement("$T v", Object.class);
@@ -321,6 +321,45 @@ public class MetadataConverterGenerator {
                 // Extract simple name from FQN segment
                 int lastDot = segment.lastIndexOf('.');
                 sb.append(lastDot >= 0 ? segment.substring(lastDot + 1) : segment);
+            }
+
+            if (next < fqn.length()) {
+                sb.append(fqn.charAt(next));
+                i = next + 1;
+            } else {
+                break;
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Returns a type name safe for use in generated source literals.
+     * Simplifies {@code java.lang.*} types to their simple names (since they are auto-imported)
+     * but keeps all other types fully-qualified to avoid missing-import compilation errors.
+     * Handles generic types like {@code java.util.Map<java.lang.String, java.time.Instant>}.
+     */
+    private String qualifiedTypeName(String fqn) {
+        StringBuilder sb = new StringBuilder();
+        int i = 0;
+        while (i < fqn.length()) {
+            int angleOpen = fqn.indexOf('<', i);
+            int angleClose = fqn.indexOf('>', i);
+            int comma = fqn.indexOf(',', i);
+
+            int next = fqn.length();
+            if (angleOpen >= 0 && angleOpen < next) next = angleOpen;
+            if (angleClose >= 0 && angleClose < next) next = angleClose;
+            if (comma >= 0 && comma < next) next = comma;
+
+            String segment = fqn.substring(i, next).trim();
+            if (!segment.isEmpty()) {
+                // Only simplify java.lang types — everything else stays fully-qualified
+                if (segment.startsWith("java.lang.") && segment.indexOf('.', 10) == -1) {
+                    sb.append(segment.substring(10));
+                } else {
+                    sb.append(segment);
+                }
             }
 
             if (next < fqn.length()) {
