@@ -167,6 +167,7 @@ public class MetadataConverterGenerator {
                 registry.getByteArrayCodeGen().emitSerializeBase64(builder, key, getExpr);
                 return;
             }
+            default -> { /* handled below as scalar */ }
         }
 
         // Scalar dispatch

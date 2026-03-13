@@ -95,9 +95,9 @@ public class CollectionCodeGen {
         builder.beginControlFlow("if (_innerEl != null)");
 
         CompositeCodeGenHelper.emitAddToList(builder, registry, "_innerList", "_innerEl",
-                field.getElementElementTypeName(),
-                field.isElementElementEnumType(), field.isElementElementNestedType(),
-                field.getElementElementConverterFqn());
+                new CompositeCodeGenHelper.LeafTypeInfo(field.getElementElementTypeName(),
+                        field.isElementElementEnumType(), field.isElementElementNestedType(),
+                        field.getElementElementConverterFqn()));
 
         builder.endControlFlow(); // if not null
         builder.endControlFlow(); // inner for
@@ -129,9 +129,9 @@ public class CollectionCodeGen {
         String innerSerKey = MapCodeGen.serKeyExpr(elemKeyTypeName, "_innerEntry");
 
         CompositeCodeGenHelper.emitPutToMap(builder, registry, "_innerMap", innerSerKey, "_innerEntry.getValue()",
-                field.getElementMapValueTypeName(),
-                field.isElementMapValueEnumType(), field.isElementMapValueNestedType(),
-                field.getElementMapValueConverterFqn());
+                new CompositeCodeGenHelper.LeafTypeInfo(field.getElementMapValueTypeName(),
+                        field.isElementMapValueEnumType(), field.isElementMapValueNestedType(),
+                        field.getElementMapValueConverterFqn()));
 
         builder.endControlFlow(); // if not null
         builder.endControlFlow(); // inner for
@@ -209,9 +209,9 @@ public class CollectionCodeGen {
         builder.addStatement("$T _innerEl = _innerRawList.getValueAt(_j)", Object.class);
 
         CompositeCodeGenHelper.emitDeserializeLeafFromRaw(builder, registry, "_innerResult", "_innerEl",
-                field.getElementElementTypeName(),
-                field.isElementElementEnumType(), field.isElementElementNestedType(),
-                field.getElementElementConverterFqn());
+                new CompositeCodeGenHelper.LeafTypeInfo(field.getElementElementTypeName(),
+                        field.isElementElementEnumType(), field.isElementElementNestedType(),
+                        field.getElementElementConverterFqn()));
 
         builder.endControlFlow(); // for _j
         builder.addStatement("_result.add(_innerResult)");
@@ -249,9 +249,9 @@ public class CollectionCodeGen {
 
         String innerDkExpr = MapCodeGen.deserKeyExpr(elemKeyTypeName, "_innerK");
         CompositeCodeGenHelper.emitDeserializeLeafFromRawToMap(builder, registry, "_innerResult", innerDkExpr, "_innerVal",
-                field.getElementMapValueTypeName(),
-                field.isElementMapValueEnumType(), field.isElementMapValueNestedType(),
-                field.getElementMapValueConverterFqn());
+                new CompositeCodeGenHelper.LeafTypeInfo(field.getElementMapValueTypeName(),
+                        field.isElementMapValueEnumType(), field.isElementMapValueNestedType(),
+                        field.getElementMapValueConverterFqn()));
 
         builder.endControlFlow(); // if _innerK instanceof
         builder.endControlFlow(); // for _innerK

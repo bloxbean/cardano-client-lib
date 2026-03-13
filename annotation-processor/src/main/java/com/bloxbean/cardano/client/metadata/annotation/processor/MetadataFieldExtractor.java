@@ -138,12 +138,11 @@ public class MetadataFieldExtractor {
         // Nested @MetadataType detection
         boolean isNestedType = false;
         String nestedConverterFqn = null;
-        if (!isEnum && typeEl instanceof TypeElement fieldTypeEl) {
-            if (fieldTypeEl.getAnnotation(MetadataType.class) != null) {
-                isNestedType = true;
-                String fieldPkg = processingEnv.getElementUtils().getPackageOf(fieldTypeEl).toString();
-                nestedConverterFqn = fieldPkg + "." + fieldTypeEl.getSimpleName() + MetadataConverterGenerator.CONVERTER_SUFFIX;
-            }
+        if (!isEnum && typeEl instanceof TypeElement fieldTypeEl
+                && fieldTypeEl.getAnnotation(MetadataType.class) != null) {
+            isNestedType = true;
+            String fieldPkg = processingEnv.getElementUtils().getPackageOf(fieldTypeEl).toString();
+            nestedConverterFqn = fieldPkg + "." + fieldTypeEl.getSimpleName() + MetadataConverterGenerator.CONVERTER_SUFFIX;
         }
 
         // Map<String, V> detection
@@ -232,7 +231,7 @@ public class MetadataFieldExtractor {
 
             // Check for composite element types (not for Optional)
             if (!isOptionalType && !isSupportedScalarType(elementTypeName)) {
-                CompositeElementResult compositeResult = detectCompositeElement(ve, fieldName, elementTypeName);
+                CompositeElementResult compositeResult = detectCompositeElement(ve, fieldName);
                 if (compositeResult != null) {
                     if (compositeResult.isCollection) {
                         elementCollectionType = true;
@@ -306,82 +305,94 @@ public class MetadataFieldExtractor {
             return null;
         }
 
-        // Check for composite value types: Map<String, List<T>> or Map<String, Map<String, V>>
+        // Check for composite value types
         TypeMirror valueMirror = typeArgs.get(1);
         if (valueMirror instanceof DeclaredType valueDeclared) {
             String valueRawType = rawTypeName(valueDeclared);
 
-            // Map<String, List<T>> / Map<String, Set<T>> / Map<String, SortedSet<T>>
             if (COLLECTION_PREFIXES.contains(valueRawType)) {
-                List<? extends TypeMirror> innerArgs = valueDeclared.getTypeArguments();
-                if (innerArgs.size() == 1) {
-                    String innerElementType = innerArgs.get(0).toString();
-
-                    if (isDoubleNested(innerArgs.get(0))) {
-                        messager.printMessage(Diagnostic.Kind.WARNING,
-                                "Field '" + fieldName + "': double-nested composite types are not supported. Field will be skipped.", ve);
-                        return null;
-                    }
-
-                    LeafTypeClassification leafClass = classifyLeafType(innerElementType);
-                    if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
-                        return new MapDetectionResult(keyType, valueType, false, false, null,
-                                true, valueRawType, innerElementType,
-                                leafClass.isEnum, leafClass.isNested, leafClass.converterFqn,
-                                false, null, null, false, false, null);
-                    }
-                    messager.printMessage(Diagnostic.Kind.WARNING,
-                            "Field '" + fieldName + "' has unsupported inner element type '" + innerElementType + "' and will be skipped.", ve);
-                    return null;
-                }
+                return detectMapCollectionValue(keyType, valueType, valueRawType, valueDeclared, ve, fieldName);
             }
-
-            // Map<String, Map<String, V>>
             if (MAP.equals(valueRawType)) {
-                List<? extends TypeMirror> innerArgs = valueDeclared.getTypeArguments();
-                if (innerArgs.size() == 2) {
-                    String innerKeyType = innerArgs.get(0).toString();
-                    if (!isAllowedMapKeyType(innerKeyType)) {
-                        messager.printMessage(Diagnostic.Kind.ERROR,
-                                "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, or BigInteger, but found '" + innerKeyType + "'.", ve);
-                        return null;
-                    }
-                    String innerValueType = innerArgs.get(1).toString();
-
-                    if (isDoubleNested(innerArgs.get(1))) {
-                        messager.printMessage(Diagnostic.Kind.WARNING,
-                                "Field '" + fieldName + "': double-nested composite types are not supported. Field will be skipped.", ve);
-                        return null;
-                    }
-
-                    LeafTypeClassification leafClass = classifyLeafType(innerValueType);
-                    if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
-                        return new MapDetectionResult(keyType, valueType, false, false, null,
-                                false, null, null, false, false, null,
-                                true, innerKeyType, innerValueType,
-                                leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
-                    }
-                    messager.printMessage(Diagnostic.Kind.WARNING,
-                            "Field '" + fieldName + "' has unsupported inner Map value type '" + innerValueType + "' and will be skipped.", ve);
-                    return null;
-                }
+                return detectMapMapValue(keyType, valueType, valueDeclared, ve, fieldName);
             }
         }
 
-        // Scalar / enum / nested map value (existing logic)
+        // Scalar / enum / nested map value
+        return detectMapScalarValue(keyType, valueType, typeArgs.get(1), ve, fieldName);
+    }
+
+    private MapDetectionResult detectMapCollectionValue(String keyType, String valueType,
+                                                          String valueRawType, DeclaredType valueDeclared,
+                                                          VariableElement ve, String fieldName) {
+        List<? extends TypeMirror> innerArgs = valueDeclared.getTypeArguments();
+        if (innerArgs.size() != 1) return null;
+
+        String innerElementType = innerArgs.get(0).toString();
+        if (isDoubleNested(innerArgs.get(0))) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Field '" + fieldName + "': double-nested composite types are not supported. Field will be skipped.", ve);
+            return null;
+        }
+
+        LeafTypeClassification leafClass = classifyLeafType(innerElementType);
+        if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
+            return new MapDetectionResult(keyType, valueType, false, false, null,
+                    true, valueRawType, innerElementType,
+                    leafClass.isEnum, leafClass.isNested, leafClass.converterFqn,
+                    false, null, null, false, false, null);
+        }
+        messager.printMessage(Diagnostic.Kind.WARNING,
+                "Field '" + fieldName + "' has unsupported inner element type '" + innerElementType + "' and will be skipped.", ve);
+        return null;
+    }
+
+    private MapDetectionResult detectMapMapValue(String keyType, String valueType,
+                                                   DeclaredType valueDeclared,
+                                                   VariableElement ve, String fieldName) {
+        List<? extends TypeMirror> innerArgs = valueDeclared.getTypeArguments();
+        if (innerArgs.size() != 2) return null;
+
+        String innerKeyType = innerArgs.get(0).toString();
+        if (!isAllowedMapKeyType(innerKeyType)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, or BigInteger, but found '" + innerKeyType + "'.", ve);
+            return null;
+        }
+        String innerValueType = innerArgs.get(1).toString();
+        if (isDoubleNested(innerArgs.get(1))) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Field '" + fieldName + "': double-nested composite types are not supported. Field will be skipped.", ve);
+            return null;
+        }
+
+        LeafTypeClassification leafClass = classifyLeafType(innerValueType);
+        if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
+            return new MapDetectionResult(keyType, valueType, false, false, null,
+                    false, null, null, false, false, null,
+                    true, innerKeyType, innerValueType,
+                    leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
+        }
+        messager.printMessage(Diagnostic.Kind.WARNING,
+                "Field '" + fieldName + "' has unsupported inner Map value type '" + innerValueType + "' and will be skipped.", ve);
+        return null;
+    }
+
+    private MapDetectionResult detectMapScalarValue(String keyType, String valueType,
+                                                      TypeMirror valueMirror,
+                                                      VariableElement ve, String fieldName) {
         boolean valueEnumType = false;
         boolean valueNestedType = false;
         String valueConverterFqn = null;
 
-        Element valEl = processingEnv.getTypeUtils().asElement(typeArgs.get(1));
+        Element valEl = processingEnv.getTypeUtils().asElement(valueMirror);
         if (valEl != null && valEl.getKind() == ElementKind.ENUM) {
             valueEnumType = true;
-        } else if (valEl instanceof TypeElement valTypeEl) {
-            if (valTypeEl.getAnnotation(MetadataType.class) != null) {
-                valueNestedType = true;
-                String valPkg = processingEnv.getElementUtils().getPackageOf(valTypeEl).toString();
-                valueConverterFqn = valPkg + "." + valTypeEl.getSimpleName() + MetadataConverterGenerator.CONVERTER_SUFFIX;
-            }
+        } else if (valEl instanceof TypeElement valTypeEl
+                && valTypeEl.getAnnotation(MetadataType.class) != null) {
+            valueNestedType = true;
+            String valPkg = processingEnv.getElementUtils().getPackageOf(valTypeEl).toString();
+            valueConverterFqn = valPkg + "." + valTypeEl.getSimpleName() + MetadataConverterGenerator.CONVERTER_SUFFIX;
         }
 
         if (!valueEnumType && !valueNestedType && !isSupportedScalarType(valueType)) {
@@ -399,7 +410,7 @@ public class MetadataFieldExtractor {
      * Detects composite element types for collections: List<List<T>> or List<Map<String, V>>.
      * Returns null if the element type is not a composite (will be handled as scalar/enum/nested).
      */
-    private CompositeElementResult detectCompositeElement(VariableElement ve, String fieldName, String elementTypeName) {
+    private CompositeElementResult detectCompositeElement(VariableElement ve, String fieldName) {
         TypeMirror fieldTypeMirror = ve.asType();
         if (!(fieldTypeMirror instanceof DeclaredType outerDeclared)) return null;
 
@@ -411,54 +422,59 @@ public class MetadataFieldExtractor {
 
         String elementRawType = rawTypeName(elementDeclared);
 
-        // List<List<T>> / List<Set<T>>
         if (COLLECTION_PREFIXES.contains(elementRawType)) {
-            List<? extends TypeMirror> innerArgs = elementDeclared.getTypeArguments();
-            if (innerArgs.size() == 1) {
-                String innerElementType = innerArgs.get(0).toString();
-
-                if (isDoubleNested(innerArgs.get(0))) {
-                    messager.printMessage(Diagnostic.Kind.WARNING,
-                            "Field '" + fieldName + "': double-nested composite types are not supported. Field will be skipped.", ve);
-                    return null;
-                }
-
-                LeafTypeClassification leafClass = classifyLeafType(innerElementType);
-                if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
-                    return new CompositeElementResult(true, false, elementRawType,
-                            null, innerElementType, leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
-                }
-            }
-            return null;
+            return detectCollectionCompositeElement(elementDeclared, elementRawType, ve, fieldName);
         }
-
-        // List<Map<K, V>>
         if (MAP.equals(elementRawType)) {
-            List<? extends TypeMirror> innerArgs = elementDeclared.getTypeArguments();
-            if (innerArgs.size() == 2) {
-                String innerKeyType = innerArgs.get(0).toString();
-                if (!isAllowedMapKeyType(innerKeyType)) {
-                    messager.printMessage(Diagnostic.Kind.ERROR,
-                            "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, or BigInteger, but found '" + innerKeyType + "'.", ve);
-                    return null;
-                }
-                String innerValueType = innerArgs.get(1).toString();
+            return detectMapCompositeElement(elementDeclared, ve, fieldName);
+        }
+        return null;
+    }
 
-                if (isDoubleNested(innerArgs.get(1))) {
-                    messager.printMessage(Diagnostic.Kind.WARNING,
-                            "Field '" + fieldName + "': double-nested composite types are not supported. Field will be skipped.", ve);
-                    return null;
-                }
+    private CompositeElementResult detectCollectionCompositeElement(DeclaredType elementDeclared,
+                                                                      String elementRawType,
+                                                                      VariableElement ve, String fieldName) {
+        List<? extends TypeMirror> innerArgs = elementDeclared.getTypeArguments();
+        if (innerArgs.size() != 1) return null;
 
-                LeafTypeClassification leafClass = classifyLeafType(innerValueType);
-                if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
-                    return new CompositeElementResult(false, true, null,
-                            innerKeyType, innerValueType, leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
-                }
-            }
+        String innerElementType = innerArgs.get(0).toString();
+        if (isDoubleNested(innerArgs.get(0))) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Field '" + fieldName + "': double-nested composite types are not supported. Field will be skipped.", ve);
             return null;
         }
 
+        LeafTypeClassification leafClass = classifyLeafType(innerElementType);
+        if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
+            return new CompositeElementResult(true, false, elementRawType,
+                    null, innerElementType, leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
+        }
+        return null;
+    }
+
+    private CompositeElementResult detectMapCompositeElement(DeclaredType elementDeclared,
+                                                               VariableElement ve, String fieldName) {
+        List<? extends TypeMirror> innerArgs = elementDeclared.getTypeArguments();
+        if (innerArgs.size() != 2) return null;
+
+        String innerKeyType = innerArgs.get(0).toString();
+        if (!isAllowedMapKeyType(innerKeyType)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, or BigInteger, but found '" + innerKeyType + "'.", ve);
+            return null;
+        }
+        String innerValueType = innerArgs.get(1).toString();
+        if (isDoubleNested(innerArgs.get(1))) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Field '" + fieldName + "': double-nested composite types are not supported. Field will be skipped.", ve);
+            return null;
+        }
+
+        LeafTypeClassification leafClass = classifyLeafType(innerValueType);
+        if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
+            return new CompositeElementResult(false, true, null,
+                    innerKeyType, innerValueType, leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
+        }
         return null;
     }
 
