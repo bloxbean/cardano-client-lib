@@ -122,22 +122,33 @@ public class StringCodeGen implements MetadataTypeCodeGen {
 
     @Override
     public void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix, String javaType) {
+        emitSerializeMapValue(builder, mapVarSuffix, javaType, "_entry.getKey()");
+    }
+
+    @Override
+    public void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix,
+                                       String javaType, String serKeyExpr) {
         builder.beginControlFlow("if (_entry.getValue().getBytes($T.UTF_8).length > 64)", StandardCharsets.class);
         builder.addStatement("$T _valChunks = $T.createList()", MetadataList.class, MetadataBuilder.class);
         builder.beginControlFlow("for ($T _part : $T.splitStringEveryNCharacters(_entry.getValue(), 64))",
                 String.class, STRING_UTILS);
         builder.addStatement("_valChunks.add(_part)");
         builder.endControlFlow();
-        builder.addStatement("_map" + mapVarSuffix + ".put(_entry.getKey(), _valChunks)");
+        builder.addStatement("_map" + mapVarSuffix + ".put(" + serKeyExpr + ", _valChunks)");
         builder.nextControlFlow("else");
-        builder.addStatement("_map" + mapVarSuffix + ".put(_entry.getKey(), _entry.getValue())");
+        builder.addStatement("_map" + mapVarSuffix + ".put(" + serKeyExpr + ", _entry.getValue())");
         builder.endControlFlow();
     }
 
     @Override
     public void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType) {
+        emitDeserializeMapValue(builder, javaType, "(String) _k");
+    }
+
+    @Override
+    public void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType, String deserKeyExpr) {
         builder.beginControlFlow("if (_val instanceof $T)", String.class);
-        builder.addStatement("_result.put(($T) _k, ($T) _val)", String.class, String.class);
+        builder.addStatement("_result.put($L, ($T) _val)", deserKeyExpr, String.class);
         builder.nextControlFlow("else if (_val instanceof $T)", MetadataList.class);
         builder.addStatement("$T _sb = new $T()", StringBuilder.class, StringBuilder.class);
         builder.addStatement("$T _valList = ($T) _val", MetadataList.class, MetadataList.class);
@@ -147,7 +158,7 @@ public class StringCodeGen implements MetadataTypeCodeGen {
         builder.addStatement("_sb.append(($T) _chunk)", String.class);
         builder.endControlFlow();
         builder.endControlFlow();
-        builder.addStatement("_result.put(($T) _k, _sb.toString())", String.class);
+        builder.addStatement("_result.put($L, _sb.toString())", deserKeyExpr);
         builder.endControlFlow();
     }
 
@@ -204,7 +215,7 @@ public class StringCodeGen implements MetadataTypeCodeGen {
     public void emitDeserializeToMapVar(MethodSpec.Builder builder, String resultVar,
                                          String keyExpr, String rawVar, String javaType) {
         builder.beginControlFlow("if ($L instanceof $T)", rawVar, String.class);
-        builder.addStatement("$L.put(($T) $L, ($T) $L)", resultVar, String.class, keyExpr, String.class, rawVar);
+        builder.addStatement("$L.put($L, ($T) $L)", resultVar, keyExpr, String.class, rawVar);
         builder.nextControlFlow("else if ($L instanceof $T)", rawVar, MetadataList.class);
         builder.addStatement("$T _sb = new $T()", StringBuilder.class, StringBuilder.class);
         builder.addStatement("$T _chunkList = ($T) $L", MetadataList.class, MetadataList.class, rawVar);
@@ -214,7 +225,7 @@ public class StringCodeGen implements MetadataTypeCodeGen {
         builder.addStatement("_sb.append(($T) _chunk)", String.class);
         builder.endControlFlow();
         builder.endControlFlow();
-        builder.addStatement("$L.put(($T) $L, _sb.toString())", resultVar, String.class, keyExpr);
+        builder.addStatement("$L.put($L, _sb.toString())", resultVar, keyExpr);
         builder.endControlFlow();
     }
 

@@ -81,24 +81,24 @@ final class CompositeCodeGenHelper {
     }
 
     static void emitDeserializeLeafFromRawToMap(MethodSpec.Builder builder, MetadataTypeCodeGenRegistry registry,
-                                                 String resultVar, String keyVar, String rawVar,
+                                                 String resultVar, String keyExpr, String rawVar,
                                                  String leafTypeName, boolean isEnum, boolean isNested,
                                                  String converterFqn) {
         if (isNested) {
             ClassName converterClass = ClassName.bestGuess(converterFqn);
             builder.beginControlFlow("if ($L instanceof $T)", rawVar, MetadataMap.class);
-            builder.addStatement("$L.put(($T) $L, new $T().fromMetadataMap(($T) $L))",
-                    resultVar, String.class, keyVar, converterClass, MetadataMap.class, rawVar);
+            builder.addStatement("$L.put($L, new $T().fromMetadataMap(($T) $L))",
+                    resultVar, keyExpr, converterClass, MetadataMap.class, rawVar);
             builder.endControlFlow();
         } else if (isEnum) {
             ClassName enumClass = ClassName.bestGuess(leafTypeName);
             builder.beginControlFlow("if ($L instanceof $T)", rawVar, String.class);
-            builder.addStatement("$L.put(($T) $L, $T.valueOf(($T) $L))",
-                    resultVar, String.class, keyVar, enumClass, String.class, rawVar);
+            builder.addStatement("$L.put($L, $T.valueOf(($T) $L))",
+                    resultVar, keyExpr, enumClass, String.class, rawVar);
             builder.endControlFlow();
         } else {
             MetadataTypeCodeGen codeGen = registry.get(leafTypeName);
-            codeGen.emitDeserializeToMapVar(builder, resultVar, keyVar, rawVar, leafTypeName);
+            codeGen.emitDeserializeToMapVar(builder, resultVar, keyExpr, rawVar, leafTypeName);
         }
     }
 

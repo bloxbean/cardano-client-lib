@@ -110,10 +110,12 @@ public class CollectionCodeGen {
 
     private void emitSerializeCollectionOfMap(MethodSpec.Builder builder, MetadataFieldInfo field,
                                                String getExpr, String key) {
+        String elemKeyTypeName = field.getElementMapKeyTypeName();
+        TypeName elemKeyTN = MapCodeGen.resolveKeyTypeName(elemKeyTypeName);
         TypeName innerValTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getElementMapValueTypeName(),
                 field.isElementMapValueEnumType(), field.isElementMapValueNestedType());
         ParameterizedTypeName innerMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class), TypeName.get(String.class), innerValTypeName);
+                ClassName.get(Map.class), elemKeyTN, innerValTypeName);
 
         builder.addStatement("$T _list = $T.createList()", MetadataList.class, MetadataBuilder.class);
         builder.beginControlFlow("for ($T _el : $L)", innerMapType, getExpr);
@@ -121,10 +123,12 @@ public class CollectionCodeGen {
 
         builder.addStatement("$T _innerMap = $T.createMap()", MetadataMap.class, MetadataBuilder.class);
         builder.beginControlFlow("for ($T<$T, $T> _innerEntry : _el.entrySet())",
-                Map.Entry.class, String.class, innerValTypeName);
+                Map.Entry.class, elemKeyTN, innerValTypeName);
         builder.beginControlFlow("if (_innerEntry.getValue() != null)");
 
-        CompositeCodeGenHelper.emitPutToMap(builder, registry, "_innerMap", "_innerEntry.getKey()", "_innerEntry.getValue()",
+        String innerSerKey = MapCodeGen.serKeyExpr(elemKeyTypeName, "_innerEntry");
+
+        CompositeCodeGenHelper.emitPutToMap(builder, registry, "_innerMap", innerSerKey, "_innerEntry.getValue()",
                 field.getElementMapValueTypeName(),
                 field.isElementMapValueEnumType(), field.isElementMapValueNestedType(),
                 field.getElementMapValueConverterFqn());
@@ -220,11 +224,14 @@ public class CollectionCodeGen {
 
     private void emitDeserializeCollectionOfMap(MethodSpec.Builder builder, MetadataFieldInfo field) {
         CollectionTypeInfo outer = resolveCollectionTypeInfo(field);
+        String elemKeyTypeName = field.getElementMapKeyTypeName();
+        TypeName elemKeyTN = MapCodeGen.resolveKeyTypeName(elemKeyTypeName);
+        Class<?> elemKeyChain = MapCodeGen.keyOnChainClass(elemKeyTypeName);
 
         TypeName innerValTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getElementMapValueTypeName(),
                 field.isElementMapValueEnumType(), field.isElementMapValueNestedType());
         ParameterizedTypeName innerMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class), TypeName.get(String.class), innerValTypeName);
+                ClassName.get(Map.class), elemKeyTN, innerValTypeName);
         ParameterizedTypeName outerCollType = ParameterizedTypeName.get(outer.interfaceClass, innerMapType);
 
         builder.beginControlFlow("if (v instanceof $T)", MetadataList.class);
@@ -237,15 +244,16 @@ public class CollectionCodeGen {
         builder.addStatement("$T _innerRawMap = ($T) _el", MetadataMap.class, MetadataMap.class);
         builder.addStatement("$T _innerResult = new $T<>()", innerMapType, LinkedHashMap.class);
         builder.beginControlFlow("for ($T _innerK : _innerRawMap.keys())", Object.class);
-        builder.beginControlFlow("if (_innerK instanceof $T)", String.class);
-        builder.addStatement("$T _innerVal = _innerRawMap.get(($T) _innerK)", Object.class, String.class);
+        builder.beginControlFlow("if (_innerK instanceof $T)", elemKeyChain);
+        builder.addStatement("$T _innerVal = _innerRawMap.get(($T) _innerK)", Object.class, elemKeyChain);
 
-        CompositeCodeGenHelper.emitDeserializeLeafFromRawToMap(builder, registry, "_innerResult", "_innerK", "_innerVal",
+        String innerDkExpr = MapCodeGen.deserKeyExpr(elemKeyTypeName, "_innerK");
+        CompositeCodeGenHelper.emitDeserializeLeafFromRawToMap(builder, registry, "_innerResult", innerDkExpr, "_innerVal",
                 field.getElementMapValueTypeName(),
                 field.isElementMapValueEnumType(), field.isElementMapValueNestedType(),
                 field.getElementMapValueConverterFqn());
 
-        builder.endControlFlow(); // if _innerK instanceof String
+        builder.endControlFlow(); // if _innerK instanceof
         builder.endControlFlow(); // for _innerK
         builder.addStatement("_result.add(_innerResult)");
         builder.endControlFlow(); // if MetadataMap

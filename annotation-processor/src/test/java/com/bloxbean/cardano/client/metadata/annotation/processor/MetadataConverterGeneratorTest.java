@@ -130,6 +130,15 @@ public class MetadataConverterGeneratorTest {
         return f;
     }
 
+    /** Map field with explicit getter/setter and configurable key/value types. */
+    private MetadataFieldInfo mapField(String name, String keyType, String valueType) {
+        MetadataFieldInfo f = field(name, "java.util.Map<" + keyType + ", " + valueType + ">");
+        f.setMapType(true);
+        f.setMapKeyTypeName(keyType);
+        f.setMapValueTypeName(valueType);
+        return f;
+    }
+
     // =========================================================================
     // Class structure
     // =========================================================================
@@ -3137,6 +3146,85 @@ public class MetadataConverterGeneratorTest {
             assertTrue(src.contains("map.get(\"note\")"));
             assertTrue(src.contains("obj.setName(_sb.toString())"));
             assertTrue(src.contains("obj.setNote(_sb.toString())"));
+        }
+    }
+
+    // =========================================================================
+    // Integer/Long/BigInteger Map key support
+    // =========================================================================
+
+    @Nested
+    class IntegerKeyMaps {
+
+        @Test
+        void integerKeyMap_serialization_usesBigIntegerValueOf() {
+            MetadataFieldInfo f = mapField("scores", INTEGER, STRING);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("BigInteger.valueOf(_entry.getKey())"),
+                    "Should use BigInteger.valueOf for Integer keys");
+        }
+
+        @Test
+        void integerKeyMap_deserialization_usesIntValue() {
+            MetadataFieldInfo f = mapField("scores", INTEGER, STRING);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_k instanceof BigInteger"),
+                    "Should check for BigInteger on-chain key");
+            assertTrue(src.contains(".intValue()"),
+                    "Should narrow BigInteger to int via intValue()");
+        }
+
+        @Test
+        void longKeyMap_serialization_usesBigIntegerValueOf() {
+            MetadataFieldInfo f = mapField("labels", LONG, STRING);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("BigInteger.valueOf(_entry.getKey())"),
+                    "Should use BigInteger.valueOf for Long keys");
+        }
+
+        @Test
+        void longKeyMap_deserialization_usesLongValue() {
+            MetadataFieldInfo f = mapField("labels", LONG, STRING);
+            String src = generate(List.of(f));
+            assertTrue(src.contains(".longValue()"),
+                    "Should narrow BigInteger to long via longValue()");
+        }
+
+        @Test
+        void bigIntegerKeyMap_serialization_directKey() {
+            MetadataFieldInfo f = mapField("amounts", BIG_INTEGER, STRING);
+            String src = generate(List.of(f));
+            // BigInteger keys should not use BigInteger.valueOf
+            assertFalse(src.contains("BigInteger.valueOf(_entry.getKey())"),
+                    "BigInteger keys should not wrap in BigInteger.valueOf");
+        }
+
+        @Test
+        void bigIntegerKeyMap_deserialization_directCast() {
+            MetadataFieldInfo f = mapField("amounts", BIG_INTEGER, STRING);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_k instanceof BigInteger"),
+                    "Should check for BigInteger on-chain key");
+            assertFalse(src.contains(".intValue()"));
+            assertFalse(src.contains(".longValue()"));
+        }
+
+        @Test
+        void integerKeyMap_withIntegerValue() {
+            MetadataFieldInfo f = mapField("counts", INTEGER, INTEGER);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("BigInteger.valueOf(_entry.getKey())"));
+            assertTrue(src.contains(".intValue()"));
+        }
+
+        @Test
+        void stringKeyMap_unchanged() {
+            MetadataFieldInfo f = mapField("settings", STRING, STRING);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_k instanceof String"),
+                    "String keys should use instanceof String");
+            assertFalse(src.contains("BigInteger.valueOf(_entry.getKey())"),
+                    "String keys should not use BigInteger.valueOf");
         }
     }
 }

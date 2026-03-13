@@ -161,6 +161,7 @@ public class MetadataFieldExtractor {
         boolean mapValueElementNestedType = false;
         String mapValueElementConverterFqn = null;
         boolean mapValueMapType = false;
+        String mapValueMapKeyTypeName = null;
         String mapValueMapValueTypeName = null;
         boolean mapValueMapValueEnumType = false;
         boolean mapValueMapValueNestedType = false;
@@ -194,6 +195,7 @@ public class MetadataFieldExtractor {
             mapValueElementNestedType = mapResult.valueElementNestedType;
             mapValueElementConverterFqn = mapResult.valueElementConverterFqn;
             mapValueMapType = mapResult.valueMapType;
+            mapValueMapKeyTypeName = mapResult.valueMapKeyTypeName;
             mapValueMapValueTypeName = mapResult.valueMapValueTypeName;
             mapValueMapValueEnumType = mapResult.valueMapValueEnumType;
             mapValueMapValueNestedType = mapResult.valueMapValueNestedType;
@@ -209,6 +211,7 @@ public class MetadataFieldExtractor {
         boolean elementElementNestedType = false;
         String elementElementConverterFqn = null;
         boolean elementMapType = false;
+        String elementMapKeyTypeName = null;
         String elementMapValueTypeName = null;
         boolean elementMapValueEnumType = false;
         boolean elementMapValueNestedType = false;
@@ -240,6 +243,7 @@ public class MetadataFieldExtractor {
                         elementElementConverterFqn = compositeResult.leafConverterFqn;
                     } else if (compositeResult.isMap) {
                         elementMapType = true;
+                        elementMapKeyTypeName = compositeResult.mapKeyTypeName;
                         elementMapValueTypeName = compositeResult.leafTypeName;
                         elementMapValueEnumType = compositeResult.leafEnumType;
                         elementMapValueNestedType = compositeResult.leafNestedType;
@@ -277,12 +281,12 @@ public class MetadataFieldExtractor {
                 isMapType, mapKeyTypeName, mapValueTypeName, mapValueEnumType, mapValueNestedType, mapValueConverterFqn,
                 mapValueCollectionType, mapValueCollectionKind, mapValueElementTypeName,
                 mapValueElementEnumType, mapValueElementNestedType, mapValueElementConverterFqn,
-                mapValueMapType, mapValueMapValueTypeName,
+                mapValueMapType, mapValueMapKeyTypeName, mapValueMapValueTypeName,
                 mapValueMapValueEnumType, mapValueMapValueNestedType, mapValueMapValueConverterFqn,
                 elementTypeName, elementEnumType, elementNestedType, elementNestedConverterFqn,
                 elementCollectionType, elementCollectionKind, elementElementTypeName,
                 elementElementEnumType, elementElementNestedType, elementElementConverterFqn,
-                elementMapType, elementMapValueTypeName,
+                elementMapType, elementMapKeyTypeName, elementMapValueTypeName,
                 elementMapValueEnumType, elementMapValueNestedType, elementMapValueConverterFqn);
     }
 
@@ -296,9 +300,9 @@ public class MetadataFieldExtractor {
         String keyType = typeArgs.get(0).toString();
         String valueType = typeArgs.get(1).toString();
 
-        if (!STRING.equals(keyType)) {
+        if (!isAllowedMapKeyType(keyType)) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': Map key type must be java.lang.String, but found '" + keyType + "'.", ve);
+                    "Field '" + fieldName + "': Map key type must be String, Integer, Long, or BigInteger, but found '" + keyType + "'.", ve);
             return null;
         }
 
@@ -324,7 +328,7 @@ public class MetadataFieldExtractor {
                         return new MapDetectionResult(keyType, valueType, false, false, null,
                                 true, valueRawType, innerElementType,
                                 leafClass.isEnum, leafClass.isNested, leafClass.converterFqn,
-                                false, null, false, false, null);
+                                false, null, null, false, false, null);
                     }
                     messager.printMessage(Diagnostic.Kind.WARNING,
                             "Field '" + fieldName + "' has unsupported inner element type '" + innerElementType + "' and will be skipped.", ve);
@@ -337,9 +341,9 @@ public class MetadataFieldExtractor {
                 List<? extends TypeMirror> innerArgs = valueDeclared.getTypeArguments();
                 if (innerArgs.size() == 2) {
                     String innerKeyType = innerArgs.get(0).toString();
-                    if (!STRING.equals(innerKeyType)) {
+                    if (!isAllowedMapKeyType(innerKeyType)) {
                         messager.printMessage(Diagnostic.Kind.ERROR,
-                                "Field '" + fieldName + "': inner Map key type must be java.lang.String, but found '" + innerKeyType + "'.", ve);
+                                "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, or BigInteger, but found '" + innerKeyType + "'.", ve);
                         return null;
                     }
                     String innerValueType = innerArgs.get(1).toString();
@@ -354,7 +358,7 @@ public class MetadataFieldExtractor {
                     if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
                         return new MapDetectionResult(keyType, valueType, false, false, null,
                                 false, null, null, false, false, null,
-                                true, innerValueType,
+                                true, innerKeyType, innerValueType,
                                 leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
                     }
                     messager.printMessage(Diagnostic.Kind.WARNING,
@@ -388,7 +392,7 @@ public class MetadataFieldExtractor {
 
         return new MapDetectionResult(keyType, valueType, valueEnumType, valueNestedType, valueConverterFqn,
                 false, null, null, false, false, null,
-                false, null, false, false, null);
+                false, null, null, false, false, null);
     }
 
     /**
@@ -422,20 +426,20 @@ public class MetadataFieldExtractor {
                 LeafTypeClassification leafClass = classifyLeafType(innerElementType);
                 if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
                     return new CompositeElementResult(true, false, elementRawType,
-                            innerElementType, leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
+                            null, innerElementType, leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
                 }
             }
             return null;
         }
 
-        // List<Map<String, V>>
+        // List<Map<K, V>>
         if (MAP.equals(elementRawType)) {
             List<? extends TypeMirror> innerArgs = elementDeclared.getTypeArguments();
             if (innerArgs.size() == 2) {
                 String innerKeyType = innerArgs.get(0).toString();
-                if (!STRING.equals(innerKeyType)) {
+                if (!isAllowedMapKeyType(innerKeyType)) {
                     messager.printMessage(Diagnostic.Kind.ERROR,
-                            "Field '" + fieldName + "': inner Map key type must be java.lang.String, but found '" + innerKeyType + "'.", ve);
+                            "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, or BigInteger, but found '" + innerKeyType + "'.", ve);
                     return null;
                 }
                 String innerValueType = innerArgs.get(1).toString();
@@ -449,7 +453,7 @@ public class MetadataFieldExtractor {
                 LeafTypeClassification leafClass = classifyLeafType(innerValueType);
                 if (leafClass.isScalar || leafClass.isEnum || leafClass.isNested) {
                     return new CompositeElementResult(false, true, null,
-                            innerValueType, leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
+                            innerKeyType, innerValueType, leafClass.isEnum, leafClass.isNested, leafClass.converterFqn);
                 }
             }
             return null;
@@ -590,6 +594,7 @@ public class MetadataFieldExtractor {
                 .mapValueElementConverterFqn(type.mapValueElementConverterFqn)
                 // Composite: Map value is map
                 .mapValueMapType(type.mapValueMapType)
+                .mapValueMapKeyTypeName(type.mapValueMapKeyTypeName)
                 .mapValueMapValueTypeName(type.mapValueMapValueTypeName)
                 .mapValueMapValueEnumType(type.mapValueMapValueEnumType)
                 .mapValueMapValueNestedType(type.mapValueMapValueNestedType)
@@ -603,6 +608,7 @@ public class MetadataFieldExtractor {
                 .elementElementConverterFqn(type.elementElementConverterFqn)
                 // Composite: Collection element is map
                 .elementMapType(type.elementMapType)
+                .elementMapKeyTypeName(type.elementMapKeyTypeName)
                 .elementMapValueTypeName(type.elementMapValueTypeName)
                 .elementMapValueEnumType(type.elementMapValueEnumType)
                 .elementMapValueNestedType(type.elementMapValueNestedType)
@@ -658,6 +664,13 @@ public class MetadataFieldExtractor {
     }
 
     // ── Type validation helpers ────────────────────────────────────────
+
+    private boolean isAllowedMapKeyType(String keyType) {
+        return switch (keyType) {
+            case STRING, INTEGER, PRIM_INT, LONG, PRIM_LONG, BIG_INTEGER -> true;
+            default -> false;
+        };
+    }
 
     private boolean isDirectlyAccessible(VariableElement ve) {
         return ve.getModifiers().contains(Modifier.PUBLIC) || ve.getModifiers().isEmpty();
@@ -744,6 +757,7 @@ public class MetadataFieldExtractor {
             String mapValueElementConverterFqn,
             // Composite: Map value is map
             boolean mapValueMapType,
+            String mapValueMapKeyTypeName,
             String mapValueMapValueTypeName,
             boolean mapValueMapValueEnumType,
             boolean mapValueMapValueNestedType,
@@ -762,6 +776,7 @@ public class MetadataFieldExtractor {
             String elementElementConverterFqn,
             // Composite: Collection element is map
             boolean elementMapType,
+            String elementMapKeyTypeName,
             String elementMapValueTypeName,
             boolean elementMapValueEnumType,
             boolean elementMapValueNestedType,
@@ -783,6 +798,7 @@ public class MetadataFieldExtractor {
             String valueElementConverterFqn,
             // Composite: value is map
             boolean valueMapType,
+            String valueMapKeyTypeName,
             String valueMapValueTypeName,
             boolean valueMapValueEnumType,
             boolean valueMapValueNestedType,
@@ -793,6 +809,7 @@ public class MetadataFieldExtractor {
 
     private record CompositeElementResult(
             boolean isCollection, boolean isMap, String containerKind,
+            String mapKeyTypeName,
             String leafTypeName, boolean leafEnumType, boolean leafNestedType, String leafConverterFqn) {}
 
     private record MetadataKeyAndEncoding(String metadataKey, MetadataFieldType enc) {}

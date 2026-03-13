@@ -143,19 +143,30 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
 
     @Override
     public void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix, String javaType) {
+        emitSerializeMapValue(builder, mapVarSuffix, javaType, "_entry.getKey()");
+    }
+
+    @Override
+    public void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix,
+                                       String javaType, String serKeyExpr) {
         Object[] ser = serializeExpression("_entry.getValue()", javaType);
         String fmt = (String) ser[0];
         if (ser.length == 1) {
-            builder.addStatement("_map" + mapVarSuffix + ".put(_entry.getKey(), " + fmt + ")");
+            builder.addStatement("_map" + mapVarSuffix + ".put(" + serKeyExpr + ", " + fmt + ")");
         } else {
             Object[] args = new Object[ser.length - 1];
             System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement("_map" + mapVarSuffix + ".put(_entry.getKey(), " + fmt + ")", args);
+            builder.addStatement("_map" + mapVarSuffix + ".put(" + serKeyExpr + ", " + fmt + ")", args);
         }
     }
 
     @Override
     public void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType) {
+        emitDeserializeMapValue(builder, javaType, "(String) _k");
+    }
+
+    @Override
+    public void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType, String deserKeyExpr) {
         Class<?> chain = onChainType(javaType);
         if (chain == byte[].class) {
             builder.beginControlFlow("if (_val instanceof byte[])");
@@ -165,12 +176,11 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
         Object[] deser = deserializeExpression("_val", javaType);
         String fmt = (String) deser[0];
         if (deser.length == 1) {
-            builder.addStatement("_result.put(($T) _k, " + fmt + ")", String.class);
+            builder.addStatement("_result.put(" + deserKeyExpr + ", " + fmt + ")");
         } else {
-            Object[] args = new Object[deser.length];
-            args[0] = String.class;
-            System.arraycopy(deser, 1, args, 1, deser.length - 1);
-            builder.addStatement("_result.put(($T) _k, " + fmt + ")", args);
+            Object[] args = new Object[deser.length - 1];
+            System.arraycopy(deser, 1, args, 0, args.length);
+            builder.addStatement("_result.put(" + deserKeyExpr + ", " + fmt + ")", args);
         }
         builder.endControlFlow();
     }
@@ -237,12 +247,11 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
         Object[] deser = deserializeExpression(rawVar, javaType);
         String fmt = (String) deser[0];
         if (deser.length == 1) {
-            builder.addStatement(resultVar + ".put(($T) " + keyExpr + ", " + fmt + ")", String.class);
+            builder.addStatement(resultVar + ".put(" + keyExpr + ", " + fmt + ")");
         } else {
-            Object[] args = new Object[deser.length];
-            args[0] = String.class;
-            System.arraycopy(deser, 1, args, 1, deser.length - 1);
-            builder.addStatement(resultVar + ".put(($T) " + keyExpr + ", " + fmt + ")", args);
+            Object[] args = new Object[deser.length - 1];
+            System.arraycopy(deser, 1, args, 0, args.length);
+            builder.addStatement(resultVar + ".put(" + keyExpr + ", " + fmt + ")", args);
         }
         builder.endControlFlow();
     }

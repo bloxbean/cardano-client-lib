@@ -96,7 +96,7 @@ public class MetadataFieldInfo {
      */
     private boolean mapType;
 
-    /** Fully qualified key type for Map fields (currently only {@code "java.lang.String"}). */
+    /** Fully qualified key type for Map fields ({@code "java.lang.String"}, {@code "java.lang.Integer"}, {@code "java.lang.Long"}, or {@code "java.math.BigInteger"}). */
     private String mapKeyTypeName;
 
     /** Fully qualified value type for Map fields. */
@@ -136,7 +136,10 @@ public class MetadataFieldInfo {
     /** {@code true} when the Map value type is itself a Map. */
     private boolean mapValueMapType;
 
-    /** Value type of the inner map (the V in Map&lt;String, V&gt;). */
+    /** Key type of the inner map. */
+    private String mapValueMapKeyTypeName;
+
+    /** Value type of the inner map (the V in Map&lt;K, V&gt;). */
     private String mapValueMapValueTypeName;
 
     /** {@code true} when the inner map value type is an enum. */
@@ -173,7 +176,10 @@ public class MetadataFieldInfo {
     /** {@code true} when the collection element type is a Map. */
     private boolean elementMapType;
 
-    /** Value type of the element map (the V in Map&lt;String, V&gt;). */
+    /** Key type of the element map. */
+    private String elementMapKeyTypeName;
+
+    /** Value type of the element map (the V in Map&lt;K, V&gt;). */
     private String elementMapValueTypeName;
 
     /** {@code true} when the element map value is an enum. */

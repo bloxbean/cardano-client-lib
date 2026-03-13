@@ -673,10 +673,31 @@ public class MetadataFieldExtractorTest {
         }
 
         @Test
-        void nonStringMapKeyEmitsError() {
+        void unsupportedMapKeyEmitsError() {
             extractAndAssert(r -> {
                 assertThat(r.compilation).failed();
-                assertThat(r.compilation).hadErrorContaining("Map key type must be java.lang.String");
+                assertThat(r.compilation).hadErrorContaining("Map key type must be String, Integer, Long, or BigInteger");
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.Map;
+                @MetadataType
+                public class TestClass {
+                    private Map<Double, String> lookup;
+                    public Map<Double, String> getLookup() { return lookup; }
+                    public void setLookup(Map<Double, String> lookup) { this.lookup = lookup; }
+                }
+            """);
+        }
+
+        @Test
+        void integerMapKeyExtractsSuccessfully() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isMapType());
+                assertEquals("java.lang.Integer", f.getMapKeyTypeName());
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -686,6 +707,49 @@ public class MetadataFieldExtractorTest {
                     private Map<Integer, String> lookup;
                     public Map<Integer, String> getLookup() { return lookup; }
                     public void setLookup(Map<Integer, String> lookup) { this.lookup = lookup; }
+                }
+            """);
+        }
+
+        @Test
+        void longMapKeyExtractsSuccessfully() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isMapType());
+                assertEquals("java.lang.Long", f.getMapKeyTypeName());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.Map;
+                @MetadataType
+                public class TestClass {
+                    private Map<Long, String> lookup;
+                    public Map<Long, String> getLookup() { return lookup; }
+                    public void setLookup(Map<Long, String> lookup) { this.lookup = lookup; }
+                }
+            """);
+        }
+
+        @Test
+        void bigIntegerMapKeyExtractsSuccessfully() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isMapType());
+                assertEquals("java.math.BigInteger", f.getMapKeyTypeName());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import java.util.Map;
+                import java.math.BigInteger;
+                @MetadataType
+                public class TestClass {
+                    private Map<BigInteger, String> lookup;
+                    public Map<BigInteger, String> getLookup() { return lookup; }
+                    public void setLookup(Map<BigInteger, String> lookup) { this.lookup = lookup; }
                 }
             """);
         }
@@ -1190,19 +1254,19 @@ public class MetadataFieldExtractorTest {
         }
 
         @Test
-        void rejectsInnerMapNonStringKey() {
+        void rejectsInnerMapUnsupportedKey() {
             extractAndAssert(r -> {
                 assertThat(r.compilation).failed();
-                assertThat(r.compilation).hadErrorContaining("inner Map key type must be java.lang.String");
+                assertThat(r.compilation).hadErrorContaining("inner Map key type must be String, Integer, Long, or BigInteger");
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
                 import java.util.Map;
                 @MetadataType
                 public class TestClass {
-                    private Map<String, Map<Integer, String>> badInner;
-                    public Map<String, Map<Integer, String>> getBadInner() { return badInner; }
-                    public void setBadInner(Map<String, Map<Integer, String>> badInner) { this.badInner = badInner; }
+                    private Map<String, Map<Double, String>> badInner;
+                    public Map<String, Map<Double, String>> getBadInner() { return badInner; }
+                    public void setBadInner(Map<String, Map<Double, String>> badInner) { this.badInner = badInner; }
                 }
             """);
         }

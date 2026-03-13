@@ -91,21 +91,34 @@ public interface MetadataTypeCodeGen {
     // --- Map value support ---
 
     /**
-     * Emit {@code _mapSuffix.put(_entry.getKey(), ...)} for a Map value serialization.
+     * Emit {@code _mapSuffix.put(keyExpr, ...)} for a Map value serialization.
      *
      * @param builder   method builder
      * @param mapVarSuffix the suffix for the map variable (e.g. "settings" → "_mapsettings")
      * @param javaType  value type
+     * @param serKeyExpr the serialized key expression (e.g. "_entry.getKey()" or "BigInteger.valueOf(_entry.getKey())")
      */
+    default void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix,
+                                        String javaType, String serKeyExpr) {
+        emitSerializeMapValue(builder, mapVarSuffix, javaType);
+    }
+
+    /** Legacy overload — delegates to the key-aware version with {@code _entry.getKey()}. */
     void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix, String javaType);
 
     /**
      * Emit deserialization for a Map value from {@code _val} into {@code _result}.
      * Should check {@code _val instanceof OnChainType} and put into {@code _result}.
      *
-     * @param builder  method builder
-     * @param javaType value type
+     * @param builder    method builder
+     * @param javaType   value type
+     * @param deserKeyExpr the deserialized key expression (e.g. "(String) _k" or "((BigInteger) _k).intValue()")
      */
+    default void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType, String deserKeyExpr) {
+        emitDeserializeMapValue(builder, javaType);
+    }
+
+    /** Legacy overload — delegates to the key-aware version with {@code (String) _k}. */
     void emitDeserializeMapValue(MethodSpec.Builder builder, String javaType);
 
     // --- Composite support: variable-name-parameterized methods ---
