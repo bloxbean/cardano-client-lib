@@ -66,13 +66,15 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
                                           String javaType) {
         Object[] ser = serializeExpression(getExpr, javaType);
         String fmt = (String) ser[0];
+        boolean signed = onChainType(javaType) == BigInteger.class;
+        String putExpr = signed ? "_putBigInt(map, $S, " + fmt + ")" : "map.put($S, " + fmt + ")";
         if (ser.length == 1) {
-            builder.addStatement("map.put($S, " + fmt + ")", key);
+            builder.addStatement(putExpr, key);
         } else {
             Object[] args = new Object[ser.length]; // key + remaining
             args[0] = key;
             System.arraycopy(ser, 1, args, 1, ser.length - 1);
-            builder.addStatement("map.put($S, " + fmt + ")", args);
+            builder.addStatement(putExpr, args);
         }
     }
 
@@ -80,12 +82,14 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
     public void emitSerializeToList(MethodSpec.Builder builder, String javaType) {
         Object[] ser = serializeExpression("_el", javaType);
         String fmt = (String) ser[0];
+        boolean signed = onChainType(javaType) == BigInteger.class;
+        String addExpr = signed ? "_addBigInt(_list, " + fmt + ")" : "_list.add(" + fmt + ")";
         if (ser.length == 1) {
-            builder.addStatement("_list.add(" + fmt + ")");
+            builder.addStatement(addExpr);
         } else {
             Object[] args = new Object[ser.length - 1];
             System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement("_list.add(" + fmt + ")", args);
+            builder.addStatement(addExpr, args);
         }
     }
 
@@ -152,12 +156,16 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
                                        String javaType, String serKeyExpr) {
         Object[] ser = serializeExpression("_entry.getValue()", javaType);
         String fmt = (String) ser[0];
+        boolean signed = onChainType(javaType) == BigInteger.class;
+        String stmt = signed
+                ? "_putBigInt(_map" + mapVarSuffix + ", " + serKeyExpr + ", " + fmt + ")"
+                : "_map" + mapVarSuffix + ".put(" + serKeyExpr + ", " + fmt + ")";
         if (ser.length == 1) {
-            builder.addStatement("_map" + mapVarSuffix + ".put(" + serKeyExpr + ", " + fmt + ")");
+            builder.addStatement(stmt);
         } else {
             Object[] args = new Object[ser.length - 1];
             System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement("_map" + mapVarSuffix + ".put(" + serKeyExpr + ", " + fmt + ")", args);
+            builder.addStatement(stmt, args);
         }
     }
 
@@ -192,12 +200,16 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
     public void emitSerializeToListVar(MethodSpec.Builder builder, String listVar, String javaType) {
         Object[] ser = serializeExpression("_innerEl", javaType);
         String fmt = (String) ser[0];
+        boolean signed = onChainType(javaType) == BigInteger.class;
+        String stmt = signed
+                ? "_addBigInt(" + listVar + ", " + fmt + ")"
+                : listVar + ".add(" + fmt + ")";
         if (ser.length == 1) {
-            builder.addStatement(listVar + ".add(" + fmt + ")");
+            builder.addStatement(stmt);
         } else {
             Object[] args = new Object[ser.length - 1];
             System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement(listVar + ".add(" + fmt + ")", args);
+            builder.addStatement(stmt, args);
         }
     }
 
@@ -206,12 +218,16 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
                                           String keyExpr, String javaType) {
         Object[] ser = serializeExpression("_innerEntry.getValue()", javaType);
         String fmt = (String) ser[0];
+        boolean signed = onChainType(javaType) == BigInteger.class;
+        String stmt = signed
+                ? "_putBigInt(" + mapVar + ", " + keyExpr + ", " + fmt + ")"
+                : mapVar + ".put(" + keyExpr + ", " + fmt + ")";
         if (ser.length == 1) {
-            builder.addStatement(mapVar + ".put(" + keyExpr + ", " + fmt + ")");
+            builder.addStatement(stmt);
         } else {
             Object[] args = new Object[ser.length - 1];
             System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement(mapVar + ".put(" + keyExpr + ", " + fmt + ")", args);
+            builder.addStatement(stmt, args);
         }
     }
 

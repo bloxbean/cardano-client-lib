@@ -273,7 +273,7 @@ class MetadataConverterGeneratorTest {
         @Test
         void toMetadataMap_bigIntegerField_storedDirectly() {
             String src = generate(List.of(field("amount", "java.math.BigInteger")));
-            assertTrue(src.contains("map.put(\"amount\", order.getAmount())"));
+            assertTrue(src.contains("_putBigInt(map, \"amount\", order.getAmount())"));
         }
 
         @Test
@@ -1567,7 +1567,7 @@ class MetadataConverterGeneratorTest {
             void toMetadataMap_addsElementDirectly() {
                 String src = generate(List.of(listField("amounts", "java.math.BigInteger")));
                 assertTrue(src.contains("for (BigInteger _el : order.getAmounts())"));
-                assertTrue(src.contains("_list.add(_el)"));
+                assertTrue(src.contains("_addBigInt(_list, _el)"));
             }
 
             @Test
@@ -1585,7 +1585,7 @@ class MetadataConverterGeneratorTest {
             void toMetadataMap_wrapsInBigIntegerValueOf() {
                 String src = generate(List.of(listField("ids", "java.lang.Integer")));
                 assertTrue(src.contains("for (Integer _el : order.getIds())"));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf((long) _el))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf((long) _el))"));
             }
 
             @Test
@@ -1603,7 +1603,7 @@ class MetadataConverterGeneratorTest {
             void toMetadataMap_wrapsInBigIntegerValueOf() {
                 String src = generate(List.of(listField("timestamps", "java.lang.Long")));
                 assertTrue(src.contains("for (Long _el : order.getTimestamps())"));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf(_el))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf(_el))"));
             }
 
             @Test
@@ -1620,7 +1620,7 @@ class MetadataConverterGeneratorTest {
             void toMetadataMap_encodesAsBigIntegerOnOrZero() {
                 String src = generate(List.of(listField("flags", "java.lang.Boolean")));
                 assertTrue(src.contains("for (Boolean _el : order.getFlags())"));
-                assertTrue(src.contains("_list.add(_el ? BigInteger.ONE : BigInteger.ZERO)"));
+                assertTrue(src.contains("_addBigInt(_list, _el ? BigInteger.ONE : BigInteger.ZERO)"));
             }
 
             @Test
@@ -1707,7 +1707,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_wrapsInBigIntegerValueOf() {
                 String src = generate(List.of(listField("counts", "java.lang.Short")));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf((long) _el))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf((long) _el))"));
             }
 
             @Test
@@ -1723,7 +1723,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_wrapsInBigIntegerValueOf() {
                 String src = generate(List.of(listField("bytes", "java.lang.Byte")));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf((long) _el))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf((long) _el))"));
             }
 
             @Test
@@ -1836,7 +1836,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_encodesAsEpochSeconds() {
                 String src = generate(List.of(listField("times", "java.time.Instant")));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf(_el.getEpochSecond()))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf(_el.getEpochSecond()))"));
             }
 
             @Test
@@ -1852,7 +1852,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_encodesAsEpochDay() {
                 String src = generate(List.of(listField("dates", "java.time.LocalDate")));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf(_el.toEpochDay()))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf(_el.toEpochDay()))"));
             }
 
             @Test
@@ -1884,7 +1884,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_encodesAsEpochMillis() {
                 String src = generate(List.of(listField("dates", "java.util.Date")));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf(_el.getTime()))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf(_el.getTime()))"));
             }
 
             @Test
@@ -2014,7 +2014,7 @@ class MetadataConverterGeneratorTest {
             void toMetadataMap_addsElementDirectly() {
                 String src = generate(List.of(setField("amounts", "java.math.BigInteger")));
                 assertTrue(src.contains("for (BigInteger _el : order.getAmounts())"));
-                assertTrue(src.contains("_list.add(_el)"));
+                assertTrue(src.contains("_addBigInt(_list, _el)"));
             }
 
             @Test
@@ -2031,7 +2031,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_wrapsInBigIntegerValueOf() {
                 String src = generate(List.of(setField("ids", "java.lang.Integer")));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf((long) _el))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf((long) _el))"));
             }
 
             @Test
@@ -2047,7 +2047,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_encodesAsBigIntegerOneOrZero() {
                 String src = generate(List.of(setField("flags", "java.lang.Boolean")));
-                assertTrue(src.contains("_list.add(_el ? BigInteger.ONE : BigInteger.ZERO)"));
+                assertTrue(src.contains("_addBigInt(_list, _el ? BigInteger.ONE : BigInteger.ZERO)"));
             }
 
             @Test
@@ -2184,7 +2184,7 @@ class MetadataConverterGeneratorTest {
             void toMetadataMap_addsElementDirectly() {
                 String src = generate(List.of(sortedSetField("amounts", "java.math.BigInteger")));
                 assertTrue(src.contains("for (BigInteger _el : order.getAmounts())"));
-                assertTrue(src.contains("_list.add(_el)"));
+                assertTrue(src.contains("_addBigInt(_list, _el)"));
             }
 
             @Test
@@ -2201,7 +2201,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_wrapsInBigIntegerValueOf() {
                 String src = generate(List.of(sortedSetField("ids", "java.lang.Integer")));
-                assertTrue(src.contains("_list.add(BigInteger.valueOf((long) _el))"));
+                assertTrue(src.contains("_addBigInt(_list, BigInteger.valueOf((long) _el))"));
             }
 
             @Test
@@ -2217,7 +2217,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_encodesAsBigIntegerOneOrZero() {
                 String src = generate(List.of(sortedSetField("flags", "java.lang.Boolean")));
-                assertTrue(src.contains("_list.add(_el ? BigInteger.ONE : BigInteger.ZERO)"));
+                assertTrue(src.contains("_addBigInt(_list, _el ? BigInteger.ONE : BigInteger.ZERO)"));
             }
 
             @Test
@@ -2340,7 +2340,7 @@ class MetadataConverterGeneratorTest {
             @Test
             void toMetadataMap_putsGetResult() {
                 String src = generate(List.of(optionalField("amount", "java.math.BigInteger")));
-                assertTrue(src.contains("map.put(\"amount\", order.getAmount().get())"));
+                assertTrue(src.contains("_putBigInt(map, \"amount\", order.getAmount().get())"));
             }
 
             @Test
@@ -3108,9 +3108,9 @@ class MetadataConverterGeneratorTest {
         void toMetadataMap_allFieldsHavePutStatements() {
             String src = generate(fields);
             assertTrue(src.contains("map.put(\"recipient\""));
-            assertTrue(src.contains("map.put(\"amount\","));
-            assertTrue(src.contains("map.put(\"timestamp\","));
-            assertTrue(src.contains("map.put(\"quantity\","));
+            assertTrue(src.contains("_putBigInt(map, \"amount\","));
+            assertTrue(src.contains("_putBigInt(map, \"timestamp\","));
+            assertTrue(src.contains("_putBigInt(map, \"quantity\","));
             assertTrue(src.contains("map.put(\"sig\","));
         }
 

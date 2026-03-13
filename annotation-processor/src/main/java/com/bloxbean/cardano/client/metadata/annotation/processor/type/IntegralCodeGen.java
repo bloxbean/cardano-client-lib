@@ -115,12 +115,12 @@ public class IntegralCodeGen extends AbstractMetadataTypeCodeGen {
 
     @Override
     public void emitSerializeToList(MethodSpec.Builder builder, String javaType) {
-        // Collection elements are always boxed
+        // Collection elements are always boxed; use negative-aware helper
         switch (javaType) {
             case LONG ->
-                    builder.addStatement("_list.add($T.valueOf(_el))", BigInteger.class);
+                    builder.addStatement("_addBigInt(_list, $T.valueOf(_el))", BigInteger.class);
             case INTEGER, SHORT, BYTE ->
-                    builder.addStatement("_list.add($T.valueOf((long) _el))", BigInteger.class);
+                    builder.addStatement("_addBigInt(_list, $T.valueOf((long) _el))", BigInteger.class);
             default ->
                     throw new IllegalArgumentException("Unsupported collection element type: " + javaType);
         }

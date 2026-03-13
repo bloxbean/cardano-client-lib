@@ -2,6 +2,7 @@ package com.bloxbean.cardano.client.metadata.annotation.processor;
 
 import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
+import com.bloxbean.cardano.client.metadata.MetadataList;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.CollectionCodeGen;
@@ -76,6 +77,9 @@ public class MetadataConverterGenerator {
             classBuilder.addMethod(buildToMetadataMethod(targetClass, simpleClassName, label));
             classBuilder.addMethod(buildFromMetadataMethod(targetClass, label));
         }
+
+        // Negative-aware BigInteger helpers for serialization
+        addBigIntHelpers(classBuilder);
 
         return classBuilder.build();
     }
@@ -318,6 +322,50 @@ public class MetadataConverterGenerator {
         if (s == null || s.isEmpty()) return s;
 
         return Character.toLowerCase(s.charAt(0)) + s.substring(1);
+    }
+
+    // -------------------------------------------------------------------------
+    // Negative-aware BigInteger helpers (added to generated class)
+    // -------------------------------------------------------------------------
+
+    private void addBigIntHelpers(TypeSpec.Builder classBuilder) {
+        // _putBigInt(MetadataMap, String, BigInteger)
+        classBuilder.addMethod(MethodSpec.methodBuilder("_putBigInt")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .addParameter(MetadataMap.class, "_m")
+                .addParameter(String.class, "_k")
+                .addParameter(BigInteger.class, "_v")
+                .beginControlFlow("if (_v.signum() >= 0)")
+                .addStatement("_m.put(_k, _v)")
+                .nextControlFlow("else")
+                .addStatement("_m.putNegative(_k, _v)")
+                .endControlFlow()
+                .build());
+
+        // _putBigInt(MetadataMap, BigInteger, BigInteger)
+        classBuilder.addMethod(MethodSpec.methodBuilder("_putBigInt")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .addParameter(MetadataMap.class, "_m")
+                .addParameter(BigInteger.class, "_k")
+                .addParameter(BigInteger.class, "_v")
+                .beginControlFlow("if (_v.signum() >= 0)")
+                .addStatement("_m.put(_k, _v)")
+                .nextControlFlow("else")
+                .addStatement("_m.putNegative(_k, _v)")
+                .endControlFlow()
+                .build());
+
+        // _addBigInt(MetadataList, BigInteger)
+        classBuilder.addMethod(MethodSpec.methodBuilder("_addBigInt")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .addParameter(MetadataList.class, "_l")
+                .addParameter(BigInteger.class, "_v")
+                .beginControlFlow("if (_v.signum() >= 0)")
+                .addStatement("_l.add(_v)")
+                .nextControlFlow("else")
+                .addStatement("_l.addNegative(_v)")
+                .endControlFlow()
+                .build());
     }
 
 }
