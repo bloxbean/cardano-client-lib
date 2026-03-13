@@ -1,7 +1,7 @@
 # ADR 0016: Map<K, V> Field Support
 
 ## Status
-Accepted (updated: Integer/Long/BigInteger keys added)
+Accepted (updated: Integer/Long/BigInteger/byte[] keys added)
 
 ## Context
 Users needed key-value structures in metadata (e.g., configuration settings, named scores, address registries). Without Map support, they had to create wrapper classes or manually build MetadataMap instances.
@@ -12,6 +12,7 @@ Support `Map<K, V>` fields where K can be:
 - `Integer` (stored as Cardano integer via `BigInteger.valueOf`)
 - `Long` (stored as Cardano integer via `BigInteger.valueOf`)
 - `BigInteger` (stored as Cardano integer directly)
+- `byte[]` (stored as Cardano byte string — see also ADR 0021)
 
 And V can be:
 - Any supported scalar type (String, BigInteger, Integer, etc.)
@@ -25,6 +26,7 @@ And V can be:
 | `Integer`      | `_map.put(BigInteger.valueOf(key), value)` | `((BigInteger) _k).intValue()`   |
 | `Long`         | `_map.put(BigInteger.valueOf(key), value)` | `((BigInteger) _k).longValue()`  |
 | `BigInteger`   | `_map.put(key, value)`               | `instanceof BigInteger` check          |
+| `byte[]`       | `_map.put(key, value)`               | `instanceof byte[]` check              |
 
 Other key types (e.g., `Map<Boolean, V>`) emit a compile-time ERROR.
 
@@ -104,3 +106,4 @@ public class GameScores {
 - Map values can be nested `@MetadataType` objects, enabling rich hierarchical structures
 - Empty maps are serialized as empty MetadataMap (not omitted)
 - Integer, Long, and BigInteger keys are stored as Cardano integers, enabling numeric map lookups on-chain
+- byte[] keys are stored as native Cardano byte strings (see ADR 0021 for details)
