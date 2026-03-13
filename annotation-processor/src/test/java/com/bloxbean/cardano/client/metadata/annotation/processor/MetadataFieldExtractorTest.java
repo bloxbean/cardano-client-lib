@@ -15,6 +15,7 @@ import javax.tools.JavaFileObject;
 import java.util.*;
 import java.util.function.Consumer;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import static com.google.testing.compile.CompilationSubject.assertThat;
 import static com.google.testing.compile.Compiler.javac;
 import static org.junit.jupiter.api.Assertions.*;
@@ -428,7 +429,7 @@ public class MetadataFieldExtractorTest {
                 assertEquals(1, r.fields.size());
                 MetadataFieldInfo f = r.fields.get(0);
                 assertEquals("java.lang.String", f.getElementTypeName());
-                assertTrue(f.getJavaTypeName().startsWith("java.util.List"));
+                assertTrue(f.getJavaTypeName().startsWith(COLLECTION_LIST));
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -449,7 +450,7 @@ public class MetadataFieldExtractorTest {
                 assertEquals(1, r.fields.size());
                 MetadataFieldInfo f = r.fields.get(0);
                 assertEquals("java.lang.String", f.getElementTypeName());
-                assertTrue(f.getJavaTypeName().startsWith("java.util.Set"));
+                assertTrue(f.getJavaTypeName().startsWith(COLLECTION_SET));
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -980,7 +981,7 @@ public class MetadataFieldExtractorTest {
                 MetadataFieldInfo f = r.fields.get(0);
                 assertTrue(f.isMapType());
                 assertTrue(f.isMapValueCollectionType());
-                assertEquals("java.util.List", f.getMapValueCollectionKind());
+                assertEquals(COLLECTION_LIST, f.getMapValueCollectionKind());
                 assertEquals("java.lang.String", f.getMapValueElementTypeName());
                 assertFalse(f.isMapValueElementEnumType());
                 assertFalse(f.isMapValueElementNestedType());
@@ -1029,7 +1030,7 @@ public class MetadataFieldExtractorTest {
                 assertEquals(1, r.fields.size());
                 MetadataFieldInfo f = r.fields.get(0);
                 assertTrue(f.isElementCollectionType());
-                assertEquals("java.util.List", f.getElementCollectionKind());
+                assertEquals(COLLECTION_LIST, f.getElementCollectionKind());
                 assertEquals("java.lang.String", f.getElementElementTypeName());
                 assertFalse(f.isElementElementEnumType());
                 assertFalse(f.isElementElementNestedType());

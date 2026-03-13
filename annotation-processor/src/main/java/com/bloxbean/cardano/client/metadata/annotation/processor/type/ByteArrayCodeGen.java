@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.squareup.javapoet.ClassName;
@@ -27,7 +28,7 @@ public class ByteArrayCodeGen extends AbstractMetadataTypeCodeGen {
 
     @Override
     public Set<String> supportedJavaTypes() {
-        return Set.of("byte[]");
+        return Set.of(BYTE_ARRAY);
     }
 
     @Override

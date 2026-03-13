@@ -2,6 +2,8 @@ package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
 import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGen;
+
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGenRegistry;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
@@ -111,36 +113,36 @@ final class CompositeCodeGenHelper {
 
     static ClassName collectionImplClass(String collectionKind) {
         return switch (collectionKind) {
-            case "java.util.List" -> ClassName.get("java.util", "ArrayList");
-            case "java.util.Set" -> ClassName.get("java.util", "LinkedHashSet");
-            case "java.util.SortedSet" -> ClassName.get("java.util", "TreeSet");
+            case COLLECTION_LIST -> ClassName.get("java.util", "ArrayList");
+            case COLLECTION_SET -> ClassName.get("java.util", "LinkedHashSet");
+            case COLLECTION_SORTED_SET -> ClassName.get("java.util", "TreeSet");
             default -> ClassName.get("java.util", "ArrayList");
         };
     }
 
     static TypeName scalarTypeName(String typeName) {
         return switch (typeName) {
-            case "java.lang.String"         -> TypeName.get(String.class);
-            case "java.math.BigInteger"     -> TypeName.get(BigInteger.class);
-            case "java.math.BigDecimal"     -> TypeName.get(BigDecimal.class);
-            case "java.lang.Long"           -> TypeName.get(Long.class);
-            case "java.lang.Integer"        -> TypeName.get(Integer.class);
-            case "java.lang.Short"          -> TypeName.get(Short.class);
-            case "java.lang.Byte"           -> TypeName.get(Byte.class);
-            case "java.lang.Boolean"        -> TypeName.get(Boolean.class);
-            case "java.lang.Double"         -> TypeName.get(Double.class);
-            case "java.lang.Float"          -> TypeName.get(Float.class);
-            case "java.lang.Character"      -> TypeName.get(Character.class);
-            case "byte[]"                   -> TypeName.get(byte[].class);
-            case "java.net.URI"             -> TypeName.get(URI.class);
-            case "java.net.URL"             -> TypeName.get(URL.class);
-            case "java.util.UUID"           -> TypeName.get(UUID.class);
-            case "java.util.Currency"       -> TypeName.get(Currency.class);
-            case "java.util.Locale"         -> TypeName.get(Locale.class);
-            case "java.time.Instant"        -> TypeName.get(Instant.class);
-            case "java.time.LocalDate"      -> TypeName.get(LocalDate.class);
-            case "java.time.LocalDateTime"  -> TypeName.get(LocalDateTime.class);
-            case "java.util.Date"           -> TypeName.get(Date.class);
+            case STRING         -> TypeName.get(String.class);
+            case BIG_INTEGER    -> TypeName.get(BigInteger.class);
+            case BIG_DECIMAL    -> TypeName.get(BigDecimal.class);
+            case LONG           -> TypeName.get(Long.class);
+            case INTEGER        -> TypeName.get(Integer.class);
+            case SHORT          -> TypeName.get(Short.class);
+            case BYTE           -> TypeName.get(Byte.class);
+            case BOOLEAN        -> TypeName.get(Boolean.class);
+            case DOUBLE         -> TypeName.get(Double.class);
+            case FLOAT          -> TypeName.get(Float.class);
+            case CHARACTER      -> TypeName.get(Character.class);
+            case BYTE_ARRAY     -> TypeName.get(byte[].class);
+            case URI            -> TypeName.get(URI.class);
+            case URL            -> TypeName.get(URL.class);
+            case UUID           -> TypeName.get(UUID.class);
+            case CURRENCY       -> TypeName.get(Currency.class);
+            case LOCALE         -> TypeName.get(Locale.class);
+            case INSTANT        -> TypeName.get(Instant.class);
+            case LOCAL_DATE     -> TypeName.get(LocalDate.class);
+            case LOCAL_DATETIME -> TypeName.get(LocalDateTime.class);
+            case DATE           -> TypeName.get(Date.class);
             default -> throw new IllegalArgumentException("Unsupported type: " + typeName);
         };
     }

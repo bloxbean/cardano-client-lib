@@ -5,6 +5,8 @@ import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataIgnore;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
+
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
@@ -21,7 +23,7 @@ import java.util.*;
 public class MetadataFieldExtractor {
 
     private static final Set<String> COLLECTION_PREFIXES = Set.of(
-            "java.util.List", "java.util.Set", "java.util.SortedSet");
+            COLLECTION_LIST, COLLECTION_SET, COLLECTION_SORTED_SET);
 
     private final ProcessingEnvironment processingEnv;
     private final Messager messager;
@@ -51,7 +53,7 @@ public class MetadataFieldExtractor {
             Element superEl = processingEnv.getTypeUtils().asElement(superclass);
             if (!(superEl instanceof TypeElement)) break;
             current = (TypeElement) superEl;
-            if (current.getQualifiedName().toString().equals("java.lang.Object")) break;
+            if (current.getQualifiedName().toString().equals(OBJECT)) break;
         }
 
         return fields;
@@ -164,7 +166,19 @@ public class MetadataFieldExtractor {
         boolean mapValueMapValueNestedType = false;
         String mapValueMapValueConverterFqn = null;
 
-        if (typeName.startsWith("java.util.Map<") && typeName.endsWith(">")) {
+        boolean isCollectionType = false;
+        boolean isOptionalType = false;
+        String collectionKind = null;
+
+        TypeMirror fieldType = ve.asType();
+        String rawType = null;
+        DeclaredType declaredType = null;
+        if (fieldType instanceof DeclaredType dt) {
+            declaredType = dt;
+            rawType = rawTypeName(dt);
+        }
+
+        if (MAP.equals(rawType)) {
             MapDetectionResult mapResult = detectMapType(ve, fieldName);
             if (mapResult == null) return null; // error or unsupported, already reported
             isMapType = true;
@@ -200,14 +214,21 @@ public class MetadataFieldExtractor {
         boolean elementMapValueNestedType = false;
         String elementMapValueConverterFqn = null;
 
-        if (!isMapType && (typeName.startsWith("java.util.List<") || typeName.startsWith("java.util.Set<")
-                || typeName.startsWith("java.util.SortedSet<")
-                || typeName.startsWith("java.util.Optional<"))
-                && typeName.endsWith(">")) {
-            elementTypeName = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
+        boolean isCollectionRawType = rawType != null && COLLECTION_PREFIXES.contains(rawType);
+        if (!isMapType && declaredType != null
+                && (isCollectionRawType || OPTIONAL.equals(rawType))
+                && declaredType.getTypeArguments().size() == 1) {
+            elementTypeName = declaredType.getTypeArguments().get(0).toString();
+
+            if (isCollectionRawType) {
+                isCollectionType = true;
+                collectionKind = rawType;
+            } else {
+                isOptionalType = true;
+            }
 
             // Check for composite element types (not for Optional)
-            if (!typeName.startsWith("java.util.Optional<") && !isSupportedScalarType(elementTypeName)) {
+            if (!isOptionalType && !isSupportedScalarType(elementTypeName)) {
                 CompositeElementResult compositeResult = detectCompositeElement(ve, fieldName, elementTypeName);
                 if (compositeResult != null) {
                     if (compositeResult.isCollection) {
@@ -244,7 +265,7 @@ public class MetadataFieldExtractor {
 
         // Validate supported type
         boolean isCompositeElement = elementCollectionType || elementMapType;
-        if (!isEnum && !isNestedType && !isMapType && !isSupportedType(typeName)
+        if (!isEnum && !isNestedType && !isMapType && !isSupportedType(ve.asType())
                 && !elementEnumType && !elementNestedType && !isCompositeElement) {
             messager.printMessage(Diagnostic.Kind.WARNING,
                     "Field '" + fieldName + "' has unsupported type '" + typeName + "' and will be skipped.", ve);
@@ -252,6 +273,7 @@ public class MetadataFieldExtractor {
         }
 
         return new FieldTypeResult(isEnum, isNestedType, nestedConverterFqn,
+                isCollectionType, isOptionalType, collectionKind,
                 isMapType, mapKeyTypeName, mapValueTypeName, mapValueEnumType, mapValueNestedType, mapValueConverterFqn,
                 mapValueCollectionType, mapValueCollectionKind, mapValueElementTypeName,
                 mapValueElementEnumType, mapValueElementNestedType, mapValueElementConverterFqn,
@@ -274,7 +296,7 @@ public class MetadataFieldExtractor {
         String keyType = typeArgs.get(0).toString();
         String valueType = typeArgs.get(1).toString();
 
-        if (!"java.lang.String".equals(keyType)) {
+        if (!STRING.equals(keyType)) {
             messager.printMessage(Diagnostic.Kind.ERROR,
                     "Field '" + fieldName + "': Map key type must be java.lang.String, but found '" + keyType + "'.", ve);
             return null;
@@ -311,11 +333,11 @@ public class MetadataFieldExtractor {
             }
 
             // Map<String, Map<String, V>>
-            if ("java.util.Map".equals(valueRawType)) {
+            if (MAP.equals(valueRawType)) {
                 List<? extends TypeMirror> innerArgs = valueDeclared.getTypeArguments();
                 if (innerArgs.size() == 2) {
                     String innerKeyType = innerArgs.get(0).toString();
-                    if (!"java.lang.String".equals(innerKeyType)) {
+                    if (!STRING.equals(innerKeyType)) {
                         messager.printMessage(Diagnostic.Kind.ERROR,
                                 "Field '" + fieldName + "': inner Map key type must be java.lang.String, but found '" + innerKeyType + "'.", ve);
                         return null;
@@ -407,11 +429,11 @@ public class MetadataFieldExtractor {
         }
 
         // List<Map<String, V>>
-        if ("java.util.Map".equals(elementRawType)) {
+        if (MAP.equals(elementRawType)) {
             List<? extends TypeMirror> innerArgs = elementDeclared.getTypeArguments();
             if (innerArgs.size() == 2) {
                 String innerKeyType = innerArgs.get(0).toString();
-                if (!"java.lang.String".equals(innerKeyType)) {
+                if (!STRING.equals(innerKeyType)) {
                     messager.printMessage(Diagnostic.Kind.ERROR,
                             "Field '" + fieldName + "': inner Map key type must be java.lang.String, but found '" + innerKeyType + "'.", ve);
                     return null;
@@ -443,7 +465,7 @@ public class MetadataFieldExtractor {
     private boolean isDoubleNested(TypeMirror typeMirror) {
         if (typeMirror instanceof DeclaredType declared) {
             String raw = rawTypeName(declared);
-            return COLLECTION_PREFIXES.contains(raw) || "java.util.Map".equals(raw);
+            return COLLECTION_PREFIXES.contains(raw) || MAP.equals(raw);
         }
         return false;
     }
@@ -548,6 +570,9 @@ public class MetadataFieldExtractor {
                 .enumType(type.enumType)
                 .elementEnumType(type.elementEnumType)
                 .nestedType(type.nestedType)
+                .collectionType(type.collectionType)
+                .optionalType(type.optionalType)
+                .collectionKind(type.collectionKind)
                 .elementNestedType(type.elementNestedType)
                 .nestedConverterFqn(type.nestedType ? type.nestedConverterFqn : type.elementNestedConverterFqn)
                 .mapType(type.mapType)
@@ -592,7 +617,7 @@ public class MetadataFieldExtractor {
         String getterMethodName = "get" + capitalize(fieldName);
         String isGetterMethodName = "is" + capitalize(fieldName);
         String fieldTypeName = variableElement.asType().toString();
-        boolean isBooleanType = fieldTypeName.equals("boolean") || fieldTypeName.equals("java.lang.Boolean");
+        boolean isBooleanType = fieldTypeName.equals(PRIM_BOOLEAN) || fieldTypeName.equals(BOOLEAN);
 
         for (Element enclosedElement : processingEnv.getElementUtils().getAllMembers(typeElement)) {
             if (!(enclosedElement instanceof ExecutableElement executableElement)) continue;
@@ -638,35 +663,30 @@ public class MetadataFieldExtractor {
         return ve.getModifiers().contains(Modifier.PUBLIC) || ve.getModifiers().isEmpty();
     }
 
-    private boolean isSupportedType(String typeName) {
-        if (isSupportedScalarType(typeName)) return true;
-        if ((typeName.startsWith("java.util.List<") || typeName.startsWith("java.util.Set<"))
-                && typeName.endsWith(">")) {
-            String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
-            return isSupportedScalarType(elementType);
+    private boolean isSupportedType(TypeMirror typeMirror) {
+        if (isSupportedScalarType(typeMirror.toString())) return true;
+        if (!(typeMirror instanceof DeclaredType dt)) return false;
+        String raw = rawTypeName(dt);
+        if (!COLLECTION_PREFIXES.contains(raw) && !OPTIONAL.equals(raw)) return false;
+        if (dt.getTypeArguments().size() != 1) return false;
+        String elemType = dt.getTypeArguments().get(0).toString();
+        if (COLLECTION_SORTED_SET.equals(raw)) {
+            return isSupportedScalarType(elemType)
+                    && !BYTE_ARRAY.equals(elemType)
+                    && !URL.equals(elemType)
+                    && !CURRENCY.equals(elemType)
+                    && !LOCALE.equals(elemType);
         }
-        if (typeName.startsWith("java.util.SortedSet<") && typeName.endsWith(">")) {
-            String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
-            return isSupportedScalarType(elementType)
-                    && !"byte[]".equals(elementType)
-                    && !"java.net.URL".equals(elementType)
-                    && !"java.util.Currency".equals(elementType)
-                    && !"java.util.Locale".equals(elementType);
-        }
-        if (typeName.startsWith("java.util.Optional<") && typeName.endsWith(">")) {
-            String elementType = typeName.substring(typeName.indexOf('<') + 1, typeName.length() - 1);
-            return isSupportedScalarType(elementType);
-        }
-        return false;
+        return isSupportedScalarType(elemType);
     }
 
     private boolean isSupportedScalarType(String typeName) {
         return switch (typeName) {
-            case "java.lang.String", "java.math.BigInteger", "java.math.BigDecimal", "java.lang.Long", "long",
-                 "java.lang.Integer", "int", "java.lang.Short", "short", "java.lang.Byte", "byte", "java.lang.Boolean",
-                 "boolean", "java.lang.Double", "double", "java.lang.Float", "float", "java.lang.Character", "char",
-                 "byte[]", "java.net.URI", "java.net.URL", "java.util.UUID", "java.util.Currency", "java.util.Locale",
-                 "java.time.Instant", "java.time.LocalDate", "java.time.LocalDateTime", "java.util.Date" -> true;
+            case STRING, BIG_INTEGER, BIG_DECIMAL, LONG, PRIM_LONG,
+                 INTEGER, PRIM_INT, SHORT, PRIM_SHORT, BYTE, PRIM_BYTE, BOOLEAN,
+                 PRIM_BOOLEAN, DOUBLE, PRIM_DOUBLE, FLOAT, PRIM_FLOAT, CHARACTER, PRIM_CHAR,
+                 BYTE_ARRAY, URI, URL, UUID, CURRENCY, LOCALE,
+                 INSTANT, LOCAL_DATE, LOCAL_DATETIME, DATE -> true;
             default -> false;
         };
     }
@@ -675,7 +695,7 @@ public class MetadataFieldExtractor {
         return switch (enc) {
             case DEFAULT -> true;
             case STRING -> {
-                if (typeName.equals("byte[]")) {
+                if (typeName.equals(BYTE_ARRAY)) {
                     messager.printMessage(Diagnostic.Kind.ERROR,
                             "@MetadataField(enc=STRING) is ambiguous for byte[] — " +
                             "use STRING_HEX or STRING_BASE64 to specify the encoding.", ve);
@@ -684,7 +704,7 @@ public class MetadataFieldExtractor {
                 yield true;
             }
             case STRING_HEX, STRING_BASE64 -> {
-                if (!typeName.equals("byte[]")) {
+                if (!typeName.equals(BYTE_ARRAY)) {
                     messager.printMessage(Diagnostic.Kind.ERROR,
                             "@MetadataField(enc=" + enc + ") is only valid for byte[] fields, " +
                             "but field has type '" + typeName + "'.", ve);
@@ -706,6 +726,9 @@ public class MetadataFieldExtractor {
             boolean enumType,
             boolean nestedType,
             String nestedConverterFqn,
+            boolean collectionType,
+            boolean optionalType,
+            String collectionKind,
             boolean mapType,
             String mapKeyTypeName,
             String mapValueTypeName,

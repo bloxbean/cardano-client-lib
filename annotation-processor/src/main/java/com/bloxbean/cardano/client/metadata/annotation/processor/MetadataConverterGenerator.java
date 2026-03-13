@@ -131,14 +131,13 @@ public class MetadataConverterGenerator {
         }
 
         // Collections
-        if (javaType.startsWith("java.util.List<") || javaType.startsWith("java.util.Set<")
-                || javaType.startsWith("java.util.SortedSet<")) {
+        if (field.isCollectionType()) {
             collectionCodeGen.emitSerializeToMap(builder, field, getExpr);
             return;
         }
 
         // Optional
-        if (javaType.startsWith("java.util.Optional<")) {
+        if (field.isOptionalType()) {
             if (field.isElementNestedType()) {
                 optionalCodeGen.emitSerializeToMap(builder, field, getExpr);
             } else if (field.isElementEnumType()) {
@@ -217,14 +216,13 @@ public class MetadataConverterGenerator {
         }
 
         // Collections
-        if (javaType.startsWith("java.util.List<") || javaType.startsWith("java.util.Set<")
-                || javaType.startsWith("java.util.SortedSet<")) {
+        if (field.isCollectionType()) {
             collectionCodeGen.emitDeserializeFromMap(builder, field);
             return;
         }
 
         // Optional
-        if (javaType.startsWith("java.util.Optional<")) {
+        if (field.isOptionalType()) {
             optionalCodeGen.emitDeserializeFromMap(builder, field);
             return;
         }
@@ -309,18 +307,15 @@ public class MetadataConverterGenerator {
 
     private boolean needsNullCheck(String javaType, MetadataFieldInfo field) {
         if (field.isEnumType() || field.isNestedType() || field.isMapType()) return true;
-        if (!isScalar(javaType)) return true;
+        if (!isScalar(field)) return true;
         MetadataTypeCodeGen codeGen = registry.get(javaType);
 
         return codeGen.needsNullCheck(javaType);
     }
 
-    private boolean isScalar(String javaType) {
-        return !javaType.startsWith("java.util.List<")
-                && !javaType.startsWith("java.util.Set<")
-                && !javaType.startsWith("java.util.SortedSet<")
-                && !javaType.startsWith("java.util.Optional<")
-                && !javaType.startsWith("java.util.Map<");
+    private boolean isScalar(MetadataFieldInfo field) {
+        return !field.isCollectionType() && !field.isOptionalType()
+                && !field.isMapType() && !field.isNestedType() && !field.isEnumType();
     }
 
     private String firstLowerCase(String s) {

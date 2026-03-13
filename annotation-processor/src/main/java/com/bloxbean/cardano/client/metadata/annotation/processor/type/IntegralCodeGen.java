@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.squareup.javapoet.MethodSpec;
@@ -20,46 +21,46 @@ import java.util.Set;
 public class IntegralCodeGen extends AbstractMetadataTypeCodeGen {
 
     private static final Set<String> TYPES = Set.of(
-            "java.lang.Long", "long",
-            "java.lang.Integer", "int",
-            "java.lang.Short", "short",
-            "java.lang.Byte", "byte"
+            LONG, PRIM_LONG,
+            INTEGER, PRIM_INT,
+            SHORT, PRIM_SHORT,
+            BYTE, PRIM_BYTE
     );
 
     // Maps boxed type → narrowing method name on BigInteger
     private static final Map<String, String> NARROW_METHOD = Map.of(
-            "java.lang.Long", "longValue",
-            "long", "longValue",
-            "java.lang.Integer", "intValue",
-            "int", "intValue",
-            "java.lang.Short", "shortValue",
-            "short", "shortValue",
-            "java.lang.Byte", "byteValue",
-            "byte", "byteValue"
+            LONG, "longValue",
+            PRIM_LONG, "longValue",
+            INTEGER, "intValue",
+            PRIM_INT, "intValue",
+            SHORT, "shortValue",
+            PRIM_SHORT, "shortValue",
+            BYTE, "byteValue",
+            PRIM_BYTE, "byteValue"
     );
 
     // Maps boxed type → parse method on the wrapper class
     private static final Map<String, String> PARSE_METHOD = Map.of(
-            "java.lang.Long", "parseLong",
-            "long", "parseLong",
-            "java.lang.Integer", "parseInt",
-            "int", "parseInt",
-            "java.lang.Short", "parseShort",
-            "short", "parseShort",
-            "java.lang.Byte", "parseByte",
-            "byte", "parseByte"
+            LONG, "parseLong",
+            PRIM_LONG, "parseLong",
+            INTEGER, "parseInt",
+            PRIM_INT, "parseInt",
+            SHORT, "parseShort",
+            PRIM_SHORT, "parseShort",
+            BYTE, "parseByte",
+            PRIM_BYTE, "parseByte"
     );
 
     // Maps type → wrapper class for STRING enc deserialization
     private static final Map<String, Class<?>> WRAPPER_CLASS = Map.of(
-            "java.lang.Long", Long.class,
-            "long", Long.class,
-            "java.lang.Integer", Integer.class,
-            "int", Integer.class,
-            "java.lang.Short", Short.class,
-            "short", Short.class,
-            "java.lang.Byte", Byte.class,
-            "byte", Byte.class
+            LONG, Long.class,
+            PRIM_LONG, Long.class,
+            INTEGER, Integer.class,
+            PRIM_INT, Integer.class,
+            SHORT, Short.class,
+            PRIM_SHORT, Short.class,
+            BYTE, Byte.class,
+            PRIM_BYTE, Byte.class
     );
 
     @Override
@@ -75,11 +76,11 @@ public class IntegralCodeGen extends AbstractMetadataTypeCodeGen {
     @Override
     protected Object[] serializeExpression(String valueExpr, String javaType) {
         return switch (javaType) {
-            case "java.lang.Long", "long" ->
+            case LONG, PRIM_LONG ->
                     new Object[]{"$T.valueOf(" + valueExpr + ")", BigInteger.class};
-            case "java.lang.Integer", "int",
-                 "java.lang.Short", "short",
-                 "java.lang.Byte", "byte" ->
+            case INTEGER, PRIM_INT,
+                 SHORT, PRIM_SHORT,
+                 BYTE, PRIM_BYTE ->
                     new Object[]{"$T.valueOf((long) " + valueExpr + ")", BigInteger.class};
             default -> throw new IllegalArgumentException("Unsupported integral type: " + javaType);
         };
@@ -116,9 +117,9 @@ public class IntegralCodeGen extends AbstractMetadataTypeCodeGen {
     public void emitSerializeToList(MethodSpec.Builder builder, String javaType) {
         // Collection elements are always boxed
         switch (javaType) {
-            case "java.lang.Long" ->
+            case LONG ->
                     builder.addStatement("_list.add($T.valueOf(_el))", BigInteger.class);
-            case "java.lang.Integer", "java.lang.Short", "java.lang.Byte" ->
+            case INTEGER, SHORT, BYTE ->
                     builder.addStatement("_list.add($T.valueOf((long) _el))", BigInteger.class);
             default ->
                     throw new IllegalArgumentException("Unsupported collection element type: " + javaType);

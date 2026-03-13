@@ -82,6 +82,15 @@ public class MetadataFieldInfo {
      */
     private String nestedConverterFqn;
 
+    /** {@code true} for List/Set/SortedSet fields. */
+    private boolean collectionType;
+
+    /** {@code true} for Optional fields. */
+    private boolean optionalType;
+
+    /** Raw collection type: "java.util.List" / "java.util.Set" / "java.util.SortedSet". null for non-collections. */
+    private String collectionKind;
+
     /**
      * {@code true} when the field type is {@code Map<String, V>}.
      */

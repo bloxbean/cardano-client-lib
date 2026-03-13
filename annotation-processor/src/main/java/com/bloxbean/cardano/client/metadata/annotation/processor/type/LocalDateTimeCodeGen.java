@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
+
 import java.time.LocalDateTime;
 import java.util.Set;
 
@@ -12,7 +14,7 @@ public class LocalDateTimeCodeGen extends AbstractMetadataTypeCodeGen {
 
     @Override
     public Set<String> supportedJavaTypes() {
-        return Set.of("java.time.LocalDateTime");
+        return Set.of(LOCAL_DATETIME);
     }
 
     @Override

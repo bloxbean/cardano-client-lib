@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.squareup.javapoet.MethodSpec;
@@ -16,7 +17,7 @@ import java.util.Set;
  */
 public class CharCodeGen extends AbstractMetadataTypeCodeGen {
 
-    private static final Set<String> TYPES = Set.of("java.lang.Character", "char");
+    private static final Set<String> TYPES = Set.of(CHARACTER, PRIM_CHAR);
 
     @Override
     public Set<String> supportedJavaTypes() {

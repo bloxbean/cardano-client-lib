@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.squareup.javapoet.MethodSpec;
@@ -17,8 +18,8 @@ import java.util.Set;
 public class FloatingPointCodeGen extends AbstractMetadataTypeCodeGen {
 
     private static final Set<String> TYPES = Set.of(
-            "java.lang.Double", "double",
-            "java.lang.Float", "float"
+            DOUBLE, PRIM_DOUBLE,
+            FLOAT, PRIM_FLOAT
     );
 
     @Override
@@ -39,9 +40,9 @@ public class FloatingPointCodeGen extends AbstractMetadataTypeCodeGen {
     @Override
     protected Object[] deserializeExpression(String castVar, String javaType) {
         return switch (javaType) {
-            case "java.lang.Double", "double" ->
+            case DOUBLE, PRIM_DOUBLE ->
                     new Object[]{"$T.parseDouble((String) " + castVar + ")", Double.class};
-            case "java.lang.Float", "float" ->
+            case FLOAT, PRIM_FLOAT ->
                     new Object[]{"$T.parseFloat((String) " + castVar + ")", Float.class};
             default -> throw new IllegalArgumentException("Unsupported floating point type: " + javaType);
         };
@@ -53,9 +54,9 @@ public class FloatingPointCodeGen extends AbstractMetadataTypeCodeGen {
     public void emitDeserializeElement(MethodSpec.Builder builder, String javaType) {
         builder.beginControlFlow("if (_el instanceof $T)", String.class);
         switch (javaType) {
-            case "java.lang.Double" ->
+            case DOUBLE ->
                     builder.addStatement("_result.add($T.parseDouble(($T) _el))", Double.class, String.class);
-            case "java.lang.Float" ->
+            case FLOAT ->
                     builder.addStatement("_result.add($T.parseFloat(($T) _el))", Float.class, String.class);
         }
         builder.endControlFlow();
@@ -67,9 +68,9 @@ public class FloatingPointCodeGen extends AbstractMetadataTypeCodeGen {
         String elementType = field.getElementTypeName();
         builder.beginControlFlow("if (v instanceof $T)", String.class);
         switch (elementType) {
-            case "java.lang.Double" -> accessor.emitOptionalOfSet(builder, field,
+            case DOUBLE -> accessor.emitOptionalOfSet(builder, field,
                     "$T.parseDouble((String) v)", Double.class);
-            case "java.lang.Float" -> accessor.emitOptionalOfSet(builder, field,
+            case FLOAT -> accessor.emitOptionalOfSet(builder, field,
                     "$T.parseFloat((String) v)", Float.class);
         }
         builder.nextControlFlow("else");

@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGen;
@@ -50,7 +51,9 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
     @Override
     public boolean needsNullCheck(String javaType) {
         return switch (javaType) {
-            case "int", "long", "short", "byte", "boolean", "double", "float", "char" -> false;
+            case PRIM_INT, PRIM_LONG, PRIM_SHORT,
+                 PRIM_BYTE, PRIM_BOOLEAN, PRIM_DOUBLE,
+                 PRIM_FLOAT, PRIM_CHAR -> false;
             default -> true;
         };
     }

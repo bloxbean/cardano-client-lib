@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
+
 import java.util.Locale;
 import java.util.Set;
 
@@ -12,7 +14,7 @@ public class LocaleCodeGen extends AbstractMetadataTypeCodeGen {
 
     @Override
     public Set<String> supportedJavaTypes() {
-        return Set.of("java.util.Locale");
+        return Set.of(LOCALE);
     }
 
     @Override

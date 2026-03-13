@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.squareup.javapoet.MethodSpec;
 
 import java.math.BigDecimal;
@@ -17,7 +18,7 @@ public class BigDecimalCodeGen extends AbstractMetadataTypeCodeGen {
 
     @Override
     public Set<String> supportedJavaTypes() {
-        return Set.of("java.math.BigDecimal");
+        return Set.of(BIG_DECIMAL);
     }
 
     @Override

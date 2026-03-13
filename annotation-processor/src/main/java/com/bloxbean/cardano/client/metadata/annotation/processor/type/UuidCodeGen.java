@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
+
 import java.util.Set;
 import java.util.UUID;
 
@@ -12,7 +14,7 @@ public class UuidCodeGen extends AbstractMetadataTypeCodeGen {
 
     @Override
     public Set<String> supportedJavaTypes() {
-        return Set.of("java.util.UUID");
+        return Set.of(UUID);
     }
 
     @Override

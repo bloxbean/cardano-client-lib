@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 import com.squareup.javapoet.MethodSpec;
@@ -17,7 +18,7 @@ import java.util.Set;
  */
 public class BooleanCodeGen extends AbstractMetadataTypeCodeGen {
 
-    private static final Set<String> TYPES = Set.of("java.lang.Boolean", "boolean");
+    private static final Set<String> TYPES = Set.of(BOOLEAN, PRIM_BOOLEAN);
 
     @Override
     public Set<String> supportedJavaTypes() {

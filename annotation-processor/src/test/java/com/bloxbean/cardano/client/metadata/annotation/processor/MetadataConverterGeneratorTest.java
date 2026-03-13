@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -98,6 +99,8 @@ public class MetadataConverterGeneratorTest {
     private MetadataFieldInfo listField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.List<" + elementType + ">");
         f.setElementTypeName(elementType);
+        f.setCollectionType(true);
+        f.setCollectionKind(COLLECTION_LIST);
         return f;
     }
 
@@ -105,6 +108,8 @@ public class MetadataConverterGeneratorTest {
     private MetadataFieldInfo setField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.Set<" + elementType + ">");
         f.setElementTypeName(elementType);
+        f.setCollectionType(true);
+        f.setCollectionKind(COLLECTION_SET);
         return f;
     }
 
@@ -112,6 +117,8 @@ public class MetadataConverterGeneratorTest {
     private MetadataFieldInfo sortedSetField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.SortedSet<" + elementType + ">");
         f.setElementTypeName(elementType);
+        f.setCollectionType(true);
+        f.setCollectionKind(COLLECTION_SORTED_SET);
         return f;
     }
 
@@ -119,6 +126,7 @@ public class MetadataConverterGeneratorTest {
     private MetadataFieldInfo optionalField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.Optional<" + elementType + ">");
         f.setElementTypeName(elementType);
+        f.setOptionalType(true);
         return f;
     }
 
@@ -2967,6 +2975,7 @@ public class MetadataConverterGeneratorTest {
                 f.setMetadataKey(name);
                 f.setJavaTypeName("java.util.Optional<" + elementType + ">");
                 f.setElementTypeName(elementType);
+                f.setOptionalType(true);
                 return f;
             }
 

@@ -5,6 +5,8 @@ import com.bloxbean.cardano.client.metadata.MetadataList;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
+
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGen;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCodeGenRegistry;
 import com.squareup.javapoet.ClassName;
@@ -151,8 +153,7 @@ public class CollectionCodeGen {
             return;
         }
 
-        String javaType = field.getJavaTypeName();
-        CollectionTypeInfo typeInfo = resolveCollectionTypeInfo(javaType);
+        CollectionTypeInfo typeInfo = resolveCollectionTypeInfo(field);
 
         TypeName elemTypeName = elementTypeName(field);
         ParameterizedTypeName collectionType =
@@ -179,8 +180,7 @@ public class CollectionCodeGen {
     }
 
     private void emitDeserializeCollectionOfCollection(MethodSpec.Builder builder, MetadataFieldInfo field) {
-        String javaType = field.getJavaTypeName();
-        CollectionTypeInfo outer = resolveCollectionTypeInfo(javaType);
+        CollectionTypeInfo outer = resolveCollectionTypeInfo(field);
 
         TypeName innerElemTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getElementElementTypeName(),
                 field.isElementElementEnumType(), field.isElementElementNestedType());
@@ -219,8 +219,7 @@ public class CollectionCodeGen {
     }
 
     private void emitDeserializeCollectionOfMap(MethodSpec.Builder builder, MetadataFieldInfo field) {
-        String javaType = field.getJavaTypeName();
-        CollectionTypeInfo outer = resolveCollectionTypeInfo(javaType);
+        CollectionTypeInfo outer = resolveCollectionTypeInfo(field);
 
         TypeName innerValTypeName = CompositeCodeGenHelper.resolveLeafTypeName(field.getElementMapValueTypeName(),
                 field.isElementMapValueEnumType(), field.isElementMapValueNestedType());
@@ -260,20 +259,19 @@ public class CollectionCodeGen {
 
     private record CollectionTypeInfo(ClassName interfaceClass, ClassName implClass) {}
 
-    private CollectionTypeInfo resolveCollectionTypeInfo(String javaType) {
-        if (javaType.startsWith("java.util.List<")) {
-            return new CollectionTypeInfo(
+    private CollectionTypeInfo resolveCollectionTypeInfo(MetadataFieldInfo field) {
+        String kind = field.getCollectionKind();
+        return switch (kind) {
+            case COLLECTION_LIST -> new CollectionTypeInfo(
                     ClassName.get("java.util", "List"),
                     ClassName.get("java.util", "ArrayList"));
-        } else if (javaType.startsWith("java.util.Set<")) {
-            return new CollectionTypeInfo(
+            case COLLECTION_SET -> new CollectionTypeInfo(
                     ClassName.get("java.util", "Set"),
                     ClassName.get("java.util", "LinkedHashSet"));
-        } else {
-            return new CollectionTypeInfo(
+            default -> new CollectionTypeInfo(
                     ClassName.get("java.util", "SortedSet"),
                     ClassName.get("java.util", "TreeSet"));
-        }
+        };
     }
 
     private TypeName elementTypeName(MetadataFieldInfo field) {

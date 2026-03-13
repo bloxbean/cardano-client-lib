@@ -1,5 +1,7 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 
+import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
+
 import java.util.Currency;
 import java.util.Set;
 
@@ -12,7 +14,7 @@ public class CurrencyCodeGen extends AbstractMetadataTypeCodeGen {
 
     @Override
     public Set<String> supportedJavaTypes() {
-        return Set.of("java.util.Currency");
+        return Set.of(CURRENCY);
     }
 
     @Override
