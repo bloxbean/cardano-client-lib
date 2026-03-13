@@ -1615,4 +1615,155 @@ public class MetadataFieldExtractorTest {
             }, emptyDisc, parentWithEmpty);
         }
     }
+
+    // ── Custom adapter fields ────────────────────────────────────────
+
+    @Nested
+    class CustomAdapterFields {
+
+        private static final String ADAPTER_SOURCE = """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataTypeAdapter;
+                import java.math.BigInteger;
+                import java.time.Instant;
+                public class EpochSecondsAdapter implements MetadataTypeAdapter<Instant> {
+                    @Override public Object toMetadata(Instant value) {
+                        return BigInteger.valueOf(value.getEpochSecond());
+                    }
+                    @Override public Instant fromMetadata(Object metadata) {
+                        return Instant.ofEpochSecond(((BigInteger) metadata).longValue());
+                    }
+                }
+                """;
+
+        @Test
+        void detectsAdapterField() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isAdapterType());
+                assertEquals("com.test.EpochSecondsAdapter", f.getAdapterFqn());
+                assertEquals("timestamp", f.getMetadataKey());
+                assertFalse(f.isEnumType());
+                assertFalse(f.isNestedType());
+                assertFalse(f.isMapType());
+                assertFalse(f.isCollectionType());
+            },
+                    JavaFileObjects.forSourceString("com.test.EpochSecondsAdapter", ADAPTER_SOURCE),
+                    JavaFileObjects.forSourceString("com.test.TestClass", """
+                        package com.test;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                        import java.time.Instant;
+                        @MetadataType
+                        public class TestClass {
+                            @MetadataField(adapter = EpochSecondsAdapter.class)
+                            private Instant timestamp;
+                            public TestClass() {}
+                            public Instant getTimestamp() { return timestamp; }
+                            public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
+                        }
+                    """));
+        }
+
+        @Test
+        void adapterWithDefaultValueErrors() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadErrorContaining("'adapter' and 'defaultValue' are mutually exclusive");
+            },
+                    JavaFileObjects.forSourceString("com.test.EpochSecondsAdapter", ADAPTER_SOURCE),
+                    JavaFileObjects.forSourceString("com.test.TestClass", """
+                        package com.test;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                        import java.time.Instant;
+                        @MetadataType
+                        public class TestClass {
+                            @MetadataField(adapter = EpochSecondsAdapter.class, defaultValue = "0")
+                            private Instant timestamp;
+                            public TestClass() {}
+                            public Instant getTimestamp() { return timestamp; }
+                            public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
+                        }
+                    """));
+        }
+
+        @Test
+        void noAdapterSentinelIsNotDetectedAsAdapter() {
+            // When no adapter is specified (the default NoAdapter sentinel),
+            // the field should be processed normally as a non-adapter field.
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                assertFalse(r.fields.get(0).isAdapterType(),
+                        "Field without adapter should not be an adapter type");
+            },
+                    JavaFileObjects.forSourceString("com.test.TestClass", """
+                        package com.test;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                        @MetadataType
+                        public class TestClass {
+                            @MetadataField(key = "n")
+                            private String name;
+                            public TestClass() {}
+                            public String getName() { return name; }
+                            public void setName(String name) { this.name = name; }
+                        }
+                    """));
+        }
+
+        @Test
+        void adapterWithCustomKeyWorks() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                MetadataFieldInfo f = r.fields.get(0);
+                assertTrue(f.isAdapterType());
+                assertEquals("ts", f.getMetadataKey());
+            },
+                    JavaFileObjects.forSourceString("com.test.EpochSecondsAdapter", ADAPTER_SOURCE),
+                    JavaFileObjects.forSourceString("com.test.TestClass", """
+                        package com.test;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                        import java.time.Instant;
+                        @MetadataType
+                        public class TestClass {
+                            @MetadataField(key = "ts", adapter = EpochSecondsAdapter.class)
+                            private Instant timestamp;
+                            public TestClass() {}
+                            public Instant getTimestamp() { return timestamp; }
+                            public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
+                        }
+                    """));
+        }
+
+        @Test
+        void adapterWithEncWarns() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadWarningContaining("enc=...) is ignored when an adapter is specified");
+                // But compilation still succeeds and field is extracted
+                assertEquals(1, r.fields.size());
+                assertTrue(r.fields.get(0).isAdapterType());
+            },
+                    JavaFileObjects.forSourceString("com.test.EpochSecondsAdapter", ADAPTER_SOURCE),
+                    JavaFileObjects.forSourceString("com.test.TestClass", """
+                        package com.test;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                        import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
+                        import java.time.Instant;
+                        @MetadataType
+                        public class TestClass {
+                            @MetadataField(adapter = EpochSecondsAdapter.class, enc = MetadataFieldType.STRING)
+                            private Instant timestamp;
+                            public TestClass() {}
+                            public Instant getTimestamp() { return timestamp; }
+                            public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
+                        }
+                    """));
+        }
+    }
 }

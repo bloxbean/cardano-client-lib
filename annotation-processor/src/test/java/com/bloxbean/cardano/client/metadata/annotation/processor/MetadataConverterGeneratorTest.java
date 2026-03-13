@@ -3657,4 +3657,108 @@ class MetadataConverterGeneratorTest {
                     "Record mode should assign to local variable");
         }
     }
+
+    // =========================================================================
+    // Custom Adapter
+    // =========================================================================
+
+    @Nested
+    class CustomAdapter {
+
+        private MetadataFieldInfo adapterField(String name, String javaType, String adapterFqn) {
+            MetadataFieldInfo f = field(name, javaType);
+            f.setAdapterType(true);
+            f.setAdapterFqn(adapterFqn);
+            return f;
+        }
+
+        @Test
+        void serializesWithAdapter() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_putAdapted(map, \"timestamp\", _epochSecondsAdapter.toMetadata(order.getTimestamp()))"),
+                    "Should call adapter's toMetadata via cached static field: " + src);
+        }
+
+        @Test
+        void deserializesWithAdapter() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            String fromMap = src.substring(src.indexOf("fromMetadataMap"));
+            assertTrue(fromMap.contains("_epochSecondsAdapter.fromMetadata(v)"),
+                    "Should call adapter's fromMetadata via cached static field: " + fromMap);
+        }
+
+        @Test
+        void deserializationCastsToFieldType() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            String fromMap = src.substring(src.indexOf("fromMetadataMap"));
+            assertTrue(fromMap.contains("(java.time.Instant)"),
+                    "Should cast fromMetadata result to the field type: " + fromMap);
+        }
+
+        @Test
+        void deserializationNullChecksValue() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            String fromMap = src.substring(src.indexOf("fromMetadataMap"));
+            assertTrue(fromMap.contains("if (v != null)"),
+                    "Should null-check v before calling adapter: " + fromMap);
+        }
+
+        @Test
+        void serializationNullChecksGetExpression() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            String toMap = src.substring(src.indexOf("toMetadataMap"), src.indexOf("fromMetadataMap"));
+            assertTrue(toMap.contains("if (order.getTimestamp() != null)"),
+                    "Should null-check the get expression: " + toMap);
+        }
+
+        @Test
+        void recordModeDeserializesWithAdapter() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            f.setRecordMode(true);
+            f.setGetterName("timestamp");
+            f.setSetterName(null);
+
+            String src = generateRecord(List.of(f));
+            String fromMap = src.substring(src.indexOf("fromMetadataMap"));
+            assertTrue(fromMap.contains("_timestamp = (java.time.Instant) _epochSecondsAdapter.fromMetadata(v)"),
+                    "Record mode should assign to local variable: " + fromMap);
+        }
+
+        @Test
+        void generatesAdapterStaticField() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("private static final EpochSecondsAdapter _epochSecondsAdapter = new EpochSecondsAdapter()"),
+                    "Should generate static adapter field: " + src);
+        }
+
+        @Test
+        void generatesAdapterHelperMethod() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("private static void _putAdapted(MetadataMap _m, String _k, Object _v)"),
+                    "Should generate _putAdapted helper: " + src);
+        }
+
+        @Test
+        void noAdapterHelper_whenNoAdapterFields() {
+            MetadataFieldInfo f = field("name", STRING);
+            String src = generate(List.of(f));
+            assertFalse(src.contains("_putAdapted"),
+                    "Should not generate _putAdapted when no adapter fields: " + src);
+        }
+    }
 }

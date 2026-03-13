@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataIgnore;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataTypeAdapter;
 
 import static com.bloxbean.cardano.client.metadata.annotation.processor.MetadataConstants.*;
 
@@ -85,6 +86,16 @@ public class MetadataFieldExtractor {
 
             if (ve == null) continue;
             if (shouldSkipField(ve, seenFieldNames)) continue;
+
+            // Adapter shortcut: if @MetadataField(adapter=...) is set, bypass type detection
+            AdapterDetectionResult adapterResult = detectAdapter(ve, fieldName);
+            if (adapterResult != null) {
+                MetadataFieldInfo info = buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc,
+                        new AccessorResult(fieldName, null), adapterResult.adapterFqn);
+                info.setRecordMode(true);
+                fields.add(info);
+                continue;
+            }
 
             FieldTypeResult typeResult = detectFieldType(ve, fieldName, typeName);
             if (typeResult == null) continue;
@@ -175,6 +186,15 @@ public class MetadataFieldExtractor {
 
             String fieldName = ve.getSimpleName().toString();
             String typeName = ve.asType().toString();
+
+            // Adapter shortcut: if @MetadataField(adapter=...) is set, bypass type detection
+            AdapterDetectionResult adapterResult = detectAdapter(ve, fieldName);
+            if (adapterResult != null) {
+                AccessorResult accessors = resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
+                if (accessors == null) continue;
+                fields.add(buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc, accessors, adapterResult.adapterFqn));
+                continue;
+            }
 
             FieldTypeResult typeResult = detectFieldType(ve, fieldName, typeName);
             if (typeResult == null) continue; // unsupported type, warning already emitted
@@ -992,6 +1012,121 @@ public class MetadataFieldExtractor {
 
     private String capitalize(String s) {
         return s.substring(0, 1).toUpperCase() + s.substring(1);
+    }
+
+    // ── Adapter detection and validation ──────────────────────────────
+
+    /**
+     * Result of adapter detection: adapter FQN + resolved key/encoding.
+     * Returned by {@link #detectAdapter} when an adapter is specified on the field.
+     */
+    private record AdapterDetectionResult(String adapterFqn, MetadataKeyAndEncoding keyEnc) {}
+
+    /**
+     * Detects and validates a custom adapter on a field in a single pass over the
+     * {@code @MetadataField} annotation. Returns {@code null} if no adapter is set
+     * or if validation fails (errors are emitted to the messager).
+     *
+     * <p>Reads the annotation once via {@link AnnotationMirror} API to extract both
+     * the adapter class and key/required/defaultValue/enc attributes.
+     */
+    @SuppressWarnings("java:S3776") // Complexity is inherent to single-pass extraction + validation
+    private AdapterDetectionResult detectAdapter(VariableElement ve, String fieldName) {
+        AnnotationMirror mfMirror = findAnnotationMirror(ve, MetadataField.class);
+        if (mfMirror == null) return null;
+
+        Map<? extends ExecutableElement, ? extends AnnotationValue> values =
+                processingEnv.getElementUtils().getElementValuesWithDefaults(mfMirror);
+
+        // Extract all annotation values in a single pass
+        TypeMirror adapterMirror = null;
+        String key = "";
+        MetadataFieldType enc = MetadataFieldType.DEFAULT;
+        boolean required = false;
+        String defaultValue = "";
+        for (var entry : values.entrySet()) {
+            switch (entry.getKey().getSimpleName().toString()) {
+                case "adapter" -> adapterMirror = (TypeMirror) entry.getValue().getValue();
+                case "key" -> key = (String) entry.getValue().getValue();
+                case "enc" -> {
+                    VariableElement encEl = (VariableElement) entry.getValue().getValue();
+                    enc = MetadataFieldType.valueOf(encEl.getSimpleName().toString());
+                }
+                case "required" -> required = (Boolean) entry.getValue().getValue();
+                case "defaultValue" -> defaultValue = (String) entry.getValue().getValue();
+                default -> { /* ignore other attributes */ }
+            }
+        }
+        if (adapterMirror == null) return null;
+
+        // Check if it's the NoAdapter sentinel using type comparison
+        TypeElement noAdapterEl = processingEnv.getElementUtils()
+                .getTypeElement(MetadataField.NoAdapter.class.getCanonicalName());
+        if (noAdapterEl != null && processingEnv.getTypeUtils().isSameType(adapterMirror, noAdapterEl.asType())) {
+            return null;
+        }
+
+        // Validate: adapter must implement MetadataTypeAdapter
+        String adapterFqn = adapterMirror.toString();
+        TypeElement adapterTypeEl = (TypeElement) processingEnv.getTypeUtils().asElement(adapterMirror);
+        if (adapterTypeEl == null) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': cannot resolve adapter class '" + adapterFqn + "'.", ve);
+            return null;
+        }
+
+        TypeElement adapterInterfaceEl = processingEnv.getElementUtils()
+                .getTypeElement(MetadataTypeAdapter.class.getCanonicalName());
+        if (adapterInterfaceEl == null) {
+            return null; // MetadataTypeAdapter not on classpath — should not happen
+        }
+
+        TypeMirror erasedAdapter = processingEnv.getTypeUtils().erasure(adapterMirror);
+        TypeMirror erasedInterface = processingEnv.getTypeUtils().erasure(adapterInterfaceEl.asType());
+        if (!processingEnv.getTypeUtils().isAssignable(erasedAdapter, erasedInterface)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': adapter '" + adapterFqn
+                            + "' must implement MetadataTypeAdapter.", ve);
+            return null;
+        }
+
+        // Validate: adapter + defaultValue mutual exclusivity
+        if (!defaultValue.isEmpty()) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': 'adapter' and 'defaultValue' are mutually exclusive.", ve);
+            return null;
+        }
+
+        // Warn: enc is ignored when adapter is specified
+        if (enc != MetadataFieldType.DEFAULT) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Field '" + fieldName + "': @MetadataField(enc=...) is ignored when an adapter is specified.", ve);
+        }
+
+        String metadataKey = key.isEmpty() ? fieldName : key;
+        return new AdapterDetectionResult(adapterFqn,
+                new MetadataKeyAndEncoding(metadataKey, MetadataFieldType.DEFAULT, required, null));
+    }
+
+    /**
+     * Builds a minimal {@link MetadataFieldInfo} for an adapter field, with all type flags
+     * set to false.
+     */
+    private MetadataFieldInfo buildAdapterFieldInfo(String fieldName, String typeName,
+                                                     MetadataKeyAndEncoding keyEnc, AccessorResult accessors,
+                                                     String adapterFqn) {
+        return MetadataFieldInfo.builder()
+                .javaFieldName(fieldName)
+                .metadataKey(keyEnc.metadataKey)
+                .javaTypeName(typeName)
+                .enc(keyEnc.enc)
+                .required(keyEnc.required)
+                .defaultValue(keyEnc.defaultValue)
+                .getterName(accessors.getterName)
+                .setterName(accessors.setterName)
+                .adapterType(true)
+                .adapterFqn(adapterFqn)
+                .build();
     }
 
     // ── Inner records ──────────────────────────────────────────────────

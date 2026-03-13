@@ -212,6 +212,14 @@ public class MetadataFieldInfo {
     /** Converter FQN for nested element map values. */
     private String elementMapValueConverterFqn;
 
+    // ── Custom adapter ───────────────────────────────────────────────
+
+    /** {@code true} when the field uses a custom {@code MetadataTypeAdapter}. */
+    private boolean adapterType;
+
+    /** Fully qualified name of the adapter class (e.g. {@code "com.example.EpochSecondsAdapter"}). */
+    private String adapterFqn;
+
     // ── Polymorphic type support ─────────────────────────────────────
 
     /**

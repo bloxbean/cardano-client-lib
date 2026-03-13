@@ -85,6 +85,9 @@ public class MetadataConverterGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .addJavadoc(GENERATED_CODE);
 
+        // Static adapter instances (one per distinct adapter class)
+        addAdapterFields(classBuilder, fields);
+
         classBuilder.addMethod(buildToMetadataMapMethod(targetClass, simpleClassName, fields));
         classBuilder.addMethod(buildFromMetadataMapMethod(targetClass, fields, isRecord, allComponents));
 
@@ -96,6 +99,9 @@ public class MetadataConverterGenerator {
 
         // Negative-aware BigInteger helpers for serialization
         addBigIntHelpers(classBuilder);
+
+        // Adapter helper for putting adapter results into MetadataMap
+        addAdapterHelper(classBuilder, fields);
 
         return classBuilder.build();
     }
@@ -139,6 +145,13 @@ public class MetadataConverterGenerator {
         String key = field.getMetadataKey();
         String javaType = field.getJavaTypeName();
         MetadataFieldType enc = field.getEnc();
+
+        // Custom adapter — takes priority over all built-in handling
+        if (field.isAdapterType()) {
+            builder.addStatement("_putAdapted(map, $S, $L.toMetadata($L))",
+                    key, adapterFieldName(field.getAdapterFqn()), getExpr);
+            return;
+        }
 
         // Map<String, V>
         if (field.isMapType()) {
@@ -324,6 +337,15 @@ public class MetadataConverterGenerator {
         String javaType = field.getJavaTypeName();
         MetadataFieldType enc = field.getEnc();
 
+        // Custom adapter — takes priority over all built-in handling
+        if (field.isAdapterType()) {
+            builder.beginControlFlow("if (v != null)");
+            accessor.emitSetRaw(builder, field,
+                    "(" + javaType + ") " + adapterFieldName(field.getAdapterFqn()) + ".fromMetadata(v)");
+            builder.endControlFlow();
+            return;
+        }
+
         // Map<String, V>
         if (field.isMapType()) {
             mapCodeGen.emitDeserializeFromMap(builder, field);
@@ -508,7 +530,7 @@ public class MetadataConverterGenerator {
     private boolean isScalar(MetadataFieldInfo field) {
         return !field.isCollectionType() && !field.isOptionalType()
                 && !field.isMapType() && !field.isNestedType() && !field.isEnumType()
-                && !field.isPolymorphicType();
+                && !field.isPolymorphicType() && !field.isAdapterType();
     }
 
     private String firstLowerCase(String s) {
@@ -570,6 +592,68 @@ public class MetadataConverterGenerator {
                 .addStatement("_l.add(_v)")
                 .nextControlFlow("else")
                 .addStatement("_l.addNegative(_v)")
+                .endControlFlow()
+                .build());
+    }
+
+    // -------------------------------------------------------------------------
+    // Adapter support
+    // -------------------------------------------------------------------------
+
+    /**
+     * Adds static adapter instance fields for each distinct adapter class used by the fields.
+     * Avoids repeated instantiation in serialize/deserialize methods.
+     */
+    private void addAdapterFields(TypeSpec.Builder classBuilder, List<MetadataFieldInfo> fields) {
+        fields.stream()
+                .filter(MetadataFieldInfo::isAdapterType)
+                .map(MetadataFieldInfo::getAdapterFqn)
+                .distinct()
+                .forEach(fqn -> classBuilder.addField(
+                        com.squareup.javapoet.FieldSpec.builder(
+                                        ClassName.bestGuess(fqn),
+                                        adapterFieldName(fqn),
+                                        Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                                .initializer("new $T()", ClassName.bestGuess(fqn))
+                                .build()));
+    }
+
+    /**
+     * Derives a static field name from an adapter FQN.
+     * E.g. {@code "com.example.EpochSecondsAdapter"} → {@code "_epochSecondsAdapter"}.
+     */
+    static String adapterFieldName(String adapterFqn) {
+        String simple = adapterFqn.substring(adapterFqn.lastIndexOf('.') + 1);
+        return "_" + Character.toLowerCase(simple.charAt(0)) + simple.substring(1);
+    }
+
+    /**
+     * Adds a {@code _putAdapted(MetadataMap, String, Object)} helper only when
+     * at least one adapter field exists. The helper dispatches at runtime based on
+     * the value's concrete type.
+     */
+    private void addAdapterHelper(TypeSpec.Builder classBuilder, List<MetadataFieldInfo> fields) {
+        boolean hasAdapter = fields.stream().anyMatch(MetadataFieldInfo::isAdapterType);
+        if (!hasAdapter) return;
+
+        classBuilder.addMethod(MethodSpec.methodBuilder("_putAdapted")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .addParameter(MetadataMap.class, "_m")
+                .addParameter(String.class, "_k")
+                .addParameter(Object.class, "_v")
+                .beginControlFlow("if (_v instanceof $T)", String.class)
+                .addStatement("_m.put(_k, ($T) _v)", String.class)
+                .nextControlFlow("else if (_v instanceof $T)", BigInteger.class)
+                .addStatement("_putBigInt(_m, _k, ($T) _v)", BigInteger.class)
+                .nextControlFlow("else if (_v instanceof byte[])")
+                .addStatement("_m.put(_k, (byte[]) _v)")
+                .nextControlFlow("else if (_v instanceof $T)", MetadataMap.class)
+                .addStatement("_m.put(_k, ($T) _v)", MetadataMap.class)
+                .nextControlFlow("else if (_v instanceof $T)", MetadataList.class)
+                .addStatement("_m.put(_k, ($T) _v)", MetadataList.class)
+                .nextControlFlow("else")
+                .addStatement("throw new $T($S + _v.getClass().getName())",
+                        IllegalArgumentException.class, "Adapter returned unsupported metadata type: ")
                 .endControlFlow()
                 .build());
     }
