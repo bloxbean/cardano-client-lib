@@ -7,7 +7,6 @@ import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataTypeCod
 import com.squareup.javapoet.MethodSpec;
 
 import java.math.BigInteger;
-import java.util.Optional;
 
 /**
  * Template-method base class for scalar types that follow the standard pattern:
@@ -65,32 +64,17 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
     public void emitSerializeToMapDefault(MethodSpec.Builder builder, String key, String getExpr,
                                           String javaType) {
         Object[] ser = serializeExpression(getExpr, javaType);
-        String fmt = (String) ser[0];
         boolean signed = onChainType(javaType) == BigInteger.class;
-        String putExpr = signed ? "_putBigInt(map, $S, " + fmt + ")" : "map.put($S, " + fmt + ")";
-        if (ser.length == 1) {
-            builder.addStatement(putExpr, key);
-        } else {
-            Object[] args = new Object[ser.length]; // key + remaining
-            args[0] = key;
-            System.arraycopy(ser, 1, args, 1, ser.length - 1);
-            builder.addStatement(putExpr, args);
-        }
+        String tmpl = signed ? "_putBigInt(map, $S, %s)" : "map.put($S, %s)";
+        addFmtStatement(builder, tmpl, ser, key);
     }
 
     @Override
     public void emitSerializeToList(MethodSpec.Builder builder, String javaType) {
         Object[] ser = serializeExpression("_el", javaType);
-        String fmt = (String) ser[0];
         boolean signed = onChainType(javaType) == BigInteger.class;
-        String addExpr = signed ? "_addBigInt(_list, " + fmt + ")" : "_list.add(" + fmt + ")";
-        if (ser.length == 1) {
-            builder.addStatement(addExpr);
-        } else {
-            Object[] args = new Object[ser.length - 1];
-            System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement(addExpr, args);
-        }
+        String tmpl = signed ? "_addBigInt(_list, %s)" : "_list.add(%s)";
+        addFmtStatement(builder, tmpl, ser);
     }
 
     // --- Deserialization ---
@@ -116,15 +100,7 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
         } else {
             builder.beginControlFlow("if (_el instanceof $T)", chain);
         }
-        Object[] deser = deserializeExpression("_el", javaType);
-        String fmt = (String) deser[0];
-        if (deser.length == 1) {
-            builder.addStatement("_result.add(" + fmt + ")");
-        } else {
-            Object[] args = new Object[deser.length - 1];
-            System.arraycopy(deser, 1, args, 0, args.length);
-            builder.addStatement("_result.add(" + fmt + ")", args);
-        }
+        addFmtStatement(builder, "_result.add(%s)", deserializeExpression("_el", javaType));
         builder.endControlFlow();
     }
 
@@ -155,18 +131,11 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
     public void emitSerializeMapValue(MethodSpec.Builder builder, String mapVarSuffix,
                                        String javaType, String serKeyExpr) {
         Object[] ser = serializeExpression("_entry.getValue()", javaType);
-        String fmt = (String) ser[0];
         boolean signed = onChainType(javaType) == BigInteger.class;
-        String stmt = signed
-                ? "_putBigInt(_map" + mapVarSuffix + ", " + serKeyExpr + ", " + fmt + ")"
-                : "_map" + mapVarSuffix + ".put(" + serKeyExpr + ", " + fmt + ")";
-        if (ser.length == 1) {
-            builder.addStatement(stmt);
-        } else {
-            Object[] args = new Object[ser.length - 1];
-            System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement(stmt, args);
-        }
+        String tmpl = signed
+                ? "_putBigInt(_map" + mapVarSuffix + ", " + serKeyExpr + ", %s)"
+                : "_map" + mapVarSuffix + ".put(" + serKeyExpr + ", %s)";
+        addFmtStatement(builder, tmpl, ser);
     }
 
     @Override
@@ -182,15 +151,8 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
         } else {
             builder.beginControlFlow("if (_val instanceof $T)", chain);
         }
-        Object[] deser = deserializeExpression("_val", javaType);
-        String fmt = (String) deser[0];
-        if (deser.length == 1) {
-            builder.addStatement("_result.put(" + deserKeyExpr + ", " + fmt + ")");
-        } else {
-            Object[] args = new Object[deser.length - 1];
-            System.arraycopy(deser, 1, args, 0, args.length);
-            builder.addStatement("_result.put(" + deserKeyExpr + ", " + fmt + ")", args);
-        }
+        addFmtStatement(builder, "_result.put(" + deserKeyExpr + ", %s)",
+                deserializeExpression("_val", javaType));
         builder.endControlFlow();
     }
 
@@ -199,36 +161,20 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
     @Override
     public void emitSerializeToListVar(MethodSpec.Builder builder, String listVar, String javaType) {
         Object[] ser = serializeExpression("_innerEl", javaType);
-        String fmt = (String) ser[0];
         boolean signed = onChainType(javaType) == BigInteger.class;
-        String stmt = signed
-                ? "_addBigInt(" + listVar + ", " + fmt + ")"
-                : listVar + ".add(" + fmt + ")";
-        if (ser.length == 1) {
-            builder.addStatement(stmt);
-        } else {
-            Object[] args = new Object[ser.length - 1];
-            System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement(stmt, args);
-        }
+        String tmpl = signed ? "_addBigInt(" + listVar + ", %s)" : listVar + ".add(%s)";
+        addFmtStatement(builder, tmpl, ser);
     }
 
     @Override
     public void emitSerializeMapValueVar(MethodSpec.Builder builder, String mapVar,
                                           String keyExpr, String javaType) {
         Object[] ser = serializeExpression("_innerEntry.getValue()", javaType);
-        String fmt = (String) ser[0];
         boolean signed = onChainType(javaType) == BigInteger.class;
-        String stmt = signed
-                ? "_putBigInt(" + mapVar + ", " + keyExpr + ", " + fmt + ")"
-                : mapVar + ".put(" + keyExpr + ", " + fmt + ")";
-        if (ser.length == 1) {
-            builder.addStatement(stmt);
-        } else {
-            Object[] args = new Object[ser.length - 1];
-            System.arraycopy(ser, 1, args, 0, args.length);
-            builder.addStatement(stmt, args);
-        }
+        String tmpl = signed
+                ? "_putBigInt(" + mapVar + ", " + keyExpr + ", %s)"
+                : mapVar + ".put(" + keyExpr + ", %s)";
+        addFmtStatement(builder, tmpl, ser);
     }
 
     @Override
@@ -240,15 +186,7 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
         } else {
             builder.beginControlFlow("if ($L instanceof $T)", rawVar, chain);
         }
-        Object[] deser = deserializeExpression(rawVar, javaType);
-        String fmt = (String) deser[0];
-        if (deser.length == 1) {
-            builder.addStatement(resultVar + ".add(" + fmt + ")");
-        } else {
-            Object[] args = new Object[deser.length - 1];
-            System.arraycopy(deser, 1, args, 0, args.length);
-            builder.addStatement(resultVar + ".add(" + fmt + ")", args);
-        }
+        addFmtStatement(builder, resultVar + ".add(%s)", deserializeExpression(rawVar, javaType));
         builder.endControlFlow();
     }
 
@@ -261,19 +199,41 @@ public abstract class AbstractMetadataTypeCodeGen implements MetadataTypeCodeGen
         } else {
             builder.beginControlFlow("if ($L instanceof $T)", rawVar, chain);
         }
-        Object[] deser = deserializeExpression(rawVar, javaType);
-        String fmt = (String) deser[0];
-        if (deser.length == 1) {
-            builder.addStatement(resultVar + ".put(" + keyExpr + ", " + fmt + ")");
-        } else {
-            Object[] args = new Object[deser.length - 1];
-            System.arraycopy(deser, 1, args, 0, args.length);
-            builder.addStatement(resultVar + ".put(" + keyExpr + ", " + fmt + ")", args);
-        }
+        addFmtStatement(builder, resultVar + ".put(" + keyExpr + ", %s)",
+                deserializeExpression(rawVar, javaType));
         builder.endControlFlow();
     }
 
     // --- Internal helpers ---
+
+    /**
+     * Emit a JavaPoet statement whose format string and args come from a
+     * {@code serializeExpression} / {@code deserializeExpression} return value.
+     *
+     * @param builder       method builder to emit into
+     * @param stmtTemplate  statement template containing the format placeholder (e.g.
+     *                      {@code "_list.add(%s)"} where {@code %s} is replaced by the
+     *                      format string from {@code fmtAndArgs})
+     * @param fmtAndArgs    array where [0] is the JavaPoet format string and [1..] are
+     *                      its arguments
+     * @param leadingArgs   optional leading args to prepend (e.g. the map key)
+     */
+    protected void addFmtStatement(MethodSpec.Builder builder, String stmtTemplate,
+                                    Object[] fmtAndArgs, Object... leadingArgs) {
+        String fmt = (String) fmtAndArgs[0];
+        String stmt = String.format(stmtTemplate, fmt);
+        int extraArgs = fmtAndArgs.length - 1;
+        if (leadingArgs.length == 0 && extraArgs == 0) {
+            builder.addStatement(stmt);
+        } else {
+            Object[] args = new Object[leadingArgs.length + extraArgs];
+            System.arraycopy(leadingArgs, 0, args, 0, leadingArgs.length);
+            if (extraArgs > 0) {
+                System.arraycopy(fmtAndArgs, 1, args, leadingArgs.length, extraArgs);
+            }
+            builder.addStatement(stmt, args);
+        }
+    }
 
     /**
      * Emit setter with the deserialized value for a scalar field.

@@ -134,6 +134,17 @@ class SampleListMetadataConverterTest {
         }
 
         @Test
+        void negative_roundTrip() {
+            SampleList obj = new SampleList();
+            obj.setAmounts(List.of(BigInteger.valueOf(-100), new BigInteger("-999999999999999999")));
+
+            SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(List.of(BigInteger.valueOf(-100), new BigInteger("-999999999999999999")),
+                    restored.getAmounts());
+        }
+
+        @Test
         void nullList_notPresentInMap() {
             SampleList obj = new SampleList();
             obj.setAmounts(null);
@@ -169,6 +180,16 @@ class SampleListMetadataConverterTest {
             SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
 
             assertEquals(List.of(1, 2, 3, -10), restored.getIds());
+        }
+
+        @Test
+        void negative_roundTrip() {
+            SampleList obj = new SampleList();
+            obj.setIds(List.of(-1, -42, -999));
+
+            SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(List.of(-1, -42, -999), restored.getIds());
         }
 
         @Test
@@ -281,6 +302,16 @@ class SampleListMetadataConverterTest {
             SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
 
             assertEquals(List.of(1_000_000_000L, -9_000_000_000L, 0L), restored.getCounters());
+        }
+
+        @Test
+        void negative_roundTrip() {
+            SampleList obj = new SampleList();
+            obj.setCounters(List.of(-1L, -5_000_000_000L, -9_223_372_036_854_775_807L));
+
+            SampleList restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(List.of(-1L, -5_000_000_000L, -9_223_372_036_854_775_807L), restored.getCounters());
         }
 
         @Test

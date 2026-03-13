@@ -306,7 +306,6 @@ public class MetadataConverterGenerator {
     }
 
     private boolean needsNullCheck(String javaType, MetadataFieldInfo field) {
-        if (field.isEnumType() || field.isNestedType() || field.isMapType()) return true;
         if (!isScalar(field)) return true;
         MetadataTypeCodeGen codeGen = registry.get(javaType);
 

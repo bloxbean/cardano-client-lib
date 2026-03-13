@@ -90,6 +90,15 @@ All integer-family types (`byte`, `short`, `int`, `long`, `BigInteger`) are stor
 Cardano arbitrary-precision integers. The on-chain value `42` carries no information about
 whether it originated from a `byte`, `short`, `int`, or `long`. The Java class is the schema.
 
+### 6. Negative integer values use CBOR NegativeInteger encoding
+
+Cardano metadata distinguishes positive and negative integers at the CBOR level
+(`UnsignedInteger` vs `NegativeInteger`). The generated converter uses sign-aware helpers
+that check `BigInteger.signum()` and call `putNegative()`/`addNegative()` for negative
+values. This applies to `BigInteger` fields, integer-family map values, and integer-family
+collection elements. No special handling is needed in user code -- negative values round-trip
+correctly.
+
 ## Consequences
 
 ### Positive

@@ -51,9 +51,9 @@ carried through a `boolean elementEnumType` flag on `MetadataFieldInfo` (see ADR
 | Feature | Decision |
 |---|---|
 | `enc=` override on List fields | **Ignored with WARNING**; DEFAULT always used |
-| `List<List<T>>` (nested lists) | **Not supported**; field is skipped with WARNING |
+| `List<List<T>>` (nested lists) | **Supported** via composite type handling (see below) |
 | `Set<T>`, `Collection<T>` | **Not supported** as top-level field type here; see ADR 0006 for `Set<T>` |
-| `Map<K,V>` as element type | **Not supported** |
+| `Map<K,V>` as element type | **Supported** via composite type handling (e.g., `List<Map<String, V>>`) |
 | `null` elements within a list | **Silently skipped** during serialization |
 | Ordering guarantees | Preserved — `MetadataList` is ordered, `ArrayList` preserves insertion order |
 
@@ -225,8 +225,8 @@ JavaPoet parameterised type handling.
   positions of null entries must pre-process the list.
 - **No `Set<T>` / ordering-sensitive types**: ordering is always preserved (insertion order
   of the Java list), but uniqueness constraints are not enforced.
-- **Flat list only**: `List<List<T>>` is rejected. Nested Cardano list structures require
-  manual `MetadataList` construction.
+- **One level of nesting**: `List<List<T>>` and `List<Map<String, V>>` are supported as
+  composite types. Deeper nesting (e.g., `List<List<List<T>>>`) is not supported.
 
 ## Consequences
 

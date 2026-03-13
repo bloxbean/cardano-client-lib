@@ -27,6 +27,110 @@ class SamplePrimitivesMetadataConverterTest {
     }
 
     // =========================================================================
+    // int / Integer
+    // =========================================================================
+
+    @Nested
+    class IntFields {
+
+        @Test
+        void primitive_negative_serialisedAsBigInteger() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setIntPrimitive(-42);
+
+            MetadataMap map = converter.toMetadataMap(obj);
+
+            assertEquals(BigInteger.valueOf(-42), map.get("intPrimitive"));
+        }
+
+        @Test
+        void primitive_negative_roundTrip() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setIntPrimitive(-999);
+
+            SamplePrimitives restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(-999, restored.getIntPrimitive());
+        }
+
+        @Test
+        void boxed_negative_roundTrip() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setIntBoxed(-12345);
+
+            SamplePrimitives restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(Integer.valueOf(-12345), restored.getIntBoxed());
+        }
+    }
+
+    // =========================================================================
+    // long / Long
+    // =========================================================================
+
+    @Nested
+    class LongFields {
+
+        @Test
+        void primitive_negative_serialisedAsBigInteger() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setLongPrimitive(-1_000_000_000L);
+
+            MetadataMap map = converter.toMetadataMap(obj);
+
+            assertEquals(BigInteger.valueOf(-1_000_000_000L), map.get("longPrimitive"));
+        }
+
+        @Test
+        void primitive_negative_roundTrip() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setLongPrimitive(-9_000_000_000L);
+
+            SamplePrimitives restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(-9_000_000_000L, restored.getLongPrimitive());
+        }
+
+        @Test
+        void boxed_negative_roundTrip() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setLongBoxed(-5_000_000_000L);
+
+            SamplePrimitives restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(Long.valueOf(-5_000_000_000L), restored.getLongBoxed());
+        }
+    }
+
+    // =========================================================================
+    // BigInteger
+    // =========================================================================
+
+    @Nested
+    class BigIntegerFields {
+
+        @Test
+        void negative_serialisedAsBigInteger() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setBigIntValue(BigInteger.valueOf(-777));
+
+            MetadataMap map = converter.toMetadataMap(obj);
+
+            assertEquals(BigInteger.valueOf(-777), map.get("bigIntValue"));
+        }
+
+        @Test
+        void negative_roundTrip() {
+            SamplePrimitives obj = new SamplePrimitives();
+            obj.setBigIntValue(new BigInteger("-123456789012345678901234567890"));
+
+            SamplePrimitives restored = converter.fromMetadataMap(converter.toMetadataMap(obj));
+
+            assertEquals(new BigInteger("-123456789012345678901234567890"), restored.getBigIntValue());
+        }
+    }
+
+    // =========================================================================
     // short / Short
     // =========================================================================
 

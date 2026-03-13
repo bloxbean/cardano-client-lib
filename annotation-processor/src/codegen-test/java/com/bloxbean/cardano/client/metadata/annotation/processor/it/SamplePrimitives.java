@@ -5,6 +5,7 @@ import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 
 /**
  * Integration test POJO covering all newly supported primitive/boxed types.
@@ -12,8 +13,11 @@ import java.math.BigDecimal;
  *
  * <p>Covered types:
  * <ul>
- *   <li>short / Short  → BigInteger (DEFAULT), String (as=STRING)</li>
- *   <li>byte  / Byte   → BigInteger (DEFAULT), String (as=STRING)</li>
+ *   <li>int / Integer   → BigInteger (DEFAULT)</li>
+ *   <li>long / Long     → BigInteger (DEFAULT)</li>
+ *   <li>BigInteger      → BigInteger (DEFAULT)</li>
+ *   <li>short / Short   → BigInteger (DEFAULT), String (as=STRING)</li>
+ *   <li>byte  / Byte    → BigInteger (DEFAULT), String (as=STRING)</li>
  *   <li>boolean / Boolean → BigInteger 0/1 (DEFAULT), "true"/"false" (as=STRING)</li>
  *   <li>double / Double → String via String.valueOf (DEFAULT)</li>
  *   <li>float  / Float  → String via String.valueOf (DEFAULT)</li>
@@ -23,6 +27,17 @@ import java.math.BigDecimal;
  */
 @MetadataType
 public class SamplePrimitives {
+
+    // --- int ---
+    private int intPrimitive;
+    private Integer intBoxed;
+
+    // --- long ---
+    private long longPrimitive;
+    private Long longBoxed;
+
+    // --- BigInteger ---
+    private BigInteger bigIntValue;
 
     // --- short ---
     private short shortPrimitive;
@@ -66,6 +81,21 @@ public class SamplePrimitives {
     // Getters / setters
     // Note: boolean fields use isX() convention to exercise the isX getter fix.
     // -------------------------------------------------------------------------
+
+    public int getIntPrimitive() { return intPrimitive; }
+    public void setIntPrimitive(int intPrimitive) { this.intPrimitive = intPrimitive; }
+
+    public Integer getIntBoxed() { return intBoxed; }
+    public void setIntBoxed(Integer intBoxed) { this.intBoxed = intBoxed; }
+
+    public long getLongPrimitive() { return longPrimitive; }
+    public void setLongPrimitive(long longPrimitive) { this.longPrimitive = longPrimitive; }
+
+    public Long getLongBoxed() { return longBoxed; }
+    public void setLongBoxed(Long longBoxed) { this.longBoxed = longBoxed; }
+
+    public BigInteger getBigIntValue() { return bigIntValue; }
+    public void setBigIntValue(BigInteger bigIntValue) { this.bigIntValue = bigIntValue; }
 
     public short getShortPrimitive() { return shortPrimitive; }
     public void setShortPrimitive(short shortPrimitive) { this.shortPrimitive = shortPrimitive; }
