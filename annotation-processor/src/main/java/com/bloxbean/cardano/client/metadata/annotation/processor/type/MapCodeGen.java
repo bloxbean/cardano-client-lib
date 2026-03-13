@@ -18,7 +18,7 @@ import java.math.BigInteger;
 import java.util.*;
 
 /**
- * Code generation for {@code Map<K, V>} fields where K is String, Integer, Long, or BigInteger.
+ * Code generation for {@code Map<K, V>} fields where K is String, Integer, Long, BigInteger, or byte[].
  * Generates MetadataMap serialization/deserialization with delegation to
  * the appropriate value type strategy (scalar, enum, nested, or composite).
  */
@@ -46,6 +46,7 @@ public class MapCodeGen {
             case INTEGER, PRIM_INT -> TypeName.get(Integer.class);
             case LONG, PRIM_LONG -> TypeName.get(Long.class);
             case BIG_INTEGER -> TypeName.get(BigInteger.class);
+            case BYTE_ARRAY -> TypeName.get(byte[].class);
             default -> TypeName.get(String.class);
         };
     }
@@ -54,6 +55,7 @@ public class MapCodeGen {
         if (keyTypeName == null) return String.class;
         return switch (keyTypeName) {
             case INTEGER, PRIM_INT, LONG, PRIM_LONG, BIG_INTEGER -> BigInteger.class;
+            case BYTE_ARRAY -> byte[].class;
             default -> String.class;
         };
     }
@@ -71,7 +73,7 @@ public class MapCodeGen {
         if (keyTypeName == null) return getter;
         return switch (keyTypeName) {
             case INTEGER, PRIM_INT, LONG, PRIM_LONG -> "java.math.BigInteger.valueOf(" + getter + ")";
-            default -> getter;
+            default -> getter; // String, BigInteger, byte[] pass through directly
         };
     }
 
@@ -88,8 +90,33 @@ public class MapCodeGen {
             case INTEGER, PRIM_INT -> "((java.math.BigInteger) " + keyVar + ").intValue()";
             case LONG, PRIM_LONG -> "((java.math.BigInteger) " + keyVar + ").longValue()";
             case BIG_INTEGER -> "(java.math.BigInteger) " + keyVar;
+            case BYTE_ARRAY -> "(byte[]) " + keyVar;
             default -> "(String) " + keyVar;
         };
+    }
+
+    /**
+     * Emit an {@code instanceof} check for the given on-chain key class.
+     * byte[] requires a literal check since JavaPoet's {@code $T} doesn't work with array types.
+     */
+    static void emitKeyInstanceofCheck(MethodSpec.Builder builder, String var, Class<?> keyChain) {
+        if (keyChain == byte[].class) {
+            builder.beginControlFlow("if ($L instanceof byte[])", var);
+        } else {
+            builder.beginControlFlow("if ($L instanceof $T)", var, keyChain);
+        }
+    }
+
+    /**
+     * Emit {@code <resultVar> = <rawMapVar>.get((<cast>) keyVar)} with the correct cast for the key type.
+     */
+    static void emitMapGet(MethodSpec.Builder builder, String rawMapVar, String keyVar,
+                            Class<?> keyChain, String resultVar) {
+        if (keyChain == byte[].class) {
+            builder.addStatement("$T $L = $L.get((byte[]) $L)", Object.class, resultVar, rawMapVar, keyVar);
+        } else {
+            builder.addStatement("$T $L = $L.get(($T) $L)", Object.class, resultVar, rawMapVar, keyChain, keyVar);
+        }
     }
 
     // --- Serialization ---
@@ -226,8 +253,8 @@ public class MapCodeGen {
         builder.addStatement("$T _rawMap = ($T) v", MetadataMap.class, MetadataMap.class);
         builder.addStatement("$T _result = new $T<>()", mapType, LinkedHashMap.class);
         builder.beginControlFlow("for ($T _k : _rawMap.keys())", Object.class);
-        builder.beginControlFlow("if (_k instanceof $T)", keyChain);
-        builder.addStatement("$T _val = _rawMap.get(($T) _k)", Object.class, keyChain);
+        emitKeyInstanceofCheck(builder, "_k", keyChain);
+        emitMapGet(builder, "_rawMap", "_k", keyChain, "_val");
 
         String dkExpr = deserKeyExpr(keyTypeName, "_k");
         if (field.isMapValueNestedType()) {
@@ -272,8 +299,8 @@ public class MapCodeGen {
         builder.addStatement("$T _rawMap = ($T) v", MetadataMap.class, MetadataMap.class);
         builder.addStatement("$T _result = new $T<>()", mapType, LinkedHashMap.class);
         builder.beginControlFlow("for ($T _k : _rawMap.keys())", Object.class);
-        builder.beginControlFlow("if (_k instanceof $T)", keyChain);
-        builder.addStatement("$T _val = _rawMap.get(($T) _k)", Object.class, keyChain);
+        emitKeyInstanceofCheck(builder, "_k", keyChain);
+        emitMapGet(builder, "_rawMap", "_k", keyChain, "_val");
 
         builder.beginControlFlow("if (_val instanceof $T)", MetadataList.class);
         builder.addStatement("$T _innerRawList = ($T) _val", MetadataList.class, MetadataList.class);
@@ -315,15 +342,15 @@ public class MapCodeGen {
         builder.addStatement("$T _rawMap = ($T) v", MetadataMap.class, MetadataMap.class);
         builder.addStatement("$T _result = new $T<>()", outerMapType, LinkedHashMap.class);
         builder.beginControlFlow("for ($T _k : _rawMap.keys())", Object.class);
-        builder.beginControlFlow("if (_k instanceof $T)", outerKeyChain);
-        builder.addStatement("$T _val = _rawMap.get(($T) _k)", Object.class, outerKeyChain);
+        emitKeyInstanceofCheck(builder, "_k", outerKeyChain);
+        emitMapGet(builder, "_rawMap", "_k", outerKeyChain, "_val");
 
         builder.beginControlFlow("if (_val instanceof $T)", MetadataMap.class);
         builder.addStatement("$T _innerRawMap = ($T) _val", MetadataMap.class, MetadataMap.class);
         builder.addStatement("$T _innerResult = new $T<>()", innerMapType, LinkedHashMap.class);
         builder.beginControlFlow("for ($T _innerK : _innerRawMap.keys())", Object.class);
-        builder.beginControlFlow("if (_innerK instanceof $T)", innerKeyChain);
-        builder.addStatement("$T _innerVal = _innerRawMap.get(($T) _innerK)", Object.class, innerKeyChain);
+        emitKeyInstanceofCheck(builder, "_innerK", innerKeyChain);
+        emitMapGet(builder, "_innerRawMap", "_innerK", innerKeyChain, "_innerVal");
 
         String innerDkExpr = deserKeyExpr(innerKeyTypeName, "_innerK");
         CompositeCodeGenHelper.emitDeserializeLeafFromRawToMap(builder, registry, "_innerResult", innerDkExpr, "_innerVal",

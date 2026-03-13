@@ -354,6 +354,19 @@ public class MetadataConverterGenerator {
                 .endControlFlow()
                 .build());
 
+        // _putBigInt(MetadataMap, byte[], BigInteger)
+        classBuilder.addMethod(MethodSpec.methodBuilder("_putBigInt")
+                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .addParameter(MetadataMap.class, "_m")
+                .addParameter(byte[].class, "_k")
+                .addParameter(BigInteger.class, "_v")
+                .beginControlFlow("if (_v.signum() >= 0)")
+                .addStatement("_m.put(_k, _v)")
+                .nextControlFlow("else")
+                .addStatement("_m.putNegative(_k, _v)")
+                .endControlFlow()
+                .build());
+
         // _addBigInt(MetadataList, BigInteger)
         classBuilder.addMethod(MethodSpec.methodBuilder("_addBigInt")
                 .addModifiers(Modifier.PRIVATE, Modifier.STATIC)

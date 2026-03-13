@@ -3,6 +3,7 @@ package com.bloxbean.cardano.client.metadata.annotation.processor.type;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.metadata.MetadataList;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldAccessor;
 import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldInfo;
 
@@ -68,6 +69,10 @@ public class CollectionCodeGen {
             nestedCodeGen.emitSerializeToList(builder, field);
         } else if (field.isElementEnumType()) {
             enumCodeGen.emitSerializeToList(builder);
+        } else if (BYTE_ARRAY.equals(field.getElementTypeName()) && field.getEnc() == MetadataFieldType.STRING_HEX) {
+            registry.getByteArrayCodeGen().emitSerializeToListHex(builder);
+        } else if (BYTE_ARRAY.equals(field.getElementTypeName()) && field.getEnc() == MetadataFieldType.STRING_BASE64) {
+            registry.getByteArrayCodeGen().emitSerializeToListBase64(builder);
         } else {
             MetadataTypeCodeGen codeGen = registry.get(field.getElementTypeName());
             codeGen.emitSerializeToList(builder, field.getElementTypeName());
@@ -174,6 +179,10 @@ public class CollectionCodeGen {
             nestedCodeGen.emitDeserializeElement(builder, field);
         } else if (field.isElementEnumType()) {
             enumCodeGen.emitDeserializeElement(builder, field);
+        } else if (BYTE_ARRAY.equals(field.getElementTypeName()) && field.getEnc() == MetadataFieldType.STRING_HEX) {
+            registry.getByteArrayCodeGen().emitDeserializeElementHex(builder);
+        } else if (BYTE_ARRAY.equals(field.getElementTypeName()) && field.getEnc() == MetadataFieldType.STRING_BASE64) {
+            registry.getByteArrayCodeGen().emitDeserializeElementBase64(builder);
         } else {
             MetadataTypeCodeGen codeGen = registry.get(field.getElementTypeName());
             codeGen.emitDeserializeElement(builder, field.getElementTypeName());
@@ -245,8 +254,8 @@ public class CollectionCodeGen {
         builder.addStatement("$T _innerRawMap = ($T) _el", MetadataMap.class, MetadataMap.class);
         builder.addStatement("$T _innerResult = new $T<>()", innerMapType, LinkedHashMap.class);
         builder.beginControlFlow("for ($T _innerK : _innerRawMap.keys())", Object.class);
-        builder.beginControlFlow("if (_innerK instanceof $T)", elemKeyChain);
-        builder.addStatement("$T _innerVal = _innerRawMap.get(($T) _innerK)", Object.class, elemKeyChain);
+        MapCodeGen.emitKeyInstanceofCheck(builder, "_innerK", elemKeyChain);
+        MapCodeGen.emitMapGet(builder, "_innerRawMap", "_innerK", elemKeyChain, "_innerVal");
 
         String innerDkExpr = MapCodeGen.deserKeyExpr(elemKeyTypeName, "_innerK");
         CompositeCodeGenHelper.emitDeserializeLeafFromRawToMap(builder, registry, "_innerResult", innerDkExpr, "_innerVal",

@@ -114,7 +114,8 @@ public class MetadataFieldExtractor {
             if (typeResult == null) continue; // unsupported type, warning already emitted
 
             MetadataKeyAndEncoding keyEnc = resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
-                    typeResult.elementTypeName != null, typeResult.mapType, typeResult.nestedType);
+                    typeResult.elementTypeName != null, typeResult.mapType, typeResult.nestedType,
+                    typeResult.elementTypeName);
             if (keyEnc == null) continue; // invalid encoding, error already emitted
 
             AccessorResult accessors = resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
@@ -321,7 +322,7 @@ public class MetadataFieldExtractor {
 
         if (!isAllowedMapKeyType(keyType)) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': Map key type must be String, Integer, Long, or BigInteger, but found '" + keyType + "'.", ve);
+                    "Field '" + fieldName + "': Map key type must be String, Integer, Long, BigInteger, or byte[], but found '" + keyType + "'.", ve);
             return null;
         }
 
@@ -376,7 +377,7 @@ public class MetadataFieldExtractor {
         String innerKeyType = innerArgs.get(0).toString();
         if (!isAllowedMapKeyType(innerKeyType)) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, or BigInteger, but found '" + innerKeyType + "'.", ve);
+                    "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, BigInteger, or byte[], but found '" + innerKeyType + "'.", ve);
             return null;
         }
         String innerValueType = innerArgs.get(1).toString();
@@ -480,7 +481,7 @@ public class MetadataFieldExtractor {
         String innerKeyType = innerArgs.get(0).toString();
         if (!isAllowedMapKeyType(innerKeyType)) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                    "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, or BigInteger, but found '" + innerKeyType + "'.", ve);
+                    "Field '" + fieldName + "': inner Map key type must be String, Integer, Long, BigInteger, or byte[], but found '" + innerKeyType + "'.", ve);
             return null;
         }
         String innerValueType = innerArgs.get(1).toString();
@@ -538,7 +539,8 @@ public class MetadataFieldExtractor {
     // ── Phase 3: Metadata key and encoding ─────────────────────────────
 
     private MetadataKeyAndEncoding resolveMetadataKeyAndEncoding(VariableElement ve, String fieldName, String typeName,
-                                                                  boolean hasElementType, boolean isMapType, boolean isNestedType) {
+                                                                  boolean hasElementType, boolean isMapType, boolean isNestedType,
+                                                                  String elementTypeName) {
         String metadataKey = fieldName;
         MetadataFieldType enc = MetadataFieldType.DEFAULT;
         MetadataField mf = ve.getAnnotation(MetadataField.class);
@@ -549,14 +551,20 @@ public class MetadataFieldExtractor {
             enc = mf.enc();
         }
 
-        // Warn and reset enc= on collection/Optional/Map/nested fields
+        // Allow enc=STRING_HEX/STRING_BASE64 on byte[] element collections; warn and reset for all others
+        boolean isByteArrayCollectionEnc = hasElementType && !isMapType && !isNestedType
+                && BYTE_ARRAY.equals(elementTypeName)
+                && (enc == MetadataFieldType.STRING_HEX || enc == MetadataFieldType.STRING_BASE64);
+
         if ((hasElementType || isMapType || isNestedType) && enc != MetadataFieldType.DEFAULT) {
-            messager.printMessage(Diagnostic.Kind.WARNING,
-                    "Field '" + fieldName + "': @MetadataField(enc=...) is not supported on this field type; using DEFAULT.", ve);
-            enc = MetadataFieldType.DEFAULT;
+            if (!isByteArrayCollectionEnc) {
+                messager.printMessage(Diagnostic.Kind.WARNING,
+                        "Field '" + fieldName + "': @MetadataField(enc=...) is not supported on this field type; using DEFAULT.", ve);
+                enc = MetadataFieldType.DEFAULT;
+            }
         }
 
-        if (!isNestedType && !isMapType && !isValidEnc(typeName, enc, ve)) {
+        if (!isNestedType && !isMapType && !isByteArrayCollectionEnc && !isValidEnc(typeName, enc, ve)) {
             return null;
         }
 
@@ -703,7 +711,7 @@ public class MetadataFieldExtractor {
 
     private boolean isAllowedMapKeyType(String keyType) {
         return switch (keyType) {
-            case STRING, INTEGER, PRIM_INT, LONG, PRIM_LONG, BIG_INTEGER -> true;
+            case STRING, INTEGER, PRIM_INT, LONG, PRIM_LONG, BIG_INTEGER, BYTE_ARRAY -> true;
             default -> false;
         };
     }

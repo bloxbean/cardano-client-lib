@@ -105,6 +105,13 @@ class MetadataConverterGeneratorTest {
         return f;
     }
 
+    /** List field with explicit getter/setter and encoding override. */
+    private MetadataFieldInfo listFieldEnc(String name, String elementType, MetadataFieldType enc) {
+        MetadataFieldInfo f = listField(name, elementType);
+        f.setEnc(enc);
+        return f;
+    }
+
     /** Set field with explicit getter/setter. */
     private MetadataFieldInfo setField(String name, String elementType) {
         MetadataFieldInfo f = field(name, "java.util.Set<" + elementType + ">");
@@ -1699,6 +1706,34 @@ class MetadataConverterGeneratorTest {
                 assertTrue(src.contains("if (_el instanceof byte[])"));
                 assertTrue(src.contains("_result.add((byte[]) _el)"));
             }
+
+            @Test
+            void toMetadataMap_hexEncoding_usesHexUtil() {
+                String src = generate(List.of(listFieldEnc("hashes", "byte[]", MetadataFieldType.STRING_HEX)));
+                assertTrue(src.contains("HexUtil.encodeHexString(_el)"),
+                        "Should encode byte[] elements as hex strings");
+            }
+
+            @Test
+            void fromMetadataMap_hexEncoding_decodesHexString() {
+                String src = generate(List.of(listFieldEnc("hashes", "byte[]", MetadataFieldType.STRING_HEX)));
+                assertTrue(src.contains("HexUtil.decodeHexString((String) _el)"),
+                        "Should decode hex string elements back to byte[]");
+            }
+
+            @Test
+            void toMetadataMap_base64Encoding_usesBase64Encoder() {
+                String src = generate(List.of(listFieldEnc("blobs", "byte[]", MetadataFieldType.STRING_BASE64)));
+                assertTrue(src.contains("Base64.getEncoder().encodeToString(_el)"),
+                        "Should encode byte[] elements as Base64 strings");
+            }
+
+            @Test
+            void fromMetadataMap_base64Encoding_decodesBase64String() {
+                String src = generate(List.of(listFieldEnc("blobs", "byte[]", MetadataFieldType.STRING_BASE64)));
+                assertTrue(src.contains("Base64.getDecoder().decode((String) _el)"),
+                        "Should decode Base64 string elements back to byte[]");
+            }
         }
 
         @Nested
@@ -3226,6 +3261,36 @@ class MetadataConverterGeneratorTest {
                     "String keys should use instanceof String");
             assertFalse(src.contains("BigInteger.valueOf(_entry.getKey())"),
                     "String keys should not use BigInteger.valueOf");
+        }
+
+        @Test
+        void byteArrayKeyMap_serialization_directKey() {
+            MetadataFieldInfo f = mapField("labels", BYTE_ARRAY, STRING);
+            String src = generate(List.of(f));
+            // byte[] keys should pass through directly, no BigInteger.valueOf
+            assertFalse(src.contains("BigInteger.valueOf(_entry.getKey())"),
+                    "byte[] keys should not wrap in BigInteger.valueOf");
+            assertTrue(src.contains("_entry.getKey()"),
+                    "byte[] keys should pass through directly");
+        }
+
+        @Test
+        void byteArrayKeyMap_deserialization_instanceofByteArray() {
+            MetadataFieldInfo f = mapField("labels", BYTE_ARRAY, STRING);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_k instanceof byte[]"),
+                    "Should check for byte[] on-chain key");
+            assertTrue(src.contains("(byte[]) _k"),
+                    "Should cast to byte[]");
+        }
+
+        @Test
+        void byteArrayKeyMap_withBigIntegerValue() {
+            MetadataFieldInfo f = mapField("amounts", BYTE_ARRAY, BIG_INTEGER);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_k instanceof byte[]"));
+            assertTrue(src.contains("_putBigInt(_maplabels") || src.contains("_putBigInt(_mapamounts"),
+                    "BigInteger values with byte[] keys should use _putBigInt");
         }
     }
 }

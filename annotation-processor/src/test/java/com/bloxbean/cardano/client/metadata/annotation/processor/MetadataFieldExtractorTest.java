@@ -676,7 +676,7 @@ public class MetadataFieldExtractorTest {
         void unsupportedMapKeyEmitsError() {
             extractAndAssert(r -> {
                 assertThat(r.compilation).failed();
-                assertThat(r.compilation).hadErrorContaining("Map key type must be String, Integer, Long, or BigInteger");
+                assertThat(r.compilation).hadErrorContaining("Map key type must be String, Integer, Long, BigInteger, or byte[]");
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -1257,7 +1257,7 @@ public class MetadataFieldExtractorTest {
         void rejectsInnerMapUnsupportedKey() {
             extractAndAssert(r -> {
                 assertThat(r.compilation).failed();
-                assertThat(r.compilation).hadErrorContaining("inner Map key type must be String, Integer, Long, or BigInteger");
+                assertThat(r.compilation).hadErrorContaining("inner Map key type must be String, Integer, Long, BigInteger, or byte[]");
             }, """
                 package com.test;
                 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;

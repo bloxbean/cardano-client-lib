@@ -100,4 +100,30 @@ public class ByteArrayCodeGen extends AbstractMetadataTypeCodeGen {
         accessor.emitSet(builder, field, "$T.getDecoder().decode((String) v)", Base64.class);
         builder.endControlFlow();
     }
+
+    // --- Collection element enc-aware methods ---
+
+    /** Emit hex-encoded element serialization: {@code _list.add(HexUtil.encodeHexString(_el))}. */
+    public void emitSerializeToListHex(MethodSpec.Builder builder) {
+        builder.addStatement("_list.add($T.encodeHexString(_el))", HEX_UTIL);
+    }
+
+    /** Emit Base64-encoded element serialization. */
+    public void emitSerializeToListBase64(MethodSpec.Builder builder) {
+        builder.addStatement("_list.add($T.getEncoder().encodeToString(_el))", Base64.class);
+    }
+
+    /** Emit hex-encoded element deserialization. */
+    public void emitDeserializeElementHex(MethodSpec.Builder builder) {
+        builder.beginControlFlow("if (_el instanceof $T)", String.class);
+        builder.addStatement("_result.add($T.decodeHexString((String) _el))", HEX_UTIL);
+        builder.endControlFlow();
+    }
+
+    /** Emit Base64-encoded element deserialization. */
+    public void emitDeserializeElementBase64(MethodSpec.Builder builder) {
+        builder.beginControlFlow("if (_el instanceof $T)", String.class);
+        builder.addStatement("_result.add($T.getDecoder().decode((String) _el))", Base64.class);
+        builder.endControlFlow();
+    }
 }
