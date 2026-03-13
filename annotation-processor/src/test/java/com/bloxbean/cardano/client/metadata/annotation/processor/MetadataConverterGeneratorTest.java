@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * deserialisation, and encoding-variant tests. Cross-cutting concerns
  * (KeyMapping, DirectFieldAccess) are consolidated at the end.
  */
+@SuppressWarnings("java:S5976") // Individual test methods provide clearer failure messages than parameterized tests for codegen assertions
 class MetadataConverterGeneratorTest {
 
     private MetadataConverterGenerator generator;
