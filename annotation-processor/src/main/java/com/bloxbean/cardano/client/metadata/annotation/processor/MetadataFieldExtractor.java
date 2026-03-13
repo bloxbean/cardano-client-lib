@@ -1,5 +1,6 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor;
 
+import com.bloxbean.cardano.client.metadata.annotation.MetadataDiscriminator;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataIgnore;
@@ -38,6 +39,71 @@ public class MetadataFieldExtractor {
     }
 
     // ── Public API ──────────────────────────────────────────────────────
+
+    /**
+     * Returns {@code true} if the given type element is a Java record.
+     */
+    public boolean isRecord(TypeElement typeElement) {
+        return typeElement.getKind() == ElementKind.RECORD;
+    }
+
+    /**
+     * Result of record field extraction, containing both the serializable fields
+     * and the full component list (needed for constructor call generation).
+     */
+    public record RecordExtractionResult(
+            List<MetadataFieldInfo> fields,
+            List<MetadataConverterGenerator.RecordComponentInfo> allComponents
+    ) {}
+
+    /**
+     * Extracts fields from a Java record's components, preserving declaration order
+     * (critical for canonical constructor parameter matching).
+     *
+     * @return both the serializable fields and the full component list (including ignored)
+     */
+    public RecordExtractionResult extractRecordFields(TypeElement typeElement) {
+        List<MetadataFieldInfo> fields = new ArrayList<>();
+        List<MetadataConverterGenerator.RecordComponentInfo> allComponents = new ArrayList<>();
+        Set<String> seenFieldNames = new LinkedHashSet<>();
+
+        // Map from field name to VariableElement for annotation lookup
+        Map<String, VariableElement> fieldElements = new LinkedHashMap<>();
+        for (Element enclosed : typeElement.getEnclosedElements()) {
+            if (enclosed instanceof VariableElement ve && enclosed.getKind() == ElementKind.FIELD) {
+                fieldElements.put(ve.getSimpleName().toString(), ve);
+            }
+        }
+
+        for (RecordComponentElement component : typeElement.getRecordComponents()) {
+            String fieldName = component.getSimpleName().toString();
+            String typeName = component.asType().toString();
+            VariableElement ve = fieldElements.get(fieldName);
+
+            // Always add to allComponents (needed for constructor)
+            allComponents.add(new MetadataConverterGenerator.RecordComponentInfo(fieldName, typeName));
+
+            if (ve == null) continue;
+            if (shouldSkipField(ve, seenFieldNames)) continue;
+
+            FieldTypeResult typeResult = detectFieldType(ve, fieldName, typeName);
+            if (typeResult == null) continue;
+
+            MetadataKeyAndEncoding keyEnc = resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
+                    typeResult.elementTypeName != null, typeResult.mapType,
+                    typeResult.nestedType || typeResult.polymorphicType,
+                    typeResult.elementTypeName);
+            if (keyEnc == null) continue;
+
+            // Record accessors: name() not getName(), no setter
+            MetadataFieldInfo info = buildFieldInfo(fieldName, typeName, keyEnc,
+                    new AccessorResult(fieldName, null), typeResult);
+            info.setRecordMode(true);
+            fields.add(info);
+        }
+
+        return new RecordExtractionResult(fields, allComponents);
+    }
 
     /**
      * Extracts fields from the type and all its superclasses (inheritance).
@@ -114,7 +180,8 @@ public class MetadataFieldExtractor {
             if (typeResult == null) continue; // unsupported type, warning already emitted
 
             MetadataKeyAndEncoding keyEnc = resolveMetadataKeyAndEncoding(ve, fieldName, typeName,
-                    typeResult.elementTypeName != null, typeResult.mapType, typeResult.nestedType,
+                    typeResult.elementTypeName != null, typeResult.mapType,
+                    typeResult.nestedType || typeResult.polymorphicType,
                     typeResult.elementTypeName);
             if (keyEnc == null) continue; // invalid encoding, error already emitted
 
@@ -142,14 +209,31 @@ public class MetadataFieldExtractor {
         Element typeEl = processingEnv.getTypeUtils().asElement(ve.asType());
         boolean isEnum = typeEl != null && typeEl.getKind() == ElementKind.ENUM;
 
+        // Resolve the field's type element once for annotation checks
+        TypeElement fieldTypeElement = (!isEnum && typeEl instanceof TypeElement te) ? te : null;
+
+        // Polymorphic @MetadataDiscriminator detection (must come before nested @MetadataType)
+        boolean isPolymorphicType = false;
+        String discriminatorKey = null;
+        List<MetadataFieldInfo.PolymorphicSubtypeInfo> polymorphicSubtypes = List.of();
+        if (fieldTypeElement != null
+                && fieldTypeElement.getAnnotation(MetadataDiscriminator.class) != null) {
+            PolymorphicDetectionResult polyResult = detectPolymorphicType(fieldTypeElement, ve, fieldName);
+            if (polyResult != null) {
+                isPolymorphicType = true;
+                discriminatorKey = polyResult.discriminatorKey;
+                polymorphicSubtypes = polyResult.subtypes;
+            }
+        }
+
         // Nested @MetadataType detection
         boolean isNestedType = false;
         String nestedConverterFqn = null;
-        if (!isEnum && typeEl instanceof TypeElement fieldTypeEl
-                && fieldTypeEl.getAnnotation(MetadataType.class) != null) {
+        if (!isPolymorphicType && fieldTypeElement != null
+                && fieldTypeElement.getAnnotation(MetadataType.class) != null) {
             isNestedType = true;
-            String fieldPkg = processingEnv.getElementUtils().getPackageOf(fieldTypeEl).toString();
-            nestedConverterFqn = fieldPkg + "." + fieldTypeEl.getSimpleName() + MetadataConverterGenerator.CONVERTER_SUFFIX;
+            String fieldPkg = processingEnv.getElementUtils().getPackageOf(fieldTypeElement).toString();
+            nestedConverterFqn = fieldPkg + "." + fieldTypeElement.getSimpleName() + MetadataConverterGenerator.CONVERTER_SUFFIX;
         }
 
         // Map<String, V> detection
@@ -215,7 +299,7 @@ public class MetadataFieldExtractor {
         collectionKind = elemResult.collectionKind;
 
         // Validate supported type
-        if (!isEnum && !isNestedType && !isMapType && !isSupportedType(ve.asType())
+        if (!isEnum && !isNestedType && !isPolymorphicType && !isMapType && !isSupportedType(ve.asType())
                 && !elemResult.hasRecognizedElement()) {
             messager.printMessage(Diagnostic.Kind.WARNING,
                     "Field '" + fieldName + "' has unsupported type '" + typeName + "' and will be skipped.", ve);
@@ -244,7 +328,8 @@ public class MetadataFieldExtractor {
                 elemResult.elementMapValueTypeName,
                 elemResult.elementMapValueEnumType,
                 elemResult.elementMapValueNestedType,
-                elemResult.elementMapValueConverterFqn);
+                elemResult.elementMapValueConverterFqn,
+                isPolymorphicType, discriminatorKey, polymorphicSubtypes);
     }
 
     /**
@@ -511,6 +596,101 @@ public class MetadataFieldExtractor {
         return false;
     }
 
+    // ── Polymorphic type detection ─────────────────────────────────────
+
+    private PolymorphicDetectionResult detectPolymorphicType(TypeElement fieldTypeEl,
+                                                              VariableElement ve, String fieldName) {
+        MetadataDiscriminator disc = fieldTypeEl.getAnnotation(MetadataDiscriminator.class);
+        String key = disc.key();
+        MetadataSubtypeEntry[] entries = extractSubtypeEntries(fieldTypeEl);
+
+        if (entries.length == 0) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': @MetadataDiscriminator on '"
+                            + fieldTypeEl.getSimpleName() + "' must declare at least one subtype.", ve);
+            return null;
+        }
+
+        List<MetadataFieldInfo.PolymorphicSubtypeInfo> subtypes = new ArrayList<>();
+        for (MetadataSubtypeEntry entry : entries) {
+            TypeElement subtypeEl = (TypeElement) processingEnv.getTypeUtils().asElement(entry.typeMirror);
+            if (subtypeEl == null) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                        "Field '" + fieldName + "': cannot resolve subtype class for discriminator value '"
+                                + entry.value + "'.", ve);
+                return null;
+            }
+            if (subtypeEl.getAnnotation(MetadataType.class) == null) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                        "Field '" + fieldName + "': subtype '" + subtypeEl.getSimpleName()
+                                + "' must be annotated with @MetadataType.", ve);
+                return null;
+            }
+            String pkg = processingEnv.getElementUtils().getPackageOf(subtypeEl).toString();
+            String converterFqn = pkg + "." + subtypeEl.getSimpleName() + MetadataConverterGenerator.CONVERTER_SUFFIX;
+            subtypes.add(new MetadataFieldInfo.PolymorphicSubtypeInfo(
+                    entry.value, converterFqn, subtypeEl.getQualifiedName().toString()));
+        }
+
+        return new PolymorphicDetectionResult(key, subtypes);
+    }
+
+    /**
+     * Extracts subtype entries from {@code @MetadataDiscriminator} using the
+     * {@code AnnotationMirror} API to safely read {@code Class<?>} values as {@code TypeMirror}.
+     */
+    private MetadataSubtypeEntry[] extractSubtypeEntries(TypeElement fieldTypeEl) {
+        AnnotationMirror discMirror = findAnnotationMirror(fieldTypeEl, MetadataDiscriminator.class);
+        if (discMirror == null) return new MetadataSubtypeEntry[0];
+
+        Map<? extends ExecutableElement, ? extends AnnotationValue> elementValues =
+                processingEnv.getElementUtils().getElementValuesWithDefaults(discMirror);
+
+        List<MetadataSubtypeEntry> result = new ArrayList<>();
+        for (var entry : elementValues.entrySet()) {
+            if (!"subtypes".equals(entry.getKey().getSimpleName().toString())) continue;
+
+            @SuppressWarnings("unchecked")
+            List<? extends AnnotationValue> values = (List<? extends AnnotationValue>) entry.getValue().getValue();
+            for (AnnotationValue av : values) {
+                AnnotationMirror subtypeMirror = (AnnotationMirror) av.getValue();
+                Map<? extends ExecutableElement, ? extends AnnotationValue> subtypeValues =
+                        processingEnv.getElementUtils().getElementValuesWithDefaults(subtypeMirror);
+
+                String value = null;
+                TypeMirror typeMirror = null;
+                for (var se : subtypeValues.entrySet()) {
+                    String name = se.getKey().getSimpleName().toString();
+                    if ("value".equals(name)) {
+                        value = (String) se.getValue().getValue();
+                    } else if ("type".equals(name)) {
+                        typeMirror = (TypeMirror) se.getValue().getValue();
+                    }
+                }
+                if (value != null && typeMirror != null) {
+                    result.add(new MetadataSubtypeEntry(value, typeMirror));
+                }
+            }
+            break;
+        }
+        return result.toArray(new MetadataSubtypeEntry[0]);
+    }
+
+    /**
+     * Finds the {@link AnnotationMirror} for a given annotation class on the element,
+     * using type comparison instead of string matching.
+     */
+    private AnnotationMirror findAnnotationMirror(Element element, Class<?> annotationClass) {
+        TypeMirror targetType = processingEnv.getElementUtils()
+                .getTypeElement(annotationClass.getCanonicalName()).asType();
+        for (AnnotationMirror am : element.getAnnotationMirrors()) {
+            if (processingEnv.getTypeUtils().isSameType(am.getAnnotationType(), targetType)) {
+                return am;
+            }
+        }
+        return null;
+    }
+
     // ── Leaf type classification helper ────────────────────────────────
 
     private LeafTypeClassification classifyLeafType(String typeName) {
@@ -543,12 +723,43 @@ public class MetadataFieldExtractor {
                                                                   String elementTypeName) {
         String metadataKey = fieldName;
         MetadataFieldType enc = MetadataFieldType.DEFAULT;
+        boolean required = false;
+        String defaultValue = null;
         MetadataField mf = ve.getAnnotation(MetadataField.class);
         if (mf != null) {
             if (!mf.key().isEmpty()) {
                 metadataKey = mf.key();
             }
             enc = mf.enc();
+            required = mf.required();
+            if (!mf.defaultValue().isEmpty()) {
+                defaultValue = mf.defaultValue();
+            }
+        }
+
+        // Validate required + defaultValue mutual exclusivity
+        if (required && defaultValue != null) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': 'required' and 'defaultValue' are mutually exclusive.", ve);
+            return null;
+        }
+
+        // Validate required on Optional (warning)
+        boolean isOptional = OPTIONAL.equals(typeName) || typeName.startsWith(OPTIONAL + "<");
+        if (required && isOptional) {
+            messager.printMessage(Diagnostic.Kind.WARNING,
+                    "Field '" + fieldName + "': 'required = true' on Optional contradicts Optional semantics.", ve);
+        }
+
+        // Validate defaultValue only on scalar/enum fields
+        if (defaultValue != null) {
+            boolean isComplexType = hasElementType || isMapType || isNestedType
+                    || BYTE_ARRAY.equals(typeName);
+            if (isComplexType) {
+                messager.printMessage(Diagnostic.Kind.ERROR,
+                        "Field '" + fieldName + "': 'defaultValue' is not supported on collection, map, Optional, nested, or byte[] types.", ve);
+                return null;
+            }
         }
 
         // Allow enc=STRING_HEX/STRING_BASE64 on byte[] element collections; warn and reset for all others
@@ -568,7 +779,7 @@ public class MetadataFieldExtractor {
             return null;
         }
 
-        return new MetadataKeyAndEncoding(metadataKey, enc);
+        return new MetadataKeyAndEncoding(metadataKey, enc, required, defaultValue);
     }
 
     // ── Phase 4: Accessor resolution ───────────────────────────────────
@@ -612,6 +823,8 @@ public class MetadataFieldExtractor {
                 .metadataKey(keyEnc.metadataKey)
                 .javaTypeName(typeName)
                 .enc(keyEnc.enc)
+                .required(keyEnc.required)
+                .defaultValue(keyEnc.defaultValue)
                 .getterName(accessors.getterName)
                 .setterName(accessors.setterName)
                 .elementTypeName(type.elementTypeName)
@@ -657,6 +870,10 @@ public class MetadataFieldExtractor {
                 .elementMapValueEnumType(type.elementMapValueEnumType)
                 .elementMapValueNestedType(type.elementMapValueNestedType)
                 .elementMapValueConverterFqn(type.elementMapValueConverterFqn)
+                // Polymorphic
+                .polymorphicType(type.polymorphicType)
+                .discriminatorKey(type.discriminatorKey)
+                .subtypes(type.polymorphicSubtypes != null ? type.polymorphicSubtypes : List.of())
                 .build();
     }
 
@@ -824,7 +1041,11 @@ public class MetadataFieldExtractor {
             String elementMapValueTypeName,
             boolean elementMapValueEnumType,
             boolean elementMapValueNestedType,
-            String elementMapValueConverterFqn
+            String elementMapValueConverterFqn,
+            // Polymorphic
+            boolean polymorphicType,
+            String discriminatorKey,
+            List<MetadataFieldInfo.PolymorphicSubtypeInfo> polymorphicSubtypes
     ) {}
 
     private record MapDetectionResult(
@@ -886,7 +1107,14 @@ public class MetadataFieldExtractor {
                 false, null, null, false, false, null);
     }
 
-    private record MetadataKeyAndEncoding(String metadataKey, MetadataFieldType enc) {}
+    private record MetadataKeyAndEncoding(String metadataKey, MetadataFieldType enc,
+                                              boolean required, String defaultValue) {}
 
     private record AccessorResult(String getterName, String setterName) {}
+
+    private record MetadataSubtypeEntry(String value, TypeMirror typeMirror) {}
+
+    private record PolymorphicDetectionResult(
+            String discriminatorKey,
+            List<MetadataFieldInfo.PolymorphicSubtypeInfo> subtypes) {}
 }

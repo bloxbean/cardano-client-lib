@@ -44,7 +44,10 @@ public class EnumCodeGen {
     public void emitDeserializeScalar(MethodSpec.Builder builder, MetadataFieldInfo field) {
         ClassName enumClass = ClassName.bestGuess(field.getJavaTypeName());
         builder.beginControlFlow("if (v instanceof $T)", String.class);
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            builder.addStatement("$L = $T.valueOf((String) v)",
+                    MetadataFieldAccessor.recordLocal(field), enumClass);
+        } else if (field.getSetterName() != null) {
             builder.addStatement("obj.$L($T.valueOf((String) v))", field.getSetterName(), enumClass);
         } else {
             builder.addStatement("obj.$L = $T.valueOf((String) v)", field.getJavaFieldName(), enumClass);
@@ -55,7 +58,10 @@ public class EnumCodeGen {
     public void emitDeserializeOptional(MethodSpec.Builder builder, MetadataFieldInfo field) {
         ClassName enumClass = ClassName.bestGuess(field.getElementTypeName());
         builder.beginControlFlow("if (v instanceof $T)", String.class);
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            builder.addStatement("$L = $T.of($T.valueOf(($T) v))",
+                    MetadataFieldAccessor.recordLocal(field), Optional.class, enumClass, String.class);
+        } else if (field.getSetterName() != null) {
             builder.addStatement("obj.$L($T.of($T.valueOf(($T) v)))",
                     field.getSetterName(), Optional.class, enumClass, String.class);
         } else {

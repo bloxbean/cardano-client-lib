@@ -6,6 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Holds metadata about a single field in a {@code @MetadataType} annotated class,
  * used by the code generator to produce converter methods.
@@ -90,6 +93,24 @@ public class MetadataFieldInfo {
 
     /** Raw collection type: "java.util.List" / "java.util.Set" / "java.util.SortedSet". null for non-collections. */
     private String collectionKind;
+
+    /**
+     * {@code true} when this field belongs to a Java record.
+     * In record mode, deserialization emits local variables instead of setter/direct-field assignments.
+     */
+    private boolean recordMode;
+
+    /**
+     * {@code true} when the field is required during deserialization.
+     * Missing keys throw {@link IllegalArgumentException}.
+     */
+    private boolean required;
+
+    /**
+     * Default value string for deserialization when the key is absent.
+     * {@code null} or empty means no default.
+     */
+    private String defaultValue;
 
     /**
      * {@code true} when the field type is {@code Map<String, V>}.
@@ -190,4 +211,31 @@ public class MetadataFieldInfo {
 
     /** Converter FQN for nested element map values. */
     private String elementMapValueConverterFqn;
+
+    // ── Polymorphic type support ─────────────────────────────────────
+
+    /**
+     * {@code true} when the field type carries {@code @MetadataDiscriminator}
+     * (a sealed interface or abstract class with polymorphic subtypes).
+     */
+    private boolean polymorphicType;
+
+    /** The metadata map key used as discriminator (e.g. {@code "type"}). */
+    private String discriminatorKey;
+
+    /** Concrete subtypes for polymorphic dispatch. */
+    @Builder.Default
+    private List<PolymorphicSubtypeInfo> subtypes = Collections.emptyList();
+
+    /**
+     * Describes a single polymorphic subtype mapping.
+     */
+    public record PolymorphicSubtypeInfo(
+            /** Discriminator value (e.g. {@code "image"}). */
+            String discriminatorValue,
+            /** FQN of the generated converter (e.g. {@code "com.example.ImageMediaMetadataConverter"}). */
+            String converterFqn,
+            /** FQN of the Java subtype class (e.g. {@code "com.example.ImageMedia"}). */
+            String javaTypeFqn
+    ) {}
 }

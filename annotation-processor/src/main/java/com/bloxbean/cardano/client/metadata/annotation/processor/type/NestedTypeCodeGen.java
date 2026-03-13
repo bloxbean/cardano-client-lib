@@ -6,6 +6,7 @@ import com.bloxbean.cardano.client.metadata.annotation.processor.MetadataFieldIn
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.MethodSpec;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -60,15 +61,62 @@ public class NestedTypeCodeGen {
     public void emitDeserializeOptional(MethodSpec.Builder builder, MetadataFieldInfo field) {
         ClassName converterClass = ClassName.bestGuess(field.getNestedConverterFqn());
         builder.beginControlFlow("if (v instanceof $T)", MetadataMap.class);
-        if (field.getSetterName() != null) {
-            builder.addStatement("obj.$L($T.of(new $T().fromMetadataMap(($T) v)))",
-                    field.getSetterName(), Optional.class, converterClass, MetadataMap.class);
-        } else {
-            builder.addStatement("obj.$L = $T.of(new $T().fromMetadataMap(($T) v))",
-                    field.getJavaFieldName(), Optional.class, converterClass, MetadataMap.class);
-        }
+        accessor.emitOptionalOfSetFmt(builder, field, "new $T().fromMetadataMap(($T) v)",
+                converterClass, MetadataMap.class);
         builder.nextControlFlow("else");
         accessor.emitOptionalEmpty(builder, field);
+        builder.endControlFlow();
+    }
+
+    // --- Polymorphic serialization ---
+
+    public void emitSerializePolymorphic(MethodSpec.Builder builder, MetadataFieldInfo field, String getExpr) {
+        List<MetadataFieldInfo.PolymorphicSubtypeInfo> subtypes = field.getSubtypes();
+        for (int i = 0; i < subtypes.size(); i++) {
+            MetadataFieldInfo.PolymorphicSubtypeInfo sub = subtypes.get(i);
+            ClassName subtypeClass = ClassName.bestGuess(sub.javaTypeFqn());
+            ClassName converterClass = ClassName.bestGuess(sub.converterFqn());
+
+            if (i == 0) {
+                builder.beginControlFlow("if ($L instanceof $T)", getExpr, subtypeClass);
+            } else {
+                builder.nextControlFlow("else if ($L instanceof $T)", getExpr, subtypeClass);
+            }
+
+            builder.addStatement("$T _polyMap = new $T().toMetadataMap(($T) $L)",
+                    MetadataMap.class, converterClass, subtypeClass, getExpr);
+            builder.addStatement("_polyMap.put($S, $S)", field.getDiscriminatorKey(), sub.discriminatorValue());
+            builder.addStatement("map.put($S, _polyMap)", field.getMetadataKey());
+        }
+        if (!subtypes.isEmpty()) {
+            builder.endControlFlow();
+        }
+    }
+
+    // --- Polymorphic deserialization ---
+
+    public void emitDeserializePolymorphic(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        List<MetadataFieldInfo.PolymorphicSubtypeInfo> subtypes = field.getSubtypes();
+
+        builder.beginControlFlow("if (v instanceof $T)", MetadataMap.class);
+        builder.addStatement("$T _polyMap = ($T) v", MetadataMap.class, MetadataMap.class);
+        builder.addStatement("$T _disc = _polyMap.get($S)", Object.class, field.getDiscriminatorKey());
+
+        for (int i = 0; i < subtypes.size(); i++) {
+            MetadataFieldInfo.PolymorphicSubtypeInfo sub = subtypes.get(i);
+            ClassName converterClass = ClassName.bestGuess(sub.converterFqn());
+
+            if (i == 0) {
+                builder.beginControlFlow("if ($S.equals(_disc))", sub.discriminatorValue());
+            } else {
+                builder.nextControlFlow("else if ($S.equals(_disc))", sub.discriminatorValue());
+            }
+
+            accessor.emitSetFmt(builder, field, "new $T().fromMetadataMap(_polyMap)", converterClass);
+        }
+        if (!subtypes.isEmpty()) {
+            builder.endControlFlow();
+        }
         builder.endControlFlow();
     }
 }

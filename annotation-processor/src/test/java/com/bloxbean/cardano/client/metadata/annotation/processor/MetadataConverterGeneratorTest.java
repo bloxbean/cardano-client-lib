@@ -39,6 +39,11 @@ class MetadataConverterGeneratorTest {
         return JavaFile.builder("com.test", typeSpec).build().toString();
     }
 
+    private String generateRecord(List<MetadataFieldInfo> fields) {
+        TypeSpec typeSpec = generator.generate("com.test", "Order", fields, -1, true);
+        return JavaFile.builder("com.test", typeSpec).build().toString();
+    }
+
     /** Field with explicit getter/setter (standard POJO). */
     private MetadataFieldInfo field(String name, String javaType) {
         return field(name, name, javaType);
@@ -3291,6 +3296,365 @@ class MetadataConverterGeneratorTest {
             assertTrue(src.contains("_k instanceof byte[]"));
             assertTrue(src.contains("_putBigInt(_maplabels") || src.contains("_putBigInt(_mapamounts"),
                     "BigInteger values with byte[] keys should use _putBigInt");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Record support
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Record-mode field: getter = component name, no setter, recordMode = true. */
+    private MetadataFieldInfo recordField(String name, String javaType) {
+        MetadataFieldInfo f = new MetadataFieldInfo();
+        f.setJavaFieldName(name);
+        f.setMetadataKey(name);
+        f.setJavaTypeName(javaType);
+        f.setGetterName(name); // record accessor: name() not getName()
+        f.setSetterName(null);
+        f.setRecordMode(true);
+        return f;
+    }
+
+    private MetadataFieldInfo recordListField(String name, String elementType) {
+        MetadataFieldInfo f = recordField(name, "java.util.List<" + elementType + ">");
+        f.setElementTypeName(elementType);
+        f.setCollectionType(true);
+        f.setCollectionKind(COLLECTION_LIST);
+        return f;
+    }
+
+    @Nested
+    class RecordSupport {
+
+        @Test
+        void fromMetadataMap_usesLocalVarsAndConstructor() {
+            MetadataFieldInfo nameF = recordField("name", STRING);
+            MetadataFieldInfo ageF = recordField("age", PRIM_INT);
+
+            String src = generateRecord(List.of(nameF, ageF));
+
+            // Should NOT contain "obj = new Order()" (POJO pattern)
+            assertFalse(src.contains("Order obj = new Order()"),
+                    "Record mode should not create obj via no-arg constructor");
+
+            // Should declare local vars with defaults
+            assertTrue(src.contains("String _name = null"),
+                    "Should declare String local with null default");
+            assertTrue(src.contains("int _age = 0"),
+                    "Should declare int local with 0 default");
+
+            // Should assign to locals, not setters
+            assertTrue(src.contains("_name = (String) v") || src.contains("_name = ("),
+                    "Should assign to _name local");
+            assertTrue(src.contains("_age = ((BigInteger) v)"),
+                    "Should assign to _age local");
+
+            // Should return via constructor
+            assertTrue(src.contains("return new Order(_name, _age)"),
+                    "Should return via canonical constructor");
+        }
+
+        @Test
+        void toMetadataMap_usesRecordAccessors() {
+            MetadataFieldInfo nameF = recordField("name", STRING);
+            String src = generateRecord(List.of(nameF));
+
+            // Record accessor is name() not getName()
+            assertTrue(src.contains("order.name()"),
+                    "Should use record accessor name() for serialization");
+            assertFalse(src.contains("order.getName()"),
+                    "Should not use getter-style accessor");
+        }
+
+        @Test
+        void primitiveDefaults() {
+            MetadataFieldInfo longF = recordField("count", PRIM_LONG);
+            MetadataFieldInfo boolF = recordField("active", PRIM_BOOLEAN);
+            MetadataFieldInfo doubleF = recordField("rate", PRIM_DOUBLE);
+            MetadataFieldInfo charF = recordField("grade", PRIM_CHAR);
+
+            String src = generateRecord(List.of(longF, boolF, doubleF, charF));
+
+            assertTrue(src.contains("long _count = 0L"), "long default should be 0L");
+            assertTrue(src.contains("boolean _active = false"), "boolean default should be false");
+            assertTrue(src.contains("double _rate = 0.0d"), "double default should be 0.0d");
+            assertTrue(src.contains("char _grade = '\\0'"), "char default should be '\\0'");
+        }
+
+        @Test
+        void referenceTypeDefaults() {
+            MetadataFieldInfo biF = recordField("amount", BIG_INTEGER);
+            String src = generateRecord(List.of(biF));
+
+            assertTrue(src.contains("BigInteger _amount = null"),
+                    "Reference types should default to null");
+        }
+
+        @Test
+        void listField_inRecord() {
+            MetadataFieldInfo tagsF = recordListField("tags", STRING);
+            String src = generateRecord(List.of(tagsF));
+
+            // Local var declaration
+            assertTrue(src.contains("_tags = null") || src.contains("List<String> _tags = null"),
+                    "List field should be declared as local");
+
+            // Constructor call
+            assertTrue(src.contains("return new Order(_tags)"),
+                    "Should pass list local to constructor");
+        }
+
+        @Test
+        void multipleFields_constructorOrderPreserved() {
+            MetadataFieldInfo f1 = recordField("a", STRING);
+            MetadataFieldInfo f2 = recordField("b", PRIM_INT);
+            MetadataFieldInfo f3 = recordField("c", BIG_INTEGER);
+
+            String src = generateRecord(List.of(f1, f2, f3));
+
+            assertTrue(src.contains("return new Order(_a, _b, _c)"),
+                    "Constructor args should match field declaration order");
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Required & DefaultValue
+    // -------------------------------------------------------------------------
+
+    @Nested
+    class RequiredAndDefaultValue {
+
+        @Test
+        void required_string_emitsNullCheckAndThrow() {
+            MetadataFieldInfo f = field("refId", STRING);
+            f.setRequired(true);
+            f.setMetadataKey("ref_id");
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("v = map.get(\"ref_id\")"), "Should get by metadata key");
+            assertTrue(src.contains("if (v == null)"), "Should check for null");
+            assertTrue(src.contains("throw new IllegalArgumentException(\"Required metadata key 'ref_id' is missing\")"),
+                    "Should throw with key name");
+        }
+
+        @Test
+        void required_int_emitsNullCheckAndThrow() {
+            MetadataFieldInfo f = field("count", PRIM_INT);
+            f.setRequired(true);
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("if (v == null)"), "Should check for null");
+            assertTrue(src.contains("throw new IllegalArgumentException(\"Required metadata key 'count' is missing\")"),
+                    "Should throw with key name");
+        }
+
+        @Test
+        void defaultValue_string_emitsNullFallback() {
+            MetadataFieldInfo f = field("status", STRING);
+            f.setDefaultValue("UNKNOWN");
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("if (v == null)"), "Should check for null");
+            assertTrue(src.contains("v = \"UNKNOWN\""), "Should assign string default");
+        }
+
+        @Test
+        void defaultValue_int_emitsBigIntegerFallback() {
+            MetadataFieldInfo f = field("count", PRIM_INT);
+            f.setDefaultValue("42");
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("if (v == null)"), "Should check for null");
+            assertTrue(src.contains("v = java.math.BigInteger.valueOf(42L)"),
+                    "Should assign BigInteger default for int field");
+        }
+
+        @Test
+        void defaultValue_long_emitsBigIntegerFallback() {
+            MetadataFieldInfo f = field("timestamp", LONG);
+            f.setDefaultValue("1000");
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("v = java.math.BigInteger.valueOf(1000L)"),
+                    "Should assign BigInteger default for Long field");
+        }
+
+        @Test
+        void defaultValue_bigInteger_emitsNewBigInteger() {
+            MetadataFieldInfo f = field("amount", BIG_INTEGER);
+            f.setDefaultValue("999999999999999999");
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("v = new java.math.BigInteger(\"999999999999999999\")"),
+                    "Should use BigInteger constructor for BigInteger field");
+        }
+
+        @Test
+        void defaultValue_booleanTrue_emitsBigIntegerOne() {
+            MetadataFieldInfo f = boolField("active", PRIM_BOOLEAN);
+            f.setDefaultValue("true");
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("v = java.math.BigInteger.valueOf(1L)"),
+                    "Boolean true should map to BigInteger 1");
+        }
+
+        @Test
+        void defaultValue_booleanFalse_emitsBigIntegerZero() {
+            MetadataFieldInfo f = boolField("active", PRIM_BOOLEAN);
+            f.setDefaultValue("false");
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("v = java.math.BigInteger.valueOf(0L)"),
+                    "Boolean false should map to BigInteger 0");
+        }
+
+        @Test
+        void defaultValue_enum_emitsStringFallback() {
+            MetadataFieldInfo f = field("priority", "com.test.Priority");
+            f.setEnumType(true);
+            f.setDefaultValue("HIGH");
+
+            String src = generate(List.of(f));
+
+            assertTrue(src.contains("v = \"HIGH\""),
+                    "Enum default should be a string literal");
+        }
+
+        @Test
+        void required_recordMode_emitsNullCheckAndThrow() {
+            MetadataFieldInfo f = recordField("refId", STRING);
+            f.setRequired(true);
+
+            String src = generateRecord(List.of(f));
+
+            assertTrue(src.contains("if (v == null)"), "Should check for null in record mode");
+            assertTrue(src.contains("throw new IllegalArgumentException"),
+                    "Should throw in record mode");
+        }
+
+        @Test
+        void defaultValue_recordMode_emitsNullFallback() {
+            MetadataFieldInfo f = recordField("status", STRING);
+            f.setDefaultValue("PENDING");
+
+            String src = generateRecord(List.of(f));
+
+            assertTrue(src.contains("v = \"PENDING\""),
+                    "Should assign default in record mode");
+        }
+
+        @Test
+        void noRequiredOrDefault_noExtraEmission() {
+            MetadataFieldInfo f = field("name", STRING);
+            // Neither required nor defaultValue set
+
+            String src = generate(List.of(f));
+
+            // Should NOT contain the required/default patterns
+            assertFalse(src.contains("throw new IllegalArgumentException"),
+                    "Should not throw when not required");
+            // The only "if (v == null)" should not appear for unrequired fields without defaults
+            // (existing instanceof checks handle null implicitly)
+        }
+
+        @Test
+        void serialization_unaffected_byRequired() {
+            MetadataFieldInfo f = field("refId", STRING);
+            f.setRequired(true);
+
+            String src = generate(List.of(f));
+
+            // toMetadataMap should NOT contain the required check
+            String toMap = src.substring(src.indexOf("toMetadataMap"), src.indexOf("fromMetadataMap"));
+            assertFalse(toMap.contains("throw new IllegalArgumentException"),
+                    "Serialization should not be affected by required");
+        }
+
+        @Test
+        void serialization_unaffected_byDefaultValue() {
+            MetadataFieldInfo f = field("status", STRING);
+            f.setDefaultValue("UNKNOWN");
+
+            String src = generate(List.of(f));
+
+            String toMap = src.substring(src.indexOf("toMetadataMap"), src.indexOf("fromMetadataMap"));
+            assertFalse(toMap.contains("UNKNOWN"),
+                    "Serialization should not be affected by defaultValue");
+        }
+    }
+
+    // =========================================================================
+    // Polymorphic fields
+    // =========================================================================
+
+    @Nested
+    class PolymorphicFields {
+
+        private MetadataFieldInfo polyField(String name) {
+            MetadataFieldInfo f = field(name, "com.test.Media");
+            f.setPolymorphicType(true);
+            f.setDiscriminatorKey("type");
+            f.setSubtypes(List.of(
+                    new MetadataFieldInfo.PolymorphicSubtypeInfo("image",
+                            "com.test.ImageMediaMetadataConverter", "com.test.ImageMedia"),
+                    new MetadataFieldInfo.PolymorphicSubtypeInfo("audio",
+                            "com.test.AudioMediaMetadataConverter", "com.test.AudioMedia")
+            ));
+            return f;
+        }
+
+        @Test
+        void serialization_emitsInstanceofChain() {
+            String src = generate(List.of(polyField("media")));
+
+            String toMap = src.substring(src.indexOf("toMetadataMap"), src.indexOf("fromMetadataMap"));
+            assertTrue(toMap.contains("instanceof ImageMedia"), "Should emit instanceof for ImageMedia");
+            assertTrue(toMap.contains("instanceof AudioMedia"), "Should emit instanceof for AudioMedia");
+            assertTrue(toMap.contains("_polyMap.put(\"type\", \"image\")"), "Should inject discriminator for image");
+            assertTrue(toMap.contains("_polyMap.put(\"type\", \"audio\")"), "Should inject discriminator for audio");
+            assertTrue(toMap.contains("new ImageMediaMetadataConverter().toMetadataMap"), "Should call ImageMedia converter");
+            assertTrue(toMap.contains("new AudioMediaMetadataConverter().toMetadataMap"), "Should call AudioMedia converter");
+        }
+
+        @Test
+        void deserialization_emitsDiscriminatorDispatch() {
+            String src = generate(List.of(polyField("media")));
+
+            String fromMap = src.substring(src.indexOf("fromMetadataMap"));
+            assertTrue(fromMap.contains("_polyMap.get(\"type\")"), "Should read discriminator key");
+            assertTrue(fromMap.contains("\"image\".equals(_disc)"), "Should check image discriminator");
+            assertTrue(fromMap.contains("\"audio\".equals(_disc)"), "Should check audio discriminator");
+            assertTrue(fromMap.contains("new ImageMediaMetadataConverter().fromMetadataMap"), "Should dispatch to ImageMedia converter");
+            assertTrue(fromMap.contains("new AudioMediaMetadataConverter().fromMetadataMap"), "Should dispatch to AudioMedia converter");
+        }
+
+        @Test
+        void serialization_wrapsInNullCheck() {
+            String src = generate(List.of(polyField("media")));
+
+            String toMap = src.substring(src.indexOf("toMetadataMap"), src.indexOf("fromMetadataMap"));
+            assertTrue(toMap.contains("if (order.getMedia() != null)"), "Should null-check polymorphic field");
+        }
+
+        @Test
+        void recordMode_emitsLocalVariable() {
+            MetadataFieldInfo f = polyField("media");
+            f.setRecordMode(true);
+
+            String src = generateRecord(List.of(f));
+
+            String fromMap = src.substring(src.indexOf("fromMetadataMap"));
+            assertTrue(fromMap.contains("_media = new ImageMediaMetadataConverter().fromMetadataMap"),
+                    "Record mode should assign to local variable");
         }
     }
 }

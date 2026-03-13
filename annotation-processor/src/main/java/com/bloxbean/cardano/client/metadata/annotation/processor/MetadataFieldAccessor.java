@@ -5,11 +5,18 @@ import com.squareup.javapoet.MethodSpec;
 import java.util.Optional;
 
 /**
- * Consolidates the accessor patterns (setter / direct-field-assignment) used
- * throughout generated metadata converter code.
+ * Consolidates the accessor patterns (setter / direct-field-assignment / record-local)
+ * used throughout generated metadata converter code.
+ *
+ * <p>Record mode: when {@code field.isRecordMode()}, emits {@code _fieldName = expr}
+ * instead of {@code obj.setX(expr)} or {@code obj.x = expr}.
  */
 @SuppressWarnings("java:S1192") // JavaPoet format strings are intentionally repeated across setter/field-access variants
 public class MetadataFieldAccessor {
+
+    public static String recordLocal(MetadataFieldInfo field) {
+        return "_" + field.getJavaFieldName();
+    }
 
     /**
      * Emits {@code obj.setX(valueFmt)} or {@code obj.x = valueFmt} where
@@ -17,7 +24,9 @@ public class MetadataFieldAccessor {
      */
     public void emitSet(MethodSpec.Builder builder, MetadataFieldInfo field,
                         String valueFmtWithOneT, Object typeArg) {
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            builder.addStatement(recordLocal(field) + " = " + valueFmtWithOneT, typeArg);
+        } else if (field.getSetterName() != null) {
             builder.addStatement("obj.$L(" + valueFmtWithOneT + ")", field.getSetterName(), typeArg);
         } else {
             builder.addStatement("obj.$L = " + valueFmtWithOneT, field.getJavaFieldName(), typeArg);
@@ -30,7 +39,9 @@ public class MetadataFieldAccessor {
      */
     public void emitSetRaw(MethodSpec.Builder builder, MetadataFieldInfo field,
                            String valueExpr) {
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            builder.addStatement(recordLocal(field) + " = " + valueExpr);
+        } else if (field.getSetterName() != null) {
             builder.addStatement("obj.$L(" + valueExpr + ")", field.getSetterName());
         } else {
             builder.addStatement("obj.$L = " + valueExpr, field.getJavaFieldName());
@@ -43,7 +54,10 @@ public class MetadataFieldAccessor {
      */
     public void emitOptionalOfSet(MethodSpec.Builder builder, MetadataFieldInfo field,
                                   String innerFmtWithOneT, Object typeArg) {
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            builder.addStatement(recordLocal(field) + " = $T.of(" + innerFmtWithOneT + ")",
+                    Optional.class, typeArg);
+        } else if (field.getSetterName() != null) {
             builder.addStatement("obj.$L($T.of(" + innerFmtWithOneT + "))",
                     field.getSetterName(), Optional.class, typeArg);
         } else {
@@ -58,7 +72,10 @@ public class MetadataFieldAccessor {
      */
     public void emitOptionalOfSetRaw(MethodSpec.Builder builder, MetadataFieldInfo field,
                                      String innerExpr) {
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            builder.addStatement(recordLocal(field) + " = $T.of(" + innerExpr + ")",
+                    Optional.class);
+        } else if (field.getSetterName() != null) {
             builder.addStatement("obj.$L($T.of(" + innerExpr + "))",
                     field.getSetterName(), Optional.class);
         } else {
@@ -71,7 +88,9 @@ public class MetadataFieldAccessor {
      * Emits {@code obj.setX(Optional.empty())}.
      */
     public void emitOptionalEmpty(MethodSpec.Builder builder, MetadataFieldInfo field) {
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            builder.addStatement(recordLocal(field) + " = $T.empty()", Optional.class);
+        } else if (field.getSetterName() != null) {
             builder.addStatement("obj.$L($T.empty())", field.getSetterName(), Optional.class);
         } else {
             builder.addStatement("obj.$L = $T.empty()", field.getJavaFieldName(), Optional.class);
@@ -84,7 +103,9 @@ public class MetadataFieldAccessor {
      */
     public void emitSetFmt(MethodSpec.Builder builder, MetadataFieldInfo field,
                            String valueFmt, Object... args) {
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            builder.addStatement(recordLocal(field) + " = " + valueFmt, args);
+        } else if (field.getSetterName() != null) {
             Object[] allArgs = new Object[args.length + 1];
             allArgs[0] = field.getSetterName();
             System.arraycopy(args, 0, allArgs, 1, args.length);
@@ -102,7 +123,12 @@ public class MetadataFieldAccessor {
      */
     public void emitOptionalOfSetFmt(MethodSpec.Builder builder, MetadataFieldInfo field,
                                      String innerFmt, Object... args) {
-        if (field.getSetterName() != null) {
+        if (field.isRecordMode()) {
+            Object[] allArgs = new Object[args.length + 1];
+            allArgs[0] = Optional.class;
+            System.arraycopy(args, 0, allArgs, 1, args.length);
+            builder.addStatement(recordLocal(field) + " = $T.of(" + innerFmt + ")", allArgs);
+        } else if (field.getSetterName() != null) {
             Object[] allArgs = new Object[args.length + 2];
             allArgs[0] = field.getSetterName();
             allArgs[1] = Optional.class;

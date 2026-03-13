@@ -62,14 +62,24 @@ public class MetadataAnnotationProcessor extends AbstractProcessor {
         String packageName = processingEnv.getElementUtils().getPackageOf(typeElement).toString();
         String className = typeElement.getSimpleName().toString();
 
-        boolean hasLombok = fieldExtractor.detectLombok(typeElement);
-        fieldExtractor.validateNoArgConstructor(typeElement, hasLombok);
-        List<MetadataFieldInfo> fields = fieldExtractor.extractFields(typeElement, hasLombok);
+        boolean isRecord = fieldExtractor.isRecord(typeElement);
+        List<MetadataFieldInfo> fields;
+        List<MetadataConverterGenerator.RecordComponentInfo> allComponents = List.of();
+
+        if (isRecord) {
+            MetadataFieldExtractor.RecordExtractionResult result = fieldExtractor.extractRecordFields(typeElement);
+            fields = result.fields();
+            allComponents = result.allComponents();
+        } else {
+            boolean hasLombok = fieldExtractor.detectLombok(typeElement);
+            fieldExtractor.validateNoArgConstructor(typeElement, hasLombok);
+            fields = fieldExtractor.extractFields(typeElement, hasLombok);
+        }
 
         long label = typeElement.getAnnotation(MetadataType.class).label();
 
         try {
-            TypeSpec typeSpec = generator.generate(packageName, className, fields, label);
+            TypeSpec typeSpec = generator.generate(packageName, className, fields, label, isRecord, allComponents);
             String converterName = className + MetadataConverterGenerator.CONVERTER_SUFFIX;
             JavaFileUtil.createJavaFile(packageName, typeSpec, converterName, processingEnv);
         } catch (Exception e) {

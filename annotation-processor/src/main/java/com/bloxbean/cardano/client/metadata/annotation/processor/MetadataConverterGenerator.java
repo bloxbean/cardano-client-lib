@@ -58,10 +58,26 @@ public class MetadataConverterGenerator {
     }
 
     public TypeSpec generate(String packageName, String simpleClassName, List<MetadataFieldInfo> fields) {
-        return generate(packageName, simpleClassName, fields, -1);
+        return generate(packageName, simpleClassName, fields, -1, false);
     }
 
     public TypeSpec generate(String packageName, String simpleClassName, List<MetadataFieldInfo> fields, long label) {
+        return generate(packageName, simpleClassName, fields, label, false);
+    }
+
+    /**
+     * Describes a single record component for constructor call generation.
+     * Includes both serialized and ignored components.
+     */
+    record RecordComponentInfo(String name, String javaTypeName) {}
+
+    public TypeSpec generate(String packageName, String simpleClassName, List<MetadataFieldInfo> fields,
+                             long label, boolean isRecord) {
+        return generate(packageName, simpleClassName, fields, label, isRecord, List.of());
+    }
+
+    public TypeSpec generate(String packageName, String simpleClassName, List<MetadataFieldInfo> fields,
+                             long label, boolean isRecord, List<RecordComponentInfo> allComponents) {
         ClassName targetClass = ClassName.get(packageName, simpleClassName);
         String converterClassName = simpleClassName + CONVERTER_SUFFIX;
 
@@ -70,7 +86,7 @@ public class MetadataConverterGenerator {
                 .addJavadoc(GENERATED_CODE);
 
         classBuilder.addMethod(buildToMetadataMapMethod(targetClass, simpleClassName, fields));
-        classBuilder.addMethod(buildFromMetadataMapMethod(targetClass, fields));
+        classBuilder.addMethod(buildFromMetadataMapMethod(targetClass, fields, isRecord, allComponents));
 
         // Feature 3: Label — generate toMetadata / fromMetadata if label >= 0
         if (label >= 0) {
@@ -149,6 +165,12 @@ public class MetadataConverterGenerator {
             return;
         }
 
+        // Polymorphic @MetadataDiscriminator
+        if (field.isPolymorphicType()) {
+            nestedCodeGen.emitSerializePolymorphic(builder, field, getExpr);
+            return;
+        }
+
         // Nested @MetadataType
         if (field.isNestedType()) {
             nestedCodeGen.emitSerializeToMap(builder, field, getExpr);
@@ -187,22 +209,115 @@ public class MetadataConverterGenerator {
     // fromMetadataMap
     // -------------------------------------------------------------------------
 
-    private MethodSpec buildFromMetadataMapMethod(ClassName targetClass, List<MetadataFieldInfo> fields) {
+    private MethodSpec buildFromMetadataMapMethod(ClassName targetClass, List<MetadataFieldInfo> fields,
+                                                  boolean isRecord, List<RecordComponentInfo> allComponents) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("fromMetadataMap")
                 .addModifiers(Modifier.PUBLIC)
                 .returns(targetClass)
                 .addParameter(MetadataMap.class, "map");
 
-        builder.addStatement("$T obj = new $T()", targetClass, targetClass);
-        builder.addStatement("$T v", Object.class);
+        if (isRecord) {
+            // Use allComponents for constructor (includes ignored fields); fall back to fields if empty
+            List<RecordComponentInfo> components = allComponents.isEmpty()
+                    ? fields.stream().map(f -> new RecordComponentInfo(f.getJavaFieldName(), f.getJavaTypeName())).toList()
+                    : allComponents;
 
-        for (MetadataFieldInfo field : fields) {
-            builder.addStatement("v = map.get($S)", field.getMetadataKey());
-            emitFromMapGet(builder, field);
+            // Collect names of serialized fields for lookup
+            java.util.Set<String> serializedNames = fields.stream()
+                    .map(MetadataFieldInfo::getJavaFieldName)
+                    .collect(java.util.stream.Collectors.toSet());
+
+            // Phase 1: declare local variables with type-appropriate defaults for ALL components
+            for (RecordComponentInfo comp : components) {
+                String localName = "_" + comp.name();
+                String defaultVal = defaultForType(comp.javaTypeName());
+                builder.addStatement("$L $L = $L", simplifyTypeName(comp.javaTypeName()), localName, defaultVal);
+            }
+
+            builder.addStatement("$T v", Object.class);
+
+            // Phase 2: deserialize into locals (only for non-ignored fields)
+            for (MetadataFieldInfo field : fields) {
+                builder.addStatement("v = map.get($S)", field.getMetadataKey());
+                emitRequiredOrDefault(builder, field);
+                emitFromMapGet(builder, field);
+            }
+
+            // Phase 3: constructor call with ALL components (including ignored, which keep defaults)
+            StringBuilder ctorArgs = new StringBuilder();
+            for (int i = 0; i < components.size(); i++) {
+                if (i > 0) ctorArgs.append(", ");
+                ctorArgs.append("_").append(components.get(i).name());
+            }
+            builder.addStatement("return new $T($L)", targetClass, ctorArgs.toString());
+        } else {
+            builder.addStatement("$T obj = new $T()", targetClass, targetClass);
+            builder.addStatement("$T v", Object.class);
+
+            for (MetadataFieldInfo field : fields) {
+                builder.addStatement("v = map.get($S)", field.getMetadataKey());
+                emitRequiredOrDefault(builder, field);
+                emitFromMapGet(builder, field);
+            }
+
+            builder.addStatement("return obj");
         }
 
-        builder.addStatement("return obj");
         return builder.build();
+    }
+
+    /**
+     * Returns a source-code default value for the given Java type name.
+     * Reference types return "null", primitives return their zero values.
+     */
+    private String defaultForType(String javaTypeName) {
+        return switch (javaTypeName) {
+            case "int" -> "0";
+            case "long" -> "0L";
+            case "short" -> "(short) 0";
+            case "byte" -> "(byte) 0";
+            case "boolean" -> "false";
+            case "double" -> "0.0d";
+            case "float" -> "0.0f";
+            case "char" -> "'\\0'";
+            default -> "null";
+        };
+    }
+
+    /**
+     * Simplifies fully-qualified type names to simple names for use in local variable declarations.
+     * Handles generic types like {@code java.util.List<java.lang.String>}.
+     */
+    private String simplifyTypeName(String fqn) {
+        StringBuilder sb = new StringBuilder();
+        int i = 0;
+        while (i < fqn.length()) {
+            // Find the next segment (class name part before < , > or end)
+            int angleOpen = fqn.indexOf('<', i);
+            int angleClose = fqn.indexOf('>', i);
+            int comma = fqn.indexOf(',', i);
+
+            // Find the nearest delimiter
+            int next = fqn.length();
+            if (angleOpen >= 0 && angleOpen < next) next = angleOpen;
+            if (angleClose >= 0 && angleClose < next) next = angleClose;
+            if (comma >= 0 && comma < next) next = comma;
+
+            String segment = fqn.substring(i, next).trim();
+            if (!segment.isEmpty()) {
+                // Extract simple name from FQN segment
+                int lastDot = segment.lastIndexOf('.');
+                sb.append(lastDot >= 0 ? segment.substring(lastDot + 1) : segment);
+            }
+
+            if (next < fqn.length()) {
+                sb.append(fqn.charAt(next));
+                i = next + 1;
+            } else {
+                break;
+            }
+        }
+        return sb.toString();
     }
 
     private void emitFromMapGet(MethodSpec.Builder builder, MetadataFieldInfo field) {
@@ -224,6 +339,12 @@ public class MetadataConverterGenerator {
         // Optional
         if (field.isOptionalType()) {
             optionalCodeGen.emitDeserializeFromMap(builder, field);
+            return;
+        }
+
+        // Polymorphic @MetadataDiscriminator
+        if (field.isPolymorphicType()) {
+            nestedCodeGen.emitDeserializePolymorphic(builder, field);
             return;
         }
 
@@ -294,6 +415,78 @@ public class MetadataConverterGenerator {
     }
 
     // -------------------------------------------------------------------------
+    // Required / DefaultValue injection
+    // -------------------------------------------------------------------------
+
+    private void emitRequiredOrDefault(MethodSpec.Builder builder, MetadataFieldInfo field) {
+        if (field.isRequired()) {
+            builder.beginControlFlow("if (v == null)")
+                    .addStatement("throw new $T($S)",
+                            IllegalArgumentException.class,
+                            "Required metadata key '" + field.getMetadataKey() + "' is missing")
+                    .endControlFlow();
+        } else if (field.getDefaultValue() != null && !field.getDefaultValue().isEmpty()) {
+            String defaultExpr = buildDefaultExpression(field);
+            builder.beginControlFlow("if (v == null)")
+                    .addStatement("v = " + defaultExpr)
+                    .endControlFlow();
+        }
+    }
+
+    /**
+     * Converts the {@code defaultValue} string into an expression that matches
+     * the on-chain representation used by the {@code instanceof} checks in
+     * {@code emitFromMapGet}.
+     */
+    private String buildDefaultExpression(MetadataFieldInfo field) {
+        String dv = field.getDefaultValue();
+        String javaType = field.getJavaTypeName();
+
+        return switch (javaType) {
+            // String-encoded types → plain string literal
+            case "java.lang.String",
+                 "java.math.BigDecimal",
+                 "double", "java.lang.Double",
+                 "float", "java.lang.Float",
+                 "char", "java.lang.Character",
+                 "java.net.URI", "java.net.URL",
+                 "java.util.UUID", "java.util.Currency", "java.util.Locale",
+                 "java.util.Date",
+                 "java.time.Instant", "java.time.LocalDate", "java.time.LocalDateTime" ->
+                    "\"" + escapeJava(dv) + "\"";
+
+            // Integer types → BigInteger
+            case "int", "java.lang.Integer",
+                 "short", "java.lang.Short",
+                 "byte", "java.lang.Byte",
+                 "long", "java.lang.Long" ->
+                    "java.math.BigInteger.valueOf(" + Long.parseLong(dv) + "L)";
+
+            case "java.math.BigInteger" ->
+                    "new java.math.BigInteger(\"" + dv + "\")";
+
+            // Boolean → BigInteger 0 or 1
+            case "boolean", "java.lang.Boolean" -> {
+                boolean bval = Boolean.parseBoolean(dv);
+                yield "java.math.BigInteger.valueOf(" + (bval ? "1" : "0") + "L)";
+            }
+
+            // Enum fields are stored as strings in metadata
+            default -> {
+                if (field.isEnumType()) {
+                    yield "\"" + escapeJava(dv) + "\"";
+                }
+                // Fallback: treat as string
+                yield "\"" + escapeJava(dv) + "\"";
+            }
+        };
+    }
+
+    private static String escapeJava(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
@@ -314,7 +507,8 @@ public class MetadataConverterGenerator {
 
     private boolean isScalar(MetadataFieldInfo field) {
         return !field.isCollectionType() && !field.isOptionalType()
-                && !field.isMapType() && !field.isNestedType() && !field.isEnumType();
+                && !field.isMapType() && !field.isNestedType() && !field.isEnumType()
+                && !field.isPolymorphicType();
     }
 
     private String firstLowerCase(String s) {

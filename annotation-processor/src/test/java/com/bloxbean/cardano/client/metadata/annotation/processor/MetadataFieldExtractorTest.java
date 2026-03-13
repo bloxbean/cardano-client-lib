@@ -1271,4 +1271,348 @@ public class MetadataFieldExtractorTest {
             """);
         }
     }
+
+    // ── Required & DefaultValue validation ──────────────────────────────
+
+    @Nested
+    class RequiredAndDefaultValueValidation {
+
+        @Test
+        void requiredAndDefaultValue_mutuallyExclusive() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadErrorContaining("mutually exclusive");
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(required = true, defaultValue = "x")
+                    private String name;
+                    public String getName() { return name; }
+                    public void setName(String name) { this.name = name; }
+                }
+            """);
+        }
+
+        @Test
+        void defaultValueOnList_compilationError() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadErrorContaining("not supported on collection");
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                import java.util.List;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(defaultValue = "x")
+                    private List<String> tags;
+                    public List<String> getTags() { return tags; }
+                    public void setTags(List<String> tags) { this.tags = tags; }
+                }
+            """);
+        }
+
+        @Test
+        void defaultValueOnMap_compilationError() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadErrorContaining("not supported on collection");
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                import java.util.Map;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(defaultValue = "{}")
+                    private Map<String, String> props;
+                    public Map<String, String> getProps() { return props; }
+                    public void setProps(Map<String, String> props) { this.props = props; }
+                }
+            """);
+        }
+
+        @Test
+        void defaultValueOnOptional_compilationError() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadErrorContaining("not supported on collection");
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                import java.util.Optional;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(defaultValue = "x")
+                    private Optional<String> opt;
+                    public Optional<String> getOpt() { return opt; }
+                    public void setOpt(Optional<String> opt) { this.opt = opt; }
+                }
+            """);
+        }
+
+        @Test
+        void defaultValueOnByteArray_compilationError() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadErrorContaining("not supported on collection");
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(defaultValue = "deadbeef", enc = MetadataFieldType.STRING_HEX)
+                    private byte[] data;
+                    public byte[] getData() { return data; }
+                    public void setData(byte[] data) { this.data = data; }
+                }
+            """);
+        }
+
+        @Test
+        void requiredOnOptional_emitsWarning() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadWarningContaining("contradicts Optional semantics");
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                import java.util.Optional;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(required = true)
+                    private Optional<String> opt;
+                    public Optional<String> getOpt() { return opt; }
+                    public void setOpt(Optional<String> opt) { this.opt = opt; }
+                }
+            """);
+        }
+
+        @Test
+        void requiredOnScalar_passesValidation() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                assertTrue(r.fields.get(0).isRequired());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(required = true)
+                    private String name;
+                    public String getName() { return name; }
+                    public void setName(String name) { this.name = name; }
+                }
+            """);
+        }
+
+        @Test
+        void defaultValueOnScalar_passesValidation() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                assertEquals("hello", r.fields.get(0).getDefaultValue());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(defaultValue = "hello")
+                    private String name;
+                    public String getName() { return name; }
+                    public void setName(String name) { this.name = name; }
+                }
+            """);
+        }
+
+        @Test
+        void requiredOnCollection_passesValidation() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                assertTrue(r.fields.get(0).isRequired());
+                assertTrue(r.fields.get(0).isCollectionType());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                import java.util.List;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(required = true)
+                    private List<String> tags;
+                    public List<String> getTags() { return tags; }
+                    public void setTags(List<String> tags) { this.tags = tags; }
+                }
+            """);
+        }
+
+        @Test
+        void requiredOnMap_passesValidation() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                assertEquals(1, r.fields.size());
+                assertTrue(r.fields.get(0).isRequired());
+                assertTrue(r.fields.get(0).isMapType());
+            }, """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
+                import java.util.Map;
+                @MetadataType
+                public class TestClass {
+                    @MetadataField(required = true)
+                    private Map<String, String> props;
+                    public Map<String, String> getProps() { return props; }
+                    public void setProps(Map<String, String> props) { this.props = props; }
+                }
+            """);
+        }
+    }
+
+    // ── Polymorphic fields ─────────────────────────────────────────────
+
+    @Nested
+    class PolymorphicFields {
+
+        private static final JavaFileObject MEDIA_INTERFACE = JavaFileObjects.forSourceString("com.test.Media", """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataDiscriminator;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataSubtype;
+                @MetadataDiscriminator(key = "type", subtypes = {
+                    @MetadataSubtype(value = "image", type = ImageMedia.class),
+                    @MetadataSubtype(value = "audio", type = AudioMedia.class)
+                })
+                public interface Media {}
+            """);
+
+        private static final JavaFileObject IMAGE_MEDIA = JavaFileObjects.forSourceString("com.test.ImageMedia", """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                @MetadataType
+                public class ImageMedia implements Media {
+                    private String url;
+                    private int width;
+                    public ImageMedia() {}
+                    public String getUrl() { return url; }
+                    public void setUrl(String url) { this.url = url; }
+                    public int getWidth() { return width; }
+                    public void setWidth(int width) { this.width = width; }
+                }
+            """);
+
+        private static final JavaFileObject AUDIO_MEDIA = JavaFileObjects.forSourceString("com.test.AudioMedia", """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                @MetadataType
+                public class AudioMedia implements Media {
+                    private String url;
+                    private int duration;
+                    public AudioMedia() {}
+                    public String getUrl() { return url; }
+                    public void setUrl(String url) { this.url = url; }
+                    public int getDuration() { return duration; }
+                    public void setDuration(int duration) { this.duration = duration; }
+                }
+            """);
+
+        private static final JavaFileObject PARENT_CLASS = JavaFileObjects.forSourceString("com.test.TestClass", """
+                package com.test;
+                import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                @MetadataType
+                public class TestClass {
+                    private String name;
+                    private Media media;
+                    public TestClass() {}
+                    public String getName() { return name; }
+                    public void setName(String name) { this.name = name; }
+                    public Media getMedia() { return media; }
+                    public void setMedia(Media media) { this.media = media; }
+                }
+            """);
+
+        private MetadataFieldInfo findField(List<MetadataFieldInfo> fields, String name) {
+            return fields.stream().filter(f -> f.getJavaFieldName().equals(name)).findFirst().orElse(null);
+        }
+
+        @Test
+        void detectsPolymorphicField() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                MetadataFieldInfo media = findField(r.fields, "media");
+                assertNotNull(media, "Should find 'media' field");
+                assertTrue(media.isPolymorphicType(), "Should detect polymorphic type");
+                assertFalse(media.isNestedType(), "Should not be marked as nested");
+                assertEquals("type", media.getDiscriminatorKey());
+                assertEquals(2, media.getSubtypes().size());
+            }, MEDIA_INTERFACE, IMAGE_MEDIA, AUDIO_MEDIA, PARENT_CLASS);
+        }
+
+        @Test
+        void extractsSubtypeDetails() {
+            extractAndAssert(r -> {
+                assertThat(r.compilation).succeeded();
+                MetadataFieldInfo media = findField(r.fields, "media");
+                assertNotNull(media);
+                var sub0 = media.getSubtypes().get(0);
+                var sub1 = media.getSubtypes().get(1);
+
+                assertEquals("image", sub0.discriminatorValue());
+                assertEquals("com.test.ImageMediaMetadataConverter", sub0.converterFqn());
+                assertEquals("com.test.ImageMedia", sub0.javaTypeFqn());
+
+                assertEquals("audio", sub1.discriminatorValue());
+                assertEquals("com.test.AudioMediaMetadataConverter", sub1.converterFqn());
+                assertEquals("com.test.AudioMedia", sub1.javaTypeFqn());
+            }, MEDIA_INTERFACE, IMAGE_MEDIA, AUDIO_MEDIA, PARENT_CLASS);
+        }
+
+        @Test
+        void errorOnSubtypeMissingMetadataType() {
+            JavaFileObject badSubtype = JavaFileObjects.forSourceString("com.test.AudioMedia", """
+                    package com.test;
+                    public class AudioMedia implements Media {
+                        private String url;
+                        public AudioMedia() {}
+                        public String getUrl() { return url; }
+                        public void setUrl(String url) { this.url = url; }
+                    }
+                """);
+
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadErrorContaining("must be annotated with @MetadataType");
+            }, MEDIA_INTERFACE, IMAGE_MEDIA, badSubtype, PARENT_CLASS);
+        }
+
+        @Test
+        void errorOnEmptySubtypes() {
+            JavaFileObject emptyDisc = JavaFileObjects.forSourceString("com.test.EmptyMedia", """
+                    package com.test;
+                    import com.bloxbean.cardano.client.metadata.annotation.MetadataDiscriminator;
+                    import com.bloxbean.cardano.client.metadata.annotation.MetadataSubtype;
+                    @MetadataDiscriminator(key = "type", subtypes = {})
+                    public interface EmptyMedia {}
+                """);
+            JavaFileObject parentWithEmpty = JavaFileObjects.forSourceString("com.test.TestClass", """
+                    package com.test;
+                    import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
+                    @MetadataType
+                    public class TestClass {
+                        private EmptyMedia media;
+                        public TestClass() {}
+                        public EmptyMedia getMedia() { return media; }
+                        public void setMedia(EmptyMedia media) { this.media = media; }
+                    }
+                """);
+
+            extractAndAssert(r -> {
+                assertThat(r.compilation).hadErrorContaining("must declare at least one subtype");
+            }, emptyDisc, parentWithEmpty);
+        }
+    }
 }

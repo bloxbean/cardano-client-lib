@@ -27,4 +27,20 @@ public @interface MetadataField {
      */
     MetadataFieldType enc() default MetadataFieldType.DEFAULT;
 
+    /**
+     * When {@code true}, deserialization throws {@link IllegalArgumentException} if this
+     * key is missing from the metadata map. Only affects {@code fromMetadataMap};
+     * serialization is unchanged.
+     * <p>Mutually exclusive with {@link #defaultValue()}.
+     */
+    boolean required() default false;
+
+    /**
+     * Fallback value (as a string) to use when this key is absent from the metadata map
+     * during deserialization. The string is parsed into the field's on-chain type.
+     * Only supported on scalar and enum fields — not on collections, maps, Optional, byte[], or nested types.
+     * <p>Mutually exclusive with {@link #required()}.
+     */
+    String defaultValue() default "";
+
 }
