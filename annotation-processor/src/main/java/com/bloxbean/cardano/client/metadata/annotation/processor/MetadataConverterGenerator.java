@@ -56,10 +56,6 @@ public class MetadataConverterGenerator {
         this.mapCodeGen = new MapCodeGen(registry, accessor, enumCodeGen, nestedCodeGen);
     }
 
-    /**
-     * @deprecated Use {@link #generate(String, String, List, long)} instead.
-     */
-    @Deprecated
     public TypeSpec generate(String packageName, String simpleClassName, List<MetadataFieldInfo> fields) {
         return generate(packageName, simpleClassName, fields, -1);
     }
