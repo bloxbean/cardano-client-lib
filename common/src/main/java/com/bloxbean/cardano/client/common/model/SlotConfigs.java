@@ -14,4 +14,8 @@ public class SlotConfigs {
         return new SlotConfig(1000, 0L, 1666656000000L);
     }
 
+    public static SlotConfig custom(int slotLength, long zeroSlot, long zeroTime) {
+        return new SlotConfig(slotLength, zeroSlot, zeroTime);
+    }
+
 }

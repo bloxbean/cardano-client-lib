@@ -112,11 +112,36 @@ object LedgerBridge:
       slotConfig: SlotConfigHandle,
       networkId: Int
   ): util.List[EvaluationEntry] =
+    evaluate(txCbor, protocolParams, inputUtxos, currentSlot, slotConfig, networkId, null)
+
+  /**
+   * Evaluate Plutus scripts in a transaction and compute execution units (ExUnits).
+   * Uses EvaluatorMode.EvaluateAndComputeCost to actually run scripts and measure costs.
+   *
+   * @param txCbor           serialized transaction CBOR bytes
+   * @param protocolParams   CCL ProtocolParams
+   * @param inputUtxos       set of resolved input UTxOs (CCL Utxo)
+   * @param currentSlot      current slot
+   * @param slotConfig       opaque SlotConfigHandle from SlotConfigBridge
+   * @param networkId        0 = testnet, 1 = mainnet
+   * @param scriptSupplier   nullable ScriptSupplier for reference script resolution
+   * @return Java List of EvaluationEntry with computed ExUnits per redeemer
+   * @throws Exception on evaluation failure
+   */
+  def evaluate(
+      txCbor: Array[Byte],
+      protocolParams: CclProtocolParams,
+      inputUtxos: util.Set[Utxo],
+      currentSlot: Long,
+      slotConfig: SlotConfigHandle,
+      networkId: Int,
+      scriptSupplier: ScriptSupplier
+  ): util.List[EvaluationEntry] =
     val scalusParams = ProtocolParamsBridge.toScalusProtocolParams(protocolParams)
     given ProtocolVersion = ProtocolParamsBridge.extractProtocolVersion(protocolParams)
 
     val scalusTx = ScalusTx.fromCbor(txCbor)
-    val scalusUtxos = UtxoBridge.convert(inputUtxos, null)
+    val scalusUtxos = UtxoBridge.convert(inputUtxos, scriptSupplier)
     val sc = if slotConfig != null then slotConfig.inner else SlotConfig.preview
 
     val maxExUnits = scalusParams.maxTxExecutionUnits

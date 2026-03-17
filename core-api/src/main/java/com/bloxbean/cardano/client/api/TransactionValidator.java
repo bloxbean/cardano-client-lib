@@ -20,7 +20,6 @@ import java.util.Set;
  * rather than throwing exceptions, allowing callers to inspect individual validation failures.
  */
 public interface TransactionValidator {
-
     /**
      * Validate a transaction against ledger rules.
      *

@@ -45,6 +45,7 @@ public class ScalusLedgerRuleVerifier implements Verifier {
     private final ProtocolParamsSupplier protocolParamsSupplier;
     private final UtxoSupplier utxoSupplier;
     private final SlotConfigHandle slotConfig;
+    private final scalus.bloxbean.ScriptSupplier scriptSupplier;
     @Builder.Default
     private final int networkId = 0; // 0 = testnet, 1 = mainnet
 
@@ -67,7 +68,7 @@ public class ScalusLedgerRuleVerifier implements Verifier {
             SlotConfigHandle sc = slotConfig != null ? slotConfig : SlotConfigBridge.preview();
 
             TransitResult result = LedgerBridge.validate(
-                    txCbor, protocolParams, inputUtxos, currentSlot, sc, networkId);
+                    txCbor, protocolParams, inputUtxos, currentSlot, sc, networkId, scriptSupplier);
 
             if (!result.isSuccess()) {
                 throw new VerifierException("Ledger rule validation failed: " + result.errorMessage());

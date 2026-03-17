@@ -45,7 +45,7 @@ class ScalusTransactionValidatorTest {
         tx.setWitnessSet(new TransactionWitnessSet());
 
         ScalusTransactionValidator validator = ScalusTransactionValidator.builder()
-                .protocolParams(protocolParams)
+                .protocolParamsSupplier(() -> protocolParams)
                 .slotConfig(SlotConfigBridge.preview())
                 .build();
 
@@ -83,7 +83,7 @@ class ScalusTransactionValidatorTest {
         tx.setWitnessSet(new TransactionWitnessSet());
 
         ScalusTransactionValidator validator = ScalusTransactionValidator.builder()
-                .protocolParams(protocolParams)
+                .protocolParamsSupplier(() -> protocolParams)
                 .slotConfig(SlotConfigBridge.preview())
                 .build();
 
@@ -123,7 +123,7 @@ class ScalusTransactionValidatorTest {
         tx.setWitnessSet(new TransactionWitnessSet());
 
         ScalusTransactionValidator validator = ScalusTransactionValidator.builder()
-                .protocolParams(protocolParams)
+                .protocolParamsSupplier(() -> protocolParams)
                 .slotConfig(SlotConfigBridge.preview())
                 .build();
 

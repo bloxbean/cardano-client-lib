@@ -50,6 +50,7 @@ public class ScalusTransactionEvaluator implements TransactionEvaluator {
 
     private final ProtocolParams protocolParams;
     private final SlotConfig slotConfig;
+    private final scalus.bloxbean.ScriptSupplier scriptSupplier;
     @Builder.Default
     private final int networkId = 0; // 0 = testnet, 1 = mainnet
     @Builder.Default
@@ -63,7 +64,7 @@ public class ScalusTransactionEvaluator implements TransactionEvaluator {
             SlotConfigHandle slotConfigHandle = convertSlotConfig();
 
             List<EvaluationEntry> entries = LedgerBridge.evaluate(
-                    cbor, protocolParams, inputUtxos, slot, slotConfigHandle, networkId);
+                    cbor, protocolParams, inputUtxos, slot, slotConfigHandle, networkId, scriptSupplier);
 
             List<EvaluationResult> results = entries.stream()
                     .map(ScalusTransactionEvaluator::toEvaluationResult)
