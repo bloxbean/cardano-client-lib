@@ -28,7 +28,6 @@ dependencies {
     integrationTestImplementation(libs.scalus.bloxbean) {
         exclude group: 'com.bloxbean.cardano'
     }
-    integrationTestImplementation libs.cf.cardano.conversions
     integrationTestImplementation(libs.slf4j.reload4j)
     integrationTestAnnotationProcessor project(':annotation-processor')
     integrationTestCompileOnly libs.lombok

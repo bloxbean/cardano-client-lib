@@ -9,10 +9,17 @@ import lombok.NoArgsConstructor;
 
 /**
  * Integration test POJO exercising {@code @MetadataEncoder}/{@code @MetadataDecoder}
- * with stateful adapters resolved via {@code MetadataAdapterResolver}.
+ * with both stateless and stateful (context-injected) adapters.
  * <p>
- * {@code ScaleEncoder} and {@code ScaleDecoder} have no public no-arg constructor —
- * they require a scale factor argument, demonstrating that the resolver pattern is essential.
+ * Scenarios:
+ * <ul>
+ *   <li>{@code upperName} — stateless encoder (UpperCaseEncoder, has no-arg constructor)</li>
+ *   <li>{@code prefixedTag} — stateful encoder+decoder (PrefixEncoder/PrefixDecoder,
+ *       require injected prefix string — analogous to NetworkType or a Spring bean)</li>
+ *   <li>{@code encoderOnlyTag} — encoder-only with context injection, deserialization uses built-in</li>
+ *   <li>{@code decoderOnlyTag} — decoder-only with context injection, serialization uses built-in</li>
+ *   <li>{@code plainTag} — baseline: no encoder/decoder</li>
+ * </ul>
  */
 @Data
 @NoArgsConstructor
@@ -22,28 +29,28 @@ public class MetadataEncoderDecoder {
     @MetadataField(key = "test_id", required = true)
     private String testId;
 
-    /** Encoder-only: value × 1000 on-chain, built-in deserialization reads raw BigInteger. */
-    @MetadataEncoder(ScaleEncoder.class)
-    @MetadataField(key = "encoded_val")
-    private long encodedValue;
+    /** Simple stateless encoder: stores name in UPPER CASE on-chain. */
+    @MetadataEncoder(UpperCaseEncoder.class)
+    @MetadataField(key = "upper_name")
+    private String upperName;
 
-    /** Decoder-only: built-in serialization, value ÷ 1000 on deserialization. */
-    @MetadataDecoder(ScaleDecoder.class)
-    @MetadataField(key = "decoded_val")
-    private long decodedValue;
+    /** Stateful encoder+decoder: prepends/strips a configurable prefix (injected context). */
+    @MetadataEncoder(PrefixEncoder.class)
+    @MetadataDecoder(PrefixDecoder.class)
+    @MetadataField(key = "prefixed_tag")
+    private String prefixedTag;
 
-    /** Both: encoder × 1000, decoder ÷ 1000 — full round-trip. */
-    @MetadataEncoder(ScaleEncoder.class)
-    @MetadataDecoder(ScaleDecoder.class)
-    @MetadataField(key = "round_trip_val")
-    private long roundTripValue;
+    /** Encoder-only with injected context: prefix is added, built-in String deserialization. */
+    @MetadataEncoder(PrefixEncoder.class)
+    @MetadataField(key = "enc_only_tag")
+    private String encoderOnlyTag;
 
-    /** Slot-to-epoch encoder using cf-cardano-conversions-java. Encode-only. */
-    @MetadataEncoder(SlotToEpochEncoder.class)
-    @MetadataField(key = "epoch_from_slot")
-    private long slotForEpoch;
+    /** Decoder-only with injected context: built-in serialization, prefix stripped on decode. */
+    @MetadataDecoder(PrefixDecoder.class)
+    @MetadataField(key = "dec_only_tag")
+    private String decoderOnlyTag;
 
     /** Plain field — no encoder/decoder, baseline. */
-    @MetadataField(key = "plain_val")
-    private long plainValue;
+    @MetadataField(key = "plain_tag")
+    private String plainTag;
 }

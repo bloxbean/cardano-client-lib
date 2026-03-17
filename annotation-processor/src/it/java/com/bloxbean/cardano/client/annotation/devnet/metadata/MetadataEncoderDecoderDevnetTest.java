@@ -15,9 +15,6 @@ import com.bloxbean.cardano.client.quicktx.Tx;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.SneakyThrows;
-import org.cardanofoundation.conversions.CardanoConverters;
-import org.cardanofoundation.conversions.ClasspathConversionsFactory;
-import org.cardanofoundation.conversions.domain.NetworkType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -29,22 +26,19 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Integration tests for {@code @MetadataEncoder}/{@code @MetadataDecoder} with resolver pattern.
  * <p>
- * Uses stateful adapters ({@link ScaleEncoder}, {@link ScaleDecoder}, {@link SlotToEpochEncoder})
- * that have <strong>no public no-arg constructors</strong>, proving the resolver is essential
- * for adapter instantiation.
- * <p>
- * Also demonstrates real-world usage of
- * <a href="https://github.com/cardano-foundation/cf-cardano-conversions-java">cf-cardano-conversions-java</a>
- * for slot-to-epoch conversion.
+ * Demonstrates two adapter styles:
+ * <ul>
+ *   <li><b>Stateless:</b> {@link UpperCaseEncoder} — has a no-arg constructor, works without resolver</li>
+ *   <li><b>Stateful (context-injected):</b> {@link PrefixEncoder}/{@link PrefixDecoder} — require
+ *       an injected prefix string (analogous to {@code NetworkType}, a Spring bean, or any
+ *       runtime configuration that cannot be known at compile time)</li>
+ * </ul>
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class MetadataEncoderDecoderDevnetTest extends BaseIT {
 
-    private static final long SCALE_FACTOR = 1000L;
-
-    /** PREPROD mainnet slot 109090938 → epoch 530 (known reference point). */
-    private static final long KNOWN_PREPROD_SLOT = 109090938L;
-    private static final long KNOWN_PREPROD_EPOCH = 530L;
+    /** Simulates injected context — e.g., a network identifier or Spring-managed config bean. */
+    private static final String INJECTED_PREFIX = "cardano:";
 
     private BackendService backendService;
     private MetadataEncoderDecoder original;
@@ -60,16 +54,20 @@ public class MetadataEncoderDecoderDevnetTest extends BaseIT {
 
         original = buildOriginal();
 
-        // Build resolver providing stateful adapters
-        CardanoConverters converters = ClasspathConversionsFactory.createConverters(NetworkType.PREPROD);
+        // Build resolver providing stateful adapters with injected context.
+        // In a real Spring/Quarkus app this would be: ctx.getBean(adapterClass)
         MetadataAdapterResolver resolver = new MetadataAdapterResolver() {
             @Override
             @SuppressWarnings("unchecked")
             public <T> T resolve(Class<T> adapterClass) {
-                if (adapterClass == ScaleEncoder.class) return (T) new ScaleEncoder(SCALE_FACTOR);
-                if (adapterClass == ScaleDecoder.class) return (T) new ScaleDecoder(SCALE_FACTOR);
-                if (adapterClass == SlotToEpochEncoder.class) return (T) new SlotToEpochEncoder(converters);
-                throw new IllegalArgumentException("Unknown adapter: " + adapterClass.getName());
+                if (adapterClass == PrefixEncoder.class) return (T) new PrefixEncoder(INJECTED_PREFIX);
+                if (adapterClass == PrefixDecoder.class) return (T) new PrefixDecoder(INJECTED_PREFIX);
+                // Stateless adapters — fall back to no-arg constructor
+                try {
+                    return adapterClass.getDeclaredConstructor().newInstance();
+                } catch (Exception e) {
+                    throw new IllegalStateException("Cannot instantiate: " + adapterClass.getName(), e);
+                }
             }
         };
 
@@ -104,75 +102,72 @@ public class MetadataEncoderDecoderDevnetTest extends BaseIT {
     }
 
     // =========================================================================
-    // Encoder-only field
+    // Stateless encoder: UpperCaseEncoder (no resolver needed)
     // =========================================================================
 
     @Test
-    void encoderOnly_serializesWithScale() {
-        // Original value 42 × 1000 = 42000 on-chain
-        assertEquals(42_000L, jsonMeta.get("encoded_val").asLong(),
-                "Encoder should multiply value by scale factor");
+    void upperCase_encodesCorrectly() {
+        assertEquals("HELLO WORLD", jsonMeta.get("upper_name").asText(),
+                "UpperCaseEncoder should store value in upper case on-chain");
     }
 
     @Test
-    void encoderOnly_deserializesRawValue() {
-        // Built-in deserialization reads raw 42000
-        assertEquals(42_000L, restored.getEncodedValue(),
-                "Encoder-only: deserialization should read raw value via built-in handling");
+    void upperCase_deserializesRawValue() {
+        // Built-in String deserialization reads the upper-cased value as-is
+        assertEquals("HELLO WORLD", restored.getUpperName(),
+                "Encoder-only: deserialization reads raw upper-cased value");
     }
 
     // =========================================================================
-    // Decoder-only field
+    // Stateful encoder+decoder: PrefixEncoder/PrefixDecoder (requires resolver)
     // =========================================================================
 
     @Test
-    void decoderOnly_serializesWithBuiltIn() {
-        // Built-in serialization stores 42000 as-is
-        assertEquals(42_000L, jsonMeta.get("decoded_val").asLong(),
-                "Decoder-only: serialization should use built-in handling");
-    }
-
-    @Test
-    void decoderOnly_deserializesWithScale() {
-        // Decoder divides 42000 ÷ 1000 = 42
-        assertEquals(42L, restored.getDecodedValue(),
-                "Decoder should divide value by scale factor");
-    }
-
-    // =========================================================================
-    // Both encoder and decoder — full round-trip
-    // =========================================================================
-
-    @Test
-    void bothDirections_roundTrip() {
-        // Encoder: 42 × 1000 = 42000 → chain → Decoder: 42000 ÷ 1000 = 42
-        assertEquals(original.getRoundTripValue(), restored.getRoundTripValue(),
+    void prefix_roundTrip() {
+        // Encoder: "test-tag" → "cardano:test-tag" → chain → Decoder: strips prefix → "test-tag"
+        assertEquals(original.getPrefixedTag(), restored.getPrefixedTag(),
                 "Both encoder+decoder should round-trip the value");
     }
 
     @Test
-    void bothDirections_onChainValueIsScaled() {
-        assertEquals(42_000L, jsonMeta.get("round_trip_val").asLong(),
-                "On-chain value should be scaled by encoder");
+    void prefix_onChainValueHasPrefix() {
+        assertEquals("cardano:test-tag", jsonMeta.get("prefixed_tag").asText(),
+                "On-chain value should have injected prefix");
     }
 
     // =========================================================================
-    // Slot-to-epoch encoder (cf-cardano-conversions-java)
+    // Encoder-only with injected context
     // =========================================================================
 
     @Test
-    void slotToEpoch_encodesCorrectly() {
-        long expectedEpoch = KNOWN_PREPROD_EPOCH;
-        assertEquals(expectedEpoch, jsonMeta.get("epoch_from_slot").asLong(),
-                "SlotToEpochEncoder should convert PREPROD slot " + KNOWN_PREPROD_SLOT
-                        + " to epoch " + expectedEpoch);
+    void encoderOnly_serializesWithPrefix() {
+        assertEquals("cardano:encode-me", jsonMeta.get("enc_only_tag").asText(),
+                "Encoder should prepend prefix");
     }
 
     @Test
-    void slotToEpoch_deserializesRawEpoch() {
-        // Built-in deserialization reads the epoch number as a raw long
-        assertEquals(KNOWN_PREPROD_EPOCH, restored.getSlotForEpoch(),
-                "Encoder-only: deserialization reads raw epoch number");
+    void encoderOnly_deserializesRawValue() {
+        // Built-in deserialization reads the prefixed string as-is
+        assertEquals("cardano:encode-me", restored.getEncoderOnlyTag(),
+                "Encoder-only: deserialization reads raw prefixed value");
+    }
+
+    // =========================================================================
+    // Decoder-only with injected context
+    // =========================================================================
+
+    @Test
+    void decoderOnly_serializesWithBuiltIn() {
+        // Built-in serialization stores the value as-is (already prefixed in the POJO)
+        assertEquals("cardano:decode-me", jsonMeta.get("dec_only_tag").asText(),
+                "Decoder-only: serialization uses built-in handling");
+    }
+
+    @Test
+    void decoderOnly_deserializesStrippingPrefix() {
+        // Decoder strips "cardano:" prefix
+        assertEquals("decode-me", restored.getDecoderOnlyTag(),
+                "Decoder should strip injected prefix");
     }
 
     // =========================================================================
@@ -181,7 +176,7 @@ public class MetadataEncoderDecoderDevnetTest extends BaseIT {
 
     @Test
     void plainField_roundTrip() {
-        assertEquals(original.getPlainValue(), restored.getPlainValue());
+        assertEquals(original.getPlainTag(), restored.getPlainTag());
     }
 
     // ── Raw JSON key existence ──────────────────────────────────────────
@@ -189,11 +184,11 @@ public class MetadataEncoderDecoderDevnetTest extends BaseIT {
     @Test
     void jsonRaw_allKeysPresent() {
         assertTrue(jsonMeta.has("test_id"), "JSON should contain 'test_id'");
-        assertTrue(jsonMeta.has("encoded_val"), "JSON should contain 'encoded_val'");
-        assertTrue(jsonMeta.has("decoded_val"), "JSON should contain 'decoded_val'");
-        assertTrue(jsonMeta.has("round_trip_val"), "JSON should contain 'round_trip_val'");
-        assertTrue(jsonMeta.has("epoch_from_slot"), "JSON should contain 'epoch_from_slot'");
-        assertTrue(jsonMeta.has("plain_val"), "JSON should contain 'plain_val'");
+        assertTrue(jsonMeta.has("upper_name"), "JSON should contain 'upper_name'");
+        assertTrue(jsonMeta.has("prefixed_tag"), "JSON should contain 'prefixed_tag'");
+        assertTrue(jsonMeta.has("enc_only_tag"), "JSON should contain 'enc_only_tag'");
+        assertTrue(jsonMeta.has("dec_only_tag"), "JSON should contain 'dec_only_tag'");
+        assertTrue(jsonMeta.has("plain_tag"), "JSON should contain 'plain_tag'");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
@@ -201,11 +196,11 @@ public class MetadataEncoderDecoderDevnetTest extends BaseIT {
     private MetadataEncoderDecoder buildOriginal() {
         MetadataEncoderDecoder obj = new MetadataEncoderDecoder();
         obj.setTestId("enc-dec-001");
-        obj.setEncodedValue(42L);
-        obj.setDecodedValue(42_000L);
-        obj.setRoundTripValue(42L);
-        obj.setSlotForEpoch(KNOWN_PREPROD_SLOT);
-        obj.setPlainValue(99L);
+        obj.setUpperName("hello world");
+        obj.setPrefixedTag("test-tag");
+        obj.setEncoderOnlyTag("encode-me");
+        obj.setDecoderOnlyTag("cardano:decode-me");  // already prefixed — decoder strips it
+        obj.setPlainTag("unchanged");
         return obj;
     }
 
