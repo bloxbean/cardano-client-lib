@@ -1,6 +1,8 @@
 package com.bloxbean.cardano.client.metadata.annotation.processor;
 
+import com.bloxbean.cardano.client.metadata.annotation.MetadataDecoder;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataDiscriminator;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataEncoder;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataField;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataType;
@@ -614,6 +616,128 @@ class MetadataTypeDetector {
     }
 
     record AdapterDetectionResult(String adapterFqn, MetadataFieldValidator.MetadataKeyAndEncoding keyEnc) {}
+
+    // ── Encoder / Decoder detection ──────────────────────────────────
+
+    /**
+     * Detects {@code @MetadataEncoder} and/or {@code @MetadataDecoder} on a field.
+     * Returns {@code null} when neither annotation is present.
+     * Reports compile-time errors for mutual-exclusivity violations and invalid adapter classes.
+     */
+    EncoderDecoderResult detectEncoderDecoder(VariableElement ve, String fieldName) {
+        AnnotationMirror encoderMirror = findAnnotationMirror(ve, MetadataEncoder.class);
+        AnnotationMirror decoderMirror = findAnnotationMirror(ve, MetadataDecoder.class);
+
+        if (encoderMirror == null && decoderMirror == null) return null;
+
+        // Validate mutual exclusivity with @MetadataField(adapter=...)
+        AdapterDetectionResult adapterResult = detectAdapter(ve, fieldName);
+        if (adapterResult != null) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': @MetadataEncoder/@MetadataDecoder cannot be combined "
+                            + "with @MetadataField(adapter=...). Use one approach or the other.", ve);
+            return null;
+        }
+
+        String encoderFqn = extractAndValidateAdapterClass(encoderMirror, ve, fieldName, "@MetadataEncoder");
+        String decoderFqn = extractAndValidateAdapterClass(decoderMirror, ve, fieldName, "@MetadataDecoder");
+
+        // If both annotations were present but both failed validation, bail out
+        if (encoderFqn == null && decoderFqn == null
+                && encoderMirror != null && decoderMirror != null) {
+            return null;
+        }
+
+        // Extract @MetadataField attributes (key, required) — enc is ignored
+        MetadataFieldValidator.MetadataKeyAndEncoding keyEnc = extractKeyAndEncoding(ve, fieldName);
+
+        return new EncoderDecoderResult(encoderFqn, decoderFqn, keyEnc);
+    }
+
+    /**
+     * Extracts the adapter class FQN from an annotation's {@code value()} attribute and validates
+     * that it implements {@link MetadataTypeAdapter}.
+     *
+     * @return the FQN, or {@code null} if the annotation is null or validation fails
+     */
+    private String extractAndValidateAdapterClass(AnnotationMirror mirror, VariableElement ve,
+                                                   String fieldName, String annotationName) {
+        if (mirror == null) return null;
+
+        Map<? extends ExecutableElement, ? extends AnnotationValue> values =
+                processingEnv.getElementUtils().getElementValuesWithDefaults(mirror);
+
+        TypeMirror classMirror = null;
+        for (var entry : values.entrySet()) {
+            if ("value".equals(entry.getKey().getSimpleName().toString())) {
+                classMirror = (TypeMirror) entry.getValue().getValue();
+            }
+        }
+
+        if (classMirror == null) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': " + annotationName + " value is missing.", ve);
+            return null;
+        }
+
+        String fqn = classMirror.toString();
+        TypeElement typeEl = (TypeElement) processingEnv.getTypeUtils().asElement(classMirror);
+        if (typeEl == null) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': cannot resolve " + annotationName + " class '" + fqn + "'.", ve);
+            return null;
+        }
+
+        TypeElement adapterInterfaceEl = processingEnv.getElementUtils()
+                .getTypeElement(MetadataTypeAdapter.class.getCanonicalName());
+        if (adapterInterfaceEl == null) return null;
+
+        TypeMirror erasedClass = processingEnv.getTypeUtils().erasure(classMirror);
+        TypeMirror erasedInterface = processingEnv.getTypeUtils().erasure(adapterInterfaceEl.asType());
+        if (!processingEnv.getTypeUtils().isAssignable(erasedClass, erasedInterface)) {
+            messager.printMessage(Diagnostic.Kind.ERROR,
+                    "Field '" + fieldName + "': " + annotationName + " class '" + fqn
+                            + "' must implement MetadataTypeAdapter.", ve);
+            return null;
+        }
+
+        return fqn;
+    }
+
+    /**
+     * Extracts key, required, and defaultValue from {@code @MetadataField} on a field.
+     * Returns a default key-encoding using the field name when {@code @MetadataField} is absent.
+     */
+    private MetadataFieldValidator.MetadataKeyAndEncoding extractKeyAndEncoding(
+            VariableElement ve, String fieldName) {
+        AnnotationMirror mfMirror = findAnnotationMirror(ve, MetadataField.class);
+        if (mfMirror == null) {
+            return new MetadataFieldValidator.MetadataKeyAndEncoding(
+                    fieldName, MetadataFieldType.DEFAULT, false, null);
+        }
+
+        Map<? extends ExecutableElement, ? extends AnnotationValue> values =
+                processingEnv.getElementUtils().getElementValuesWithDefaults(mfMirror);
+
+        String key = "";
+        boolean required = false;
+        String defaultValue = "";
+        for (var entry : values.entrySet()) {
+            switch (entry.getKey().getSimpleName().toString()) {
+                case "key" -> key = (String) entry.getValue().getValue();
+                case "required" -> required = (Boolean) entry.getValue().getValue();
+                case "defaultValue" -> defaultValue = (String) entry.getValue().getValue();
+                default -> { /* ignore enc, adapter */ }
+            }
+        }
+
+        String metadataKey = key.isEmpty() ? fieldName : key;
+        String defVal = defaultValue.isEmpty() ? null : defaultValue;
+        return new MetadataFieldValidator.MetadataKeyAndEncoding(metadataKey, MetadataFieldType.DEFAULT, required, defVal);
+    }
+
+    record EncoderDecoderResult(String encoderFqn, String decoderFqn,
+                                MetadataFieldValidator.MetadataKeyAndEncoding keyEnc) {}
 
     record MetadataSubtypeEntry(String value, TypeMirror typeMirror) {}
 

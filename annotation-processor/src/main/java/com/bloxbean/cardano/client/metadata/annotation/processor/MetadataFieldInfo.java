@@ -157,6 +157,20 @@ public class MetadataFieldInfo {
     /** Fully qualified name of the adapter class (e.g. {@code "com.example.EpochSecondsAdapter"}). */
     private String adapterFqn;
 
+    // ── Encoder / Decoder (4 fields) ──────────────────────────────────
+
+    /** {@code true} when the field has {@code @MetadataEncoder}. */
+    private boolean encoderType;
+
+    /** Fully qualified name of the encoder class. */
+    private String encoderFqn;
+
+    /** {@code true} when the field has {@code @MetadataDecoder}. */
+    private boolean decoderType;
+
+    /** Fully qualified name of the decoder class. */
+    private String decoderFqn;
+
     // ── Type classification (flat dispatch flags) ──────────────────────
 
     /**
@@ -206,6 +220,9 @@ public class MetadataFieldInfo {
      * Polymorphic type info. {@code null} when the field is not polymorphic.
      */
     private PolymorphicInfo polymorphic;
+
+    /** {@code true} when any adapter, encoder, or decoder is configured — triggers resolver codegen. */
+    public boolean hasAnyAdapter() { return adapterType || encoderType || decoderType; }
 
     // ── Convenience accessors for codegen dispatch ─────────────────────
 

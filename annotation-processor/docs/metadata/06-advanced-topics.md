@@ -79,9 +79,152 @@ public class CompactUuidAdapter implements MetadataTypeAdapter<UUID> {
 
 ### Constraints
 
-- The adapter class must have a **public no-arg constructor**.
+- The adapter class must have a **public no-arg constructor** (unless a custom `MetadataAdapterResolver` is used — see below).
 - `adapter` and `defaultValue` are **mutually exclusive** — the processor reports a compile-time error if both are set.
 - When `adapter` is specified, the `enc` attribute is ignored.
+
+## Separate Encoder and Decoder
+
+When you need different classes for serialization and deserialization — or only want to customize one direction — use `@MetadataEncoder` and `@MetadataDecoder` instead of `@MetadataField(adapter = ...)`.
+
+Each annotation takes a class that implements `MetadataTypeAdapter<T>`. Only the relevant method is called:
+- `@MetadataEncoder` → calls `toMetadata()`
+- `@MetadataDecoder` → calls `fromMetadata()`
+
+### Encoder-only
+
+The field is encoded with custom logic but decoded using built-in type handling:
+
+```java
+@MetadataEncoder(SlotToEpochEncoder.class)
+@MetadataField(key = "epoch")
+private long slot;  // Stored as epoch number on-chain, but POJO holds slot number
+```
+
+During deserialization, the built-in `long` handler reads the value as-is.
+
+### Decoder-only
+
+```java
+@MetadataDecoder(EpochToSlotDecoder.class)
+@MetadataField(key = "slot")
+private long slot;  // Serialized as plain long, but custom decoding on read
+```
+
+### Both encoder and decoder
+
+Use different classes for each direction:
+
+```java
+@MetadataEncoder(SlotToEpochEncoder.class)
+@MetadataDecoder(EpochToSlotDecoder.class)
+@MetadataField(key = "epoch")
+private long slot;  // Encodes slot→epoch, decodes epoch→slot
+```
+
+### Constraints
+
+- `@MetadataEncoder`/`@MetadataDecoder` are **mutually exclusive** with `@MetadataField(adapter = ...)`.
+- The encoder/decoder class must implement `MetadataTypeAdapter<T>`.
+- When an encoder is present, the `enc` attribute of `@MetadataField` is ignored for serialization.
+
+## Adapter Resolver (Dependency Injection)
+
+By default, the generated converter instantiates adapter, encoder, and decoder classes using their **public no-arg constructor**. When your adapter needs constructor arguments (e.g., configuration, services, or stateful dependencies), use a `MetadataAdapterResolver`.
+
+### How it works
+
+When any adapter, encoder, or decoder is present, the generated converter has **two constructors**:
+
+```java
+// No-arg: uses DefaultAdapterResolver (calls new AdapterClass())
+var converter = new OrderMetadataConverter();
+
+// Resolver: adapter instances are obtained from the resolver
+var converter = new OrderMetadataConverter(myResolver);
+```
+
+### Custom resolver
+
+```java
+MetadataAdapterResolver resolver = new MetadataAdapterResolver() {
+    @Override
+    public <T> T resolve(Class<T> adapterClass) {
+        if (adapterClass == SlotToEpochEncoder.class) {
+            return (T) new SlotToEpochEncoder(cardanoConverters);
+        }
+        // Fallback to no-arg constructor
+        return adapterClass.getDeclaredConstructor().newInstance();
+    }
+};
+
+var converter = new OrderMetadataConverter(resolver);
+```
+
+### Spring Boot integration
+
+```java
+@Configuration
+public class MetadataConfig {
+    @Bean
+    MetadataAdapterResolver adapterResolver(ApplicationContext ctx) {
+        return new MetadataAdapterResolver() {
+            @Override
+            public <T> T resolve(Class<T> adapterClass) {
+                return ctx.getBean(adapterClass);
+            }
+        };
+    }
+}
+
+// Usage in a service:
+@Service
+public class OrderService {
+    private final OrderMetadataConverter converter;
+
+    public OrderService(MetadataAdapterResolver resolver) {
+        this.converter = new OrderMetadataConverter(resolver);
+    }
+}
+```
+
+### Real-world example: slot-to-epoch conversion
+
+Using the [cf-cardano-conversions-java](https://github.com/cardano-foundation/cf-cardano-conversions-java) library:
+
+```java
+public class SlotToEpochEncoder implements MetadataTypeAdapter<Long> {
+    private final CardanoConverters converters;
+
+    // No no-arg constructor — requires resolver
+    public SlotToEpochEncoder(CardanoConverters converters) {
+        this.converters = converters;
+    }
+
+    @Override
+    public Object toMetadata(Long slot) {
+        return BigInteger.valueOf(converters.slot().slotToEpoch(slot));
+    }
+
+    @Override
+    public Long fromMetadata(Object metadata) {
+        throw new UnsupportedOperationException("Use EpochToSlotDecoder");
+    }
+}
+```
+
+```java
+// Create resolver with network-specific converters
+var converters = ClasspathConversionsFactory.createConverters(NetworkType.MAINNET);
+MetadataAdapterResolver resolver = adapterClass -> {
+    if (adapterClass == SlotToEpochEncoder.class) {
+        return (SlotToEpochEncoder) new SlotToEpochEncoder(converters);
+    }
+    return adapterClass.getDeclaredConstructor().newInstance();
+};
+
+var converter = new BlockInfoMetadataConverter(resolver);
+```
 
 ## Polymorphic Types
 

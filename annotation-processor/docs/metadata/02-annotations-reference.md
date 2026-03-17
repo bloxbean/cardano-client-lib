@@ -86,6 +86,38 @@ private byte[] policyId;
 private Instant mintedAt;
 ```
 
+## @MetadataEncoder
+
+Specifies a custom encoder for serializing a field to metadata. The referenced class must implement `MetadataTypeAdapter<T>`; only `toMetadata()` is called. Deserialization falls back to built-in type handling unless `@MetadataDecoder` is also present.
+
+```java
+@MetadataEncoder(SlotToEpochEncoder.class)
+@MetadataField(key = "epoch")
+private long slot;
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `value`   | `Class<? extends MetadataTypeAdapter<?>>` | The encoder class. |
+
+**Mutually exclusive** with `@MetadataField(adapter = ...)`. See [Separate Encoder and Decoder](06-advanced-topics.md#separate-encoder-and-decoder).
+
+## @MetadataDecoder
+
+Specifies a custom decoder for deserializing a field from metadata. The referenced class must implement `MetadataTypeAdapter<T>`; only `fromMetadata()` is called. Serialization falls back to built-in type handling unless `@MetadataEncoder` is also present.
+
+```java
+@MetadataDecoder(EpochToSlotDecoder.class)
+@MetadataField(key = "epoch")
+private long slot;
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `value`   | `Class<? extends MetadataTypeAdapter<?>>` | The decoder class. |
+
+**Mutually exclusive** with `@MetadataField(adapter = ...)`. See [Separate Encoder and Decoder](06-advanced-topics.md#separate-encoder-and-decoder).
+
 ## @MetadataIgnore
 
 Excludes a field from metadata serialization and deserialization. The field will not appear in the generated converter code.

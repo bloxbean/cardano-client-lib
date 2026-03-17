@@ -21,6 +21,8 @@ okhttp = "com.squareup.okhttp3:okhttp:4.12.0"
 aiken-java-binding = "com.bloxbean.cardano:aiken-java-binding:0.1.0"
 scalus-bloxbean = "org.scalus:scalus-bloxbean-cardano-client-lib_3:0.16.0"
 
+cf-cardano-conversions = "org.cardanofoundation:cf-cardano-conversions-java:1.2.0"
+
 google-auto-service="com.google.auto.service:auto-service:1.1.1"
 javapoet="com.squareup:javapoet:1.13.0"
 google-testing-compile="com.google.testing.compile:compile-testing:0.21.0"

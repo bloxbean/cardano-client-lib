@@ -166,6 +166,14 @@ public class MetadataFieldExtractor {
             return info;
         }
 
+        MetadataTypeDetector.EncoderDecoderResult encDecResult = typeDetector.detectEncoderDecoder(ve, fieldName);
+        if (encDecResult != null) {
+            MetadataFieldInfo info = buildEncoderDecoderFieldInfo(fieldName, typeName,
+                    encDecResult.keyEnc(), recordAccessor, encDecResult.encoderFqn(), encDecResult.decoderFqn());
+            info.setRecordMode(true);
+            return info;
+        }
+
         MetadataTypeDetector.FieldTypeResult typeResult = typeDetector.detectFieldType(ve, fieldName, typeName);
         if (typeResult == null) return null;
 
@@ -189,6 +197,15 @@ public class MetadataFieldExtractor {
             MetadataAccessorResolver.AccessorResult accessors = accessorResolver.resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
             return accessors != null
                     ? buildAdapterFieldInfo(fieldName, typeName, adapterResult.keyEnc(), accessors, adapterResult.adapterFqn())
+                    : null;
+        }
+
+        MetadataTypeDetector.EncoderDecoderResult encDecResult = typeDetector.detectEncoderDecoder(ve, fieldName);
+        if (encDecResult != null) {
+            MetadataAccessorResolver.AccessorResult accessors = accessorResolver.resolveAccessors(leafTypeElement, ve, fieldName, hasLombok);
+            return accessors != null
+                    ? buildEncoderDecoderFieldInfo(fieldName, typeName, encDecResult.keyEnc(), accessors,
+                            encDecResult.encoderFqn(), encDecResult.decoderFqn())
                     : null;
         }
 
@@ -274,5 +291,29 @@ public class MetadataFieldExtractor {
                 .adapterType(true)
                 .adapterFqn(adapterFqn)
                 .build();
+    }
+
+    private MetadataFieldInfo buildEncoderDecoderFieldInfo(String fieldName, String typeName,
+                                                            MetadataFieldValidator.MetadataKeyAndEncoding keyEnc,
+                                                            MetadataAccessorResolver.AccessorResult accessors,
+                                                            String encoderFqn, String decoderFqn) {
+        var builder = MetadataFieldInfo.builder()
+                .javaFieldName(fieldName)
+                .metadataKey(keyEnc.metadataKey())
+                .javaTypeName(typeName)
+                .enc(keyEnc.enc())
+                .required(keyEnc.required())
+                .defaultValue(keyEnc.defaultValue())
+                .getterName(accessors.getterName())
+                .setterName(accessors.setterName());
+
+        if (encoderFqn != null) {
+            builder.encoderType(true).encoderFqn(encoderFqn);
+        }
+        if (decoderFqn != null) {
+            builder.decoderType(true).decoderFqn(decoderFqn);
+        }
+
+        return builder.build();
     }
 }

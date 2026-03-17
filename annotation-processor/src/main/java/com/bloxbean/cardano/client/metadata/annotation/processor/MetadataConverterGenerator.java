@@ -4,7 +4,9 @@ import com.bloxbean.cardano.client.metadata.Metadata;
 import com.bloxbean.cardano.client.metadata.MetadataBuilder;
 import com.bloxbean.cardano.client.metadata.MetadataList;
 import com.bloxbean.cardano.client.metadata.MetadataMap;
+import com.bloxbean.cardano.client.metadata.annotation.DefaultAdapterResolver;
 import com.bloxbean.cardano.client.metadata.annotation.LabeledMetadataConverter;
+import com.bloxbean.cardano.client.metadata.annotation.MetadataAdapterResolver;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataConverter;
 import com.bloxbean.cardano.client.metadata.annotation.MetadataFieldType;
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.CollectionCodeGen;
@@ -13,13 +15,16 @@ import com.bloxbean.cardano.client.metadata.annotation.processor.type.MapCodeGen
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.NestedTypeCodeGen;
 import com.bloxbean.cardano.client.metadata.annotation.processor.type.OptionalCodeGen;
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
 import java.math.BigInteger;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import static com.bloxbean.cardano.client.plutus.annotation.processor.util.Constant.GENERATED_CODE;
 
@@ -103,8 +108,9 @@ public class MetadataConverterGenerator {
                     ParameterizedTypeName.get(ClassName.get(MetadataConverter.class), targetClass));
         }
 
-        // Static adapter instances (one per distinct adapter class)
-        addAdapterFields(classBuilder, fields);
+        // Adapter / encoder / decoder instance fields and constructors
+        addAdapterFieldDeclarations(classBuilder, fields);
+        addConstructors(classBuilder, fields);
 
         classBuilder.addMethod(buildToMetadataMapMethod(targetClass, simpleClassName, fields));
         classBuilder.addMethod(buildFromMetadataMapMethod(targetClass, fields, isRecord, allComponents));
@@ -169,6 +175,13 @@ public class MetadataConverterGenerator {
         if (field.isAdapterType()) {
             builder.addStatement("_putAdapted(map, $S, $L.toMetadata($L))",
                     key, adapterFieldName(field.getAdapterFqn()), getExpr);
+            return;
+        }
+
+        // @MetadataEncoder — encoder-only serialization
+        if (field.isEncoderType()) {
+            builder.addStatement("_putAdapted(map, $S, $L.toMetadata($L))",
+                    key, adapterFieldName(field.getEncoderFqn()), getExpr);
             return;
         }
 
@@ -363,6 +376,15 @@ public class MetadataConverterGenerator {
             builder.beginControlFlow("if (v != null)");
             accessor.emitSetRaw(builder, field,
                     "(" + javaType + ") " + adapterFieldName(field.getAdapterFqn()) + ".fromMetadata(v)");
+            builder.endControlFlow();
+            return;
+        }
+
+        // @MetadataDecoder — decoder-only deserialization
+        if (field.isDecoderType()) {
+            builder.beginControlFlow("if (v != null)");
+            accessor.emitSetRaw(builder, field,
+                    "(" + javaType + ") " + adapterFieldName(field.getDecoderFqn()) + ".fromMetadata(v)");
             builder.endControlFlow();
             return;
         }
@@ -604,25 +626,63 @@ public class MetadataConverterGenerator {
     // -------------------------------------------------------------------------
 
     /**
-     * Adds static adapter instance fields for each distinct adapter class used by the fields.
-     * Avoids repeated instantiation in serialize/deserialize methods.
+     * Collects all distinct adapter/encoder/decoder FQNs and adds instance field declarations.
+     * Fields are initialized in the constructor, not inline.
      */
-    private void addAdapterFields(TypeSpec.Builder classBuilder, List<MetadataFieldInfo> fields) {
-        fields.stream()
-                .filter(MetadataFieldInfo::isAdapterType)
-                .map(MetadataFieldInfo::getAdapterFqn)
-                .distinct()
-                .forEach(fqn -> classBuilder.addField(
-                        com.squareup.javapoet.FieldSpec.builder(
-                                        ClassName.bestGuess(fqn),
-                                        adapterFieldName(fqn),
-                                        Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
-                                .initializer("new $T()", ClassName.bestGuess(fqn))
-                                .build()));
+    private void addAdapterFieldDeclarations(TypeSpec.Builder classBuilder, List<MetadataFieldInfo> fields) {
+        for (String fqn : collectAllAdapterFqns(fields)) {
+            classBuilder.addField(FieldSpec.builder(
+                            ClassName.bestGuess(fqn),
+                            adapterFieldName(fqn),
+                            Modifier.PRIVATE, Modifier.FINAL)
+                    .build());
+        }
     }
 
     /**
-     * Derives a static field name from an adapter FQN.
+     * Generates dual constructors when any adapter/encoder/decoder field exists:
+     * <ol>
+     *   <li>No-arg: delegates to resolver constructor with {@link DefaultAdapterResolver}</li>
+     *   <li>Resolver: initializes each adapter field via {@code resolver.resolve(...)}</li>
+     * </ol>
+     * When no adapters exist, no constructors are generated (backward compatible).
+     */
+    private void addConstructors(TypeSpec.Builder classBuilder, List<MetadataFieldInfo> fields) {
+        Set<String> fqns = collectAllAdapterFqns(fields);
+        if (fqns.isEmpty()) return;
+
+        // No-arg constructor: delegates to resolver constructor
+        classBuilder.addMethod(MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PUBLIC)
+                .addStatement("this($T.INSTANCE)", DefaultAdapterResolver.class)
+                .build());
+
+        // Resolver constructor: initializes all adapter fields
+        MethodSpec.Builder resolverCtor = MethodSpec.constructorBuilder()
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(MetadataAdapterResolver.class, "resolver");
+        for (String fqn : fqns) {
+            resolverCtor.addStatement("this.$L = resolver.resolve($T.class)",
+                    adapterFieldName(fqn), ClassName.bestGuess(fqn));
+        }
+        classBuilder.addMethod(resolverCtor.build());
+    }
+
+    /**
+     * Collects all distinct adapter FQNs from adapter, encoder, and decoder fields.
+     */
+    private Set<String> collectAllAdapterFqns(List<MetadataFieldInfo> fields) {
+        Set<String> fqns = new LinkedHashSet<>();
+        for (MetadataFieldInfo f : fields) {
+            if (f.isAdapterType() && f.getAdapterFqn() != null) fqns.add(f.getAdapterFqn());
+            if (f.isEncoderType() && f.getEncoderFqn() != null) fqns.add(f.getEncoderFqn());
+            if (f.isDecoderType() && f.getDecoderFqn() != null) fqns.add(f.getDecoderFqn());
+        }
+        return fqns;
+    }
+
+    /**
+     * Derives an instance field name from an adapter FQN.
      * E.g. {@code "com.example.EpochSecondsAdapter"} → {@code "_epochSecondsAdapter"}.
      */
     static String adapterFieldName(String adapterFqn) {
@@ -632,17 +692,17 @@ public class MetadataConverterGenerator {
 
     /**
      * Adds a {@code _putAdapted(MetadataMap, String, Object)} helper only when
-     * at least one adapter field exists. The helper dispatches at runtime based on
+     * at least one adapter/encoder field exists. The helper dispatches at runtime based on
      * the value's concrete type.
      */
     private static final String ADAPTED_PUT_CAST = "_m.put(_k, ($T) _v)";
 
     private void addAdapterHelper(TypeSpec.Builder classBuilder, List<MetadataFieldInfo> fields) {
-        boolean hasAdapter = fields.stream().anyMatch(MetadataFieldInfo::isAdapterType);
+        boolean hasAdapter = fields.stream().anyMatch(f -> f.isAdapterType() || f.isEncoderType());
         if (!hasAdapter) return;
 
         classBuilder.addMethod(MethodSpec.methodBuilder("_putAdapted")
-                .addModifiers(Modifier.PRIVATE, Modifier.STATIC)
+                .addModifiers(Modifier.PRIVATE)
                 .addParameter(MetadataMap.class, "_m")
                 .addParameter(String.class, "_k")
                 .addParameter(Object.class, "_v")

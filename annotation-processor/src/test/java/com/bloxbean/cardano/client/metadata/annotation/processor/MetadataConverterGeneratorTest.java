@@ -3846,12 +3846,14 @@ class MetadataConverterGeneratorTest {
         }
 
         @Test
-        void generatesAdapterStaticField() {
+        void generatesAdapterInstanceField() {
             MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
                     "com.example.EpochSecondsAdapter");
             String src = generate(List.of(f));
-            assertTrue(src.contains("private static final EpochSecondsAdapter _epochSecondsAdapter = new EpochSecondsAdapter()"),
-                    "Should generate static adapter field: " + src);
+            assertTrue(src.contains("private final EpochSecondsAdapter _epochSecondsAdapter"),
+                    "Should generate instance adapter field: " + src);
+            assertFalse(src.contains("private static final EpochSecondsAdapter"),
+                    "Should NOT generate static adapter field: " + src);
         }
 
         @Test
@@ -3859,8 +3861,8 @@ class MetadataConverterGeneratorTest {
             MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
                     "com.example.EpochSecondsAdapter");
             String src = generate(List.of(f));
-            assertTrue(src.contains("private static void _putAdapted(MetadataMap _m, String _k, Object _v)"),
-                    "Should generate _putAdapted helper: " + src);
+            assertTrue(src.contains("private void _putAdapted(MetadataMap _m, String _k, Object _v)"),
+                    "Should generate instance _putAdapted helper: " + src);
         }
 
         @Test
@@ -3869,6 +3871,147 @@ class MetadataConverterGeneratorTest {
             String src = generate(List.of(f));
             assertFalse(src.contains("_putAdapted"),
                     "Should not generate _putAdapted when no adapter fields: " + src);
+        }
+
+        @Test
+        void generatesNoArgConstructor() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("this(DefaultAdapterResolver.INSTANCE)"),
+                    "No-arg constructor should delegate to resolver: " + src);
+        }
+
+        @Test
+        void generatesResolverConstructor() {
+            MetadataFieldInfo f = adapterField("timestamp", "java.time.Instant",
+                    "com.example.EpochSecondsAdapter");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("MetadataAdapterResolver resolver"),
+                    "Should generate resolver constructor: " + src);
+            assertTrue(src.contains("resolver.resolve(EpochSecondsAdapter.class)"),
+                    "Should resolve adapter via resolver: " + src);
+        }
+
+        @Test
+        void noConstructors_whenNoAdapterFields() {
+            MetadataFieldInfo f = field("name", STRING);
+            String src = generate(List.of(f));
+            assertFalse(src.contains("MetadataAdapterResolver"),
+                    "Should not generate resolver constructor without adapters: " + src);
+        }
+    }
+
+    // =========================================================================
+    // Encoder / Decoder fields
+    // =========================================================================
+
+    @Nested
+    class EncoderDecoder {
+
+        private MetadataFieldInfo encoderField(String name, String javaType, String encoderFqn) {
+            MetadataFieldInfo f = field(name, javaType);
+            f.setEncoderType(true);
+            f.setEncoderFqn(encoderFqn);
+            return f;
+        }
+
+        private MetadataFieldInfo decoderField(String name, String javaType, String decoderFqn) {
+            MetadataFieldInfo f = field(name, javaType);
+            f.setDecoderType(true);
+            f.setDecoderFqn(decoderFqn);
+            return f;
+        }
+
+        private MetadataFieldInfo encoderDecoderField(String name, String javaType,
+                                                       String encoderFqn, String decoderFqn) {
+            MetadataFieldInfo f = field(name, javaType);
+            f.setEncoderType(true);
+            f.setEncoderFqn(encoderFqn);
+            f.setDecoderType(true);
+            f.setDecoderFqn(decoderFqn);
+            return f;
+        }
+
+        @Test
+        void encoderOnly_serializesWithEncoder() {
+            MetadataFieldInfo f = encoderField("slot", "long",
+                    "com.example.SlotToEpochEncoder");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_putAdapted(map, \"slot\", _slotToEpochEncoder.toMetadata(order.getSlot()))"),
+                    "Should serialize using encoder: " + src);
+        }
+
+        @Test
+        void encoderOnly_deserializationFallsBackToBuiltIn() {
+            MetadataFieldInfo f = encoderField("slot", "long",
+                    "com.example.SlotToEpochEncoder");
+            String src = generate(List.of(f));
+            // Should NOT contain decoder call, should use built-in long handling
+            assertFalse(src.contains("_slotToEpochEncoder.fromMetadata"),
+                    "Encoder-only should not call fromMetadata: " + src);
+            assertTrue(src.contains("((BigInteger) v).longValue()"),
+                    "Should fall back to built-in long deserialization: " + src);
+        }
+
+        @Test
+        void decoderOnly_deserializesWithDecoder() {
+            MetadataFieldInfo f = decoderField("slot", "long",
+                    "com.example.EpochToSlotDecoder");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_epochToSlotDecoder.fromMetadata(v)"),
+                    "Should deserialize using decoder: " + src);
+        }
+
+        @Test
+        void decoderOnly_serializationFallsBackToBuiltIn() {
+            MetadataFieldInfo f = decoderField("slot", "long",
+                    "com.example.EpochToSlotDecoder");
+            String src = generate(List.of(f));
+            // Should NOT contain encoder call, should use built-in long handling
+            assertFalse(src.contains("_epochToSlotDecoder.toMetadata"),
+                    "Decoder-only should not call toMetadata: " + src);
+        }
+
+        @Test
+        void bothEncoderAndDecoder_usesSeparateClasses() {
+            MetadataFieldInfo f = encoderDecoderField("slot", "long",
+                    "com.example.SlotToEpochEncoder", "com.example.EpochToSlotDecoder");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_slotToEpochEncoder.toMetadata(order.getSlot())"),
+                    "Should use encoder for serialization: " + src);
+            assertTrue(src.contains("_epochToSlotDecoder.fromMetadata(v)"),
+                    "Should use decoder for deserialization: " + src);
+        }
+
+        @Test
+        void generatesResolverConstructor() {
+            MetadataFieldInfo f = encoderField("slot", "long",
+                    "com.example.SlotToEpochEncoder");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("MetadataAdapterResolver resolver"),
+                    "Should generate resolver constructor: " + src);
+            assertTrue(src.contains("resolver.resolve(SlotToEpochEncoder.class)"),
+                    "Should resolve encoder via resolver: " + src);
+        }
+
+        @Test
+        void generatesInstanceField() {
+            MetadataFieldInfo f = encoderField("slot", "long",
+                    "com.example.SlotToEpochEncoder");
+            String src = generate(List.of(f));
+            assertTrue(src.contains("private final SlotToEpochEncoder _slotToEpochEncoder"),
+                    "Should generate instance field: " + src);
+        }
+
+        @Test
+        void recordModeWithEncoder() {
+            MetadataFieldInfo f = encoderField("slot", "long",
+                    "com.example.SlotToEpochEncoder");
+            f.setRecordMode(true);
+            String src = generate(List.of(f));
+            assertTrue(src.contains("_slotToEpochEncoder.toMetadata"),
+                    "Record mode should use encoder: " + src);
         }
     }
 }
