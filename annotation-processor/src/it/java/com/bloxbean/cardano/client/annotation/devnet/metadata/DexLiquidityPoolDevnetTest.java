@@ -33,6 +33,7 @@ public class DexLiquidityPoolDevnetTest extends BaseIT {
     private BackendService backendService;
     private DexLiquidityPool original;
     private DexLiquidityPool restored;
+    private JsonNode jsonMeta;
 
     @SneakyThrows
     @BeforeAll
@@ -77,7 +78,7 @@ public class DexLiquidityPoolDevnetTest extends BaseIT {
         assertFalse(jsonResult.getValue().isEmpty(), "JSON metadata should have entries");
 
         // Verify raw JSON values match what was submitted
-        JsonNode jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "1000");
+        jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "1000");
         assertNotNull(jsonMeta, "JSON metadata for label 1000 should exist");
         System.out.println("[DIAG] JSON metadata for label 1000: " + jsonMeta);
         assertEquals(original.poolId(), jsonMeta.get("pool_id").asText(), "JSON 'pool_id' value mismatch");
@@ -151,6 +152,42 @@ public class DexLiquidityPoolDevnetTest extends BaseIT {
     void base64ByteArray_poolDatum() {
         assertArrayEquals(original.poolDatum(), restored.poolDatum());
     }
+
+    // ── Raw JSON Assertions ────────────────────────────────────────────
+
+    @Test
+    void jsonRaw_adapterField_updatedAtIsEpochSeconds() {
+        assertTrue(jsonMeta.has("updatedAt"), "JSON should contain 'updatedAt'");
+        assertEquals(1700000000L, jsonMeta.get("updatedAt").asLong(),
+                "updatedAt should be serialized as epoch seconds");
+    }
+
+    @Test
+    void jsonRaw_base64Encoding_poolDatum() {
+        assertTrue(jsonMeta.has("pool_datum"), "JSON should contain 'pool_datum'");
+        assertEquals("SGVsbG9Xb3JsZERhdHVt", jsonMeta.get("pool_datum").asText(),
+                "pool_datum should be a Base64 string");
+    }
+
+    @Test
+    void jsonRaw_nestedRecord_tokenA() {
+        assertTrue(jsonMeta.has("token_a"), "JSON should contain 'token_a'");
+        JsonNode tokenA = jsonMeta.get("token_a");
+        assertEquals("aabb00112233445566778899aabb00112233445566778899aabb0011",
+                tokenA.get("policy_id").asText());
+        assertEquals("TokenA", tokenA.get("asset_name").asText());
+        assertEquals(6, tokenA.get("decimals").asInt());
+    }
+
+    @Test
+    void jsonRaw_nestedPojo_fees() {
+        assertTrue(jsonMeta.has("fees"), "JSON should contain 'fees'");
+        JsonNode fees = jsonMeta.get("fees");
+        assertEquals(30, fees.get("swap_fee").asInt());
+        assertEquals(5, fees.get("protocol_fee").asInt());
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
 
     private DexLiquidityPool buildOriginal() {
         return new DexLiquidityPool(

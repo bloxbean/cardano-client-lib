@@ -4,7 +4,13 @@ This document covers advanced features of the metadata processor: custom type ad
 
 ## Custom Type Adapters
 
-When the built-in type mappings are not sufficient, implement `MetadataTypeAdapter<T>` to control serialization and deserialization entirely:
+When the built-in type mappings are not sufficient, implement `MetadataTypeAdapter<T>` to control serialization and deserialization entirely.
+
+The interface is in `com.bloxbean.cardano.client.metadata.annotation`:
+
+```java
+import com.bloxbean.cardano.client.metadata.annotation.MetadataTypeAdapter;
+```
 
 ```java
 public interface MetadataTypeAdapter<T> {
@@ -48,6 +54,34 @@ The adapter class must have a public no-arg constructor. When an adapter is spec
 - Types not natively supported by the processor
 - Custom on-chain representations (e.g., epoch seconds instead of ISO strings)
 - Complex transformations that go beyond simple type mapping
+
+### Example: CompactUuidAdapter
+
+Store `UUID` as a compact hex string (no dashes) for minimal on-chain footprint:
+
+```java
+public class CompactUuidAdapter implements MetadataTypeAdapter<UUID> {
+    @Override
+    public Object toMetadata(UUID value) {
+        return value.toString().replace("-", "");
+    }
+
+    @Override
+    public UUID fromMetadata(Object metadata) {
+        String hex = (String) metadata;
+        return UUID.fromString(
+            hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" +
+            hex.substring(12, 16) + "-" + hex.substring(16, 20) + "-" +
+            hex.substring(20));
+    }
+}
+```
+
+### Constraints
+
+- The adapter class must have a **public no-arg constructor**.
+- `adapter` and `defaultValue` are **mutually exclusive** — the processor reports a compile-time error if both are set.
+- When `adapter` is specified, the `enc` attribute is ignored.
 
 ## Polymorphic Types
 
@@ -211,15 +245,13 @@ Result<String> result = new QuickTxBuilder(backendService)
         .completeAndWait(System.out::println);
 
 // 4. Retrieve and deserialize from chain
-var cborResult = backendService.getMetadataService()
-        .getCBORMetadataByTxnHash(result.getValue());
+var jsonResult = backendService.getMetadataService()
+        .getJSONMetadataByTxnHash(result.getValue());
 
-for (MetadataCBORContent entry : cborResult.getValue()) {
+for (MetadataJSONContent entry : jsonResult.getValue()) {
     if ("721".equals(entry.getLabel())) {
-        byte[] cborBytes = HexUtil.decodeHexString(entry.getCborMetadata());
-        List<DataItem> items = CborDecoder.decode(cborBytes);
-        MetadataMap chainMap = new CBORMetadataMap(
-                (co.nstant.in.cbor.model.Map) items.get(0));
+        MetadataMap chainMap = JsonNoSchemaToMetadataConverter
+                .parseObjectNode((ObjectNode) entry.getJsonMetadata());
         Cip25NftMetadata restored = converter.fromMetadataMap(chainMap);
     }
 }

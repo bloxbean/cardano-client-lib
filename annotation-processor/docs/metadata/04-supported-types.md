@@ -179,6 +179,12 @@ ipfs://QmXyZ123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 
 is split into two chunks on chain and reassembled into the original string on read-back.
 
+## Extending the Type System
+
+The types listed above are what the processor handles natively. Any Java type can be supported by implementing `MetadataTypeAdapter<T>`, which gives you full control over the on-chain representation and deserialization.
+
+See [Custom Type Adapters](06-advanced-topics.md#custom-type-adapters) for implementation details and examples.
+
 ## Next Steps
 
 - [Class Support and Patterns](05-class-support.md) — records, POJOs, Lombok, and inheritance

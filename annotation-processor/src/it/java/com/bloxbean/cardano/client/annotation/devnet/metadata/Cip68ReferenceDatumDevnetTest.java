@@ -31,6 +31,7 @@ public class Cip68ReferenceDatumDevnetTest extends BaseIT {
     private BackendService backendService;
     private Cip68ReferenceDatum original;
     private Cip68ReferenceDatum restored;
+    private JsonNode jsonMeta;
 
     @SneakyThrows
     @BeforeAll
@@ -75,7 +76,7 @@ public class Cip68ReferenceDatumDevnetTest extends BaseIT {
         assertFalse(jsonResult.getValue().isEmpty(), "JSON metadata should have entries");
 
         // Verify raw JSON values match what was submitted
-        JsonNode jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "100");
+        jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "100");
         assertNotNull(jsonMeta, "JSON metadata for label 100 should exist");
         System.out.println("[DIAG] JSON metadata for label 100: " + jsonMeta);
         assertEquals(original.getName(), jsonMeta.get("name").asText(), "JSON 'name' value mismatch");
@@ -161,6 +162,35 @@ public class Cip68ReferenceDatumDevnetTest extends BaseIT {
     void mediaType() {
         assertEquals(original.getMediaType(), restored.getMediaType());
     }
+
+    // ── Raw JSON Assertions ────────────────────────────────────────────
+
+    @Test
+    void jsonRaw_base64Encoding_extraData() {
+        assertTrue(jsonMeta.has("extra_data"), "JSON should contain 'extra_data'");
+        assertEquals("RXh0cmFEYXRhRm9yVGVzdA==", jsonMeta.get("extra_data").asText(),
+                "extra_data should be a Base64 string");
+    }
+
+    @Test
+    void jsonRaw_nestedRecord_royalty() {
+        assertTrue(jsonMeta.has("royalty"), "JSON should contain 'royalty'");
+        JsonNode royalty = jsonMeta.get("royalty");
+        assertEquals("addr_test1qz...", royalty.get("address").asText());
+        assertEquals(250, royalty.get("rate_bps").asInt());
+    }
+
+    @Test
+    void jsonRaw_polymorphicDiscriminator_displayMedia() {
+        assertTrue(jsonMeta.has("displayMedia"), "JSON should contain 'displayMedia'");
+        JsonNode dm = jsonMeta.get("displayMedia");
+        assertEquals("audio", dm.get("type").asText(), "discriminator should be 'audio'");
+        assertEquals("ipfs://QmAudio1", dm.get("url").asText());
+        assertEquals(240, dm.get("duration").asInt());
+        assertEquals("mp3", dm.get("codec").asText());
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
 
     private Cip68ReferenceDatum buildOriginal() {
         Cip68ReferenceDatum datum = new Cip68ReferenceDatum();

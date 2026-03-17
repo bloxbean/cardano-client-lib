@@ -183,6 +183,17 @@ public class MetadataExample {
 }
 ```
 
+## Custom Type Adapters
+
+The processor handles standard Java types out of the box. For custom on-chain representations — such as storing `Instant` as epoch seconds instead of an ISO-8601 string — use the `adapter` attribute:
+
+```java
+@MetadataField(adapter = EpochAdapter.class)
+private Instant mintedAt;
+```
+
+See [Custom Type Adapters](06-advanced-topics.md#custom-type-adapters) for details on implementing your own adapter.
+
 ## Next Steps
 
 - [Overview](00-overview.md) — feature highlights, architecture, and documentation roadmap

@@ -32,6 +32,7 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
     private BackendService backendService;
     private StakeDelegationBatch original;
     private StakeDelegationBatch restored;
+    private JsonNode jsonMeta;
 
     @SneakyThrows
     @BeforeAll
@@ -76,7 +77,7 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
         assertFalse(jsonResult.getValue().isEmpty(), "JSON metadata should have entries");
 
         // Verify raw JSON values match what was submitted
-        JsonNode jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "1902");
+        jsonMeta = findJsonMetadataForLabel(jsonResult.getValue(), "1902");
         assertNotNull(jsonMeta, "JSON metadata for label 1902 should exist");
         System.out.println("[DIAG] JSON metadata for label 1902: " + jsonMeta);
         assertEquals(original.getBatchId(), jsonMeta.get("batch_id").asText(), "JSON 'batch_id' value mismatch");
@@ -172,6 +173,60 @@ public class StakeDelegationBatchDevnetTest extends BaseIT {
     void ignoredField() {
         assertNull(restored.getMemo());
     }
+
+    // ── Raw JSON Assertions ────────────────────────────────────────────
+
+    @Test
+    void jsonRaw_adapterField_submittedAtIsEpochSeconds() {
+        assertTrue(jsonMeta.has("submittedAt"), "JSON should contain 'submittedAt'");
+        assertEquals(1700000000L, jsonMeta.get("submittedAt").asLong(),
+                "submittedAt should be serialized as epoch seconds");
+    }
+
+    @Test
+    void jsonRaw_nestedAdapterField_delegatedAtIsEpochSeconds() {
+        JsonNode delegations = jsonMeta.get("delegations");
+        assertNotNull(delegations, "JSON should contain 'delegations'");
+        assertTrue(delegations.isArray());
+        JsonNode first = delegations.get(0);
+        assertEquals(1700000000L, first.get("delegatedAt").asLong(),
+                "delegatedAt in first delegation should be epoch seconds");
+    }
+
+    @Test
+    void jsonRaw_nestedRecordStructure_delegations() {
+        JsonNode delegations = jsonMeta.get("delegations");
+        assertNotNull(delegations);
+        assertEquals(3, delegations.size());
+
+        JsonNode first = delegations.get(0);
+        assertEquals("pool1abc", first.get("pool_id").asText());
+        assertEquals(5000, first.get("weight_bps").asInt());
+    }
+
+    @Test
+    void jsonRaw_hexByteArrayList_activePools() {
+        assertTrue(jsonMeta.has("active_pools"), "JSON should contain 'active_pools'");
+        JsonNode pools = jsonMeta.get("active_pools");
+        assertTrue(pools.isArray());
+        assertEquals(2, pools.size());
+        assertEquals("aabb00112233", pools.get(0).asText());
+        assertEquals("ccdd44556677", pools.get(1).asText());
+    }
+
+    @Test
+    void jsonRaw_mapWithNestedPojo_rewardHistory() {
+        assertTrue(jsonMeta.has("reward_history"), "JSON should contain 'reward_history'");
+        JsonNode rh = jsonMeta.get("reward_history");
+
+        JsonNode entry400 = rh.get("400");
+        assertNotNull(entry400, "reward_history should contain key '400'");
+        assertEquals("pool1abc", entry400.get("pool_id").asText());
+        assertEquals(5000000, entry400.get("amount").asInt());
+        assertEquals(400, entry400.get("epoch_no").asInt());
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
 
     private StakeDelegationBatch buildOriginal() {
         StakeDelegationBatch batch = new StakeDelegationBatch();

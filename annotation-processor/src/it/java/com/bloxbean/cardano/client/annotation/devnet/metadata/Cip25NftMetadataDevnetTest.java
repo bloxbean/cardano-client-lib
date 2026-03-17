@@ -34,8 +34,12 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
 
     private Cip25NftMetadata original;
     private Cip25NftMetadata restored;
+    private JsonNode jsonMeta;
     private Cip25NftMetadata originalAbsent;
     private Cip25NftMetadata restoredAbsent;
+    private JsonNode jsonMetaAbsent;
+
+    private record SubmitResult(Cip25NftMetadata restored, JsonNode json) {}
 
     @SneakyThrows
     @BeforeAll
@@ -48,10 +52,14 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
         converter = new Cip25NftMetadataMetadataConverter();
 
         original = buildOriginal();
-        restored = submitAndRetrieve(original);
+        SubmitResult result1 = submitAndRetrieve(original);
+        restored = result1.restored;
+        jsonMeta = result1.json;
 
         originalAbsent = buildOriginalWithOptionalAbsent();
-        restoredAbsent = submitAndRetrieve(originalAbsent);
+        SubmitResult result2 = submitAndRetrieve(originalAbsent);
+        restoredAbsent = result2.restored;
+        jsonMetaAbsent = result2.json;
     }
 
     @Test
@@ -137,10 +145,50 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
         assertEquals(original.getAttributes(), restored.getAttributes());
     }
 
+    // ── Raw JSON Assertions ────────────────────────────────────────────
+
+    @Test
+    void jsonRaw_adapterField_mintedAtIsEpochSeconds() {
+        assertTrue(jsonMeta.has("mintedAt"), "JSON should contain 'mintedAt'");
+        assertEquals(1700000000L, jsonMeta.get("mintedAt").asLong(),
+                "mintedAt should be serialized as epoch seconds");
+    }
+
+    @Test
+    void jsonRaw_hexEncoding_policyId() {
+        assertTrue(jsonMeta.has("policy_id"), "JSON should contain 'policy_id'");
+        assertEquals("aabbccdd11223344aabbccdd11223344aabbccdd11223344aabbccdd",
+                jsonMeta.get("policy_id").asText(),
+                "policy_id should be a lowercase hex string");
+    }
+
+    @Test
+    void jsonRaw_nestedRecordList_files() {
+        assertTrue(jsonMeta.has("files"), "JSON should contain 'files'");
+        JsonNode files = jsonMeta.get("files");
+        assertTrue(files.isArray(), "'files' should be an array");
+        assertEquals(2, files.size());
+
+        JsonNode file0 = files.get(0);
+        assertEquals("thumbnail.png", file0.get("name").asText());
+        assertEquals("ipfs://QmThumb1", file0.get("src").asText());
+        assertEquals("image/png", file0.get("media_type").asText());
+    }
+
+    @Test
+    void jsonRaw_polymorphicDiscriminator_displayMedia() {
+        assertTrue(jsonMeta.has("displayMedia"), "JSON should contain 'displayMedia'");
+        JsonNode dm = jsonMeta.get("displayMedia");
+        assertEquals("image", dm.get("type").asText(), "discriminator should be 'image'");
+        assertEquals("ipfs://QmDisplay1", dm.get("url").asText());
+        assertEquals(1920, dm.get("width").asInt());
+        assertEquals(1080, dm.get("height").asInt());
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     @SneakyThrows
-    private Cip25NftMetadata submitAndRetrieve(Cip25NftMetadata nft) {
+    private SubmitResult submitAndRetrieve(Cip25NftMetadata nft) {
         Metadata metadata = converter.toMetadata(nft);
 
         Tx tx = new Tx()
@@ -183,7 +231,7 @@ public class Cip25NftMetadataDevnetTest extends BaseIT {
         assertTrue(jsonMeta.has("image"), "JSON should contain 'image'");
 
         MetadataMap chainMap = extractMetadataMap(jsonResult.getValue(), "721");
-        return converter.fromMetadataMap(chainMap);
+        return new SubmitResult(converter.fromMetadataMap(chainMap), jsonMeta);
     }
 
     private Cip25NftMetadata buildBase() {
