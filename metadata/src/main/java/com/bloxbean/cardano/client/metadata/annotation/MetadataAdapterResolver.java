@@ -8,11 +8,11 @@ package com.bloxbean.cardano.client.metadata.annotation;
  * it uses a resolver to obtain adapter instances. This enables dependency injection
  * and stateful adapters that require constructor arguments.
  *
- * <h3>Default behavior</h3>
+ * <p><b>Default behavior:</b>
  * The no-arg converter constructor uses {@link DefaultAdapterResolver}, which instantiates
  * adapters via their public no-arg constructor (backward-compatible behavior).
  *
- * <h3>Spring Boot integration</h3>
+ * <p><b>Spring Boot integration:</b>
  * <pre>{@code
  * @Bean
  * MetadataAdapterResolver adapterResolver(ApplicationContext ctx) {

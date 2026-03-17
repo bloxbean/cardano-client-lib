@@ -20,7 +20,7 @@ import java.lang.annotation.Target;
  * <p>When the encoder requires constructor arguments (e.g., configuration or services),
  * supply a {@link MetadataAdapterResolver} to the generated converter's constructor.
  *
- * <h3>Example</h3>
+ * <p><b>Example:</b>
  * <pre>{@code
  * @MetadataEncoder(SlotToEpochEncoder.class)
  * @MetadataField(key = "epoch")
