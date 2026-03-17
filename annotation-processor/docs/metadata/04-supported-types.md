@@ -57,7 +57,7 @@ private List<BigInteger> amounts;         // List of integers
 
 ### Set and SortedSet
 
-`Set<E>` and `SortedSet<E>` are also serialized as metadata lists. Element type rules are the same as `List`.
+`Set<E>` and `SortedSet<E>` are also serialized as metadata lists. `Set` supports the same element types as `List`. `SortedSet` requires `Comparable` elements, so `byte[]`, `URL`, `Currency`, and `Locale` are not allowed as element types.
 
 ```java
 private Set<String> categories;
@@ -147,6 +147,7 @@ Here `tokenA` is serialized as a nested metadata map containing `policy_id`, `as
 | `Instant`        | Metadata string        | ISO-8601 (`2024-01-15T10:30:00Z`) |
 | `LocalDate`      | Metadata string        | ISO-8601 (`2024-01-15`) |
 | `LocalDateTime`  | Metadata string        | ISO-8601 (`2024-01-15T10:30:00`) |
+| `Date`           | Metadata integer       | Epoch millis via `BigInteger.valueOf(date.getTime())`. With `enc = STRING`: ISO-8601 via `toInstant().toString()` |
 
 To use a custom representation (e.g., epoch seconds), use a [custom type adapter](06-advanced-topics.md#custom-type-adapters):
 

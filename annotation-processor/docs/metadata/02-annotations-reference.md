@@ -56,7 +56,9 @@ private String mediaType;
 ### Constraints
 
 - `required` and `defaultValue` are mutually exclusive — the processor reports a compile-time error if both are set.
+- `required = true` on `Optional` fields emits a compile-time warning (contradicts `Optional` semantics).
 - `defaultValue` only works on scalar and enum fields — not on collections, maps, `Optional`, `byte[]`, or nested `@MetadataType` fields.
+- `enc` on collection, map, `Optional`, or nested fields is silently reset to `DEFAULT` with a warning — except `STRING_HEX`/`STRING_BASE64` on `List<byte[]>` / `Set<byte[]>` which are supported.
 - When `adapter` is specified, the `enc` attribute is ignored.
 
 ### Examples
@@ -131,6 +133,7 @@ Used inside `@MetadataDiscriminator.subtypes()` to map discriminator values to c
 public interface MediaContent {}
 
 // Concrete subtype — must have @MetadataType
+@Data @NoArgsConstructor
 @MetadataType
 public class ImageContent implements MediaContent {
     private String url;
@@ -138,6 +141,7 @@ public class ImageContent implements MediaContent {
     private int height;
 }
 
+@Data @NoArgsConstructor
 @MetadataType
 public class AudioContent implements MediaContent {
     private String url;

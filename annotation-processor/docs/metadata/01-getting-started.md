@@ -185,6 +185,7 @@ public class MetadataExample {
 
 ## Next Steps
 
+- [Overview](00-overview.md) — feature highlights, architecture, and documentation roadmap
 - [Annotations Reference](02-annotations-reference.md) — full details on `@MetadataType`, `@MetadataField`, `@MetadataIgnore`, and polymorphic annotations
 - [Understanding Generated Converters](03-generated-converters.md) — how to use `MetadataConverter` and `LabeledMetadataConverter`
 - [Supported Types](04-supported-types.md) — complete list of supported Java types

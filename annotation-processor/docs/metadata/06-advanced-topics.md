@@ -68,6 +68,7 @@ public interface MediaContent {}
 Each subtype must be annotated with `@MetadataType` and implement the interface:
 
 ```java
+@Data @NoArgsConstructor
 @MetadataType
 public class ImageContent implements MediaContent {
     private String url;
@@ -75,6 +76,7 @@ public class ImageContent implements MediaContent {
     private int height;
 }
 
+@Data @NoArgsConstructor
 @MetadataType
 public class AudioContent implements MediaContent {
     private String url;
@@ -297,6 +299,7 @@ public record NftFileDetail(
 })
 public interface MediaContent {}
 
+@Data @NoArgsConstructor
 @MetadataType
 public class ImageContent implements MediaContent {
     private String url;

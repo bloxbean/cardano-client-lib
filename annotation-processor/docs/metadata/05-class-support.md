@@ -128,13 +128,14 @@ The generated `Cip25NftMetadataMetadataConverter` serializes and deserializes bo
 
 ## Constructor Validation
 
-The processor requires a no-arg constructor for POJOs and Lombok classes (records use their canonical constructor). If a class has no no-arg constructor, the processor reports a **compile-time error**:
+The processor requires a public no-arg constructor for POJOs and Lombok classes (records use their canonical constructor). If a class has no public no-arg constructor, the processor reports a **compile-time error**:
 
 ```
-error: @MetadataType class MyClass must have a no-arg constructor
+error: No public no-arg constructor found on 'MyClass'. The generated fromMetadataMap() calls
+new MyClass(). Add a public no-arg constructor or use @lombok.NoArgsConstructor.
 ```
 
-This applies to both the annotated class and any nested `@MetadataType` classes it references. To fix it, add a no-arg constructor explicitly or use `@NoArgsConstructor` with Lombok.
+This applies to both the annotated class and any nested `@MetadataType` classes it references. To fix it, add a public no-arg constructor explicitly or use `@NoArgsConstructor` with Lombok.
 
 ## Required Fields
 
