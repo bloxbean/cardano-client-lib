@@ -1,4 +1,4 @@
-# ADR metadata/0011: Date and Time Type Support (Instant, LocalDate, LocalDateTime, Date)
+# ADR metadata/0011: Date and Time Type Support (Instant, LocalDate, LocalDateTime, Date, Duration)
 
 - **Status**: Accepted
 - **Date**: 2026-02-20
@@ -6,11 +6,11 @@
 
 ## Context
 
-Timestamps and dates are among the most common non-primitive fields in domain models that
-get attached to Cardano metadata — transaction timestamps, validity periods, settlement
-dates. Without explicit support, `java.time.Instant`, `java.time.LocalDate`,
-`java.time.LocalDateTime`, and `java.util.Date` fields receive a compile-time WARNING and
-are silently skipped.
+Timestamps, dates, and durations are among the most common non-primitive fields in domain
+models that get attached to Cardano metadata — transaction timestamps, validity periods,
+settlement dates, lock periods. Without explicit support, `java.time.Instant`,
+`java.time.LocalDate`, `java.time.LocalDateTime`, `java.time.Duration`, and
+`java.util.Date` fields receive a compile-time WARNING and are silently skipped.
 
 Each type has a different relationship with timezones and precision:
 
@@ -19,6 +19,7 @@ Each type has a different relationship with timezones and precision:
 | `Instant` | Yes (UTC point in time) | Epoch seconds | ISO-8601 `"2024-01-15T10:30:00Z"` |
 | `LocalDate` | No | Epoch day | ISO-8601 `"2024-01-15"` |
 | `LocalDateTime` | No | None (ambiguous) | ISO-8601 `"2024-01-15T10:30:00"` |
+| `Duration` | N/A (a time amount, not a point) | Total seconds | ISO-8601 `"PT1H30M"` |
 | `java.util.Date` | Yes (UTC, millisecond precision) | Epoch milliseconds | ISO-8601 via `toInstant()` |
 
 `Instant`, `LocalDate`, and `Date` each have two meaningful on-chain representations.
@@ -26,7 +27,7 @@ Each type has a different relationship with timezones and precision:
 
 ## Decision
 
-Add all four types to `isSupportedScalarType()`. The `enc=` attribute (ADR 0004) selects
+Add all five types to `isSupportedScalarType()`. The `enc=` attribute (ADR 0004) selects
 between representations where multiple exist. The existing `MetadataFieldType` enum values
 (`DEFAULT` and `STRING`) are sufficient — no new enum values are needed.
 
@@ -107,6 +108,27 @@ can reconstruct exactly.
 should prefer `java.time.Instant`. The processor supports `Date` for compatibility with
 existing domain models that cannot be migrated.
 
+### Duration
+
+| `enc=` | Cardano type | Serialize | Deserialize |
+|---|---|---|---|
+| `DEFAULT` | integer | `BigInteger.valueOf(v.getSeconds())` | `Duration.ofSeconds(((BigInteger) v).longValue())` |
+| `STRING` | text | `v.toString()` | `Duration.parse((String) v)` |
+
+**Why DEFAULT = total seconds?**
+Consistent with `Instant`'s approach of using a compact integer representation. `Duration`
+stores a total number of seconds internally, making `getSeconds()` the natural, lossless
+integer mapping. This is analogous to `Instant`'s `getEpochSecond()`.
+
+**Why STRING = ISO-8601 (`PT1H30M`)?**
+`Duration.toString()` produces ISO-8601 duration format (e.g., `"PT1H30M"` for 1 hour
+30 minutes), which `Duration.parse()` can reconstruct exactly. This format is
+human-readable and unambiguous.
+
+**Round-trip precision**: `getSeconds()` drops nanosecond precision from the Duration.
+Durations with nanosecond components lose the nano part when serialized as DEFAULT.
+Use `enc=STRING` if sub-second precision must be preserved.
+
 ### Generated examples
 
 ```java
@@ -122,6 +144,9 @@ public class Event {
     private Date          legacyTimestamp;                      // DEFAULT: epoch millis
     @MetadataField(enc = MetadataFieldType.STRING)
     private Date          legacyExpiry;                         // STRING: ISO-8601
+    private Duration      ttl;                                   // DEFAULT: total seconds
+    @MetadataField(enc = MetadataFieldType.STRING)
+    private Duration      ttlAsString;                           // STRING: ISO-8601 (PT1H30M)
 }
 ```
 
@@ -148,6 +173,12 @@ if (event.getLegacyTimestamp() != null) {
 if (event.getLegacyExpiry() != null) {
     map.put("legacyExpiry", event.getLegacyExpiry().toInstant().toString());
 }
+if (event.getTtl() != null) {
+    map.put("ttl", BigInteger.valueOf(event.getTtl().getSeconds()));
+}
+if (event.getTtlAsString() != null) {
+    map.put("ttlAsString", event.getTtlAsString().toString());
+}
 ```
 
 ### enc= validation
@@ -157,13 +188,13 @@ if (event.getLegacyExpiry() != null) {
 
 ### Collection and Optional support
 
-All four types are added to `isSupportedScalarType()`, which automatically enables
-`List<Instant>`, `Set<LocalDate>`, `Optional<LocalDateTime>`, `Optional<Date>`, etc.
-Collection elements always use the **DEFAULT** encoding regardless of any `enc=` on the
-containing field — consistent with how collections handle all other types.
+All five types are added to `isSupportedScalarType()`, which automatically enables
+`List<Instant>`, `Set<LocalDate>`, `Optional<LocalDateTime>`, `List<Duration>`,
+`Optional<Date>`, etc. Collection elements always use the **DEFAULT** encoding regardless
+of any `enc=` on the containing field — consistent with how collections handle all other types.
 
-`Instant`, `LocalDate`, `LocalDateTime`, and `Date` all implement `Comparable`, so all
-four are permitted as `SortedSet<T>` element types.
+`Instant`, `LocalDate`, `LocalDateTime`, `Duration`, and `Date` all implement
+`Comparable`, so all five are permitted as `SortedSet<T>` element types.
 
 ### Generating code with two `$T` placeholders
 
@@ -242,7 +273,7 @@ Users who need epoch-second semantics should prefer `java.time.Instant`.
 
 ## Consequences
 
-- `MetadataAnnotationProcessor.isSupportedScalarType()` gains four new `case` labels.
+- `MetadataAnnotationProcessor.isSupportedScalarType()` gains five new `case` labels.
 - `MetadataConverterGenerator` gains `case` branches in `emitToMapPutDefault()`,
   `emitToMapPutAsString()`, `emitFromMapGetDefault()`, `emitFromMapGetAsString()`,
   `emitListElementAdd()`, `emitListElementRead()`, `emitFromMapGetOptional()`, and
@@ -258,4 +289,4 @@ Users who need epoch-second semantics should prefer `java.time.Instant`.
 - ADR metadata/0004: @MetadataField(enc=…) Type Override Mechanism
 - ADR metadata/0005: List\<T\> Field Support
 - ADR metadata/0008: Optional\<T\> Field Support
-- `MetadataConverterGeneratorTest$InstantFields` / `LocalDateFields` / `LocalDateTimeFields` / `DateFields` — unit tests
+- `MetadataConverterGeneratorTest$InstantFields` / `LocalDateFields` / `LocalDateTimeFields` / `DateFields` / `DurationFields` — unit tests
